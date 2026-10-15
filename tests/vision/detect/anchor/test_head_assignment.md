@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_head_assignment.cpp
 
 
-Suites: `Unit_DetectAnchorHeadAssignment`.
+Suites: `Small_DetectAnchorHeadAssignment`.
 
 Tests `assign_anchors_to_heads`, which gives each head, in the order of its stride, a run of
 anchor indices in ascending area and returns an `AnchorLayout`.

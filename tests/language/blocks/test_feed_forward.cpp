@@ -61,7 +61,7 @@ namespace
 }
 
 /** @brief Tests that a trace is reshape, linear, GELU, linear, reshape, and keeps the shape. */
-TEST(Unit_BlockFeedForward, ATraceMapsTheRowsThroughBothLayers)
+TEST(Small_BlockFeedForward, ATraceMapsTheRowsThroughBothLayers)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -88,7 +88,7 @@ TEST(Unit_BlockFeedForward, ATraceMapsTheRowsThroughBothLayers)
 }
 
 /** @brief Tests that the walk names the two linear layers, expand before project. */
-TEST(Unit_BlockFeedForward, TheWalkYieldsTheTwoLinearLayers)
+TEST(Small_BlockFeedForward, TheWalkYieldsTheTwoLinearLayers)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -115,7 +115,7 @@ TEST(Unit_BlockFeedForward, TheWalkYieldsTheTwoLinearLayers)
 }
 
 /** @brief Tests that an input of another rank or width, and a block of no width, each fail. */
-TEST(Unit_BlockFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
+TEST(Small_BlockFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -140,7 +140,7 @@ TEST(Unit_BlockFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
 }
 
 /** @brief Tests that the factory reads "hidden" and refuses its absence and a stray key. */
-TEST(Unit_BlockFeedForward, TheFactoryReadsTheHiddenWidth)
+TEST(Small_BlockFeedForward, TheFactoryReadsTheHiddenWidth)
 {
     const Shape input{5, K_DIM};
     const Config::Value good = Config::parse_json(R"({"hidden": 24})", "<test>");
@@ -167,7 +167,7 @@ TEST(Unit_BlockFeedForward, TheFactoryReadsTheHiddenWidth)
 }
 
 /** @brief Tests that the incremental form of one position is the ordinary trace of it. */
-TEST(Unit_BlockFeedForward, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
+TEST(Small_BlockFeedForward, TheIncrementalFormIsTheOrdinaryTraceOfOnePosition)
 {
     FeedForward whole(K_DIM, K_HIDDEN);
     Graph::Graph whole_graph;

@@ -51,7 +51,7 @@ namespace
 } // namespace
 
 /** @brief Tests that every column but the last is a feature and the last is the target. */
-TEST(Unit_DatasetsCsv, TheLastColumnIsTheTargetByDefault)
+TEST(Small_DatasetsCsv, TheLastColumnIsTheTargetByDefault)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_default");
     scratch.write_text("train.csv", "a,b,y\n1,2,3\n-0.5,+4,1e1\n");
@@ -75,7 +75,7 @@ TEST(Unit_DatasetsCsv, TheLastColumnIsTheTargetByDefault)
 }
 
 /** @brief Tests that named columns are taken in the order named and the others are not read. */
-TEST(Unit_DatasetsCsv, NamedColumnsAreTakenInTheOrderNamed)
+TEST(Small_DatasetsCsv, NamedColumnsAreTakenInTheOrderNamed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_named");
     scratch.write_text("data/set.csv", "id,x,y,z\nfirst,1,2,3\nsecond,4,5,6\n");
@@ -95,7 +95,7 @@ TEST(Unit_DatasetsCsv, NamedColumnsAreTakenInTheOrderNamed)
 }
 
 /** @brief Tests quoted fields, a doubled quote, a line break inside quotes, CRLF and a mark. */
-TEST(Unit_DatasetsCsv, QuotedFieldsAndCarriageReturnsAreRead)
+TEST(Small_DatasetsCsv, QuotedFieldsAndCarriageReturnsAreRead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_quoted");
     scratch.write_text("train.csv", "\xEF\xBB\xBF\"the \"\"x\"\", one\",\"note\nlong\", y \r\n"
@@ -112,7 +112,7 @@ TEST(Unit_DatasetsCsv, QuotedFieldsAndCarriageReturnsAreRead)
 }
 
 /** @brief Tests that a cell that is no finite number is refused with its line and column. */
-TEST(Unit_DatasetsCsv, ANonNumericCellNamesItsLineAndColumn)
+TEST(Small_DatasetsCsv, ANonNumericCellNamesItsLineAndColumn)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_cell");
 
@@ -133,7 +133,7 @@ TEST(Unit_DatasetsCsv, ANonNumericCellNamesItsLineAndColumn)
 }
 
 /** @brief Tests that a record of another field count is refused with its line. */
-TEST(Unit_DatasetsCsv, ARecordOfAnotherFieldCountIsRefused)
+TEST(Small_DatasetsCsv, ARecordOfAnotherFieldCountIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_fields");
     scratch.write_text("train.csv", "a,b,y\n1,2,3\n\n4,5\n");
@@ -143,7 +143,7 @@ TEST(Unit_DatasetsCsv, ARecordOfAnotherFieldCountIsRefused)
 }
 
 /** @brief Tests that a quote left open, and text after a closing quote, are refused. */
-TEST(Unit_DatasetsCsv, MalformedQuotesAreRefused)
+TEST(Small_DatasetsCsv, MalformedQuotesAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_quotes");
 
@@ -161,7 +161,7 @@ TEST(Unit_DatasetsCsv, MalformedQuotesAreRefused)
 }
 
 /** @brief Tests that a column the header lacks is refused with the names it has. */
-TEST(Unit_DatasetsCsv, AColumnTheHeaderLacksIsRefused)
+TEST(Small_DatasetsCsv, AColumnTheHeaderLacksIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_columns");
     scratch.write_text("train.csv", "a,b,y\n1,2,3\n");
@@ -178,7 +178,7 @@ TEST(Unit_DatasetsCsv, AColumnTheHeaderLacksIsRefused)
 }
 
 /** @brief Tests that a header name used twice, and a single column, are refused. */
-TEST(Unit_DatasetsCsv, AHeaderMustNameItsColumnsOnceAndLeaveAFeature)
+TEST(Small_DatasetsCsv, AHeaderMustNameItsColumnsOnceAndLeaveAFeature)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_header");
 
@@ -192,7 +192,7 @@ TEST(Unit_DatasetsCsv, AHeaderMustNameItsColumnsOnceAndLeaveAFeature)
 }
 
 /** @brief Tests that an absent file, an empty one and one with no record are refused. */
-TEST(Unit_DatasetsCsv, AFileWithoutRecordsIsRefused)
+TEST(Small_DatasetsCsv, AFileWithoutRecordsIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_csv_empty");
 

@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_fold.cpp
 
 
-Suites: `Unit_DarknetFold`.
+Suites: `Small_DarknetFold`.
 
 Tests `fold_darknet_normalisation`, which folds the scales, rolling means and rolling
 variances of a `DarknetConvolution` into its weights and biases with the epsilon 0.00001.

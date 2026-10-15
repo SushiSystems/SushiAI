@@ -117,7 +117,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Result, HoldsAValueWithASuccessStatus)
+TEST(Small_Result, HoldsAValueWithASuccessStatus)
 {
     Result<int> result(7);
     EXPECT_TRUE(result.has_value());
@@ -129,7 +129,7 @@ TEST(Unit_Result, HoldsAValueWithASuccessStatus)
     EXPECT_EQ(view.value(), 9);
 }
 
-TEST(Unit_Result, HoldsAFailureAndNoValue)
+TEST(Small_Result, HoldsAFailureAndNoValue)
 {
     const Result<int> result(description_failure("rank must be 2"));
     EXPECT_FALSE(result.has_value());
@@ -137,7 +137,7 @@ TEST(Unit_Result, HoldsAFailureAndNoValue)
     SA_EXPECT_FAILURE(result.status(), StatusCode::InvalidDescription, "rank must be 2");
 }
 
-TEST(Unit_Result, ReturnStatementsConvertFromAValueAndFromAStatus)
+TEST(Small_Result, ReturnStatementsConvertFromAValueAndFromAStatus)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int extent, checked_extent(5));
     EXPECT_EQ(extent, 5);
@@ -147,7 +147,7 @@ TEST(Unit_Result, ReturnStatementsConvertFromAValueAndFromAStatus)
 }
 
 // A Result of int stores its value in place, so an unchanged block count means no allocation.
-TEST(Unit_Result, SuccessPathCreatesNoFailureBlock)
+TEST(Small_Result, SuccessPathCreatesNoFailureBlock)
 {
     const std::size_t before = live_failure_count();
 
@@ -161,7 +161,7 @@ TEST(Unit_Result, SuccessPathCreatesNoFailureBlock)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Result, RvalueValueMovesAMoveOnlyValueOut)
+TEST(Small_Result, RvalueValueMovesAMoveOnlyValueOut)
 {
     Result<std::unique_ptr<int>> result = boxed_extent(11);
     ASSERT_TRUE(result.has_value());
@@ -171,7 +171,7 @@ TEST(Unit_Result, RvalueValueMovesAMoveOnlyValueOut)
     EXPECT_EQ(*taken, 11);
 }
 
-TEST(Unit_Result, MovedFromValueResultStillHoldsAMovedFromValue)
+TEST(Small_Result, MovedFromValueResultStillHoldsAMovedFromValue)
 {
     Result<std::unique_ptr<int>> source = boxed_extent(2);
     const Result<std::unique_ptr<int>> target(std::move(source));
@@ -183,7 +183,7 @@ TEST(Unit_Result, MovedFromValueResultStillHoldsAMovedFromValue)
     EXPECT_TRUE(source.value() == nullptr);
 }
 
-TEST(Unit_Result, MovedFromFailureResultKeepsItsFailure)
+TEST(Small_Result, MovedFromFailureResultKeepsItsFailure)
 {
     Result<int> source(description_failure("layout must be NHWC"));
     const Result<int> target(std::move(source));
@@ -193,7 +193,7 @@ TEST(Unit_Result, MovedFromFailureResultKeepsItsFailure)
     SA_EXPECT_FAILURE(source, StatusCode::InvalidDescription, "layout must be NHWC");
 }
 
-TEST(Unit_Result, CopyAndAssignmentCarryTheHeldState)
+TEST(Small_Result, CopyAndAssignmentCarryTheHeldState)
 {
     const Result<int> failed(description_failure("no such key"));
     Result<int> result(1);
@@ -208,7 +208,7 @@ TEST(Unit_Result, CopyAndAssignmentCarryTheHeldState)
     EXPECT_EQ(result.value(), 8);
 }
 
-TEST(Unit_Result, TryAssignBindsTheValueOrReturnsTheFailure)
+TEST(Small_Result, TryAssignBindsTheValueOrReturnsTheFailure)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int doubled, doubled_extent(21));
     EXPECT_EQ(doubled, 42);
@@ -216,7 +216,7 @@ TEST(Unit_Result, TryAssignBindsTheValueOrReturnsTheFailure)
     SA_EXPECT_FAILURE(doubled_extent(0), StatusCode::InvalidDescription, "got 0");
 }
 
-TEST(Unit_Result, TryAssignMovesFromATemporaryResult)
+TEST(Small_Result, TryAssignMovesFromATemporaryResult)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int value, unboxed_extent(6));
     EXPECT_EQ(value, 6);
@@ -224,7 +224,7 @@ TEST(Unit_Result, TryAssignMovesFromATemporaryResult)
     SA_EXPECT_FAILURE(unboxed_extent(-6), StatusCode::InvalidDescription, "got -6");
 }
 
-TEST(Unit_Result, ReferenceFormRefersToTheCallersObject)
+TEST(Small_Result, ReferenceFormRefersToTheCallersObject)
 {
     int slots[2] = {10, 20};
 
@@ -241,7 +241,7 @@ TEST(Unit_Result, ReferenceFormRefersToTheCallersObject)
     EXPECT_EQ(&constant.value(), &fixed);
 }
 
-TEST(Unit_Result, TryReadsAStatusReferenceIntoATemporaryResult)
+TEST(Small_Result, TryReadsAStatusReferenceIntoATemporaryResult)
 {
     const std::size_t before = live_failure_count();
     bool passed = false;
@@ -256,7 +256,7 @@ TEST(Unit_Result, TryReadsAStatusReferenceIntoATemporaryResult)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Result, MovedFromReferenceResultKeepsItsState)
+TEST(Small_Result, MovedFromReferenceResultKeepsItsState)
 {
     int slots[2] = {10, 20};
 
@@ -285,7 +285,7 @@ TEST(Unit_Result, MovedFromReferenceResultKeepsItsState)
     EXPECT_EQ(&assigned.value(), &slots[0]);
 }
 
-TEST(Unit_Result, ReferenceFormHoldsAFailure)
+TEST(Small_Result, ReferenceFormHoldsAFailure)
 {
     int slots[2] = {10, 20};
 
@@ -294,7 +294,7 @@ TEST(Unit_Result, ReferenceFormHoldsAFailure)
     SA_EXPECT_FAILURE(missing, StatusCode::InvalidDescription, "slot 2 is not one of 2");
 }
 
-TEST(Unit_Result, TryAssignBindsAReferenceFromTheReferenceForm)
+TEST(Small_Result, TryAssignBindsAReferenceFromTheReferenceForm)
 {
     int slots[2] = {10, 20};
 
@@ -305,7 +305,7 @@ TEST(Unit_Result, TryAssignBindsAReferenceFromTheReferenceForm)
     EXPECT_EQ(slots[1], 20);
 }
 
-TEST(Unit_Result, ValueOnAFailureIsFatalAndPrintsTheFailure)
+TEST(Small_Result, ValueOnAFailureIsFatalAndPrintsTheFailure)
 {
     const Result<int> failed(description_failure("rank must be 2"));
     SA_EXPECT_FATAL((void)failed.value(),
@@ -316,7 +316,7 @@ TEST(Unit_Result, ValueOnAFailureIsFatalAndPrintsTheFailure)
                     "Result::value() was called on a failure", "no such slot");
 }
 
-TEST(Unit_Result, BuildingFromASuccessStatusIsFatal)
+TEST(Small_Result, BuildingFromASuccessStatusIsFatal)
 {
     SA_EXPECT_FATAL((void)Result<int>(Status()), "a Result was built from a success Status");
     SA_EXPECT_FATAL((void)Result<int&>(Status()), "a Result was built from a success Status");

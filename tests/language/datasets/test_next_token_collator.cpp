@@ -57,7 +57,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides an engine and the batches these tests collate into. */
-    class Unit_LanguageDatasetsNextTokenCollator : public SaTest::EngineTest
+    class Medium_LanguageDatasetsNextTokenCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a batch of an input and a labels tensor of [rows, length]. */
@@ -87,7 +87,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the collator states its task, its window and the labels role. */
-TEST_F(Unit_LanguageDatasetsNextTokenCollator, ItDescribesTheTask)
+TEST_F(Medium_LanguageDatasetsNextTokenCollator, ItDescribesTheTask)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenCollator> collator,
                             NextTokenCollator::make(3, 50));
@@ -106,7 +106,7 @@ TEST_F(Unit_LanguageDatasetsNextTokenCollator, ItDescribesTheTask)
 }
 
 /** @brief Tests that labels[n][t] is the id that follows inputs[n][t] in its window. */
-TEST_F(Unit_LanguageDatasetsNextTokenCollator, LabelsHoldTheNextTokenOfEachPosition)
+TEST_F(Medium_LanguageDatasetsNextTokenCollator, LabelsHoldTheNextTokenOfEachPosition)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenCollator> collator,
                             NextTokenCollator::make(3, 50));
@@ -128,7 +128,7 @@ TEST_F(Unit_LanguageDatasetsNextTokenCollator, LabelsHoldTheNextTokenOfEachPosit
 }
 
 /** @brief Tests that a window length or a vocabulary size below 1 is refused. */
-TEST_F(Unit_LanguageDatasetsNextTokenCollator, MakeRefusesExtentsOutOfBounds)
+TEST_F(Medium_LanguageDatasetsNextTokenCollator, MakeRefusesExtentsOutOfBounds)
 {
     SA_EXPECT_FAILURE(NextTokenCollator::make(0, 50), StatusCode::InvalidDescription,
                       "NextTokenCollator", "window of 0 positions");
@@ -137,7 +137,7 @@ TEST_F(Unit_LanguageDatasetsNextTokenCollator, MakeRefusesExtentsOutOfBounds)
 }
 
 /** @brief Tests that ids that are no whole windows, and a batch of another shape, are refused. */
-TEST_F(Unit_LanguageDatasetsNextTokenCollator, CollateRefusesWhatDoesNotFit)
+TEST_F(Medium_LanguageDatasetsNextTokenCollator, CollateRefusesWhatDoesNotFit)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenCollator> collator,
                             NextTokenCollator::make(3, 50));

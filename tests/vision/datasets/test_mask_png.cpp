@@ -60,7 +60,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each image, in sorted order, refers to the mask of its stem. */
-TEST(Unit_DatasetsMaskPng, EachImageRefersToTheMaskOfItsStem)
+TEST(Small_DatasetsMaskPng, EachImageRefersToTheMaskOfItsStem)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_pairs");
     scratch.write("images/train/b.jpg", {1});
@@ -91,7 +91,7 @@ TEST(Unit_DatasetsMaskPng, EachImageRefersToTheMaskOfItsStem)
 }
 
 /** @brief Tests that the two folders may be named and the split left out. */
-TEST(Unit_DatasetsMaskPng, TheFoldersMayBeNamedAndTheSplitLeftOut)
+TEST(Small_DatasetsMaskPng, TheFoldersMayBeNamedAndTheSplitLeftOut)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_folders");
     scratch.write("leftImg8bit/a.png", {1});
@@ -109,7 +109,7 @@ TEST(Unit_DatasetsMaskPng, TheFoldersMayBeNamedAndTheSplitLeftOut)
 }
 
 /** @brief Tests that an image without a mask is refused with both paths. */
-TEST(Unit_DatasetsMaskPng, AnImageWithoutAMaskIsRefused)
+TEST(Small_DatasetsMaskPng, AnImageWithoutAMaskIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_absent");
     scratch.write("images/train/a.jpg", {1});
@@ -122,7 +122,7 @@ TEST(Unit_DatasetsMaskPng, AnImageWithoutAMaskIsRefused)
 }
 
 /** @brief Tests that a mask without an image is refused with its path. */
-TEST(Unit_DatasetsMaskPng, AMaskWithoutAnImageIsRefused)
+TEST(Small_DatasetsMaskPng, AMaskWithoutAnImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_orphan");
     scratch.write("images/train/a.jpg", {1});
@@ -134,7 +134,7 @@ TEST(Unit_DatasetsMaskPng, AMaskWithoutAnImageIsRefused)
 }
 
 /** @brief Tests that two images of one stem, which would share a mask, are refused. */
-TEST(Unit_DatasetsMaskPng, TwoImagesOfOneStemAreRefused)
+TEST(Small_DatasetsMaskPng, TwoImagesOfOneStemAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_shared");
     scratch.write("images/train/a.jpg", {1});
@@ -146,7 +146,7 @@ TEST(Unit_DatasetsMaskPng, TwoImagesOfOneStemAreRefused)
 }
 
 /** @brief Tests that a class count below 1, an absent folder and an empty one are refused. */
-TEST(Unit_DatasetsMaskPng, TheOptionsAndTheFoldersAreChecked)
+TEST(Small_DatasetsMaskPng, TheOptionsAndTheFoldersAreChecked)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_folders_absent");
 
@@ -168,7 +168,7 @@ TEST(Unit_DatasetsMaskPng, TheOptionsAndTheFoldersAreChecked)
 }
 
 /** @brief Tests that the suffixes pair names that differ, as those of Cityscapes do. */
-TEST(Unit_DatasetsMaskPng, TheSuffixesPairNamesThatDiffer)
+TEST(Small_DatasetsMaskPng, TheSuffixesPairNamesThatDiffer)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_suffixes");
     scratch.write("leftImg8bit/train/aachen/aachen_000000_leftImg8bit.png", {1});
@@ -198,7 +198,7 @@ TEST(Unit_DatasetsMaskPng, TheSuffixesPairNamesThatDiffer)
 }
 
 /** @brief Tests that an image whose name lacks the image suffix is refused with its path. */
-TEST(Unit_DatasetsMaskPng, AnImageWithoutTheImageSuffixIsRefused)
+TEST(Small_DatasetsMaskPng, AnImageWithoutTheImageSuffixIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_suffix_missing");
     scratch.write("images/train/a_left.png", {1});
@@ -214,7 +214,7 @@ TEST(Unit_DatasetsMaskPng, AnImageWithoutTheImageSuffixIsRefused)
 }
 
 /** @brief Tests that a mask of the mask suffix that no image is paired with is refused. */
-TEST(Unit_DatasetsMaskPng, AMaskOfTheSuffixWithoutAnImageIsRefused)
+TEST(Small_DatasetsMaskPng, AMaskOfTheSuffixWithoutAnImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_mask_suffix_unpaired");
     scratch.write("images/train/a.jpg", {1});

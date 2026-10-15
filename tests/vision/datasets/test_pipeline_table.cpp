@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the table lists none, then default, and finds each by its name. */
-TEST(Unit_DatasetsPipelineTable, ItListsNoneThenDefault)
+TEST(Small_DatasetsPipelineTable, ItListsNoneThenDefault)
 {
     const SushiRuntime::span<const PipelineEntry> rows = pipeline_table();
     ASSERT_EQ(rows.size(), 2u);
@@ -78,7 +78,7 @@ TEST(Unit_DatasetsPipelineTable, ItListsNoneThenDefault)
 }
 
 /** @brief Tests that each row builds the pipeline of its name. */
-TEST(Unit_DatasetsPipelineTable, ARowBuildsThePipelineOfItsName)
+TEST(Small_DatasetsPipelineTable, ARowBuildsThePipelineOfItsName)
 {
     PipelineRequest request;
     request.fit.size = ImageSize{K_SIDE, K_SIDE};
@@ -94,7 +94,7 @@ TEST(Unit_DatasetsPipelineTable, ARowBuildsThePipelineOfItsName)
 }
 
 /** @brief Tests that default refuses an input that is not square or not of three channels. */
-TEST(Unit_DatasetsPipelineTable, DefaultRefusesAnInputItDoesNotMake)
+TEST(Small_DatasetsPipelineTable, DefaultRefusesAnInputItDoesNotMake)
 {
     const PipelineEntry* const row = find_pipeline(K_PIPELINE_DEFAULT);
     ASSERT_NE(row, nullptr);

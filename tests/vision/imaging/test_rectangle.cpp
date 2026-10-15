@@ -58,7 +58,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the settings default to the reference's validation run. */
-TEST(Unit_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
+TEST(Small_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
 {
     const RectangleSettings settings;
 
@@ -69,7 +69,7 @@ TEST(Unit_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
 }
 
 /** @brief Tests that images are ordered by rising height over width, ties in index order. */
-TEST(Unit_ImagingRectangle, OrderRisesWithTheAspectRatioAndKeepsTies)
+TEST(Small_ImagingRectangle, OrderRisesWithTheAspectRatioAndKeepsTies)
 {
     const RectangularBatches batches =
         plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5));
@@ -80,7 +80,7 @@ TEST(Unit_ImagingRectangle, OrderRisesWithTheAspectRatioAndKeepsTies)
 }
 
 /** @brief Tests that the batch shapes equal the ones the reference's set_rectangle gives. */
-TEST(Unit_ImagingRectangle, ShapesMatchTheReferenceArithmetic)
+TEST(Small_ImagingRectangle, ShapesMatchTheReferenceArithmetic)
 {
     // data/base.py:405-427 run on these sizes with numpy gives the shapes below.
     const std::vector<ImageSize> sizes = make_sizes();
@@ -97,7 +97,7 @@ TEST(Unit_ImagingRectangle, ShapesMatchTheReferenceArithmetic)
 }
 
 /** @brief Tests that a position's shape is the shape of the batch that holds it. */
-TEST(Unit_ImagingRectangle, ShapeAtNamesTheBatchOfAPosition)
+TEST(Small_ImagingRectangle, ShapeAtNamesTheBatchOfAPosition)
 {
     const RectangularBatches batches =
         plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5));
@@ -110,7 +110,7 @@ TEST(Unit_ImagingRectangle, ShapeAtNamesTheBatchOfAPosition)
 }
 
 /** @brief Tests that every side of every shape is a whole number of strides. */
-TEST(Unit_ImagingRectangle, EverySideIsAMultipleOfTheStride)
+TEST(Small_ImagingRectangle, EverySideIsAMultipleOfTheStride)
 {
     RectangleSettings settings = make_settings(2, 600, 0.5);
     settings.stride = 64;
@@ -128,7 +128,7 @@ TEST(Unit_ImagingRectangle, EverySideIsAMultipleOfTheStride)
 }
 
 /** @brief Tests that one image makes one batch whose long side holds the image size. */
-TEST(Unit_ImagingRectangle, OneWideImageGivesOneWideShape)
+TEST(Small_ImagingRectangle, OneWideImageGivesOneWideShape)
 {
     const RectangularBatches batches =
         plan_rectangular_batches({ImageSize{480, 640}}, make_settings(32, 640, 0.5));
@@ -139,7 +139,7 @@ TEST(Unit_ImagingRectangle, OneWideImageGivesOneWideShape)
 }
 
 /** @brief Tests that the settings and the sizes are refused outside their ranges. */
-TEST(Unit_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
+TEST(Small_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
 {
     const std::vector<ImageSize> sizes = make_sizes();
     RectangleSettings no_batch;
@@ -170,7 +170,7 @@ TEST(Unit_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
 }
 
 /** @brief Tests that a shape whose side would pass the image bound is refused. */
-TEST(Unit_ImagingRectangle, RejectsAShapeAboveTheImageBound)
+TEST(Small_ImagingRectangle, RejectsAShapeAboveTheImageBound)
 {
     RectangleSettings settings = make_settings(1, K_MAX_IMAGE_SIDE, 0.5);
 

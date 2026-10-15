@@ -3,7 +3,7 @@
 
 BatchNorm2d's two trace forms and the running-statistic update.
 
-Suites: `Unit_BatchNorm2d`, `Unit_BatchNorm2dDeathTest`.
+Suites: `Small_BatchNorm2d`, `Small_BatchNorm2dDeathTest`.
 
 Tests BatchNorm2d's two trace forms and the running-statistic update.
 
@@ -194,13 +194,13 @@ The input shape [48] fails with "[48]" and "[H, W, C]". A `bn_epsilon` of -1.0 f
 
 ## TheTrainingFormUnderAnEvaluationTraceIsFatal
 
-The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_training` given an evaluation
+The case is in the suite `Small_BatchNorm2dDeathTest`. `trace_training` given an evaluation
 trace stops the process with a report containing "trace_training" and "was given an evaluation
 trace".
 
 ## ATraceOverAValueTheGraphLacksIsFatal
 
-The case is in the suite `Unit_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops the
+The case is in the suite `Small_BatchNorm2dDeathTest`. `trace_evaluation` over value 7 stops the
 process with a report containing "BatchNorm2d(3)", "value 7" and "holds 1 values".
 
 ## TraceLayerPicksTheFormOfTheMode

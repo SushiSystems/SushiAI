@@ -56,7 +56,7 @@ feature that plan hasn't reached.
   gelu` runs it.
 - **A memory planner and per-lifetime arenas** (`graph/memory_plan.hpp`,
   `graph/arena.hpp`): IR values packed into arenas by lifetime instead of one
-  `Storage` each, pinned by `Regression_StaticMemory`.
+  `Storage` each, pinned by `Medium_StaticMemory`.
 - **Mixed-precision dtype plumbing** (`graph/precision.hpp`,
   `graph/cast_insertion.hpp`): a per-operation precision policy and an
   IR-to-IR pass that inserts explicit `CAST` nodes at every dtype boundary, so
@@ -237,17 +237,15 @@ It trains a small classifier and prints the loss, the device tasks per step and 
 ## Running the tests
 
 ```bash
-sa test                          # functional (unit + integration + regression) — the default
-sa test --suite unit
-sa test --suite integration
-sa test --suite regression
-sa test --suite all
+sa test                          # small and medium, without the quarantined: the default
+sa test --label small
+sa test --label medium
+sa test --label large            # a real GPU or a long run; by hand, before a release
+sa test --label all
 
 sa run sushiai_core_graph_tests                        # one module's cases in one process
-sa run sushiai_core_version_tests -- --gtest_filter='Unit_Version.*'
+sa run sushiai_core_version_tests -- --gtest_filter='Small_Version.*'
 
-ctest --test-dir build -L unit
-ctest --test-dir build -L regression
 ```
 
 Each module builds its own test program, `sushiai_<tier>_<module>_tests`, from
@@ -256,7 +254,9 @@ the files under `tests/<tier>/<module>/`; `tests/README.md` describes the tree.
 SushiBLAS builds its own suite only when it is the top-level project
 (`SB_BUILD_TESTS`), so none of its tests are compiled or counted here.
 
-The `regression` tier pins guarantees whose failure is silent: today
+A test's size comes from its suite-name prefix, `Small_`, `Medium_` or `Large_`, and CTest
+labels it with that size and enforces its timeout of 60, 300 or 900 seconds. Some medium
+tests pin guarantees whose failure is silent: today
 `compile_count() == 1` across repeated `fit()` calls, and the fact that every
 replay actually dispatches instead of reporting complete over an unarmed plan
 (see `tests/layers/train/test_trainer/test_compile_once.cpp`).

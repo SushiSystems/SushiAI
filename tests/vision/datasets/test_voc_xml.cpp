@@ -83,7 +83,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the listed annotations are read and their classes sorted by name. */
-TEST(Unit_DatasetsVocXml, TheListedAnnotationsAreReadWithSortedClasses)
+TEST(Small_DatasetsVocXml, TheListedAnnotationsAreReadWithSortedClasses)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_list");
     scratch.write_text("ImageSets/Main/train.txt", "second\r\n\nfirst  1\n");
@@ -119,7 +119,7 @@ TEST(Unit_DatasetsVocXml, TheListedAnnotationsAreReadWithSortedClasses)
 }
 
 /** @brief Tests that an empty split reads every annotation of the folder, sorted. */
-TEST(Unit_DatasetsVocXml, AnEmptySplitReadsEveryAnnotation)
+TEST(Small_DatasetsVocXml, AnEmptySplitReadsEveryAnnotation)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_folder");
     scratch.write_text("Annotations/b.xml", annotation_of(object_of("dog", "0", K_EDGES)));
@@ -138,7 +138,7 @@ TEST(Unit_DatasetsVocXml, AnEmptySplitReadsEveryAnnotation)
 }
 
 /** @brief Tests that a difficult object is dropped unless the options keep it. */
-TEST(Unit_DatasetsVocXml, ADifficultObjectIsDroppedUnlessKept)
+TEST(Small_DatasetsVocXml, ADifficultObjectIsDroppedUnlessKept)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_difficult");
     scratch.write_text("ImageSets/Main/train.txt", "first\n");
@@ -158,7 +158,7 @@ TEST(Unit_DatasetsVocXml, ADifficultObjectIsDroppedUnlessKept)
 }
 
 /** @brief Tests that a stated class list gives the indices and refuses a name it lacks. */
-TEST(Unit_DatasetsVocXml, AStatedClassListGivesTheIndices)
+TEST(Small_DatasetsVocXml, AStatedClassListGivesTheIndices)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_classes");
     scratch.write_text("ImageSets/Main/train.txt", "first\n");
@@ -182,7 +182,7 @@ TEST(Unit_DatasetsVocXml, AStatedClassListGivesTheIndices)
 }
 
 /** @brief Tests that what parse_xml refuses is returned with the annotation and its line. */
-TEST(Unit_DatasetsVocXml, AMalformedAnnotationNamesItsFileAndLine)
+TEST(Small_DatasetsVocXml, AMalformedAnnotationNamesItsFileAndLine)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_malformed");
     scratch.write_text("ImageSets/Main/train.txt", "first\n");
@@ -193,7 +193,7 @@ TEST(Unit_DatasetsVocXml, AMalformedAnnotationNamesItsFileAndLine)
 }
 
 /** @brief Tests that an element or a number the layout requires is refused with its line. */
-TEST(Unit_DatasetsVocXml, AMissingElementOrNumberIsRefused)
+TEST(Small_DatasetsVocXml, AMissingElementOrNumberIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_missing");
     scratch.write_text("ImageSets/Main/train.txt", "first\n");
@@ -227,7 +227,7 @@ TEST(Unit_DatasetsVocXml, AMissingElementOrNumberIsRefused)
 }
 
 /** @brief Tests that an absent list, and a stem without an annotation, are refused. */
-TEST(Unit_DatasetsVocXml, TheListAndItsStemsMustExist)
+TEST(Small_DatasetsVocXml, TheListAndItsStemsMustExist)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_voc_absent");
 

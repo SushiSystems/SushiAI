@@ -72,7 +72,7 @@ namespace
     using Vision::Importers::DarknetNormalisation;
     using Vision::Importers::DarknetWeightTarget;
 
-    class Unit_DarknetModelState : public SaTest::EngineTest {};
+    class Medium_DarknetModelState : public SaTest::EngineTest {};
 
     /** @brief Holds the first section and layers 0 to 11 of yolov3-tiny.cfg, as input data. */
     constexpr std::string_view K_TINY_BACKBONE =
@@ -202,7 +202,7 @@ namespace
  * a plain one with a linear activation one, a pool, an upsample and a two-layer route one each,
  * and a one-layer route and a [yolo] none.
  */
-TEST(Unit_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
+TEST(Small_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Separate));
@@ -251,7 +251,7 @@ TEST(Unit_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
 }
 
 /** @brief Tests that the Folded form drops every batch-norm row and keeps the sources. */
-TEST(Unit_DarknetModel, FoldedFormHasNoNormalisationRow)
+TEST(Small_DarknetModel, FoldedFormHasNoNormalisationRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Folded));
@@ -281,7 +281,7 @@ TEST(Unit_DarknetModel, FoldedFormHasNoNormalisationRow)
  * A fraction is compared to four units in the last place: the translation divides in double
  * and rounds once, the test divides in float.
  */
-TEST(Unit_DarknetModel, HeadsCarryTheirOutputsOptionsAndAnchors)
+TEST(Small_DarknetModel, HeadsCarryTheirOutputsOptionsAndAnchors)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Separate));
@@ -322,7 +322,7 @@ TEST(Unit_DarknetModel, HeadsCarryTheirOutputsOptionsAndAnchors)
  * 8 858 734 is the float count of yolov3-tiny.weights after its header (SPEC 4.2), measured
  * from the file's size.
  */
-TEST(Unit_DarknetModel, ShapesCountTheFloatsOfTheWeightsFile)
+TEST(Small_DarknetModel, ShapesCountTheFloatsOfTheWeightsFile)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Folded));
@@ -345,7 +345,7 @@ TEST(Unit_DarknetModel, ShapesCountTheFloatsOfTheWeightsFile)
 }
 
 /** @brief Tests that the Separate model builds and every target names an entry of its state. */
-TEST_F(Unit_DarknetModelState, SeparateFormBuildsAndItsTargetsAreStateEntries)
+TEST_F(Medium_DarknetModelState, SeparateFormBuildsAndItsTargetsAreStateEntries)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Separate));
@@ -360,7 +360,7 @@ TEST_F(Unit_DarknetModelState, SeparateFormBuildsAndItsTargetsAreStateEntries)
 }
 
 /** @brief Tests that the Folded model builds and every target names an entry of its state. */
-TEST_F(Unit_DarknetModelState, FoldedFormBuildsAndItsTargetsAreStateEntries)
+TEST_F(Medium_DarknetModelState, FoldedFormBuildsAndItsTargetsAreStateEntries)
 {
     SA_ASSERT_OK_AND_ASSIGN(const DarknetModel model,
                             translate_tiny(DarknetNormalisation::Folded));
@@ -370,7 +370,7 @@ TEST_F(Unit_DarknetModelState, FoldedFormBuildsAndItsTargetsAreStateEntries)
 }
 
 /** @brief Tests that a head with the keys of YOLOv7 is Activated, stretched and DistanceIoU. */
-TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
+TEST(Small_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
 {
     const std::string text = std::string(K_SMALL_NETWORK)
                                  .append(K_SMALL_HEAD)
@@ -396,7 +396,7 @@ TEST(Unit_DarknetModel, AnActivatedHeadReadsItsStretchAndItsSuppression)
 }
 
 /** @brief Tests that diounms takes its exponent from beta_nms and greedynms never does. */
-TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNMS)
+TEST(Small_DarknetModel, OnlyDiounmsReadsBetaNMS)
 {
     const std::string head = std::string(K_SMALL_NETWORK).append(K_SMALL_HEAD);
 
@@ -416,7 +416,7 @@ TEST(Unit_DarknetModel, OnlyDiounmsReadsBetaNMS)
 }
 
 /** @brief Tests that the criterion is the one of the last [yolo] section of the file. */
-TEST(Unit_DarknetModel, TheLastHeadDecidesTheCriterion)
+TEST(Small_DarknetModel, TheLastHeadDecidesTheCriterion)
 {
     const std::string text =
         std::string(K_SMALL_NETWORK)
@@ -432,7 +432,7 @@ TEST(Unit_DarknetModel, TheLastHeadDecidesTheCriterion)
 }
 
 /** @brief Tests that a section type outside the table is refused and its line is named. */
-TEST(Unit_DarknetModel, AnUnknownSectionIsRefusedNamingItsLine)
+TEST(Small_DarknetModel, AnUnknownSectionIsRefusedNamingItsLine)
 {
     const std::string text = std::string(K_SMALL_NETWORK).append("[reorg]\nstride=2\n");
 
@@ -441,7 +441,7 @@ TEST(Unit_DarknetModel, AnUnknownSectionIsRefusedNamingItsLine)
 }
 
 /** @brief Tests that an unknown key of a layer and of the first section is refused by line. */
-TEST(Unit_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
+TEST(Small_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
 {
     const std::string grouped =
         "[net]\nwidth=32\nheight=32\nchannels=3\n[convolutional]\nfilters=4\ngroups=2\n";
@@ -459,7 +459,7 @@ TEST(Unit_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
 }
 
 /** @brief Tests the values this importer refuses although the key is known. */
-TEST(Unit_DarknetModel, UntranslatedValuesAreRefusedNamingTheirLine)
+TEST(Small_DarknetModel, UntranslatedValuesAreRefusedNamingTheirLine)
 {
     const std::string boxed = "[net]\nwidth=32\nheight=32\nchannels=3\nletter_box=1\n";
     SA_EXPECT_FAILURE(translate_darknet_text(boxed, DarknetNormalisation::Separate),
@@ -476,7 +476,7 @@ TEST(Unit_DarknetModel, UntranslatedValuesAreRefusedNamingTheirLine)
 }
 
 /** @brief Tests the refusals of a value that is malformed or does not fit its layer. */
-TEST(Unit_DarknetModel, ValuesThatDoNotFitAreRefusedNamingTheirLine)
+TEST(Small_DarknetModel, ValuesThatDoNotFitAreRefusedNamingTheirLine)
 {
     const std::string worded =
         "[net]\nwidth=32\nheight=32\nchannels=3\n[convolutional]\nfilters=many\n";
@@ -534,7 +534,7 @@ namespace
  * The 64 channels of layer 1 split into halves of 32; group 1 is channels 32 to 63. Layer 1 is
  * the row 0 output, so the slice is row 1, and the head convolution reads it.
  */
-TEST(Unit_DarknetRouteGroups, OneSourceGroupIsOneSliceRow)
+TEST(Small_DarknetRouteGroups, OneSourceGroupIsOneSliceRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
@@ -561,7 +561,7 @@ TEST(Unit_DarknetRouteGroups, OneSourceGroupIsOneSliceRow)
  * (row 0). Each contributes its group 1 of 32 channels, in list order: rows 2 and 3, then the
  * concat of row 4 over both. The head convolution reads 64 channels.
  */
-TEST(Unit_DarknetRouteGroups, EverySourceIsSlicedBeforeTheJoin)
+TEST(Small_DarknetRouteGroups, EverySourceIsSlicedBeforeTheJoin)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
@@ -593,7 +593,7 @@ TEST(Unit_DarknetRouteGroups, EverySourceIsSlicedBeforeTheJoin)
 /**
  * @brief Tests that an ungrouped route of one source adds no row and keeps every channel.
  */
-TEST(Unit_DarknetRouteGroups, UngroupedSourceAddsNoRow)
+TEST(Small_DarknetRouteGroups, UngroupedSourceAddsNoRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const DarknetModel model,
@@ -616,7 +616,7 @@ TEST(Unit_DarknetRouteGroups, UngroupedSourceAddsNoRow)
  * The [route] section starts on line 11 and its layers line is line 12, which names the channel
  * count. A group index is refused on the section line.
  */
-TEST(Unit_DarknetRouteGroups, UnequalSplitsAndGroupsOutOfRangeAreRefused)
+TEST(Small_DarknetRouteGroups, UnequalSplitsAndGroupsOutOfRangeAreRefused)
 {
     SA_EXPECT_FAILURE(
         translate_darknet_text(std::string(K_WIDE_NETWORK)
@@ -658,7 +658,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_DarknetShortcut, NegativeFromAddsTheLayerBeforeAndTheNamedLayer)
+TEST(Small_DarknetShortcut, NegativeFromAddsTheLayerBeforeAndTheNamedLayer)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\n").append(K_HEAD_TAIL);
@@ -671,7 +671,7 @@ TEST(Unit_DarknetShortcut, NegativeFromAddsTheLayerBeforeAndTheNamedLayer)
     EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1, 0}));
 }
 
-TEST(Unit_DarknetShortcut, AbsoluteFromAddsTheSameTwoRows)
+TEST(Small_DarknetShortcut, AbsoluteFromAddsTheSameTwoRows)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=0\nactivation=linear\n")
@@ -684,7 +684,7 @@ TEST(Unit_DarknetShortcut, AbsoluteFromAddsTheSameTwoRows)
     EXPECT_EQ(sources_of_row(model, 2), (std::vector<std::int64_t>{1, 0}));
 }
 
-TEST(Unit_DarknetShortcut, FromAboveTheShortcutIsRefusedNamingItsLine)
+TEST(Small_DarknetShortcut, FromAboveTheShortcutIsRefusedNamingItsLine)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=2\n");
@@ -693,7 +693,7 @@ TEST(Unit_DarknetShortcut, FromAboveTheShortcutIsRefusedNamingItsLine)
                       "only layers 0 to 1");
 }
 
-TEST(Unit_DarknetShortcut, DifferentChannelCountsAreRefusedNamingItsLine)
+TEST(Small_DarknetShortcut, DifferentChannelCountsAreRefusedNamingItsLine)
 {
     const std::string text =
         std::string(K_NETWORK)
@@ -705,7 +705,7 @@ TEST(Unit_DarknetShortcut, DifferentChannelCountsAreRefusedNamingItsLine)
                       "share their shape");
 }
 
-TEST(Unit_DarknetShortcut, NonLinearActivationIsRefusedNamingItsLine)
+TEST(Small_DarknetShortcut, NonLinearActivationIsRefusedNamingItsLine)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\nactivation=leaky\n");
@@ -713,7 +713,7 @@ TEST(Unit_DarknetShortcut, NonLinearActivationIsRefusedNamingItsLine)
     SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::Unsupported, "line 19", "'leaky'");
 }
 
-TEST(Unit_DarknetShortcut, WeightsTypeIsRefusedNamingItsLine)
+TEST(Small_DarknetShortcut, WeightsTypeIsRefusedNamingItsLine)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-2\nweights_type=per_feature\n");
@@ -722,7 +722,7 @@ TEST(Unit_DarknetShortcut, WeightsTypeIsRefusedNamingItsLine)
                       "weights_type");
 }
 
-TEST(Unit_DarknetShortcut, MissingFromIsRefusedNamingTheSection)
+TEST(Small_DarknetShortcut, MissingFromIsRefusedNamingTheSection)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nactivation=linear\n");
@@ -730,7 +730,7 @@ TEST(Unit_DarknetShortcut, MissingFromIsRefusedNamingTheSection)
     SA_EXPECT_FAILURE(translate_darknet_text(text), StatusCode::InvalidDescription, "no 'from'");
 }
 
-TEST(Unit_DarknetShortcut, MoreThanOneFromIsRefused)
+TEST(Small_DarknetShortcut, MoreThanOneFromIsRefused)
 {
     const std::string text = std::string(K_NETWORK).append(K_TWO_CONVOLUTIONS)
                                  .append("[shortcut]\nfrom=-1,-2\n");

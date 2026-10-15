@@ -47,7 +47,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the engine the label and row tensors are allocated on. */
-    class Unit_OneHot : public SaTest::EngineTest
+    class Medium_OneHot : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns an int32 tensor of one extent that holds @p values. */
@@ -88,7 +88,7 @@ namespace
 } // namespace
 
 /** @brief Tests that every row holds 1 in its label's column and 0 elsewhere. */
-TEST_F(Unit_OneHot, EveryRowHoldsOneInItsLabelsColumn)
+TEST_F(Medium_OneHot, EveryRowHoldsOneInItsLabelsColumn)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels, labels_of({2, 0, 1, 2}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor one_hot, stale_rows(4, 3, DType::Float32));
@@ -99,7 +99,7 @@ TEST_F(Unit_OneHot, EveryRowHoldsOneInItsLabelsColumn)
 }
 
 /** @brief Tests that a float64 leaf receives the same rows as a float32 one. */
-TEST_F(Unit_OneHot, AFloat64LeafReceivesTheSameRows)
+TEST_F(Medium_OneHot, AFloat64LeafReceivesTheSameRows)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels, labels_of({2, 0, 1, 2}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor one_hot, stale_rows(4, 3, DType::Float64));
@@ -110,7 +110,7 @@ TEST_F(Unit_OneHot, AFloat64LeafReceivesTheSameRows)
 }
 
 /** @brief Tests that a second fill replaces the rows of the first. */
-TEST_F(Unit_OneHot, ASecondFillReplacesTheFirst)
+TEST_F(Medium_OneHot, ASecondFillReplacesTheFirst)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor first, labels_of({0, 0}));
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor second, labels_of({1, 0}));
@@ -123,7 +123,7 @@ TEST_F(Unit_OneHot, ASecondFillReplacesTheFirst)
 }
 
 /** @brief Tests that a label outside the classes is named and no row is written. */
-TEST_F(Unit_OneHot, ALabelOutsideTheClassesIsRefusedAndNothingIsWritten)
+TEST_F(Medium_OneHot, ALabelOutsideTheClassesIsRefusedAndNothingIsWritten)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor above, labels_of({0, 3}));
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor below, labels_of({-1, 0}));
@@ -138,7 +138,7 @@ TEST_F(Unit_OneHot, ALabelOutsideTheClassesIsRefusedAndNothingIsWritten)
 }
 
 /** @brief Tests that a label count other than the row count is refused with both shapes. */
-TEST_F(Unit_OneHot, AnotherLabelCountIsRefusedWithBothShapes)
+TEST_F(Medium_OneHot, AnotherLabelCountIsRefusedWithBothShapes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels, labels_of({0, 1, 2}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor one_hot, stale_rows(4, 3, DType::Float32));
@@ -148,7 +148,7 @@ TEST_F(Unit_OneHot, AnotherLabelCountIsRefusedWithBothShapes)
 }
 
 /** @brief Tests that labels of another element type are refused with both type names. */
-TEST_F(Unit_OneHot, LabelsOfAnotherElementTypeAreRefused)
+TEST_F(Medium_OneHot, LabelsOfAnotherElementTypeAreRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels,
                             allocate_tensor(*engine, Shape{4}, DType::Float32));
@@ -159,7 +159,7 @@ TEST_F(Unit_OneHot, LabelsOfAnotherElementTypeAreRefused)
 }
 
 /** @brief Tests that rows of an element type that is not a real are refused by name. */
-TEST_F(Unit_OneHot, RowsThatAreNotRealAreRefused)
+TEST_F(Medium_OneHot, RowsThatAreNotRealAreRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels, labels_of({0, 1}));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor one_hot,

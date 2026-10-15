@@ -55,7 +55,7 @@ namespace
 } // namespace
 
 /** @brief Tests that shape_iou of a size with itself is 1. */
-TEST(Unit_DetectAnchorLayout, ShapeIoUOfASizeWithItselfIsOne)
+TEST(Small_DetectAnchorLayout, ShapeIoUOfASizeWithItselfIsOne)
 {
     const AnchorSize size{0.3f, 0.7f};
 
@@ -63,7 +63,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIoUOfASizeWithItselfIsOne)
 }
 
 /** @brief Tests that shape_iou of a contained size is the ratio of the two areas. */
-TEST(Unit_DetectAnchorLayout, ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas)
+TEST(Small_DetectAnchorLayout, ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas)
 {
     const AnchorSize outer{0.2f, 0.4f};
     const AnchorSize inner{0.1f, 0.2f};
@@ -74,7 +74,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIoUOfAContainedSizeIsTheRatioOfTheAreas)
 }
 
 /** @brief Tests that shape_iou of a wide and a tall size counts the rectangle they share. */
-TEST(Unit_DetectAnchorLayout, ShapeIoUOfCrossedSizesCountsTheSharedRectangle)
+TEST(Small_DetectAnchorLayout, ShapeIoUOfCrossedSizesCountsTheSharedRectangle)
 {
     const AnchorSize wide{0.4f, 0.1f};
     const AnchorSize tall{0.1f, 0.4f};
@@ -84,7 +84,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIoUOfCrossedSizesCountsTheSharedRectangle)
 }
 
 /** @brief Tests that shape_iou with a zero area is 0, and 0 for two zero areas. */
-TEST(Unit_DetectAnchorLayout, ShapeIoUWithAZeroAreaIsZero)
+TEST(Small_DetectAnchorLayout, ShapeIoUWithAZeroAreaIsZero)
 {
     const AnchorSize flat{0.0f, 0.3f};
     const AnchorSize size{0.2f, 0.2f};
@@ -96,7 +96,7 @@ TEST(Unit_DetectAnchorLayout, ShapeIoUWithAZeroAreaIsZero)
 }
 
 /** @brief Tests that a layout of six anchors split over two heads validates. */
-TEST(Unit_DetectAnchorLayout, AcceptsOneHeadPerGroupOfAnchors)
+TEST(Small_DetectAnchorLayout, AcceptsOneHeadPerGroupOfAnchors)
 {
     const SushiAI::Status status = validate_anchor_layout(make_two_head_layout());
 
@@ -104,7 +104,7 @@ TEST(Unit_DetectAnchorLayout, AcceptsOneHeadPerGroupOfAnchors)
 }
 
 /** @brief Tests that two heads may share an anchor and an anchor may belong to no head. */
-TEST(Unit_DetectAnchorLayout, AcceptsASharedAnchorAndAnAnchorNoHeadUses)
+TEST(Small_DetectAnchorLayout, AcceptsASharedAnchorAndAnAnchorNoHeadUses)
 {
     AnchorLayout layout = make_two_head_layout();
     layout.head_anchors = {{3, 4, 5}, {1, 2, 3}};
@@ -115,7 +115,7 @@ TEST(Unit_DetectAnchorLayout, AcceptsASharedAnchorAndAnAnchorNoHeadUses)
 }
 
 /** @brief Tests that a head index equal to the anchor count is refused. */
-TEST(Unit_DetectAnchorLayout, RefusesAnIndexPastTheAnchors)
+TEST(Small_DetectAnchorLayout, RefusesAnIndexPastTheAnchors)
 {
     AnchorLayout layout = make_two_head_layout();
     layout.head_anchors[1][2] = 6;
@@ -124,7 +124,7 @@ TEST(Unit_DetectAnchorLayout, RefusesAnIndexPastTheAnchors)
 }
 
 /** @brief Tests that a negative head index is refused. */
-TEST(Unit_DetectAnchorLayout, RefusesANegativeIndex)
+TEST(Small_DetectAnchorLayout, RefusesANegativeIndex)
 {
     AnchorLayout layout = make_two_head_layout();
     layout.head_anchors[0][0] = -1;
@@ -133,7 +133,7 @@ TEST(Unit_DetectAnchorLayout, RefusesANegativeIndex)
 }
 
 /** @brief Tests that a head that uses no anchor is refused. */
-TEST(Unit_DetectAnchorLayout, RefusesAnEmptyHead)
+TEST(Small_DetectAnchorLayout, RefusesAnEmptyHead)
 {
     AnchorLayout layout = make_two_head_layout();
     layout.head_anchors[1].clear();
@@ -142,7 +142,7 @@ TEST(Unit_DetectAnchorLayout, RefusesAnEmptyHead)
 }
 
 /** @brief Tests that a layout without anchors and one without heads are refused. */
-TEST(Unit_DetectAnchorLayout, RefusesALayoutWithoutAnchorsOrWithoutHeads)
+TEST(Small_DetectAnchorLayout, RefusesALayoutWithoutAnchorsOrWithoutHeads)
 {
     AnchorLayout no_anchors = make_two_head_layout();
     no_anchors.anchors.clear();
@@ -154,7 +154,7 @@ TEST(Unit_DetectAnchorLayout, RefusesALayoutWithoutAnchorsOrWithoutHeads)
 }
 
 /** @brief Tests that an anchor with a zero, a NaN or an infinite side is refused. */
-TEST(Unit_DetectAnchorLayout, RefusesAnAnchorWithoutAFinitePositiveSide)
+TEST(Small_DetectAnchorLayout, RefusesAnAnchorWithoutAFinitePositiveSide)
 {
     AnchorLayout zero_side = make_two_head_layout();
     zero_side.anchors[2].width = 0.0f;

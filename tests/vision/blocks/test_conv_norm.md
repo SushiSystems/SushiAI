@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_conv_norm.cpp
 
 
-Suites: `Unit_BlockConvNorm`.
+Suites: `Small_BlockConvNorm`.
 
 Tests ConvNorm's trace, its state names against YOLO26n row 0, and make_conv_node.
 

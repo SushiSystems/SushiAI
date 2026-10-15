@@ -1,12 +1,12 @@
 # tests/vision/detect/free/test_assigner.cpp
 
 
-Suites: `Unit_DetectAssigner`, `Unit_DetectGroundTruth`, `Unit_DetectTargetLeaves`.
+Suites: `Medium_DetectAssigner`, `Medium_DetectGroundTruth`, `Small_DetectTargetLeaves`.
 
 Tests the task-aligned assigner, its presets, the padded ground truth and the target leaves.
 
-This file needs no device. Its three suites are `Unit_DetectAssigner`, `Unit_DetectGroundTruth`
-and `Unit_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/free/assigner.hpp`,
+This file needs no device. Its three suites are `Medium_DetectAssigner`, `Medium_DetectGroundTruth`
+and `Small_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/free/assigner.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/free/assigner_config.hpp`, `modules/vision/detect/include/SushiAI/vision/detect/ground_truth.hpp` and
 `modules/vision/detect/include/SushiAI/vision/detect/free/target_leaves.hpp`. Most cases build one image on a 4 by 4 grid by
 hand, with `alpha` and `beta` both 1, so the metric is the class score times the overlap and

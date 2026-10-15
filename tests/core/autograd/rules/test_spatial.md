@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_spatial.cpp
 
 
-Suites: `Unit_SpatialShapes`.
+Suites: `Small_SpatialShapes`.
 
 Tests the shapes the builder infers for spatial operations and the layouts it refuses.
 

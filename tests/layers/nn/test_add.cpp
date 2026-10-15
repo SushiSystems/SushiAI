@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the port is named as the single output and carries the shared shape. */
-TEST(Unit_Add, CreateKeepsTheSharedShapeAsThePort)
+TEST(Small_Add, CreateKeepsTheSharedShapeAsThePort)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
@@ -76,63 +76,63 @@ TEST(Unit_Add, CreateKeepsTheSharedShapeAsThePort)
 }
 
 /** @brief Tests that one input is refused and the count is named. */
-TEST(Unit_Add, CreateRejectsOneInput)
+TEST(Small_Add, CreateRejectsOneInput)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}}), StatusCode::InvalidDescription,
                       "takes 2 inputs", "was given 1");
 }
 
 /** @brief Tests that three inputs are refused and the count is named. */
-TEST(Unit_Add, CreateRejectsThreeInputs)
+TEST(Small_Add, CreateRejectsThreeInputs)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 6, 3}}),
                       StatusCode::InvalidDescription, "takes 2 inputs", "was given 3");
 }
 
 /** @brief Tests that an empty input list is refused as a count of zero. */
-TEST(Unit_Add, CreateRejectsNoInput)
+TEST(Small_Add, CreateRejectsNoInput)
 {
     SA_EXPECT_FAILURE(create_over({}), StatusCode::InvalidDescription, "takes 2 inputs",
                       "was given 0");
 }
 
 /** @brief Tests that inputs differing in channels are refused as unequal shapes. */
-TEST(Unit_Add, CreateRejectsUnequalChannels)
+TEST(Small_Add, CreateRejectsUnequalChannels)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 5}}),
                       StatusCode::InvalidDescription, "share one shape");
 }
 
 /** @brief Tests that inputs differing in height are refused as unequal shapes. */
-TEST(Unit_Add, CreateRejectsUnequalHeight)
+TEST(Small_Add, CreateRejectsUnequalHeight)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{4, 6, 3}}),
                       StatusCode::InvalidDescription, "share one shape");
 }
 
 /** @brief Tests that inputs differing in width are refused as unequal shapes. */
-TEST(Unit_Add, CreateRejectsUnequalWidth)
+TEST(Small_Add, CreateRejectsUnequalWidth)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 12, 3}}),
                       StatusCode::InvalidDescription, "share one shape");
 }
 
 /** @brief Tests that a second input that is not rank 3 is refused and named. */
-TEST(Unit_Add, CreateRejectsAnInputThatIsNotAFeatureMap)
+TEST(Small_Add, CreateRejectsAnInputThatIsNotAFeatureMap)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{144}}), StatusCode::InvalidDescription,
                       "add input 1", "rank-3");
 }
 
 /** @brief Tests that a first input that is not rank 3 is refused and named as input 0. */
-TEST(Unit_Add, CreateRejectsAFirstInputThatIsNotAFeatureMap)
+TEST(Small_Add, CreateRejectsAFirstInputThatIsNotAFeatureMap)
 {
     SA_EXPECT_FAILURE(create_over({Shape{144}, Shape{144}}), StatusCode::InvalidDescription,
                       "add input 0", "rank-3");
 }
 
 /** @brief Tests that the node reports two inputs, whatever it was built over. */
-TEST(Unit_Add, TheInputCountIsTwo)
+TEST(Small_Add, TheInputCountIsTwo)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Add> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 3}}));
@@ -141,7 +141,7 @@ TEST(Unit_Add, TheInputCountIsTwo)
 }
 
 /** @brief Tests that forward emits one K_ADD reading both inputs in the order given. */
-TEST(Unit_Add, ForwardEmitsOneAddReadingBothInputsInOrder)
+TEST(Small_Add, ForwardEmitsOneAddReadingBothInputsInOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -164,7 +164,7 @@ TEST(Unit_Add, ForwardEmitsOneAddReadingBothInputsInOrder)
 }
 
 /** @brief Tests that the traced value is the port's shape with the batch axis in front. */
-TEST(Unit_Add, ForwardResultIsThePortShapeWithABatchAxis)
+TEST(Small_Add, ForwardResultIsThePortShapeWithABatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -182,7 +182,7 @@ TEST(Unit_Add, ForwardResultIsThePortShapeWithABatchAxis)
 }
 
 /** @brief Tests that forward refuses an input count other than two and emits nothing. */
-TEST(Unit_Add, ForwardRejectsAnInputCountItWasNotBuiltOver)
+TEST(Small_Add, ForwardRejectsAnInputCountItWasNotBuiltOver)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -200,7 +200,7 @@ TEST(Unit_Add, ForwardRejectsAnInputCountItWasNotBuiltOver)
 }
 
 /** @brief Tests that values of unequal shape come back as a failure and emit nothing. */
-TEST(Unit_Add, ForwardReturnsTheFailureOfValuesThatDoNotAdd)
+TEST(Small_Add, ForwardReturnsTheFailureOfValuesThatDoNotAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -221,7 +221,7 @@ TEST(Unit_Add, ForwardReturnsTheFailureOfValuesThatDoNotAdd)
 }
 
 /** @brief Tests that the factory builds an Add over its shapes from a row with no key. */
-TEST(Unit_Add, TheFactoryBuildsANodeFromARowWithNoKey)
+TEST(Small_Add, TheFactoryBuildsANodeFromARowWithNoKey)
 {
     const Shape shapes[] = {Shape{8, 6, 3}, Shape{8, 6, 3}};
     const Config::Value none = Config::parse_json("{}", "<test>");
@@ -237,7 +237,7 @@ TEST(Unit_Add, TheFactoryBuildsANodeFromARowWithNoKey)
 }
 
 /** @brief Tests that the factory refuses any key and shapes that do not match. */
-TEST(Unit_Add, TheFactoryRefusesAKeyAndShapesThatDoNotMatch)
+TEST(Small_Add, TheFactoryRefusesAKeyAndShapesThatDoNotMatch)
 {
     const Shape matched[] = {Shape{8, 6, 3}, Shape{8, 6, 3}};
     const Shape unmatched[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
@@ -251,7 +251,7 @@ TEST(Unit_Add, TheFactoryRefusesAKeyAndShapesThatDoNotMatch)
 }
 
 /** @brief Tests that the state walk visits nothing after a trace. */
-TEST(Unit_Add, TheStateWalkVisitsNothing)
+TEST(Small_Add, TheStateWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

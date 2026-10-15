@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_c2psa.cpp
 
 
-Suites: `Unit_BlockC2psa`.
+Suites: `Small_BlockC2psa`.
 
 Tests the `C2PSA` block and its factory `Vision::Blocks::make_c2psa_node` at row 10 of YOLO26n: 256
 channels in and out and a hidden width of 128. The traced cases use a [2, 4, 4, 256] input and the

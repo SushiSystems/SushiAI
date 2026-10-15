@@ -47,14 +47,14 @@ using Language::Generation::Detail::TablePositionFeed;
 namespace
 {
     /** @brief Builds the steps a table feed is bound to. */
-    class Unit_GenerationTablePositionFeed : public Support::FedStepTest
+    class Medium_GenerationTablePositionFeed : public Support::FedStepTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that the feed lists one [1, 1] int32 leaf and writes the position into it. */
-TEST_F(Unit_GenerationTablePositionFeed, PlaceWritesThePositionIntoItsOneLeaf)
+TEST_F(Medium_GenerationTablePositionFeed, PlaceWritesThePositionIntoItsOneLeaf)
 {
     build_step(true, false);
     ASSERT_NE(step, nullptr);
@@ -75,7 +75,7 @@ TEST_F(Unit_GenerationTablePositionFeed, PlaceWritesThePositionIntoItsOneLeaf)
 }
 
 /** @brief Tests that a slide leaves no cached row right, so the generator feeds them again. */
-TEST_F(Unit_GenerationTablePositionFeed, NoRowStaysRightAfterASlide)
+TEST_F(Medium_GenerationTablePositionFeed, NoRowStaysRightAfterASlide)
 {
     build_step(true, false);
     ASSERT_NE(step, nullptr);
@@ -86,7 +86,7 @@ TEST_F(Unit_GenerationTablePositionFeed, NoRowStaysRightAfterASlide)
 }
 
 /** @brief Tests that a leaf the step is not fed and a leaf of another type are refused. */
-TEST_F(Unit_GenerationTablePositionFeed, ALeafThatDoesNotFitIsRefused)
+TEST_F(Medium_GenerationTablePositionFeed, ALeafThatDoesNotFitIsRefused)
 {
     build_step(false, true);
     ASSERT_NE(step, nullptr);

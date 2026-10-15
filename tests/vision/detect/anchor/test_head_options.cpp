@@ -74,7 +74,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the channel and row counts use the slots of the head asked for. */
-TEST(Unit_DetectAnchorDecode, CountsChannelsAndRowsFromTheHeadsOwnAnchors)
+TEST(Small_DetectAnchorDecode, CountsChannelsAndRowsFromTheHeadsOwnAnchors)
 {
     AnchorLayout layout;
     layout.anchors = {{0.1f, 0.1f}, {0.2f, 0.2f}, {0.3f, 0.3f}, {0.4f, 0.4f}, {0.5f, 0.5f}};
@@ -88,7 +88,7 @@ TEST(Unit_DetectAnchorDecode, CountsChannelsAndRowsFromTheHeadsOwnAnchors)
 }
 
 /** @brief Tests that validate_head accepts a head the layout holds. */
-TEST(Unit_DetectAnchorDecode, ValidatesAHeadTheLayoutHolds)
+TEST(Small_DetectAnchorDecode, ValidatesAHeadTheLayoutHolds)
 {
     const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
 
@@ -99,7 +99,7 @@ TEST(Unit_DetectAnchorDecode, ValidatesAHeadTheLayoutHolds)
 }
 
 /** @brief Tests that validate_head refuses a head index below 0 or past the heads. */
-TEST(Unit_DetectAnchorDecode, RefusesAHeadIndexOutsideTheLayout)
+TEST(Small_DetectAnchorDecode, RefusesAHeadIndexOutsideTheLayout)
 {
     const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
     const HeadOptions options = make_options(80, HeadCoding::Logit, 1.0f);
@@ -109,7 +109,7 @@ TEST(Unit_DetectAnchorDecode, RefusesAHeadIndexOutsideTheLayout)
 }
 
 /** @brief Tests that validate_head refuses a class count of 0. */
-TEST(Unit_DetectAnchorDecode, RefusesAHeadWithoutClasses)
+TEST(Small_DetectAnchorDecode, RefusesAHeadWithoutClasses)
 {
     const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
 
@@ -118,7 +118,7 @@ TEST(Unit_DetectAnchorDecode, RefusesAHeadWithoutClasses)
 }
 
 /** @brief Tests that validate_head refuses a scale_xy of 0 and of NaN. */
-TEST(Unit_DetectAnchorDecode, RefusesAScaleThatIsNotFiniteAndPositive)
+TEST(Small_DetectAnchorDecode, RefusesAScaleThatIsNotFiniteAndPositive)
 {
     const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
     const float not_a_number = std::numeric_limits<float>::quiet_NaN();
@@ -130,7 +130,7 @@ TEST(Unit_DetectAnchorDecode, RefusesAScaleThatIsNotFiniteAndPositive)
 }
 
 /** @brief Tests that validate_head returns the layout's own refusal. */
-TEST(Unit_DetectAnchorDecode, RefusesAHeadWhoseLayoutDoesNotValidate)
+TEST(Small_DetectAnchorDecode, RefusesAHeadWhoseLayoutDoesNotValidate)
 {
     AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
     layout.head_anchors[0][0] = 3;

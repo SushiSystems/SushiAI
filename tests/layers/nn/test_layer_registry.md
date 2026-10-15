@@ -1,7 +1,7 @@
 # tests/layers/nn/test_layer_registry.cpp
 
 
-Suites: `Unit_LayerRegistry`.
+Suites: `Small_LayerRegistry`.
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 

@@ -62,8 +62,8 @@ quietly pays graph analysis every step, and nothing else would notice.
 
 Alongside the core there is the scaffolding a real library needs from day
 one: a `find_package(SushiAI)`-able target verified by an out-of-tree
-consumer, a three-tier test suite with CTest labels (`unit` / `integration` /
-`regression`), and the `sa` CLI. Each module builds one test program,
+consumer, a test suite labelled by size (`small` / `medium` /
+`large`), and the `sa` CLI. Each module builds one test program,
 `sushiai_<tier>_<module>_tests`: `sa run` runs one in one process and `sa test`
 runs every case through CTest. `sa demo mlp` runs the showcase:
 `applications/examples/source/demo_mlp.cpp`, a flag-driven training program, deliberately a
@@ -182,7 +182,7 @@ relative to `SushiAI/` under the `include/` of the module that owns it:
   `core/seam.hpp`), `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
   `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
   `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp`) reaches no SushiBLAS
-  *engine* and no SYCL. The `Unit_*` tests include these directly and run
+  *engine* and no SYCL. The `Small_*` tests include these directly and run
   without a device. What it does reach of its siblings is vocabulary only, and
   every one of those headers is `<cstddef>`-and-friends deep:
   `<SushiBLAS/core/common.hpp>` for the dtype/layout enums,

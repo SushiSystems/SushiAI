@@ -110,7 +110,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a padded 3x3 convolution yields an NHWC [4, 28, 28, 8] result. */
-TEST(Unit_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
+TEST(Small_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -124,7 +124,7 @@ TEST(Unit_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
 }
 
 /** @brief Tests that a FLOAT64 input gives FLOAT64 parameters and a FLOAT64 result. */
-TEST(Unit_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
+TEST(Small_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -139,7 +139,7 @@ TEST(Unit_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
 }
 
 /** @brief Tests that the walk yields weight [8, 3, 3, 1] then bias [8] under Linear's names. */
-TEST(Unit_Conv2d, TheParameterWalkNamesTheWeightAndTheBias)
+TEST(Small_Conv2d, TheParameterWalkNamesTheWeightAndTheBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -154,7 +154,7 @@ TEST(Unit_Conv2d, TheParameterWalkNamesTheWeightAndTheBias)
 }
 
 /** @brief Tests that the weight's extents follow an anisotropic window as [out, kh, kw, in]. */
-TEST(Unit_Conv2d, TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn)
+TEST(Small_Conv2d, TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -169,7 +169,7 @@ TEST(Unit_Conv2d, TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn)
 }
 
 /** @brief Tests that a layer with a bias traces exactly one BIAS_ADD node. */
-TEST(Unit_Conv2d, ALayerWithABiasTracesOneBiasAdd)
+TEST(Small_Conv2d, ALayerWithABiasTracesOneBiasAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -182,7 +182,7 @@ TEST(Unit_Conv2d, ALayerWithABiasTracesOneBiasAdd)
 }
 
 /** @brief Tests that use_bias = false yields the weight alone and traces no BIAS_ADD node. */
-TEST(Unit_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
+TEST(Small_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -199,7 +199,7 @@ TEST(Unit_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
 }
 
 /** @brief Tests that the weight and the bias record fan_in = kh*kw*in and fan_out = kh*kw*out. */
-TEST(Unit_Conv2d, TheWeightAndTheBiasRecordTheirFans)
+TEST(Small_Conv2d, TheWeightAndTheBiasRecordTheirFans)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -217,7 +217,7 @@ TEST(Unit_Conv2d, TheWeightAndTheBiasRecordTheirFans)
 }
 
 /** @brief Tests that the weight is declared as a WEIGHT and the bias as a BIAS. */
-TEST(Unit_Conv2d, TheParametersRecordTheirRoles)
+TEST(Small_Conv2d, TheParametersRecordTheirRoles)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -231,7 +231,7 @@ TEST(Unit_Conv2d, TheParametersRecordTheirRoles)
 }
 
 /** @brief Tests that a second trace reuses the parameters the first one declared. */
-TEST(Unit_Conv2d, TracingTwiceDoesNotDuplicateParameters)
+TEST(Small_Conv2d, TracingTwiceDoesNotDuplicateParameters)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -251,7 +251,7 @@ TEST(Unit_Conv2d, TracingTwiceDoesNotDuplicateParameters)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a stride-2 unpadded window. */
-TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAStridedWindow)
+TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAStridedWindow)
 {
     const Conv2d layer = make_conv(3, 16, 3, 2);
     const Shape sample{9, 12, 3};
@@ -261,7 +261,7 @@ TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAStridedWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a padded 5x5 window. */
-TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAPaddedWindow)
+TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAPaddedWindow)
 {
     const Conv2d layer = make_conv(2, 4, 5, 1, 2);
     const Shape sample{7, 10, 2};
@@ -271,7 +271,7 @@ TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAPaddedWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a dilated strided window. */
-TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForADilatedStridedWindow)
+TEST(Small_Conv2d, OutputShapeAgreesWithForwardForADilatedStridedWindow)
 {
     Conv2d layer = make_conv(2, 3, 3, 2, 1);
     layer.geometry.dilation_h = 2;
@@ -283,7 +283,7 @@ TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForADilatedStridedWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a pointwise convolution. */
-TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAPointwiseWindow)
+TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAPointwiseWindow)
 {
     const Conv2d layer = make_conv(4, 6, 1);
     const Shape sample{5, 7, 4};
@@ -293,7 +293,7 @@ TEST(Unit_Conv2d, OutputShapeAgreesWithForwardForAPointwiseWindow)
 }
 
 /** @brief Tests that same_padded() pads by kernel / 2, sets one stride and drops the bias. */
-TEST(Unit_Conv2d, SamePaddedPadsByHalfTheKernelAndDropsTheBias)
+TEST(Small_Conv2d, SamePaddedPadsByHalfTheKernelAndDropsTheBias)
 {
     const Conv2d layer = Conv2d::same_padded(3, 16, 5, 2);
 
@@ -311,7 +311,7 @@ TEST(Unit_Conv2d, SamePaddedPadsByHalfTheKernelAndDropsTheBias)
 }
 
 /** @brief Tests that same_padded(c, c, 3, 1) keeps H and W in output_shape() and in the trace. */
-TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheSpatialExtents)
+TEST(Small_Conv2d, SamePaddedAtStrideOneKeepsTheSpatialExtents)
 {
     const Conv2d layer = Conv2d::same_padded(4, 4, 3, 1);
     const Shape sample{7, 10, 4};
@@ -321,7 +321,7 @@ TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheSpatialExtents)
 }
 
 /** @brief Tests that same_padded() keeps H and W at stride 1 for a pointwise and a 5x5 window. */
-TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel)
+TEST(Small_Conv2d, SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiveKernel)
 {
     const Shape sample{9, 6, 2};
 
@@ -330,7 +330,7 @@ TEST(Unit_Conv2d, SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFiv
 }
 
 /** @brief Tests that same_padded() with stride 2 halves an even H and an even W. */
-TEST(Unit_Conv2d, SamePaddedAtStrideTwoHalvesAnEvenExtent)
+TEST(Small_Conv2d, SamePaddedAtStrideTwoHalvesAnEvenExtent)
 {
     const Conv2d layer = Conv2d::same_padded(3, 16, 3, 2);
     const Shape sample{640, 320, 3};
@@ -340,7 +340,7 @@ TEST(Unit_Conv2d, SamePaddedAtStrideTwoHalvesAnEvenExtent)
 }
 
 /** @brief Tests that a same_padded() layer traces a weight alone and no BIAS_ADD node. */
-TEST(Unit_Conv2d, SamePaddedTracesNoBias)
+TEST(Small_Conv2d, SamePaddedTracesNoBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -355,7 +355,7 @@ TEST(Unit_Conv2d, SamePaddedTracesNoBias)
 }
 
 /** @brief Tests that a non-zero bias_init reaches the bias parameter's init() as a constant. */
-TEST(Unit_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
+TEST(Small_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -372,7 +372,7 @@ TEST(Unit_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
 }
 
 /** @brief Tests that a layer left at the default starts its bias from the constant zero. */
-TEST(Unit_Conv2d, TheDefaultBiasInitIsTheConstantZero)
+TEST(Small_Conv2d, TheDefaultBiasInitIsTheConstantZero)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -386,7 +386,7 @@ TEST(Unit_Conv2d, TheDefaultBiasInitIsTheConstantZero)
 }
 
 /** @brief Tests that bias_init leaves the weight on its fan-scaled fill. */
-TEST(Unit_Conv2d, BiasInitLeavesTheWeightFanScaled)
+TEST(Small_Conv2d, BiasInitLeavesTheWeightFanScaled)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -401,7 +401,7 @@ TEST(Unit_Conv2d, BiasInitLeavesTheWeightFanScaled)
 }
 
 /** @brief Tests that output_shape() refuses a layer whose input channel count is zero. */
-TEST(Unit_Conv2d, OutputShapeRejectsANonPositiveInputChannelCount)
+TEST(Small_Conv2d, OutputShapeRejectsANonPositiveInputChannelCount)
 {
     const Conv2d layer = make_conv(0, 8, 3);
 
@@ -409,7 +409,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsANonPositiveInputChannelCount)
 }
 
 /** @brief Tests that output_shape() refuses a layer whose output channel count is negative. */
-TEST(Unit_Conv2d, OutputShapeRejectsANonPositiveOutputChannelCount)
+TEST(Small_Conv2d, OutputShapeRejectsANonPositiveOutputChannelCount)
 {
     const Conv2d layer = make_conv(3, -1, 3);
 
@@ -417,7 +417,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsANonPositiveOutputChannelCount)
 }
 
 /** @brief Tests that output_shape() refuses a per-sample channel count other than in_channels. */
-TEST(Unit_Conv2d, OutputShapeRejectsAWrongChannelCount)
+TEST(Small_Conv2d, OutputShapeRejectsAWrongChannelCount)
 {
     const Conv2d layer = make_conv(3, 8, 3);
 
@@ -426,7 +426,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsAWrongChannelCount)
 }
 
 /** @brief Tests that output_shape() refuses a per-sample feature vector. */
-TEST(Unit_Conv2d, OutputShapeRejectsAFeatureVector)
+TEST(Small_Conv2d, OutputShapeRejectsAFeatureVector)
 {
     const Conv2d layer = make_conv(3, 8, 3);
 
@@ -434,7 +434,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsAFeatureVector)
 }
 
 /** @brief Tests that output_shape() refuses a shape that still carries the batch axis. */
-TEST(Unit_Conv2d, OutputShapeRejectsABatchedShape)
+TEST(Small_Conv2d, OutputShapeRejectsABatchedShape)
 {
     const Conv2d layer = make_conv(3, 8, 3);
 
@@ -444,7 +444,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsABatchedShape)
 }
 
 /** @brief Tests that output_shape() refuses a window larger than the padded input. */
-TEST(Unit_Conv2d, OutputShapeRejectsAWindowThatDoesNotFit)
+TEST(Small_Conv2d, OutputShapeRejectsAWindowThatDoesNotFit)
 {
     const Conv2d layer = make_conv(3, 8, 5);
 
@@ -452,7 +452,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsAWindowThatDoesNotFit)
 }
 
 /** @brief Tests that output_shape() refuses a zero stride. */
-TEST(Unit_Conv2d, OutputShapeRejectsAZeroStride)
+TEST(Small_Conv2d, OutputShapeRejectsAZeroStride)
 {
     const Conv2d layer = make_conv(3, 8, 3, 0);
 
@@ -460,7 +460,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsAZeroStride)
 }
 
 /** @brief Tests that output_shape() refuses a negative padding and names it. */
-TEST(Unit_Conv2d, OutputShapeRejectsANegativePadding)
+TEST(Small_Conv2d, OutputShapeRejectsANegativePadding)
 {
     const Conv2d layer = make_conv(3, 8, 3, 1, -1);
 
@@ -468,7 +468,7 @@ TEST(Unit_Conv2d, OutputShapeRejectsANegativePadding)
 }
 
 /** @brief Tests that forward() refuses an input whose channel count is not in_channels. */
-TEST(Unit_Conv2d, ForwardRejectsAWrongChannelCount)
+TEST(Small_Conv2d, ForwardRejectsAWrongChannelCount)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -481,7 +481,7 @@ TEST(Unit_Conv2d, ForwardRejectsAWrongChannelCount)
 }
 
 /** @brief Tests that forward() refuses a rank-2 input and declares no parameter for it. */
-TEST(Unit_Conv2d, ForwardRejectsAnInputThatIsNotRankFour)
+TEST(Small_Conv2d, ForwardRejectsAnInputThatIsNotRankFour)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -494,7 +494,7 @@ TEST(Unit_Conv2d, ForwardRejectsAnInputThatIsNotRankFour)
 }
 
 /** @brief Tests that forward() refuses non-positive channel counts. */
-TEST(Unit_Conv2d, ForwardRejectsNonPositiveChannelCounts)
+TEST(Small_Conv2d, ForwardRejectsNonPositiveChannelCounts)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -506,7 +506,7 @@ TEST(Unit_Conv2d, ForwardRejectsNonPositiveChannelCounts)
 }
 
 /** @brief Tests that forward() refuses a window larger than the padded input. */
-TEST(Unit_Conv2d, ForwardRejectsAWindowThatDoesNotFit)
+TEST(Small_Conv2d, ForwardRejectsAWindowThatDoesNotFit)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -518,7 +518,7 @@ TEST(Unit_Conv2d, ForwardRejectsAWindowThatDoesNotFit)
 }
 
 /** @brief Tests that forward() refuses an NCHW input before it declares a value or a node. */
-TEST(Unit_Conv2d, ForwardRejectsAnNCHWInput)
+TEST(Small_Conv2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -539,7 +539,7 @@ TEST(Unit_Conv2d, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that differentiating a loss over the layer yields a weight and a bias gradient. */
-TEST(Unit_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
+TEST(Small_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

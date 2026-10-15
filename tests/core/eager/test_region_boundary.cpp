@@ -64,7 +64,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_RegionBoundary, AForwardRegionExportsWhatALaterRegionReads)
+TEST(Small_RegionBoundary, AForwardRegionExportsWhatALaterRegionReads)
 {
     const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
     const BoundaryMap map = Support::boundaries_of(step);
@@ -79,7 +79,7 @@ TEST(Unit_RegionBoundary, AForwardRegionExportsWhatALaterRegionReads)
     EXPECT_TRUE(holds(map.regions[head].exports, step.logits));
 }
 
-TEST(Unit_RegionBoundary, AnObservedValueIsExportedWithNoReader)
+TEST(Small_RegionBoundary, AnObservedValueIsExportedWithNoReader)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const BoundaryMap observed = Support::boundaries_of(step);
@@ -91,7 +91,7 @@ TEST(Unit_RegionBoundary, AnObservedValueIsExportedWithNoReader)
     EXPECT_TRUE(unobserved.regions[0].exports.empty());
 }
 
-TEST(Unit_RegionBoundary, AnExportIsNamedByItsPlaceInTheRegion)
+TEST(Small_RegionBoundary, AnExportIsNamedByItsPlaceInTheRegion)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const BoundaryMap map = Support::boundaries_of(step);
@@ -103,7 +103,7 @@ TEST(Unit_RegionBoundary, AnExportIsNamedByItsPlaceInTheRegion)
     EXPECT_EQ(region.export_positions[0].result, 0u);
 }
 
-TEST(Unit_RegionBoundary, ImportsAreListedOnceInReadOrder)
+TEST(Small_RegionBoundary, ImportsAreListedOnceInReadOrder)
 {
     Support::TracedStep step;
     const Graph::GraphBuilder builder(step.graph);
@@ -121,7 +121,7 @@ TEST(Unit_RegionBoundary, ImportsAreListedOnceInReadOrder)
     EXPECT_EQ(map.regions[0].imports, (std::vector<ValueID>{b, a}));
 }
 
-TEST(Unit_RegionBoundary, EveryImportIsALeafOrAnExportOfALowerKey)
+TEST(Small_RegionBoundary, EveryImportIsALeafOrAnExportOfALowerKey)
 {
     const Support::TracedStep step = Support::encoder_head_loss(Support::Head::ReLU, true);
     const BoundaryMap map = Support::boundaries_of(step);
@@ -151,7 +151,7 @@ TEST(Unit_RegionBoundary, EveryImportIsALeafOrAnExportOfALowerKey)
     EXPECT_GT(checked, 0u);
 }
 
-TEST(Unit_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
+TEST(Small_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
 {
     Support::TracedStep step;
     const Graph::GraphBuilder builder(step.graph);
@@ -173,7 +173,7 @@ TEST(Unit_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
     EXPECT_FALSE(holds(map.regions[0].exports, second));
 }
 
-TEST(Unit_RegionBoundary, AnAccumulateIntoALeafThrows)
+TEST(Small_RegionBoundary, AnAccumulateIntoALeafThrows)
 {
     Support::TracedStep step;
     const Graph::GraphBuilder builder(step.graph);
@@ -186,7 +186,7 @@ TEST(Unit_RegionBoundary, AnAccumulateIntoALeafThrows)
     SA_EXPECT_ERROR((void)Support::boundaries_of(step), "ACCUMULATE", "leaf");
 }
 
-TEST(Unit_RegionBoundary, APartitionOfAnotherGraphThrows)
+TEST(Small_RegionBoundary, APartitionOfAnotherGraphThrows)
 {
     Support::TracedStep step = Support::linear_then_relu(false);
     step.partition.region_of_node.pop_back();

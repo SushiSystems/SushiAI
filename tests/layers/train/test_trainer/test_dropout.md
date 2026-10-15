@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_dropout.cpp
 
 
-Suites: `Integration_Dropout`.
+Suites: `Medium_Dropout`.
 
 The probe runs DROPOUT on an engine over a `[64, 64]` FLOAT32 parameter at a rate of 0.25. Its loss
 is `NLL_LOSS` over the masked value with every target at -64, which is the sum of the masked

@@ -161,7 +161,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_CodecsPng, GrayFileDecodesToItsStoredSamples)
+TEST(Small_CodecsPng, GrayFileDecodesToItsStoredSamples)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_png(gray_png(), DecodeOptions{}));
 
@@ -171,7 +171,7 @@ TEST(Unit_CodecsPng, GrayFileDecodesToItsStoredSamples)
     EXPECT_EQ(bytes_of(image), K_GRAY_SAMPLES);
 }
 
-TEST(Unit_CodecsPng, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
+TEST(Small_CodecsPng, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_png(gray_png(), layout_options(ChannelLayout::Color)));
@@ -183,7 +183,7 @@ TEST(Unit_CodecsPng, GrayFileDecodesToThreeEqualChannelsWhenColorIsAsked)
             EXPECT_EQ(image.data()[3 * pixel + channel], K_GRAY_SAMPLES[pixel]) << pixel;
 }
 
-TEST(Unit_CodecsPng, ColorFileDecodesToItsStoredSamplesInRGBOrder)
+TEST(Small_CodecsPng, ColorFileDecodesToItsStoredSamplesInRGBOrder)
 {
     const std::vector<std::uint8_t> file =
         encode_png(PNGSource{PNG_FORMAT_RGB, 2, 2, K_RGB_SAMPLES.data()});
@@ -196,7 +196,7 @@ TEST(Unit_CodecsPng, ColorFileDecodesToItsStoredSamplesInRGBOrder)
     EXPECT_EQ(bytes_of(image), K_RGB_SAMPLES);
 }
 
-TEST(Unit_CodecsPng, ColorFileOfGrayPixelsDecodesToThoseLevelsWhenGrayIsAsked)
+TEST(Small_CodecsPng, ColorFileOfGrayPixelsDecodesToThoseLevelsWhenGrayIsAsked)
 {
     const std::vector<std::uint8_t> samples = {0, 0, 0, 90, 90, 90, 200, 200, 200, 255, 255, 255};
     const std::vector<std::uint8_t> file =
@@ -210,7 +210,7 @@ TEST(Unit_CodecsPng, ColorFileOfGrayPixelsDecodesToThoseLevelsWhenGrayIsAsked)
     EXPECT_EQ(bytes_of(image), (std::vector<std::uint8_t>{0, 90, 200, 255}));
 }
 
-TEST(Unit_CodecsPng, AlphaIsDroppedAndTheColorsKeepTheirStoredValues)
+TEST(Small_CodecsPng, AlphaIsDroppedAndTheColorsKeepTheirStoredValues)
 {
     const std::vector<std::uint8_t> samples = {200, 100, 50, 0,   10, 20,  30,  128,
                                                90,  80,  70, 255, 0,  255, 255, 1};
@@ -224,7 +224,7 @@ TEST(Unit_CodecsPng, AlphaIsDroppedAndTheColorsKeepTheirStoredValues)
               (std::vector<std::uint8_t>{200, 100, 50, 10, 20, 30, 90, 80, 70, 0, 255, 255}));
 }
 
-TEST(Unit_CodecsPng, GrayAlphaFileDecodesToItsStoredGrayLevels)
+TEST(Small_CodecsPng, GrayAlphaFileDecodesToItsStoredGrayLevels)
 {
     const std::vector<std::uint8_t> samples = {5, 0, 100, 60, 180, 255, 250, 128};
     const std::vector<std::uint8_t> file =
@@ -236,7 +236,7 @@ TEST(Unit_CodecsPng, GrayAlphaFileDecodesToItsStoredGrayLevels)
     EXPECT_EQ(bytes_of(image), (std::vector<std::uint8_t>{5, 100, 180, 250}));
 }
 
-TEST(Unit_CodecsPng, GrayAlphaFileDecodesToThreeEqualChannelsWhenColorIsAsked)
+TEST(Small_CodecsPng, GrayAlphaFileDecodesToThreeEqualChannelsWhenColorIsAsked)
 {
     const std::vector<std::uint8_t> samples = {5, 0, 250, 128};
     const std::vector<std::uint8_t> file =
@@ -249,7 +249,7 @@ TEST(Unit_CodecsPng, GrayAlphaFileDecodesToThreeEqualChannelsWhenColorIsAsked)
     EXPECT_EQ(bytes_of(image), (std::vector<std::uint8_t>{5, 5, 5, 250, 250, 250}));
 }
 
-TEST(Unit_CodecsPng, PaletteFileYieldsItsStoredIndicesWhenIndicesAreAsked)
+TEST(Small_CodecsPng, PaletteFileYieldsItsStoredIndicesWhenIndicesAreAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_png(palette_png(), index_options(ChannelLayout::Stored)));
@@ -260,7 +260,7 @@ TEST(Unit_CodecsPng, PaletteFileYieldsItsStoredIndicesWhenIndicesAreAsked)
     EXPECT_EQ(bytes_of(image), K_INDICES);
 }
 
-TEST(Unit_CodecsPng, PaletteIndicesComeOutInOneChannelWhateverTheLayout)
+TEST(Small_CodecsPng, PaletteIndicesComeOutInOneChannelWhateverTheLayout)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image as_color,
                             decode_png(palette_png(), index_options(ChannelLayout::Color)));
@@ -273,7 +273,7 @@ TEST(Unit_CodecsPng, PaletteIndicesComeOutInOneChannelWhateverTheLayout)
     EXPECT_EQ(bytes_of(as_gray), K_INDICES);
 }
 
-TEST(Unit_CodecsPng, PaletteFileDecodesToItsPaletteColorsByDefault)
+TEST(Small_CodecsPng, PaletteFileDecodesToItsPaletteColorsByDefault)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image, decode_png(palette_png(), DecodeOptions{}));
 
@@ -285,7 +285,7 @@ TEST(Unit_CodecsPng, PaletteFileDecodesToItsPaletteColorsByDefault)
                 << "pixel " << pixel << ", channel " << channel;
 }
 
-TEST(Unit_CodecsPng, PaletteFileReadAsGrayIsAConversionAndNotItsIndices)
+TEST(Small_CodecsPng, PaletteFileReadAsGrayIsAConversionAndNotItsIndices)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_png(palette_png(), layout_options(ChannelLayout::Gray)));
@@ -297,7 +297,7 @@ TEST(Unit_CodecsPng, PaletteFileReadAsGrayIsAConversionAndNotItsIndices)
     EXPECT_EQ(image.data()[7], 40);
 }
 
-TEST(Unit_CodecsPng, IndicesOptionLeavesAFileWithoutAPaletteToItsLayout)
+TEST(Small_CodecsPng, IndicesOptionLeavesAFileWithoutAPaletteToItsLayout)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Image image,
                             decode_png(gray_png(), index_options(ChannelLayout::Stored)));
@@ -306,7 +306,7 @@ TEST(Unit_CodecsPng, IndicesOptionLeavesAFileWithoutAPaletteToItsLayout)
     EXPECT_EQ(bytes_of(image), K_GRAY_SAMPLES);
 }
 
-TEST(Unit_CodecsPng, SixteenBitGrayFileDecodesToEightBits)
+TEST(Small_CodecsPng, SixteenBitGrayFileDecodesToEightBits)
 {
     const std::vector<std::uint16_t> samples = {0, 65535, 65535, 0, 65535, 0};
     const std::vector<std::uint8_t> file =
@@ -321,7 +321,7 @@ TEST(Unit_CodecsPng, SixteenBitGrayFileDecodesToEightBits)
     EXPECT_EQ(bytes_of(image), (std::vector<std::uint8_t>{0, 255, 255, 0, 255, 0}));
 }
 
-TEST(Unit_CodecsPng, SixteenBitColorFileDecodesToEightBitRGB)
+TEST(Small_CodecsPng, SixteenBitColorFileDecodesToEightBitRGB)
 {
     const std::vector<std::uint16_t> samples = {65535, 0, 0, 0, 65535, 0, 0, 0, 65535, 0, 0, 0};
     const std::vector<std::uint8_t> file =
@@ -334,7 +334,7 @@ TEST(Unit_CodecsPng, SixteenBitColorFileDecodesToEightBitRGB)
               (std::vector<std::uint8_t>{255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0}));
 }
 
-TEST(Unit_CodecsPng, FileCutInHalfIsInvalid)
+TEST(Small_CodecsPng, FileCutInHalfIsInvalid)
 {
     const std::vector<std::uint8_t> file = pattern_png();
     ASSERT_GT(file.size(), 200u);
@@ -343,7 +343,7 @@ TEST(Unit_CodecsPng, FileCutInHalfIsInvalid)
     SA_EXPECT_FAILURE(decode_png(half, DecodeOptions{}), StatusCode::InvalidFile, "decode_png: ");
 }
 
-TEST(Unit_CodecsPng, FileCutInsideItsHeaderIsInvalid)
+TEST(Small_CodecsPng, FileCutInsideItsHeaderIsInvalid)
 {
     const std::vector<std::uint8_t> file = pattern_png();
     ASSERT_GT(file.size(), 20u);
@@ -357,7 +357,7 @@ TEST(Unit_CodecsPng, FileCutInsideItsHeaderIsInvalid)
     }
 }
 
-TEST(Unit_CodecsPng, EveryPrefixOfAFileFailsOrDecodesToTheFullSize)
+TEST(Small_CodecsPng, EveryPrefixOfAFileFailsOrDecodesToTheFullSize)
 {
     const std::vector<std::uint8_t> file = pattern_png();
 
@@ -374,7 +374,7 @@ TEST(Unit_CodecsPng, EveryPrefixOfAFileFailsOrDecodesToTheFullSize)
     }
 }
 
-TEST(Unit_CodecsPng, BytesThatAreNotAPNGAreInvalid)
+TEST(Small_CodecsPng, BytesThatAreNotAPNGAreInvalid)
 {
     const std::vector<std::uint8_t> garbage(64, 0x5A);
 
@@ -382,7 +382,7 @@ TEST(Unit_CodecsPng, BytesThatAreNotAPNGAreInvalid)
                       "decode_png: ");
 }
 
-TEST(Unit_CodecsPng, FileWithADamagedChunkIsInvalid)
+TEST(Small_CodecsPng, FileWithADamagedChunkIsInvalid)
 {
     std::vector<std::uint8_t> file = pattern_png();
     ASSERT_GT(file.size(), 30u);
@@ -392,7 +392,7 @@ TEST(Unit_CodecsPng, FileWithADamagedChunkIsInvalid)
     SA_EXPECT_FAILURE(decode_png(file, DecodeOptions{}), StatusCode::InvalidFile, "decode_png: ");
 }
 
-TEST(Unit_CodecsPng, SideAtTheLimitDecodes)
+TEST(Small_CodecsPng, SideAtTheLimitDecodes)
 {
     const std::vector<std::uint8_t> samples(static_cast<std::size_t>(K_MAX_IMAGE_SIDE), 9);
     const std::vector<std::uint8_t> file = encode_png(PNGSource{
@@ -405,7 +405,7 @@ TEST(Unit_CodecsPng, SideAtTheLimitDecodes)
     EXPECT_EQ(bytes_of(image), samples);
 }
 
-TEST(Unit_CodecsPng, WidthAboveTheLimitIsRefused)
+TEST(Small_CodecsPng, WidthAboveTheLimitIsRefused)
 {
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 9);
@@ -416,7 +416,7 @@ TEST(Unit_CodecsPng, WidthAboveTheLimitIsRefused)
                       "16384");
 }
 
-TEST(Unit_CodecsPng, HeightAboveTheLimitIsRefused)
+TEST(Small_CodecsPng, HeightAboveTheLimitIsRefused)
 {
     const std::uint32_t side = static_cast<std::uint32_t>(K_MAX_IMAGE_SIDE) + 1;
     const std::vector<std::uint8_t> samples(side, 9);

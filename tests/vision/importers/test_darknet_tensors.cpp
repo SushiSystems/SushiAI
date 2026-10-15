@@ -109,7 +109,7 @@ namespace
 } // namespace
 
 /** @brief Tests that one float32 tensor is listed per target name, with the bytes of its shape. */
-TEST(Unit_DarknetTensors, ListsOneTensorPerNamedTarget)
+TEST(Small_DarknetTensors, ListsOneTensorPerNamedTarget)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
                             list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
@@ -123,7 +123,7 @@ TEST(Unit_DarknetTensors, ListsOneTensorPerNamedTarget)
 }
 
 /** @brief Tests that the weights move from [out, in, kh, kw] to [out, kh, kw, in]. */
-TEST(Unit_DarknetTensors, WeightsMoveToKernelLast)
+TEST(Small_DarknetTensors, WeightsMoveToKernelLast)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
                             list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
@@ -143,7 +143,7 @@ TEST(Unit_DarknetTensors, WeightsMoveToKernelLast)
 }
 
 /** @brief Tests that a normalised convolution's vectors land under the batch-norm names. */
-TEST(Unit_DarknetTensors, EveryVectorLandsUnderItsTarget)
+TEST(Small_DarknetTensors, EveryVectorLandsUnderItsTarget)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ImportedTensor> tensors,
                             list_darknet_tensors(make_weights(), K_SHAPES, K_TARGETS));
@@ -166,7 +166,7 @@ TEST(Unit_DarknetTensors, EveryVectorLandsUnderItsTarget)
 }
 
 /** @brief Tests that a vector of another length is refused and names the layer and the entry. */
-TEST(Unit_DarknetTensors, AVectorOfTheWrongLengthIsRefused)
+TEST(Small_DarknetTensors, AVectorOfTheWrongLengthIsRefused)
 {
     DarknetWeights weights = make_weights();
     weights.convolutions[1].scales.push_back(1.0f);
@@ -176,7 +176,7 @@ TEST(Unit_DarknetTensors, AVectorOfTheWrongLengthIsRefused)
 }
 
 /** @brief Tests that two targets naming one entry are refused. */
-TEST(Unit_DarknetTensors, AnEntryNamedTwiceIsRefused)
+TEST(Small_DarknetTensors, AnEntryNamedTwiceIsRefused)
 {
     std::vector<DarknetWeightTarget> targets = K_TARGETS;
     targets[1].bias = "0.bias";
@@ -186,7 +186,7 @@ TEST(Unit_DarknetTensors, AnEntryNamedTwiceIsRefused)
 }
 
 /** @brief Tests that a shape that is not positive is refused before any vector is read. */
-TEST(Unit_DarknetTensors, AShapeThatIsNotPositiveIsRefused)
+TEST(Small_DarknetTensors, AShapeThatIsNotPositiveIsRefused)
 {
     std::vector<DarknetConvolutionShape> shapes = K_SHAPES;
     shapes[0].channels = 0;
@@ -196,7 +196,7 @@ TEST(Unit_DarknetTensors, AShapeThatIsNotPositiveIsRefused)
 }
 
 /** @brief Tests that weights, shapes and targets of different counts are refused. */
-TEST(Unit_DarknetTensors, MismatchedCountsAreRefused)
+TEST(Small_DarknetTensors, MismatchedCountsAreRefused)
 {
     std::vector<DarknetWeightTarget> targets = K_TARGETS;
     targets.pop_back();

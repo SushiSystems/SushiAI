@@ -206,7 +206,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a layout fitted to the ladder is kept on the ladder. */
-TEST(Unit_DetectAnchorReview, FittedLayoutIsKeptOnItsOwnBoxes)
+TEST(Small_DetectAnchorReview, FittedLayoutIsKeptOnItsOwnBoxes)
 {
     const std::vector<AnchorSize> ladder = make_ladder(1.0);
     const std::vector<std::int64_t> strides = {16, 32};
@@ -225,7 +225,7 @@ TEST(Unit_DetectAnchorReview, FittedLayoutIsKeptOnItsOwnBoxes)
 }
 
 /** @brief Tests that the shifted ladder gets Propose with both fits as measured directly. */
-TEST(Unit_DetectAnchorReview, ShiftedBoxesGetAProposalWithBothFits)
+TEST(Small_DetectAnchorReview, ShiftedBoxesGetAProposalWithBothFits)
 {
     const std::vector<std::int64_t> strides = {16, 32};
     const AnchorLayout current = fit_layout(make_ladder(1.0), strides, {3, 3});
@@ -259,7 +259,7 @@ TEST(Unit_DetectAnchorReview, ShiftedBoxesGetAProposalWithBothFits)
 }
 
 /** @brief Tests that the proposal's anchors sit within 5 % of the shifted rungs. */
-TEST(Unit_DetectAnchorReview, ProposalRecoversTheShiftedRungs)
+TEST(Small_DetectAnchorReview, ProposalRecoversTheShiftedRungs)
 {
     const std::vector<std::int64_t> strides = {16, 32};
     const AnchorLayout current = fit_layout(make_ladder(1.0), strides, {3, 3});
@@ -282,7 +282,7 @@ TEST(Unit_DetectAnchorReview, ProposalRecoversTheShiftedRungs)
 }
 
 /** @brief Tests that the proposal has the input's anchor count and counts per head. */
-TEST(Unit_DetectAnchorReview, ProposalKeepsTheCountsPerHead)
+TEST(Small_DetectAnchorReview, ProposalKeepsTheCountsPerHead)
 {
     const std::vector<std::int64_t> strides = {32, 16};
     const AnchorLayout current = fit_layout(make_ladder(1.0), strides, {2, 4});
@@ -300,7 +300,7 @@ TEST(Unit_DetectAnchorReview, ProposalKeepsTheCountsPerHead)
 }
 
 /** @brief Tests that the proposal is the clustering of the boxes assigned to the heads. */
-TEST(Unit_DetectAnchorReview, ProposalIsTheClusteringAssignedToTheHeads)
+TEST(Small_DetectAnchorReview, ProposalIsTheClusteringAssignedToTheHeads)
 {
     const std::vector<std::int64_t> strides = {16, 32};
     const std::vector<std::int64_t> per_head = {3, 3};
@@ -317,7 +317,7 @@ TEST(Unit_DetectAnchorReview, ProposalIsTheClusteringAssignedToTheHeads)
 }
 
 /** @brief Tests that the reviewed layout holds the same anchors and heads afterwards. */
-TEST(Unit_DetectAnchorReview, InputLayoutIsUnchanged)
+TEST(Small_DetectAnchorReview, InputLayoutIsUnchanged)
 {
     const std::vector<std::int64_t> strides = {16, 32};
     const AnchorLayout current = fit_layout(make_ladder(1.0), strides, {3, 3});
@@ -332,7 +332,7 @@ TEST(Unit_DetectAnchorReview, InputLayoutIsUnchanged)
 }
 
 /** @brief Tests each clause of the verdict with the other one switched off. */
-TEST(Unit_DetectAnchorReview, RecallAndGainEachDecideTheVerdict)
+TEST(Small_DetectAnchorReview, RecallAndGainEachDecideTheVerdict)
 {
     const std::vector<std::int64_t> strides = {16, 32};
     const AnchorLayout current = fit_layout(make_ladder(1.0), strides, {3, 3});
@@ -358,7 +358,7 @@ TEST(Unit_DetectAnchorReview, RecallAndGainEachDecideTheVerdict)
 }
 
 /** @brief Tests that a min_gain or min_recall outside its range is InvalidDescription. */
-TEST(Unit_DetectAnchorReview, RefusesOptionsOutsideTheirRange)
+TEST(Small_DetectAnchorReview, RefusesOptionsOutsideTheirRange)
 {
     const std::vector<AnchorSize> boxes = {{0.25f, 0.5f}, {0.5f, 0.25f}};
     const AnchorLayout current{{{0.25f, 0.5f}, {0.5f, 0.25f}}, {{0, 1}}};
@@ -380,7 +380,7 @@ TEST(Unit_DetectAnchorReview, RefusesOptionsOutsideTheirRange)
 }
 
 /** @brief Tests that a layout with no head is InvalidDescription. */
-TEST(Unit_DetectAnchorReview, RefusesALayoutWithoutHeads)
+TEST(Small_DetectAnchorReview, RefusesALayoutWithoutHeads)
 {
     const std::vector<AnchorSize> boxes = {{0.25f, 0.5f}, {0.5f, 0.25f}};
     const AnchorLayout current{{{0.25f, 0.5f}}, {}};
@@ -393,7 +393,7 @@ TEST(Unit_DetectAnchorReview, RefusesALayoutWithoutHeads)
 }
 
 /** @brief Tests that boxes, strides or head counts that disagree are Incompatible. */
-TEST(Unit_DetectAnchorReview, RefusesBoxesStridesAndCountsThatDisagree)
+TEST(Small_DetectAnchorReview, RefusesBoxesStridesAndCountsThatDisagree)
 {
     const std::vector<AnchorSize> boxes = {{0.125f, 0.25f}, {0.25f, 0.5f}, {0.5f, 0.75f}};
     const std::vector<AnchorSize> no_boxes;

@@ -153,7 +153,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a version 0.2 header carries a 64-bit seen count. */
-TEST(Unit_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
+TEST(Medium_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -172,7 +172,7 @@ TEST(Unit_DarknetWeights, ReadsAVersionZeroTwoHeaderWithA64BitSeen)
 }
 
 /** @brief Tests that a version 0.1 header carries a 32-bit seen count. */
-TEST(Unit_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
+TEST(Medium_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -189,7 +189,7 @@ TEST(Unit_DarknetWeights, ReadsAVersionZeroOneHeaderWithA32BitSeen)
 }
 
 /** @brief Tests that a major of 1 gives a 64-bit seen count whatever the minor. */
-TEST(Unit_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
+TEST(Medium_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
 {
     std::string bytes;
     put(bytes, 1, 4);
@@ -206,7 +206,7 @@ TEST(Unit_DarknetWeights, ReadsAMajorOneHeaderWithA64BitSeen)
 }
 
 /** @brief Tests that a major of exactly 1000 is read. */
-TEST(Unit_DarknetWeights, AcceptsAMajorAtTheLimitOfOneThousand)
+TEST(Medium_DarknetWeights, AcceptsAMajorAtTheLimitOfOneThousand)
 {
     std::string bytes;
     put(bytes, 1000, 4);
@@ -221,7 +221,7 @@ TEST(Unit_DarknetWeights, AcceptsAMajorAtTheLimitOfOneThousand)
 }
 
 /** @brief Tests that a major of 1001 is Unsupported. */
-TEST(Unit_DarknetWeights, RefusesAMajorAboveOneThousandAsUnsupported)
+TEST(Medium_DarknetWeights, RefusesAMajorAboveOneThousandAsUnsupported)
 {
     std::string bytes;
     put(bytes, 1001, 4);
@@ -233,7 +233,7 @@ TEST(Unit_DarknetWeights, RefusesAMajorAboveOneThousandAsUnsupported)
 }
 
 /** @brief Tests that a minor of 1001 is Unsupported. */
-TEST(Unit_DarknetWeights, RefusesAMinorAboveOneThousandAsUnsupported)
+TEST(Medium_DarknetWeights, RefusesAMinorAboveOneThousandAsUnsupported)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -245,7 +245,7 @@ TEST(Unit_DarknetWeights, RefusesAMinorAboveOneThousandAsUnsupported)
 }
 
 /** @brief Tests that a stream that ends inside the header is InvalidFile. */
-TEST(Unit_DarknetWeights, RefusesAHeaderThatEndsEarly)
+TEST(Medium_DarknetWeights, RefusesAHeaderThatEndsEarly)
 {
     std::string bytes;
     put(bytes, 0, 4);
@@ -257,7 +257,7 @@ TEST(Unit_DarknetWeights, RefusesAHeaderThatEndsEarly)
 }
 
 /** @brief Tests that index-valued floats land in each vector at their own indices. */
-TEST(Unit_DarknetWeights, ReadsEveryVectorInFileOrder)
+TEST(Medium_DarknetWeights, ReadsEveryVectorInFileOrder)
 {
     // The floats are 0 to 21 in file order, so each vector starts at its own index.
     TemporaryWeightsFile file("sushiai_weights_order.weights", sample_bytes(22));
@@ -281,7 +281,7 @@ TEST(Unit_DarknetWeights, ReadsEveryVectorInFileOrder)
 }
 
 /** @brief Tests that only a normalised layer fills scales, means and variances. */
-TEST(Unit_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
+TEST(Medium_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
 {
     TemporaryWeightsFile file("sushiai_weights_vectors.weights", sample_bytes(22));
     const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
@@ -302,7 +302,7 @@ TEST(Unit_DarknetWeights, KeepsTheBatchNormVectorsOnlyForNormalisedLayers)
 }
 
 /** @brief Tests that negative zero, a denormal and a NaN payload keep their bits. */
-TEST(Unit_DarknetWeights, DecodesEveryBitPatternAsItIs)
+TEST(Medium_DarknetWeights, DecodesEveryBitPatternAsItIs)
 {
     // Biases are -0.0 and the smallest subnormal; weights are a NaN with payload 1 and 1.0.
     std::string bytes;
@@ -330,7 +330,7 @@ TEST(Unit_DarknetWeights, DecodesEveryBitPatternAsItIs)
 }
 
 /** @brief Tests that a file one float short is InvalidFile with the layer and both counts. */
-TEST(Unit_DarknetWeights, RefusesOneFloatShortWithTheLayerAndBothByteCounts)
+TEST(Medium_DarknetWeights, RefusesOneFloatShortWithTheLayerAndBothByteCounts)
 {
     // The header is 20 bytes. Layer 0 needs 16 bytes, so layer 2 ends at 20 + 16 + 72 = 108.
     TemporaryWeightsFile file("sushiai_weights_short.weights", sample_bytes(21));
@@ -341,7 +341,7 @@ TEST(Unit_DarknetWeights, RefusesOneFloatShortWithTheLayerAndBothByteCounts)
 }
 
 /** @brief Tests that a file one float over is InvalidFile with the layer and both counts. */
-TEST(Unit_DarknetWeights, RefusesOneFloatOverWithTheLayerAndBothByteCounts)
+TEST(Medium_DarknetWeights, RefusesOneFloatOverWithTheLayerAndBothByteCounts)
 {
     TemporaryWeightsFile file("sushiai_weights_over.weights", sample_bytes(23));
     const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
@@ -351,7 +351,7 @@ TEST(Unit_DarknetWeights, RefusesOneFloatOverWithTheLayerAndBothByteCounts)
 }
 
 /** @brief Tests that bytes after the header with no layer listed are InvalidFile. */
-TEST(Unit_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
+TEST(Medium_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
 {
     TemporaryWeightsFile file("sushiai_weights_no_layer.weights", sample_bytes(1));
     const std::vector<DarknetConvolutionShape> shapes;
@@ -361,7 +361,7 @@ TEST(Unit_DarknetWeights, RefusesBytesAfterAHeaderWithNoConvolution)
 }
 
 /** @brief Tests that a shape with zero filters is InvalidDescription naming the layer. */
-TEST(Unit_DarknetWeights, RefusesAShapeThatIsNotPositive)
+TEST(Medium_DarknetWeights, RefusesAShapeThatIsNotPositive)
 {
     TemporaryWeightsFile file("sushiai_weights_zero.weights", sample_bytes(0));
     const std::vector<DarknetConvolutionShape> shapes{DarknetConvolutionShape{0, 0, 1, 1, false}};
@@ -371,7 +371,7 @@ TEST(Unit_DarknetWeights, RefusesAShapeThatIsNotPositive)
 }
 
 /** @brief Tests that a shape too large to count is InvalidDescription. */
-TEST(Unit_DarknetWeights, RefusesAShapeWhoseCountOverflows)
+TEST(Medium_DarknetWeights, RefusesAShapeWhoseCountOverflows)
 {
     TemporaryWeightsFile file("sushiai_weights_huge.weights", sample_bytes(0));
     const std::int64_t big = std::int64_t{1} << 40;
@@ -384,7 +384,7 @@ TEST(Unit_DarknetWeights, RefusesAShapeWhoseCountOverflows)
 }
 
 /** @brief Tests that a path that cannot be opened gives FileNotFound. */
-TEST(Unit_DarknetWeights, ReportsAMissingFileAsFileNotFound)
+TEST(Medium_DarknetWeights, ReportsAMissingFileAsFileNotFound)
 {
     const std::filesystem::path missing = std::filesystem::temp_directory_path() /
                                           "sushiai_weights_absent.weights";

@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_determinism.cpp
 
 
-Suites: `Regression_Determinism`.
+Suites: `Medium_Determinism`.
 
 This file tests bit-for-bit reproducibility from end to end.
 

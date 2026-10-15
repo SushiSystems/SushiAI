@@ -1,6 +1,6 @@
 # tests/package
 
-An out-of-tree consumer of the installed SushiAI package. `sa test --suite package` installs
+An out-of-tree consumer of the installed SushiAI package. `sa test --label package` installs
 the project to a prefix under `build/`, configures this folder against that prefix and runs
 the executable; [`cli/README.md`](../../cli/README.md) describes that suite.
 

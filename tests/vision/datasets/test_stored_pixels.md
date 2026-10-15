@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_stored_pixels.cpp
 
 
-Suites: `Unit_DatasetsStoredPixels`.
+Suites: `Small_DatasetsStoredPixels`.
 
 Tests `StoredPixels` and `read_stored_pixels` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/stored_pixels.hpp`. Three cases read

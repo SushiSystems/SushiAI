@@ -60,7 +60,7 @@ namespace
     constexpr std::size_t K_SINE = 2;
 
     /** @brief Builds the steps a ring feed is bound to. */
-    class Unit_GenerationRingPositionFeed : public Support::FedStepTest
+    class Medium_GenerationRingPositionFeed : public Support::FedStepTest
     {
         protected:
             /** @brief Returns the ring feed of the step over K_FEED_WINDOW rows, or null. */
@@ -75,7 +75,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the feed lists the slot, the cosines and the sines, in that order. */
-TEST_F(Unit_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
+TEST_F(Medium_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
 {
     build_step(false, true);
     ASSERT_NE(step, nullptr);
@@ -95,7 +95,7 @@ TEST_F(Unit_GenerationRingPositionFeed, TheFeedListsTheSlotThenTheAngles)
 }
 
 /** @brief Tests that the slot is the position modulo T and the angles those of the position. */
-TEST_F(Unit_GenerationRingPositionFeed, PlaceWrapsTheSlotAndKeepsThePositionOfTheAngles)
+TEST_F(Medium_GenerationRingPositionFeed, PlaceWrapsTheSlotAndKeepsThePositionOfTheAngles)
 {
     build_step(false, true);
     ASSERT_NE(step, nullptr);
@@ -124,7 +124,7 @@ TEST_F(Unit_GenerationRingPositionFeed, PlaceWrapsTheSlotAndKeepsThePositionOfTh
 }
 
 /** @brief Tests that every cached row stays right after a slide. */
-TEST_F(Unit_GenerationRingPositionFeed, EveryRowStaysRightAfterASlide)
+TEST_F(Medium_GenerationRingPositionFeed, EveryRowStaysRightAfterASlide)
 {
     build_step(false, true);
     ASSERT_NE(step, nullptr);
@@ -135,7 +135,7 @@ TEST_F(Unit_GenerationRingPositionFeed, EveryRowStaysRightAfterASlide)
 }
 
 /** @brief Tests that a ring without its angle function and a leaf that misfits are refused. */
-TEST_F(Unit_GenerationRingPositionFeed, ARingThatDoesNotFitIsRefused)
+TEST_F(Medium_GenerationRingPositionFeed, ARingThatDoesNotFitIsRefused)
 {
     build_step(true, true);
     ASSERT_NE(step, nullptr);

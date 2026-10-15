@@ -54,14 +54,14 @@ namespace
 } // namespace
 
 /** @brief Tests that Flatten satisfies the Module trait. */
-TEST(Unit_Flatten, SatisfiesTheModuleTrait)
+TEST(Small_Flatten, SatisfiesTheModuleTrait)
 {
     static_assert(NN::Module<Flatten>, "Flatten must be a Module");
     static_assert(!NN::ModuleContainer<Flatten>, "Flatten must not look like a container");
 }
 
 /** @brief Tests that a rank-4 input traces to one RESHAPE of shape [N, H * W * C]. */
-TEST(Unit_Flatten, ARank4InputTracesToOneReshape)
+TEST(Small_Flatten, ARank4InputTracesToOneReshape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -84,13 +84,13 @@ TEST(Unit_Flatten, ARank4InputTracesToOneReshape)
 }
 
 /** @brief Tests that a rank-3 input traces to [N, d1 * d2]. */
-TEST(Unit_Flatten, ARank3InputFoldsItsTwoInnerAxes)
+TEST(Small_Flatten, ARank3InputFoldsItsTwoInnerAxes)
 {
     EXPECT_EQ(traced_shape(Shape{2, 3, 4}), (Shape{2, 12}));
 }
 
 /** @brief Tests that a rank-2 input comes back as the same value and adds no node. */
-TEST(Unit_Flatten, ARank2InputPassesThroughWithNoNode)
+TEST(Small_Flatten, ARank2InputPassesThroughWithNoNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -108,7 +108,7 @@ TEST(Unit_Flatten, ARank2InputPassesThroughWithNoNode)
 }
 
 /** @brief Tests that flattening an NHWC rank-4 input does not stamp the result with another tag. */
-TEST(Unit_Flatten, AnNHWCInputYieldsAnNHWCResult)
+TEST(Small_Flatten, AnNHWCInputYieldsAnNHWCResult)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -122,7 +122,7 @@ TEST(Unit_Flatten, AnNHWCInputYieldsAnNHWCResult)
 }
 
 /** @brief Tests that forward() throws on an input tagged NCHW. */
-TEST(Unit_Flatten, ForwardRejectsAnNCHWInput)
+TEST(Small_Flatten, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -134,7 +134,7 @@ TEST(Unit_Flatten, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for an image and two vectors. */
-TEST(Unit_Flatten, OutputShapeAgreesWithTheTracedShape)
+TEST(Small_Flatten, OutputShapeAgreesWithTheTracedShape)
 {
     const Flatten layer{};
 
@@ -152,7 +152,7 @@ TEST(Unit_Flatten, OutputShapeAgreesWithTheTracedShape)
 }
 
 /** @brief Tests that forward() throws on a rank-1 input, which has no per-sample axis. */
-TEST(Unit_Flatten, ForwardRejectsARank1Input)
+TEST(Small_Flatten, ForwardRejectsARank1Input)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -164,7 +164,7 @@ TEST(Unit_Flatten, ForwardRejectsARank1Input)
 }
 
 /** @brief Tests that output_shape() throws on a rank-0 per-sample shape. */
-TEST(Unit_Flatten, OutputShapeRejectsARank0Shape)
+TEST(Small_Flatten, OutputShapeRejectsARank0Shape)
 {
     const Flatten layer{};
 
@@ -172,7 +172,7 @@ TEST(Unit_Flatten, OutputShapeRejectsARank0Shape)
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Unit_Flatten, TheParameterWalkVisitsNothing)
+TEST(Small_Flatten, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

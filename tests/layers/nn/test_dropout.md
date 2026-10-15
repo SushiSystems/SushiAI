@@ -3,7 +3,7 @@
 
 That Dropout emits one DROPOUT node in training with its rate and site seed, returns its input in evaluation and at rate 0, gives each site its own seed, its rate check and its factory.
 
-Suites: `Unit_Dropout`.
+Suites: `Small_Dropout`.
 
 Tests `NN::Dropout` in `modules/layers/nn/include/SushiAI/nn/dropout.hpp` and its factory
 `NN::make_dropout_node`. A `static_assert` at the top of the file holds that `Dropout` is a

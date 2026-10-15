@@ -1,7 +1,7 @@
 # tests/core/graph/test_ir.cpp
 
 
-Suites: `Unit_Ir`, `Unit_IR`.
+Suites: `Small_Ir`, `Small_IR`.
 
 Tests the IR's single-assignment and ordering rules and the builder's shape inference.
 
@@ -96,7 +96,7 @@ SushiBLAS.
 
 ## ABufferLeafIsPersistentAndNeedsNoGradient
 
-The nine cases from here are in the suite `Unit_Ir`; the cases above are in `Unit_IR`.
+The nine cases from here are in the suite `Small_Ir`; the cases above are in `Small_IR`.
 
 `GraphBuilder::buffer` declares a value of the shape, type and name it was given, with the
 lifetime `Lifetime::Buffer` and `requires_grad` false. Its producer is a K_LEAF node. A K_BIAS_ADD

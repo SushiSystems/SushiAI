@@ -55,7 +55,7 @@ namespace
 } // namespace
 
 /** @brief Tests a mass of 0.6 over 1/2, 1/4, 1/4: tokens 0 and 1 share 2/3 and 1/3. */
-TEST(Unit_GenerationNucleusSampler, TheFewestTokensThatReachTheMassAreDrawn)
+TEST(Small_GenerationNucleusSampler, TheFewestTokensThatReachTheMassAreDrawn)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
                             NucleusSampler::make(0.6, 1.0));
@@ -70,7 +70,7 @@ TEST(Unit_GenerationNucleusSampler, TheFewestTokensThatReachTheMassAreDrawn)
 }
 
 /** @brief Tests a mass of 0.4, which the first token reaches alone. */
-TEST(Unit_GenerationNucleusSampler, AMassTheFirstTokenReachesKeepsItAlone)
+TEST(Small_GenerationNucleusSampler, AMassTheFirstTokenReachesKeepsItAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
                             NucleusSampler::make(0.4, 1.0));
@@ -82,7 +82,7 @@ TEST(Unit_GenerationNucleusSampler, AMassTheFirstTokenReachesKeepsItAlone)
 }
 
 /** @brief Tests a mass of 1, which keeps every token: the shares are 1/2, 1/4 and 1/4. */
-TEST(Unit_GenerationNucleusSampler, AMassOfOneKeepsEveryToken)
+TEST(Small_GenerationNucleusSampler, AMassOfOneKeepsEveryToken)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
                             NucleusSampler::make(1.0, 1.0));
@@ -96,7 +96,7 @@ TEST(Unit_GenerationNucleusSampler, AMassOfOneKeepsEveryToken)
 }
 
 /** @brief Tests that one seed gives one sequence. */
-TEST(Unit_GenerationNucleusSampler, ASeedFixesTheSequence)
+TEST(Small_GenerationNucleusSampler, ASeedFixesTheSequence)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NucleusSampler> sampler,
                             NucleusSampler::make(0.9, 1.2));
@@ -107,7 +107,7 @@ TEST(Unit_GenerationNucleusSampler, ASeedFixesTheSequence)
 }
 
 /** @brief Tests that a mass outside (0, 1] and a bad temperature are refused. */
-TEST(Unit_GenerationNucleusSampler, MakeRefusesAMassOutsideItsRangeAndABadTemperature)
+TEST(Small_GenerationNucleusSampler, MakeRefusesAMassOutsideItsRangeAndABadTemperature)
 {
     SA_EXPECT_FAILURE(NucleusSampler::make(0.0, 1.0), StatusCode::InvalidDescription,
                       "'nucleus'", "above 0");

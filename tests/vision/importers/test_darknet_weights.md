@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_weights.cpp
 
 
-Suites: `Unit_DarknetWeights`.
+Suites: `Medium_DarknetWeights`.
 
 Tests `read_darknet_header` over byte streams built in memory and `read_darknet_weights` over
 files the cases write under the system's temporary directory. The sample file holds a 20-byte

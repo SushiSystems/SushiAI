@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_fit_mask.cpp
 
 
-Suites: `Unit_DatasetsFitMask`, `Unit_DatasetsLoadSampleMask`.
+Suites: `Small_DatasetsFitMask`, `Small_DatasetsLoadSampleMask`.
 
 Tests `fit_mask` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_mask.hpp` and
 `load_sample_mask` in

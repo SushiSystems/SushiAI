@@ -256,7 +256,7 @@ namespace
  * @brief Tests that row 23 publishes twelve ports under the names forward.sacp records: per
  *        copy the boxes of each level, then the scores, one-to-many first.
  */
-TEST(Unit_BlockDetectHead, ThePortsCarryTheFixtureNamesAndShapes)
+TEST(Medium_BlockDetectHead, ThePortsCarryTheFixtureNamesAndShapes)
 {
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
@@ -291,7 +291,7 @@ TEST(Unit_BlockDetectHead, ThePortsCarryTheFixtureNamesAndShapes)
  * @brief Tests that a traced head yields the 204 records MANIFEST.json lists under model.23,
  *        records 390 to 593: names, NHWC shapes and order.
  */
-TEST(Unit_BlockDetectHead, StateMatchesManifestRecords390To593)
+TEST(Medium_BlockDetectHead, StateMatchesManifestRecords390To593)
 {
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
@@ -315,7 +315,7 @@ TEST(Unit_BlockDetectHead, StateMatchesManifestRecords390To593)
  * @brief Tests that a training trace emits three STOP_GRADIENT nodes, one over each feature
  *        in level order, and appends twelve values of the ports' shapes.
  */
-TEST(Unit_BlockDetectHead, ATrainingTraceDetachesEachFeatureOnce)
+TEST(Medium_BlockDetectHead, ATrainingTraceDetachesEachFeatureOnce)
 {
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
@@ -347,7 +347,7 @@ TEST(Unit_BlockDetectHead, ATrainingTraceDetachesEachFeatureOnce)
  * @brief Tests that an evaluation trace emits no STOP_GRADIENT, folds the 36 norms and keeps
  *        the 12 depthwise convolutions of the two copies.
  */
-TEST(Unit_BlockDetectHead, AnEvaluationTraceEmitsNoStopGradient)
+TEST(Medium_BlockDetectHead, AnEvaluationTraceEmitsNoStopGradient)
 {
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
@@ -366,7 +366,7 @@ TEST(Unit_BlockDetectHead, AnEvaluationTraceEmitsNoStopGradient)
  * @brief Tests the widths over a first level of 128 channels and 3 classes: a box branch of
  *        128 / 4 = 32 and a class branch of max(128, 3) = 128.
  */
-TEST(Unit_BlockDetectHead, TheFirstLevelSetsTheBranchWidths)
+TEST(Medium_BlockDetectHead, TheFirstLevelSetsTheBranchWidths)
 {
     const std::vector<Shape> levels = {Shape{4, 4, 128}};
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<DetectHead> head,
@@ -390,7 +390,7 @@ TEST(Unit_BlockDetectHead, TheFirstLevelSetsTheBranchWidths)
 }
 
 /** @brief Tests that forward refuses two values for three levels and appends nothing. */
-TEST(Unit_BlockDetectHead, ForwardRefusesAWrongInputCount)
+TEST(Medium_BlockDetectHead, ForwardRefusesAWrongInputCount)
 {
     const std::unique_ptr<DetectHead> head = make_row23();
     ASSERT_NE(head, nullptr);
@@ -404,7 +404,7 @@ TEST(Unit_BlockDetectHead, ForwardRefusesAWrongInputCount)
 }
 
 /** @brief Tests that create refuses no level, a rank-2 level and a class count of zero. */
-TEST(Unit_BlockDetectHead, CreateRefusesLevelsOrClassesThatDoNotFit)
+TEST(Medium_BlockDetectHead, CreateRefusesLevelsOrClassesThatDoNotFit)
 {
     const std::vector<Shape> none;
     const std::vector<Shape> flat = {Shape{80, 80, 64}, Shape{40, 128}};
@@ -422,7 +422,7 @@ TEST(Unit_BlockDetectHead, CreateRefusesLevelsOrClassesThatDoNotFit)
  * @brief Tests that make_detect_node builds row 23 from its file row: twelve ports, the first
  *        and the last of them, and the norm constants on every traced norm.
  */
-TEST(Unit_BlockDetectHead, TheFactoryBuildsRow23)
+TEST(Medium_BlockDetectHead, TheFactoryBuildsRow23)
 {
     const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
     const Config::Value attributes =
@@ -457,7 +457,7 @@ TEST(Unit_BlockDetectHead, TheFactoryBuildsRow23)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing class count and no level. */
-TEST(Unit_BlockDetectHead, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Medium_BlockDetectHead, TheFactoryRefusesARowThatDoesNotFit)
 {
     const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
     const std::vector<Shape> none;

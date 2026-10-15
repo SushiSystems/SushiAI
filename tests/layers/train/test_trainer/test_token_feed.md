@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_token_feed.cpp
 
 
-Suites: `Integration_TokenFeed`.
+Suites: `Medium_TokenFeed`.
 
 A materialised dataset named "tokens" holds int32 ids, two rows of five per batch, all below 7. The
 cases feed it to an int32 input leaf and to a float32 one.

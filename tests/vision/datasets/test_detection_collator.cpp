@@ -66,7 +66,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_DetectionCollator : public SaTest::EngineTest
+    class Medium_DetectionCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -107,7 +107,7 @@ namespace
 } // namespace
 
 /** @brief Tests that detection publishes boxes, classes and valid with M slots per image. */
-TEST_F(Unit_DetectionCollator, DetectionPublishesThreeRoles)
+TEST_F(Medium_DetectionCollator, DetectionPublishesThreeRoles)
 {
     SA_EXPECT_FAILURE(DetectionCollator::make(0, 4), StatusCode::InvalidDescription,
                       "DetectionCollator", "0 classes");
@@ -133,7 +133,7 @@ TEST_F(Unit_DetectionCollator, DetectionPublishesThreeRoles)
 }
 
 /** @brief Tests that detection writes pixel corners in object order and zeroes the padding. */
-TEST_F(Unit_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
+TEST_F(Medium_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
 {
     samples[1].objects.add(2, PixelBox{0.25f, 0.5f, 1.5f, 1.0f});
 
@@ -167,7 +167,7 @@ TEST_F(Unit_DetectionCollator, DetectionWritesCornersAndPadsWithZero)
 }
 
 /** @brief Tests that an image with more objects than M is a failure naming its file. */
-TEST_F(Unit_DetectionCollator, DetectionNamesTheFileOfAnImageWithTooManyObjects)
+TEST_F(Medium_DetectionCollator, DetectionNamesTheFileOfAnImageWithTooManyObjects)
 {
     for (std::int32_t object = 0; object < 3; ++object)
         samples[1].objects.add(0, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
@@ -180,7 +180,7 @@ TEST_F(Unit_DetectionCollator, DetectionNamesTheFileOfAnImageWithTooManyObjects)
 }
 
 /** @brief Tests that an object of a class the set lacks is a failure naming its file. */
-TEST_F(Unit_DetectionCollator, DetectionRefusesAClassOutsideTheSet)
+TEST_F(Medium_DetectionCollator, DetectionRefusesAClassOutsideTheSet)
 {
     samples[0].objects.add(3, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
 

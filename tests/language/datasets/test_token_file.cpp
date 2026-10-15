@@ -77,7 +77,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the writer produces the bytes the module README documents. */
-TEST(Unit_LanguageDatasetsTokenFile, TheWriterProducesTheDocumentedBytes)
+TEST(Small_LanguageDatasetsTokenFile, TheWriterProducesTheDocumentedBytes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_bytes");
     const std::filesystem::path file = scratch.path() / "tiny.satk";
@@ -89,7 +89,7 @@ TEST(Unit_LanguageDatasetsTokenFile, TheWriterProducesTheDocumentedBytes)
 }
 
 /** @brief Tests that the header and any range of the ids come back from the file. */
-TEST(Unit_LanguageDatasetsTokenFile, TheHeaderAndARangeOfIDsSurviveTheFile)
+TEST(Small_LanguageDatasetsTokenFile, TheHeaderAndARangeOfIDsSurviveTheFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_round_trip");
     const std::filesystem::path file = scratch.path() / "corpus.satk";
@@ -114,7 +114,7 @@ TEST(Unit_LanguageDatasetsTokenFile, TheHeaderAndARangeOfIDsSurviveTheFile)
 }
 
 /** @brief Tests that an id outside the vocabulary is refused before the file is opened. */
-TEST(Unit_LanguageDatasetsTokenFile, TheWriterRefusesAnIDOutsideTheVocabulary)
+TEST(Small_LanguageDatasetsTokenFile, TheWriterRefusesAnIDOutsideTheVocabulary)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_bad_id");
     const std::filesystem::path file = scratch.path() / "refused.satk";
@@ -134,7 +134,7 @@ TEST(Unit_LanguageDatasetsTokenFile, TheWriterRefusesAnIDOutsideTheVocabulary)
 }
 
 /** @brief Tests that a file cut at any length is refused, naming the byte it ends at. */
-TEST(Unit_LanguageDatasetsTokenFile, ATruncatedFileIsRefusedAtEveryLength)
+TEST(Small_LanguageDatasetsTokenFile, ATruncatedFileIsRefusedAtEveryLength)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_truncated");
     const std::string whole = three_ids();
@@ -157,7 +157,7 @@ TEST(Unit_LanguageDatasetsTokenFile, ATruncatedFileIsRefusedAtEveryLength)
 }
 
 /** @brief Tests that bytes after the declared end are refused, naming where they begin. */
-TEST(Unit_LanguageDatasetsTokenFile, BytesAfterTheDeclaredEndAreRefused)
+TEST(Small_LanguageDatasetsTokenFile, BytesAfterTheDeclaredEndAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_oversized");
     const std::filesystem::path file = scratch.write("long.satk", three_ids() + "xy");
@@ -167,7 +167,7 @@ TEST(Unit_LanguageDatasetsTokenFile, BytesAfterTheDeclaredEndAreRefused)
 }
 
 /** @brief Tests that a header field out of its bounds names the byte it is at. */
-TEST(Unit_LanguageDatasetsTokenFile, AHeaderFieldOutOfBoundsNamesItsOffset)
+TEST(Small_LanguageDatasetsTokenFile, AHeaderFieldOutOfBoundsNamesItsOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_header");
 
@@ -199,7 +199,7 @@ TEST(Unit_LanguageDatasetsTokenFile, AHeaderFieldOutOfBoundsNamesItsOffset)
 }
 
 /** @brief Tests that an id of the file outside its vocabulary names its byte offset. */
-TEST(Unit_LanguageDatasetsTokenFile, AnIDOutsideTheVocabularyNamesItsOffset)
+TEST(Small_LanguageDatasetsTokenFile, AnIDOutsideTheVocabularyNamesItsOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_range");
 
@@ -225,7 +225,7 @@ TEST(Unit_LanguageDatasetsTokenFile, AnIDOutsideTheVocabularyNamesItsOffset)
 }
 
 /** @brief Tests that a range past the last id, and an absent file, are refused. */
-TEST(Unit_LanguageDatasetsTokenFile, ARangeOutsideTheFileAndAnAbsentFileAreRefused)
+TEST(Small_LanguageDatasetsTokenFile, ARangeOutsideTheFileAndAnAbsentFileAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_language_token_file_outside");
     const std::filesystem::path file = scratch.write("three.satk", three_ids());

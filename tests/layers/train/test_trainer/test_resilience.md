@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_resilience.cpp
 
 
-Suites: `Integration_Resilience`, `Integration_ResilienceDeathTest`.
+Suites: `Medium_Resilience`, `Medium_ResilienceDeathTest`.
 
 The file checks what the library does when it is handed something it cannot serve, and what it
 does at the edges of what it can. The happy path belongs to `test_forward.cpp` and

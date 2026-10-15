@@ -48,7 +48,7 @@ using Graph::ValueID;
 
 namespace
 {
-    class Regression_StaticMemory : public SaTest::EngineTest {};
+    class Medium_StaticMemory : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -157,7 +157,7 @@ namespace
  * @brief Tests that twelve steps after the first leave the live allocation count unchanged.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
+TEST_F(Medium_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
 {
     const auto live_allocations = [this]
     {
@@ -216,7 +216,7 @@ TEST_F(Regression_StaticMemory, ATrainingLoopAllocatesNothingAfterTheFirstStep)
  * @brief Tests that packing allocates fewer bytes than no plan on the unfused graph.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
+TEST_F(Medium_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
 {
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::runtime());
     SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_engine, false, unfused()));
@@ -241,7 +241,7 @@ TEST_F(Regression_StaticMemory, PackingShrinksTheFootprintOfTheSameModel)
  * @brief Tests that fusion removes intermediates and never allocates more than packing alone.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
+TEST_F(Medium_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
 {
     SushiBLAS::Engine fused_engine(SaTest::TestEnvironment::runtime());
     SA_ASSERT_OK_AND_ASSIGN(const Outcome fused, train(fused_engine, true));
@@ -270,7 +270,7 @@ TEST_F(Regression_StaticMemory, FusingTakesTheBuffersPackingUsedToOverlap)
  * @brief Tests that packed and unpacked training agree byte for byte.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
+TEST_F(Medium_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
 {
     SushiBLAS::Engine unplanned_engine(SaTest::TestEnvironment::runtime());
     SA_ASSERT_OK_AND_ASSIGN(const Outcome unplanned, train(unplanned_engine, false));
@@ -298,7 +298,7 @@ TEST_F(Regression_StaticMemory, PackedAndUnpackedTrainingAgreeByteForByte)
  * @brief Tests that a packed ZERO buffer corrupted between replays is refilled.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
+TEST_F(Medium_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

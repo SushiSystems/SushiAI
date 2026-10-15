@@ -119,7 +119,7 @@ namespace
  * The expected values are the SPEC 3 table column: iou_normalizer 0.75 and obj_normalizer 1
  * when absent, iou_thresh 1 when absent, ignore_thresh 0.7, mse.
  */
-TEST(Unit_DarknetTraining, ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent)
+TEST(Small_DarknetTraining, ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent)
 {
     const std::string text =
         "[net]\n"
@@ -144,7 +144,7 @@ TEST(Unit_DarknetTraining, ReadsTheV3HeadSettingsWhenTheTrainingKeysAreAbsent)
  *
  * The objectness and iou_thresh keys are absent, so obj_normalizer is 1 and iou_thresh is 1.
  */
-TEST(Unit_DarknetTraining, ReadsTheV4TinyHeadSettings)
+TEST(Small_DarknetTraining, ReadsTheV4TinyHeadSettings)
 {
     const std::string text =
         "[net]\n"
@@ -170,7 +170,7 @@ TEST(Unit_DarknetTraining, ReadsTheV4TinyHeadSettings)
  *
  * The objectness_smooth key is absent, so the objectness target is One.
  */
-TEST(Unit_DarknetTraining, ReadsTheV4HeadSettings)
+TEST(Small_DarknetTraining, ReadsTheV4HeadSettings)
 {
     const std::string text =
         "[net]\n"
@@ -198,7 +198,7 @@ TEST(Unit_DarknetTraining, ReadsTheV4HeadSettings)
  *
  * cls_normalizer 0.5 is read and reaches no option, as REPORT section 17 states.
  */
-TEST(Unit_DarknetTraining, ReadsTheV7HeadSettings)
+TEST(Small_DarknetTraining, ReadsTheV7HeadSettings)
 {
     const std::string text =
         "[net]\n"
@@ -226,7 +226,7 @@ TEST(Unit_DarknetTraining, ReadsTheV7HeadSettings)
 /**
  * @brief Tests that an absent [net] solver key keeps the default the header states.
  */
-TEST(Unit_DarknetTraining, KeepsTheSolverDefaultsWhenTheKeysAreAbsent)
+TEST(Small_DarknetTraining, KeepsTheSolverDefaultsWhenTheKeysAreAbsent)
 {
     const std::string text =
         "[net]\n"
@@ -250,7 +250,7 @@ TEST(Unit_DarknetTraining, KeepsTheSolverDefaultsWhenTheKeysAreAbsent)
 /**
  * @brief Tests that every solver key the file spells is read to the value it states.
  */
-TEST(Unit_DarknetTraining, ReadsEverySolverKeyTheFileSpells)
+TEST(Small_DarknetTraining, ReadsEverySolverKeyTheFileSpells)
 {
     const std::string text =
         "[net]\n"
@@ -283,7 +283,7 @@ TEST(Unit_DarknetTraining, ReadsEverySolverKeyTheFileSpells)
 /**
  * @brief Tests that heads follow the file's order and that other sections are not heads.
  */
-TEST(Unit_DarknetTraining, KeepsTheHeadsInFileOrderAndSkipsOtherSections)
+TEST(Small_DarknetTraining, KeepsTheHeadsInFileOrderAndSkipsOtherSections)
 {
     const std::string text =
         "[net]\n"
@@ -307,7 +307,7 @@ TEST(Unit_DarknetTraining, KeepsTheHeadsInFileOrderAndSkipsOtherSections)
  * @brief Tests that the spelled defaults, mse and objectness_smooth 0, give the same options as
  *        absent keys.
  */
-TEST(Unit_DarknetTraining, ReadsMSEAndObjectnessSmoothZeroAsTheDefaults)
+TEST(Small_DarknetTraining, ReadsMSEAndObjectnessSmoothZeroAsTheDefaults)
 {
     const std::string text =
         "[net]\n"
@@ -325,7 +325,7 @@ TEST(Unit_DarknetTraining, ReadsMSEAndObjectnessSmoothZeroAsTheDefaults)
 /**
  * @brief Tests that a head takes the Darknet-compatible box gradient under either box loss.
  */
-TEST(Unit_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientForEveryHead)
+TEST(Small_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientForEveryHead)
 {
     const std::string text =
         "[net]\n"
@@ -345,7 +345,7 @@ TEST(Unit_DarknetTraining, SelectsTheDarknetCompatibleBoxGradientForEveryHead)
 /**
  * @brief Tests that truth_thresh 1 and label_smooth_eps 0 are the values the reader accepts.
  */
-TEST(Unit_DarknetTraining, AcceptsTruthThreshOneAndLabelSmoothZero)
+TEST(Small_DarknetTraining, AcceptsTruthThreshOneAndLabelSmoothZero)
 {
     const std::string text =
         "[net]\n"
@@ -359,7 +359,7 @@ TEST(Unit_DarknetTraining, AcceptsTruthThreshOneAndLabelSmoothZero)
 }
 
 /** @brief Tests that a policy other than steps is refused, naming its line. */
-TEST(Unit_DarknetTraining, RefusesAPolicyOtherThanSteps)
+TEST(Small_DarknetTraining, RefusesAPolicyOtherThanSteps)
 {
     const std::string text =
         "[net]\n"
@@ -369,7 +369,7 @@ TEST(Unit_DarknetTraining, RefusesAPolicyOtherThanSteps)
 }
 
 /** @brief Tests that a truth_thresh other than 1 is refused, naming its line. */
-TEST(Unit_DarknetTraining, RefusesATruthThreshOtherThanOne)
+TEST(Small_DarknetTraining, RefusesATruthThreshOtherThanOne)
 {
     const std::string text =
         "[net]\n"
@@ -380,7 +380,7 @@ TEST(Unit_DarknetTraining, RefusesATruthThreshOtherThanOne)
 }
 
 /** @brief Tests that a non-zero label_smooth_eps is refused, naming its line. */
-TEST(Unit_DarknetTraining, RefusesANonZeroLabelSmooth)
+TEST(Small_DarknetTraining, RefusesANonZeroLabelSmooth)
 {
     const std::string text =
         "[net]\n"
@@ -392,7 +392,7 @@ TEST(Unit_DarknetTraining, RefusesANonZeroLabelSmooth)
 }
 
 /** @brief Tests that an iou_loss other than mse and ciou is refused, naming its line. */
-TEST(Unit_DarknetTraining, RefusesAnIoULossOtherThanMSEAndCIoU)
+TEST(Small_DarknetTraining, RefusesAnIoULossOtherThanMSEAndCIoU)
 {
     const std::string text =
         "[net]\n"
@@ -403,7 +403,7 @@ TEST(Unit_DarknetTraining, RefusesAnIoULossOtherThanMSEAndCIoU)
 }
 
 /** @brief Tests that an objectness_smooth other than 0 or 1 is invalid, naming its line. */
-TEST(Unit_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
+TEST(Small_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
 {
     const std::string text =
         "[net]\n"
@@ -414,7 +414,7 @@ TEST(Unit_DarknetTraining, RefusesAClsNormalizerThatIsNotANumber)
                       "cls_normalizer");
 }
 
-TEST(Unit_DarknetTraining, RefusesAnObjectnessSmoothOtherThanZeroOrOne)
+TEST(Small_DarknetTraining, RefusesAnObjectnessSmoothOtherThanZeroOrOne)
 {
     const std::string text =
         "[net]\n"
@@ -426,7 +426,7 @@ TEST(Unit_DarknetTraining, RefusesAnObjectnessSmoothOtherThanZeroOrOne)
 }
 
 /** @brief Tests that a head whose iou_thresh is 0 is invalid, naming its section's line. */
-TEST(Unit_DarknetTraining, RefusesAHeadWhoseMatchThresholdIsZero)
+TEST(Small_DarknetTraining, RefusesAHeadWhoseMatchThresholdIsZero)
 {
     const std::string text =
         "[net]\n"
@@ -438,7 +438,7 @@ TEST(Unit_DarknetTraining, RefusesAHeadWhoseMatchThresholdIsZero)
 }
 
 /** @brief Tests that an ignore_thresh above 1 is invalid, naming its section's line. */
-TEST(Unit_DarknetTraining, RefusesAHeadWhoseIgnoreThresholdIsAboveOne)
+TEST(Small_DarknetTraining, RefusesAHeadWhoseIgnoreThresholdIsAboveOne)
 {
     const std::string text =
         "[net]\n"
@@ -450,7 +450,7 @@ TEST(Unit_DarknetTraining, RefusesAHeadWhoseIgnoreThresholdIsAboveOne)
 }
 
 /** @brief Tests that a learning_rate that is not a number is invalid, naming its line. */
-TEST(Unit_DarknetTraining, RefusesALearningRateThatIsNotANumber)
+TEST(Small_DarknetTraining, RefusesALearningRateThatIsNotANumber)
 {
     const std::string text =
         "[net]\n"
@@ -461,7 +461,7 @@ TEST(Unit_DarknetTraining, RefusesALearningRateThatIsNotANumber)
 }
 
 /** @brief Tests that a non-finite learning_rate is invalid, naming its line. */
-TEST(Unit_DarknetTraining, RefusesANonFiniteLearningRate)
+TEST(Small_DarknetTraining, RefusesANonFiniteLearningRate)
 {
     const std::string text =
         "[net]\n"
@@ -471,7 +471,7 @@ TEST(Unit_DarknetTraining, RefusesANonFiniteLearningRate)
 }
 
 /** @brief Tests that a batch below 1 is invalid, since the loss divides by it. */
-TEST(Unit_DarknetTraining, RefusesABatchBelowOne)
+TEST(Small_DarknetTraining, RefusesABatchBelowOne)
 {
     const std::string text =
         "[net]\n"
@@ -481,7 +481,7 @@ TEST(Unit_DarknetTraining, RefusesABatchBelowOne)
 }
 
 /** @brief Tests that an empty entry in a list is invalid, naming its line. */
-TEST(Unit_DarknetTraining, RefusesAnEmptyEntryInAList)
+TEST(Small_DarknetTraining, RefusesAnEmptyEntryInAList)
 {
     const std::string text =
         "[net]\n"
@@ -491,7 +491,7 @@ TEST(Unit_DarknetTraining, RefusesAnEmptyEntryInAList)
 }
 
 /** @brief Tests that steps and scales of different lengths are invalid, naming both counts. */
-TEST(Unit_DarknetTraining, RefusesStepsAndScalesOfDifferentLengths)
+TEST(Small_DarknetTraining, RefusesStepsAndScalesOfDifferentLengths)
 {
     const std::string text =
         "[net]\n"

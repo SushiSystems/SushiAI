@@ -53,7 +53,7 @@ using SaTest::write_tensor;
 namespace
 {
     /** @brief Provides the Engine every lowered-operation case records on. */
-    class Integration_LoweredOperations : public SaTest::EngineTest
+    class Medium_LoweredOperations : public SaTest::EngineTest
     {
 
     };
@@ -223,7 +223,7 @@ namespace
 }
 
 /** @brief Tests that DIV divides elementwise over both signs of each operand. */
-TEST_F(Integration_LoweredOperations, DivDividesElementwise)
+TEST_F(Medium_LoweredOperations, DivDividesElementwise)
 {
     const std::vector<double> dividend = {-6.0, 0.0, 3.0, 1.0, -7.5, 9.0};
     const std::vector<double> divisor = {2.0, -4.0, -1.5, 8.0, -2.5, 3.0};
@@ -239,7 +239,7 @@ TEST_F(Integration_LoweredOperations, DivDividesElementwise)
 }
 
 /** @brief Tests that MINIMUM takes the smaller element whichever operand holds it. */
-TEST_F(Integration_LoweredOperations, MinimumTakesTheSmallerOperand)
+TEST_F(Medium_LoweredOperations, MinimumTakesTheSmallerOperand)
 {
     const std::vector<double> left = {-2.0, 0.0, 3.0, 1.5, -1.0, 4.0};
     const std::vector<double> right = {1.0, 0.0, -3.0, 1.5, -4.0, 5.0};
@@ -255,7 +255,7 @@ TEST_F(Integration_LoweredOperations, MinimumTakesTheSmallerOperand)
 }
 
 /** @brief Tests that MAXIMUM takes the larger element whichever operand holds it. */
-TEST_F(Integration_LoweredOperations, MaximumTakesTheLargerOperand)
+TEST_F(Medium_LoweredOperations, MaximumTakesTheLargerOperand)
 {
     const std::vector<double> left = {-2.0, 0.0, 3.0, 1.5, -1.0, 4.0};
     const std::vector<double> right = {1.0, 0.0, -3.0, 1.5, -4.0, 5.0};
@@ -271,7 +271,7 @@ TEST_F(Integration_LoweredOperations, MaximumTakesTheLargerOperand)
 }
 
 /** @brief Tests that ABS returns the magnitude of negative, zero and positive elements. */
-TEST_F(Integration_LoweredOperations, AbsReturnsTheMagnitude)
+TEST_F(Medium_LoweredOperations, AbsReturnsTheMagnitude)
 {
     const std::vector<double> input = {-2.5, -0.125, 0.0, 0.125, 3.0, 1024.0};
 
@@ -286,7 +286,7 @@ TEST_F(Integration_LoweredOperations, AbsReturnsTheMagnitude)
 }
 
 /** @brief Tests that ATAN returns the arctangent on both sides of zero and near its limit. */
-TEST_F(Integration_LoweredOperations, AtanReturnsTheArctangent)
+TEST_F(Medium_LoweredOperations, AtanReturnsTheArctangent)
 {
     const std::vector<double> input = {-64.0, -1.0, -0.25, 0.0, 0.25, 1.0, 64.0};
 
@@ -301,7 +301,7 @@ TEST_F(Integration_LoweredOperations, AtanReturnsTheArctangent)
 }
 
 /** @brief Tests that LESS_EQUAL writes 1 for less and for equal, and 0 for greater. */
-TEST_F(Integration_LoweredOperations, LessEqualWritesOneForLessAndForEqual)
+TEST_F(Medium_LoweredOperations, LessEqualWritesOneForLessAndForEqual)
 {
     const std::vector<double> left = {-1.0, 0.0, 2.0, 3.0, -2.0, 5.0};
     const std::vector<double> right = {0.0, 0.0, 2.0, 1.0, -2.0, -5.0};
@@ -318,7 +318,7 @@ TEST_F(Integration_LoweredOperations, LessEqualWritesOneForLessAndForEqual)
 }
 
 /** @brief Tests that SELECT takes the first branch where the mask is 1 and the second at 0. */
-TEST_F(Integration_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
+TEST_F(Medium_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -347,7 +347,7 @@ TEST_F(Integration_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
 }
 
 /** @brief Tests that CONSTANT fills every element with its attribute, on each run. */
-TEST_F(Integration_LoweredOperations, ConstantFillsEveryElementWithItsValue)
+TEST_F(Medium_LoweredOperations, ConstantFillsEveryElementWithItsValue)
 {
     constexpr double K_FILL = -1.75;
     constexpr double K_LIKE_FILL = 0.5;
@@ -381,7 +381,7 @@ TEST_F(Integration_LoweredOperations, ConstantFillsEveryElementWithItsValue)
 }
 
 /** @brief Tests that SILU returns x * sigmoid(x) on both sides of zero. */
-TEST_F(Integration_LoweredOperations, SiLUMatchesItsDefinition)
+TEST_F(Medium_LoweredOperations, SiLUMatchesItsDefinition)
 {
     const std::vector<double> input = {-8.0, -2.0, -0.5, 0.0, 0.5, 2.0, 8.0};
 
@@ -396,7 +396,7 @@ TEST_F(Integration_LoweredOperations, SiLUMatchesItsDefinition)
 }
 
 /** @brief Tests that SOFTPLUS returns log(1 + exp(x)), including where it nears 0 and x. */
-TEST_F(Integration_LoweredOperations, SoftplusMatchesItsDefinition)
+TEST_F(Medium_LoweredOperations, SoftplusMatchesItsDefinition)
 {
     const std::vector<double> input = {-20.0, -2.0, -0.5, 0.0, 0.5, 2.0, 20.0};
 
@@ -411,7 +411,7 @@ TEST_F(Integration_LoweredOperations, SoftplusMatchesItsDefinition)
 }
 
 /** @brief Tests SILU_BACKWARD against sigmoid(x) * (1 + x * (1 - sigmoid(x))). */
-TEST_F(Integration_LoweredOperations, SiLUBackwardMatchesTheClosedFormDerivative)
+TEST_F(Medium_LoweredOperations, SiLUBackwardMatchesTheClosedFormDerivative)
 {
     const std::vector<double> point = {-2.0, -0.5, 0.0, 0.5, 2.0, 4.0};
     const std::vector<double> targets = {1.0, -2.0, 0.5, 3.0, -1.0, 2.0};
@@ -431,7 +431,7 @@ TEST_F(Integration_LoweredOperations, SiLUBackwardMatchesTheClosedFormDerivative
 }
 
 /** @brief Tests SOFTPLUS_BACKWARD against sigmoid(x), the derivative of log(1 + exp(x)). */
-TEST_F(Integration_LoweredOperations, SoftplusBackwardMatchesTheClosedFormDerivative)
+TEST_F(Medium_LoweredOperations, SoftplusBackwardMatchesTheClosedFormDerivative)
 {
     const std::vector<double> point = {-2.0, -0.5, 0.0, 0.5, 2.0, 4.0};
     const std::vector<double> targets = {1.0, -2.0, 0.5, 3.0, -1.0, 2.0};
@@ -448,7 +448,7 @@ TEST_F(Integration_LoweredOperations, SoftplusBackwardMatchesTheClosedFormDeriva
 }
 
 /** @brief Tests that STOP_GRADIENT copies its operand's elements unchanged. */
-TEST_F(Integration_LoweredOperations, StopGradientCopiesItsOperand)
+TEST_F(Medium_LoweredOperations, StopGradientCopiesItsOperand)
 {
     const std::vector<double> input = {-3.5, -0.25, 0.0, 0.25, 7.0, 4096.0};
 
@@ -459,7 +459,7 @@ TEST_F(Integration_LoweredOperations, StopGradientCopiesItsOperand)
 }
 
 /** @brief Tests that BATCHNORM_FOLD writes gamma / sqrt(variance + eps) and its shift. */
-TEST_F(Integration_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
+TEST_F(Medium_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
 {
     constexpr double K_EPSILON = 1e-3;
 
@@ -502,7 +502,7 @@ TEST_F(Integration_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
 }
 
 /** @brief Tests that DEPTHWISE_CONV2D matches three nested loops over a padded 3x3 window. */
-TEST_F(Integration_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
+TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
 {
     constexpr int64_t K_HEIGHT = 4;
     constexpr int64_t K_WIDTH = 4;

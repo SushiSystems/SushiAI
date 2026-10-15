@@ -78,7 +78,7 @@ namespace
     }
 
     /** @brief Provides an engine and two parameters, "weight" and "bias", with gradients. */
-    class Unit_OptimizerRunState : public SaTest::EngineTest
+    class Medium_OptimizerRunState : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns one slot called @p name: zeros with a gradient of ones. */
@@ -123,7 +123,7 @@ namespace
 } // namespace
 
 /** @brief Tests that SGD with momentum lists one buffer per slot and the step count. */
-TEST_F(Unit_OptimizerRunState, SGDListsItsMomentumBuffersAndItsStepCount)
+TEST_F(Medium_OptimizerRunState, SGDListsItsMomentumBuffersAndItsStepCount)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(0.9);
     SA_EXPECT_OK(optimizer->step());
@@ -143,7 +143,7 @@ TEST_F(Unit_OptimizerRunState, SGDListsItsMomentumBuffersAndItsStepCount)
 }
 
 /** @brief Tests that SGD without momentum lists no tensor. */
-TEST_F(Unit_OptimizerRunState, SGDWithoutMomentumListsNoTensor)
+TEST_F(Medium_OptimizerRunState, SGDWithoutMomentumListsNoTensor)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(0.0);
 
@@ -155,7 +155,7 @@ TEST_F(Unit_OptimizerRunState, SGDWithoutMomentumListsNoTensor)
 }
 
 /** @brief Tests that AdamW lists both moments of each slot, the first moment first. */
-TEST_F(Unit_OptimizerRunState, AdamWListsBothMomentsOfEachSlot)
+TEST_F(Medium_OptimizerRunState, AdamWListsBothMomentsOfEachSlot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
                             Optim::AdamW::make(*engine, make_slots()));
@@ -177,7 +177,7 @@ TEST_F(Unit_OptimizerRunState, AdamWListsBothMomentsOfEachSlot)
 }
 
 /** @brief Tests that the step count is restored and the next update counts on from it. */
-TEST_F(Unit_OptimizerRunState, TheStepCountIsRestored)
+TEST_F(Medium_OptimizerRunState, TheStepCountIsRestored)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(0.9);
 
@@ -189,7 +189,7 @@ TEST_F(Unit_OptimizerRunState, TheStepCountIsRestored)
 }
 
 /** @brief Tests that run state of another optimizer type is refused with both names. */
-TEST_F(Unit_OptimizerRunState, AnotherOwnerIsRefusedWithBothTypes)
+TEST_F(Medium_OptimizerRunState, AnotherOwnerIsRefusedWithBothTypes)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(0.9);
 
@@ -199,7 +199,7 @@ TEST_F(Unit_OptimizerRunState, AnotherOwnerIsRefusedWithBothTypes)
 }
 
 /** @brief Tests that a missing, a surplus, a repeated and a mistyped scalar are refused. */
-TEST_F(Unit_OptimizerRunState, AScalarThatDoesNotFitIsRefusedByName)
+TEST_F(Medium_OptimizerRunState, AScalarThatDoesNotFitIsRefusedByName)
 {
     const std::unique_ptr<Optim::SGD> optimizer = make_sgd(0.9);
 
@@ -225,7 +225,7 @@ TEST_F(Unit_OptimizerRunState, AScalarThatDoesNotFitIsRefusedByName)
 }
 
 /** @brief Tests that a loss scale state takes a saved scale and refuses one it cannot hold. */
-TEST(Unit_LossScaleStateRestore, TakesASavedScaleAndRefusesOneOutOfBounds)
+TEST(Small_LossScaleStateRestore, TakesASavedScaleAndRefusesOneOutOfBounds)
 {
     SA_ASSERT_OK_AND_ASSIGN(Optim::LossScaleState state, Optim::LossScaleState::make());
 

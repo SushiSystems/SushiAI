@@ -71,7 +71,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the engine the batches, the states and the steps are built on. */
-    class Integration_TokenFeed : public SaTest::EngineTest
+    class Medium_TokenFeed : public SaTest::EngineTest
     {
 
     };
@@ -157,7 +157,7 @@ namespace
 } // namespace
 
 /** @brief Tests that an int32 [N, T] batch read from a dataset feeds an Embedding's leaf. */
-TEST_F(Integration_TokenFeed, AnInt32BatchOfADatasetFeedsAnEmbedding)
+TEST_F(Medium_TokenFeed, AnInt32BatchOfADatasetFeedsAnEmbedding)
 {
     NN::Embedding model{};
     model.num_embeddings = K_VOCABULARY;
@@ -213,7 +213,7 @@ TEST_F(Integration_TokenFeed, AnInt32BatchOfADatasetFeedsAnEmbedding)
 }
 
 /** @brief Tests that fit refuses an int32 dataset for a float32 leaf before any step runs. */
-TEST_F(Integration_TokenFeed, FitRefusesAnInt32DatasetForAFloat32Leaf)
+TEST_F(Medium_TokenFeed, FitRefusesAnInt32DatasetForAFloat32Leaf)
 {
     MLP model(NN::Linear{K_LENGTH, K_HIDDEN}, NN::GELU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,

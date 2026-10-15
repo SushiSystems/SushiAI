@@ -138,7 +138,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_ModelConfig, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
+TEST(Small_ModelConfig, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
 {
     const SushiAI::Config::ModelSpec model = model_from(K_GOOD_MODEL);
 
@@ -154,20 +154,20 @@ TEST(Unit_ModelConfig, ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes)
     EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);
 }
 
-TEST(Unit_ModelConfig, AMissingModelVersionIsAnErrorThatSaysWhy)
+TEST(Small_ModelConfig, AMissingModelVersionIsAnErrorThatSaysWhy)
 {
     SA_EXPECT_ERROR((void)model_from(R"({"input": {"features": 6}, "layers": []})"),
                     "sushiai_model", "misread");
 }
 
-TEST(Unit_ModelConfig, AFutureModelVersionIsAnError)
+TEST(Small_ModelConfig, AFutureModelVersionIsAnError)
 {
     SA_EXPECT_ERROR(
         (void)model_from(R"({"sushiai_model": 2, "input": {"features": 6}, "layers": []})"),
         "version 2", "version 1");
 }
 
-TEST(Unit_ModelConfig, AnUnknownTopLevelModelKeyIsAnError)
+TEST(Small_ModelConfig, AnUnknownTopLevelModelKeyIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
@@ -175,21 +175,21 @@ TEST(Unit_ModelConfig, AnUnknownTopLevelModelKeyIsAnError)
     })"), "'optimizer'", "'layers'");
 }
 
-TEST(Unit_ModelConfig, AModelWithNoLayersIsAnError)
+TEST(Small_ModelConfig, AModelWithNoLayersIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 6}, "layers": []
     })"), "no layers");
 }
 
-TEST(Unit_ModelConfig, ANonPositiveInputWidthIsAnError)
+TEST(Small_ModelConfig, ANonPositiveInputWidthIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 0}, "layers": [{"type": "gelu"}]
     })"), "'features'", "positive");
 }
 
-TEST(Unit_ModelConfig, ALayerThatIsNotAnObjectIsAnError)
+TEST(Small_ModelConfig, ALayerThatIsNotAnObjectIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 6}, "layers": ["linear"]
@@ -197,7 +197,7 @@ TEST(Unit_ModelConfig, ALayerThatIsNotAnObjectIsAnError)
 }
 
 /** @brief Tests that a version 1 document parses to the spec its version 2 rewrite parses to. */
-TEST(Unit_ModelConfig, AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite)
+TEST(Small_ModelConfig, AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite)
 {
     const ModelSpec upgraded = model_from(K_FIRST_VERSION_MODEL);
     const ModelSpec rewritten = model_from(K_REWRITTEN_MODEL);
@@ -214,7 +214,7 @@ TEST(Unit_ModelConfig, AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewr
 }
 
 /** @brief Tests that a version 1 document still fills the shape and the feature count. */
-TEST(Unit_ModelConfig, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
+TEST(Small_ModelConfig, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
 {
     const ModelSpec model = model_from(K_GOOD_MODEL);
 
@@ -224,7 +224,7 @@ TEST(Unit_ModelConfig, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
 }
 
 /** @brief Tests that a version 2 input shape of rank 3 is kept and its elements counted. */
-TEST(Unit_ModelConfig, AVersionTwoInputShapeKeepsItsRankAndCountsItsElements)
+TEST(Small_ModelConfig, AVersionTwoInputShapeKeepsItsRankAndCountsItsElements)
 {
     const ModelSpec model = model_from(R"({
         "format_version": 2, "input": {"shape": [28, 28, 1]}, "layers": [{"type": "relu"}]
@@ -235,7 +235,7 @@ TEST(Unit_ModelConfig, AVersionTwoInputShapeKeepsItsRankAndCountsItsElements)
 }
 
 /** @brief Tests that an input shape that is empty or holds a non-positive extent is refused. */
-TEST(Unit_ModelConfig, AnEmptyOrNonPositiveInputShapeIsAnError)
+TEST(Small_ModelConfig, AnEmptyOrNonPositiveInputShapeIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 2, "input": {"shape": []}, "layers": [{"type": "relu"}]
@@ -251,7 +251,7 @@ TEST(Unit_ModelConfig, AnEmptyOrNonPositiveInputShapeIsAnError)
 }
 
 /** @brief Tests that a file without "dtype" has a float32 input and that "int32" is read. */
-TEST(Unit_ModelConfig, TheInputElementTypeIsFloat32UnlessTheFileStatesInt32)
+TEST(Small_ModelConfig, TheInputElementTypeIsFloat32UnlessTheFileStatesInt32)
 {
     const SushiAI::Config::ModelSpec floating = model_from(R"({
         "format_version": 2, "input": {"shape": [8]}, "layers": [{"type": "relu"}]
@@ -271,7 +271,7 @@ TEST(Unit_ModelConfig, TheInputElementTypeIsFloat32UnlessTheFileStatesInt32)
 }
 
 /** @brief Tests that an input element type the reader does not list, or no string, is refused. */
-TEST(Unit_ModelConfig, AnInputElementTypeOutsideTheListIsAnError)
+TEST(Small_ModelConfig, AnInputElementTypeOutsideTheListIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 2, "input": {"shape": [8], "dtype": "int64"},
@@ -285,7 +285,7 @@ TEST(Unit_ModelConfig, AnInputElementTypeOutsideTheListIsAnError)
 }
 
 /** @brief Tests that an input shape above the rank limit or the element limit is refused. */
-TEST(Unit_ModelConfig, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
+TEST(Small_ModelConfig, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
 {
     std::string extents = "1";
     for (std::int32_t i = 0; i < SushiAI::K_MAX_RANK; ++i)
@@ -302,13 +302,13 @@ TEST(Unit_ModelConfig, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
 }
 
 /** @brief Tests that a model document whose root is not an object is refused by kind. */
-TEST(Unit_ModelConfig, AModelRootThatIsNotAnObjectIsAnError)
+TEST(Small_ModelConfig, AModelRootThatIsNotAnObjectIsAnError)
 {
     SA_EXPECT_ERROR((void)model_from("[1]"), "model.json", "'format_version'", "an array");
 }
 
 /** @brief Tests that a version above the newest is refused with both numbers named. */
-TEST(Unit_ModelConfig, AVersionAboveTheNewestIsRefusedWithBothNumbers)
+TEST(Small_ModelConfig, AVersionAboveTheNewestIsRefusedWithBothNumbers)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 3, "input": {"shape": [6]}, "layers": [{"type": "relu"}]
@@ -316,7 +316,7 @@ TEST(Unit_ModelConfig, AVersionAboveTheNewestIsRefusedWithBothNumbers)
 }
 
 /** @brief Tests that format_version 1, which no file was ever written with, is refused. */
-TEST(Unit_ModelConfig, FormatVersionOneIsRefusedAndNamesTheVersionOneKey)
+TEST(Small_ModelConfig, FormatVersionOneIsRefusedAndNamesTheVersionOneKey)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 1, "input": {"features": 6}, "layers": [{"type": "relu"}]
@@ -324,7 +324,7 @@ TEST(Unit_ModelConfig, FormatVersionOneIsRefusedAndNamesTheVersionOneKey)
 }
 
 /** @brief Tests that a version 1 document cannot use a version 2 key. */
-TEST(Unit_ModelConfig, AVersionOneDocumentRefusesTheVersionTwoKeys)
+TEST(Small_ModelConfig, AVersionOneDocumentRefusesTheVersionTwoKeys)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
@@ -338,7 +338,7 @@ TEST(Unit_ModelConfig, AVersionOneDocumentRefusesTheVersionTwoKeys)
 }
 
 /** @brief Tests that each form of a from entry resolves to the absolute row it names. */
-TEST(Unit_ModelConfig, EachFromFormResolvesToAnAbsoluteRow)
+TEST(Small_ModelConfig, EachFromFormResolvesToAnAbsoluteRow)
 {
     const ModelSpec model = current_model_from(R"([
         {"type": "relu"},
@@ -365,7 +365,7 @@ TEST(Unit_ModelConfig, EachFromFormResolvesToAnAbsoluteRow)
 }
 
 /** @brief Tests that a negative from entry other than -1 fails with the row named. */
-TEST(Unit_ModelConfig, ANegativeFromOtherThanMinusOneNamesTheRow)
+TEST(Small_ModelConfig, ANegativeFromOtherThanMinusOneNamesTheRow)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([
         {"type": "relu"}, {"type": "relu"}, {"type": "relu", "from": -2}
@@ -377,7 +377,7 @@ TEST(Unit_ModelConfig, ANegativeFromOtherThanMinusOneNamesTheRow)
 }
 
 /** @brief Tests that a from entry naming its own row or a later one fails with the row named. */
-TEST(Unit_ModelConfig, AForwardReferenceNamesTheRow)
+TEST(Small_ModelConfig, AForwardReferenceNamesTheRow)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([
         {"type": "relu"}, {"type": "relu", "from": 2}, {"type": "relu"}
@@ -389,7 +389,7 @@ TEST(Unit_ModelConfig, AForwardReferenceNamesTheRow)
 }
 
 /** @brief Tests that an unknown key or an unknown form in a from entry fails with the row named. */
-TEST(Unit_ModelConfig, AnUnknownKeyOrFormInAFromEntryNamesTheRow)
+TEST(Small_ModelConfig, AnUnknownKeyOrFormInAFromEntryNamesTheRow)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([
         {"type": "relu"}, {"type": "relu", "from": {"node": 0, "prot": "boxes"}}
@@ -413,14 +413,14 @@ TEST(Unit_ModelConfig, AnUnknownKeyOrFormInAFromEntryNamesTheRow)
 }
 
 /** @brief Tests that an unknown top-level key of a version 2 document is refused. */
-TEST(Unit_ModelConfig, AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError)
+TEST(Small_ModelConfig, AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])", R"(, "output": [])"),
                     "'output'", "'outputs'", "'defaults'");
 }
 
 /** @brief Tests that a default reaches a row that omits the key and no row that states it. */
-TEST(Unit_ModelConfig, DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne)
+TEST(Small_ModelConfig, DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne)
 {
     const ModelSpec model = current_model_from(R"([
         {"type": "conv", "filters": 16},
@@ -442,7 +442,7 @@ TEST(Unit_ModelConfig, DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne)
 }
 
 /** @brief Tests that a defaults block of the wrong shape is refused with the type named. */
-TEST(Unit_ModelConfig, AMalformedDefaultsBlockIsAnError)
+TEST(Small_ModelConfig, AMalformedDefaultsBlockIsAnError)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "conv"}])", R"(, "defaults": [])"),
                     "'defaults'", "an array");
@@ -461,7 +461,7 @@ TEST(Unit_ModelConfig, AMalformedDefaultsBlockIsAnError)
 }
 
 /** @brief Tests that a defaults entry for a type no row states is refused with both named. */
-TEST(Unit_ModelConfig, ADefaultsEntryForATypeNoLayerStatesIsAnError)
+TEST(Small_ModelConfig, ADefaultsEntryForATypeNoLayerStatesIsAnError)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "conv"}, {"type": "relu"}])",
                                              R"(, "defaults": {"covn": {"bn_momentum": 3}})"),
@@ -469,7 +469,7 @@ TEST(Unit_ModelConfig, ADefaultsEntryForATypeNoLayerStatesIsAnError)
 }
 
 /** @brief Tests that absent outputs publish the last row and stated ones keep their fields. */
-TEST(Unit_ModelConfig, OutputsDefaultToTheLastRowAndKeepWhatTheFileStates)
+TEST(Small_ModelConfig, OutputsDefaultToTheLastRowAndKeepWhatTheFileStates)
 {
     const ModelSpec defaulted = current_model_from(R"([{"type": "relu"}, {"type": "relu"}])");
     ASSERT_EQ(defaulted.outputs.size(), 1u);
@@ -491,7 +491,7 @@ TEST(Unit_ModelConfig, OutputsDefaultToTheLastRowAndKeepWhatTheFileStates)
 }
 
 /** @brief Tests that an output of the wrong kind, row, key or text, or a lone name, fails. */
-TEST(Unit_ModelConfig, AMalformedOutputIsAnError)
+TEST(Small_ModelConfig, AMalformedOutputIsAnError)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])",
                                              R"(, "outputs": [{"node": 1}])"),
@@ -523,14 +523,14 @@ TEST(Unit_ModelConfig, AMalformedOutputIsAnError)
 }
 
 /** @brief Tests that a file without a task parses to a null task. */
-TEST(Unit_ModelConfig, AModelWithoutATaskHoldsANullTask)
+TEST(Small_ModelConfig, AModelWithoutATaskHoldsANullTask)
 {
     EXPECT_TRUE(current_model_from(R"([{"type": "relu"}])").task.is_null());
     EXPECT_TRUE(model_from(K_FIRST_VERSION_MODEL).task.is_null());
 }
 
 /** @brief Tests that a task is kept as the file states it, with keys this module does not read. */
-TEST(Unit_ModelConfig, ATaskIsKeptWholeWithItsKeysInFileOrder)
+TEST(Small_ModelConfig, ATaskIsKeptWholeWithItsKeysInFileOrder)
 {
     const ModelSpec model = current_model_from(
         R"([{"type": "relu"}])",
@@ -544,7 +544,7 @@ TEST(Unit_ModelConfig, ATaskIsKeptWholeWithItsKeysInFileOrder)
 }
 
 /** @brief Tests that a task that is not an object with a string type fails with the key named. */
-TEST(Unit_ModelConfig, AMalformedTaskIsAnError)
+TEST(Small_ModelConfig, AMalformedTaskIsAnError)
 {
     SA_EXPECT_ERROR((void)current_model_from(R"([{"type": "relu"}])", R"(, "task": [])"),
                     "'model.json's 'task'", "an array");
@@ -562,7 +562,7 @@ TEST(Unit_ModelConfig, AMalformedTaskIsAnError)
 }
 
 /** @brief Tests that a version 1 document that states a task is refused. */
-TEST(Unit_ModelConfig, AVersionOneDocumentRefusesATask)
+TEST(Small_ModelConfig, AVersionOneDocumentRefusesATask)
 {
     SA_EXPECT_ERROR((void)model_from(R"({
         "sushiai_model": 1, "input": {"features": 6}, "layers": [{"type": "gelu"}],

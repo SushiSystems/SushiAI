@@ -355,7 +355,7 @@ static_assert(std::has_virtual_destructor<NN::BufferUpdateSink>::value,
               "a sink is released through its base");
 
 /** @brief Tests that each factory reports its own mode and the builder it was given. */
-TEST(Unit_Trace, AFactoryStatesItsModeAndKeepsItsBuilder)
+TEST(Small_Trace, AFactoryStatesItsModeAndKeepsItsBuilder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -371,7 +371,7 @@ TEST(Unit_Trace, AFactoryStatesItsModeAndKeepsItsBuilder)
 }
 
 /** @brief Tests that update under an evaluation trace fails as an invalid description. */
-TEST(Unit_Trace, UpdateUnderAnEvaluationTraceFails)
+TEST(Small_Trace, UpdateUnderAnEvaluationTraceFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -385,7 +385,7 @@ TEST(Unit_Trace, UpdateUnderAnEvaluationTraceFails)
 }
 
 /** @brief Tests that a new list holds no update and no source. */
-TEST(Unit_Trace, ANewListIsEmpty)
+TEST(Small_Trace, ANewListIsEmpty)
 {
     const BufferUpdateList list;
 
@@ -394,7 +394,7 @@ TEST(Unit_Trace, ANewListIsEmpty)
 }
 
 /** @brief Tests that each update under a list adds one update and one source, in order. */
-TEST(Unit_Trace, EachUpdateAddsOneUpdateAndOneSource)
+TEST(Small_Trace, EachUpdateAddsOneUpdateAndOneSource)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -429,7 +429,7 @@ TEST(Unit_Trace, EachUpdateAddsOneUpdateAndOneSource)
 }
 
 /** @brief Tests that an update adds no value to the traced graph. */
-TEST(Unit_Trace, AnUpdateAddsNothingToTheGraph)
+TEST(Small_Trace, AnUpdateAddsNothingToTheGraph)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -445,7 +445,7 @@ TEST(Unit_Trace, AnUpdateAddsNothingToTheGraph)
 }
 
 /** @brief Tests that a recorded target still names its buffer after the buffer is moved. */
-TEST(Unit_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
+TEST(Small_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -465,7 +465,7 @@ TEST(Unit_Trace, ARecordedTargetSurvivesAMoveOfItsBuffer)
  * @brief Tests that the discarding sink accepts an update in Training mode, adds no value to
  *        the graph and is one object.
  */
-TEST(Unit_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
+TEST(Small_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -482,13 +482,13 @@ TEST(Unit_Trace, TheDiscardingSinkAcceptsAnUpdateAndIsOneObject)
 }
 
 /** @brief Tests that an update of a buffer define() never shaped stops the process. */
-TEST(Unit_TraceDeathTest, AnUpdateOfAnUndefinedBufferIsFatal)
+TEST(Small_TraceDeathTest, AnUpdateOfAnUndefinedBufferIsFatal)
 {
     SA_EXPECT_FATAL(update_undefined_buffer(), "define() has not given a shape");
 }
 
 /** @brief Tests that an update of a buffer no graph has read names the buffer's identity. */
-TEST(Unit_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
+TEST(Small_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -507,7 +507,7 @@ TEST(Unit_Trace, AnUpdateOfABufferThatWasNeverReadIsRecorded)
 }
 
 /** @brief Tests that a new trace holds no failure and leaves its graph unrefused. */
-TEST(Unit_Trace, ANewTraceHoldsNoFailure)
+TEST(Small_Trace, ANewTraceHoldsNoFailure)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -519,7 +519,7 @@ TEST(Unit_Trace, ANewTraceHoldsNoFailure)
 }
 
 /** @brief Tests that fail() keeps the first failure it is given and marks the graph refused. */
-TEST(Unit_Trace, FailKeepsTheFirstFailureAndMarksTheGraphRefused)
+TEST(Small_Trace, FailKeepsTheFirstFailureAndMarksTheGraphRefused)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -534,7 +534,7 @@ TEST(Unit_Trace, FailKeepsTheFirstFailureAndMarksTheGraphRefused)
 }
 
 /** @brief Tests that value_or_fail() returns a held value and records nothing. */
-TEST(Unit_Trace, ValueOrFailReturnsAHeldValue)
+TEST(Small_Trace, ValueOrFailReturnsAHeldValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -547,7 +547,7 @@ TEST(Unit_Trace, ValueOrFailReturnsAHeldValue)
 }
 
 /** @brief Tests that value_or_fail() returns the fallback for a failure and records it. */
-TEST(Unit_Trace, ValueOrFailRecordsAFailureAndReturnsTheFallback)
+TEST(Small_Trace, ValueOrFailRecordsAFailureAndReturnsTheFallback)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -561,7 +561,7 @@ TEST(Unit_Trace, ValueOrFailRecordsAFailureAndReturnsTheFallback)
 }
 
 /** @brief Tests that fail() given a success stops the process. */
-TEST(Unit_TraceDeathTest, FailGivenASuccessIsFatal)
+TEST(Small_TraceDeathTest, FailGivenASuccessIsFatal)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -571,7 +571,7 @@ TEST(Unit_TraceDeathTest, FailGivenASuccessIsFatal)
 }
 
 /** @brief Tests that Sequential throws the failure a child recorded and traces no later child. */
-TEST(Unit_Trace, SequentialThrowsTheFailureAChildRecorded)
+TEST(Small_Trace, SequentialThrowsTheFailureAChildRecorded)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -584,7 +584,7 @@ TEST(Unit_Trace, SequentialThrowsTheFailureAChildRecorded)
 }
 
 /** @brief Tests that Sequential folds an input shape through output_shape() of every child. */
-TEST(Unit_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
+TEST(Small_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
 {
     const Sequential model{Linear{4, 8}, ReLU{}, Linear{8, 3}};
 
@@ -593,19 +593,19 @@ TEST(Unit_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
 }
 
 /** @brief Tests that an update whose source is NO_VALUE stops the process. */
-TEST(Unit_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
+TEST(Small_TraceDeathTest, AnUpdateWithoutASourceIsFatal)
 {
     SA_EXPECT_FATAL(update_from(Graph::K_NO_VALUE), "a buffer update reads value");
 }
 
 /** @brief Tests that an update whose source the graph does not hold stops the process. */
-TEST(Unit_TraceDeathTest, AnUpdateFromAValueOutsideTheGraphIsFatal)
+TEST(Small_TraceDeathTest, AnUpdateFromAValueOutsideTheGraphIsFatal)
 {
     SA_EXPECT_FATAL(update_from(Graph::ValueID{7}), "reads value 7", "holds 1 values");
 }
 
 /** @brief Tests that trace_layer calls the training form alone under a training trace. */
-TEST(Unit_Trace, TraceLayerCallsTheTrainingFormInTrainingMode)
+TEST(Small_Trace, TraceLayerCallsTheTrainingFormInTrainingMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -621,7 +621,7 @@ TEST(Unit_Trace, TraceLayerCallsTheTrainingFormInTrainingMode)
 }
 
 /** @brief Tests that trace_layer calls the evaluation form alone under an evaluation trace. */
-TEST(Unit_Trace, TraceLayerCallsTheEvaluationFormInEvaluationMode)
+TEST(Small_Trace, TraceLayerCallsTheEvaluationFormInEvaluationMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -636,7 +636,7 @@ TEST(Unit_Trace, TraceLayerCallsTheEvaluationFormInEvaluationMode)
 }
 
 /** @brief Tests that trace_layer traces a Module exactly as its builder forward does. */
-TEST(Unit_Trace, TraceLayerTracesAModuleThroughTheBuilder)
+TEST(Small_Trace, TraceLayerTracesAModuleThroughTheBuilder)
 {
     Graph::Graph traced_graph;
     const Graph::GraphBuilder traced_builder(traced_graph);
@@ -656,7 +656,7 @@ TEST(Unit_Trace, TraceLayerTracesAModuleThroughTheBuilder)
 }
 
 /** @brief Tests that trace_layer hands the trace to a composite, which reaches its child. */
-TEST(Unit_Trace, TraceLayerPassesTheTraceToATraceModule)
+TEST(Small_Trace, TraceLayerPassesTheTraceToATraceModule)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -674,7 +674,7 @@ TEST(Unit_Trace, TraceLayerPassesTheTraceToATraceModule)
 }
 
 /** @brief Tests that trace_layer gives a layer with both forwards the trace, not the builder. */
-TEST(Unit_Trace, TraceLayerPrefersTheTraceForwardOverTheBuilderForward)
+TEST(Small_Trace, TraceLayerPrefersTheTraceForwardOverTheBuilderForward)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -689,7 +689,7 @@ TEST(Unit_Trace, TraceLayerPrefersTheTraceForwardOverTheBuilderForward)
 }
 
 /** @brief Tests that a modal layer nested two Sequentials down is traced in the trace's mode. */
-TEST(Unit_Trace, ANestedSequentialTracesItsModalChildInTheTracesMode)
+TEST(Small_Trace, ANestedSequentialTracesItsModalChildInTheTracesMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -706,7 +706,7 @@ TEST(Unit_Trace, ANestedSequentialTracesItsModalChildInTheTracesMode)
 }
 
 /** @brief Tests that Sequential's trace forward gives each child the form of the mode. */
-TEST(Unit_Trace, SequentialTracesAModalChildInTheTracesMode)
+TEST(Small_Trace, SequentialTracesAModalChildInTheTracesMode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -727,7 +727,7 @@ TEST(Unit_Trace, SequentialTracesAModalChildInTheTracesMode)
 }
 
 /** @brief Tests that a Sequential of Modules traces the same graph through either forward. */
-TEST(Unit_Trace, SequentialOfModulesTracesTheSameThroughBothForwards)
+TEST(Small_Trace, SequentialOfModulesTracesTheSameThroughBothForwards)
 {
     Graph::Graph traced_graph;
     const Graph::GraphBuilder traced_builder(traced_graph);
@@ -747,7 +747,7 @@ TEST(Unit_Trace, SequentialOfModulesTracesTheSameThroughBothForwards)
 }
 
 /** @brief Tests that an evaluation trace is not a carrying one and refuses both declarations. */
-TEST(Unit_Trace, AnEvaluationTraceRefusesAFedLeafAndACarriedValue)
+TEST(Small_Trace, AnEvaluationTraceRefusesAFedLeafAndACarriedValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -766,7 +766,7 @@ TEST(Unit_Trace, AnEvaluationTraceRefusesAFedLeafAndACarriedValue)
 }
 
 /** @brief Tests that a training trace refuses a fed leaf, as its step feeds the model input. */
-TEST(Unit_Trace, ATrainingTraceRefusesAFedLeaf)
+TEST(Small_Trace, ATrainingTraceRefusesAFedLeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -780,7 +780,7 @@ TEST(Unit_Trace, ATrainingTraceRefusesAFedLeaf)
 }
 
 /** @brief Tests that a carrying trace is in Evaluation mode and refuses a buffer update. */
-TEST(Unit_Trace, ACarryingTraceIsAnEvaluationTraceThatRefusesABufferUpdate)
+TEST(Small_Trace, ACarryingTraceIsAnEvaluationTraceThatRefusesABufferUpdate)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -799,7 +799,7 @@ TEST(Unit_Trace, ACarryingTraceIsAnEvaluationTraceThatRefusesABufferUpdate)
 }
 
 /** @brief Tests that a name declares one input leaf however often a layer asks for it. */
-TEST(Unit_Trace, AFedLeafIsDeclaredOncePerName)
+TEST(Small_Trace, AFedLeafIsDeclaredOncePerName)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -829,7 +829,7 @@ TEST(Unit_Trace, AFedLeafIsDeclaredOncePerName)
 }
 
 /** @brief Tests that a name declared again with another shape or type is refused. */
-TEST(Unit_Trace, AFedLeafDeclaredAgainAsAnotherLeafIsRefused)
+TEST(Small_Trace, AFedLeafDeclaredAgainAsAnotherLeafIsRefused)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -848,7 +848,7 @@ TEST(Unit_Trace, AFedLeafDeclaredAgainAsAnotherLeafIsRefused)
 }
 
 /** @brief Tests that carry records the leaf, the value it takes and its initial value. */
-TEST(Unit_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
+TEST(Small_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -872,7 +872,7 @@ TEST(Unit_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
 }
 
 /** @brief Tests that a next value of another shape than its leaf is refused and not recorded. */
-TEST(Unit_Trace, CarryRefusesANextValueOfAnotherShape)
+TEST(Small_Trace, CarryRefusesANextValueOfAnotherShape)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -889,7 +889,7 @@ TEST(Unit_Trace, CarryRefusesANextValueOfAnotherShape)
 }
 
 /** @brief Tests that a leaf carried_leaf() did not declare stops the process. */
-TEST(Unit_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
+TEST(Small_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

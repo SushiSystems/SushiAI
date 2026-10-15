@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_label_set.cpp
 
 
-Suites: `Unit_ImagingLabelSet`.
+Suites: `Small_ImagingLabelSet`.
 
 Tests the label set that holds classes, boxes and polygons in step, and its conversions.
 
-This file needs no device. `Unit_ImagingLabelSet` covers
+This file needs no device. `Small_ImagingLabelSet` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/label_set.hpp`. `Labels` holds pixel boxes and `FileLabels` holds
 normalized boxes; both keep one class, one box and one polygon per object, and a polygon may be
 empty.

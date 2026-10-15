@@ -227,7 +227,7 @@ namespace
  * @brief Tests that the training graph of the MLP has the node count and the operation
  *        sequence build_graph gave for it.
  */
-TEST(Unit_Steps, ATrainingGraphOfAnMLPHasTheNodesBuildGraphGave)
+TEST(Small_Steps, ATrainingGraphOfAnMLPHasTheNodesBuildGraphGave)
 {
     MLP model = make_mlp();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -243,7 +243,7 @@ TEST(Unit_Steps, ATrainingGraphOfAnMLPHasTheNodesBuildGraphGave)
 }
 
 /** @brief Tests that every binding names the leaf its parameter has in the built graph. */
-TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsLeafInThatGraph)
+TEST(Small_Steps, ATrainingGraphListsEveryParameterWithItsLeafInThatGraph)
 {
     MLP model = make_mlp();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -272,7 +272,7 @@ TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsLeafInThatGraph)
 }
 
 /** @brief Tests that every binding carries the role its parameter declared. */
-TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsRole)
+TEST(Small_Steps, ATrainingGraphListsEveryParameterWithItsRole)
 {
     MLP model = make_mlp();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -289,7 +289,7 @@ TEST(Unit_Steps, ATrainingGraphListsEveryParameterWithItsRole)
 }
 
 /** @brief Tests that weight decay applies to a weight and to no other role. */
-TEST(Unit_Steps, WeightDecayAppliesToWeightsOnly)
+TEST(Small_Steps, WeightDecayAppliesToWeightsOnly)
 {
     static_assert(Train::takes_weight_decay(NN::ParameterRole::Weight),
                   "a weight takes weight decay");
@@ -301,7 +301,7 @@ TEST(Unit_Steps, WeightDecayAppliesToWeightsOnly)
 }
 
 /** @brief Tests that a batch-norm model requests two updates and that both sources are pinned. */
-TEST(Unit_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
+TEST(Small_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
 {
     NormClassifier model = make_norm_classifier();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -317,7 +317,7 @@ TEST(Unit_Steps, ABatchNormModelYieldsTwoUpdatesAndPinsTheirSources)
 }
 
 /** @brief Tests that the loss and every output are pinned, since the host reads them. */
-TEST(Unit_Steps, ATrainingGraphPinsTheLossAndTheOutputs)
+TEST(Small_Steps, ATrainingGraphPinsTheLossAndTheOutputs)
 {
     NormClassifier model = make_norm_classifier();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -335,7 +335,7 @@ TEST(Unit_Steps, ATrainingGraphPinsTheLossAndTheOutputs)
 }
 
 /** @brief Tests that a probe graph normalises with batch statistics and reads no buffer. */
-TEST(Unit_Steps, AProbeGraphHasBatchStatisticsAndNoUpdate)
+TEST(Small_Steps, AProbeGraphHasBatchStatisticsAndNoUpdate)
 {
     BatchNorm2d model(K_CHANNELS, NormOptions{});
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
@@ -348,7 +348,7 @@ TEST(Unit_Steps, AProbeGraphHasBatchStatisticsAndNoUpdate)
 }
 
 /** @brief Tests that an evaluation graph folds the two stored statistics and has no batch form. */
-TEST(Unit_Steps, AnEvaluationGraphFoldsTheStoredStatistics)
+TEST(Small_Steps, AnEvaluationGraphFoldsTheStoredStatistics)
 {
     BatchNorm2d model(K_CHANNELS, NormOptions{});
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep evaluation,
@@ -360,7 +360,7 @@ TEST(Unit_Steps, AnEvaluationGraphFoldsTheStoredStatistics)
 }
 
 /** @brief Tests that three traces of one model bind each parameter under one state identity. */
-TEST(Unit_Steps, OneModelTracedThreeTimesKeepsOneStateIDPerParameter)
+TEST(Small_Steps, OneModelTracedThreeTimesKeepsOneStateIDPerParameter)
 {
     NormClassifier model = make_norm_classifier();
     const CrossEntropyObjective objective(K_BATCH, K_CLASSES);
@@ -389,7 +389,7 @@ TEST(Unit_Steps, OneModelTracedThreeTimesKeepsOneStateIDPerParameter)
 }
 
 /** @brief Tests that a model publishing two values leaves the logits of the step unset. */
-TEST(Unit_Steps, AModelGraphWithTwoOutputsLeavesLogitsUnset)
+TEST(Small_Steps, AModelGraphWithTwoOutputsLeavesLogitsUnset)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph model, build_two_output_model());
     const NamedOutputObjective objective("logits", K_BATCH, K_CLASSES);
@@ -404,7 +404,7 @@ TEST(Unit_Steps, AModelGraphWithTwoOutputsLeavesLogitsUnset)
 }
 
 /** @brief Tests that a builder returns the status of the layer that refused its input. */
-TEST(Unit_Steps, ARefusingLayerFailsTheBuilderWithItsStatus)
+TEST(Small_Steps, ARefusingLayerFailsTheBuilderWithItsStatus)
 {
     // One value per channel leaves a training batch norm no variance to compute.
     BatchNorm2d model(K_CHANNELS, NormOptions{});
@@ -416,7 +416,7 @@ TEST(Unit_Steps, ARefusingLayerFailsTheBuilderWithItsStatus)
 }
 
 /** @brief Tests that batch_shape puts the batch before the sample and refuses a batch of zero. */
-TEST(Unit_Steps, BatchShapePrependsTheBatch)
+TEST(Small_Steps, BatchShapePrependsTheBatch)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Shape shape, Train::batch_shape(16, Shape{28, 28, 1}));
     EXPECT_EQ(shape, (Shape{16, 28, 28, 1}));
@@ -426,7 +426,7 @@ TEST(Unit_Steps, BatchShapePrependsTheBatch)
 }
 
 /** @brief Tests that an evaluation graph and a probe graph feed one leaf and carry nothing. */
-TEST(Unit_Steps, AnEvaluationGraphAndAProbeGraphFeedTheModelInputAlone)
+TEST(Small_Steps, AnEvaluationGraphAndAProbeGraphFeedTheModelInputAlone)
 {
     NormClassifier model = make_norm_classifier();
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
@@ -441,7 +441,7 @@ TEST(Unit_Steps, AnEvaluationGraphAndAProbeGraphFeedTheModelInputAlone)
 }
 
 /** @brief Tests that a carrying graph traces batch normalisation as an evaluation graph does. */
-TEST(Unit_Steps, ACarryingGraphFoldsTheStoredStatisticsAndUpdatesNoBuffer)
+TEST(Small_Steps, ACarryingGraphFoldsTheStoredStatisticsAndUpdatesNoBuffer)
 {
     BatchNorm2d model(K_CHANNELS, NormOptions{});
     SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep evaluation,
@@ -457,7 +457,7 @@ TEST(Unit_Steps, ACarryingGraphFoldsTheStoredStatisticsAndUpdatesNoBuffer)
 }
 
 /** @brief Tests that the incremental builder refuses a node without an incremental form. */
-TEST(Unit_Steps, AnIncrementalGraphNamesTheNodeThatHasNoIncrementalForm)
+TEST(Small_Steps, AnIncrementalGraphNamesTheNodeThatHasNoIncrementalForm)
 {
     NN::ModelGraph model(Shape{K_FEATURES});
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRef dense,

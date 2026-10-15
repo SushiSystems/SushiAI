@@ -68,7 +68,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_RegressionCollator : public SaTest::EngineTest
+    class Medium_RegressionCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -115,7 +115,7 @@ namespace
 } // namespace
 
 /** @brief Tests that regression copies the features into the inputs and the targets beside. */
-TEST_F(Unit_RegressionCollator, RegressionCopiesFeaturesAndTargets)
+TEST_F(Medium_RegressionCollator, RegressionCopiesFeaturesAndTargets)
 {
     SA_EXPECT_FAILURE(RegressionCollator::make(0, 1), StatusCode::InvalidDescription,
                       "RegressionCollator", "0 features");
@@ -153,7 +153,7 @@ TEST_F(Unit_RegressionCollator, RegressionCopiesFeaturesAndTargets)
 }
 
 /** @brief Tests that regression refuses a sample of images and inputs of another width. */
-TEST_F(Unit_RegressionCollator, RegressionRefusesWhatHoldsNoRow)
+TEST_F(Medium_RegressionCollator, RegressionRefusesWhatHoldsNoRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RegressionCollator> collator,
                             RegressionCollator::make(3, 2));

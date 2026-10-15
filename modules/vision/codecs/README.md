@@ -153,10 +153,10 @@ written under the system's temporary directory and removed.
 
 | File | Suite | Covers |
 | --- | --- | --- |
-| `test_codecs_image_format.cpp` | `Unit_CodecsImageFormat` | Each signature, signatures cut short or changed by one byte, garbage and no bytes |
-| `test_codecs_png.cpp` | `Unit_CodecsPng` | Gray, RGB, RGBA, gray-alpha, palette and 16-bit files compared exactly; each layout; palette indices; cut and damaged files; the side limit |
-| `test_codecs_jpeg.cpp` | `Unit_CodecsJpeg` | Gray, YCbCr, RGB, CMYK and YCCK files within 3 levels per channel; each layout; every proper prefix of a file; the side limit |
-| `test_codecs_decode_image.cpp` | `Unit_CodecsDecodeImage` | The dispatch to each decoder, the raw image path and its refusals, unknown bytes, and `load_image` on a missing path, a directory and files of each format |
+| `test_codecs_image_format.cpp` | `Small_CodecsImageFormat` | Each signature, signatures cut short or changed by one byte, garbage and no bytes |
+| `test_codecs_png.cpp` | `Small_CodecsPng` | Gray, RGB, RGBA, gray-alpha, palette and 16-bit files compared exactly; each layout; palette indices; cut and damaged files; the side limit |
+| `test_codecs_jpeg.cpp` | `Small_CodecsJpeg` | Gray, YCbCr, RGB, CMYK and YCCK files within 3 levels per channel; each layout; every proper prefix of a file; the side limit |
+| `test_codecs_decode_image.cpp` | `Small_CodecsDecodeImage` | The dispatch to each decoder, the raw image path and its refusals, unknown bytes, and `load_image` on a missing path, a directory and files of each format |
 
 The JPEG tolerance is 3 levels, absolute, per channel. The test images are blocks of 8 by 8
 pixels of one colour, which the transform reproduces exactly at quality 100, so the difference is

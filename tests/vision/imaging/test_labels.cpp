@@ -53,7 +53,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingLabels, ParsesBoxRowsInFileOrder)
+TEST(Small_ImagingLabels, ParsesBoxRowsInFileOrder)
 {
     const FileLabels labels = parse_label_text(
         "0 0.5 0.25 0.5 0.125\n"
@@ -66,7 +66,7 @@ TEST(Unit_ImagingLabels, ParsesBoxRowsInFileOrder)
     expect_box(labels.boxes()[1], 0.25f, 0.75f, 0.125f, 0.0625f);
 }
 
-TEST(Unit_ImagingLabels, EmptyTextIsABackgroundImage)
+TEST(Small_ImagingLabels, EmptyTextIsABackgroundImage)
 {
     const FileLabels labels = parse_label_text("", K_CLASS_COUNT);
 
@@ -74,12 +74,12 @@ TEST(Unit_ImagingLabels, EmptyTextIsABackgroundImage)
     EXPECT_TRUE(labels.classes().empty());
 }
 
-TEST(Unit_ImagingLabels, TextOfBlankLinesIsABackgroundImage)
+TEST(Small_ImagingLabels, TextOfBlankLinesIsABackgroundImage)
 {
     EXPECT_TRUE(parse_label_text("\n  \n\t\r\n \r\n", K_CLASS_COUNT).is_empty());
 }
 
-TEST(Unit_ImagingLabels, AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows)
+TEST(Small_ImagingLabels, AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows)
 {
     const FileLabels labels = parse_label_text(
         "\n"
@@ -94,7 +94,7 @@ TEST(Unit_ImagingLabels, AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows)
     expect_box(labels.boxes()[1], 0.25f, 0.25f, 0.5f, 0.5f);
 }
 
-TEST(Unit_ImagingLabels, AcceptsCarriageReturnLineEndings)
+TEST(Small_ImagingLabels, AcceptsCarriageReturnLineEndings)
 {
     const FileLabels labels = parse_label_text(
         "1 0.5 0.5 0.25 0.25\r\n"
@@ -106,7 +106,7 @@ TEST(Unit_ImagingLabels, AcceptsCarriageReturnLineEndings)
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{1, 2, 4}));
 }
 
-TEST(Unit_ImagingLabels, AcceptsVerticalTabAndFormFeedLineEndings)
+TEST(Small_ImagingLabels, AcceptsVerticalTabAndFormFeedLineEndings)
 {
     const FileLabels labels = parse_label_text(
         "1 0.5 0.5 0.25 0.25\v2 0.25 0.25 0.5 0.5\f4 0.75 0.75 0.5 0.5", K_CLASS_COUNT);
@@ -115,7 +115,7 @@ TEST(Unit_ImagingLabels, AcceptsVerticalTabAndFormFeedLineEndings)
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{1, 2, 4}));
 }
 
-TEST(Unit_ImagingLabels, AcceptsTheSeparatorBytesAsLineEndings)
+TEST(Small_ImagingLabels, AcceptsTheSeparatorBytesAsLineEndings)
 {
     const FileLabels labels = parse_label_text(
         "1 0.5 0.5 0.25 0.25\x1c"
@@ -128,7 +128,7 @@ TEST(Unit_ImagingLabels, AcceptsTheSeparatorBytesAsLineEndings)
     EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{1, 2, 4, 6}));
 }
 
-TEST(Unit_ImagingLabels, AcceptsTheUnitSeparatorByteBetweenFields)
+TEST(Small_ImagingLabels, AcceptsTheUnitSeparatorByteBetweenFields)
 {
     const FileLabels labels = parse_label_text("3\x1f"
                                                "0.5\x1f"
@@ -141,7 +141,7 @@ TEST(Unit_ImagingLabels, AcceptsTheUnitSeparatorByteBetweenFields)
     expect_box(labels.boxes()[0], 0.5f, 0.25f, 0.5f, 0.125f);
 }
 
-TEST(Unit_ImagingLabels, AcceptsExponentsBareDecimalPointsAndAPlusSign)
+TEST(Small_ImagingLabels, AcceptsExponentsBareDecimalPointsAndAPlusSign)
 {
     const FileLabels labels = parse_label_text("+7.0 5e-1 .5 2.5E-1 +0.125", K_CLASS_COUNT);
 
@@ -150,68 +150,68 @@ TEST(Unit_ImagingLabels, AcceptsExponentsBareDecimalPointsAndAPlusSign)
     expect_box(labels.boxes()[0], 0.5f, 0.5f, 0.25f, 0.125f);
 }
 
-TEST(Unit_ImagingLabels, RejectsARowOfFourColumns)
+TEST(Small_ImagingLabels, RejectsARowOfFourColumns)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 0.5", K_CLASS_COUNT),
                     "parse_label_text: line 1",
                     "5 columns", "this row has 4");
 }
 
-TEST(Unit_ImagingLabels, RejectsARowOfSixColumns)
+TEST(Small_ImagingLabels, RejectsARowOfSixColumns)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 0.5 0.5 0.9", K_CLASS_COUNT), "line 1",
                     "5 columns", "this row has 6");
 }
 
-TEST(Unit_ImagingLabels, RejectsARowOfOneColumn)
+TEST(Small_ImagingLabels, RejectsARowOfOneColumn)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0", K_CLASS_COUNT), "5 columns", "this row has 1");
 }
 
-TEST(Unit_ImagingLabels, NamesTheLineOfTheRejectedRow)
+TEST(Small_ImagingLabels, NamesTheLineOfTheRejectedRow)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 0.5 0.5\n\n1 0.5 0.5 0.5\n", K_CLASS_COUNT),
                     "line 3");
 }
 
-TEST(Unit_ImagingLabels, RejectsAFieldThatIsNotANumber)
+TEST(Small_ImagingLabels, RejectsAFieldThatIsNotANumber)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 abc 0.5 0.5", K_CLASS_COUNT), "line 1",
                     "'abc'", "not a number");
 }
 
-TEST(Unit_ImagingLabels, RejectsAFieldWithCharactersAfterTheNumber)
+TEST(Small_ImagingLabels, RejectsAFieldWithCharactersAfterTheNumber)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5x 0.5 0.5", K_CLASS_COUNT), "'0.5x'",
                     "not a number");
 }
 
-TEST(Unit_ImagingLabels, RejectsADecimalComma)
+TEST(Small_ImagingLabels, RejectsADecimalComma)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 0,5 0.5 0.5 0.5", K_CLASS_COUNT), "'0,5'",
                     "not a number");
 }
 
-TEST(Unit_ImagingLabels, RejectsADoubledSign)
+TEST(Small_ImagingLabels, RejectsADoubledSign)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 +-0.5 0.5 0.5 0.5", K_CLASS_COUNT), "'+-0.5'",
                     "not a number");
 }
 
-TEST(Unit_ImagingLabels, RejectsNotANumberAndInfinity)
+TEST(Small_ImagingLabels, RejectsNotANumberAndInfinity)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 nan 0.5 0.5 0.5", K_CLASS_COUNT), "'nan'");
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 inf 0.5 0.5", K_CLASS_COUNT), "'inf'");
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 1e999 0.5", K_CLASS_COUNT), "'1e999'");
 }
 
-TEST(Unit_ImagingLabels, RejectsAFiniteValueAboveTheFloatRange)
+TEST(Small_ImagingLabels, RejectsAFiniteValueAboveTheFloatRange)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 1e39 0.5 0.5 0.5", K_CLASS_COUNT), "'1e39'",
                     "not a finite number");
 }
 
-TEST(Unit_ImagingLabels, RejectsANonzeroValueBelowTheSmallestNormalDouble)
+TEST(Small_ImagingLabels, RejectsANonzeroValueBelowTheSmallestNormalDouble)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 1e-310 0.5 0.5 0.5", K_CLASS_COUNT), "line 1",
                     "'1e-310'");
@@ -219,7 +219,7 @@ TEST(Unit_ImagingLabels, RejectsANonzeroValueBelowTheSmallestNormalDouble)
                     "'1e-999'");
 }
 
-TEST(Unit_ImagingLabels, AcceptsZeroAndTheSmallestNormalDouble)
+TEST(Small_ImagingLabels, AcceptsZeroAndTheSmallestNormalDouble)
 {
     const FileLabels labels =
         parse_label_text("0 0.0 2.2250738585072014e-308 0.5 0.5", K_CLASS_COUNT);
@@ -228,21 +228,21 @@ TEST(Unit_ImagingLabels, AcceptsZeroAndTheSmallestNormalDouble)
     expect_box(labels.boxes()[0], 0.0f, 0.0f, 0.5f, 0.5f);
 }
 
-TEST(Unit_ImagingLabels, RejectsACoordinateBelowTheTolerance)
+TEST(Small_ImagingLabels, RejectsACoordinateBelowTheTolerance)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 -0.02 0.5 0.5 0.5", K_CLASS_COUNT), "line 1",
                     "negative");
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 0.5 -0.5", K_CLASS_COUNT), "negative");
 }
 
-TEST(Unit_ImagingLabels, RejectsACoordinateAboveTheTolerance)
+TEST(Small_ImagingLabels, RejectsACoordinateAboveTheTolerance)
 {
     SA_EXPECT_ERROR((void)parse_label_text("0 1.02 0.5 0.5 0.5", K_CLASS_COUNT), "line 1",
                     "above");
     SA_EXPECT_ERROR((void)parse_label_text("0 0.5 0.5 0.5 640", K_CLASS_COUNT), "above");
 }
 
-TEST(Unit_ImagingLabels, StoresACoordinateInsideTheToleranceUnclipped)
+TEST(Small_ImagingLabels, StoresACoordinateInsideTheToleranceUnclipped)
 {
     const FileLabels labels = parse_label_text("0 1.005 -0.005 0.5 0.5", K_CLASS_COUNT);
 
@@ -250,7 +250,7 @@ TEST(Unit_ImagingLabels, StoresACoordinateInsideTheToleranceUnclipped)
     expect_box(labels.boxes()[0], 1.005f, -0.005f, 0.5f, 0.5f);
 }
 
-TEST(Unit_ImagingLabels, AcceptsACoordinateOnEitherToleranceBound)
+TEST(Small_ImagingLabels, AcceptsACoordinateOnEitherToleranceBound)
 {
     const FileLabels labels = parse_label_text("0 1.01 -0.01 0.5 0.5", K_CLASS_COUNT);
 
@@ -258,26 +258,26 @@ TEST(Unit_ImagingLabels, AcceptsACoordinateOnEitherToleranceBound)
     expect_box(labels.boxes()[0], 1.01f, -0.01f, 0.5f, 0.5f);
 }
 
-TEST(Unit_ImagingLabels, RejectsANegativeClass)
+TEST(Small_ImagingLabels, RejectsANegativeClass)
 {
     SA_EXPECT_ERROR((void)parse_label_text("-1 0.5 0.5 0.5 0.5", K_CLASS_COUNT), "line 1",
                     "class", "negative");
 }
 
-TEST(Unit_ImagingLabels, RejectsAClassWithAFraction)
+TEST(Small_ImagingLabels, RejectsAClassWithAFraction)
 {
     SA_EXPECT_ERROR((void)parse_label_text("1.5 0.5 0.5 0.5 0.5", K_CLASS_COUNT), "class",
                     "whole number");
 }
 
-TEST(Unit_ImagingLabels, RejectsAClassAtOrAboveTheClassCount)
+TEST(Small_ImagingLabels, RejectsAClassAtOrAboveTheClassCount)
 {
     SA_EXPECT_ERROR((void)parse_label_text("80 0.5 0.5 0.5 0.5", K_CLASS_COUNT), "class",
                     "out of range", "80 classes");
     SA_EXPECT_ERROR((void)parse_label_text("1 0.5 0.5 0.5 0.5", 1), "out of range", "1 classes");
 }
 
-TEST(Unit_ImagingLabels, AcceptsTheLastClass)
+TEST(Small_ImagingLabels, AcceptsTheLastClass)
 {
     const FileLabels labels = parse_label_text("79 0.5 0.5 0.5 0.5", K_CLASS_COUNT);
 
@@ -285,7 +285,7 @@ TEST(Unit_ImagingLabels, AcceptsTheLastClass)
     EXPECT_EQ(labels.classes()[0], 79);
 }
 
-TEST(Unit_ImagingLabels, RemovesRepeatedRowsKeepingTheFirstAndTheFileOrder)
+TEST(Small_ImagingLabels, RemovesRepeatedRowsKeepingTheFirstAndTheFileOrder)
 {
     const FileLabels labels = parse_label_text(
         "5 0.5 0.5 0.25 0.25\n"
@@ -302,7 +302,7 @@ TEST(Unit_ImagingLabels, RemovesRepeatedRowsKeepingTheFirstAndTheFileOrder)
     expect_box(labels.boxes()[2], 0.75f, 0.75f, 0.125f, 0.125f);
 }
 
-TEST(Unit_ImagingLabels, RemovesARowThatRepeatsAnotherInADifferentSpelling)
+TEST(Small_ImagingLabels, RemovesARowThatRepeatsAnotherInADifferentSpelling)
 {
     const FileLabels labels = parse_label_text(
         "5 0.5 0.5 0.25 0.25\n"
@@ -312,7 +312,7 @@ TEST(Unit_ImagingLabels, RemovesARowThatRepeatsAnotherInADifferentSpelling)
     EXPECT_EQ(labels.size(), 1u);
 }
 
-TEST(Unit_ImagingLabels, KeepsRowsThatDifferInOneValue)
+TEST(Small_ImagingLabels, KeepsRowsThatDifferInOneValue)
 {
     const FileLabels labels = parse_label_text(
         "5 0.5 0.5 0.25 0.25\n"
@@ -323,7 +323,7 @@ TEST(Unit_ImagingLabels, KeepsRowsThatDifferInOneValue)
     EXPECT_EQ(labels.size(), 3u);
 }
 
-TEST(Unit_ImagingLabels, ReducesAPolygonRowToTheBoxAroundItsPoints)
+TEST(Small_ImagingLabels, ReducesAPolygonRowToTheBoxAroundItsPoints)
 {
     const FileLabels labels = parse_label_text("1 0.25 0.5 0.75 0.25 0.5 0.75", K_CLASS_COUNT);
 
@@ -333,7 +333,7 @@ TEST(Unit_ImagingLabels, ReducesAPolygonRowToTheBoxAroundItsPoints)
 }
 
 /** @brief Tests that a polygon row keeps its points, in file order, beside its box. */
-TEST(Unit_ImagingLabels, KeepsThePointsOfAPolygonRowInFileOrder)
+TEST(Small_ImagingLabels, KeepsThePointsOfAPolygonRowInFileOrder)
 {
     const FileLabels labels = parse_label_text(
         "2 0.5 0.125 0.875 0.5 0.5 0.625 0.125 0.5 0.25 0.25", K_CLASS_COUNT);
@@ -352,7 +352,7 @@ TEST(Unit_ImagingLabels, KeepsThePointsOfAPolygonRowInFileOrder)
 }
 
 /** @brief Tests that a box row gives its object a polygon of no point. */
-TEST(Unit_ImagingLabels, GivesABoxRowNoPolygon)
+TEST(Small_ImagingLabels, GivesABoxRowNoPolygon)
 {
     const FileLabels labels =
         parse_label_text("0 0.5 0.25 0.5 0.125\n3 0.25 0.75 0.125 0.0625\n", K_CLASS_COUNT);
@@ -363,7 +363,7 @@ TEST(Unit_ImagingLabels, GivesABoxRowNoPolygon)
     EXPECT_TRUE(labels.polygons()[1].empty());
 }
 
-TEST(Unit_ImagingLabels, ReducesAPolygonOfManyPointsToItsBounds)
+TEST(Small_ImagingLabels, ReducesAPolygonOfManyPointsToItsBounds)
 {
     const FileLabels labels = parse_label_text(
         "2 0.5 0.125 0.875 0.5 0.5 0.625 0.125 0.5 0.25 0.25", K_CLASS_COUNT);
@@ -372,7 +372,7 @@ TEST(Unit_ImagingLabels, ReducesAPolygonOfManyPointsToItsBounds)
     expect_box(labels.boxes()[0], 0.5f, 0.375f, 0.75f, 0.5f);
 }
 
-TEST(Unit_ImagingLabels, RejectsABoxRowInAPolygonFile)
+TEST(Small_ImagingLabels, RejectsABoxRowInAPolygonFile)
 {
     SA_EXPECT_ERROR((void)parse_label_text("1 0.25 0.5 0.75 0.25 0.5 0.75\n"
                                            "0 0.5 0.5 0.5 0.5\n",
@@ -380,14 +380,14 @@ TEST(Unit_ImagingLabels, RejectsABoxRowInAPolygonFile)
                     "line 2", "polygon");
 }
 
-TEST(Unit_ImagingLabels, RejectsAPolygonRowWithAHalfPoint)
+TEST(Small_ImagingLabels, RejectsAPolygonRowWithAHalfPoint)
 {
     SA_EXPECT_ERROR(
         (void)parse_label_text("1 0.25 0.5 0.75 0.25 0.5 0.75 0.5", K_CLASS_COUNT), "line 1",
         "polygon", "this row has 8");
 }
 
-TEST(Unit_ImagingLabels, RejectsAPolygonRowOfFewerThanThreePoints)
+TEST(Small_ImagingLabels, RejectsAPolygonRowOfFewerThanThreePoints)
 {
     SA_EXPECT_ERROR((void)parse_label_text("1 0.25 0.5 0.75 0.25 0.5 0.75\n"
                                            "1 0.25 0.5\n",
@@ -395,12 +395,12 @@ TEST(Unit_ImagingLabels, RejectsAPolygonRowOfFewerThanThreePoints)
                     "line 2", "three points", "this row has 3");
 }
 
-TEST(Unit_ImagingLabels, RejectsAPolygonWhoseBoxLeavesTheImage)
+TEST(Small_ImagingLabels, RejectsAPolygonWhoseBoxLeavesTheImage)
 {
     SA_EXPECT_ERROR((void)parse_label_text("1 0.0 0.5 1.5 0.25 0.5 0.75", K_CLASS_COUNT), "above");
 }
 
-TEST(Unit_ImagingLabels, RemovesARepeatedPolygonAndKeepsOneWithTheSameBox)
+TEST(Small_ImagingLabels, RemovesARepeatedPolygonAndKeepsOneWithTheSameBox)
 {
     const FileLabels labels = parse_label_text(
         "1 0.25 0.25 0.75 0.25 0.75 0.75\n"

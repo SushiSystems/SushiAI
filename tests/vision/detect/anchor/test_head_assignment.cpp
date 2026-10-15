@@ -122,7 +122,7 @@ namespace
 } // namespace
 
 /** @brief Tests that nine anchors over strides 32, 16, 8 give 6,7,8 then 3,4,5 then 0,1,2. */
-TEST(Unit_DetectAnchorHeadAssignment, NineAnchorsOverThreeHeadsGiveThreeRunsOfThree)
+TEST(Small_DetectAnchorHeadAssignment, NineAnchorsOverThreeHeadsGiveThreeRunsOfThree)
 {
     const Result<AnchorLayout> result = assign(to_fractions(make_v3_anchors(), 416.0f),
                                                {32, 16, 8});
@@ -132,7 +132,7 @@ TEST(Unit_DetectAnchorHeadAssignment, NineAnchorsOverThreeHeadsGiveThreeRunsOfTh
 }
 
 /** @brief Tests that six anchors over strides 32, 16 give 3,4,5 then 0,1,2. */
-TEST(Unit_DetectAnchorHeadAssignment, SixAnchorsOverTwoHeadsGiveTwoRunsOfThree)
+TEST(Small_DetectAnchorHeadAssignment, SixAnchorsOverTwoHeadsGiveTwoRunsOfThree)
 {
     const Result<AnchorLayout> result = assign(make_rising_anchors(), {32, 16});
 
@@ -141,7 +141,7 @@ TEST(Unit_DetectAnchorHeadAssignment, SixAnchorsOverTwoHeadsGiveTwoRunsOfThree)
 }
 
 /** @brief Tests that the masks of the five cfgs follow from their anchors and strides. */
-TEST(Unit_DetectAnchorHeadAssignment, ReproducesTheMasksOfFiveCfgs)
+TEST(Small_DetectAnchorHeadAssignment, ReproducesTheMasksOfFiveCfgs)
 {
     const std::vector<CfgCase> cases = {
         {"yolov3-tiny", make_tiny_anchors(), 416.0f, {32, 16}, {{3, 4, 5}, {0, 1, 2}}},
@@ -162,7 +162,7 @@ TEST(Unit_DetectAnchorHeadAssignment, ReproducesTheMasksOfFiveCfgs)
 }
 
 /** @brief Tests that `yolov4-tiny` gets 0,1,2 where its cfg has 1,2,3, one anchor apart. */
-TEST(Unit_DetectAnchorHeadAssignment, DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
+TEST(Small_DetectAnchorHeadAssignment, DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor)
 {
     const Masks cfg_masks = {{3, 4, 5}, {1, 2, 3}};
 
@@ -177,7 +177,7 @@ TEST(Unit_DetectAnchorHeadAssignment, DiffersFromTheSecondMaskOfYolov4TinyByOneA
 }
 
 /** @brief Tests that of seven anchors over two heads the smaller stride takes four. */
-TEST(Unit_DetectAnchorHeadAssignment, TheRemainderGoesToTheHeadOfSmallestStride)
+TEST(Small_DetectAnchorHeadAssignment, TheRemainderGoesToTheHeadOfSmallestStride)
 {
     std::vector<AnchorSize> anchors = make_rising_anchors();
     anchors.push_back({0.9f, 0.9f});
@@ -192,7 +192,7 @@ TEST(Unit_DetectAnchorHeadAssignment, TheRemainderGoesToTheHeadOfSmallestStride)
 }
 
 /** @brief Tests that eleven anchors over three heads split 4, 4, 3 from the smallest stride. */
-TEST(Unit_DetectAnchorHeadAssignment, ARemainderOfTwoGoesToTheTwoSmallestStrides)
+TEST(Small_DetectAnchorHeadAssignment, ARemainderOfTwoGoesToTheTwoSmallestStrides)
 {
     std::vector<AnchorSize> anchors;
     for (int index = 0; index < 11; ++index)
@@ -205,7 +205,7 @@ TEST(Unit_DetectAnchorHeadAssignment, ARemainderOfTwoGoesToTheTwoSmallestStrides
 }
 
 /** @brief Tests that unsorted anchors keep their order and are named in ascending area. */
-TEST(Unit_DetectAnchorHeadAssignment, UnsortedAnchorsKeepTheirOrderAndAreNamedByArea)
+TEST(Small_DetectAnchorHeadAssignment, UnsortedAnchorsKeepTheirOrderAndAreNamedByArea)
 {
     // The areas are 0.20, 0.01, 0.06 and 0.0004, so ascending area is 3, 1, 2, 0.
     const std::vector<AnchorSize> anchors = {{0.5f, 0.4f}, {0.1f, 0.1f}, {0.2f, 0.3f},
@@ -226,7 +226,7 @@ TEST(Unit_DetectAnchorHeadAssignment, UnsortedAnchorsKeepTheirOrderAndAreNamedBy
 }
 
 /** @brief Tests that two anchors of one area go in the order of their indices. */
-TEST(Unit_DetectAnchorHeadAssignment, AnchorsOfEqualAreaGoInIndexOrder)
+TEST(Small_DetectAnchorHeadAssignment, AnchorsOfEqualAreaGoInIndexOrder)
 {
     const std::vector<AnchorSize> anchors = {{0.25f, 0.5f}, {0.5f, 0.25f}};
 
@@ -237,7 +237,7 @@ TEST(Unit_DetectAnchorHeadAssignment, AnchorsOfEqualAreaGoInIndexOrder)
 }
 
 /** @brief Tests that an assignment is a layout the layout check accepts. */
-TEST(Unit_DetectAnchorHeadAssignment, TheResultIsAValidLayout)
+TEST(Small_DetectAnchorHeadAssignment, TheResultIsAValidLayout)
 {
     const Result<AnchorLayout> result = assign(to_fractions(make_v4_anchors(), 608.0f),
                                                {8, 16, 32});
@@ -248,7 +248,7 @@ TEST(Unit_DetectAnchorHeadAssignment, TheResultIsAValidLayout)
 }
 
 /** @brief Tests that per_head gives each head its count, in the order of the strides. */
-TEST(Unit_DetectAnchorHeadAssignment, PerHeadSetsTheCountOfEachHead)
+TEST(Small_DetectAnchorHeadAssignment, PerHeadSetsTheCountOfEachHead)
 {
     const Result<AnchorLayout> result = assign(make_rising_anchors(), {32, 16}, {2, 4});
 
@@ -257,7 +257,7 @@ TEST(Unit_DetectAnchorHeadAssignment, PerHeadSetsTheCountOfEachHead)
 }
 
 /** @brief Tests that a per_head whose sum is below or above the anchor count is refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadThatDoesNotSumToTheCount)
+TEST(Small_DetectAnchorHeadAssignment, RefusesAPerHeadThatDoesNotSumToTheCount)
 {
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 16}, {2, 3})), StatusCode::Incompatible);
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 16}, {3, 4})), StatusCode::Incompatible);
@@ -267,7 +267,7 @@ TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadThatDoesNotSumToTheCount)
 }
 
 /** @brief Tests that a per_head with another length than the strides is refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadOfAnotherLengthThanTheStrides)
+TEST(Small_DetectAnchorHeadAssignment, RefusesAPerHeadOfAnotherLengthThanTheStrides)
 {
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 16}, {6})), StatusCode::Incompatible);
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 16}, {2, 2, 2})),
@@ -275,7 +275,7 @@ TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadOfAnotherLengthThanTheStrid
 }
 
 /** @brief Tests that a per_head that leaves a head without an anchor is refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadWithAnEmptyHead)
+TEST(Small_DetectAnchorHeadAssignment, RefusesAPerHeadWithAnEmptyHead)
 {
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {32, 16}, {6, 0})),
               StatusCode::InvalidDescription);
@@ -284,7 +284,7 @@ TEST(Unit_DetectAnchorHeadAssignment, RefusesAPerHeadWithAnEmptyHead)
 }
 
 /** @brief Tests that fewer anchors than heads are refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesFewerAnchorsThanHeads)
+TEST(Small_DetectAnchorHeadAssignment, RefusesFewerAnchorsThanHeads)
 {
     const std::vector<AnchorSize> anchors = {{0.1f, 0.1f}, {0.2f, 0.2f}};
 
@@ -292,7 +292,7 @@ TEST(Unit_DetectAnchorHeadAssignment, RefusesFewerAnchorsThanHeads)
 }
 
 /** @brief Tests that no anchor, no stride and a stride at or below zero are refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesMissingAnchorsAndBadStrides)
+TEST(Small_DetectAnchorHeadAssignment, RefusesMissingAnchorsAndBadStrides)
 {
     EXPECT_EQ(code_of(assign({}, {32, 16})), StatusCode::InvalidDescription);
     EXPECT_EQ(code_of(assign(make_rising_anchors(), {})), StatusCode::InvalidDescription);
@@ -301,7 +301,7 @@ TEST(Unit_DetectAnchorHeadAssignment, RefusesMissingAnchorsAndBadStrides)
 }
 
 /** @brief Tests that an anchor with a zero or a NaN side is refused. */
-TEST(Unit_DetectAnchorHeadAssignment, RefusesAnAnchorWithoutAFinitePositiveSide)
+TEST(Small_DetectAnchorHeadAssignment, RefusesAnAnchorWithoutAFinitePositiveSide)
 {
     std::vector<AnchorSize> zero_side = make_rising_anchors();
     zero_side[1].height = 0.0f;

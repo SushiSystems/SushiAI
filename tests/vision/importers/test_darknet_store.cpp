@@ -59,7 +59,7 @@ namespace
     using Vision::Importers::fold_darknet_normalisation;
     using Vision::Importers::store_darknet_weights;
 
-    class Integration_DarknetStore : public SaTest::EngineTest {};
+    class Medium_DarknetStore : public SaTest::EngineTest {};
 
     /** @brief Holds the value the test writes into every entry before a store runs. */
     constexpr float K_SENTINEL = -7.0f;
@@ -152,7 +152,7 @@ namespace
  * The expected weights are built by walking the destination order and reading the source as
  * [out, in, kh, kw], which the test states on its own, not by the store's index formula.
  */
-TEST_F(Integration_DarknetStore, WeightsMoveToKernelLastAndEveryVectorLands)
+TEST_F(Medium_DarknetStore, WeightsMoveToKernelLastAndEveryVectorLands)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));
@@ -183,7 +183,7 @@ TEST_F(Integration_DarknetStore, WeightsMoveToKernelLastAndEveryVectorLands)
  * @brief Tests that a folded convolution stores its weight and bias and leaves the batch-norm
  *        entries it does not name.
  */
-TEST_F(Integration_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntriesAlone)
+TEST_F(Medium_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntriesAlone)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));
@@ -213,7 +213,7 @@ TEST_F(Integration_DarknetStore, AFoldedConvolutionLeavesItsNormalisationEntries
 /**
  * @brief Tests that a target naming an entry the state lacks is refused, and the layer is named.
  */
-TEST_F(Integration_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
+TEST_F(Medium_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));
@@ -228,7 +228,7 @@ TEST_F(Integration_DarknetStore, AMissingEntryIsRefusedAndNamesTheLayer)
 /**
  * @brief Tests that a shape that differs is refused, and that no earlier write reaches the state.
  */
-TEST_F(Integration_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
+TEST_F(Medium_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
 {
     std::vector<NN::StateEntry> entries = model_entries();
     for (NN::StateEntry& entry : entries)
@@ -249,7 +249,7 @@ TEST_F(Integration_DarknetStore, AShapeMismatchIsRefusedAndNothingIsWritten)
 /**
  * @brief Tests that a vector of the wrong length is refused, as a folded scale would be.
  */
-TEST_F(Integration_DarknetStore, AVectorOfTheWrongLengthIsRefused)
+TEST_F(Medium_DarknetStore, AVectorOfTheWrongLengthIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));
@@ -263,7 +263,7 @@ TEST_F(Integration_DarknetStore, AVectorOfTheWrongLengthIsRefused)
 /**
  * @brief Tests that two targets naming one entry are refused, so no entry is filled twice.
  */
-TEST_F(Integration_DarknetStore, AnEntryNamedTwiceIsRefused)
+TEST_F(Medium_DarknetStore, AnEntryNamedTwiceIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));
@@ -279,7 +279,7 @@ TEST_F(Integration_DarknetStore, AnEntryNamedTwiceIsRefused)
  * @brief Tests that a weights file, a shape list and a target list of different lengths are
  *        refused before any entry is touched.
  */
-TEST_F(Integration_DarknetStore, MismatchedCountsAreRefused)
+TEST_F(Medium_DarknetStore, MismatchedCountsAreRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, model_entries()));

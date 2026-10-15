@@ -66,7 +66,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a sample has the class of its label and the place of its pixels. */
-TEST(Unit_DatasetsIdx, ASampleHasItsLabelAndThePlaceOfItsPixels)
+TEST(Small_DatasetsIdx, ASampleHasItsLabelAndThePlaceOfItsPixels)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_samples");
     write_train_split(scratch);
@@ -97,7 +97,7 @@ TEST(Unit_DatasetsIdx, ASampleHasItsLabelAndThePlaceOfItsPixels)
 }
 
 /** @brief Tests that a sample's stored pixels read back as the bytes of its image. */
-TEST(Unit_DatasetsIdx, ASamplesPixelsReadBackFromTheImageFile)
+TEST(Small_DatasetsIdx, ASamplesPixelsReadBackFromTheImageFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_pixels");
     write_train_split(scratch);
@@ -114,7 +114,7 @@ TEST(Unit_DatasetsIdx, ASamplesPixelsReadBackFromTheImageFile)
 }
 
 /** @brief Tests that the test split reads the t10k file names. */
-TEST(Unit_DatasetsIdx, TheTestSplitReadsTheT10kFiles)
+TEST(Small_DatasetsIdx, TheTestSplitReadsTheT10kFiles)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_test_split");
     scratch.write("t10k-images-idx3-ubyte", Support::idx_bytes(K_UBYTE, {1, 1, 1}, {9}));
@@ -131,7 +131,7 @@ TEST(Unit_DatasetsIdx, TheTestSplitReadsTheT10kFiles)
 }
 
 /** @brief Tests that named files are read whatever the split says. */
-TEST(Unit_DatasetsIdx, NamedFilesAreReadForAnySplit)
+TEST(Small_DatasetsIdx, NamedFilesAreReadForAnySplit)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_named");
     scratch.write("images.idx",
@@ -152,7 +152,7 @@ TEST(Unit_DatasetsIdx, NamedFilesAreReadForAnySplit)
 }
 
 /** @brief Tests that a split with no standard file name and no named file is refused. */
-TEST(Unit_DatasetsIdx, ASplitWithoutAFileNameIsRefused)
+TEST(Small_DatasetsIdx, ASplitWithoutAFileNameIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_split");
     IDXOptions options = train_options(scratch);
@@ -162,7 +162,7 @@ TEST(Unit_DatasetsIdx, ASplitWithoutAFileNameIsRefused)
 }
 
 /** @brief Tests that an absent file of the split is reported with its path. */
-TEST(Unit_DatasetsIdx, AnAbsentFileIsNotFound)
+TEST(Small_DatasetsIdx, AnAbsentFileIsNotFound)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_absent");
     scratch.write("train-images-idx3-ubyte", Support::idx_bytes(K_UBYTE, {1, 1, 1}, {9}));
@@ -172,7 +172,7 @@ TEST(Unit_DatasetsIdx, AnAbsentFileIsNotFound)
 }
 
 /** @brief Tests that an image count that differs from the label count names both files. */
-TEST(Unit_DatasetsIdx, CountsThatDifferAreRefused)
+TEST(Small_DatasetsIdx, CountsThatDifferAreRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_counts");
     scratch.write("train-images-idx3-ubyte",
@@ -185,7 +185,7 @@ TEST(Unit_DatasetsIdx, CountsThatDifferAreRefused)
 }
 
 /** @brief Tests that an image file of another rank or element type is refused. */
-TEST(Unit_DatasetsIdx, AnImageFileOfAnotherFormIsRefused)
+TEST(Small_DatasetsIdx, AnImageFileOfAnotherFormIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_form");
     scratch.write("train-labels-idx1-ubyte", Support::idx_bytes(K_UBYTE, {2}, {0, 1}));
@@ -207,7 +207,7 @@ TEST(Unit_DatasetsIdx, AnImageFileOfAnotherFormIsRefused)
 }
 
 /** @brief Tests that an image file with no image is refused. */
-TEST(Unit_DatasetsIdx, AnImageFileWithoutAnImageIsRefused)
+TEST(Small_DatasetsIdx, AnImageFileWithoutAnImageIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_idx_empty");
     scratch.write("train-images-idx3-ubyte", Support::idx_bytes(K_UBYTE, {0, 2, 2}, {}));

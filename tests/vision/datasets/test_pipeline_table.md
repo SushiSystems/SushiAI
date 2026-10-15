@@ -3,8 +3,8 @@
 
 The pipeline table, the fit the same in every epoch, a training sample identical alone, in a batch and reversed, the mosaic epochs, masks, and the refusals.
 
-Suites: `Unit_DatasetsPipelineTable`, `Unit_DatasetsFitPipeline`,
-`Unit_DatasetsAugmentPipeline`.
+Suites: `Small_DatasetsPipelineTable`, `Small_DatasetsFitPipeline`,
+`Small_DatasetsAugmentPipeline`.
 
 Tests `pipeline_table` and `find_pipeline`, `FitPipeline` and `AugmentPipeline` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/`. The pipeline cases read four raw

@@ -157,7 +157,7 @@ namespace
 } // namespace
 
 /** @brief Tests that make() keeps what it was given and refuses an extent below 1. */
-TEST(Unit_PixelCrossEntropyObjective, MakeKeepsItsExtentsAndRefusesNone)
+TEST(Medium_PixelCrossEntropyObjective, MakeKeepsItsExtentsAndRefusesNone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
                             PixelCrossEntropyObjective::make(K_EXTENTS, 7));
@@ -174,7 +174,7 @@ TEST(Unit_PixelCrossEntropyObjective, MakeKeepsItsExtentsAndRefusesNone)
 }
 
 /** @brief Tests the ignore index that names a class and the element type that is no real. */
-TEST(Unit_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClass)
+TEST(Medium_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClass)
 {
     SA_EXPECT_FAILURE(PixelCrossEntropyObjective::make(K_EXTENTS, 2),
                       StatusCode::InvalidDescription, "ignore index 2", "3 classes");
@@ -187,7 +187,7 @@ TEST(Unit_PixelCrossEntropyObjective, MakeRefusesAnIgnoreIndexThatIsAClass)
 }
 
 /** @brief Tests the two leaves of the cross entropy and the mask role it reads. */
-TEST(Unit_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights)
+TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
                             PixelCrossEntropyObjective::make(K_EXTENTS));
@@ -212,7 +212,7 @@ TEST(Unit_PixelCrossEntropyObjective, TheCrossEntropyDeclaresIndicesAndWeights)
 }
 
 /** @brief Tests that the cross entropy is one element built from one gather and no one-hot. */
-TEST(Unit_PixelCrossEntropyObjective, TheCrossEntropyGathersOneLogProbabilityPerPixel)
+TEST(Medium_PixelCrossEntropyObjective, TheCrossEntropyGathersOneLogProbabilityPerPixel)
 {
     NN::Conv2d model = make_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PixelCrossEntropyObjective> objective,
@@ -232,7 +232,7 @@ TEST(Unit_PixelCrossEntropyObjective, TheCrossEntropyGathersOneLogProbabilityPer
 }
 
 /** @brief Tests that both factories read N, H, W and C from the model's one output. */
-TEST(Unit_PixelCrossEntropyObjective, TheFactoriesReadTheModelsOutput)
+TEST(Medium_PixelCrossEntropyObjective, TheFactoriesReadTheModelsOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> cross_entropy,
@@ -253,7 +253,7 @@ TEST(Unit_PixelCrossEntropyObjective, TheFactoriesReadTheModelsOutput)
 }
 
 /** @brief Tests the keys a factory refuses: an unknown one, a real and an index of a class. */
-TEST(Unit_PixelCrossEntropyObjective, TheFactoriesRefuseABadSection)
+TEST(Medium_PixelCrossEntropyObjective, TheFactoriesRefuseABadSection)
 {
     SA_EXPECT_FAILURE(
         make_pixel_cross_entropy_objective(make_context(3), keys(R"({"weight": 1})"), K_CONTEXT),
@@ -268,7 +268,7 @@ TEST(Unit_PixelCrossEntropyObjective, TheFactoriesRefuseABadSection)
 }
 
 /** @brief Tests the models a factory refuses, and data of more classes than the model scores. */
-TEST(Unit_PixelCrossEntropyObjective, TheFactoriesRefuseAModelThatDoesNotFit)
+TEST(Medium_PixelCrossEntropyObjective, TheFactoriesRefuseAModelThatDoesNotFit)
 {
     Train::ObjectiveContext two_outputs = make_context(3);
     two_outputs.outputs.push_back(Train::OutputShape{"second", Shape{2, 4, 4, 3}});
@@ -520,14 +520,14 @@ namespace
     }
 
     /** @brief Provides the engine the state and the step are built on. */
-    class Integration_PixelCrossEntropyObjective : public SaTest::EngineTest
+    class Medium_PixelCrossEntropyObjectiveEndToEnd : public SaTest::EngineTest
     {
     };
 
 } // namespace
 
 /** @brief Tests the cross entropy and its gradient at the logits, two pixels ignored. */
-TEST_F(Integration_PixelCrossEntropyObjective, TheCrossEntropyAndItsGradientEqualTheHostComputation)
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, TheCrossEntropyAndItsGradientEqualTheHostComputation)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
@@ -556,7 +556,7 @@ TEST_F(Integration_PixelCrossEntropyObjective, TheCrossEntropyAndItsGradientEqua
 }
 
 /** @brief Tests that a sum feeds both terms: the loss and its gradient are the weighted sums. */
-TEST_F(Integration_PixelCrossEntropyObjective, AWeightedSumOfBothLossesEqualsTheHostComputation)
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AWeightedSumOfBothLossesEqualsTheHostComputation)
 {
     // The weight of the Dice term, as a training file would state it.
     constexpr double K_DICE_WEIGHT = 0.5;
@@ -591,7 +591,7 @@ TEST_F(Integration_PixelCrossEntropyObjective, AWeightedSumOfBothLossesEqualsThe
 }
 
 /** @brief Tests that a mask of ignored pixels alone gives a loss of zero and no gradient. */
-TEST_F(Integration_PixelCrossEntropyObjective, AMaskWithNoKeptPixelGivesZero)
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
@@ -607,7 +607,7 @@ TEST_F(Integration_PixelCrossEntropyObjective, AMaskWithNoKeptPixelGivesZero)
 }
 
 /** @brief Tests that a label at the class count stops the feed and names its pixel. */
-TEST_F(Integration_PixelCrossEntropyObjective, ALabelOutsideTheClassesStopsTheFeed)
+TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, ALabelOutsideTheClassesStopsTheFeed)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
@@ -760,13 +760,13 @@ namespace
     }
 
     /** @brief Provides the engine the state, the dataset and the step are built on. */
-    class Integration_SegmentOverfit : public SaTest::EngineTest
+    class Medium_SegmentOverfit : public SaTest::EngineTest
     {
     };
 } // namespace
 
 /** @brief Tests that the loss falls below half its start and the mean IoU rises above 0.8. */
-TEST_F(Integration_SegmentOverfit, TwoConvolutionsAndAHeadFitOneBatch)
+TEST_F(Medium_SegmentOverfit, TwoConvolutionsAndAHeadFitOneBatch)
 {
     TinySegmenter model;
     SA_ASSERT_OK_AND_ASSIGN(

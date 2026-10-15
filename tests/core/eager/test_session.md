@@ -1,7 +1,7 @@
 # tests/core/eager/test_session.cpp
 
 
-Suites: `Unit_EagerSession`.
+Suites: `Medium_EagerSession`.
 
 Tests the steps a `Session` runs and the points at which a `Step` runs them.
 
@@ -85,7 +85,7 @@ A node emitted after `finish` makes the next read return `Unsupported`.
 
 A session traces one step at a time.
 
-Suites: `Unit_EagerStepCost`.
+Suites: `Medium_EagerStepCost`.
 
 Prints the host cost of an eager step and asserts only that the measured steps were the kind it
 claims to measure.

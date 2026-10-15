@@ -103,11 +103,11 @@ namespace
     }
 
     /** @brief Gives each test a graph and a recorder over it, on the shared runtime. */
-    class Unit_StepRecorder : public ::testing::Test
+    class Small_StepRecorder : public ::testing::Test
     {
         protected:
             /** @brief Builds the graph, its scratch pool and the recorder the tests use. */
-            Unit_StepRecorder()
+            Small_StepRecorder()
                 : graph_(SushiAI::Test::TestEnvironment::runtime().graph()),
                   scratch_(SushiAI::Test::TestEnvironment::runtime()),
                   recorder_(graph_.recorder(), scratch_)
@@ -126,12 +126,12 @@ namespace
     };
 
     /** @brief Names the suite of the cases that expect the process to stop. */
-    using Unit_StepRecorderDeathTest = Unit_StepRecorder;
+    using Small_StepRecorderDeathTest = Small_StepRecorder;
 
 } // namespace
 
 /** @brief Tests that a list with no member reports empty, records zero tasks and replays. */
-TEST_F(Unit_StepRecorder, EmptyListRecordsNothing)
+TEST_F(Small_StepRecorder, EmptyListRecordsNothing)
 {
     StepRecorderList list;
 
@@ -143,7 +143,7 @@ TEST_F(Unit_StepRecorder, EmptyListRecordsNothing)
 }
 
 /** @brief Tests that adding one recorder makes the list non-empty. */
-TEST_F(Unit_StepRecorder, AddMakesTheListNonEmpty)
+TEST_F(Small_StepRecorder, AddMakesTheListNonEmpty)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -156,7 +156,7 @@ TEST_F(Unit_StepRecorder, AddMakesTheListNonEmpty)
 }
 
 /** @brief Tests that record_into_step returns the sum of the members' task counts. */
-TEST_F(Unit_StepRecorder, RecordSumsTheMemberCounts)
+TEST_F(Small_StepRecorder, RecordSumsTheMemberCounts)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 2, journal);
@@ -172,7 +172,7 @@ TEST_F(Unit_StepRecorder, RecordSumsTheMemberCounts)
 }
 
 /** @brief Tests that record_into_step calls each member once, in the order added. */
-TEST_F(Unit_StepRecorder, RecordCallsMembersInTheOrderAdded)
+TEST_F(Small_StepRecorder, RecordCallsMembersInTheOrderAdded)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -189,7 +189,7 @@ TEST_F(Unit_StepRecorder, RecordCallsMembersInTheOrderAdded)
 }
 
 /** @brief Tests that the order of the calls follows add, not the order of construction. */
-TEST_F(Unit_StepRecorder, OrderFollowsAddNotConstruction)
+TEST_F(Small_StepRecorder, OrderFollowsAddNotConstruction)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -204,7 +204,7 @@ TEST_F(Unit_StepRecorder, OrderFollowsAddNotConstruction)
 }
 
 /** @brief Tests that before_replay calls each member once, in the order added. */
-TEST_F(Unit_StepRecorder, BeforeReplayCallsMembersInTheOrderAdded)
+TEST_F(Small_StepRecorder, BeforeReplayCallsMembersInTheOrderAdded)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -221,7 +221,7 @@ TEST_F(Unit_StepRecorder, BeforeReplayCallsMembersInTheOrderAdded)
 }
 
 /** @brief Tests that after_replay calls each member once, in the order added. */
-TEST_F(Unit_StepRecorder, AfterReplayCallsMembersInTheOrderAdded)
+TEST_F(Small_StepRecorder, AfterReplayCallsMembersInTheOrderAdded)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -238,7 +238,7 @@ TEST_F(Unit_StepRecorder, AfterReplayCallsMembersInTheOrderAdded)
 }
 
 /** @brief Tests that a member with no replay hooks still records through the list. */
-TEST_F(Unit_StepRecorder, MemberWithoutReplayHooksIsDriven)
+TEST_F(Small_StepRecorder, MemberWithoutReplayHooksIsDriven)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 4, journal);
@@ -256,7 +256,7 @@ TEST_F(Unit_StepRecorder, MemberWithoutReplayHooksIsDriven)
 }
 
 /** @brief Tests that a list driven through an IStepRecorder pointer reaches its members. */
-TEST_F(Unit_StepRecorder, ListIsDrivenThroughTheInterface)
+TEST_F(Small_StepRecorder, ListIsDrivenThroughTheInterface)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 2, journal);
@@ -276,7 +276,7 @@ TEST_F(Unit_StepRecorder, ListIsDrivenThroughTheInterface)
 }
 
 /** @brief Tests that a list held as a member of another runs in its place in the outer order. */
-TEST_F(Unit_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
+TEST_F(Small_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 1, journal);
@@ -295,7 +295,7 @@ TEST_F(Unit_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
 }
 
 /** @brief Tests that adding a recorder the list already holds is fatal and leaves one entry. */
-TEST_F(Unit_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
+TEST_F(Small_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 {
     std::vector<std::string> journal;
     JournalRecorder a("a", 2, journal);
@@ -310,7 +310,7 @@ TEST_F(Unit_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 }
 
 /** @brief Tests that adding a list to itself is fatal and leaves the list empty. */
-TEST_F(Unit_StepRecorderDeathTest, AddRejectsTheListItself)
+TEST_F(Small_StepRecorderDeathTest, AddRejectsTheListItself)
 {
     StepRecorderList list;
 

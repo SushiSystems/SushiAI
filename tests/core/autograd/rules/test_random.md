@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_random.cpp
 
 
-Suites: `Unit_DropoutBackward`.
+Suites: `Small_DropoutBackward`.
 
 Tests the backward rule of DROPOUT. The graph cases apply `GraphBuilder::dropout` with the rate
 0.5 and the seed 11 to a [3, 4] value and take the `nll_loss` of the `log_softmax` of the

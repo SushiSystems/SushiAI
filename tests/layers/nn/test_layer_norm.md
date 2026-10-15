@@ -1,7 +1,7 @@
 # tests/layers/nn/test_layer_norm.cpp
 
 
-Suites: `Integration_LayerNorm`.
+Suites: `Medium_LayerNorm`.
 
 The file runs LAYER_NORM and the `LayerNorm` layer on an engine with an epsilon of 1e-5 and compares
 with a host loop in double: FLOAT32 results within 2e-5 and FLOAT64 results within 1e-12. The
@@ -35,7 +35,7 @@ The gradient at the bias of four elements.
 A `LayerNorm` of width 4 over a FLOAT32 `[2, 3, 4]` value keeps the shape, and with its weight and
 bias written from noise its output equals the host's rows.
 
-Suites: `Integration_MaxPoolTrailing`.
+Suites: `Medium_MaxPoolTrailing`.
 
 A `MaxPool2d` with a 2x2 window, a stride of one and one trailing row and column of padding pools a
 `[1, 3, 3, 1]` input into nine values. Each is compared with the maximum of its truncated window
@@ -50,7 +50,7 @@ The input `[[5, -1, 2], [-3, 8, 0], [4, -7, 6]]` pools to `[[8, 8, 2], [8, 8, 6]
 The input runs from -18 to -10. The result is `[[-14, -13, -13], [-11, -10, -10], [-11, -10, -10]]`;
 a pad that took part in the maximum as zero would show as 0.
 
-Suites: `Integration_MishValues`.
+Suites: `Medium_MishValues`.
 
 The `Mish` layer runs over one FLOAT32 row on the engine. Each result is compared with `x *
 tanh(log1p(exp(x)))`, computed in double, within 1e-6 of the exact value's magnitude. A zero must be
@@ -72,7 +72,7 @@ magnitude of 20, records its largest difference from the exact form as the prope
 
 The LayerNorm layer's trace, its gain and bias, its refusals and its factory.
 
-Suites: `Unit_LayerNorm`, `Unit_LayerNormDeathTest`.
+Suites: `Small_LayerNorm`, `Medium_LayerNormDeathTest`.
 
 Tests `NN::LayerNorm` in `modules/layers/nn/include/SushiAI/nn/layer_norm.hpp` and its factory
 `NN::make_layer_norm_node`. Every layer normalises over a last extent of 4. A `static_assert`

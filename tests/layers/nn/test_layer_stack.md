@@ -1,7 +1,7 @@
 # tests/layers/nn/test_layer_stack.cpp
 
 
-Suites: `Unit_LayerStack`.
+Suites: `Small_LayerStack`.
 
 Tests the runtime layer seam: LayerStack, LayerAdapter and the shape the factories thread.
 

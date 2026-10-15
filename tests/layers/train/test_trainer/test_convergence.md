@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_convergence.cpp
 
 
-Suites: `Integration_Training`.
+Suites: `Medium_Training`.
 
 This is the end-to-end gate: a real MLP on the synthetic classification dataset that has to
 converge, with the compile-once guarantee checked across every step.

@@ -130,7 +130,7 @@ static_assert(NN::TraceModule<Embedding> && !NN::Module<Embedding> && !NN::Modal
               "Embedding has the trace form alone");
 
 /** @brief Tests that a trace adds the table leaf and one GATHER_ROWS over [table, indices]. */
-TEST(Unit_Embedding, ATraceDeclaresTheTableAndEmitsOneGather)
+TEST(Small_Embedding, ATraceDeclaresTheTableAndEmitsOneGather)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -156,7 +156,7 @@ TEST(Unit_Embedding, ATraceDeclaresTheTableAndEmitsOneGather)
 }
 
 /** @brief Tests that the table is a [V, D] Embedding parameter drawn from a normal of 0.02. */
-TEST(Unit_Embedding, TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation)
+TEST(Small_Embedding, TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -179,7 +179,7 @@ TEST(Unit_Embedding, TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation)
 }
 
 /** @brief Tests that the state walk yields the one parameter, named weight. */
-TEST(Unit_Embedding, TheWalkYieldsTheTable)
+TEST(Small_Embedding, TheWalkYieldsTheTable)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -204,7 +204,7 @@ TEST(Unit_Embedding, TheWalkYieldsTheTable)
 }
 
 /** @brief Tests that traces into two graphs name one state and declare one leaf in each. */
-TEST(Unit_Embedding, TwoGraphsNameTheSameTable)
+TEST(Small_Embedding, TwoGraphsNameTheSameTable)
 {
     Embedding layer = make_layer();
 
@@ -226,7 +226,7 @@ TEST(Unit_Embedding, TwoGraphsNameTheSameTable)
 }
 
 /** @brief Tests that a FLOAT32 input and an INT64 input fail and declare nothing. */
-TEST(Unit_Embedding, AnInputThatIsNotInt32Fails)
+TEST(Small_Embedding, AnInputThatIsNotInt32Fails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -248,7 +248,7 @@ TEST(Unit_Embedding, AnInputThatIsNotInt32Fails)
 }
 
 /** @brief Tests that an index of the highest rank fails, as the result has no rank left. */
-TEST(Unit_Embedding, AnInputOfTheHighestRankFails)
+TEST(Small_Embedding, AnInputOfTheHighestRankFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -262,7 +262,7 @@ TEST(Unit_Embedding, AnInputOfTheHighestRankFails)
 }
 
 /** @brief Tests that an extent that is not positive and an integer table each fail. */
-TEST(Unit_Embedding, ALayerDescribedWrongFails)
+TEST(Small_Embedding, ALayerDescribedWrongFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -285,7 +285,7 @@ TEST(Unit_Embedding, ALayerDescribedWrongFails)
 }
 
 /** @brief Tests that output_shape appends the row length to a per-sample shape of any rank. */
-TEST(Unit_Embedding, OutputShapeAppendsTheRowLength)
+TEST(Small_Embedding, OutputShapeAppendsTheRowLength)
 {
     const Embedding layer = make_layer();
 
@@ -295,7 +295,7 @@ TEST(Unit_Embedding, OutputShapeAppendsTheRowLength)
 }
 
 /** @brief Tests that the factory reads both keys and builds a node over [T] into [T, D]. */
-TEST(Unit_Embedding, TheFactoryReadsTheTwoExtents)
+TEST(Small_Embedding, TheFactoryReadsTheTwoExtents)
 {
     const Shape input{5};
     const Config::Value attributes =
@@ -316,7 +316,7 @@ TEST(Unit_Embedding, TheFactoryReadsTheTwoExtents)
 }
 
 /** @brief Tests that the factory refuses a stray key, an absent key and an input that is off. */
-TEST(Unit_Embedding, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_Embedding, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5};
     const Shape pair[] = {Shape{5}, Shape{5}};
@@ -342,14 +342,14 @@ TEST(Unit_Embedding, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
-TEST(Unit_EmbeddingDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
+TEST(Medium_EmbeddingDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
 {
     SA_EXPECT_FATAL(trace_over_a_value_the_graph_lacks(), "Embedding(7, 3)", "value 7",
                     "holds 1 values");
 }
 
 /** @brief Tests that output_shape over a per-sample index of rank five stops the process. */
-TEST(Unit_EmbeddingDeathTest, OutputShapeOverARankFiveSampleIsFatal)
+TEST(Medium_EmbeddingDeathTest, OutputShapeOverARankFiveSampleIsFatal)
 {
     SA_EXPECT_FATAL(shape_of_a_rank_five_sample(), "Embedding::output_shape", "at most 4");
 }
@@ -357,7 +357,7 @@ TEST(Unit_EmbeddingDeathTest, OutputShapeOverARankFiveSampleIsFatal)
 namespace
 {
     /** @brief Provides the Engine every gather case records on. */
-    class Integration_GatherRows : public SaTest::EngineTest
+    class Medium_GatherRows : public SaTest::EngineTest
     {
     };
 
@@ -430,7 +430,7 @@ namespace
 }
 
 /** @brief Tests that a gather over a [2, 3] index copies the named rows, a repeated one too. */
-TEST_F(Integration_GatherRows, GatherCopiesTheRowsItsIndexNames)
+TEST_F(Medium_GatherRows, GatherCopiesTheRowsItsIndexNames)
 {
     const std::vector<std::int32_t> indices = {4, 0, 2, 2, 2, 1};
     const std::vector<double> table = dyadic_ramp(5 * 3);
@@ -456,7 +456,7 @@ TEST_F(Integration_GatherRows, GatherCopiesTheRowsItsIndexNames)
 }
 
 /** @brief Tests that the step reads the index of each run, not the one it was compiled over. */
-TEST_F(Integration_GatherRows, AReplayReadsTheIndexOfItsOwnRun)
+TEST_F(Medium_GatherRows, AReplayReadsTheIndexOfItsOwnRun)
 {
     const std::vector<double> table = dyadic_ramp(6 * 2);
 
@@ -485,7 +485,7 @@ TEST_F(Integration_GatherRows, AReplayReadsTheIndexOfItsOwnRun)
 }
 
 /** @brief Tests that a scatter-add sums the rows of a repeated index and zeroes unnamed rows. */
-TEST_F(Integration_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
+TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
 {
     const std::vector<std::int32_t> indices = {3, 1, 3, 3, 0, 1};
     const std::vector<double> rows = dyadic_ramp(6 * 2);
@@ -520,7 +520,7 @@ TEST_F(Integration_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
  * @brief Tests that the table gradient of a FLOAT32 gather with a heavily repeated index has
  *        the same bytes on every replay.
  */
-TEST_F(Integration_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
+TEST_F(Medium_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
 {
     constexpr std::int64_t K_TABLE_ROWS = 13;
     constexpr std::int64_t K_WIDTH = 8;
@@ -571,7 +571,7 @@ TEST_F(Integration_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
 }
 
 /** @brief Tests that an Embedding over a [2, 3] batch of ids yields the rows of its table. */
-TEST_F(Integration_GatherRows, AnEmbeddingYieldsTheRowsOfItsTable)
+TEST_F(Medium_GatherRows, AnEmbeddingYieldsTheRowsOfItsTable)
 {
     const std::vector<std::int32_t> ids = {6, 6, 0, 3, 1, 6};
 

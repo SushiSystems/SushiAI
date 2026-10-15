@@ -71,7 +71,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the mean is a reshape to one column, a column sum and a scale. */
-TEST(Unit_DenseLosses, TheMeanIsOneColumnSummedAndScaled)
+TEST(Small_DenseLosses, TheMeanIsOneColumnSummedAndScaled)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -87,7 +87,7 @@ TEST(Unit_DenseLosses, TheMeanIsOneColumnSummedAndScaled)
 }
 
 /** @brief Tests that the logistic loss is built from the logit in its stable form. */
-TEST(Unit_DenseLosses, TheLogisticLossReadsTheLogitInItsStableForm)
+TEST(Small_DenseLosses, TheLogisticLossReadsTheLogitInItsStableForm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -113,7 +113,7 @@ TEST(Unit_DenseLosses, TheLogisticLossReadsTheLogitInItsStableForm)
 }
 
 /** @brief Tests that the squared error multiplies the difference by itself. */
-TEST(Unit_DenseLosses, TheSquaredErrorSquaresTheDifference)
+TEST(Small_DenseLosses, TheSquaredErrorSquaresTheDifference)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -134,7 +134,7 @@ TEST(Unit_DenseLosses, TheSquaredErrorSquaresTheDifference)
 }
 
 /** @brief Tests that two values of different shapes stop the process, naming both. */
-TEST(Unit_DenseLossesDeathTest, OperandsOfTwoShapesAreFatal)
+TEST(Small_DenseLossesDeathTest, OperandsOfTwoShapesAreFatal)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

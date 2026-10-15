@@ -52,7 +52,7 @@ using SaTest::write_tensor;
 
 namespace
 {
-    class Integration_Rematerialise : public SaTest::EngineTest {};
+    class Medium_Rematerialise : public SaTest::EngineTest {};
 
     /**
      * @brief Returns the non-square [1, 5, 4, 2] image the convolution reads; see
@@ -152,7 +152,7 @@ namespace
     }
 }
 
-TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
+TEST_F(Medium_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
 {
     Outcome stored;
     ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, false, stored));
@@ -185,7 +185,7 @@ TEST_F(Integration_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
             << "weight gradient element " << i;
 }
 
-TEST_F(Integration_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
+TEST_F(Medium_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
 {
     // The planner must agree with the lifetime; see tests/core/graph/README.md.
     Graph::Graph graph;

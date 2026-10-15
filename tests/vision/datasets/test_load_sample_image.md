@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_load_sample_image.cpp
 
 
-Suites: `Unit_DatasetsLoadSampleImage`.
+Suites: `Small_DatasetsLoadSampleImage`.
 
 Tests `load_sample_image` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/load_sample_image.hpp`. The cases

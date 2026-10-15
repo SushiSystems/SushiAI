@@ -68,7 +68,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a polygon paints the pixels whose centres it holds, and no other. */
-TEST(Unit_DatasetsPolygonMask, APolygonPaintsThePixelsWhoseCentresItHolds)
+TEST(Small_DatasetsPolygonMask, APolygonPaintsThePixelsWhoseCentresItHolds)
 {
     Labels labels;
     add_rectangle(labels, 2, 1.0f, 1.0f, 3.0f, 3.0f);
@@ -83,7 +83,7 @@ TEST(Unit_DatasetsPolygonMask, APolygonPaintsThePixelsWhoseCentresItHolds)
 }
 
 /** @brief Tests that the later of two objects that overlap paints over the earlier one. */
-TEST(Unit_DatasetsPolygonMask, TheLaterOfTwoObjectsWinsAnOverlap)
+TEST(Small_DatasetsPolygonMask, TheLaterOfTwoObjectsWinsAnOverlap)
 {
     Labels labels;
     add_rectangle(labels, 0, 0.0f, 0.0f, 3.0f, 2.0f);
@@ -97,7 +97,7 @@ TEST(Unit_DatasetsPolygonMask, TheLaterOfTwoObjectsWinsAnOverlap)
 }
 
 /** @brief Tests that a set of no object is the background everywhere. */
-TEST(Unit_DatasetsPolygonMask, NoObjectIsTheBackgroundEverywhere)
+TEST(Small_DatasetsPolygonMask, NoObjectIsTheBackgroundEverywhere)
 {
     Image mask;
     SA_EXPECT_OK(paint_polygon_mask(Labels(), K_SIZE, 3, mask));
@@ -106,7 +106,7 @@ TEST(Unit_DatasetsPolygonMask, NoObjectIsTheBackgroundEverywhere)
 }
 
 /** @brief Tests each refusal: an object with no polygon and a class no byte names. */
-TEST(Unit_DatasetsPolygonMask, RefusesAnObjectItCannotPaint)
+TEST(Small_DatasetsPolygonMask, RefusesAnObjectItCannotPaint)
 {
     Image mask;
 

@@ -124,7 +124,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingAffine, ZeroRangesPutTheSourceCentreOnTheOutputCentre)
+TEST(Small_ImagingAffine, ZeroRangesPutTheSourceCentreOnTheOutputCentre)
 {
     AffineSettings settings;
     settings.scale = 0.0f;
@@ -145,7 +145,7 @@ TEST(Unit_ImagingAffine, ZeroRangesPutTheSourceCentreOnTheOutputCentre)
         EXPECT_NEAR(plan.matrix[i], expected[i], K_PIXEL_TOLERANCE) << "matrix term " << i;
 }
 
-TEST(Unit_ImagingAffine, MatrixEqualsTranslationTimesScaleTimesCentre)
+TEST(Small_ImagingAffine, MatrixEqualsTranslationTimesScaleTimesCentre)
 {
     const AffineSettings settings;
     const ImageSize source{1280, 960};
@@ -176,7 +176,7 @@ TEST(Unit_ImagingAffine, MatrixEqualsTranslationTimesScaleTimesCentre)
         EXPECT_NEAR(plan.matrix[i], expected[i], K_PIXEL_TOLERANCE) << "matrix term " << i;
 }
 
-TEST(Unit_ImagingAffine, PlanConsumesExactlyThreeDraws)
+TEST(Small_ImagingAffine, PlanConsumesExactlyThreeDraws)
 {
     Random random(5);
     Random replay = random;
@@ -191,7 +191,7 @@ TEST(Unit_ImagingAffine, PlanConsumesExactlyThreeDraws)
     EXPECT_TRUE(random == replay);
 }
 
-TEST(Unit_ImagingAffine, PlanCarriesSizesBorderValueAndFilter)
+TEST(Small_ImagingAffine, PlanCarriesSizesBorderValueAndFilter)
 {
     AffineSettings settings;
     settings.border_value = 37;
@@ -208,7 +208,7 @@ TEST(Unit_ImagingAffine, PlanCarriesSizesBorderValueAndFilter)
     EXPECT_NEAR(plan.filter.min_area_ratio, 0.25f, 1e-6f);
 }
 
-TEST(Unit_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
+TEST(Small_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
 {
     const AffineSettings settings;
     const ImageSize source{1280, 1280};
@@ -276,7 +276,7 @@ TEST(Unit_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
     EXPECT_LT(equal_fractions, count / 100);
 }
 
-TEST(Unit_ImagingAffine, PlanRejectsSettingsAndSizesOutsideTheirRanges)
+TEST(Small_ImagingAffine, PlanRejectsSettingsAndSizesOutsideTheirRanges)
 {
     const ImageSize size{16, 16};
     Random random(1);
@@ -316,7 +316,7 @@ TEST(Unit_ImagingAffine, PlanRejectsSettingsAndSizesOutsideTheirRanges)
     EXPECT_NO_THROW(validate_affine(settings));
 }
 
-TEST(Unit_ImagingAffine, IdentityPlanLeavesTheImageUnchanged)
+TEST(Small_ImagingAffine, IdentityPlanLeavesTheImageUnchanged)
 {
     AffineSettings settings;
     settings.scale = 0.0f;
@@ -334,7 +334,7 @@ TEST(Unit_ImagingAffine, IdentityPlanLeavesTheImageUnchanged)
     EXPECT_EQ(bytes_of(destination), bytes_of(source));
 }
 
-TEST(Unit_ImagingAffine, IdentityPlanLeavesBoxesUnchanged)
+TEST(Small_ImagingAffine, IdentityPlanLeavesBoxesUnchanged)
 {
     AffineSettings settings;
     settings.scale = 0.0f;
@@ -355,7 +355,7 @@ TEST(Unit_ImagingAffine, IdentityPlanLeavesBoxesUnchanged)
         expect_box_near(warped.boxes()[i], labels.boxes()[i]);
 }
 
-TEST(Unit_ImagingAffine, TranslationMovesPixelsAndFillsTheUncoveredBorder)
+TEST(Small_ImagingAffine, TranslationMovesPixelsAndFillsTheUncoveredBorder)
 {
     const ImageSize source_size{3, 4};
     const ImageSize output_size{5, 6};
@@ -388,7 +388,7 @@ TEST(Unit_ImagingAffine, TranslationMovesPixelsAndFillsTheUncoveredBorder)
     }
 }
 
-TEST(Unit_ImagingAffine, ScaleByTwoInterpolatesAndFadesIntoTheBorder)
+TEST(Small_ImagingAffine, ScaleByTwoInterpolatesAndFadesIntoTheBorder)
 {
     const Image source = make_gray_image(ImageSize{2, 2}, {20, 60, 40, 80});
     AffinePlan plan = make_plan(ImageSize{2, 2}, ImageSize{4, 4}, 2.0f, 0.0f, 0.0f);
@@ -407,7 +407,7 @@ TEST(Unit_ImagingAffine, ScaleByTwoInterpolatesAndFadesIntoTheBorder)
     EXPECT_EQ(bytes_of(destination), expected);
 }
 
-TEST(Unit_ImagingAffine, HalfPixelBlendRoundsToNearest)
+TEST(Small_ImagingAffine, HalfPixelBlendRoundsToNearest)
 {
     const Image source = make_gray_image(ImageSize{1, 2}, {10, 13});
     const AffinePlan plan = make_plan(ImageSize{1, 2}, ImageSize{1, 3}, 1.0f, 0.5f, 0.0f);
@@ -419,7 +419,7 @@ TEST(Unit_ImagingAffine, HalfPixelBlendRoundsToNearest)
     EXPECT_EQ(bytes_of(destination), (std::vector<std::uint8_t>{62, 12, 64}));
 }
 
-TEST(Unit_ImagingAffine, FractionRoundsToTheNearestOf2048Weights)
+TEST(Small_ImagingAffine, FractionRoundsToTheNearestOf2048Weights)
 {
     const Image source = make_gray_image(ImageSize{1, 2}, {20, 18});
     const float offset = 6141.0f / 8192.0f;
@@ -439,7 +439,7 @@ TEST(Unit_ImagingAffine, FractionRoundsToTheNearestOf2048Weights)
     EXPECT_EQ(bytes_of(destination), (std::vector<std::uint8_t>{90, 19, 42}));
 }
 
-TEST(Unit_ImagingAffine, OutputFarFromTheSourceIsAllBorder)
+TEST(Small_ImagingAffine, OutputFarFromTheSourceIsAllBorder)
 {
     const Image source = make_pattern_image(ImageSize{4, 4}, 3);
     AffinePlan plan = make_plan(ImageSize{4, 4}, ImageSize{3, 5}, 1.0f, 1000.0f, -1000.0f);
@@ -451,7 +451,7 @@ TEST(Unit_ImagingAffine, OutputFarFromTheSourceIsAllBorder)
     EXPECT_EQ(bytes_of(destination), std::vector<std::uint8_t>(3 * 5 * 3, 9));
 }
 
-TEST(Unit_ImagingAffine, ImageWarpRejectsAPlanItCannotApply)
+TEST(Small_ImagingAffine, ImageWarpRejectsAPlanItCannotApply)
 {
     const Image source = make_pattern_image(ImageSize{4, 4}, 1);
     Image destination;
@@ -495,7 +495,7 @@ TEST(Unit_ImagingAffine, ImageWarpRejectsAPlanItCannotApply)
     EXPECT_EQ(bytes_of(aliased), bytes_of(make_pattern_image(ImageSize{4, 4}, 1)));
 }
 
-TEST(Unit_ImagingAffine, TranslationMovesBoxesByTheOffset)
+TEST(Small_ImagingAffine, TranslationMovesBoxesByTheOffset)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 30.0f,
                                       -10.0f);
@@ -506,7 +506,7 @@ TEST(Unit_ImagingAffine, TranslationMovesBoxesByTheOffset)
     expect_box_near(warped.boxes()[0], PixelBox{40.0f, 10.0f, 80.0f, 50.0f});
 }
 
-TEST(Unit_ImagingAffine, ScaleMultipliesBoxCornersBeforeTheOffset)
+TEST(Small_ImagingAffine, ScaleMultipliesBoxCornersBeforeTheOffset)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 200}, 2.0f, 10.0f,
                                       -20.0f);
@@ -517,7 +517,7 @@ TEST(Unit_ImagingAffine, ScaleMultipliesBoxCornersBeforeTheOffset)
     expect_box_near(warped.boxes()[0], PixelBox{20.0f, 20.0f, 60.0f, 60.0f});
 }
 
-TEST(Unit_ImagingAffine, WarpedBoxIsTheHullOfItsFourWarpedCorners)
+TEST(Small_ImagingAffine, WarpedBoxIsTheHullOfItsFourWarpedCorners)
 {
     const AffinePlan plan = make_plan(ImageSize{400, 400}, ImageSize{100, 100}, 0.5f, -20.0f,
                                       30.0f);
@@ -544,7 +544,7 @@ TEST(Unit_ImagingAffine, WarpedBoxIsTheHullOfItsFourWarpedCorners)
     expect_box_near(warped.boxes()[0], PixelBox{30.0f, 40.0f, 80.0f, 90.0f});
 }
 
-TEST(Unit_ImagingAffine, BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder)
+TEST(Small_ImagingAffine, BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f,
                                       0.0f);
@@ -565,7 +565,7 @@ TEST(Unit_ImagingAffine, BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder)
     expect_box_near(warped.boxes()[1], PixelBox{95.0f, 10.0f, 100.0f, 50.0f});
 }
 
-TEST(Unit_ImagingAffine, FilterComparesAgainstTheSourceBoxTimesTheScale)
+TEST(Small_ImagingAffine, FilterComparesAgainstTheSourceBoxTimesTheScale)
 {
     // A 40 by 40 box becomes 10 by 10: ratio 1 against the scaled box, 0.0625 against the raw.
     const AffinePlan shrink = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 0.25f, 0.0f,
@@ -583,7 +583,7 @@ TEST(Unit_ImagingAffine, FilterComparesAgainstTheSourceBoxTimesTheScale)
     EXPECT_TRUE(grown.is_empty());
 }
 
-TEST(Unit_ImagingAffine, BoxWarpUsesThePlansFilter)
+TEST(Small_ImagingAffine, BoxWarpUsesThePlansFilter)
 {
     AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 0.0f, 0.0f);
     const Labels labels = make_labels({{10.0f, 10.0f, 14.0f, 50.0f}});
@@ -595,7 +595,7 @@ TEST(Unit_ImagingAffine, BoxWarpUsesThePlansFilter)
     EXPECT_TRUE(apply_affine(labels, plan).is_empty());
 }
 
-TEST(Unit_ImagingAffine, BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans)
+TEST(Small_ImagingAffine, BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 0.0f,
                                       0.0f);
@@ -612,7 +612,7 @@ TEST(Unit_ImagingAffine, BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans)
 }
 
 /** @brief Tests that the settings and the plan default to the 0.10 and the 0.01 area ratios. */
-TEST(Unit_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
+TEST(Small_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
 {
     Random random(4u);
     const AffineSettings settings;
@@ -626,7 +626,7 @@ TEST(Unit_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
 }
 
 /** @brief Tests that every vertex of a polygon is scaled, then moved by the matrix translation. */
-TEST(Unit_ImagingAffine, PolygonVerticesAreScaledThenTranslated)
+TEST(Small_ImagingAffine, PolygonVerticesAreScaledThenTranslated)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 10.0f,
                                       -5.0f);
@@ -649,7 +649,7 @@ TEST(Unit_ImagingAffine, PolygonVerticesAreScaledThenTranslated)
 }
 
 /** @brief Tests that an object with a polygon takes the box of the polygon's visible part. */
-TEST(Unit_ImagingAffine, PolygonObjectTakesTheBoxOfItsVisiblePart)
+TEST(Small_ImagingAffine, PolygonObjectTakesTheBoxOfItsVisiblePart)
 {
     // The reference's segment2box gives (0, 0, 36.666664, 33) for this triangle in 100 by 80.
     const AffinePlan plan = make_plan(ImageSize{80, 100}, ImageSize{80, 100}, 1.0f, 0.0f, 0.0f);
@@ -669,7 +669,7 @@ TEST(Unit_ImagingAffine, PolygonObjectTakesTheBoxOfItsVisiblePart)
 }
 
 /** @brief Tests that a warped polygon is clamped to the box rebuilt from it. */
-TEST(Unit_ImagingAffine, WarpedPolygonIsClampedToItsNewBox)
+TEST(Small_ImagingAffine, WarpedPolygonIsClampedToItsNewBox)
 {
     const AffinePlan plan = make_plan(ImageSize{80, 100}, ImageSize{80, 100}, 1.0f, 0.0f, 0.0f);
     Labels labels;
@@ -690,7 +690,7 @@ TEST(Unit_ImagingAffine, WarpedPolygonIsClampedToItsNewBox)
 }
 
 /** @brief Tests that no vertex stays outside the output when a crossing rounds below zero. */
-TEST(Unit_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOutside)
+TEST(Small_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOutside)
 {
     // In float the edge from x = -0.03 to x = 0.25 crosses x = 0 at x = -1.86e-9.
     const ImageSize output{80, 100};
@@ -717,7 +717,7 @@ TEST(Unit_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOut
 }
 
 /** @brief Tests that an object with a polygon is filtered at 0.01 where a bare box is at 0.10. */
-TEST(Unit_ImagingAffine, PolygonObjectIsFilteredAtTheLowerAreaRatio)
+TEST(Small_ImagingAffine, PolygonObjectIsFilteredAtTheLowerAreaRatio)
 {
     // The 40 by 40 box keeps 3 by 40 inside the output: an area ratio of 0.075.
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f,
@@ -736,7 +736,7 @@ TEST(Unit_ImagingAffine, PolygonObjectIsFilteredAtTheLowerAreaRatio)
 }
 
 /** @brief Tests that the polygon filter of the plan decides for an object with a polygon. */
-TEST(Unit_ImagingAffine, PolygonWarpUsesThePlansPolygonFilter)
+TEST(Small_ImagingAffine, PolygonWarpUsesThePlansPolygonFilter)
 {
     AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f, 0.0f);
     Labels labels;
@@ -753,7 +753,7 @@ TEST(Unit_ImagingAffine, PolygonWarpUsesThePlansPolygonFilter)
 }
 
 /** @brief Tests that a polygon the warp moves out of the output drops its object. */
-TEST(Unit_ImagingAffine, PolygonOutsideTheOutputDropsItsObject)
+TEST(Small_ImagingAffine, PolygonOutsideTheOutputDropsItsObject)
 {
     const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 500.0f,
                                       0.0f);

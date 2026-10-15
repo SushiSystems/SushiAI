@@ -93,7 +93,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a leaf is described by its extents past the batch axis and its type. */
-TEST(Unit_InputMatch, ALeafIsDescribedWithoutItsBatchAxis)
+TEST(Small_InputMatch, ALeafIsDescribedWithoutItsBatchAxis)
 {
     SA_ASSERT_OK_AND_ASSIGN(const InputDescription tokens,
                             Train::describe_input_leaf(leaf_of(Shape{4, 16}, DType::Int32)));
@@ -112,14 +112,14 @@ TEST(Unit_InputMatch, ALeafIsDescribedWithoutItsBatchAxis)
 }
 
 /** @brief Tests that a leaf of rank 0, which has no batch axis, is refused. */
-TEST(Unit_InputMatch, ALeafWithNoBatchAxisIsRefused)
+TEST(Small_InputMatch, ALeafWithNoBatchAxisIsRefused)
 {
     SA_EXPECT_FAILURE(Train::describe_input_leaf(leaf_of(Shape{}, DType::Float32)),
                       StatusCode::InvalidDescription, "no batch extent");
 }
 
 /** @brief Tests that a dataset publishing the shape and the type the step reads is accepted. */
-TEST(Unit_InputMatch, ADatasetThatPublishesTheInputIsAccepted)
+TEST(Small_InputMatch, ADatasetThatPublishesTheInputIsAccepted)
 {
     const Published tokens(InputDescription{Shape{16}, DType::Int32});
     const Published reals(InputDescription{Shape{16}, DType::Float32});
@@ -129,7 +129,7 @@ TEST(Unit_InputMatch, ADatasetThatPublishesTheInputIsAccepted)
 }
 
 /** @brief Tests that an int32 dataset against a float32 leaf is refused with both types. */
-TEST(Unit_InputMatch, AnotherElementTypeIsRefusedWithBothTypes)
+TEST(Small_InputMatch, AnotherElementTypeIsRefusedWithBothTypes)
 {
     const Published tokens(InputDescription{Shape{16}, DType::Int32});
     const Published reals(InputDescription{Shape{16}, DType::Float32});
@@ -144,7 +144,7 @@ TEST(Unit_InputMatch, AnotherElementTypeIsRefusedWithBothTypes)
 }
 
 /** @brief Tests that another per-sample shape is refused with both shapes. */
-TEST(Unit_InputMatch, AnotherShapeIsRefusedWithBothShapes)
+TEST(Small_InputMatch, AnotherShapeIsRefusedWithBothShapes)
 {
     const Published tokens(InputDescription{Shape{16}, DType::Int32});
 

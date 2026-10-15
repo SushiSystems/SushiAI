@@ -61,7 +61,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_InitState : public SaTest::EngineTest {};
+    class Medium_InitState : public SaTest::EngineTest {};
 
     /** @brief The absolute tolerance of a value that is stored and read back unchanged. */
     constexpr double K_STORED_TOLERANCE = 0.0;
@@ -124,7 +124,7 @@ namespace
 /**
  * @brief Tests that a scale starts at one, a shift at zero, and a buffer at its initial value.
  */
-TEST_F(Integration_InitState, AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue)
+TEST_F(Medium_InitState, AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
     build_batch_norm(model, 3);
@@ -142,7 +142,7 @@ TEST_F(Integration_InitState, AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialVa
 /**
  * @brief Tests that zeroing the final layer zeroes the last fan-scaled entry and nothing after.
  */
-TEST_F(Integration_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
+TEST_F(Medium_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
     build_conv_norm(model);
@@ -158,7 +158,7 @@ TEST_F(Integration_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
 /**
  * @brief Tests that without the zeroed final layer, the last weight holds a nonzero element.
  */
-TEST_F(Integration_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
+TEST_F(Medium_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -179,7 +179,7 @@ TEST_F(Integration_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
 /**
  * @brief Tests that two states of equal models, filled with one seed, hold equal bits.
  */
-TEST_F(Integration_InitState, TheSameSeedGivesTheSameBits)
+TEST_F(Medium_InitState, TheSameSeedGivesTheSameBits)
 {
     MLP first_model = make_mlp();
     Graph::Graph first_graph;
@@ -206,7 +206,7 @@ TEST_F(Integration_InitState, TheSameSeedGivesTheSameBits)
 /**
  * @brief Tests that a normal fill of deviation 0.02 gives a table of that spread, zeroing or not.
  */
-TEST_F(Integration_InitState, ANormalFillHasTheDeviationItStates)
+TEST_F(Medium_InitState, ANormalFillHasTheDeviationItStates)
 {
     // 64 * 32 draws: the sample deviation of 2048 normals is within 1.6 % at one sigma.
     constexpr int64_t K_ROWS = 64;
@@ -245,7 +245,7 @@ TEST_F(Integration_InitState, ANormalFillHasTheDeviationItStates)
 }
 
 /** @brief Tests that a normal fill of a deviation that is not positive is refused. */
-TEST_F(Integration_InitState, ANormalFillOfNoDeviationIsRefused)
+TEST_F(Medium_InitState, ANormalFillOfNoDeviationIsRefused)
 {
     NN::Embedding model{};
     model.num_embeddings = 4;

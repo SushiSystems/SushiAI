@@ -4,7 +4,7 @@ The tests of the module `core/data`, one file per header of `modules/core/data/i
 
 ## test_dataset_registry.cpp
 
-Suites: `Unit_DatasetRegistry`.
+Suites: `Medium_DatasetRegistry`.
 
 Tests `Data::DatasetRegistry` and `Data::register_datasets`. The file uses two rows: "rings",
 as `register_datasets` adds it, and "moons", a type no module registers.
@@ -31,7 +31,7 @@ null.
 
 ## test_epoch_permutation.cpp
 
-Suites: `Unit_EpochPermutation`.
+Suites: `Small_EpochPermutation`.
 
 Tests `Data::EpochPermutation`. An order is read by calling `at` for every position from 0 to
 the count. The seed is 42 unless a case says otherwise.
@@ -53,11 +53,11 @@ read gives the same. Epoch 1 gives 2, 5, 9, 1, 4, 3, 6, 7, 8, 0, and seed 7 at e
 
 ## test_target.cpp
 
-Suites: `Unit_DataTargetLookup`, `Unit_DataTarget`.
+Suites: `Small_DataTargetLookup`, `Medium_DataTarget`.
 
 Tests `Data::find_target`, `Data::allocate_batch`, `Data::prepare_batch`,
 `Data::describe_input` and the labels `Data::SyntheticClassification` publishes. The
-`Unit_DataTarget` fixture needs an engine. The two roles of the cases are `labels`, one int32
+`Medium_DataTarget` fixture needs an engine. The two roles of the cases are `labels`, one int32
 per sample over 5 classes, and `boxes`, a float32 [3, 4] value per sample.
 
 ### ADescriptionIsFoundByItsRole
@@ -108,7 +108,7 @@ of batch 0 are 0, 1, 2, 0 and those of batch 1 are 1, 2, 0, 1.
 
 ## test_threaded_loader.cpp
 
-Suites: `Unit_ThreadedLoader`, `Unit_Epoch`.
+Suites: `Medium_ThreadedLoader`, `Small_Epoch`.
 
 Tests `Data::ThreadedLoader` and `Data::begin_epoch`. The loader wraps a local
 `RecordingDataset` of 12 batches. Each batch it reads carries one target whose role is
@@ -161,7 +161,7 @@ workers ("0 threads") and for a prefetch of 0 ("0 batches ahead").
 `Data::begin_epoch` on a dataset that does not implement `EpochAware` returns, and the
 dataset's batch count is still 1.
 
-Suites: `Integration_Registries`.
+Suites: `Medium_Registries`.
 
 Two registries need an Engine to exercise: datasets allocate device tensors, and optimizers
 allocate their state buffers. The layer and objective registries are host-lane and live in the

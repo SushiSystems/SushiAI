@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_mixed_precision.cpp
 
 
-Suites: `Integration_MixedPrecision`.
+Suites: `Medium_MixedPrecision`.
 
 This is the device half of AI-4. `tests/core/autograd/test_backward.cpp` pins the graph
 shape with no hardware. This file holds what only a real Engine can answer:
@@ -56,7 +56,7 @@ as one and report an accuracy that is fiction. Nothing throws, nothing is NaN, a
 `build_classifier` lists the logits as observed, so the shipped path cannot reach this. A
 caller running the pass themselves can, and gets an error.
 
-Suites: `Regression_MixedPrecision`.
+Suites: `Medium_MixedPrecisionRegressions`.
 
 Every guarantee in this file fails silently, which is what puts these tests in the regression tier
 and not beside the integration tests. A run that reports success cannot catch any of them.

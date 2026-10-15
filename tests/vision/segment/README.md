@@ -4,7 +4,7 @@ The tests of the module `vision/segment`, one file per header of `modules/vision
 
 ## test_confusion_matrix.cpp
 
-Suites: `Unit_SegmentConfusionMatrix`.
+Suites: `Small_SegmentConfusionMatrix`.
 
 Tests `Vision::Segment::ConfusionMatrix` in
 `modules/vision/segment/include/SushiAI/vision/segment/confusion_matrix.hpp`. Every `add` call
@@ -54,7 +54,7 @@ Merging a matrix of 3 classes into one of 2 fails with `Incompatible`, "2 classe
 
 IoU per class and its mean over the classes that occur, pixel accuracy, an empty matrix, and the class pick with its tie.
 
-Suites: `Unit_SegmentMetrics`.
+Suites: `Small_SegmentMetrics`.
 
 Tests `class_iou`, `class_occurs` and `mean_iou` in
 `modules/vision/segment/include/SushiAI/vision/segment/intersection_over_union.hpp`,
@@ -90,7 +90,7 @@ Over three pixels of three scores each, (0.1, 0.9, 0.0), (2.0, -1.0, 2.0) and
 
 The even-odd fill by pixel centres, a shared edge, a hole, clipping, the later outline winning an overlap, and the refusals.
 
-Suites: `Unit_SegmentRasterise`.
+Suites: `Small_SegmentRasterise`.
 
 Tests `fill_outline` in `modules/vision/segment/include/SushiAI/vision/segment/fill_outline.hpp`
 and `rasterise_outlines` in

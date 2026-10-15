@@ -100,7 +100,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each head takes its extents from the output the task names. */
-TEST(Unit_AnchorObjectiveFactory, EachHeadTakesItsExtentsFromItsPublishedOutput)
+TEST(Small_AnchorObjectiveFactory, EachHeadTakesItsExtentsFromItsPublishedOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             build_anchor_objective(make_context(), section_from("{}")));
@@ -127,7 +127,7 @@ TEST(Unit_AnchorObjectiveFactory, EachHeadTakesItsExtentsFromItsPublishedOutput)
 }
 
 /** @brief Tests that the section's options reach every head, defaults for keys left out. */
-TEST(Unit_AnchorObjectiveFactory, TheSectionSetsTheTrainingOptionsOfEveryHead)
+TEST(Small_AnchorObjectiveFactory, TheSectionSetsTheTrainingOptionsOfEveryHead)
 {
     const Vision::Detect::Anchor::HeadTrainingOptions defaults;
 
@@ -145,7 +145,7 @@ TEST(Unit_AnchorObjectiveFactory, TheSectionSetsTheTrainingOptionsOfEveryHead)
 }
 
 /** @brief Tests that data which states no class count is accepted and another count is not. */
-TEST(Unit_AnchorObjectiveFactory, TheClassCountOfTheDataMustBeTheTasks)
+TEST(Small_AnchorObjectiveFactory, TheClassCountOfTheDataMustBeTheTasks)
 {
     ObjectiveContext given = make_context();
     given.classes = 0;
@@ -157,7 +157,7 @@ TEST(Unit_AnchorObjectiveFactory, TheClassCountOfTheDataMustBeTheTasks)
 }
 
 /** @brief Tests that a model file without a task section is refused. */
-TEST(Unit_AnchorObjectiveFactory, AModelWithoutATaskIsRefused)
+TEST(Small_AnchorObjectiveFactory, AModelWithoutATaskIsRefused)
 {
     ObjectiveContext given = make_context();
     given.task = Config::Value();
@@ -167,7 +167,7 @@ TEST(Unit_AnchorObjectiveFactory, AModelWithoutATaskIsRefused)
 }
 
 /** @brief Tests that a head the model does not publish is refused with what it publishes. */
-TEST(Unit_AnchorObjectiveFactory, AHeadTheModelDoesNotPublishIsRefused)
+TEST(Small_AnchorObjectiveFactory, AHeadTheModelDoesNotPublishIsRefused)
 {
     ObjectiveContext given = make_context();
     given.outputs.pop_back();
@@ -178,7 +178,7 @@ TEST(Unit_AnchorObjectiveFactory, AHeadTheModelDoesNotPublishIsRefused)
 }
 
 /** @brief Tests that an output of other channels, another batch or another rank is refused. */
-TEST(Unit_AnchorObjectiveFactory, AnOutputOfOtherExtentsIsRefused)
+TEST(Small_AnchorObjectiveFactory, AnOutputOfOtherExtentsIsRefused)
 {
     ObjectiveContext channels = make_context();
     channels.outputs[0].shape = Shape{K_BATCH, 4, 3, K_HEAD_CHANNELS + 1};
@@ -197,7 +197,7 @@ TEST(Unit_AnchorObjectiveFactory, AnOutputOfOtherExtentsIsRefused)
 }
 
 /** @brief Tests that an input sample that is not [H, W, C] is refused. */
-TEST(Unit_AnchorObjectiveFactory, AnInputOfAnotherRankIsRefused)
+TEST(Small_AnchorObjectiveFactory, AnInputOfAnotherRankIsRefused)
 {
     ObjectiveContext given = make_context();
     given.input_sample = Shape{192};
@@ -207,7 +207,7 @@ TEST(Unit_AnchorObjectiveFactory, AnInputOfAnotherRankIsRefused)
 }
 
 /** @brief Tests that a key the section does not have is refused by the section's reader. */
-TEST(Unit_AnchorObjectiveFactory, AKeyTheSectionDoesNotHaveIsRefused)
+TEST(Small_AnchorObjectiveFactory, AKeyTheSectionDoesNotHaveIsRefused)
 {
     SA_EXPECT_FAILURE(build_anchor_objective(make_context(),
                                              section_from(R"({"label_smoothing": 0.1})")),
@@ -215,7 +215,7 @@ TEST(Unit_AnchorObjectiveFactory, AKeyTheSectionDoesNotHaveIsRefused)
 }
 
 /** @brief Tests that the registry form returns the objective and prefixes a refusal. */
-TEST(Unit_AnchorObjectiveFactory, TheRegistryFormPrefixesARefusalWithItsContext)
+TEST(Small_AnchorObjectiveFactory, TheRegistryFormPrefixesARefusalWithItsContext)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,

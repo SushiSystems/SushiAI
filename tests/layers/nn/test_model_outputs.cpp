@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a new set holds no output. */
-TEST(Unit_ModelOutputs, StartsEmpty)
+TEST(Small_ModelOutputs, StartsEmpty)
 {
     const ModelOutputs outputs;
 
@@ -73,7 +73,7 @@ TEST(Unit_ModelOutputs, StartsEmpty)
 }
 
 /** @brief Tests that all() returns the outputs in the order they were added. */
-TEST(Unit_ModelOutputs, AllKeepsTheOrderOfAdd)
+TEST(Small_ModelOutputs, AllKeepsTheOrderOfAdd)
 {
     ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("scores", ValueID{9}));
@@ -87,7 +87,7 @@ TEST(Unit_ModelOutputs, AllKeepsTheOrderOfAdd)
 }
 
 /** @brief Tests that add refuses a name the set already holds and keeps the first value. */
-TEST(Unit_ModelOutputs, AddRejectsADuplicateName)
+TEST(Small_ModelOutputs, AddRejectsADuplicateName)
 {
     ModelOutputs outputs = boxes_and_scores();
 
@@ -100,7 +100,7 @@ TEST(Unit_ModelOutputs, AddRejectsADuplicateName)
 }
 
 /** @brief Tests that add refuses an empty name and leaves the set unchanged. */
-TEST(Unit_ModelOutputs, AddRejectsAnEmptyName)
+TEST(Small_ModelOutputs, AddRejectsAnEmptyName)
 {
     ModelOutputs outputs;
 
@@ -110,13 +110,13 @@ TEST(Unit_ModelOutputs, AddRejectsAnEmptyName)
 }
 
 /** @brief Tests that add stops the process when the value is Graph::NO_VALUE. */
-TEST(Unit_ModelOutputsDeathTest, AddStopsOnNoValue)
+TEST(Small_ModelOutputsDeathTest, AddStopsOnNoValue)
 {
     SA_EXPECT_FATAL(add_without_value(), "'boxes'", "no value");
 }
 
 /** @brief Tests that at returns the value published under each name. */
-TEST(Unit_ModelOutputs, AtReturnsTheNamedValue)
+TEST(Small_ModelOutputs, AtReturnsTheNamedValue)
 {
     const ModelOutputs outputs = boxes_and_scores();
 
@@ -127,7 +127,7 @@ TEST(Unit_ModelOutputs, AtReturnsTheNamedValue)
 }
 
 /** @brief Tests that at matches a whole name and not a prefix of one. */
-TEST(Unit_ModelOutputs, AtDoesNotMatchAPrefix)
+TEST(Small_ModelOutputs, AtDoesNotMatchAPrefix)
 {
     const ModelOutputs outputs = boxes_and_scores();
 
@@ -136,7 +136,7 @@ TEST(Unit_ModelOutputs, AtDoesNotMatchAPrefix)
 }
 
 /** @brief Tests that at on a missing name fails and lists every name the set holds. */
-TEST(Unit_ModelOutputs, AtOnAMissingNameListsTheNames)
+TEST(Small_ModelOutputs, AtOnAMissingNameListsTheNames)
 {
     const ModelOutputs outputs = boxes_and_scores();
 
@@ -145,7 +145,7 @@ TEST(Unit_ModelOutputs, AtOnAMissingNameListsTheNames)
 }
 
 /** @brief Tests that at on an empty set fails and says the set holds none. */
-TEST(Unit_ModelOutputs, AtOnAnEmptySetSaysNone)
+TEST(Small_ModelOutputs, AtOnAnEmptySetSaysNone)
 {
     const ModelOutputs outputs;
 
@@ -153,7 +153,7 @@ TEST(Unit_ModelOutputs, AtOnAnEmptySetSaysNone)
 }
 
 /** @brief Tests that only returns the value of a set that holds exactly one. */
-TEST(Unit_ModelOutputs, OnlyReturnsTheSingleValue)
+TEST(Small_ModelOutputs, OnlyReturnsTheSingleValue)
 {
     ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("logits", ValueID{12}));
@@ -163,7 +163,7 @@ TEST(Unit_ModelOutputs, OnlyReturnsTheSingleValue)
 }
 
 /** @brief Tests that only fails on a set that holds no output. */
-TEST(Unit_ModelOutputs, OnlyFailsOnZero)
+TEST(Small_ModelOutputs, OnlyFailsOnZero)
 {
     const ModelOutputs outputs;
 
@@ -172,7 +172,7 @@ TEST(Unit_ModelOutputs, OnlyFailsOnZero)
 }
 
 /** @brief Tests that only fails on a set that holds two outputs and names both. */
-TEST(Unit_ModelOutputs, OnlyFailsOnTwo)
+TEST(Small_ModelOutputs, OnlyFailsOnTwo)
 {
     const ModelOutputs outputs = boxes_and_scores();
 

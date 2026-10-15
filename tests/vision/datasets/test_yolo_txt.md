@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_yolo_txt.cpp
 
 
-Suites: `Unit_DatasetsYoloTxt`.
+Suites: `Small_DatasetsYoloTxt`.
 
 Tests `read_yolo_txt` and `yolo_label_path` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/yolo_txt.hpp`. The reader cases write

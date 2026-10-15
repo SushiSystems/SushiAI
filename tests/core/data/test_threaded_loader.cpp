@@ -161,7 +161,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the batches arrive in index order and were read on other threads. */
-TEST(Unit_ThreadedLoader, HandsTheBatchesOverInIndexOrder)
+TEST(Medium_ThreadedLoader, HandsTheBatchesOverInIndexOrder)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 3, 4);
@@ -179,7 +179,7 @@ TEST(Unit_ThreadedLoader, HandsTheBatchesOverInIndexOrder)
 }
 
 /** @brief Tests that no read starts further ahead of the caller than the prefetch count. */
-TEST(Unit_ThreadedLoader, ReadsNoFurtherAheadThanThePrefetchCount)
+TEST(Medium_ThreadedLoader, ReadsNoFurtherAheadThanThePrefetchCount)
 {
     constexpr std::int32_t K_PREFETCH = 3;
 
@@ -195,7 +195,7 @@ TEST(Unit_ThreadedLoader, ReadsNoFurtherAheadThanThePrefetchCount)
 }
 
 /** @brief Tests that a failed read is the status of its index and that later ones read. */
-TEST(Unit_ThreadedLoader, AFailedReadIsTheStatusOfItsIndexAlone)
+TEST(Medium_ThreadedLoader, AFailedReadIsTheStatusOfItsIndexAlone)
 {
     constexpr std::size_t K_FAILING = 5;
 
@@ -220,7 +220,7 @@ TEST(Unit_ThreadedLoader, AFailedReadIsTheStatusOfItsIndexAlone)
 }
 
 /** @brief Tests that an index out of order is read, and the indices after it in order. */
-TEST(Unit_ThreadedLoader, AnIndexOutOfOrderIsRead)
+TEST(Medium_ThreadedLoader, AnIndexOutOfOrderIsRead)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 2);
@@ -233,7 +233,7 @@ TEST(Unit_ThreadedLoader, AnIndexOutOfOrderIsRead)
 }
 
 /** @brief Tests that begin_epoch reaches the dataset and that the next reads are of it. */
-TEST(Unit_ThreadedLoader, BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead)
+TEST(Medium_ThreadedLoader, BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 4);
@@ -253,7 +253,7 @@ TEST(Unit_ThreadedLoader, BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead)
 }
 
 /** @brief Tests that a loader with reads queued and running is destroyed without a read. */
-TEST(Unit_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
+TEST(Medium_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
 {
     Probe probe;
     std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 3, 4);
@@ -265,7 +265,7 @@ TEST(Unit_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
 }
 
 /** @brief Tests that the loader states the batch size, the count and the name of its dataset. */
-TEST(Unit_ThreadedLoader, StatesWhatItsDatasetStates)
+TEST(Medium_ThreadedLoader, StatesWhatItsDatasetStates)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 1, 1);
@@ -279,7 +279,7 @@ TEST(Unit_ThreadedLoader, StatesWhatItsDatasetStates)
 }
 
 /** @brief Tests that make refuses a null dataset and an option below 1, naming the option. */
-TEST(Unit_ThreadedLoader, MakeRefusesNoDatasetAndAnOptionBelowOne)
+TEST(Medium_ThreadedLoader, MakeRefusesNoDatasetAndAnOptionBelowOne)
 {
     Probe probe;
     Data::LoaderOptions options;
@@ -300,7 +300,7 @@ TEST(Unit_ThreadedLoader, MakeRefusesNoDatasetAndAnOptionBelowOne)
 }
 
 /** @brief Tests that begin_epoch leaves a dataset that is not EpochAware as it is. */
-TEST(Unit_Epoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
+TEST(Small_Epoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
 {
     class Plain final : public Data::Dataset
     {

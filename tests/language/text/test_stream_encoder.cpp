@@ -75,7 +75,7 @@ namespace
 } // namespace
 
 /** @brief Tests pieces of 1, 7, 64 and 1000 bytes and the default against encode_text. */
-TEST(Unit_TextStreamEncoder, EveryPieceSizeGivesTheIDsOfTheWholeText)
+TEST(Small_TextStreamEncoder, EveryPieceSizeGivesTheIDsOfTheWholeText)
 {
     const std::string text = make_text();
     BPETrainerOptions options;
@@ -89,7 +89,7 @@ TEST(Unit_TextStreamEncoder, EveryPieceSizeGivesTheIDsOfTheWholeText)
 }
 
 /** @brief Tests that an empty stream appends nothing and that the ids are appended. */
-TEST(Unit_TextStreamEncoder, AnEmptyStreamAppendsNothing)
+TEST(Small_TextStreamEncoder, AnEmptyStreamAppendsNothing)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, Vocabulary::make({}));
     std::istringstream empty;

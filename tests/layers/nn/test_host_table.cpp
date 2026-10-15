@@ -43,7 +43,7 @@ using NN::HostTableList;
 using NN::Trace;
 
 /** @brief Tests that a table is a buffer leaf no state binds, listed with its values. */
-TEST(Unit_HostTable, ATableIsALeafListedWithItsValues)
+TEST(Small_HostTable, ATableIsALeafListedWithItsValues)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -70,7 +70,7 @@ TEST(Unit_HostTable, ATableIsALeafListedWithItsValues)
 }
 
 /** @brief Tests that two tables of one trace are two leaves, in the order they were declared. */
-TEST(Unit_HostTable, EveryDeclarationIsItsOwnLeaf)
+TEST(Small_HostTable, EveryDeclarationIsItsOwnLeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -90,7 +90,7 @@ TEST(Unit_HostTable, EveryDeclarationIsItsOwnLeaf)
 }
 
 /** @brief Tests that a trace with no sink, another type and a wrong count are each refused. */
-TEST(Unit_HostTable, ATableThatNoStepCanFillIsRefused)
+TEST(Small_HostTable, ATableThatNoStepCanFillIsRefused)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

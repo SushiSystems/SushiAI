@@ -4,7 +4,7 @@ The tests of the module `language/generation`, one file per header of `modules/l
 
 ## test_generation_task.cpp
 
-Suites: `Unit_GenerationTask`.
+Suites: `Small_GenerationTask`.
 
 Tests `Language::Generation::read_generation_task` in
 `modules/language/generation/include/SushiAI/language/generation/generation_task.hpp`, the
@@ -42,7 +42,7 @@ false from `"cache": false` and true from `"cache": true`.
 
 ## test_greedy_sampler.cpp
 
-Suites: `Unit_GenerationGreedySampler`, `Unit_GenerationGreedySamplerDeathTest`.
+Suites: `Small_GenerationGreedySampler`, `Small_GenerationGreedySamplerDeathTest`.
 
 Tests `Language::Generation::GreedySampler` in
 `modules/language/generation/include/SushiAI/language/generation/greedy_sampler.hpp`. Every
@@ -61,11 +61,11 @@ seed and never used.
 ### NoLogitIsFatal
 
 `sample` over an empty span stops the process with a report containing "no logit". The case is
-in the suite `Unit_GenerationGreedySamplerDeathTest`.
+in the suite `Small_GenerationGreedySamplerDeathTest`.
 
 ## test_nucleus_sampler.cpp
 
-Suites: `Unit_GenerationNucleusSampler`.
+Suites: `Small_GenerationNucleusSampler`.
 
 Tests `Language::Generation::NucleusSampler` in
 `modules/language/generation/include/SushiAI/language/generation/nucleus_sampler.hpp`. The
@@ -98,7 +98,7 @@ of -2 ("temperature").
 
 ## test_sampler_section.cpp
 
-Suites: `Unit_GenerationSamplerSection`.
+Suites: `Small_GenerationSamplerSection`.
 
 Tests `Language::Generation::make_sampler` in
 `modules/language/generation/include/SushiAI/language/generation/sampler_section.hpp`, which
@@ -126,7 +126,7 @@ The sections `{"type": "greedy"}`, `{"type": "temperature", "temperature": 0.7}`
 
 ## test_temperature_sampler.cpp
 
-Suites: `Unit_GenerationTemperatureSampler`.
+Suites: `Small_GenerationTemperatureSampler`.
 
 Tests `Language::Generation::TemperatureSampler` in
 `modules/language/generation/include/SushiAI/language/generation/temperature_sampler.hpp`.
@@ -155,7 +155,7 @@ the sequence from the seed plus 1 differs from them.
 
 ## test_top_k_sampler.cpp
 
-Suites: `Unit_GenerationTopKSampler`.
+Suites: `Small_GenerationTopKSampler`.
 
 Tests `Language::Generation::TopKSampler` in
 `modules/language/generation/include/SushiAI/language/generation/top_k_sampler.hpp`. The
@@ -187,7 +187,7 @@ tokens") and for a temperature of 0 ("'top_k'", "temperature").
 
 ## test_position_feed.cpp
 
-Suites: `Unit_GenerationPositionFeed`.
+Suites: `Medium_GenerationPositionFeed`.
 
 Tests `Language::Generation::Detail::make_position_feed`, which picks a `PositionFeed` from
 the leaves a step is fed. The fixture is `Support::FedStepTest` of
@@ -217,7 +217,7 @@ gets a feed of one leaf.
 
 ## test_ring_position_feed.cpp
 
-Suites: `Unit_GenerationRingPositionFeed`.
+Suites: `Medium_GenerationRingPositionFeed`.
 
 Tests `Language::Generation::Detail::RingPositionFeed`. The fixture is `Support::FedStepTest`;
 the feed is made over a window of four rows and three pairs, with an angle function that
@@ -248,7 +248,7 @@ as the sine ("'feed_position'", "float32 leaf of [1, 3]").
 
 ## test_table_position_feed.cpp
 
-Suites: `Unit_GenerationTablePositionFeed`.
+Suites: `Medium_GenerationTablePositionFeed`.
 
 Tests `Language::Generation::Detail::TablePositionFeed`. The fixture is
 `Support::FedStepTest`.
@@ -270,7 +270,7 @@ Over a step fed only the ring leaves, `TablePositionFeed::make` fails with
 
 ## test_cached_generator.cpp
 
-Suites: `Integration_CachedGeneration`, in `sushiai_language_generation_tests`.
+Suites: `Medium_CachedGeneration`, in `sushiai_language_generation_tests`.
 
 The fixture builds the decoder of `decoder_model.hpp`: a learned position table, two blocks, a
 window of 8 and a vocabulary of 32. It traces the `[1, 8]` window graph and the `[1, 1]` incremental
@@ -327,7 +327,7 @@ An empty prompt, the id 32 and a count of zero tokens are each refused as `Inval
 messages contain "no id", "0 to 31" and "0 tokens". Nothing is generated and the step has run zero
 times.
 
-Suites: `Integration_RotaryGeneration`, in `sushiai_language_generation_tests`.
+Suites: `Medium_RotaryGeneration`, in `sushiai_language_generation_tests`.
 
 The fixture builds rotary decoders from the model files of `decoder_model.hpp`: two blocks over a
 window of 8, one block over a window of 8, and two blocks over a window of 64. For each it can
@@ -397,7 +397,7 @@ both leaves, is refused with a message that contains "both", 'position' and 'cac
 
 ## test_window_generator.cpp
 
-Suites: `Integration_Generation`, in `sushiai_language_generation_tests`.
+Suites: `Medium_Generation`, in `sushiai_language_generation_tests`.
 
 The fixture builds the decoder of `decoder_model.hpp`, with a window of 8 and a vocabulary of 32,
 initialises its state, compiles the `[1, 8]` forward pass and builds a `WindowGenerator` over it.

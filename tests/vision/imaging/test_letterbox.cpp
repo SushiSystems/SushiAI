@@ -86,7 +86,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
+TEST(Small_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
 {
     const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
         LetterboxSettings{}, ImageSize{50, 200}, ImageSize{100, 100});
@@ -101,7 +101,7 @@ TEST(Unit_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
     EXPECT_EQ(plan.target, (ImageSize{100, 100}));
 }
 
-TEST(Unit_ImagingLetterbox, TallImageIsPaddedLeftAndRightWithTheOddColumnRight)
+TEST(Small_ImagingLetterbox, TallImageIsPaddedLeftAndRightWithTheOddColumnRight)
 {
     const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
         LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});
@@ -114,7 +114,7 @@ TEST(Unit_ImagingLetterbox, TallImageIsPaddedLeftAndRightWithTheOddColumnRight)
     EXPECT_EQ(plan.right, 38);
 }
 
-TEST(Unit_ImagingLetterbox, ExactFitHasRatioOneAndNoPadding)
+TEST(Small_ImagingLetterbox, ExactFitHasRatioOneAndNoPadding)
 {
     const LetterboxPlan plan =
         Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64}, ImageSize{64, 64});
@@ -124,7 +124,7 @@ TEST(Unit_ImagingLetterbox, ExactFitHasRatioOneAndNoPadding)
     EXPECT_EQ(plan.top + plan.bottom + plan.left + plan.right, 0);
 }
 
-TEST(Unit_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
+TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
 {
     LetterboxSettings settings;
     const LetterboxPlan padded =
@@ -149,7 +149,7 @@ TEST(Unit_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
     EXPECT_EQ(enlarged.right, 0);
 }
 
-TEST(Unit_ImagingLetterbox, ResizedSideRoundsAHalfToTheEvenInteger)
+TEST(Small_ImagingLetterbox, ResizedSideRoundsAHalfToTheEvenInteger)
 {
     // 5 * 0.5 is 2.5 and 7 * 0.5 is 3.5; half to even gives 2 and 4.
     const LetterboxPlan down =
@@ -165,7 +165,7 @@ TEST(Unit_ImagingLetterbox, ResizedSideRoundsAHalfToTheEvenInteger)
     EXPECT_EQ(up.bottom, 0);
 }
 
-TEST(Unit_ImagingLetterbox, RectangularStrideTargetPadsOnlyTheShortAxis)
+TEST(Small_ImagingLetterbox, RectangularStrideTargetPadsOnlyTheShortAxis)
 {
     // 512 is the stride-32 batch height of a 480x640 image: ceil(480 / 32 + 0.5) * 32.
     const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
@@ -179,7 +179,7 @@ TEST(Unit_ImagingLetterbox, RectangularStrideTargetPadsOnlyTheShortAxis)
     EXPECT_EQ(plan.right, 0);
 }
 
-TEST(Unit_ImagingLetterbox, PlanCopiesThePaddingValueOfTheSettings)
+TEST(Small_ImagingLetterbox, PlanCopiesThePaddingValueOfTheSettings)
 {
     LetterboxSettings settings;
     EXPECT_EQ(
@@ -192,7 +192,7 @@ TEST(Unit_ImagingLetterbox, PlanCopiesThePaddingValueOfTheSettings)
         7);
 }
 
-TEST(Unit_ImagingLetterbox, PlanRejectsASideThatIsNotPositive)
+TEST(Small_ImagingLetterbox, PlanRejectsASideThatIsNotPositive)
 {
     SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{0, 8},
                                                   ImageSize{8, 8}),
@@ -203,7 +203,7 @@ TEST(Unit_ImagingLetterbox, PlanRejectsASideThatIsNotPositive)
 }
 
 /** @brief Tests that the plan refuses a side above the largest an image may have. */
-TEST(Unit_ImagingLetterbox, PlanRejectsASideAboveTheImageBound)
+TEST(Small_ImagingLetterbox, PlanRejectsASideAboveTheImageBound)
 {
     const std::int32_t above = Vision::Imaging::K_MAX_IMAGE_SIDE + 1;
 
@@ -216,7 +216,7 @@ TEST(Unit_ImagingLetterbox, PlanRejectsASideAboveTheImageBound)
 }
 
 /** @brief Tests that validate_letterbox accepts the extremes of both fields. */
-TEST(Unit_ImagingLetterbox, ValidateAcceptsEverySetting)
+TEST(Small_ImagingLetterbox, ValidateAcceptsEverySetting)
 {
     LetterboxSettings settings;
     settings.scale_up = true;
@@ -226,7 +226,7 @@ TEST(Unit_ImagingLetterbox, ValidateAcceptsEverySetting)
     EXPECT_NO_THROW(Vision::Imaging::validate_letterbox(LetterboxSettings{}));
 }
 
-TEST(Unit_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
+TEST(Small_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
 {
     // 1 * (8 / 1000) is 0.008, which rounds to a height of zero.
     SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{1, 1000},
@@ -234,7 +234,7 @@ TEST(Unit_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
                     "plan_letterbox", "zero pixels");
 }
 
-TEST(Unit_ImagingLetterbox, ImageWithoutResizeKeepsItsPixelsInsideThePadding)
+TEST(Small_ImagingLetterbox, ImageWithoutResizeKeepsItsPixelsInsideThePadding)
 {
     const Image source = make_counted_image(ImageSize{2, 4}, 3, 1);
     const LetterboxPlan plan =
@@ -259,7 +259,7 @@ TEST(Unit_ImagingLetterbox, ImageWithoutResizeKeepsItsPixelsInsideThePadding)
             }
 }
 
-TEST(Unit_ImagingLetterbox, ExactFitCopiesEveryPixel)
+TEST(Small_ImagingLetterbox, ExactFitCopiesEveryPixel)
 {
     const Image source = make_counted_image(ImageSize{6, 6}, 3, 9);
     const LetterboxPlan plan =
@@ -273,7 +273,7 @@ TEST(Unit_ImagingLetterbox, ExactFitCopiesEveryPixel)
         ASSERT_EQ(destination.data()[i], source.data()[i]) << "byte " << i;
 }
 
-TEST(Unit_ImagingLetterbox, WideImageIsResizedThenPaddedWithTheFillValue)
+TEST(Small_ImagingLetterbox, WideImageIsResizedThenPaddedWithTheFillValue)
 {
     // A flat image stays flat under bilinear weights that sum to one.
     const Image source = make_flat_image(ImageSize{50, 200}, 3, 200);
@@ -287,7 +287,7 @@ TEST(Unit_ImagingLetterbox, WideImageIsResizedThenPaddedWithTheFillValue)
     expect_two_levels(destination, plan, 200, 114);
 }
 
-TEST(Unit_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
+TEST(Small_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
 {
     LetterboxSettings settings;
     settings.padding_value = 7;
@@ -303,7 +303,7 @@ TEST(Unit_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
     expect_two_levels(destination, plan, 33, 7);
 }
 
-TEST(Unit_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
+TEST(Small_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
 {
     const Image source = make_counted_image(ImageSize{50, 200}, 3, 0);
     const LetterboxPlan plan =
@@ -340,7 +340,7 @@ TEST(Unit_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
     EXPECT_FALSE(is_flat) << "a flat content rectangle cannot tell a resize from a fill";
 }
 
-TEST(Unit_ImagingLetterbox, SourceWithoutPixelsIsRejected)
+TEST(Small_ImagingLetterbox, SourceWithoutPixelsIsRejected)
 {
     const LetterboxPlan plan =
         Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4}, ImageSize{4, 6});
@@ -351,7 +351,7 @@ TEST(Unit_ImagingLetterbox, SourceWithoutPixelsIsRejected)
                     "apply_letterbox", "no pixels");
 }
 
-TEST(Unit_ImagingLetterbox, DestinationThatIsTheSourceIsRejected)
+TEST(Small_ImagingLetterbox, DestinationThatIsTheSourceIsRejected)
 {
     Image image = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
@@ -363,7 +363,7 @@ TEST(Unit_ImagingLetterbox, DestinationThatIsTheSourceIsRejected)
 }
 
 /** @brief Tests that a view of some rows of the destination is refused before the reset. */
-TEST(Unit_ImagingLetterbox, ViewInsideTheDestinationIsRejected)
+TEST(Small_ImagingLetterbox, ViewInsideTheDestinationIsRejected)
 {
     Image image = make_flat_image(ImageSize{3, 4}, 3, 50);
     const Vision::Imaging::ImageView lower_rows(image.row(1), ImageSize{2, 4}, 3);
@@ -377,7 +377,7 @@ TEST(Unit_ImagingLetterbox, ViewInsideTheDestinationIsRejected)
 }
 
 /** @brief Tests that a resize beside left and right padding writes the kernel's bytes only. */
-TEST(Unit_ImagingLetterbox, ResizedContentBesideSidePaddingEqualsTheBilinearResize)
+TEST(Small_ImagingLetterbox, ResizedContentBesideSidePaddingEqualsTheBilinearResize)
 {
     const Image source = make_counted_image(ImageSize{200, 50}, 3, 0);
     const LetterboxPlan plan =
@@ -408,7 +408,7 @@ TEST(Unit_ImagingLetterbox, ResizedContentBesideSidePaddingEqualsTheBilinearResi
     EXPECT_EQ(wrong, 0u) << "bytes differ from the resize placed between two bands of 114";
 }
 
-TEST(Unit_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
+TEST(Small_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
@@ -421,7 +421,7 @@ TEST(Unit_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
     expect_two_levels(destination, plan, 50, 114);
 }
 
-TEST(Unit_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
+TEST(Small_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
@@ -432,7 +432,7 @@ TEST(Unit_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
                     "apply_letterbox", "plan was made for");
 }
 
-TEST(Unit_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
+TEST(Small_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     LetterboxPlan plan =
@@ -444,7 +444,7 @@ TEST(Unit_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
                     "apply_letterbox", "tile");
 }
 
-TEST(Unit_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
+TEST(Small_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
 {
     const LetterboxPlan tall = Vision::Imaging::plan_letterbox(
         LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});
@@ -476,7 +476,7 @@ TEST(Unit_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
     EXPECT_NEAR(in_wide.boxes()[0].y2, 57.0f, K_BOX_TOLERANCE);
 }
 
-TEST(Unit_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
+TEST(Small_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
 {
     const LetterboxPlan plan =
         Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{20, 40}, ImageSize{80, 80});
@@ -496,7 +496,7 @@ TEST(Unit_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
     EXPECT_NEAR(moved.boxes()[1].y2, 35.0f, K_BOX_TOLERANCE);
 }
 
-TEST(Unit_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
+TEST(Small_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
 {
     const LetterboxPlan plan =
         Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64}, ImageSize{64, 64});
@@ -512,7 +512,7 @@ TEST(Unit_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
 }
 
 /** @brief Tests that a polygon moves by the ratio, then by the left and top padding. */
-TEST(Unit_ImagingLetterbox, PolygonMovesByTheRatioThenTheLeftAndTopPadding)
+TEST(Small_ImagingLetterbox, PolygonMovesByTheRatioThenTheLeftAndTopPadding)
 {
     const LetterboxPlan tall = Vision::Imaging::plan_letterbox(
         LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});

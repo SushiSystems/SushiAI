@@ -95,7 +95,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the layers tier registers its five objectives and no domain's. */
-TEST(Unit_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectives)
+TEST(Small_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectives)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -111,7 +111,7 @@ TEST(Unit_ObjectiveRegistry, TheLayersTierAddsItsFiveObjectives)
 }
 
 /** @brief Tests that a type is held once and that the refusal names it. */
-TEST(Unit_ObjectiveRegistry, ATypeIsHeldOnce)
+TEST(Small_ObjectiveRegistry, ATypeIsHeldOnce)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
@@ -122,7 +122,7 @@ TEST(Unit_ObjectiveRegistry, ATypeIsHeldOnce)
 }
 
 /** @brief Tests that the factory receives the context, the registry, the keys and the label. */
-TEST(Unit_ObjectiveRegistry, TheFactoryReceivesTheContextAndItsRegistry)
+TEST(Small_ObjectiveRegistry, TheFactoryReceivesTheContextAndItsRegistry)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -138,7 +138,7 @@ TEST(Unit_ObjectiveRegistry, TheFactoryReceivesTheContextAndItsRegistry)
 }
 
 /** @brief Tests that an unknown type is refused with every type the registry holds. */
-TEST(Unit_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
+TEST(Small_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
@@ -151,7 +151,7 @@ TEST(Unit_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
 }
 
 /** @brief Tests that the failure of a factory reaches the caller as it was returned. */
-TEST(Unit_ObjectiveRegistry, TheFailureOfAFactoryIsReturned)
+TEST(Small_ObjectiveRegistry, TheFailureOfAFactoryIsReturned)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));

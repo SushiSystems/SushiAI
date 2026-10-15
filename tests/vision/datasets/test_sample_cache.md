@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_sample_cache.cpp
 
 
-Suites: `Unit_DatasetsSampleCache`.
+Suites: `Small_DatasetsSampleCache`.
 
 Tests `write_sample_cache`, `use_sample_cache` and `sample_cache_path` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/sample_cache.hpp`. The source images

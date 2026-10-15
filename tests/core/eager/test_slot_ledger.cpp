@@ -87,7 +87,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_SlotLedger, TheFirstMatchCreatesASlot)
+TEST(Small_SlotLedger, TheFirstMatchCreatesASlot)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -103,7 +103,7 @@ TEST(Unit_SlotLedger, TheFirstMatchCreatesASlot)
     EXPECT_EQ(ledger.created()[0].dtype, DType::Float32);
 }
 
-TEST(Unit_SlotLedger, AnUnchangedProducerKeepsItsSlot)
+TEST(Small_SlotLedger, AnUnchangedProducerKeepsItsSlot)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -115,7 +115,7 @@ TEST(Unit_SlotLedger, AnUnchangedProducerKeepsItsSlot)
     EXPECT_TRUE(ledger.end_step().empty());
 }
 
-TEST(Unit_SlotLedger, KeepFindsNoSlotAtAnotherPosition)
+TEST(Small_SlotLedger, KeepFindsNoSlotAtAnotherPosition)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -126,7 +126,7 @@ TEST(Unit_SlotLedger, KeepFindsNoSlotAtAnotherPosition)
               K_NO_STORAGE);
 }
 
-TEST(Unit_SlotLedger, AChangedProducerReusesTheSlotItsReaderRead)
+TEST(Small_SlotLedger, AChangedProducerReusesTheSlotItsReaderRead)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -144,7 +144,7 @@ TEST(Unit_SlotLedger, AChangedProducerReusesTheSlotItsReaderRead)
     EXPECT_EQ(ledger.keep(K_PRODUCER, ValuePosition{5, 0}, span_of({{K_READER, 0}})), slot);
 }
 
-TEST(Unit_SlotLedger, AReaderThatIsNotTrustedNamesNoSlot)
+TEST(Small_SlotLedger, AReaderThatIsNotTrustedNamesNoSlot)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -156,7 +156,7 @@ TEST(Unit_SlotLedger, AReaderThatIsNotTrustedNamesNoSlot)
               K_NO_STORAGE);
 }
 
-TEST(Unit_SlotLedger, PlaceTakesTheSlotWrittenAtTheSamePosition)
+TEST(Small_SlotLedger, PlaceTakesTheSlotWrittenAtTheSamePosition)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -171,7 +171,7 @@ TEST(Unit_SlotLedger, PlaceTakesTheSlotWrittenAtTheSamePosition)
               slot);
 }
 
-TEST(Unit_SlotLedger, AChangedShapeGetsANewSlotAndReleasesTheOld)
+TEST(Small_SlotLedger, AChangedShapeGetsANewSlotAndReleasesTheOld)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -184,7 +184,7 @@ TEST(Unit_SlotLedger, AChangedShapeGetsANewSlotAndReleasesTheOld)
     EXPECT_EQ(ledger.end_step(), std::vector<StorageID>{slot});
 }
 
-TEST(Unit_SlotLedger, AChangedElementTypeGetsANewSlot)
+TEST(Small_SlotLedger, AChangedElementTypeGetsANewSlot)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -196,7 +196,7 @@ TEST(Unit_SlotLedger, AChangedElementTypeGetsANewSlot)
               slot);
 }
 
-TEST(Unit_SlotLedger, ASlotIsClaimedOnce)
+TEST(Small_SlotLedger, ASlotIsClaimedOnce)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -213,7 +213,7 @@ TEST(Unit_SlotLedger, ASlotIsClaimedOnce)
     EXPECT_EQ(ledger.keep(K_PRODUCER, ValuePosition{2, 0}, span_of({})), K_NO_STORAGE);
 }
 
-TEST(Unit_SlotLedger, ASlotOfAnotherProducerIsNotTaken)
+TEST(Small_SlotLedger, ASlotOfAnotherProducerIsNotTaken)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -227,7 +227,7 @@ TEST(Unit_SlotLedger, ASlotOfAnotherProducerIsNotTaken)
     EXPECT_EQ(ledger.keep(K_PRODUCER, ValuePosition{2, 0}, span_of({})), slot);
 }
 
-TEST(Unit_SlotLedger, AnUnclaimedSlotIsReleasedAtTheEndOfTheStep)
+TEST(Small_SlotLedger, AnUnclaimedSlotIsReleasedAtTheEndOfTheStep)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
@@ -238,7 +238,7 @@ TEST(Unit_SlotLedger, AnUnclaimedSlotIsReleasedAtTheEndOfTheStep)
     EXPECT_EQ(ledger.size(), 0u);
 }
 
-TEST(Unit_SlotLedger, ForgetReturnsEverySlotOnce)
+TEST(Small_SlotLedger, ForgetReturnsEverySlotOnce)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);

@@ -47,10 +47,10 @@ using Graph::ValueID;
 
 namespace
 {
-    class Integration_Arena : public SaTest::EngineTest {};
+    class Medium_Arena : public SaTest::EngineTest {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
-    using Integration_ArenaDeathTest = Integration_Arena;
+    using Medium_ArenaDeathTest = Medium_Arena;
 
     /** @brief x -> a -> b -> c, whose middle values are packed into one arena. */
     struct Chain
@@ -70,7 +70,7 @@ namespace
     };
 }
 
-TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
+TEST_F(Medium_Arena, TwoPackedTensorsShareABaseButNotAByte)
 {
     const Chain chain;
     const MemoryPlan plan = MemoryPlan::build(chain.graph);
@@ -102,7 +102,7 @@ TEST_F(Integration_Arena, TwoPackedTensorsShareABaseButNotAByte)
     EXPECT_EQ(right.offset, plan.placement(chain.b).offset);
 }
 
-TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
+TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 {
     // Each view writes only its own bytes; see tests/core/graph/README.md.
     const Chain chain;
@@ -126,7 +126,7 @@ TEST_F(Integration_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     for (double value : SaTest::read_tensor(second)) EXPECT_DOUBLE_EQ(value, 10.0);
 }
 
-TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
+TEST_F(Medium_Arena, AViewAddressesItsOwnElements)
 {
     const Chain chain;
     const MemoryPlan plan = MemoryPlan::build(chain.graph);
@@ -141,7 +141,7 @@ TEST_F(Integration_Arena, AViewAddressesItsOwnElements)
               static_cast<std::ptrdiff_t>(offset));
 }
 
-TEST_F(Integration_ArenaDeathTest, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
+TEST_F(Medium_ArenaDeathTest, AnOffsetThatIsNotAWholeNumberOfElementsIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const auto arena, allocate_arena(*engine, 256));
 
@@ -154,14 +154,14 @@ TEST_F(Integration_ArenaDeathTest, AnOffsetThatIsNotAWholeNumberOfElementsIsRefu
     EXPECT_EQ(view.storage_offset, int64_t{1});
 }
 
-TEST_F(Integration_ArenaDeathTest, AViewThatWouldRunPastTheArenaIsRefused)
+TEST_F(Medium_ArenaDeathTest, AViewThatWouldRunPastTheArenaIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const auto arena, allocate_arena(*engine, 128));
     SA_EXPECT_FATAL((void)view_tensor(*engine, arena, 64, Shape{64}, DType::Float32),
                     "run past the end");
 }
 
-TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
+TEST_F(Medium_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
 {
     // Alignment 1 leaves only the element-width floor; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -213,7 +213,7 @@ TEST_F(Integration_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     EXPECT_EQ(SaTest::read_tensor(as_double), (std::vector<double>{-1.5, -2.5, -3.5}));
 }
 
-TEST_F(Integration_ArenaDeathTest, AdoptingASecondPlanIsRefused)
+TEST_F(Medium_ArenaDeathTest, AdoptingASecondPlanIsRefused)
 {
     const Chain chain;
     Graph::TensorPool pool(*engine);
@@ -222,7 +222,7 @@ TEST_F(Integration_ArenaDeathTest, AdoptingASecondPlanIsRefused)
     SA_EXPECT_FATAL((void)pool.adopt(MemoryPlan::build(chain.graph)), "already adopted");
 }
 
-TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
+TEST_F(Medium_Arena, TheEmptyPlanPacksNothing)
 {
     // The empty plan is the unpacked control; see tests/core/graph/README.md.
     const Chain chain;
@@ -242,7 +242,7 @@ TEST_F(Integration_Arena, TheEmptyPlanPacksNothing)
     EXPECT_EQ(pool.allocated_bytes(), pool.unpacked_bytes());
 }
 
-TEST_F(Integration_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
+TEST_F(Medium_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
 {
     const Chain chain;
     Graph::TensorPool pool(*engine);

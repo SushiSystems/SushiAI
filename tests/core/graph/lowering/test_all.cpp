@@ -38,7 +38,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Tests that every identity has one row, unless it is listed as unlowered. */
-        TEST(Unit_LoweringTable, EveryIdentityIsLoweredOrListedAsUnlowered)
+        TEST(Small_LoweringTable, EveryIdentityIsLoweredOrListedAsUnlowered)
         {
             for (const Ops::OpName& entry : Ops::K_ALL)
             {
@@ -51,7 +51,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that the four identities of K_UNLOWERED have no row. */
-        TEST(Unit_LoweringTable, TheUnloweredIdentitiesHaveNoRow)
+        TEST(Small_LoweringTable, TheUnloweredIdentitiesHaveNoRow)
         {
             for (const OpID id : Graph::K_UNLOWERED)
             {
@@ -63,7 +63,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that no row of the combined table names an identity with a second row. */
-        TEST(Unit_LoweringTable, NoOperationHasTwoRows)
+        TEST(Small_LoweringTable, NoOperationHasTwoRows)
         {
             for (const Graph::LoweringEntry& row : Graph::K_LOWERINGS)
             {
@@ -72,7 +72,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that every row names a declared identity and that the counts add up. */
-        TEST(Unit_LoweringTable, TheCombinedTableCoversTheOperationTable)
+        TEST(Small_LoweringTable, TheCombinedTableCoversTheOperationTable)
         {
             EXPECT_TRUE(Graph::every_identity_is_accounted_for(
                 SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(), Ops::K_ALL.size())));
@@ -80,7 +80,7 @@ namespace SushiAI
         }
 
         /** @brief Tests the row count of each domain table and of the joined table. */
-        TEST(Unit_LoweringTable, EachDomainTableHasItsRowCount)
+        TEST(Small_LoweringTable, EachDomainTableHasItsRowCount)
         {
             EXPECT_EQ(Graph::K_ELEMENTWISE_LOWERINGS.size(), 17u);
             EXPECT_EQ(Graph::K_ACTIVATION_LOWERINGS.size(), 14u);

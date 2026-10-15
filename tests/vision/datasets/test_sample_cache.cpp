@@ -91,7 +91,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the first pass writes every image and the second writes none. */
-TEST(Unit_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
+TEST(Small_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_passes");
     const SampleList list = list_of({
@@ -112,7 +112,7 @@ TEST(Unit_DatasetsSampleCache, TheFirstPassWritesAndTheSecondReuses)
 }
 
 /** @brief Tests that a list pointed at the cache loads the pixels of its images from it. */
-TEST(Unit_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
+TEST(Small_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_use");
     const Image original = rising_image(ImageSize{2, 3}, 40);
@@ -137,7 +137,7 @@ TEST(Unit_DatasetsSampleCache, AListPointedAtTheCacheLoadsTheSamePixels)
 }
 
 /** @brief Tests that a longest side reduces a larger image and keeps a smaller one. */
-TEST(Unit_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
+TEST(Small_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_side");
     const SampleList list = list_of({
@@ -165,7 +165,7 @@ TEST(Unit_DatasetsSampleCache, ALongestSideReducesOnlyWhatExceedsIt)
 }
 
 /** @brief Tests that an image that changed has no cache file until it is cached again. */
-TEST(Unit_DatasetsSampleCache, AnImageThatChangedIsStale)
+TEST(Small_DatasetsSampleCache, AnImageThatChangedIsStale)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_stale");
     const SampleList list = list_of({Support::write_raw_image(
@@ -192,7 +192,7 @@ TEST(Unit_DatasetsSampleCache, AnImageThatChangedIsStale)
 }
 
 /** @brief Tests that a file of stored pixels and a mask keep their paths and are not cached. */
-TEST(Unit_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
+TEST(Small_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_alone");
 
@@ -224,7 +224,7 @@ TEST(Unit_DatasetsSampleCache, StoredPixelsAndMasksAreLeftAlone)
 }
 
 /** @brief Tests that the name of a cache file follows the source and the options alone. */
-TEST(Unit_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
+TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_names");
     const std::filesystem::path source = Support::write_raw_image(
@@ -250,7 +250,7 @@ TEST(Unit_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
 }
 
 /** @brief Tests each refusal: no directory, a side out of range, and a side over masks. */
-TEST(Unit_DatasetsSampleCache, RefusesOptionsItCannotServe)
+TEST(Small_DatasetsSampleCache, RefusesOptionsItCannotServe)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_refusals");
     SampleList list = list_of({Support::write_raw_image(

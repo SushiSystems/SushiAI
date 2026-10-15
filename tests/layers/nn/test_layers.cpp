@@ -75,7 +75,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
+TEST(Small_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -127,7 +127,7 @@ TEST(Unit_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
     }
 }
 
-TEST(Unit_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
+TEST(Small_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -163,7 +163,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a fused cross-entropy root emits the nodes it emitted before, with no seed. */
-TEST(Unit_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
+TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -199,7 +199,7 @@ TEST(Unit_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
     EXPECT_EQ(count_op(graph, Ops::K_CONSTANT.id), 0u);
 }
 
-TEST(Unit_Layers, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
+TEST(Small_Layers, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

@@ -68,7 +68,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_BinaryCollator : public SaTest::EngineTest
+    class Medium_BinaryCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -115,7 +115,7 @@ namespace
 } // namespace
 
 /** @brief Tests that binary publishes labels as one float32 per sample that is no index. */
-TEST_F(Unit_BinaryCollator, BinaryPublishesLabels)
+TEST_F(Medium_BinaryCollator, BinaryPublishesLabels)
 {
     SA_EXPECT_FAILURE(BinaryCollator::make(2), StatusCode::InvalidDescription, "BinaryCollator",
                       "the positive class is 2");
@@ -134,7 +134,7 @@ TEST_F(Unit_BinaryCollator, BinaryPublishesLabels)
 }
 
 /** @brief Tests that binary writes 1 for the positive class, whichever of the two it is. */
-TEST_F(Unit_BinaryCollator, BinaryWritesOneForThePositiveClass)
+TEST_F(Medium_BinaryCollator, BinaryWritesOneForThePositiveClass)
 {
     samples[0].class_index = 1;
     samples[1].class_index = 0;
@@ -154,7 +154,7 @@ TEST_F(Unit_BinaryCollator, BinaryWritesOneForThePositiveClass)
 }
 
 /** @brief Tests that binary names the file of a sample with no class or a third class. */
-TEST_F(Unit_BinaryCollator, BinaryNamesTheFileOfASampleItCannotLabel)
+TEST_F(Medium_BinaryCollator, BinaryNamesTheFileOfASampleItCannotLabel)
 {
     samples[0].class_index = 1;
 

@@ -1,7 +1,7 @@
 # tests/layers/nn/test_init.cpp
 
 
-Suites: `Integration_InitState`.
+Suites: `Medium_InitState`.
 
 The cases check the fill that `NN::initialize()` writes over a `NN::ModelState`: the constants of a
 batch norm, the zeroed final layer, and the determinism of the default seed.

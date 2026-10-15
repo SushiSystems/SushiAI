@@ -3,7 +3,7 @@
 
 The boxes and scores an anchor head decodes to under the Logit and the Activated coding and under `scale_xy`, the order of the decoded rows, the channel and row counts, and what `validate_head` refuses.
 
-Suites: `Unit_DetectAnchorDecode`.
+Suites: `Small_DetectAnchorDecode`.
 
 Tests the decoding of one anchor head, with `count_head_channels`, `count_head_rows` and
 `validate_head`. A head entry holds x, y, width, height, objectness and then the classes. A

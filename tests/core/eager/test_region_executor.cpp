@@ -64,7 +64,7 @@ namespace Support = SushiAI::Eager::Support;
 namespace
 {
     /** @brief Provides the Engine every case runs on. */
-    class Unit_RegionExecutor : public SaTest::EngineTest
+    class Medium_RegionExecutor : public SaTest::EngineTest
     {
 
     };
@@ -163,7 +163,7 @@ namespace
     }
 } // namespace
 
-TEST_F(Unit_RegionExecutor, ABuiltStepWritesItsObservedValue)
+TEST_F(Medium_RegionExecutor, ABuiltStepWritesItsObservedValue)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -177,7 +177,7 @@ TEST_F(Unit_RegionExecutor, ABuiltStepWritesItsObservedValue)
     EXPECT_GT(harness.executor.operation_count(), 0u);
 }
 
-TEST_F(Unit_RegionExecutor, AKeptStepRunsAgainWithoutBeingComposedOrRecorded)
+TEST_F(Medium_RegionExecutor, AKeptStepRunsAgainWithoutBeingComposedOrRecorded)
 {
     Harness harness(*engine);
     SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
@@ -194,7 +194,7 @@ TEST_F(Unit_RegionExecutor, AKeptStepRunsAgainWithoutBeingComposedOrRecorded)
     EXPECT_EQ(harness.executor.allocated_bytes(), allocated);
 }
 
-TEST_F(Unit_RegionExecutor, TwoRegionsRunInKeyOrder)
+TEST_F(Medium_RegionExecutor, TwoRegionsRunInKeyOrder)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(true);
@@ -207,7 +207,7 @@ TEST_F(Unit_RegionExecutor, TwoRegionsRunInKeyOrder)
     EXPECT_EQ(harness.executor.compose_count(), 1u);
 }
 
-TEST_F(Unit_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
+TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -236,7 +236,7 @@ TEST_F(Unit_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
     expect_near(SaTest::read_tensor(harness.tensor_of(step.hidden)), harness.expected(step));
 }
 
-TEST_F(Unit_RegionExecutor, ARegionThatLeftIsDropped)
+TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
 {
     Harness harness(*engine);
     SA_EXPECT_OK(harness.run(Support::linear_then_relu(true)));
@@ -250,7 +250,7 @@ TEST_F(Unit_RegionExecutor, ARegionThatLeftIsDropped)
     expect_near(SaTest::read_tensor(harness.tensor_of(joined.hidden)), harness.expected(joined));
 }
 
-TEST_F(Unit_RegionExecutor, TheTrailingWorkRunsBehindEveryRegionOnEveryRun)
+TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegionOnEveryRun)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -286,7 +286,7 @@ TEST_F(Unit_RegionExecutor, TheTrailingWorkRunsBehindEveryRegionOnEveryRun)
     EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
 }
 
-TEST_F(Unit_RegionExecutor, DiscardDropsEveryRegionAndAKeptRegionIsThenRefused)
+TEST_F(Medium_RegionExecutor, DiscardDropsEveryRegionAndAKeptRegionIsThenRefused)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(false);

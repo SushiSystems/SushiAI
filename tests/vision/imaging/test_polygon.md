@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_polygon.cpp
 
 
-Suites: `Unit_ImagingPolygon`.
+Suites: `Small_ImagingPolygon`.
 
 Tests polygon resampling, mapping, clamping, the point test and the visible box.
 
-This file needs no device. `Unit_ImagingPolygon` covers
+This file needs no device. `Small_ImagingPolygon` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/polygon.hpp`. The expected vertices and boxes are the outputs of the
 reference's `resample_segments` and `segment2box` on the same inputs, written as literals; a
 comment in each case names the call.

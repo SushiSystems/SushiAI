@@ -1,7 +1,7 @@
 # tests/layers/nn/test_module.cpp
 
 
-Suites: `Unit_Module`.
+Suites: `Small_Module`.
 
 Tests Parameter across graphs and the state walk over layers, containers and fields.
 

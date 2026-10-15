@@ -51,14 +51,14 @@ namespace
     }
 } // namespace
 
-TEST(Unit_CodecsImageFormat, JPEGIsDetectedFromItsThreeLeadingBytes)
+TEST(Small_CodecsImageFormat, JPEGIsDetectedFromItsThreeLeadingBytes)
 {
     const std::vector<std::uint8_t> bytes = {0xFF, 0xD8, 0xFF};
 
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::JPEG);
 }
 
-TEST(Unit_CodecsImageFormat, JPEGIsDetectedWhateverFollowsItsSignature)
+TEST(Small_CodecsImageFormat, JPEGIsDetectedWhateverFollowsItsSignature)
 {
     const std::vector<std::uint8_t> jfif = {0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10};
     const std::vector<std::uint8_t> exif = {0xFF, 0xD8, 0xFF, 0xE1, 0x12, 0x34};
@@ -67,7 +67,7 @@ TEST(Unit_CodecsImageFormat, JPEGIsDetectedWhateverFollowsItsSignature)
     EXPECT_EQ(detect_image_format(exif), ImageFormat::JPEG);
 }
 
-TEST(Unit_CodecsImageFormat, PNGIsDetectedFromItsEightByteSignature)
+TEST(Small_CodecsImageFormat, PNGIsDetectedFromItsEightByteSignature)
 {
     std::vector<std::uint8_t> bytes = png_signature();
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::PNG);
@@ -76,7 +76,7 @@ TEST(Unit_CodecsImageFormat, PNGIsDetectedFromItsEightByteSignature)
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::PNG);
 }
 
-TEST(Unit_CodecsImageFormat, RawImageIsDetectedFromTheCacheMagic)
+TEST(Small_CodecsImageFormat, RawImageIsDetectedFromTheCacheMagic)
 {
     std::vector<std::uint8_t> bytes;
     for (int i = 0; i < 4; ++i)
@@ -86,19 +86,19 @@ TEST(Unit_CodecsImageFormat, RawImageIsDetectedFromTheCacheMagic)
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::Raw);
 }
 
-TEST(Unit_CodecsImageFormat, RawImageIsDetectedFromTheLettersSAIM)
+TEST(Small_CodecsImageFormat, RawImageIsDetectedFromTheLettersSAIM)
 {
     const std::vector<std::uint8_t> bytes = {'S', 'A', 'I', 'M', 1, 0, 0, 0};
 
     EXPECT_EQ(detect_image_format(bytes), ImageFormat::Raw);
 }
 
-TEST(Unit_CodecsImageFormat, NoBytesAreUnknown)
+TEST(Small_CodecsImageFormat, NoBytesAreUnknown)
 {
     EXPECT_EQ(detect_image_format(SushiRuntime::span<const std::uint8_t>()), ImageFormat::Unknown);
 }
 
-TEST(Unit_CodecsImageFormat, GarbageIsUnknown)
+TEST(Small_CodecsImageFormat, GarbageIsUnknown)
 {
     const std::vector<std::uint8_t> text = {'n', 'o', 't', ' ', 'a', 'n', ' ', 'i', 'm', 'g'};
     const std::vector<std::uint8_t> zeros(16, 0x00);
@@ -109,7 +109,7 @@ TEST(Unit_CodecsImageFormat, GarbageIsUnknown)
     EXPECT_EQ(detect_image_format(gif), ImageFormat::Unknown);
 }
 
-TEST(Unit_CodecsImageFormat, SignatureCutShortIsUnknown)
+TEST(Small_CodecsImageFormat, SignatureCutShortIsUnknown)
 {
     const std::vector<std::uint8_t> jpeg = {0xFF, 0xD8, 0xFF};
     const std::vector<std::uint8_t> png = png_signature();
@@ -120,7 +120,7 @@ TEST(Unit_CodecsImageFormat, SignatureCutShortIsUnknown)
     EXPECT_EQ(detect_prefix(raw, 3), ImageFormat::Unknown);
 }
 
-TEST(Unit_CodecsImageFormat, SignatureWithOneByteChangedIsUnknown)
+TEST(Small_CodecsImageFormat, SignatureWithOneByteChangedIsUnknown)
 {
     std::vector<std::uint8_t> png = png_signature();
     png[7] = 0x0B;

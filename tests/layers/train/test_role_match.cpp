@@ -95,7 +95,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a dataset publishing every role as required is accepted. */
-TEST(Unit_RoleMatch, ADatasetThatPublishesEveryRoleIsAccepted)
+TEST(Small_RoleMatch, ADatasetThatPublishesEveryRoleIsAccepted)
 {
     const Published dataset({labels_over(4), boxes_of(8)});
 
@@ -103,7 +103,7 @@ TEST(Unit_RoleMatch, ADatasetThatPublishesEveryRoleIsAccepted)
 }
 
 /** @brief Tests that a step that reads no role accepts a dataset that publishes none. */
-TEST(Unit_RoleMatch, AStepThatReadsNoRoleAcceptsAnyDataset)
+TEST(Small_RoleMatch, AStepThatReadsNoRoleAcceptsAnyDataset)
 {
     const Published empty(std::vector<TargetDescription>{});
     const Published labelled({labels_over(4)});
@@ -113,7 +113,7 @@ TEST(Unit_RoleMatch, AStepThatReadsNoRoleAcceptsAnyDataset)
 }
 
 /** @brief Tests that a missing role is named with the dataset and the roles it publishes. */
-TEST(Unit_RoleMatch, AMissingRoleIsNamedWithTheDatasetAndWhatItPublishes)
+TEST(Small_RoleMatch, AMissingRoleIsNamedWithTheDatasetAndWhatItPublishes)
 {
     const Published dataset({labels_over(4)});
     const Published empty(std::vector<TargetDescription>{});
@@ -126,7 +126,7 @@ TEST(Unit_RoleMatch, AMissingRoleIsNamedWithTheDatasetAndWhatItPublishes)
 }
 
 /** @brief Tests that a role of another per-sample shape is refused with both shapes. */
-TEST(Unit_RoleMatch, AnotherShapeIsRefusedWithBothShapes)
+TEST(Small_RoleMatch, AnotherShapeIsRefusedWithBothShapes)
 {
     const Published dataset({boxes_of(16)});
 
@@ -136,7 +136,7 @@ TEST(Unit_RoleMatch, AnotherShapeIsRefusedWithBothShapes)
 }
 
 /** @brief Tests that a role of another element type is refused with both type names. */
-TEST(Unit_RoleMatch, AnotherElementTypeIsRefusedWithBothTypes)
+TEST(Small_RoleMatch, AnotherElementTypeIsRefusedWithBothTypes)
 {
     TargetDescription as_real = labels_over(4);
     as_real.dtype = DType::Float32;
@@ -148,7 +148,7 @@ TEST(Unit_RoleMatch, AnotherElementTypeIsRefusedWithBothTypes)
 }
 
 /** @brief Tests that a role over another class count is refused with both counts. */
-TEST(Unit_RoleMatch, AnotherClassCountIsRefusedWithBothCounts)
+TEST(Small_RoleMatch, AnotherClassCountIsRefusedWithBothCounts)
 {
     const Published dataset({labels_over(5)});
 
@@ -158,7 +158,7 @@ TEST(Unit_RoleMatch, AnotherClassCountIsRefusedWithBothCounts)
 }
 
 /** @brief Tests that a required class count of 0 accepts whatever count is published. */
-TEST(Unit_RoleMatch, ARequiredClassCountOfZeroAcceptsAnyCount)
+TEST(Small_RoleMatch, ARequiredClassCountOfZeroAcceptsAnyCount)
 {
     const Published dataset({labels_over(5)});
 
@@ -166,7 +166,7 @@ TEST(Unit_RoleMatch, ARequiredClassCountOfZeroAcceptsAnyCount)
 }
 
 /** @brief Tests that the first role that does not match is the one reported. */
-TEST(Unit_RoleMatch, TheFirstRoleThatDoesNotMatchIsReported)
+TEST(Small_RoleMatch, TheFirstRoleThatDoesNotMatchIsReported)
 {
     const Published dataset({labels_over(5)});
 

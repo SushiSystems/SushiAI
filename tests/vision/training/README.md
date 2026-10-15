@@ -4,7 +4,7 @@ The tests of the module `vision/training`, one file per header of `modules/visio
 
 ## test_anchor_objective.cpp
 
-Suites: `Unit_AnchorObjective`.
+Suites: `Small_AnchorObjective`.
 
 Tests `AnchorObjective` of the vision training module over a 64-pixel network, a batch of 2
 and two classes. Most cases use two heads, "head.0" on a 4x4 grid and "head.1" on a 2x2 grid,
@@ -71,7 +71,7 @@ box weight of -1 fails with `InvalidDescription`.
 
 ## test_anchor_objective_factory.cpp
 
-Suites: `Unit_AnchorObjectiveFactory`.
+Suites: `Small_AnchorObjectiveFactory`.
 
 Tests `build_anchor_objective` and `make_anchor_objective` in
 `modules/vision/training/include/SushiAI/vision/training/anchor_objective_factory.hpp`. The
@@ -129,7 +129,7 @@ A section with the key `label_smoothing` fails with `InvalidDescription`, "objec
 
 ## test_anchor_training_loop.cpp
 
-Suites: `Unit_AnchorTrainingLoop`.
+Suites: `Medium_AnchorTrainingLoop`.
 
 Tests `run_anchor_training` in
 `modules/vision/training/include/SushiAI/vision/training/anchor_training_loop.hpp` and
@@ -197,7 +197,7 @@ whose message holds "stop here", and the optimizer's step count is 1.
 
 ## test_head_delta_loss.cpp
 
-Suites: `Unit_HeadDeltaLoss`.
+Suites: `Medium_HeadDeltaLoss`.
 
 Tests the IR that `emit_head_delta_loss` of the vision training module emits over a head
 parameter and a delta input of the same shape, [2, 3, 3, 7] in this file, with the scale 0.25.
@@ -228,7 +228,7 @@ A delta of the shape [2, 3, 3, 6] throws an error naming "MUL needs equally shap
 A `Float64` delta against a `Float32` head throws an error naming
 "MUL needs operands of one element type", "float32" and "float64", and adds no node.
 
-Suites: `Integration_HeadDeltaLoss`, in `sushiai_vision_training_tests`.
+Suites: `Medium_HeadDeltaLossEndToEnd`, in `sushiai_vision_training_tests`.
 
 The graph holds a `[2, 3, 3, 7]` float32 parameter, the head, and an input leaf of the same shape,
 the delta. `emit_head_delta_loss` joins them with a scale of 0.5, and the loss is differentiated at
@@ -246,7 +246,7 @@ The loss is one value and equals `-0.5 * sum(delta * head)`, summed in double on
 
 ## test_pixel_targets.cpp
 
-Suites: `Unit_VisionTrainingPixelTargets`.
+Suites: `Medium_VisionTrainingPixelTargets`.
 
 Tests `validate_pixel_labels` in
 `modules/vision/training/include/SushiAI/vision/training/pixel_labels.hpp`,
@@ -296,7 +296,7 @@ Afterwards `score_indices` and `class_indices` still hold -7, and `kept` and `cl
 
 ## test_segmentation_metrics.cpp
 
-Suites: `Unit_VisionTrainingSegmentationMetrics`.
+Suites: `Medium_VisionTrainingSegmentationMetrics`.
 
 Tests `measure_segmentation` in
 `modules/vision/training/include/SushiAI/vision/training/segmentation_metrics.hpp`. The
@@ -318,11 +318,11 @@ logits of 3 ("the logits"). No metric is reported by the four calls.
 
 ## test_truth_from_roles.cpp
 
-Suites: `Unit_TruthRoles`, `Unit_TruthFromRoles`.
+Suites: `Small_TruthRoles`, `Medium_TruthFromRoles`.
 
 Tests `describe_truth_roles` and `truth_from_roles` in
 `modules/vision/training/include/SushiAI/vision/training/truth_from_roles.hpp`. The
-`Unit_TruthFromRoles` fixture is an `EngineTest`. Its batch holds two images of three slots
+`Medium_TruthFromRoles` fixture is an `EngineTest`. Its batch holds two images of three slots
 over 5 classes: the slots 0, 2 and 5 are in use with the classes 4, 2 and 1, and the padding
 slots hold zeros.
 
@@ -382,7 +382,7 @@ flag of NaN fails with `InvalidDescription`, "'valid'" and "slot 1 of image 1".
 
 ## test_anchor_training_step.cpp
 
-Suites: `Integration_AnchorTrainingStep`, in `sushiai_vision_training_tests`.
+Suites: `Medium_AnchorTrainingStep`, in `sushiai_vision_training_tests`.
 
 The model reads `[8, 8, 3]` images through two normalised stride-2 convolutions of 8 channels, each
 followed by a LeakyReLU of 0.1 and a 1x1 head convolution of 14 channels. It publishes `head.0` on a
@@ -450,7 +450,7 @@ the work is not called and the run count stays 0.
 
 ## test_pixel_cross_entropy_objective.cpp
 
-Suites: `Integration_SegmentOverfit`, in `sushiai_vision_training_tests`.
+Suites: `Medium_SegmentOverfit`, in `sushiai_vision_training_tests`.
 
 The model, `TinySegmenter`, is a 3x3 convolution of stride 2, a second 3x3 convolution and a
 `SegmentHead` that upsamples by 2, all 8 channels wide, over two classes. The dataset is one batch

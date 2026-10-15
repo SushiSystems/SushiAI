@@ -67,7 +67,7 @@ namespace
     constexpr std::int32_t K_UNTOUCHED = -7;
 
     /** @brief Provides an engine, [N, T] labels and the [N * T] leaf they fill. */
-    class Unit_LanguageTrainingNextTokenTargets : public SaTest::EngineTest
+    class Medium_LanguageTrainingNextTokenTargets : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns an INT32 tensor of @p shape holding @p values. */
@@ -101,7 +101,7 @@ namespace
 } // namespace
 
 /** @brief Tests that position r of label l becomes r * V + l, row after row. */
-TEST_F(Unit_LanguageTrainingNextTokenTargets, APositionIndexesItsLabelAmongEveryScore)
+TEST_F(Medium_LanguageTrainingNextTokenTargets, APositionIndexesItsLabelAmongEveryScore)
 {
     const SushiBLAS::Tensor labels = make_ids(Shape{K_BATCH, K_LENGTH}, {4, 0, 2, 1, 1, 3});
     SushiBLAS::Tensor targets = make_leaf();
@@ -112,7 +112,7 @@ TEST_F(Unit_LanguageTrainingNextTokenTargets, APositionIndexesItsLabelAmongEvery
 }
 
 /** @brief Tests that a label outside the vocabulary is refused and the leaf is left alone. */
-TEST_F(Unit_LanguageTrainingNextTokenTargets, ALabelOutsideTheVocabularyIsRefused)
+TEST_F(Medium_LanguageTrainingNextTokenTargets, ALabelOutsideTheVocabularyIsRefused)
 {
     SushiBLAS::Tensor targets = make_leaf();
 
@@ -129,7 +129,7 @@ TEST_F(Unit_LanguageTrainingNextTokenTargets, ALabelOutsideTheVocabularyIsRefuse
 }
 
 /** @brief Tests that another count, another element type and an unindexable size are refused. */
-TEST_F(Unit_LanguageTrainingNextTokenTargets, AFillThatDoesNotFitIsRefused)
+TEST_F(Medium_LanguageTrainingNextTokenTargets, AFillThatDoesNotFitIsRefused)
 {
     SushiBLAS::Tensor targets = make_leaf();
 
@@ -152,7 +152,7 @@ TEST_F(Unit_LanguageTrainingNextTokenTargets, AFillThatDoesNotFitIsRefused)
 }
 
 /** @brief Tests that the perplexity is the exponential of the mean loss. */
-TEST(Unit_LanguageTrainingPerplexity, ThePerplexityIsTheExponentialOfTheLoss)
+TEST(Small_LanguageTrainingPerplexity, ThePerplexityIsTheExponentialOfTheLoss)
 {
     // A uniform guess over 64 tokens costs ln(64) nats and has a perplexity of 64.
     constexpr double K_RELATIVE_TOLERANCE = 1e-12;
@@ -164,7 +164,7 @@ TEST(Unit_LanguageTrainingPerplexity, ThePerplexityIsTheExponentialOfTheLoss)
 }
 
 /** @brief Tests that the two metrics are named loss and perplexity and read as bare numbers. */
-TEST(Unit_LanguageTrainingPerplexity, TheMetricsAreTheLossAndThePerplexity)
+TEST(Small_LanguageTrainingPerplexity, TheMetricsAreTheLossAndThePerplexity)
 {
     const std::array<Train::Metric, 2> metrics =
         Language::Training::next_token_metrics(std::log(8.0));

@@ -1,7 +1,7 @@
 # tests/core/autograd/test_provenance.cpp
 
 
-Suites: `Unit_Provenance`.
+Suites: `Small_Provenance`.
 
 Tests the forward origin that differentiation records for every node it appends.
 

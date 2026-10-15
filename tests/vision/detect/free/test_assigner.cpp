@@ -335,7 +335,7 @@ namespace
 }
 
 /** @brief Tests that the one-to-many preset holds the settings the reference run recorded. */
-TEST(Unit_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
+TEST(Medium_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
     const AssignerConfig config =
@@ -352,7 +352,7 @@ TEST(Unit_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
 }
 
 /** @brief Tests that the one-to-one preset keeps seven candidates and then one. */
-TEST(Unit_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
+TEST(Medium_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
     const AssignerConfig config =
@@ -367,7 +367,7 @@ TEST(Unit_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
 }
 
 /** @brief Tests that stride_val is the second stride, or the only one of a one-level model. */
-TEST(Unit_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
+TEST(Medium_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
 {
     const std::vector<float> two{4.0f, 12.0f};
     const std::vector<float> one{4.0f};
@@ -384,7 +384,7 @@ TEST(Unit_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
 }
 
 /** @brief Tests that the member defaults are the defaults of the reference's constructor. */
-TEST(Unit_DetectAssigner, ConfigDefaultsMatchTheReferenceConstructor)
+TEST(Medium_DetectAssigner, ConfigDefaultsMatchTheReferenceConstructor)
 {
     const AssignerConfig config;
 
@@ -399,7 +399,7 @@ TEST(Unit_DetectAssigner, ConfigDefaultsMatchTheReferenceConstructor)
 }
 
 /** @brief Tests that a config with no candidates, a negative stride_val or eps is refused. */
-TEST(Unit_DetectAssigner, RejectsAConfigWithoutCandidatesOrWithANegativeMargin)
+TEST(Medium_DetectAssigner, RejectsAConfigWithoutCandidatesOrWithANegativeMargin)
 {
     const AssignerConfig no_candidates = make_hand_config(0, 3);
     AssignerConfig negative_stride = make_hand_config(3, 3);
@@ -413,7 +413,7 @@ TEST(Unit_DetectAssigner, RejectsAConfigWithoutCandidatesOrWithANegativeMargin)
 }
 
 /** @brief Tests that the metric is the score to the power alpha times the overlap to beta. */
-TEST(Unit_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
+TEST(Medium_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
 {
     const std::vector<float> whole{0.0f, 0.0f, 32.0f, 32.0f};
     const std::vector<float> strides{K_GRID_STRIDE};
@@ -453,7 +453,7 @@ TEST(Unit_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
 }
 
 /** @brief Tests that target scores are scaled by the largest overlap of their box. */
-TEST(Unit_DetectAssigner, NormalisesByTheLargestOverlapOfTheBox)
+TEST(Medium_DetectAssigner, NormalisesByTheLargestOverlapOfTheBox)
 {
     const std::vector<float> truth{0.0f, 0.0f, 16.0f, 16.0f};
     const std::vector<float> offset{8.0f, 8.0f, 24.0f, 24.0f};
@@ -478,7 +478,7 @@ TEST(Unit_DetectAssigner, NormalisesByTheLargestOverlapOfTheBox)
 }
 
 /** @brief Tests that a prediction apart from its box has a zero overlap, metric and score. */
-TEST(Unit_DetectAssigner, APredictionApartFromItsBoxHasNoOverlap)
+TEST(Medium_DetectAssigner, APredictionApartFromItsBoxHasNoOverlap)
 {
     const std::vector<float> truth{0.0f, 0.0f, 16.0f, 16.0f};
     Scene scene(0.9f);
@@ -503,7 +503,7 @@ TEST(Unit_DetectAssigner, APredictionApartFromItsBoxHasNoOverlap)
 }
 
 /** @brief Tests that an anchor two boxes overlap equally goes to the first of them. */
-TEST(Unit_DetectAssigner, AContestedAnchorOfEqualOverlapsGoesToTheFirstBox)
+TEST(Medium_DetectAssigner, AContestedAnchorOfEqualOverlapsGoesToTheFirstBox)
 {
     const std::vector<float> truth{0.0f, 0.0f, 16.0f, 16.0f};
     Scene scene(0.5f);
@@ -523,7 +523,7 @@ TEST(Unit_DetectAssigner, AContestedAnchorOfEqualOverlapsGoesToTheFirstBox)
 }
 
 /** @brief Tests that a contested anchor goes to the box of largest overlap that did not keep it. */
-TEST(Unit_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
+TEST(Medium_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
 {
     const std::vector<float> third{8.0f, 0.0f, 24.0f, 16.0f};
     Scene scene(0.0f);
@@ -553,7 +553,7 @@ TEST(Unit_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
 }
 
 /** @brief Tests that a batch without ground truth gets no foreground and the idle label. */
-TEST(Unit_DetectAssigner, AnImageWithoutGroundTruthGetsNoForeground)
+TEST(Medium_DetectAssigner, AnImageWithoutGroundTruthGetsNoForeground)
 {
     const Scene scene(0.5f);
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -572,7 +572,7 @@ TEST(Unit_DetectAssigner, AnImageWithoutGroundTruthGetsNoForeground)
 }
 
 /** @brief Tests that a padding row assigns nothing, even over anchors it would contain. */
-TEST(Unit_DetectAssigner, APaddingRowAssignsNothing)
+TEST(Medium_DetectAssigner, APaddingRowAssignsNothing)
 {
     Scene scene = make_crowded_scene();
     scene.gt_valid[0] = 0;
@@ -586,7 +586,7 @@ TEST(Unit_DetectAssigner, APaddingRowAssignsNothing)
 }
 
 /** @brief Tests that a box holding sixteen candidates keeps the topk with the largest metric. */
-TEST(Unit_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
+TEST(Medium_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -605,7 +605,7 @@ TEST(Unit_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
 }
 
 /** @brief Tests that a second top-k of one leaves a box its single best anchor. */
-TEST(Unit_DetectAssigner, TheSecondTopKKeepsTheBestAnchorOfABox)
+TEST(Medium_DetectAssigner, TheSecondTopKKeepsTheBestAnchorOfABox)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 1));
@@ -617,7 +617,7 @@ TEST(Unit_DetectAssigner, TheSecondTopKKeepsTheBestAnchorOfABox)
 }
 
 /** @brief Tests that an anchor two boxes select goes to the box its prediction overlaps more. */
-TEST(Unit_DetectAssigner, AContestedAnchorGoesToTheHigherOverlap)
+TEST(Medium_DetectAssigner, AContestedAnchorGoesToTheHigherOverlap)
 {
     const std::vector<float> first{0.0f, 0.0f, 16.0f, 16.0f};
     const std::vector<float> second{8.0f, 8.0f, 24.0f, 24.0f};
@@ -642,7 +642,7 @@ TEST(Unit_DetectAssigner, AContestedAnchorGoesToTheHigherOverlap)
 }
 
 /** @brief Tests that the contested anchor goes to the first box when it overlaps that one more. */
-TEST(Unit_DetectAssigner, AContestedAnchorCanGoToTheFirstBox)
+TEST(Medium_DetectAssigner, AContestedAnchorCanGoToTheFirstBox)
 {
     const std::vector<float> first{0.0f, 0.0f, 16.0f, 16.0f};
     const std::vector<float> second{8.0f, 8.0f, 24.0f, 24.0f};
@@ -659,7 +659,7 @@ TEST(Unit_DetectAssigner, AContestedAnchorCanGoToTheFirstBox)
 }
 
 /** @brief Tests that a box smaller than stride_val is enlarged before anchors are tested. */
-TEST(Unit_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
+TEST(Medium_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
 {
     const std::vector<float> small{13.0f, 13.0f, 15.0f, 15.0f};
     Scene scene(0.5f);
@@ -684,7 +684,7 @@ TEST(Unit_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
 }
 
 /** @brief Tests that each image of a batch is assigned from its own predictions and boxes. */
-TEST(Unit_DetectAssigner, AssignsEachImageFromItsOwnRows)
+TEST(Medium_DetectAssigner, AssignsEachImageFromItsOwnRows)
 {
     const Scene crowded = make_crowded_scene();
     Scene empty(0.5f);
@@ -721,7 +721,7 @@ TEST(Unit_DetectAssigner, AssignsEachImageFromItsOwnRows)
 }
 
 /** @brief Tests that fewer anchors than topk, and a class outside the range, are refused. */
-TEST(Unit_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
+TEST(Medium_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
 {
     Scene scene = make_crowded_scene();
     Assignment assignment;
@@ -734,7 +734,7 @@ TEST(Unit_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
 }
 
 /** @brief Tests that label rows are padded per image and converted to pixel corners. */
-TEST(Unit_DetectGroundTruth, PadsLabelRowsPerImage)
+TEST(Medium_DetectGroundTruth, PadsLabelRowsPerImage)
 {
     const std::vector<std::int64_t> images{0, 0, 2};
     const std::vector<std::int64_t> classes{3, 1, 7};
@@ -754,7 +754,7 @@ TEST(Unit_DetectGroundTruth, PadsLabelRowsPerImage)
 }
 
 /** @brief Tests that a row whose pixel corners do not sum above zero is padded in as invalid. */
-TEST(Unit_DetectGroundTruth, MarksARowWithoutExtentInvalid)
+TEST(Medium_DetectGroundTruth, MarksARowWithoutExtentInvalid)
 {
     const std::vector<std::int64_t> images{0, 0};
     const std::vector<std::int64_t> classes{4, 5};
@@ -768,7 +768,7 @@ TEST(Unit_DetectGroundTruth, MarksARowWithoutExtentInvalid)
 }
 
 /** @brief Tests that a batch without label rows is padded to no box rows at all. */
-TEST(Unit_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
+TEST(Medium_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
 {
     const std::vector<std::int64_t> none;
     const std::vector<float> no_boxes;
@@ -783,7 +783,7 @@ TEST(Unit_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
 }
 
 /** @brief Tests that a label row naming an image outside the batch is refused. */
-TEST(Unit_DetectGroundTruth, RejectsARowOutsideTheBatch)
+TEST(Medium_DetectGroundTruth, RejectsARowOutsideTheBatch)
 {
     const std::vector<std::int64_t> images{3};
     const std::vector<std::int64_t> classes{0};
@@ -796,7 +796,7 @@ TEST(Unit_DetectGroundTruth, RejectsARowOutsideTheBatch)
 }
 
 /** @brief Tests that the leaves carry the mask, the weights and the scaled targets of a row. */
-TEST(Unit_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
+TEST(Small_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -834,7 +834,7 @@ TEST(Unit_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
 }
 
 /** @brief Tests that a row reads the point and the stride of its own anchor in a later image. */
-TEST(Unit_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
+TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
 {
     const std::vector<FeatureLevel> levels{{2, 2, 8.0f}, {1, 1, 16.0f}};
     std::vector<float> points(10);
@@ -880,7 +880,7 @@ TEST(Unit_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
 }
 
 /** @brief Tests that an unassigned row carries the safe box and zero in every weighting leaf. */
-TEST(Unit_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
+TEST(Small_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
 {
     const Scene scene = make_crowded_scene();
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -914,7 +914,7 @@ TEST(Unit_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
 }
 
 /** @brief Tests that the sum of target scores is clamped to 1 when nothing is assigned. */
-TEST(Unit_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
+TEST(Small_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
 {
     const Scene scene(0.5f);
     TaskAlignedAssigner assigner(make_hand_config(3, 3));
@@ -933,7 +933,7 @@ TEST(Unit_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
 }
 
 /** @brief Tests that padding the reference labels gives the boxes its assignment targets hold. */
-TEST(Unit_DetectGroundTruth, PadsTheReferenceLabelsToItsTargetBoxes)
+TEST(Medium_DetectGroundTruth, PadsTheReferenceLabelsToItsTargetBoxes)
 {
     SA_OPEN_REFERENCE_OR_SKIP(loss, "yolo26/loss.sacp");
     SA_READ_REFERENCE_OR_FAIL(target_boxes, loss, "one2many.assignment.target_boxes");
@@ -961,7 +961,7 @@ TEST(Unit_DetectGroundTruth, PadsTheReferenceLabelsToItsTargetBoxes)
 }
 
 /** @brief Tests that the one-to-many assigner reproduces the reference's assignment outputs. */
-TEST(Unit_DetectAssigner, ReproducesTheReferenceOneToManyAssignment)
+TEST(Medium_DetectAssigner, ReproducesTheReferenceOneToManyAssignment)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
 
@@ -971,7 +971,7 @@ TEST(Unit_DetectAssigner, ReproducesTheReferenceOneToManyAssignment)
 }
 
 /** @brief Tests that the one-to-one assigner reproduces the reference's assignment outputs. */
-TEST(Unit_DetectAssigner, ReproducesTheReferenceOneToOneAssignment)
+TEST(Medium_DetectAssigner, ReproducesTheReferenceOneToOneAssignment)
 {
     const std::vector<float> strides{8.0f, 16.0f, 32.0f};
 

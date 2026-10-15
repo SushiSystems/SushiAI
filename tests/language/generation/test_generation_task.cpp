@@ -51,7 +51,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a section with every key is read as it is stated. */
-TEST(Unit_GenerationTask, EveryKeyIsRead)
+TEST(Small_GenerationTask, EveryKeyIsRead)
 {
     SA_ASSERT_OK_AND_ASSIGN(const GenerationTask task, task_of(R"({
         "type": "next_token_generation", "vocabulary": "vocab.savb", "window": 256,
@@ -67,7 +67,7 @@ TEST(Unit_GenerationTask, EveryKeyIsRead)
 }
 
 /** @brief Tests that the optional keys have their defaults: 64 tokens, seed 0, greedy. */
-TEST(Unit_GenerationTask, TheOptionalKeysHaveDefaults)
+TEST(Small_GenerationTask, TheOptionalKeysHaveDefaults)
 {
     SA_ASSERT_OK_AND_ASSIGN(const GenerationTask task, task_of(R"({
         "type": "next_token_generation", "vocabulary": "vocab.savb", "window": 8
@@ -80,7 +80,7 @@ TEST(Unit_GenerationTask, TheOptionalKeysHaveDefaults)
 }
 
 /** @brief Tests that an absent, an unknown and an out-of-range key are each refused. */
-TEST(Unit_GenerationTask, AKeyThatDoesNotFitIsRefused)
+TEST(Small_GenerationTask, AKeyThatDoesNotFitIsRefused)
 {
     SA_EXPECT_FAILURE(task_of(R"({"type": "anchor_detection", "vocabulary": "v", "window": 8})"),
                       StatusCode::InvalidDescription, "'anchor_detection'",
@@ -108,7 +108,7 @@ TEST(Unit_GenerationTask, AKeyThatDoesNotFitIsRefused)
 }
 
 /** @brief Tests that "cache" is read as stated and is true when the section leaves it out. */
-TEST(Unit_GenerationTask, TheCacheIsReadAndDefaultsToTrue)
+TEST(Small_GenerationTask, TheCacheIsReadAndDefaultsToTrue)
 {
     SA_ASSERT_OK_AND_ASSIGN(const GenerationTask absent, task_of(R"({
         "type": "next_token_generation", "vocabulary": "vocab.savb", "window": 8
@@ -129,7 +129,7 @@ TEST(Unit_GenerationTask, TheCacheIsReadAndDefaultsToTrue)
 }
 
 /** @brief Tests that a "cache" that is neither true nor false is refused by its key. */
-TEST(Unit_GenerationTask, ACacheThatIsNoFlagIsRefused)
+TEST(Small_GenerationTask, ACacheThatIsNoFlagIsRefused)
 {
     SA_EXPECT_FAILURE(task_of(R"({"type": "next_token_generation", "vocabulary": "v",
                                   "window": 8, "cache": 1})"),

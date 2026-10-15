@@ -66,7 +66,7 @@ namespace
 } // namespace
 
 /** @brief Tests the names of a member and of a list entry, and a quoted list. */
-TEST(Unit_SectionReader, NamesAMemberAnEntryAndAList)
+TEST(Small_SectionReader, NamesAMemberAnEntryAndAList)
 {
     EXPECT_EQ(Config::member_of("schedule", "steps"), "schedule 'steps'");
     EXPECT_EQ(Config::entry_of("schedule 'steps'", 2), "schedule 'steps' entry 2");
@@ -78,7 +78,7 @@ TEST(Unit_SectionReader, NamesAMemberAnEntryAndAList)
 }
 
 /** @brief Tests that an object passes and that anything else is refused with its kind. */
-TEST(Unit_SectionReader, CheckObjectRefusesAnotherKind)
+TEST(Small_SectionReader, CheckObjectRefusesAnotherKind)
 {
     const Value object = section_from("{}");
     const Value text = section_from(R"("step")");
@@ -90,7 +90,7 @@ TEST(Unit_SectionReader, CheckObjectRefusesAnotherKind)
 }
 
 /** @brief Tests that a key outside the list is refused with the key and the list. */
-TEST(Unit_SectionReader, CheckKeysNamesTheKeyAndListsWhatIsAccepted)
+TEST(Small_SectionReader, CheckKeysNamesTheKeyAndListsWhatIsAccepted)
 {
     const Value good = section_from(R"({"steps": [], "type": "step"})");
     const Value bad = section_from(R"({"base_rate": 0.1, "gamma": 2})");
@@ -103,7 +103,7 @@ TEST(Unit_SectionReader, CheckKeysNamesTheKeyAndListsWhatIsAccepted)
 }
 
 /** @brief Tests the type key: absent passes, another string and another kind are refused. */
-TEST(Unit_SectionReader, CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType)
+TEST(Small_SectionReader, CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType)
 {
     const Value absent = section_from(R"({"base_rate": 0.1})");
     const Value same = section_from(R"({"type": "step"})");
@@ -123,7 +123,7 @@ TEST(Unit_SectionReader, CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType)
 }
 
 /** @brief Tests that find() returns a member and names an absent key. */
-TEST(Unit_SectionReader, FindReturnsTheMemberOrNamesTheAbsentKey)
+TEST(Small_SectionReader, FindReturnsTheMemberOrNamesTheAbsentKey)
 {
     const Value section = section_from(R"({"base_rate": 0.5})");
     const SectionReader reader(section, K_WHERE);
@@ -137,7 +137,7 @@ TEST(Unit_SectionReader, FindReturnsTheMemberOrNamesTheAbsentKey)
 }
 
 /** @brief Tests that find_of() checks the kind and names both the kind asked and found. */
-TEST(Unit_SectionReader, FindOfChecksTheKind)
+TEST(Small_SectionReader, FindOfChecksTheKind)
 {
     const Value section = section_from(R"({"steps": 3})");
     const SectionReader reader(section, K_WHERE);
@@ -150,7 +150,7 @@ TEST(Unit_SectionReader, FindOfChecksTheKind)
 }
 
 /** @brief Tests the number readers: a whole number widens to a real and not the reverse. */
-TEST(Unit_SectionReader, TheNumberReadersCheckTheKind)
+TEST(Small_SectionReader, TheNumberReadersCheckTheKind)
 {
     const Value whole = section_from("7");
     const Value real = section_from("0.25");
@@ -171,7 +171,7 @@ TEST(Unit_SectionReader, TheNumberReadersCheckTheKind)
 }
 
 /** @brief Tests that a number float32 cannot hold as a finite value is refused. */
-TEST(Unit_SectionReader, ReadFloat32RefusesWhatFloat32CannotHold)
+TEST(Small_SectionReader, ReadFloat32RefusesWhatFloat32CannotHold)
 {
     const Value fits = section_from("0.5");
     const Value wide = section_from("1e39");
@@ -186,7 +186,7 @@ TEST(Unit_SectionReader, ReadFloat32RefusesWhatFloat32CannotHold)
 }
 
 /** @brief Tests the string and the array readers and the kind each refuses. */
-TEST(Unit_SectionReader, TheStringAndArrayReadersCheckTheKind)
+TEST(Small_SectionReader, TheStringAndArrayReadersCheckTheKind)
 {
     const Value text = section_from(R"("step")");
     const Value list = section_from("[1, 2, 3]");

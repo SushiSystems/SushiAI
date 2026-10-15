@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_count.cpp
 
 
-Suites: `Unit_DetectAnchorCount`.
+Suites: `Small_DetectAnchorCount`.
 
 Tests `choose_anchor_count`, which clusters to one more anchor per head until the gain in mean
 best IoU falls below `min_gain`. The file uses three box sets: a ladder of six sizes with 400

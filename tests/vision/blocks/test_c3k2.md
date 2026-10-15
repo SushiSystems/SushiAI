@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_c3k2.cpp
 
 
-Suites: `Unit_BlockC3k2`.
+Suites: `Small_BlockC3k2`.
 
 Tests C3k2's trace, its state names against YOLO26n rows 2 and 6, and its factories.
 

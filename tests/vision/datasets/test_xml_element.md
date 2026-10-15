@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_xml_element.cpp
 
 
-Suites: `Unit_DatasetsXmlElement`.
+Suites: `Small_DatasetsXmlElement`.
 
 Tests `parse_xml` and `XMLElement` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/xml_element.hpp` over strings.

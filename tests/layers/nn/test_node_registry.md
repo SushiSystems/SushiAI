@@ -1,7 +1,7 @@
 # tests/layers/nn/test_node_registry.cpp
 
 
-Suites: `Unit_NodeRegistry`.
+Suites: `Small_NodeRegistry`.
 
 Tests `NN::NodeRegistry`, `NN::register_layers`, `NN::make_node` and `NN::build_model` over
 the rows `register_layers` adds. The file needs no device. `make_node` looks a type up among

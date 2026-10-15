@@ -161,7 +161,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_Status, DefaultIsSuccessWithNoMessage)
+TEST(Small_Status, DefaultIsSuccessWithNoMessage)
 {
     const Status status;
     EXPECT_TRUE(status.is_ok());
@@ -170,7 +170,7 @@ TEST(Unit_Status, DefaultIsSuccessWithNoMessage)
     SA_EXPECT_OK(status);
 }
 
-TEST(Unit_Status, EveryCodeHasALowerCaseName)
+TEST(Small_Status, EveryCodeHasALowerCaseName)
 {
     using SushiAI::status_code_name;
     EXPECT_STREQ(status_code_name(StatusCode::Ok), "ok");
@@ -184,7 +184,7 @@ TEST(Unit_Status, EveryCodeHasALowerCaseName)
     EXPECT_STREQ(status_code_name(static_cast<StatusCode>(200)), "unknown");
 }
 
-TEST(Unit_Status, FromMessageCarriesTheCodeAndTheText)
+TEST(Small_Status, FromMessageCarriesTheCodeAndTheText)
 {
     const Status status = failure_of(StatusCode::InvalidFile, "the header is 3 bytes short");
     EXPECT_FALSE(status.is_ok());
@@ -193,7 +193,7 @@ TEST(Unit_Status, FromMessageCarriesTheCodeAndTheText)
 }
 
 // The failure block is a Status's only allocation, so an unchanged block count means none.
-TEST(Unit_Status, SuccessPathCreatesNoFailureBlock)
+TEST(Small_Status, SuccessPathCreatesNoFailureBlock)
 {
     const std::size_t before = live_failure_count();
     int composed = 0;
@@ -217,7 +217,7 @@ TEST(Unit_Status, SuccessPathCreatesNoFailureBlock)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Status, FailIfFormatsOnlyWhenTheConditionHolds)
+TEST(Small_Status, FailIfFormatsOnlyWhenTheConditionHolds)
 {
     const std::size_t before = live_failure_count();
     int evaluations = 0;
@@ -232,7 +232,7 @@ TEST(Unit_Status, FailIfFormatsOnlyWhenTheConditionHolds)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
+TEST(Small_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
 {
     const std::size_t before = live_failure_count();
 
@@ -251,7 +251,7 @@ TEST(Unit_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Status, MovedFromStatusKeepsItsFailure)
+TEST(Small_Status, MovedFromStatusKeepsItsFailure)
 {
     Status source = failure_of(StatusCode::Unsupported, "no kernel for int64");
     const Status constructed(std::move(source));
@@ -263,7 +263,7 @@ TEST(Unit_Status, MovedFromStatusKeepsItsFailure)
     SA_EXPECT_FAILURE(assigned, StatusCode::Unsupported, "no kernel for int64");
 }
 
-TEST(Unit_Status, AssignmentReplacesTheHeldFailure)
+TEST(Small_Status, AssignmentReplacesTheHeldFailure)
 {
     const std::size_t before = live_failure_count();
 
@@ -281,7 +281,7 @@ TEST(Unit_Status, AssignmentReplacesTheHeldFailure)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Status, AnnotatedPrefixesTheMessageAndKeepsTheCode)
+TEST(Small_Status, AnnotatedPrefixesTheMessageAndKeepsTheCode)
 {
     const Status inner = failure_of(StatusCode::InvalidDescription, "stride must be positive");
     const Status outer = SA_ANNOTATE(inner, "Conv2d({}, {})", 3, 16);
@@ -291,7 +291,7 @@ TEST(Unit_Status, AnnotatedPrefixesTheMessageAndKeepsTheCode)
     EXPECT_EQ(inner.message(), "stride must be positive");
 }
 
-TEST(Unit_Status, ThrowingComposerYieldsTheStaticOutOfMemoryFailure)
+TEST(Small_Status, ThrowingComposerYieldsTheStaticOutOfMemoryFailure)
 {
     const std::size_t before = live_failure_count();
 
@@ -304,7 +304,7 @@ TEST(Unit_Status, ThrowingComposerYieldsTheStaticOutOfMemoryFailure)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Unit_Status, ThrowingAnnotationKeepsTheOriginalFailure)
+TEST(Small_Status, ThrowingAnnotationKeepsTheOriginalFailure)
 {
     const Status inner = failure_of(StatusCode::InvalidFile, "wrong magic");
     const Status outer = inner.annotated([]() -> std::string
@@ -316,7 +316,7 @@ TEST(Unit_Status, ThrowingAnnotationKeepsTheOriginalFailure)
     EXPECT_EQ(outer.message(), "wrong magic");
 }
 
-TEST(Unit_Status, TryForwardsAFailureAndPassesASuccess)
+TEST(Small_Status, TryForwardsAFailureAndPassesASuccess)
 {
     int evaluations = 0;
     bool reached_end = false;
@@ -329,13 +329,13 @@ TEST(Unit_Status, TryForwardsAFailureAndPassesASuccess)
     EXPECT_TRUE(reached_end);
 }
 
-TEST(Unit_Status, FromMessageWithTheOkCodeIsFatal)
+TEST(Small_Status, FromMessageWithTheOkCodeIsFatal)
 {
     SA_EXPECT_FATAL((void)failure_of(StatusCode::Ok, "nothing failed"),
                     "Status::from_message needs a failure code", "got ok");
 }
 
-TEST(Unit_Status, StatusNamesRejectsSuccessAWrongCodeAndAMissingNeedle)
+TEST(Small_Status, StatusNamesRejectsSuccessAWrongCodeAndAMissingNeedle)
 {
     using SushiAI::Test::status_names;
     const Status status = failure_of(StatusCode::InvalidFile, "wrong magic 0x1F");
@@ -348,7 +348,7 @@ TEST(Unit_Status, StatusNamesRejectsSuccessAWrongCodeAndAMissingNeedle)
     EXPECT_FALSE(SushiAI::Test::status_is_ok(status));
 }
 
-TEST(Unit_Status, DeathPatternEscapesAndJoinsItsNeedles)
+TEST(Small_Status, DeathPatternEscapesAndJoinsItsNeedles)
 {
     using SushiAI::Test::death_pattern;
     EXPECT_EQ(death_pattern({"plain words"}), "plain words");
@@ -357,7 +357,7 @@ TEST(Unit_Status, DeathPatternEscapesAndJoinsItsNeedles)
               "f\\(x\\)\\*2.*\\{\\} \\| \\^\\$ \\+ \\? \\\\");
 }
 
-TEST(Unit_Status, FatalHandlerIsReplacedByARecorderAndRestored)
+TEST(Small_Status, FatalHandlerIsReplacedByARecorderAndRestored)
 {
     fatal_record() = FatalRecord();
 
@@ -376,7 +376,7 @@ TEST(Unit_Status, FatalHandlerIsReplacedByARecorderAndRestored)
     EXPECT_EQ(SushiAI::set_fatal_handler(original), original);
 }
 
-TEST(Unit_Status, NullFatalHandlerInstallsTheDefaultOne)
+TEST(Small_Status, NullFatalHandlerInstallsTheDefaultOne)
 {
     const FatalHandler original = SushiAI::set_fatal_handler(&record_fatal);
     const FatalHandler recorder = SushiAI::set_fatal_handler(nullptr);
@@ -387,14 +387,14 @@ TEST(Unit_Status, NullFatalHandlerInstallsTheDefaultOne)
     EXPECT_NE(standard, &record_fatal);
 }
 
-TEST(Unit_Status, FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse)
+TEST(Small_Status, FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse)
 {
     int evaluations = 0;
     EXPECT_GT(stop_when(false, evaluations, 7), 0);
     EXPECT_EQ(evaluations, 0);
 }
 
-TEST(Unit_Status, FatalIfPrintsTheMessageThenTheFileAndTheLineAndStops)
+TEST(Small_Status, FatalIfPrintsTheMessageThenTheFileAndTheLineAndStops)
 {
     int evaluations = 0;
     const int check_line = stop_when(false, evaluations, 7);
@@ -404,18 +404,18 @@ TEST(Unit_Status, FatalIfPrintsTheMessageThenTheFileAndTheLineAndStops)
                     "sushiai: fatal: extent 7 is refused", place);
 }
 
-TEST(Unit_Status, FatalCheckWhoseComposerThrowsReportsTheFixedMessage)
+TEST(Small_Status, FatalCheckWhoseComposerThrowsReportsTheFixedMessage)
 {
     SA_EXPECT_FATAL(stop_with_throwing_composer(),
                     "sushiai: fatal:", "its message could not be composed", "test_status.cpp:");
 }
 
-TEST(Unit_Status, ReplacedFatalHandlerRunsBeforeTheStop)
+TEST(Small_Status, ReplacedFatalHandlerRunsBeforeTheStop)
 {
     SA_EXPECT_FATAL(stop_under_announcer(), "recorded: stop 3");
 }
 
-TEST(Unit_Status, AssertChecksInDebugBuildsOnly)
+TEST(Small_Status, AssertChecksInDebugBuildsOnly)
 {
 #ifdef NDEBUG
     int evaluations = 0;

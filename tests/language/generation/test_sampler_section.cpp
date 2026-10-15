@@ -54,7 +54,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each type builds the sampler of its name. */
-TEST(Unit_GenerationSamplerSection, EachTypeBuildsItsSampler)
+TEST(Small_GenerationSamplerSection, EachTypeBuildsItsSampler)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Sampler> greedy,
                             sampler_of(R"({"type": "greedy"})"));
@@ -75,7 +75,7 @@ TEST(Unit_GenerationSamplerSection, EachTypeBuildsItsSampler)
 }
 
 /** @brief Tests that an unknown type lists the four and that a required key is asked for. */
-TEST(Unit_GenerationSamplerSection, AnUnknownTypeAndAnAbsentKeyAreRefused)
+TEST(Small_GenerationSamplerSection, AnUnknownTypeAndAnAbsentKeyAreRefused)
 {
     SA_EXPECT_FAILURE(sampler_of(R"({"type": "beam"})"), StatusCode::InvalidDescription,
                       "'beam'", "'greedy', 'temperature', 'top_k', 'nucleus'");
@@ -89,7 +89,7 @@ TEST(Unit_GenerationSamplerSection, AnUnknownTypeAndAnAbsentKeyAreRefused)
 }
 
 /** @brief Tests that a key the type does not read, and a value out of range, are refused. */
-TEST(Unit_GenerationSamplerSection, AKeyTheTypeDoesNotReadIsRefused)
+TEST(Small_GenerationSamplerSection, AKeyTheTypeDoesNotReadIsRefused)
 {
     SA_EXPECT_FAILURE(sampler_of(R"({"type": "greedy", "temperature": 0.5})"),
                       StatusCode::InvalidDescription, "'temperature'", "does not have");

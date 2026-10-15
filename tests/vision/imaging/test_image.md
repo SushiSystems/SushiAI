@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_image.cpp
 
 
-Suites: `Unit_ImagingImage`.
+Suites: `Small_ImagingImage`.
 
 Tests the owned image, the view over foreign pixels and the checks both share.
 
-This file needs no device. `Unit_ImagingImage` covers `modules/vision/imaging/include/SushiAI/vision/imaging/image.hpp`:
+This file needs no device. `Small_ImagingImage` covers `modules/vision/imaging/include/SushiAI/vision/imaging/image.hpp`:
 `ImageSize`, `ImageView`, `Image`, `overlaps` and `check_source`. Pixels are bytes in
 height, width, channel order.
 

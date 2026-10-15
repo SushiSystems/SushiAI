@@ -120,7 +120,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the imported rows and outputs are those of the translation. */
-TEST(Unit_DarknetImport, KeepsTheRowsAndTheOutputsOfTheTranslation)
+TEST(Medium_DarknetImport, KeepsTheRowsAndTheOutputsOfTheTranslation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
@@ -139,7 +139,7 @@ TEST(Unit_DarknetImport, KeepsTheRowsAndTheOutputsOfTheTranslation)
 }
 
 /** @brief Tests that the task section reads back as the classes, anchors and head of the .cfg. */
-TEST(Unit_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
+TEST(Medium_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
@@ -162,7 +162,7 @@ TEST(Unit_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
 }
 
 /** @brief Tests that an import without weights holds no tensor. */
-TEST(Unit_DarknetImport, HoldsNoTensorWithoutWeights)
+TEST(Medium_DarknetImport, HoldsNoTensorWithoutWeights)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
@@ -173,7 +173,7 @@ TEST(Unit_DarknetImport, HoldsNoTensorWithoutWeights)
 }
 
 /** @brief Tests that the tensors carry exactly the names the translation's targets state. */
-TEST(Unit_DarknetImport, NamesEveryTensorAsItsTargetDoes)
+TEST(Medium_DarknetImport, NamesEveryTensorAsItsTargetDoes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     const DarknetWeights weights = make_weights(translated.model.convolutions);
@@ -201,7 +201,7 @@ TEST(Unit_DarknetImport, NamesEveryTensorAsItsTargetDoes)
 }
 
 /** @brief Tests that the recipe and its notes are those of the .cfg's training settings. */
-TEST(Unit_DarknetImport, CarriesTheRecipeAndItsNotes)
+TEST(Medium_DarknetImport, CarriesTheRecipeAndItsNotes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Translated translated, translate_small());
     SA_ASSERT_OK_AND_ASSIGN(const ImportedModel imported,
@@ -214,7 +214,7 @@ TEST(Unit_DarknetImport, CarriesTheRecipeAndItsNotes)
 }
 
 /** @brief Tests that the file importer refuses a call with no file and one with three. */
-TEST(Unit_DarknetImport, AnotherCountOfFilesIsRefused)
+TEST(Medium_DarknetImport, AnotherCountOfFilesIsRefused)
 {
     const std::vector<std::filesystem::path> three = {"a.cfg", "a.weights", "b.weights"};
 
@@ -225,7 +225,7 @@ TEST(Unit_DarknetImport, AnotherCountOfFilesIsRefused)
 }
 
 /** @brief Tests that a .cfg that is not on disk is refused by its path. */
-TEST(Unit_DarknetImport, AMissingCfgIsRefusedByName)
+TEST(Medium_DarknetImport, AMissingCfgIsRefusedByName)
 {
     const std::vector<std::filesystem::path> files = {"sushiai_absent_import.cfg"};
 
@@ -236,7 +236,7 @@ TEST(Unit_DarknetImport, AMissingCfgIsRefusedByName)
 namespace
 {
     /** @brief Runs once per parity model; a case skips when the model's files are missing. */
-    class Integration_DarknetImport : public SaTest::DarknetImportTest {};
+    class Medium_DarknetImportEndToEnd : public SaTest::DarknetImportTest {};
 
     /** @brief Lists the stems of the parity table, one case per forward suite. */
     std::vector<std::string_view> list_stems()
@@ -253,7 +253,7 @@ namespace
  * @brief Tests that the imported model file, without its task, is the text of the translated
  *        model, and that the task reads back as the anchors, the heads and the criterion.
  */
-TEST_P(Integration_DarknetImport, TheImportedRowsAndTaskAreThoseOfTheTranslation)
+TEST_P(Medium_DarknetImportEndToEnd, TheImportedRowsAndTaskAreThoseOfTheTranslation)
 {
     SaTest::check_imported_rows(run);
 }
@@ -262,10 +262,10 @@ TEST_P(Integration_DarknetImport, TheImportedRowsAndTaskAreThoseOfTheTranslation
  * @brief Tests that a state filled from the imported tensors equals, byte for byte, the state
  *        store_darknet_weights fills, and that the tensors supply every entry exactly once.
  */
-TEST_P(Integration_DarknetImport, TheImportedWeightsAreThoseOfTheDirectStore)
+TEST_P(Medium_DarknetImportEndToEnd, TheImportedWeightsAreThoseOfTheDirectStore)
 {
     SaTest::check_imported_weights(*engine, run);
 }
 
-INSTANTIATE_TEST_SUITE_P(ParityModels, Integration_DarknetImport,
+INSTANTIATE_TEST_SUITE_P(ParityModels, Medium_DarknetImportEndToEnd,
                          ::testing::ValuesIn(list_stems()));

@@ -60,7 +60,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_TrainingRun : public SaTest::EngineTest {};
+    class Medium_TrainingRun : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -201,7 +201,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a row runs for its type, the fallback for any other, and neither twice. */
-TEST_F(Integration_TrainingRun, TheRunTablePicksARowOrTheFallback)
+TEST_F(Medium_TrainingRun, TheRunTablePicksARowOrTheFallback)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
     Apps::PreparedRun prepared = prepare(*pieces, *engine);
@@ -227,7 +227,7 @@ TEST_F(Integration_TrainingRun, TheRunTablePicksARowOrTheFallback)
 }
 
 /** @brief Tests that the fallback run trains a classifier: one compile and a falling loss. */
-TEST_F(Integration_TrainingRun, AClassificationRunTrainsThroughTheFallback)
+TEST_F(Medium_TrainingRun, AClassificationRunTrainsThroughTheFallback)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
     Apps::PreparedRun prepared = prepare(*pieces, *engine);

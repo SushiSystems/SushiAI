@@ -1,7 +1,7 @@
 # tests/layers/nn/test_max_pool2d.cpp
 
 
-Suites: `Unit_MaxPool2d`.
+Suites: `Medium_MaxPool2d`.
 
 Tests the 2-D max pooling layer's trace, shape inference and rejections.
 

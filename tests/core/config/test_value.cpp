@@ -59,7 +59,7 @@ namespace
     }
 } // namespace
 
-TEST(Unit_Value, ParsesEveryScalarKind)
+TEST(Small_Value, ParsesEveryScalarKind)
 {
     const Value root = parse_json(
         R"({"a": 1, "b": 2.5, "c": "text", "d": true, "e": null, "f": [1, 2]})", "<test>");
@@ -73,14 +73,14 @@ TEST(Unit_Value, ParsesEveryScalarKind)
     EXPECT_EQ(root.at("f", "<test>").as_array("f").size(), 2u);
 }
 
-TEST(Unit_Value, KeepsTheKeyOrderTheFileSpelled)
+TEST(Small_Value, KeepsTheKeyOrderTheFileSpelled)
 {
     // Key order follows the file; see tests/core/config/README.md.
     const Value root = parse_json(R"({"zebra": 1, "apple": 2, "mango": 3})", "<test>");
     EXPECT_EQ(root.keys(), (std::vector<std::string>{"zebra", "apple", "mango"}));
 }
 
-TEST(Unit_Value, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
+TEST(Small_Value, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
 {
     // An integer widens to a real, never the reverse; see tests/core/config/README.md.
     const Value root = parse_json(R"({"lr": 3, "units": 2.5})", "<test>");
@@ -91,27 +91,27 @@ TEST(Unit_Value, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
                     "'units'", "whole number");
 }
 
-TEST(Unit_Value, AWrongKindNamesBothTheContextAndTheKindFound)
+TEST(Small_Value, AWrongKindNamesBothTheContextAndTheKindFound)
 {
     const Value root = parse_json(R"({"units": "many"})", "<test>");
     SA_EXPECT_ERROR((void)root.at("units", "<test>").as_int("layer 0 'units'"),
                     "layer 0 'units'", "a string");
 }
 
-TEST(Unit_Value, AMissingKeyNamesTheKeyAndListsWhatIsPresent)
+TEST(Small_Value, AMissingKeyNamesTheKeyAndListsWhatIsPresent)
 {
     const Value root = parse_json(R"({"alpha": 1, "beta": 2})", "model.json");
     SA_EXPECT_ERROR((void)root.at("gamma", "model.json"),
                     "model.json", "'gamma'", "'alpha'", "'beta'");
 }
 
-TEST(Unit_Value, ReadingAKeyOffANonObjectSaysWhatItActuallyIs)
+TEST(Small_Value, ReadingAKeyOffANonObjectSaysWhatItActuallyIs)
 {
     const Value root = parse_json(R"([1, 2, 3])", "<test>");
     SA_EXPECT_ERROR((void)root.at("units", "the model"), "the model", "an array");
 }
 
-TEST(Unit_Value, AnUnknownKeyIsAnErrorThatListsWhatIsAllowed)
+TEST(Small_Value, AnUnknownKeyIsAnErrorThatListsWhatIsAllowed)
 {
     const Value root = parse_json(R"({"type": "linear", "unitss": 256})", "model.json");
     const std::string_view keys[] = {"type", "units"};
@@ -120,7 +120,7 @@ TEST(Unit_Value, AnUnknownKeyIsAnErrorThatListsWhatIsAllowed)
                     "layer 0 'linear'", "'unitss'", "'units'", "'type'");
 }
 
-TEST(Unit_Value, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
+TEST(Small_Value, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
 {
     const Value with_keys = parse_json(R"({"type": "linear", "units": 256})", "<test>");
     const std::string_view keys[] = {"type", "units"};
@@ -133,7 +133,7 @@ TEST(Unit_Value, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
                     "layer 1 'gelu'", "'units'");
 }
 
-TEST(Unit_Value, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
+TEST(Small_Value, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
 {
     const Value layer = parse_json(R"({"type": "linear", "units": 256, "use_bias": false})",
                                    "<test>");
@@ -147,7 +147,7 @@ TEST(Unit_Value, WithoutRemovesTheDiscriminatorAndLeavesTheRest)
     EXPECT_EQ(attributes.without("type").keys().size(), 2u);
 }
 
-TEST(Unit_Value, AtOrFallsBackWithoutThrowing)
+TEST(Small_Value, AtOrFallsBackWithoutThrowing)
 {
     const Value root = parse_json(R"({"units": 256})", "<test>");
     const Value fallback = Value::boolean(true);
@@ -160,13 +160,13 @@ TEST(Unit_Value, AtOrFallsBackWithoutThrowing)
     EXPECT_TRUE(not_an_object.at_or("use_bias", fallback).as_bool("use_bias"));
 }
 
-TEST(Unit_Value, MalformedJSONNamesTheOriginAndTheComplaint)
+TEST(Small_Value, MalformedJSONNamesTheOriginAndTheComplaint)
 {
     SA_EXPECT_ERROR((void)parse_json("{ not json", "train.json"),
                     "train.json", "not valid JSON");
 }
 
-TEST(Unit_Value, AnObjectBuiltFromMismatchedVectorsIsRefused)
+TEST(Small_Value, AnObjectBuiltFromMismatchedVectorsIsRefused)
 {
     std::vector<std::string> keys{"a", "b"};
     std::vector<Value> values{Value::integer(1)};

@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_psa_block.cpp
 
 
-Suites: `Unit_BlockPsaBlock`.
+Suites: `Small_BlockPsaBlock`.
 
 Tests `PSABlock` at the width of row 10 of YOLO26n, 128 channels over two heads, traced in
 training mode over a [2, 4, 4, 128] input.

@@ -103,7 +103,7 @@ namespace
 }
 
 /** @brief Tests that a new list is empty and visits nothing. */
-TEST(Unit_ModuleList, ANewListIsEmpty)
+TEST(Small_ModuleList, ANewListIsEmpty)
 {
     ModuleList<Linear> list;
     std::size_t visits = 0;
@@ -115,7 +115,7 @@ TEST(Unit_ModuleList, ANewListIsEmpty)
 }
 
 /** @brief Tests that push_back() appends, so an index returns the child pushed at it. */
-TEST(Unit_ModuleList, PushBackAppendsInOrder)
+TEST(Small_ModuleList, PushBackAppendsInOrder)
 {
     ModuleList<Linear> list;
     list.push_back(Linear{4, 8});
@@ -130,7 +130,7 @@ TEST(Unit_ModuleList, PushBackAppendsInOrder)
 }
 
 /** @brief Tests that begin() and end() span the children in index order. */
-TEST(Unit_ModuleList, IterationFollowsIndexOrder)
+TEST(Small_ModuleList, IterationFollowsIndexOrder)
 {
     ModuleList<Linear> list;
     list.push_back(Linear{4, 8});
@@ -145,7 +145,7 @@ TEST(Unit_ModuleList, IterationFollowsIndexOrder)
 }
 
 /** @brief Tests that visit_children() hands out each child with its index, in index order. */
-TEST(Unit_ModuleList, VisitChildrenPairsEachChildWithItsIndex)
+TEST(Small_ModuleList, VisitChildrenPairsEachChildWithItsIndex)
 {
     ModuleList<Linear> list;
     list.push_back(Linear{4, 8});
@@ -164,7 +164,7 @@ TEST(Unit_ModuleList, VisitChildrenPairsEachChildWithItsIndex)
 }
 
 /** @brief Tests that the walk names the state of a list's children by index. */
-TEST(Unit_ModuleList, TheWalkNamesChildrenByIndex)
+TEST(Small_ModuleList, TheWalkNamesChildrenByIndex)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -185,7 +185,7 @@ TEST(Unit_ModuleList, TheWalkNamesChildrenByIndex)
 }
 
 /** @brief Tests that a list listed as a child field is named by the field, then by index. */
-TEST(Unit_ModuleList, AListUnderAChildFieldIsNamedByFieldThenIndex)
+TEST(Small_ModuleList, AListUnderAChildFieldIsNamedByFieldThenIndex)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -207,7 +207,7 @@ TEST(Unit_ModuleList, AListUnderAChildFieldIsNamedByFieldThenIndex)
 }
 
 /** @brief Tests that the walk names the buffers of a list's children by index. */
-TEST(Unit_ModuleList, TheWalkNamesBuffersByIndex)
+TEST(Small_ModuleList, TheWalkNamesBuffersByIndex)
 {
     ModuleList<Counter> list;
     list.push_back(Counter{});
@@ -228,7 +228,7 @@ TEST(Unit_ModuleList, TheWalkNamesBuffersByIndex)
 }
 
 /** @brief Tests that growing the list past its storage keeps a traced child's identity. */
-TEST(Unit_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
+TEST(Small_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -252,7 +252,7 @@ TEST(Unit_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 }
 
 /** @brief Tests that an index past the end stops the process and names the index and the size. */
-TEST(Unit_ModuleListDeathTest, AnIndexPastTheEndIsFatal)
+TEST(Small_ModuleListDeathTest, AnIndexPastTheEndIsFatal)
 {
     SA_EXPECT_FATAL(read_past_the_end(), "index 2", "holds 2 children");
 }

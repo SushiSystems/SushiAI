@@ -1,7 +1,7 @@
 # tests/core/graph/test_lowering/test_hand_values.cpp
 
 
-Suites: `Integration_Forward`, `Integration_ForwardDeathTest`.
+Suites: `Medium_Forward`, `Medium_ForwardDeathTest`.
 
 Every lowered operation is checked against values worked out by hand. This tier catches a
 transposed gemm, a bias broadcast down the wrong axis, and a log-softmax whose stabilising

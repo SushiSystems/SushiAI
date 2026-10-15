@@ -1,7 +1,7 @@
 # tests/core/autograd/test_backward.cpp
 
 
-Suites: `Unit_Layout`.
+Suites: `Small_Layout`.
 
 Tests that every value carries a tensor layout and that the rebuilding passes keep it.
 
@@ -96,7 +96,7 @@ reads those zeros beside a real operand is the node that would be seen crossing 
 The rename must not quietly drop the behaviour the old name described. The assertion is the
 same one `test_ir.cpp` made.
 
-Suites: `Unit_Precision`, `Unit_CastInsertion`.
+Suites: `Small_Precision`, `Small_CastInsertion`.
 
 Tests the mixed-precision policy and where the cast insertion pass places its casts.
 
@@ -224,7 +224,7 @@ non-empty `reason`.
 
 This is the control the mixed cases are read against. If it ever shows casts, the pass is
 inserting them unconditionally and every "the mixed policy inserted N casts" assertion in the
-later Unit_CastInsertion cases measures nothing.
+later Small_CastInsertion cases measures nothing.
 
 ## NoPolicyMeansTheUniformPolicy
 
@@ -359,7 +359,7 @@ The graph is one `batchnorm_fold` over two parameters and two buffers. `insert_c
 the mixed policy reports zero casts and the graph holds no K_CAST node. The four operands and
 the two results are all FLOAT32.
 
-Suites: `Unit_Rematerialise`.
+Suites: `Small_Rematerialise`.
 
 Tests the structure of the graph that the K_IM2COL rematerialisation pass rewrites.
 
@@ -369,7 +369,7 @@ produces is a graph that can be inspected node by node.
 The unit tier proves the structure: that a clone appears, that it reads the same operands and
 carries the same attributes as the node it copies, that it is inserted ahead of its consumers
 and not after them, and that an inference graph is left alone. It cannot prove the numbers are
-unchanged. Integration_Rematerialise in `tests/core/graph/test_rematerialise.cpp`
+unchanged. Medium_Rematerialise in `tests/core/graph/test_rematerialise.cpp`
 does that by running the same graph twice.
 
 The brief's three cases are all in this file, with two deviations that the library forced:
@@ -425,10 +425,10 @@ Once the rewiring is done the clone has one consumer of its own, so the pass has
 rematerialise its own output. If it did, the pass would not terminate on a graph with three
 consumers.
 
-Suites: `Integration_Rematerialise`.
+Suites: `Medium_Rematerialise`.
 
 The file covers the half of the K_IM2COL rematerialisation pass that the host-lane tier cannot
-reach. `Unit_Rematerialise` proves the rewrite has the right shape; this file proves the
+reach. `Small_Rematerialise` proves the rewrite has the right shape; this file proves the
 rewritten graph computes the same numbers.
 
 Checking that the pass ran and the graph still executes would prove nothing. The pass deletes
@@ -460,7 +460,7 @@ The pass exists to take the column matrix out of the activation arena. The test 
 against the planner and does not infer it from the lifetime field. The planner turns the
 shortened live range into an arena decision, and it has to agree.
 
-Suites: `Integration_Autograd`.
+Suites: `Medium_Autograd`.
 
 The whole graph (forward, loss and backward) runs on the device in double precision. The
 analytic gradient it produces is compared against a central difference of the loss the same

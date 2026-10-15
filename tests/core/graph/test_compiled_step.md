@@ -1,7 +1,7 @@
 # tests/core/graph/test_compiled_step.cpp
 
 
-Suites: `Unit_CompiledStep`.
+Suites: `Medium_CompiledStep`.
 
 Tests `CompiledStep::restore_run_count` and the node range of `CompiledStep::compile` in
 `modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.

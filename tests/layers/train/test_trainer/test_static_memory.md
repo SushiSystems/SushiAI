@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_static_memory.cpp
 
 
-Suites: `Regression_StaticMemory`.
+Suites: `Medium_StaticMemory`.
 
 The file tests four guarantees of the static memory planner whose failure would be silent: the loop
 still converges, the run still reports success, and nobody notices.

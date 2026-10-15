@@ -55,14 +55,14 @@ namespace
 }
 
 /** @brief Tests that the anchor count is the sum of height times width over the levels. */
-TEST(Unit_DetectAnchors, CountsOneAnchorPerCell)
+TEST(Medium_DetectAnchors, CountsOneAnchorPerCell)
 {
     EXPECT_EQ(SushiAI::Vision::Detect::Free::count_anchors(K_SMALL_LEVELS), 8);
     EXPECT_EQ(SushiAI::Vision::Detect::Free::count_anchors(K_REFERENCE_LEVELS), 8400);
 }
 
 /** @brief Tests that points are cell centres, levels in order and row-major inside a level. */
-TEST(Unit_DetectAnchors, OrdersPointsByLevelThenRowThenColumn)
+TEST(Medium_DetectAnchors, OrdersPointsByLevelThenRowThenColumn)
 {
     std::vector<float> points(16);
     std::vector<float> strides(8);
@@ -77,7 +77,7 @@ TEST(Unit_DetectAnchors, OrdersPointsByLevelThenRowThenColumn)
 }
 
 /** @brief Tests that scaling multiplies both coordinates of a point by its anchor's stride. */
-TEST(Unit_DetectAnchors, ScalesEachPointByItsStride)
+TEST(Medium_DetectAnchors, ScalesEachPointByItsStride)
 {
     std::vector<float> points(16);
     std::vector<float> strides(8);
@@ -93,7 +93,7 @@ TEST(Unit_DetectAnchors, ScalesEachPointByItsStride)
 }
 
 /** @brief Tests that scaling refuses strides that do not number one per point. */
-TEST(Unit_DetectAnchors, ScaleRejectsStridesThatDoNotMatchThePoints)
+TEST(Medium_DetectAnchors, ScaleRejectsStridesThatDoNotMatchThePoints)
 {
     const std::vector<float> points(16, 0.5f);
     const std::vector<float> strides(7, 8.0f);
@@ -103,7 +103,7 @@ TEST(Unit_DetectAnchors, ScaleRejectsStridesThatDoNotMatchThePoints)
 }
 
 /** @brief Tests that a level without cells or without a stride is refused by name. */
-TEST(Unit_DetectAnchors, RejectsALevelWithoutCellsOrStride)
+TEST(Medium_DetectAnchors, RejectsALevelWithoutCellsOrStride)
 {
     const std::vector<FeatureLevel> no_rows{{0, 3, 8.0f}};
     const std::vector<FeatureLevel> no_stride{{2, 3, 0.0f}};
@@ -113,7 +113,7 @@ TEST(Unit_DetectAnchors, RejectsALevelWithoutCellsOrStride)
 }
 
 /** @brief Tests that output arrays of the wrong size are refused with both sizes named. */
-TEST(Unit_DetectAnchors, RejectsOutputsOfTheWrongSize)
+TEST(Medium_DetectAnchors, RejectsOutputsOfTheWrongSize)
 {
     std::vector<float> points(15);
     std::vector<float> strides(8);
@@ -122,7 +122,7 @@ TEST(Unit_DetectAnchors, RejectsOutputsOfTheWrongSize)
 }
 
 /** @brief Tests that the pixel anchor points equal the reference's "anchors.points" exactly. */
-TEST(Unit_DetectAnchors, MatchesTheReferenceAnchorPoints)
+TEST(Medium_DetectAnchors, MatchesTheReferenceAnchorPoints)
 {
     SA_OPEN_REFERENCE_OR_SKIP(loss, "yolo26/loss.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, loss, "anchors.points");
@@ -138,7 +138,7 @@ TEST(Unit_DetectAnchors, MatchesTheReferenceAnchorPoints)
 }
 
 /** @brief Tests that each level's strides fill the anchor range the reference manifest records. */
-TEST(Unit_DetectAnchors, GivesEachLevelItsStrideOverItsAnchorRange)
+TEST(Medium_DetectAnchors, GivesEachLevelItsStrideOverItsAnchorRange)
 {
     std::vector<float> points(8400 * 2);
     std::vector<float> strides(8400);
@@ -154,7 +154,7 @@ TEST(Unit_DetectAnchors, GivesEachLevelItsStrideOverItsAnchorRange)
 }
 
 /** @brief Tests that the leaves hold the grid-unit points and the strides once per image. */
-TEST(Unit_DetectAnchorLeaves, RepeatsThePointsAndTheStridesForEveryImage)
+TEST(Small_DetectAnchorLeaves, RepeatsThePointsAndTheStridesForEveryImage)
 {
     AnchorLeaves leaves;
     SushiAI::Vision::Detect::Free::build_anchor_leaves(K_SMALL_LEVELS, 2, leaves);
@@ -176,7 +176,7 @@ TEST(Unit_DetectAnchorLeaves, RepeatsThePointsAndTheStridesForEveryImage)
 }
 
 /** @brief Tests that split_level cuts the leaves into one level's grid of points and strides. */
-TEST(Unit_DetectAnchorLeaves, SplitsIntoALevelsPointsAndStrides)
+TEST(Small_DetectAnchorLeaves, SplitsIntoALevelsPointsAndStrides)
 {
     AnchorLeaves leaves;
     SushiAI::Vision::Detect::Free::build_anchor_leaves(K_SMALL_LEVELS, 2, leaves);
@@ -195,7 +195,7 @@ TEST(Unit_DetectAnchorLeaves, SplitsIntoALevelsPointsAndStrides)
 }
 
 /** @brief Tests that leaves are refused for a batch without images and for no levels. */
-TEST(Unit_DetectAnchorLeaves, RejectsABatchWithoutImagesAndAModelWithoutLevels)
+TEST(Small_DetectAnchorLeaves, RejectsABatchWithoutImagesAndAModelWithoutLevels)
 {
     const std::vector<FeatureLevel> none;
     AnchorLeaves leaves;
@@ -206,7 +206,7 @@ TEST(Unit_DetectAnchorLeaves, RejectsABatchWithoutImagesAndAModelWithoutLevels)
 }
 
 /** @brief Tests that joining writes a level's rows at its anchor offset in every image. */
-TEST(Unit_DetectLevelRows, JoinPlacesALevelAtItsAnchorOffset)
+TEST(Small_DetectLevelRows, JoinPlacesALevelAtItsAnchorOffset)
 {
     // Two images, five anchors of two values; the level holds anchors 3 and 4.
     const LevelPlacement placement{2, 5, 2, 3, 2};
@@ -220,7 +220,7 @@ TEST(Unit_DetectLevelRows, JoinPlacesALevelAtItsAnchorOffset)
 }
 
 /** @brief Tests that splitting returns the rows that joining placed. */
-TEST(Unit_DetectLevelRows, SplitReturnsTheRowsJoinPlaced)
+TEST(Small_DetectLevelRows, SplitReturnsTheRowsJoinPlaced)
 {
     const LevelPlacement placement{2, 5, 2, 1, 3};
     std::vector<float> joined(20);
@@ -237,7 +237,7 @@ TEST(Unit_DetectLevelRows, SplitReturnsTheRowsJoinPlaced)
 }
 
 /** @brief Tests that a level reaching past the last anchor is refused. */
-TEST(Unit_DetectLevelRows, RejectsALevelPastTheLastAnchor)
+TEST(Small_DetectLevelRows, RejectsALevelPastTheLastAnchor)
 {
     const LevelPlacement placement{1, 5, 2, 4, 2};
     const std::vector<float> level(4, 0.0f);
@@ -247,7 +247,7 @@ TEST(Unit_DetectLevelRows, RejectsALevelPastTheLastAnchor)
 }
 
 /** @brief Tests that splitting into a level array of the wrong size is refused with both sizes. */
-TEST(Unit_DetectLevelRows, SplitRejectsALevelArrayOfTheWrongSize)
+TEST(Small_DetectLevelRows, SplitRejectsALevelArrayOfTheWrongSize)
 {
     // Two images of three anchors and two values need 12 level values out of 20 joined ones.
     const LevelPlacement placement{2, 5, 2, 1, 3};

@@ -1,7 +1,7 @@
 # tests/core/graph/test_traced.cpp
 
 
-Suites: `Unit_Traced`.
+Suites: `Small_Traced`.
 
 Tests Traced and the refusal it carries through a chain of emitters.
 

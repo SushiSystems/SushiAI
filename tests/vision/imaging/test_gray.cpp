@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 /** @brief Tests that every pixel's three channels take its grey level, at the same size. */
-TEST(Unit_ImagingGray, ExpandCopiesEachLevelIntoThreeChannels)
+TEST(Small_ImagingGray, ExpandCopiesEachLevelIntoThreeChannels)
 {
     const Image gray = make_counted(ImageSize{3, 5}, 1);
     Image color;
@@ -70,7 +70,7 @@ TEST(Unit_ImagingGray, ExpandCopiesEachLevelIntoThreeChannels)
 }
 
 /** @brief Tests that a reused destination is reset and wholly rewritten. */
-TEST(Unit_ImagingGray, ExpandRewritesAReusedDestination)
+TEST(Small_ImagingGray, ExpandRewritesAReusedDestination)
 {
     const Image gray = make_counted(ImageSize{2, 2}, 1);
     Image color(ImageSize{9, 9}, 4);
@@ -85,7 +85,7 @@ TEST(Unit_ImagingGray, ExpandRewritesAReusedDestination)
 }
 
 /** @brief Tests that a source with a channel count other than one is refused. */
-TEST(Unit_ImagingGray, ExpandRejectsASourceThatIsNotGrey)
+TEST(Small_ImagingGray, ExpandRejectsASourceThatIsNotGrey)
 {
     const Image color = make_counted(ImageSize{2, 2}, 3);
     const Image four = make_counted(ImageSize{2, 2}, 4);
@@ -97,7 +97,7 @@ TEST(Unit_ImagingGray, ExpandRejectsASourceThatIsNotGrey)
 }
 
 /** @brief Tests that an empty source and a source inside the destination are refused. */
-TEST(Unit_ImagingGray, ExpandRejectsASourceWithoutPixelsAndOneInTheDestination)
+TEST(Small_ImagingGray, ExpandRejectsASourceWithoutPixelsAndOneInTheDestination)
 {
     Image image = make_counted(ImageSize{4, 2}, 1);
     const Image untouched = make_counted(ImageSize{4, 2}, 1);

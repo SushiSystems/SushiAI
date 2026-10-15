@@ -185,14 +185,14 @@ namespace
     }
 
     /** @brief Provides the engine the states, the batches and the steps are built on. */
-    class Integration_DenseObjectives : public SaTest::EngineTest
+    class Medium_DenseObjectives : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests the binary loss and its three metrics against the host over the step's logits. */
-TEST_F(Integration_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputation)
+TEST_F(Medium_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
                             Train::BinaryCrossEntropyObjective::make(K_BATCH));
@@ -233,7 +233,7 @@ TEST_F(Integration_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputati
 }
 
 /** @brief Tests that logits above one hundred in magnitude give the finite loss of the host. */
-TEST_F(Integration_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
+TEST_F(Medium_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
                             Train::BinaryCrossEntropyObjective::make(K_BATCH));
@@ -262,7 +262,7 @@ TEST_F(Integration_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
 }
 
 /** @brief Tests the multi-label loss against the host over the N * C logits of the step. */
-TEST_F(Integration_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
+TEST_F(Medium_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
 {
     constexpr int64_t K_CLASSES = 3;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::MultiLabelObjective> objective,
@@ -305,7 +305,7 @@ TEST_F(Integration_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
 }
 
 /** @brief Tests the squared error and the absolute error against the host over the outputs. */
-TEST_F(Integration_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
+TEST_F(Medium_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
 {
     constexpr int64_t K_WIDTH = 2;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::MeanSquaredErrorObjective> objective,
@@ -341,7 +341,7 @@ TEST_F(Integration_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
 }
 
 /** @brief Tests that fit lowers the regression loss and reports the metric of the last step. */
-TEST_F(Integration_DenseObjectives, FitLowersTheSquaredError)
+TEST_F(Medium_DenseObjectives, FitLowersTheSquaredError)
 {
     constexpr int64_t K_WIDTH = 2;
     constexpr int64_t K_EPOCHS = 40;
@@ -373,7 +373,7 @@ TEST_F(Integration_DenseObjectives, FitLowersTheSquaredError)
 }
 
 /** @brief Tests that fit refuses a dataset whose labels are class indices before any step. */
-TEST_F(Integration_DenseObjectives, FitRefusesLabelsOfAnotherType)
+TEST_F(Medium_DenseObjectives, FitRefusesLabelsOfAnotherType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::BinaryCrossEntropyObjective> objective,
                             Train::BinaryCrossEntropyObjective::make(K_BATCH));

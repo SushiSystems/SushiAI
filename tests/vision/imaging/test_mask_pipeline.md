@@ -1,7 +1,7 @@
 # tests/vision/imaging/test_mask_pipeline.cpp
 
 
-Suites: `Unit_ImagingAffineNearest`, `Unit_ImagingMaskPipeline`.
+Suites: `Small_ImagingAffineNearest`, `Small_ImagingMaskPipeline`.
 
 Tests `apply_affine_nearest` in
 `modules/vision/imaging/include/SushiAI/vision/imaging/affine_nearest.hpp` and

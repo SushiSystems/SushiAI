@@ -77,7 +77,7 @@ namespace
 } // namespace
 
 /** @brief Tests that without a fit the thresholds are 1 and 0.7. */
-TEST(Unit_DetectAnchorThresholds, DefaultsAreOneAndSevenTenths)
+TEST(Small_DetectAnchorThresholds, DefaultsAreOneAndSevenTenths)
 {
     const AssignmentThresholds thresholds;
 
@@ -86,7 +86,7 @@ TEST(Unit_DetectAnchorThresholds, DefaultsAreOneAndSevenTenths)
 }
 
 /** @brief Tests that a tenth percentile of 0.35 and a mean of 0.62 pass through unclamped. */
-TEST(Unit_DetectAnchorThresholds, FitInsideBothRangesGivesItsOwnNumbers)
+TEST(Small_DetectAnchorThresholds, FitInsideBothRangesGivesItsOwnNumbers)
 {
     const AssignmentThresholds thresholds = derive_assignment_thresholds(make_fit(0.35, 0.62));
 
@@ -95,7 +95,7 @@ TEST(Unit_DetectAnchorThresholds, FitInsideBothRangesGivesItsOwnNumbers)
 }
 
 /** @brief Tests the formula on four fits, each number inside its range. */
-TEST(Unit_DetectAnchorThresholds, FourFitsFollowTheFormula)
+TEST(Small_DetectAnchorThresholds, FourFitsFollowTheFormula)
 {
     const ThresholdCase cases[4] = {{0.35, 0.62, 0.35f, 0.62f},
                                     {0.21, 0.51, 0.21f, 0.51f},
@@ -106,7 +106,7 @@ TEST(Unit_DetectAnchorThresholds, FourFitsFollowTheFormula)
 }
 
 /** @brief Tests that the match threshold stops at 0.2 below and at 1 above. */
-TEST(Unit_DetectAnchorThresholds, MatchThresholdIsClampedAtBothEnds)
+TEST(Small_DetectAnchorThresholds, MatchThresholdIsClampedAtBothEnds)
 {
     const ThresholdCase cases[5] = {{0.05, 0.6, 0.2f, 0.6f},
                                     {0.0, 0.6, 0.2f, 0.6f},
@@ -118,7 +118,7 @@ TEST(Unit_DetectAnchorThresholds, MatchThresholdIsClampedAtBothEnds)
 }
 
 /** @brief Tests that the ignore threshold stops at 0.5 below and at 0.7 above. */
-TEST(Unit_DetectAnchorThresholds, IgnoreThresholdIsClampedAtBothEnds)
+TEST(Small_DetectAnchorThresholds, IgnoreThresholdIsClampedAtBothEnds)
 {
     const ThresholdCase cases[5] = {{0.4, 0.3, 0.4f, 0.5f},
                                     {0.4, 0.0, 0.4f, 0.5f},
@@ -130,7 +130,7 @@ TEST(Unit_DetectAnchorThresholds, IgnoreThresholdIsClampedAtBothEnds)
 }
 
 /** @brief Tests that a fit of 1 everywhere gives a match of 1 and an ignore of 0.7. */
-TEST(Unit_DetectAnchorThresholds, PerfectFitGivesOneAndSevenTenths)
+TEST(Small_DetectAnchorThresholds, PerfectFitGivesOneAndSevenTenths)
 {
     const AssignmentThresholds thresholds = derive_assignment_thresholds(make_fit(1.0, 1.0));
 

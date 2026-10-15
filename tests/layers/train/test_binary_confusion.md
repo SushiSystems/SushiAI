@@ -1,10 +1,10 @@
 # tests/layers/train/test_binary_confusion.cpp
 
 
-Suites: `Unit_BinaryConfusion`, `Unit_BinaryConfusionRatios`, `Unit_DecisionThreshold`.
+Suites: `Medium_BinaryConfusion`, `Small_BinaryConfusionRatios`, `Small_DecisionThreshold`.
 
 Tests `Train::count_confusion`, the four ratios over a `BinaryConfusion`, `Train::logit_of`,
-`Train::read_threshold` and `Train::require_host_reals`. The `Unit_BinaryConfusion` fixture
+`Train::read_threshold` and `Train::require_host_reals`. The `Medium_BinaryConfusion` fixture
 needs an engine to allocate the logits and the truth. The other two suites run on the host.
 
 ## EachRowLandsInOneOfTheFourCounts

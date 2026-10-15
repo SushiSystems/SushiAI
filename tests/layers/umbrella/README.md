@@ -4,7 +4,7 @@ The tests of the module `layers/umbrella`, one file per header of `modules/layer
 
 ## test_SushiAI.cpp
 
-Suites: `Integration_EngineSmoke`.
+Suites: `Medium_EngineSmoke`.
 
 ### AXPYThroughSushiBLAS
 

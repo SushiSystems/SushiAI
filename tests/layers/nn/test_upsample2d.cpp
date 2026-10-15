@@ -63,7 +63,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the default scale doubles height and width and keeps batch and channels. */
-TEST(Unit_Upsample2d, TheDefaultScaleDoublesHeightAndWidth)
+TEST(Small_Upsample2d, TheDefaultScaleDoublesHeightAndWidth)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -76,7 +76,7 @@ TEST(Unit_Upsample2d, TheDefaultScaleDoublesHeightAndWidth)
 }
 
 /** @brief Tests that the scale field is the factor applied to both spatial axes. */
-TEST(Unit_Upsample2d, TheScaleFieldSetsTheFactorOnBothSpatialAxes)
+TEST(Small_Upsample2d, TheScaleFieldSetsTheFactorOnBothSpatialAxes)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -89,7 +89,7 @@ TEST(Unit_Upsample2d, TheScaleFieldSetsTheFactorOnBothSpatialAxes)
 }
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
-TEST(Unit_Upsample2d, TheResultIsTaggedNHWC)
+TEST(Small_Upsample2d, TheResultIsTaggedNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -103,7 +103,7 @@ TEST(Unit_Upsample2d, TheResultIsTaggedNHWC)
 }
 
 /** @brief Tests that forward emits one UPSAMPLE2D node that reads x with scale on both axes. */
-TEST(Unit_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
+TEST(Small_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -122,14 +122,14 @@ TEST(Unit_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
 }
 
 /** @brief Tests that output_shape maps [H, W, C] to [H * scale, W * scale, C]. */
-TEST(Unit_Upsample2d, OutputShapeScalesHeightAndWidthOnly)
+TEST(Small_Upsample2d, OutputShapeScalesHeightAndWidthOnly)
 {
     EXPECT_EQ(Upsample2d{}.output_shape(Shape{3, 5, 7}), (Shape{6, 10, 7}));
     EXPECT_EQ(Upsample2d{4}.output_shape(Shape{2, 1, 9}), (Shape{8, 4, 9}));
 }
 
 /** @brief Tests that output_shape equals the traced shape without its batch axis. */
-TEST(Unit_Upsample2d, OutputShapeAgreesWithTheTracedShape)
+TEST(Small_Upsample2d, OutputShapeAgreesWithTheTracedShape)
 {
     const Upsample2d doubling{};
     EXPECT_EQ(doubling.output_shape(Shape{3, 5, 7}),
@@ -145,27 +145,27 @@ TEST(Unit_Upsample2d, OutputShapeAgreesWithTheTracedShape)
 }
 
 /** @brief Tests that output_shape rejects a scale of zero in a message naming layer and scale. */
-TEST(Unit_Upsample2d, OutputShapeRejectsAZeroScale)
+TEST(Small_Upsample2d, OutputShapeRejectsAZeroScale)
 {
     SA_EXPECT_ERROR((void)Upsample2d{0}.output_shape(Shape{3, 5, 7}),
                     "Upsample2d", "[3, 5, 7] with scale=0");
 }
 
 /** @brief Tests that output_shape rejects a negative scale in a message naming layer and scale. */
-TEST(Unit_Upsample2d, OutputShapeRejectsANegativeScale)
+TEST(Small_Upsample2d, OutputShapeRejectsANegativeScale)
 {
     SA_EXPECT_ERROR((void)Upsample2d{-2}.output_shape(Shape{3, 5, 7}),
                     "Upsample2d", "[3, 5, 7] with scale=-2");
 }
 
 /** @brief Tests that output_shape rejects a feature vector in a message naming layer and shape. */
-TEST(Unit_Upsample2d, OutputShapeRejectsARankOnePerSampleShape)
+TEST(Small_Upsample2d, OutputShapeRejectsARankOnePerSampleShape)
 {
     SA_EXPECT_ERROR((void)Upsample2d{}.output_shape(Shape{16}), "Upsample2d", "[H, W, C]", "[16]");
 }
 
 /** @brief Tests that output_shape rejects a height whose scaled extent overflows 64 bits. */
-TEST(Unit_Upsample2d, OutputShapeRejectsAScaledHeightThatOverflows)
+TEST(Small_Upsample2d, OutputShapeRejectsAScaledHeightThatOverflows)
 {
     const Upsample2d layer{K_OVERFLOWING_SCALE};
 
@@ -173,28 +173,28 @@ TEST(Unit_Upsample2d, OutputShapeRejectsAScaledHeightThatOverflows)
 }
 
 /** @brief Tests that output_shape throws for a shape that still carries its batch axis. */
-TEST(Unit_Upsample2d, OutputShapeRejectsARankFourShape)
+TEST(Small_Upsample2d, OutputShapeRejectsARankFourShape)
 {
     const Upsample2d layer{};
     EXPECT_THROW((void)layer.output_shape(Shape{2, 3, 5, 7}), Error);
 }
 
 /** @brief Tests that forward rejects a scale of zero in a message naming layer and scale. */
-TEST(Unit_Upsample2d, ForwardRejectsAZeroScale)
+TEST(Small_Upsample2d, ForwardRejectsAZeroScale)
 {
     SA_EXPECT_ERROR((void)traced_per_sample_shape(Upsample2d{0}, Shape{1, 2, 2, 3}),
                     "Upsample2d", "[2, 2, 3] with scale=0");
 }
 
 /** @brief Tests that forward rejects a rank-2 input in a message naming layer and shape. */
-TEST(Unit_Upsample2d, ForwardRejectsARankTwoInput)
+TEST(Small_Upsample2d, ForwardRejectsARankTwoInput)
 {
     SA_EXPECT_ERROR((void)traced_per_sample_shape(Upsample2d{}, Shape{2, 12}),
                     "Upsample2d", "rank-4", "[2, 12]");
 }
 
 /** @brief Tests that forward rejects a width whose scaled extent overflows 64 bits. */
-TEST(Unit_Upsample2d, ForwardRejectsAScaledWidthThatOverflows)
+TEST(Small_Upsample2d, ForwardRejectsAScaledWidthThatOverflows)
 {
     const Upsample2d layer{K_OVERFLOWING_SCALE};
 
@@ -203,7 +203,7 @@ TEST(Unit_Upsample2d, ForwardRejectsAScaledWidthThatOverflows)
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
-TEST(Unit_Upsample2d, ForwardRejectsAnNCHWInput)
+TEST(Small_Upsample2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -216,7 +216,7 @@ TEST(Unit_Upsample2d, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Unit_Upsample2d, TheParameterWalkVisitsNothing)
+TEST(Small_Upsample2d, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

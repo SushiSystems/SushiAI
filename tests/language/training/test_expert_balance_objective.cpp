@@ -104,7 +104,7 @@ namespace
     }
 
     /** @brief Provides the engine the usage tensors of a step are allocated on. */
-    class Unit_LanguageTrainingExpertBalanceMetrics : public SaTest::EngineTest
+    class Medium_LanguageTrainingExpertBalanceMetrics : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a FLOAT32 [1, K_EXPERTS] tensor holding @p shares. */
@@ -121,7 +121,7 @@ namespace
 } // namespace
 
 /** @brief Tests that make() keeps the names and refuses none, no name and no expert. */
-TEST(Unit_LanguageTrainingExpertBalanceObjective, MakeKeepsItsOutputsAndRefusesNone)
+TEST(Small_LanguageTrainingExpertBalanceObjective, MakeKeepsItsOutputsAndRefusesNone)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<ExpertBalanceObjective> objective,
@@ -145,7 +145,7 @@ TEST(Unit_LanguageTrainingExpertBalanceObjective, MakeKeepsItsOutputsAndRefusesN
 }
 
 /** @brief Tests that the objective declares no leaf, requires no role and feeds nothing. */
-TEST(Unit_LanguageTrainingExpertBalanceObjective, ItDeclaresNoLeafAndReadsNoRole)
+TEST(Small_LanguageTrainingExpertBalanceObjective, ItDeclaresNoLeafAndReadsNoRole)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<ExpertBalanceObjective> objective,
@@ -162,7 +162,7 @@ TEST(Unit_LanguageTrainingExpertBalanceObjective, ItDeclaresNoLeafAndReadsNoRole
 }
 
 /** @brief Tests that the loss of one balance is that output, and of two is half their sum. */
-TEST(Unit_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceOutputs)
+TEST(Small_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceOutputs)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -198,7 +198,7 @@ TEST(Unit_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceOu
 }
 
 /** @brief Tests that the factory pairs the outputs by the start of their names. */
-TEST(Unit_LanguageTrainingExpertBalanceObjective, TheFactoryReadsTheOutputsByTheirNames)
+TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryReadsTheOutputsByTheirNames)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
@@ -214,7 +214,7 @@ TEST(Unit_LanguageTrainingExpertBalanceObjective, TheFactoryReadsTheOutputsByThe
 }
 
 /** @brief Tests each description the factory refuses. */
-TEST(Unit_LanguageTrainingExpertBalanceObjective, TheFactoryRefusesWhatDoesNotFit)
+TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryRefusesWhatDoesNotFit)
 {
     SA_EXPECT_FAILURE(
         make_expert_balance_objective(make_context(),
@@ -235,7 +235,7 @@ TEST(Unit_LanguageTrainingExpertBalanceObjective, TheFactoryRefusesWhatDoesNotFi
 }
 
 /** @brief Tests that measure reports the extremes over every usage output of the step. */
-TEST_F(Unit_LanguageTrainingExpertBalanceMetrics, MeasureReportsTheSmallestAndLargestShare)
+TEST_F(Medium_LanguageTrainingExpertBalanceMetrics, MeasureReportsTheSmallestAndLargestShare)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<ExpertBalanceObjective> objective,
@@ -265,7 +265,7 @@ TEST_F(Unit_LanguageTrainingExpertBalanceMetrics, MeasureReportsTheSmallestAndLa
 }
 
 /** @brief Tests that measure refuses a usage the step lacks and one of another size. */
-TEST_F(Unit_LanguageTrainingExpertBalanceMetrics, MeasureRefusesAUsageItCannotRead)
+TEST_F(Medium_LanguageTrainingExpertBalanceMetrics, MeasureRefusesAUsageItCannotRead)
 {
     const SushiBLAS::Tensor even = make_usage({0.25, 0.25, 0.25, 0.25});
     const std::vector<Train::StepOutput> published = {Train::StepOutput{"usage2", &even}};

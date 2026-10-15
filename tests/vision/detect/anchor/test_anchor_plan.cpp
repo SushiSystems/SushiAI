@@ -221,7 +221,7 @@ namespace
 } // namespace
 
 /** @brief Tests six rungs under strides 16 and 32: two heads of three anchors, all recalled. */
-TEST(Unit_DetectAnchorPlan, LadderWithTwoStridesPlansTwoHeadsOfThreeAnchors)
+TEST(Small_DetectAnchorPlan, LadderWithTwoStridesPlansTwoHeadsOfThreeAnchors)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -248,7 +248,7 @@ TEST(Unit_DetectAnchorPlan, LadderWithTwoStridesPlansTwoHeadsOfThreeAnchors)
 }
 
 /** @brief Tests that a chosen count gives what the four steps give when called one by one. */
-TEST(Unit_DetectAnchorPlan, ChosenCountEqualsTheStepsMadeByHand)
+TEST(Small_DetectAnchorPlan, ChosenCountEqualsTheStepsMadeByHand)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -274,7 +274,7 @@ TEST(Unit_DetectAnchorPlan, ChosenCountEqualsTheStepsMadeByHand)
 }
 
 /** @brief Tests that a per_head of 3 clusters six anchors once and returns no trial. */
-TEST(Unit_DetectAnchorPlan, GivenCountTriesNoCount)
+TEST(Small_DetectAnchorPlan, GivenCountTriesNoCount)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -302,7 +302,7 @@ TEST(Unit_DetectAnchorPlan, GivenCountTriesNoCount)
 }
 
 /** @brief Tests that a given count reads none of the options of the count choice. */
-TEST(Unit_DetectAnchorPlan, GivenCountIgnoresTheBoundsOfTheCountChoice)
+TEST(Small_DetectAnchorPlan, GivenCountIgnoresTheBoundsOfTheCountChoice)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -323,7 +323,7 @@ TEST(Unit_DetectAnchorPlan, GivenCountIgnoresTheBoundsOfTheCountChoice)
 }
 
 /** @brief Tests that a head takes the anchors of its own stride wherever the stride stands. */
-TEST(Unit_DetectAnchorPlan, StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride)
+TEST(Small_DetectAnchorPlan, StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> ascending = {16, 32};
@@ -352,7 +352,7 @@ TEST(Unit_DetectAnchorPlan, StridesInAnyOrderGiveEachHeadTheAnchorsOfItsStride)
 }
 
 /** @brief Tests that two calls with the same arguments give the same plan, bit for bit. */
-TEST(Unit_DetectAnchorPlan, TwoCallsGiveTheSamePlan)
+TEST(Small_DetectAnchorPlan, TwoCallsGiveTheSamePlan)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -368,7 +368,7 @@ TEST(Unit_DetectAnchorPlan, TwoCallsGiveTheSamePlan)
 }
 
 /** @brief Tests that one blob under three strides plans one anchor per head. */
-TEST(Unit_DetectAnchorPlan, BlobPlansOneAnchorPerHead)
+TEST(Small_DetectAnchorPlan, BlobPlansOneAnchorPerHead)
 {
     const std::vector<AnchorSize> boxes = make_blob();
     const std::vector<std::int64_t> strides = {8, 16, 32};
@@ -386,7 +386,7 @@ TEST(Unit_DetectAnchorPlan, BlobPlansOneAnchorPerHead)
 }
 
 /** @brief Tests that no stride and a stride of zero are InvalidDescription. */
-TEST(Unit_DetectAnchorPlan, RefusesNoStrideAndAStrideOfZero)
+TEST(Small_DetectAnchorPlan, RefusesNoStrideAndAStrideOfZero)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> none;
@@ -407,7 +407,7 @@ TEST(Unit_DetectAnchorPlan, RefusesNoStrideAndAStrideOfZero)
 }
 
 /** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Unit_DetectAnchorPlan, RefusesOptionsOutsideTheirRange)
+TEST(Small_DetectAnchorPlan, RefusesOptionsOutsideTheirRange)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::vector<std::int64_t> strides = {16, 32};
@@ -430,7 +430,7 @@ TEST(Unit_DetectAnchorPlan, RefusesOptionsOutsideTheirRange)
 }
 
 /** @brief Tests that no box and fewer distinct boxes than a count needs are Incompatible. */
-TEST(Unit_DetectAnchorPlan, RefusesBoxesThatDisagreeWithTheCount)
+TEST(Small_DetectAnchorPlan, RefusesBoxesThatDisagreeWithTheCount)
 {
     const std::vector<AnchorSize> empty;
     const std::vector<AnchorSize> two_sizes = make_two_sizes();

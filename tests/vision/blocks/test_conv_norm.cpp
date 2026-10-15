@@ -139,7 +139,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a 3x3 Conv at stride 2 halves an even H and W and sets the width. */
-TEST(Unit_BlockConvNorm, OutputShapeHalvesAnEvenExtentAtStrideTwo)
+TEST(Small_BlockConvNorm, OutputShapeHalvesAnEvenExtentAtStrideTwo)
 {
     const Conv block(3, 16, 3, 2, K_YOLO_NORM);
 
@@ -147,7 +147,7 @@ TEST(Unit_BlockConvNorm, OutputShapeHalvesAnEvenExtentAtStrideTwo)
 }
 
 /** @brief Tests that a 1x1 Conv at stride 1 keeps H and W. */
-TEST(Unit_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
+TEST(Small_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
 {
     const Conv block(32, 64, 1, 1, K_YOLO_NORM);
 
@@ -158,7 +158,7 @@ TEST(Unit_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
  * @brief Tests that a training trace emits one convolution, one BATCHNORM2D and one SILU, in
  *        that order, and no bias.
  */
-TEST(Unit_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
+TEST(Small_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -181,7 +181,7 @@ TEST(Unit_BlockConvNorm, ATrainingTraceEmitsConvolutionNormThenSiLU)
 }
 
 /** @brief Tests that a training trace hands the norm's options to the node and the updates. */
-TEST(Unit_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
+TEST(Small_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -202,7 +202,7 @@ TEST(Unit_BlockConvNorm, ATrainingTraceCarriesTheNormOptions)
 }
 
 /** @brief Tests that an evaluation trace folds the norm and emits no BATCHNORM2D. */
-TEST(Unit_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
+TEST(Small_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -219,7 +219,7 @@ TEST(Unit_BlockConvNorm, AnEvaluationTraceFoldsTheNorm)
 }
 
 /** @brief Tests that ConvLinear ends at the normalisation and emits no SILU. */
-TEST(Unit_BlockConvNorm, ConvLinearEmitsNoActivation)
+TEST(Small_BlockConvNorm, ConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -238,7 +238,7 @@ TEST(Unit_BlockConvNorm, ConvLinearEmitsNoActivation)
  * @brief Tests that a traced Conv(3, 16, 3, 2) yields the five records MANIFEST.json lists
  *        under model.0, names, NHWC shapes and order.
  */
-TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
+TEST(Small_BlockConvNorm, StateMatchesManifestRow0)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -263,7 +263,7 @@ TEST(Unit_BlockConvNorm, StateMatchesManifestRow0)
  * @brief Tests that a DWConv traces one DEPTHWISE_CONV2D, one BATCHNORM2D and one SILU, in that
  *        order, with no MATMUL, and keeps the shape at stride 1.
  */
-TEST(Unit_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
+TEST(Small_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -289,7 +289,7 @@ TEST(Unit_BlockConvNorm, ADepthwiseTraceEmitsDepthwiseConvolutionNormThenSiLU)
 }
 
 /** @brief Tests that DWConvLinear ends at the normalisation and emits no SILU. */
-TEST(Unit_BlockConvNorm, DWConvLinearEmitsNoActivation)
+TEST(Small_BlockConvNorm, DWConvLinearEmitsNoActivation)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -306,7 +306,7 @@ TEST(Unit_BlockConvNorm, DWConvLinearEmitsNoActivation)
 }
 
 /** @brief Tests that a 3x3 DWConv keeps the width, and H and W at stride 1, halved at 2. */
-TEST(Unit_BlockConvNorm, ADepthwiseOutputShapeKeepsTheWidth)
+TEST(Small_BlockConvNorm, ADepthwiseOutputShapeKeepsTheWidth)
 {
     const DWConv keeping(64, 64, 3, 1, K_YOLO_NORM);
     const DWConv halving(64, 64, 3, 2, K_YOLO_NORM);
@@ -319,7 +319,7 @@ TEST(Unit_BlockConvNorm, ADepthwiseOutputShapeKeepsTheWidth)
  * @brief Tests that a traced DWConvLinear(128, 128, 3, 1) yields the five records
  *        MANIFEST.json lists under model.10.m.0.attn.pe, names, shapes and order.
  */
-TEST(Unit_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
+TEST(Small_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -342,14 +342,14 @@ TEST(Unit_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
 }
 
 /** @brief Tests that a DWConv over unequal widths is refused, naming both widths. */
-TEST(Unit_BlockConvNorm, ADepthwiseBlockRefusesUnequalWidths)
+TEST(Small_BlockConvNorm, ADepthwiseBlockRefusesUnequalWidths)
 {
     SA_EXPECT_ERROR(static_cast<void>(DWConv(16, 32, 3, 1, K_YOLO_NORM)),
                     "keeps its channel count", "in=16", "out=32");
 }
 
 /** @brief Tests that an untraced block yields no state, since nothing is declared yet. */
-TEST(Unit_BlockConvNorm, AnUntracedBlockYieldsNoState)
+TEST(Small_BlockConvNorm, AnUntracedBlockYieldsNoState)
 {
     Conv block(3, 16, 3, 2, K_YOLO_NORM);
 
@@ -360,7 +360,7 @@ TEST(Unit_BlockConvNorm, AnUntracedBlockYieldsNoState)
  * @brief Tests that make_conv_node builds row 0 from its file row: the port's shape, the
  *        traced shape and the state names.
  */
-TEST(Unit_BlockConvNorm, TheFactoryBuildsRow0)
+TEST(Small_BlockConvNorm, TheFactoryBuildsRow0)
 {
     const Shape input{640, 640, 3};
     const Config::Value attributes = attributes_of(
@@ -394,7 +394,7 @@ TEST(Unit_BlockConvNorm, TheFactoryBuildsRow0)
 }
 
 /** @brief Tests that a row stating neither kernel nor stride gets a 1x1 window at stride 1. */
-TEST(Unit_BlockConvNorm, TheFactoryDefaultsKernelAndStrideToOne)
+TEST(Small_BlockConvNorm, TheFactoryDefaultsKernelAndStrideToOne)
 {
     const Shape input{6, 10, 3};
     const Config::Value attributes = attributes_of(R"({"filters": 8})");
@@ -416,7 +416,7 @@ TEST(Unit_BlockConvNorm, TheFactoryDefaultsKernelAndStrideToOne)
 }
 
 /** @brief Tests that the factory refuses a key it does not know and names it and the row. */
-TEST(Unit_BlockConvNorm, TheFactoryRefusesAnUnknownKey)
+TEST(Small_BlockConvNorm, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{8, 8, 3};
     const Config::Value attributes = attributes_of(R"({"filters": 8, "padding": 1})");
@@ -426,7 +426,7 @@ TEST(Unit_BlockConvNorm, TheFactoryRefusesAnUnknownKey)
 }
 
 /** @brief Tests that the factory refuses a row without filters. */
-TEST(Unit_BlockConvNorm, TheFactoryRefusesARowWithoutFilters)
+TEST(Small_BlockConvNorm, TheFactoryRefusesARowWithoutFilters)
 {
     const Shape input{8, 8, 3};
     const Config::Value attributes = attributes_of(R"({"kernel": 3})");
@@ -436,7 +436,7 @@ TEST(Unit_BlockConvNorm, TheFactoryRefusesARowWithoutFilters)
 }
 
 /** @brief Tests that the factory refuses a stride of zero and a kernel that is not a number. */
-TEST(Unit_BlockConvNorm, TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber)
+TEST(Small_BlockConvNorm, TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber)
 {
     const Shape input{8, 8, 3};
     const Config::Value zero_stride = attributes_of(R"({"filters": 8, "stride": 0})");
@@ -452,7 +452,7 @@ TEST(Unit_BlockConvNorm, TheFactoryRefusesAWindowThatIsNotAPositiveWholeNumber)
  * @brief Tests that the factory refuses an epsilon of zero or of text, and a momentum above
  *        one or below zero.
  */
-TEST(Unit_BlockConvNorm, TheFactoryRefusesNormOptionsOutOfRange)
+TEST(Small_BlockConvNorm, TheFactoryRefusesNormOptionsOutOfRange)
 {
     const Shape input{8, 8, 3};
     const Config::Value flat_epsilon = attributes_of(R"({"filters": 8, "bn_epsilon": 0.0})");
@@ -474,7 +474,7 @@ TEST(Unit_BlockConvNorm, TheFactoryRefusesNormOptionsOutOfRange)
 }
 
 /** @brief Tests that the factory refuses two inputs and an input that is not rank 3. */
-TEST(Unit_BlockConvNorm, TheFactoryRefusesInputsThatAreNotOneFeatureMap)
+TEST(Small_BlockConvNorm, TheFactoryRefusesInputsThatAreNotOneFeatureMap)
 {
     const Shape two[] = {Shape{8, 8, 3}, Shape{8, 8, 3}};
     const Shape flat{192};

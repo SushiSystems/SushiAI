@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 /** @brief Tests that corners convert to centre and size and back to the same corners. */
-TEST(Unit_DetectBoxes, ConvertsBetweenCornersAndCentreSize)
+TEST(Medium_DetectBoxes, ConvertsBetweenCornersAndCentreSize)
 {
     const std::vector<float> corners{1.0f, 2.0f, 5.0f, 8.0f};
     std::vector<float> centred(4);

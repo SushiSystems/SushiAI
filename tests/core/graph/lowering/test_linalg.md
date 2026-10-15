@@ -1,7 +1,7 @@
 # tests/core/graph/lowering/test_linalg.cpp
 
 
-Suites: `Integration_AttentionOperations`.
+Suites: `Medium_AttentionOperations`.
 
 The file runs the rank-3 matrix product, the softmax and the product's gradient on an engine in
 FLOAT32. The inputs follow a fixed pattern, `scale * ((i * stride) % 11 - 5)`. Every result is

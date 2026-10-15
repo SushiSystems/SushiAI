@@ -1,10 +1,10 @@
 # tests/layers/train/test_evaluation_step.cpp
 
 
-Suites: `Unit_CarryingStep`, `Unit_PlainEvaluationStep`.
+Suites: `Medium_CarryingStep`, `Medium_PlainEvaluationStep`.
 
 Tests a `Train::EvaluationStep` that is fed two leaves and carries a value between runs. Both
-fixtures need an engine. The model of `Unit_CarryingStep` is a local `Accumulator` whose
+fixtures need an engine. The model of `Medium_CarryingStep` is a local `Accumulator` whose
 `forward` feeds a leaf named `gain`, declares a carried leaf `sum` with the initial value 1 and
 returns sum + x * gain. The fixture builds the step with `Train::build_carrying_graph` over a
 [1, 3] row and fills x with 1, 2, 3 and the gain with 2, 2, 2. A `static_assert` holds that

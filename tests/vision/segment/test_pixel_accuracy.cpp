@@ -68,7 +68,7 @@ namespace
 } // namespace
 
 /** @brief Tests that pixel accuracy is the diagonal over the counted pixels. */
-TEST(Unit_SegmentMetrics, PixelAccuracyIsTheDiagonalOverTheCountedPixels)
+TEST(Small_SegmentMetrics, PixelAccuracyIsTheDiagonalOverTheCountedPixels)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix,
                             counted(3, {0, 1, 1, 2, 2, 2, 0}, {0, 0, 1, 2, 1, 2, K_IGNORE}));

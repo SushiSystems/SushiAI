@@ -1,7 +1,7 @@
 # tests/core/eager/test_scope_partitioner.cpp
 
 
-Suites: `Unit_ScopePartitioner`.
+Suites: `Small_ScopePartitioner`.
 
 Tests the region keys ScopePartitioner gives the nodes of a differentiated graph.
 

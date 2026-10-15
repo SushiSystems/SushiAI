@@ -90,7 +90,7 @@ namespace
     }
 
     /** @brief Provides the engine the outputs, the roles and the leaves are allocated on. */
-    class Unit_BinaryCrossEntropyObjective : public SaTest::EngineTest
+    class Medium_BinaryCrossEntropyObjective : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a float32 tensor of @p shape that holds @p values. */
@@ -150,7 +150,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the binary objective declares an [N, 1] leaf and float32 [N] labels. */
-TEST(Unit_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLabels)
+TEST(Small_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLabels)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
                             BinaryCrossEntropyObjective::make(K_BATCH));
@@ -174,7 +174,7 @@ TEST(Unit_BinaryCrossEntropyObjectiveGraph, BinaryDeclaresAColumnLeafAndRealLabe
 }
 
 /** @brief Tests that the binary feed copies the labels and refuses one that is not 0 or 1. */
-TEST_F(Unit_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
+TEST_F(Medium_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<BinaryCrossEntropyObjective> objective,
                             BinaryCrossEntropyObjective::make(K_BATCH));
@@ -200,7 +200,7 @@ TEST_F(Unit_BinaryCrossEntropyObjective, BinaryFeedCopiesLabelsOfZeroAndOne)
 }
 
 /** @brief Tests the three binary metrics on five rows, and the recall a higher threshold costs. */
-TEST_F(Unit_BinaryCrossEntropyObjective, BinaryMeasuresAccuracyPrecisionAndRecall)
+TEST_F(Medium_BinaryCrossEntropyObjective, BinaryMeasuresAccuracyPrecisionAndRecall)
 {
     // Rows: hit, false alarm, miss, correct rejection, hit.
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor logits,

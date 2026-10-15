@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_flip.cpp
 
 
-Suites: `Unit_ImagingFlip`.
+Suites: `Small_ImagingFlip`.
 
 Tests the plan and the application of the horizontal flip to an image and its labels.
 
-This file needs no device. `Unit_ImagingFlip` covers `modules/vision/imaging/include/SushiAI/vision/imaging/flip.hpp`.
+This file needs no device. `Small_ImagingFlip` covers `modules/vision/imaging/include/SushiAI/vision/imaging/flip.hpp`.
 `plan_flip` makes the one random draw and records the decision in a `FlipPlan`; `apply_flip`
 then mirrors an image or a label set from the plan and draws nothing.
 

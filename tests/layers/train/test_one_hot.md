@@ -1,7 +1,7 @@
 # tests/layers/train/test_one_hot.cpp
 
 
-Suites: `Unit_OneHot`.
+Suites: `Medium_OneHot`.
 
 Tests `Train::fill_one_hot`. The fixture needs an engine. The labels are an int32 tensor of one
 extent, and the rows hold 7 in every element before a fill.

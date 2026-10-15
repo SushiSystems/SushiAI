@@ -66,7 +66,7 @@ namespace
 } // namespace
 
 /** @brief Tests that rows() returns the rows in the order add() received them. */
-TEST(Unit_ImporterRegistry, AddKeepsInsertionOrder)
+TEST(Small_ImporterRegistry, AddKeepsInsertionOrder)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(registry.add(K_FIRST_ROW));
@@ -79,7 +79,7 @@ TEST(Unit_ImporterRegistry, AddKeepsInsertionOrder)
 }
 
 /** @brief Tests that find returns null for a format no row holds and the row of one it holds. */
-TEST(Unit_ImporterRegistry, FindReturnsNullForAnUnknownFormat)
+TEST(Small_ImporterRegistry, FindReturnsNullForAnUnknownFormat)
 {
     IO::ImporterRegistry registry;
     EXPECT_EQ(registry.find("first"), nullptr);
@@ -93,7 +93,7 @@ TEST(Unit_ImporterRegistry, FindReturnsNullForAnUnknownFormat)
 }
 
 /** @brief Tests that add refuses a format a row already holds and names the format. */
-TEST(Unit_ImporterRegistry, AFormatAddedTwiceIsRefused)
+TEST(Small_ImporterRegistry, AFormatAddedTwiceIsRefused)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(registry.add(K_FIRST_ROW));
@@ -103,7 +103,7 @@ TEST(Unit_ImporterRegistry, AFormatAddedTwiceIsRefused)
 }
 
 /** @brief Tests that import_model hands the files to the row the format names. */
-TEST(Unit_ImporterRegistry, ImportModelCallsTheRowOfTheFormat)
+TEST(Small_ImporterRegistry, ImportModelCallsTheRowOfTheFormat)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(registry.add(K_FIRST_ROW));
@@ -116,7 +116,7 @@ TEST(Unit_ImporterRegistry, ImportModelCallsTheRowOfTheFormat)
 }
 
 /** @brief Tests that the failure of a row reaches the caller unchanged. */
-TEST(Unit_ImporterRegistry, ImportModelReturnsTheFailureOfTheRow)
+TEST(Small_ImporterRegistry, ImportModelReturnsTheFailureOfTheRow)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(registry.add(K_SECOND_ROW));
@@ -126,7 +126,7 @@ TEST(Unit_ImporterRegistry, ImportModelReturnsTheFailureOfTheRow)
 }
 
 /** @brief Tests that an unknown format is refused with every format the registry holds. */
-TEST(Unit_ImporterRegistry, AnUnknownFormatListsTheFormatsTheRegistryHolds)
+TEST(Small_ImporterRegistry, AnUnknownFormatListsTheFormatsTheRegistryHolds)
 {
     IO::ImporterRegistry registry;
     SA_EXPECT_OK(registry.add(K_FIRST_ROW));

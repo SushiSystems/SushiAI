@@ -1,7 +1,7 @@
 # tests/layers/nn/test_throwing_bridge.cpp
 
 
-Suites: `Unit_ThrowingBridge`, `Unit_ThrowingBridgeDeathTest`.
+Suites: `Small_ThrowingBridge`, `Small_ThrowingBridgeDeathTest`.
 
 Tests bridge_throwing: a value passes through and a thrown Error becomes a Status.
 
@@ -49,5 +49,5 @@ Bridging `refuse_an_allocation` gives an `OutOfMemory` failure whose message con
 
 ## AnotherExceptionIsFatal
 
-The case is in the suite `Unit_ThrowingBridgeDeathTest`. `bridge_a_logic_error` stops the
+The case is in the suite `Small_ThrowingBridgeDeathTest`. `bridge_a_logic_error` stops the
 process with a report containing "other than Error" and "an index was out of range".

@@ -1,13 +1,13 @@
 # tests/layers/train/test_objective.cpp
 
 
-Suites: `Unit_Objective`, `Unit_ObjectiveScore`.
+Suites: `Small_Objective`, `Medium_ObjectiveScore`.
 
 Tests the objective seam: the leaves it declares, the loss it emits, the resulting IR, and what
 `feed` and `measure` do with a batch.
 
-The `Unit_Objective` cases need no device. Declaring leaves and emitting a loss are IR-to-IR,
-so that part of the seam is testable without an Engine. The `Unit_ObjectiveScore` fixture is
+The `Small_Objective` cases need no device. Declaring leaves and emitting a loss are IR-to-IR,
+so that part of the seam is testable without an Engine. The `Medium_ObjectiveScore` fixture is
 an `EngineTest`, because `feed` and `measure` read tensors.
 
 The test that carries this file is BuildGraphAndBuildClassifierProduceTheSameIR. The objective

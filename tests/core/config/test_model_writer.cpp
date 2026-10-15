@@ -248,7 +248,7 @@ namespace
 } // namespace
 
 /** @brief Tests that an int32 input is written as "dtype" and a float32 one is left out. */
-TEST(Unit_ModelWriter, WritesTheInputElementTypeOnlyWhenItIsInt32)
+TEST(Small_ModelWriter, WritesTheInputElementTypeOnlyWhenItIsInt32)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     SA_ASSERT_OK_AND_ASSIGN(const std::string floating, write_model(model));
@@ -263,26 +263,26 @@ TEST(Unit_ModelWriter, WritesTheInputElementTypeOnlyWhenItIsInt32)
     SA_EXPECT_FAILURE(write_model(model), StatusCode::InvalidDescription, "float64");
 }
 
-TEST(Unit_ModelWriter, RoundTripsTheMNISTExample)
+TEST(Small_ModelWriter, RoundTripsTheMNISTExample)
 {
     const std::filesystem::path root = repository_root();
 
     expect_round_trip(Config::load_model(example_model_path(root, "mnist_cnn")));
 }
 
-TEST(Unit_ModelWriter, RoundTripsTheYOLO26Example)
+TEST(Small_ModelWriter, RoundTripsTheYOLO26Example)
 {
     const std::filesystem::path root = repository_root();
 
     expect_round_trip(Config::load_model(example_model_path(root, "yolo26")));
 }
 
-TEST(Unit_ModelWriter, RoundTripsEveryAttributeKindAndEveryFormOfFromAndOutputs)
+TEST(Small_ModelWriter, RoundTripsEveryAttributeKindAndEveryFormOfFromAndOutputs)
 {
     expect_round_trip(model_from(K_FULL_MODEL));
 }
 
-TEST(Unit_ModelWriter, WritesTheSameTextFromWhatItWrote)
+TEST(Small_ModelWriter, WritesTheSameTextFromWhatItWrote)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::string first, write_model(model_from(K_FULL_MODEL)));
     SA_ASSERT_OK_AND_ASSIGN(const std::string second, write_model(model_from(first)));
@@ -290,7 +290,7 @@ TEST(Unit_ModelWriter, WritesTheSameTextFromWhatItWrote)
     EXPECT_EQ(first, second);
 }
 
-TEST(Unit_ModelWriter, LeavesOutTheFromAndTheOutputsTheParserFillsIn)
+TEST(Small_ModelWriter, LeavesOutTheFromAndTheOutputsTheParserFillsIn)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_model(model_from(K_CHAIN_MODEL)));
 
@@ -308,7 +308,7 @@ TEST(Unit_ModelWriter, LeavesOutTheFromAndTheOutputsTheParserFillsIn)
               "}\n");
 }
 
-TEST(Unit_ModelWriter, WritesTypeThenFromThenTheAttributesAndTheOutputsLast)
+TEST(Small_ModelWriter, WritesTypeThenFromThenTheAttributesAndTheOutputsLast)
 {
     const ModelSpec model = model_from(R"({
         "format_version": 2,
@@ -341,7 +341,7 @@ TEST(Unit_ModelWriter, WritesTypeThenFromThenTheAttributesAndTheOutputsLast)
               "}\n");
 }
 
-TEST(Unit_ModelWriter, WritesADefaultIntoEveryRowAndNoDefaultsBlock)
+TEST(Small_ModelWriter, WritesADefaultIntoEveryRowAndNoDefaultsBlock)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_model(model_from(K_FULL_MODEL)));
 
@@ -354,7 +354,7 @@ TEST(Unit_ModelWriter, WritesADefaultIntoEveryRowAndNoDefaultsBlock)
         << text;
 }
 
-TEST(Unit_ModelWriter, RoundTripsAPortOfTheModelInputAtRowZero)
+TEST(Small_ModelWriter, RoundTripsAPortOfTheModelInputAtRowZero)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.layers[0].from = {SourceSpec{Config::K_MODEL_INPUT, "image"}};
@@ -362,7 +362,7 @@ TEST(Unit_ModelWriter, RoundTripsAPortOfTheModelInputAtRowZero)
     expect_round_trip(model);
 }
 
-TEST(Unit_ModelWriter, AnEmptyOutputsListReadsBackAsTheLastRowPublishedWhole)
+TEST(Small_ModelWriter, AnEmptyOutputsListReadsBackAsTheLastRowPublishedWhole)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.outputs.clear();
@@ -377,7 +377,7 @@ TEST(Unit_ModelWriter, AnEmptyOutputsListReadsBackAsTheLastRowPublishedWhole)
     EXPECT_TRUE(read.outputs[0].name.empty());
 }
 
-TEST(Unit_ModelWriter, RefusesAModelWithoutLayers)
+TEST(Small_ModelWriter, RefusesAModelWithoutLayers)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.layers.clear();
@@ -386,7 +386,7 @@ TEST(Unit_ModelWriter, RefusesAModelWithoutLayers)
     SA_EXPECT_FAILURE(write_model(model), StatusCode::InvalidDescription, "no layers");
 }
 
-TEST(Unit_ModelWriter, RefusesAnInputShapeAModelFileCannotState)
+TEST(Small_ModelWriter, RefusesAnInputShapeAModelFileCannotState)
 {
     ModelSpec scalar = model_from(K_CHAIN_MODEL);
     scalar.input_shape = Shape{};
@@ -399,7 +399,7 @@ TEST(Unit_ModelWriter, RefusesAnInputShapeAModelFileCannotState)
                       "input shape", "extent 1");
 }
 
-TEST(Unit_ModelWriter, RefusesAttributesThatAreNotAnObject)
+TEST(Small_ModelWriter, RefusesAttributesThatAreNotAnObject)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.layers[1].attributes = Value{};
@@ -408,7 +408,7 @@ TEST(Unit_ModelWriter, RefusesAttributesThatAreNotAnObject)
                       "layer 1", "'relu'", "null");
 }
 
-TEST(Unit_ModelWriter, RefusesAnAttributeNamedAsARowKey)
+TEST(Small_ModelWriter, RefusesAnAttributeNamedAsARowKey)
 {
     ModelSpec typed = model_from(K_CHAIN_MODEL);
     typed.layers[1].attributes = Value::object({"type"}, {Value::string("gelu")});
@@ -421,7 +421,7 @@ TEST(Unit_ModelWriter, RefusesAnAttributeNamedAsARowKey)
                       "layer 2", "'from'");
 }
 
-TEST(Unit_ModelWriter, RefusesARowThatReadsNothingOrARowNotAboveIt)
+TEST(Small_ModelWriter, RefusesARowThatReadsNothingOrARowNotAboveIt)
 {
     ModelSpec empty = model_from(K_CHAIN_MODEL);
     empty.layers[1].from.clear();
@@ -444,7 +444,7 @@ TEST(Unit_ModelWriter, RefusesARowThatReadsNothingOrARowNotAboveIt)
                       "layer 2", "row -2", "not above");
 }
 
-TEST(Unit_ModelWriter, RefusesAPortOfTheModelInputBelowRowZero)
+TEST(Small_ModelWriter, RefusesAPortOfTheModelInputBelowRowZero)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.layers[2].from = {SourceSpec{Config::K_MODEL_INPUT, "image"}};
@@ -453,7 +453,7 @@ TEST(Unit_ModelWriter, RefusesAPortOfTheModelInputBelowRowZero)
                       "layer 2", "'image'", "row 0");
 }
 
-TEST(Unit_ModelWriter, RefusesAnOutputAModelFileCannotState)
+TEST(Small_ModelWriter, RefusesAnOutputAModelFileCannotState)
 {
     ModelSpec beyond = model_from(K_CHAIN_MODEL);
     beyond.outputs = {OutputSpec{3, "", ""}};
@@ -471,7 +471,7 @@ TEST(Unit_ModelWriter, RefusesAnOutputAModelFileCannotState)
                       "output 0", "'predictions'", "without a port");
 }
 
-TEST(Unit_ModelWriter, ForwardsTheRefusalOfAnAttributeJSONCannotSpell)
+TEST(Small_ModelWriter, ForwardsTheRefusalOfAnAttributeJSONCannotSpell)
 {
     ModelSpec model = model_from(K_CHAIN_MODEL);
     model.layers[2].attributes = Value::object(
@@ -481,7 +481,7 @@ TEST(Unit_ModelWriter, ForwardsTheRefusalOfAnAttributeJSONCannotSpell)
                       "key 'layers'", "entry 2", "key 'rate'", "infinite");
 }
 
-TEST(Unit_ModelWriter, RoundTripsATaskOfEveryValueKind)
+TEST(Small_ModelWriter, RoundTripsATaskOfEveryValueKind)
 {
     const ModelSpec model = model_from(K_TASK_MODEL);
     ASSERT_EQ(model.task.kind(), Kind::Object);
@@ -489,7 +489,7 @@ TEST(Unit_ModelWriter, RoundTripsATaskOfEveryValueKind)
     expect_round_trip(model);
 }
 
-TEST(Unit_ModelWriter, WritesTheTaskAfterTheOutputsWithItsKeysInOrder)
+TEST(Small_ModelWriter, WritesTheTaskAfterTheOutputsWithItsKeysInOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_model(model_from(K_TASK_MODEL)));
 
@@ -503,7 +503,7 @@ TEST(Unit_ModelWriter, WritesTheTaskAfterTheOutputsWithItsKeysInOrder)
               (std::vector<std::string>{"type", "classes", "anchors", "heads", "suppression"}));
 }
 
-TEST(Unit_ModelWriter, LeavesOutANullTaskAndReadsItBackNull)
+TEST(Small_ModelWriter, LeavesOutANullTaskAndReadsItBackNull)
 {
     const ModelSpec model = model_from(K_CHAIN_MODEL);
     ASSERT_TRUE(model.task.is_null());
@@ -513,7 +513,7 @@ TEST(Unit_ModelWriter, LeavesOutANullTaskAndReadsItBackNull)
     EXPECT_TRUE(model_from(text).task.is_null());
 }
 
-TEST(Unit_ModelWriter, RefusesATaskThatIsNotAnObjectWithAStringType)
+TEST(Small_ModelWriter, RefusesATaskThatIsNotAnObjectWithAStringType)
 {
     ModelSpec listed = model_from(K_CHAIN_MODEL);
     listed.task = Value::array({Value::string("anchor_detection")});

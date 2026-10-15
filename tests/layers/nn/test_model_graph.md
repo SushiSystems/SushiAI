@@ -1,7 +1,7 @@
 # tests/layers/nn/test_model_graph.cpp
 
 
-Suites: `Unit_ModelGraph`, `Unit_ModelGraphDeathTest`.
+Suites: `Small_ModelGraph`, `Small_ModelGraphDeathTest`.
 
 Tests ModelGraph: what add and output refuse, what a trace emits, and the state names.
 
@@ -237,18 +237,18 @@ added to it and published traces one node whose output is the published value.
 
 ## AccessorsAreFatalOutOfRange
 
-The case is in the suite `Unit_ModelGraphDeathTest`. On an empty graph, `shape_of` of a ref to
+The case is in the suite `Small_ModelGraphDeathTest`. On an empty graph, `shape_of` of a ref to
 another graph's node stops the process with "shape_of" and "source node 0", and `node(0)`
 stops it with "ModelGraph::node" and "node 0".
 
 ## AddIsFatalOnANullNode
 
-The case is in the suite `Unit_ModelGraphDeathTest`. `add` given a null `unique_ptr<NN::Node>`
+The case is in the suite `Small_ModelGraphDeathTest`. `add` given a null `unique_ptr<NN::Node>`
 stops the process with a report containing "null node" and "'ghost'".
 
 ## AddIsFatalOnANodeWithTwoPortsOfOneName
 
-The case is in the suite `Unit_ModelGraphDeathTest`. `add` given a `TwoPortNode` whose ports
+The case is in the suite `Small_ModelGraphDeathTest`. `add` given a `TwoPortNode` whose ports
 are both named "low" stops the process with a report containing "'pair'" and "two ports named
 'low'".
 

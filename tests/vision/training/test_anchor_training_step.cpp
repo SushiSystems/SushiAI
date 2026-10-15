@@ -78,7 +78,7 @@ using Vision::Training::AnchorTrainingStep;
 
 namespace
 {
-    class Integration_AnchorTrainingStep : public SaTest::EngineTest {};
+    class Medium_AnchorTrainingStep : public SaTest::EngineTest {};
 
     /** @brief Holds the images per step. */
     constexpr std::int64_t K_BATCH = 2;
@@ -307,7 +307,7 @@ namespace
 } // namespace
 
 /** @brief Tests that each leaf holds the delta of its forward-only head, element for element. */
-TEST_F(Integration_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
+TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -352,7 +352,7 @@ TEST_F(Integration_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
 }
 
 /** @brief Tests that one step moves a head's bias by rate / batch times the delta's sum. */
-TEST_F(Integration_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
+TEST_F(Medium_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -388,7 +388,7 @@ TEST_F(Integration_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
 }
 
 /** @brief Tests that the two passes of one step blend a running mean once, not twice. */
-TEST_F(Integration_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
+TEST_F(Medium_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -426,7 +426,7 @@ TEST_F(Integration_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
 }
 
 /** @brief Tests that a truth of another batch is Incompatible, with both batch sizes. */
-TEST_F(Integration_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
+TEST_F(Medium_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -443,7 +443,7 @@ TEST_F(Integration_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
 }
 
 /** @brief Tests that a valid row whose label names no class is InvalidDescription. */
-TEST_F(Integration_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
+TEST_F(Medium_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -460,7 +460,7 @@ TEST_F(Integration_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
 }
 
 /** @brief Tests that a valid row whose centre lies right of the input is refused by its row. */
-TEST_F(Integration_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
+TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -479,7 +479,7 @@ TEST_F(Integration_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 }
 
 /** @brief Tests that an objective naming a head the model lacks is refused by that name. */
-TEST_F(Integration_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
+TEST_F(Medium_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.9"));
@@ -492,7 +492,7 @@ TEST_F(Integration_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefus
 }
 
 /** @brief Tests that a host stage reading a value the graph lacks is refused with the count. */
-TEST_F(Integration_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
+TEST_F(Medium_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -509,7 +509,7 @@ TEST_F(Integration_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsR
 }
 
 /** @brief Tests that a stage placed behind a reader of a leaf it writes is refused. */
-TEST_F(Integration_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
+TEST_F(Medium_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));
@@ -527,7 +527,7 @@ TEST_F(Integration_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused
 }
 
 /** @brief Tests that a step compiled without a host stage refuses host work and calls none. */
-TEST_F(Integration_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
+TEST_F(Medium_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
 {
     TwoHeadCase model;
     model.prepare(*engine, two_heads("head.0", "head.1"));

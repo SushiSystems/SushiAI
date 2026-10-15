@@ -97,7 +97,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a 2x2 stride-2 pool halves both spatial extents and keeps N and C. */
-TEST(Unit_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
+TEST(Medium_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -110,7 +110,7 @@ TEST(Unit_MaxPool2d, ForwardHalvesTheSpatialExtentsOfAnEvenInput)
 }
 
 /** @brief Tests that the traced rank-4 result carries the NHWC layout tag. */
-TEST(Unit_MaxPool2d, ForwardTagsItsResultNHWC)
+TEST(Medium_MaxPool2d, ForwardTagsItsResultNHWC)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -124,7 +124,7 @@ TEST(Unit_MaxPool2d, ForwardTagsItsResultNHWC)
 }
 
 /** @brief Tests that forward() returns the pooled value and not the INT64 argmax beside it. */
-TEST(Unit_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
+TEST(Medium_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -138,7 +138,7 @@ TEST(Unit_MaxPool2d, ForwardReturnsThePooledValueNotTheArgmax)
 }
 
 /** @brief Tests that output_shape() returns [out_h, out_w, C] for an unpadded square window. */
-TEST(Unit_MaxPool2d, OutputShapeOfAnUnpaddedSquareWindow)
+TEST(Medium_MaxPool2d, OutputShapeOfAnUnpaddedSquareWindow)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
 
@@ -146,7 +146,7 @@ TEST(Unit_MaxPool2d, OutputShapeOfAnUnpaddedSquareWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for an unpadded square window. */
-TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForASquareWindow)
+TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForASquareWindow)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
     const Shape sample{8, 6, 3};
@@ -155,7 +155,7 @@ TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForASquareWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a padded anisotropic window. */
-TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForAPaddedAnisotropicWindow)
+TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForAPaddedAnisotropicWindow)
 {
     const MaxPool2d layer = make_pool(3, 2, 2, 1, 1, 0);
     const Shape sample{5, 7, 4};
@@ -165,7 +165,7 @@ TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForAPaddedAnisotropicWindow)
 }
 
 /** @brief Tests that output_shape() matches the traced shape when the stride drops a remainder. */
-TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardWhenTheStrideLeavesARemainder)
+TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardWhenTheStrideLeavesARemainder)
 {
     const MaxPool2d layer = make_pool(3, 3, 2, 2);
     const Shape sample{8, 10, 1};
@@ -175,7 +175,7 @@ TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardWhenTheStrideLeavesARemainder)
 }
 
 /** @brief Tests that output_shape() matches the traced shape for unequal dilations per axis. */
-TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForADilatedAnisotropicWindow)
+TEST(Medium_MaxPool2d, OutputShapeAgreesWithForwardForADilatedAnisotropicWindow)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.geometry.dilation_h = 2;
@@ -187,7 +187,7 @@ TEST(Unit_MaxPool2d, OutputShapeAgreesWithForwardForADilatedAnisotropicWindow)
 }
 
 /** @brief Tests that forward() throws on a rank-2 input. */
-TEST(Unit_MaxPool2d, ForwardRejectsAnInputThatIsNotRankFour)
+TEST(Medium_MaxPool2d, ForwardRejectsAnInputThatIsNotRankFour)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -199,7 +199,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAnInputThatIsNotRankFour)
 }
 
 /** @brief Tests that forward() throws when the window is larger than the padded input. */
-TEST(Unit_MaxPool2d, ForwardRejectsAWindowThatDoesNotFit)
+TEST(Medium_MaxPool2d, ForwardRejectsAWindowThatDoesNotFit)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -211,7 +211,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAWindowThatDoesNotFit)
 }
 
 /** @brief Tests that forward() throws on a rank-4 input tagged NCHW. */
-TEST(Unit_MaxPool2d, ForwardRejectsAnNCHWInput)
+TEST(Medium_MaxPool2d, ForwardRejectsAnNCHWInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -224,7 +224,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAnNCHWInput)
 }
 
 /** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
-TEST(Unit_MaxPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
+TEST(Medium_MaxPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -237,7 +237,7 @@ TEST(Unit_MaxPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
 }
 
 /** @brief Tests that forward() refuses a zero vertical stride in the layer's own message. */
-TEST(Unit_MaxPool2d, ForwardRejectsAZeroStride)
+TEST(Medium_MaxPool2d, ForwardRejectsAZeroStride)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -249,7 +249,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsAZeroStride)
 }
 
 /** @brief Tests that forward() refuses a negative padding in the layer's own message. */
-TEST(Unit_MaxPool2d, ForwardRejectsANegativePadding)
+TEST(Medium_MaxPool2d, ForwardRejectsANegativePadding)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -261,7 +261,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsANegativePadding)
 }
 
 /** @brief Tests that output_shape() throws when the vertical stride is zero. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsAZeroStride)
+TEST(Medium_MaxPool2d, OutputShapeRejectsAZeroStride)
 {
     const MaxPool2d layer = make_pool(2, 2, 0, 2);
 
@@ -269,7 +269,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsAZeroStride)
 }
 
 /** @brief Tests that output_shape() names the stride it refuses, not the window's fit. */
-TEST(Unit_MaxPool2d, OutputShapeNamesAZeroStride)
+TEST(Medium_MaxPool2d, OutputShapeNamesAZeroStride)
 {
     const MaxPool2d layer = make_pool(2, 2, 0, 2);
 
@@ -277,7 +277,7 @@ TEST(Unit_MaxPool2d, OutputShapeNamesAZeroStride)
 }
 
 /** @brief Tests that output_shape() refuses a negative padding and names it. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsANegativePadding)
+TEST(Medium_MaxPool2d, OutputShapeRejectsANegativePadding)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2, 0, -1);
 
@@ -285,7 +285,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsANegativePadding)
 }
 
 /** @brief Tests that output_shape() throws on a per-sample feature vector. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsAFeatureVector)
+TEST(Medium_MaxPool2d, OutputShapeRejectsAFeatureVector)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
 
@@ -293,7 +293,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsAFeatureVector)
 }
 
 /** @brief Tests that output_shape() throws on a shape that still carries the batch axis. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsABatchedShape)
+TEST(Medium_MaxPool2d, OutputShapeRejectsABatchedShape)
 {
     const MaxPool2d layer = make_pool(2, 2, 2, 2);
 
@@ -301,7 +301,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsABatchedShape)
 }
 
 /** @brief Tests that output_shape() throws when the window is taller than the padded input. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsAWindowTallerThanTheInput)
+TEST(Medium_MaxPool2d, OutputShapeRejectsAWindowTallerThanTheInput)
 {
     const MaxPool2d layer = make_pool(5, 2, 1, 1);
 
@@ -309,7 +309,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsAWindowTallerThanTheInput)
 }
 
 /** @brief Tests that output_shape() throws when the window is wider than the padded input. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsAWindowWiderThanTheInput)
+TEST(Medium_MaxPool2d, OutputShapeRejectsAWindowWiderThanTheInput)
 {
     const MaxPool2d layer = make_pool(2, 5, 1, 1);
 
@@ -317,7 +317,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsAWindowWiderThanTheInput)
 }
 
 /** @brief Tests that a trailing row keeps 13x13 at stride one; without it the result is 12x12. */
-TEST(Unit_MaxPool2d, TrailingRowKeepsTheExtentOfAStrideOnePool)
+TEST(Medium_MaxPool2d, TrailingRowKeepsTheExtentOfAStrideOnePool)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     const Shape sample{13, 13, 4};
@@ -332,7 +332,7 @@ TEST(Unit_MaxPool2d, TrailingRowKeepsTheExtentOfAStrideOnePool)
 }
 
 /** @brief Tests that a trailing pad at stride two gives 7x7 over 13x13, as (13 + 1 - 2) / 2 + 1. */
-TEST(Unit_MaxPool2d, TrailingPadAtStrideTwoGivesSevenFromThirteen)
+TEST(Medium_MaxPool2d, TrailingPadAtStrideTwoGivesSevenFromThirteen)
 {
     MaxPool2d layer = make_pool(2, 2, 2, 2);
     layer.trailing_pad_h = 1;
@@ -343,7 +343,7 @@ TEST(Unit_MaxPool2d, TrailingPadAtStrideTwoGivesSevenFromThirteen)
 }
 
 /** @brief Tests that a 2/2 pool over 416 with one trailing row and column gives 208. */
-TEST(Unit_MaxPool2d, TrailingPadGivesTwoHundredEightFromFourHundredSixteen)
+TEST(Medium_MaxPool2d, TrailingPadGivesTwoHundredEightFromFourHundredSixteen)
 {
     MaxPool2d layer = make_pool(2, 2, 2, 2);
     layer.trailing_pad_h = 1;
@@ -353,7 +353,7 @@ TEST(Unit_MaxPool2d, TrailingPadGivesTwoHundredEightFromFourHundredSixteen)
 }
 
 /** @brief Tests that the trailing pad is set per axis: one row alone gives 3x2 over 3x3 at 2/1. */
-TEST(Unit_MaxPool2d, TrailingPadAppliesToOneAxisOnly)
+TEST(Medium_MaxPool2d, TrailingPadAppliesToOneAxisOnly)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.trailing_pad_h = 1;
@@ -362,7 +362,7 @@ TEST(Unit_MaxPool2d, TrailingPadAppliesToOneAxisOnly)
 }
 
 /** @brief Tests that a trailing pad lets a 2-row window fit a 1-row input it would overrun. */
-TEST(Unit_MaxPool2d, TrailingPadLetsAWindowFitAShortInput)
+TEST(Medium_MaxPool2d, TrailingPadLetsAWindowFitAShortInput)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     const Shape sample{1, 4, 3};
@@ -377,7 +377,7 @@ TEST(Unit_MaxPool2d, TrailingPadLetsAWindowFitAShortInput)
 }
 
 /** @brief Tests that output_shape() refuses a negative trailing pad and names the value. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsANegativeTrailingPad)
+TEST(Medium_MaxPool2d, OutputShapeRejectsANegativeTrailingPad)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.trailing_pad_w = -1;
@@ -387,7 +387,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsANegativeTrailingPad)
 }
 
 /** @brief Tests that forward() refuses a negative trailing pad before it emits a node. */
-TEST(Unit_MaxPool2d, ForwardRejectsANegativeTrailingPad)
+TEST(Medium_MaxPool2d, ForwardRejectsANegativeTrailingPad)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -403,7 +403,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsANegativeTrailingPad)
 }
 
 /** @brief Tests that a trailing pad too large for 64 bits is refused rather than wrapping. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatOverflows)
+TEST(Medium_MaxPool2d, OutputShapeRejectsATrailingPadThatOverflows)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.trailing_pad_h = std::numeric_limits<int64_t>::max();
@@ -412,7 +412,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatOverflows)
 }
 
 /** @brief Tests that a trailing pad as tall as the window is refused: its last row is padding. */
-TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap)
+TEST(Medium_MaxPool2d, OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap)
 {
     MaxPool2d layer = make_pool(2, 2, 1, 1);
     layer.trailing_pad_h = 2;
@@ -422,7 +422,7 @@ TEST(Unit_MaxPool2d, OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap)
 }
 
 /** @brief Tests that forward() refuses an all-padding trailing window before it emits a node. */
-TEST(Unit_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
+TEST(Medium_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -438,7 +438,7 @@ TEST(Unit_MaxPool2d, ForwardRejectsATrailingPadThatLeavesAWindowNoTap)
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
-TEST(Unit_MaxPool2d, TheParameterWalkVisitsNothing)
+TEST(Medium_MaxPool2d, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -454,7 +454,7 @@ TEST(Unit_MaxPool2d, TheParameterWalkVisitsNothing)
 
 namespace
 {
-    class Integration_MaxPoolTrailing : public SaTest::EngineTest {};
+    class Medium_MaxPoolTrailing : public SaTest::EngineTest {};
 
     /** @brief Builds a 2x2 window at stride one with one trailing row and one trailing column. */
     NN::MaxPool2d trailing_window()
@@ -495,7 +495,7 @@ namespace
     }
 } // namespace
 
-TEST_F(Integration_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps)
+TEST_F(Medium_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps)
 {
     // Input [[5, -1, 2], [-3, 8, 0], [4, -7, 6]]; expected [[8, 8, 2], [8, 8, 6], [4, 6, 6]].
     const std::vector<double> input = {5, -1, 2, -3, 8, 0, 4, -7, 6};
@@ -509,7 +509,7 @@ TEST_F(Integration_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncated
         EXPECT_NEAR(pooled[i], expected[i], 1e-6) << "at " << i;
 }
 
-TEST_F(Integration_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
+TEST_F(Medium_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
 {
     // Input [[-18, -17, -16], [-15, -14, -13], [-12, -11, -10]]; a zero pad would show as 0.
     const std::vector<double> input = {-18, -17, -16, -15, -14, -13, -12, -11, -10};

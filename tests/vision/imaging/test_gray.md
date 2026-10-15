@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_gray.cpp
 
 
-Suites: `Unit_ImagingGray`.
+Suites: `Small_ImagingGray`.
 
 Tests the expansion of a one-channel image to three equal channels.
 
-This file needs no device. `Unit_ImagingGray` covers `expand_gray` of
+This file needs no device. `Small_ImagingGray` covers `expand_gray` of
 `modules/vision/imaging/include/SushiAI/vision/imaging/gray.hpp`.
 
 ## make_counted

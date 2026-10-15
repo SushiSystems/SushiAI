@@ -68,7 +68,7 @@ namespace
     constexpr ImageSize K_SIZE{1, 2};
 
     /** @brief Provides an engine, a two-file list and the samples of one batch. */
-    class Unit_MultiLabelCollator : public SaTest::EngineTest
+    class Medium_MultiLabelCollator : public SaTest::EngineTest
     {
         protected:
             /** @brief Names the two files and makes one gray sample of K_SIZE per file. */
@@ -115,7 +115,7 @@ namespace
 } // namespace
 
 /** @brief Tests that multi-label writes one flag per class a sample's objects name. */
-TEST_F(Unit_MultiLabelCollator, MultiLabelWritesTheSetOfClassesPresent)
+TEST_F(Medium_MultiLabelCollator, MultiLabelWritesTheSetOfClassesPresent)
 {
     SA_EXPECT_FAILURE(MultiLabelCollator::make(0), StatusCode::InvalidDescription,
                       "MultiLabelCollator", "0 classes");
@@ -145,7 +145,7 @@ TEST_F(Unit_MultiLabelCollator, MultiLabelWritesTheSetOfClassesPresent)
 }
 
 /** @brief Tests that multi-label names the file of a sample with a class outside the set. */
-TEST_F(Unit_MultiLabelCollator, MultiLabelRefusesAClassOutsideTheSet)
+TEST_F(Medium_MultiLabelCollator, MultiLabelRefusesAClassOutsideTheSet)
 {
     samples[1].objects.add(4, PixelBox{0.0f, 0.0f, 1.0f, 1.0f});
 

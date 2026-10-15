@@ -66,13 +66,13 @@ namespace
 } // namespace
 
 /** @brief Tests that the byte count is height times width times channels. */
-TEST(Unit_DatasetsStoredPixels, ByteCountIsTheProductOfTheExtents)
+TEST(Small_DatasetsStoredPixels, ByteCountIsTheProductOfTheExtents)
 {
     EXPECT_EQ(pixels_at(0, ImageSize{4, 5}, 3, PlaneLayout::Planar).byte_count(), 60u);
 }
 
 /** @brief Tests that interleaved bytes are copied as they are, starting at the offset. */
-TEST(Unit_DatasetsStoredPixels, InterleavedBytesAreCopiedFromTheOffset)
+TEST(Small_DatasetsStoredPixels, InterleavedBytesAreCopiedFromTheOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_interleaved");
     const std::filesystem::path file = scratch.write("pixels.bin", Support::rising_bytes(20, 0));
@@ -88,7 +88,7 @@ TEST(Unit_DatasetsStoredPixels, InterleavedBytesAreCopiedFromTheOffset)
 }
 
 /** @brief Tests that plane c of a planar image becomes channel c of every pixel. */
-TEST(Unit_DatasetsStoredPixels, PlanarBytesAreInterleaved)
+TEST(Small_DatasetsStoredPixels, PlanarBytesAreInterleaved)
 {
     const std::vector<std::uint8_t> stored = {9, 1, 2, 3, 4, 11, 12, 13, 14, 21, 22, 23, 24};
     std::istringstream in(std::string(stored.begin(), stored.end()), std::ios::binary);
@@ -102,7 +102,7 @@ TEST(Unit_DatasetsStoredPixels, PlanarBytesAreInterleaved)
 }
 
 /** @brief Tests that a plane longer than one read is copied whole. */
-TEST(Unit_DatasetsStoredPixels, APlaneLongerThanOneChunkIsCopiedWhole)
+TEST(Small_DatasetsStoredPixels, APlaneLongerThanOneChunkIsCopiedWhole)
 {
     const std::size_t plane_bytes = 100 * 100;
     const std::vector<std::uint8_t> stored = Support::rising_bytes(2 * plane_bytes, 0);
@@ -120,7 +120,7 @@ TEST(Unit_DatasetsStoredPixels, APlaneLongerThanOneChunkIsCopiedWhole)
 }
 
 /** @brief Tests that a file that ends inside the pixels is invalid and named. */
-TEST(Unit_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
+TEST(Small_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_short");
     const std::filesystem::path file = scratch.write("short.bin", Support::rising_bytes(10, 0));
@@ -133,7 +133,7 @@ TEST(Unit_DatasetsStoredPixels, AFileThatEndsEarlyIsInvalid)
 }
 
 /** @brief Tests that a path that names no file is invalid and named. */
-TEST(Unit_DatasetsStoredPixels, AFileThatCannotBeOpenedIsInvalid)
+TEST(Small_DatasetsStoredPixels, AFileThatCannotBeOpenedIsInvalid)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_stored_absent");
 
@@ -145,7 +145,7 @@ TEST(Unit_DatasetsStoredPixels, AFileThatCannotBeOpenedIsInvalid)
 }
 
 /** @brief Tests that a size or a channel count no image can have is refused. */
-TEST(Unit_DatasetsStoredPixels, ExtentsOutsideAnImageAreRefused)
+TEST(Small_DatasetsStoredPixels, ExtentsOutsideAnImageAreRefused)
 {
     std::istringstream in(std::string(16, 'x'), std::ios::binary);
     Image image;

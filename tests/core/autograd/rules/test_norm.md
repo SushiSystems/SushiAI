@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_norm.cpp
 
 
-Suites: `Unit_LayerNormBackward`.
+Suites: `Small_LayerNormBackward`.
 
 Tests the nodes `Autograd::differentiate` appends for LAYER_NORM. The graph normalises a
 [5, 3] value with a [3] gain and a [3] bias at the epsilon 1e-5 and takes the `nll_loss` of

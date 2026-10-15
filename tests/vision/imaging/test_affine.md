@@ -1,12 +1,12 @@
 # tests/vision/imaging/test_affine.cpp
 
 
-Suites: `Unit_ImagingAffine`.
+Suites: `Small_ImagingAffine`.
 
 Tests the plan and the application of the scale and translation warp to an image and its
 labels.
 
-This file needs no device. `Unit_ImagingAffine` covers `modules/vision/imaging/include/SushiAI/vision/imaging/affine.hpp`.
+This file needs no device. `Small_ImagingAffine` covers `modules/vision/imaging/include/SushiAI/vision/imaging/affine.hpp`.
 `plan_affine` draws a scale and a translation per axis and stores the 2 by 3 matrix;
 `apply_affine` warps an image with bilinear weights, or warps, clips and filters a label set.
 The matrix has no rotation and no shear, and `apply_affine` refuses a plan that has one.

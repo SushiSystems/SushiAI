@@ -37,7 +37,7 @@ using Optim::LossScaleState;
 
 namespace
 {
-    class Unit_LossScaling : public ::testing::Test {};
+    class Small_LossScaling : public ::testing::Test {};
 
     /** @brief Options with a growth interval small enough to reach in a test. */
     LossScaleOptions with_interval(std::uint64_t interval, double initial = 1024.0)
@@ -55,7 +55,7 @@ namespace
     }
 }
 
-TEST_F(Unit_LossScaling, TheScaleStartsWhereItWasAsked)
+TEST_F(Small_LossScaling, TheScaleStartsWhereItWasAsked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const LossScaleState state,
                             LossScaleState::make(with_interval(4, 65536.0)));
@@ -66,7 +66,7 @@ TEST_F(Unit_LossScaling, TheScaleStartsWhereItWasAsked)
     EXPECT_EQ(state.skipped_steps(), 0u);
 }
 
-TEST_F(Unit_LossScaling, AnOverflowHalvesTheScaleAndSkipsTheStep)
+TEST_F(Small_LossScaling, AnOverflowHalvesTheScaleAndSkipsTheStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
@@ -79,7 +79,7 @@ TEST_F(Unit_LossScaling, AnOverflowHalvesTheScaleAndSkipsTheStep)
     EXPECT_EQ(state.growths(), 0u);
 }
 
-TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
+TEST_F(Small_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
@@ -91,7 +91,7 @@ TEST_F(Unit_LossScaling, TheScaleDoublesAfterExactlyTheGrowthInterval)
 }
 
 // Controls the case above with one clean step fewer; see tests/core/optim/README.md.
-TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
+TEST_F(Small_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
@@ -102,7 +102,7 @@ TEST_F(Unit_LossScaling, OneStepShortOfTheIntervalTheScaleDoesNotMove)
     EXPECT_EQ(state.consecutive_good_steps(), 3u);
 }
 
-TEST_F(Unit_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
+TEST_F(Small_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(4)));
 
@@ -119,7 +119,7 @@ TEST_F(Unit_LossScaling, AnOverflowRestartsTheRunOfCleanSteps)
     EXPECT_EQ(state.growths(), 1u);
 }
 
-TEST_F(Unit_LossScaling, GrowthStopsAtTheCeilingWithoutCountingAGrowth)
+TEST_F(Small_LossScaling, GrowthStopsAtTheCeilingWithoutCountingAGrowth)
 {
     LossScaleOptions options = with_interval(1, 1024.0);
     options.maximum = 2048.0;
@@ -133,7 +133,7 @@ TEST_F(Unit_LossScaling, GrowthStopsAtTheCeilingWithoutCountingAGrowth)
     EXPECT_EQ(state.growths(), 1u);
 }
 
-TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
+TEST_F(Small_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
 {
     LossScaleOptions options = with_interval(4, 2.0);
     options.minimum = 1.0;
@@ -151,7 +151,7 @@ TEST_F(Unit_LossScaling, BackoffStopsAtTheFloorButStillSkipsTheStep)
 }
 
 // A constant that is not a power of two is refused; see tests/core/optim/README.md.
-TEST_F(Unit_LossScaling, ANonDyadicConstantIsRefusedByName)
+TEST_F(Small_LossScaling, ANonDyadicConstantIsRefusedByName)
 {
     LossScaleOptions options;
     options.initial = 3.0;
@@ -169,7 +169,7 @@ TEST_F(Unit_LossScaling, ANonDyadicConstantIsRefusedByName)
                       "power of two");
 }
 
-TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
+TEST_F(Small_LossScaling, IncoherentBoundsAreRefused)
 {
     LossScaleOptions options;
     options.initial = 65536.0;
@@ -184,7 +184,7 @@ TEST_F(Unit_LossScaling, IncoherentBoundsAreRefused)
 }
 
 // Every reachable scale is a power of two; see tests/core/optim/README.md.
-TEST_F(Unit_LossScaling, EveryReachableScaleHasAnExactReciprocal)
+TEST_F(Small_LossScaling, EveryReachableScaleHasAnExactReciprocal)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(2, 1024.0)));
 

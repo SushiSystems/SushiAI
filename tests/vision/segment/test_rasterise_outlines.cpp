@@ -77,7 +77,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a later outline overwrites an earlier one where they overlap. */
-TEST(Unit_SegmentRasterise, TheLaterOutlineWinsAnOverlap)
+TEST(Small_SegmentRasterise, TheLaterOutlineWinsAnOverlap)
 {
     const Parts first{rectangle(0.0f, 0.0f, 3.0f, 1.0f)};
     const Parts second{rectangle(2.0f, 0.0f, 4.0f, 1.0f)};
@@ -95,7 +95,7 @@ TEST(Unit_SegmentRasterise, TheLaterOutlineWinsAnOverlap)
 }
 
 /** @brief Tests that rasterise_outlines refuses a bad size and names the outline that failed. */
-TEST(Unit_SegmentRasterise, RasteriseRefusesABadSizeAndNamesTheOutline)
+TEST(Small_SegmentRasterise, RasteriseRefusesABadSizeAndNamesTheOutline)
 {
     const Parts good{rectangle(0.0f, 0.0f, 1.0f, 1.0f)};
     const Parts bad{Polygon{{std::numeric_limits<float>::infinity(), 0.0f}}};

@@ -60,7 +60,7 @@ namespace
     constexpr std::int32_t K_IDS = 40;
 
     /** @brief Provides an engine and the token file these tests read. */
-    class Unit_LanguageDatasetsTokensSection : public SaTest::EngineTest
+    class Medium_LanguageDatasetsTokensSection : public SaTest::EngineTest
     {
         protected:
             /** @brief Writes the ids 0 to 39 and returns the path with forward slashes. */
@@ -82,7 +82,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the block's window, stride and batch size reach the dataset. */
-TEST_F(Unit_LanguageDatasetsTokensSection, TheKeysDescribeTheDataset)
+TEST_F(Medium_LanguageDatasetsTokensSection, TheKeysDescribeTheDataset)
 {
     const Support::ScratchDirectory scratch("sushiai_tokens_section_keys");
     const std::string file = rising_file(scratch);
@@ -111,7 +111,7 @@ TEST_F(Unit_LanguageDatasetsTokensSection, TheKeysDescribeTheDataset)
 }
 
 /** @brief Tests that a block without "batch_size" has that of TokenDatasetOptions. */
-TEST_F(Unit_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsTheDefault)
+TEST_F(Medium_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsTheDefault)
 {
     const Support::ScratchDirectory scratch("sushiai_tokens_section_default");
     const std::string file = rising_file(scratch);
@@ -125,7 +125,7 @@ TEST_F(Unit_LanguageDatasetsTokensSection, AnAbsentBatchSizeIsTheDefault)
 }
 
 /** @brief Tests that an absent, a mistyped and an unknown key are each refused by name. */
-TEST_F(Unit_LanguageDatasetsTokensSection, AKeyThatDoesNotFitIsRefused)
+TEST_F(Medium_LanguageDatasetsTokensSection, AKeyThatDoesNotFitIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_tokens_section_refused");
     const std::string file = rising_file(scratch);
@@ -150,7 +150,7 @@ TEST_F(Unit_LanguageDatasetsTokensSection, AKeyThatDoesNotFitIsRefused)
 }
 
 /** @brief Tests that a file that is not there fails and names no dataset. */
-TEST_F(Unit_LanguageDatasetsTokensSection, AMissingFileFails)
+TEST_F(Medium_LanguageDatasetsTokensSection, AMissingFileFails)
 {
     const Support::ScratchDirectory scratch("sushiai_tokens_section_missing");
     const std::string file = (scratch.path() / "absent.satk").generic_string();

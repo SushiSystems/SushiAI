@@ -53,7 +53,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the IoU of two overlapping boxes is the ratio of their areas. */
-TEST(Unit_DetectSuppressionCriterion, IoUOfOverlappingBoxesIsTheRatioOfAreas)
+TEST(Small_DetectSuppressionCriterion, IoUOfOverlappingBoxesIsTheRatioOfAreas)
 {
     // Intersection 9 * 10 = 90; union 100 + 100 - 90 = 110.
     const std::vector<float> shifted{1.0f, 0.0f, 11.0f, 10.0f};
@@ -63,7 +63,7 @@ TEST(Unit_DetectSuppressionCriterion, IoUOfOverlappingBoxesIsTheRatioOfAreas)
 }
 
 /** @brief Tests that disjoint and edge-touching boxes have an IoU of zero. */
-TEST(Unit_DetectSuppressionCriterion, IoUIsZeroForDisjointAndTouchingBoxes)
+TEST(Small_DetectSuppressionCriterion, IoUIsZeroForDisjointAndTouchingBoxes)
 {
     const std::vector<float> far{20.0f, 0.0f, 30.0f, 10.0f};
     const std::vector<float> touching{10.0f, 0.0f, 20.0f, 10.0f};
@@ -75,7 +75,7 @@ TEST(Unit_DetectSuppressionCriterion, IoUIsZeroForDisjointAndTouchingBoxes)
 }
 
 /** @brief Tests that two empty boxes have an IoU of zero, not NaN. */
-TEST(Unit_DetectSuppressionCriterion, IoUOfTwoEmptyBoxesIsZeroNotNaN)
+TEST(Small_DetectSuppressionCriterion, IoUOfTwoEmptyBoxesIsZeroNotNaN)
 {
     const std::vector<float> point{0.0f, 0.0f, 0.0f, 0.0f};
     const float measure =
@@ -85,7 +85,7 @@ TEST(Unit_DetectSuppressionCriterion, IoUOfTwoEmptyBoxesIsZeroNotNaN)
 }
 
 /** @brief Tests that DistanceIoU subtracts the normalised squared centre distance. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUSubtractsTheNormalisedCentreDistance)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUSubtractsTheNormalisedCentreDistance)
 {
     // IoU 40 / 160 = 0.25. Centres (5, 5) and (5, 11): d = 36. Enclosing box 10 by 16: c = 356.
     const float measure = Detect::measure_suppression(
@@ -94,7 +94,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUSubtractsTheNormalisedCentreDis
 }
 
 /** @brief Tests that DistanceIoU of disjoint boxes is negative, the distance term alone. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfDisjointBoxesIsNegative)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUOfDisjointBoxesIsNegative)
 {
     // Centres (5, 5) and (25, 5): d = 400. Enclosing box 30 by 10: c = 1000.
     const std::vector<float> far{20.0f, 0.0f, 30.0f, 10.0f};
@@ -104,7 +104,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfDisjointBoxesIsNegative)
 }
 
 /** @brief Tests that an exponent of zero makes the distance term exactly one. */
-TEST(Unit_DetectSuppressionCriterion, ZeroExponentSubtractsOne)
+TEST(Small_DetectSuppressionCriterion, ZeroExponentSubtractsOne)
 {
     const float measure = Detect::measure_suppression(
         K_SQUARE, K_SHIFTED_DOWN, Detect::SuppressionCriterion::DistanceIoU, 0.0f);
@@ -112,7 +112,7 @@ TEST(Unit_DetectSuppressionCriterion, ZeroExponentSubtractsOne)
 }
 
 /** @brief Tests that identical boxes have a DistanceIoU of one, with no centre distance. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfIdenticalBoxesIsOne)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUOfIdenticalBoxesIsOne)
 {
     const float measure =
         Detect::measure_suppression(K_SQUARE, K_SQUARE, Detect::SuppressionCriterion::DistanceIoU,
@@ -121,7 +121,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfIdenticalBoxesIsOne)
 }
 
 /** @brief Tests that two empty boxes at one point fall back to their IoU, which is zero. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfCoincidentPointsIsTheIoU)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUOfCoincidentPointsIsTheIoU)
 {
     const std::vector<float> point{0.0f, 0.0f, 0.0f, 0.0f};
     const float measure =
@@ -131,7 +131,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUOfCoincidentPointsIsTheIoU)
 }
 
 /** @brief Tests that the DistanceIoU of two boxes does not depend on their order. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUIsSymmetric)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUIsSymmetric)
 {
     const float forward = Detect::measure_suppression(
         K_SQUARE, K_SHIFTED_DIAGONAL, Detect::SuppressionCriterion::DistanceIoU, 0.6f);
@@ -141,7 +141,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUIsSymmetric)
 }
 
 /** @brief Tests that the closer of two boxes with equal IoU is suppressed under DistanceIoU. */
-TEST(Unit_DetectSuppressionCriterion, DistanceIoUKeepsTheFartherOfTwoEqualIoUBoxes)
+TEST(Small_DetectSuppressionCriterion, DistanceIoUKeepsTheFartherOfTwoEqualIoUBoxes)
 {
     // Both have IoU 0.25 with the square; their measures, -0.0029 and 0.0326, straddle 0.
     const std::vector<float> boxes{0.0f, 0.0f, 10.0f, 10.0f, 0.0f, 6.0f,  10.0f, 16.0f,
@@ -159,7 +159,7 @@ TEST(Unit_DetectSuppressionCriterion, DistanceIoUKeepsTheFartherOfTwoEqualIoUBox
 }
 
 /** @brief Tests that the IoU criterion keeps a box whose IoU equals the threshold. */
-TEST(Unit_DetectSuppressionCriterion, IoUCriterionKeepsABoxAtTheThreshold)
+TEST(Small_DetectSuppressionCriterion, IoUCriterionKeepsABoxAtTheThreshold)
 {
     const std::vector<float> boxes{0.0f, 0.0f, 2.0f, 2.0f, 0.0f, 0.0f, 2.0f, 1.0f};
     const std::vector<float> scores{0.9f, 0.8f};
@@ -176,7 +176,7 @@ TEST(Unit_DetectSuppressionCriterion, IoUCriterionKeepsABoxAtTheThreshold)
 }
 
 /** @brief Tests that a zero-score row is never kept, even when it overlaps nothing. */
-TEST(Unit_DetectSuppressionCriterion, ZeroScoreRowsAreNeverKept)
+TEST(Small_DetectSuppressionCriterion, ZeroScoreRowsAreNeverKept)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  10.0f, 10.0f, 50.0f, 50.0f, 60.0f, 60.0f,
                                    20.0f, 20.0f, 30.0f, 30.0f};
@@ -187,7 +187,7 @@ TEST(Unit_DetectSuppressionCriterion, ZeroScoreRowsAreNeverKept)
 }
 
 /** @brief Tests that an empty input yields no survivors. */
-TEST(Unit_DetectSuppressionCriterion, EmptyInputKeepsNothing)
+TEST(Small_DetectSuppressionCriterion, EmptyInputKeepsNothing)
 {
     std::vector<std::int64_t> kept{7};
     Detect::suppress_overlaps({}, {}, 0.5f, Detect::SuppressionCriterion::DistanceIoU, 0.6f,
@@ -196,7 +196,7 @@ TEST(Unit_DetectSuppressionCriterion, EmptyInputKeepsNothing)
 }
 
 /** @brief Tests that the four-argument form and the IoU form of the new overload agree. */
-TEST(Unit_DetectSuppressionCriterion, FourArgumentFormEqualsTheIoUCriterion)
+TEST(Small_DetectSuppressionCriterion, FourArgumentFormEqualsTheIoUCriterion)
 {
     const std::vector<float> boxes{0.0f,  0.0f,  1.0f,  1.0f,  10.0f, 10.0f, 11.0f, 11.0f,
                                    20.0f, 20.0f, 21.0f, 21.0f, 30.0f, 30.0f, 31.0f, 31.0f};
@@ -211,7 +211,7 @@ TEST(Unit_DetectSuppressionCriterion, FourArgumentFormEqualsTheIoUCriterion)
 }
 
 /** @brief Tests that the selection passes the criterion and the exponent on to suppression. */
-TEST(Unit_DetectSuppressionCriterion, SelectionAppliesTheConfiguredCriterion)
+TEST(Small_DetectSuppressionCriterion, SelectionAppliesTheConfiguredCriterion)
 {
     // The three boxes of DistanceIoUKeepsTheFartherOfTwoEqualIoUBoxes, as centre and size.
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f, 5.0f, 11.0f, 10.0f, 10.0f,
@@ -232,7 +232,7 @@ TEST(Unit_DetectSuppressionCriterion, SelectionAppliesTheConfiguredCriterion)
 }
 
 /** @brief Tests that the default configuration suppresses by IoU with exponent 0.6. */
-TEST(Unit_DetectSuppressionCriterion, NMSConfigDefaultsToTheIoUCriterion)
+TEST(Small_DetectSuppressionCriterion, NMSConfigDefaultsToTheIoUCriterion)
 {
     const Detect::NMSConfig config;
     EXPECT_EQ(config.criterion, Detect::SuppressionCriterion::IoU);
@@ -240,7 +240,7 @@ TEST(Unit_DetectSuppressionCriterion, NMSConfigDefaultsToTheIoUCriterion)
 }
 
 /** @brief Tests that boxes whose size is not four per score stop the process, with both counts. */
-TEST(Unit_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatally)
+TEST(Small_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatally)
 {
     const std::vector<float> boxes(5, 0.0f);
     const std::vector<float> scores(2, 0.5f);
@@ -251,7 +251,7 @@ TEST(Unit_DetectSuppressionCriterionDeathTest, RejectsBoxesOfTheWrongSizeFatally
 }
 
 /** @brief Tests that a criterion value outside the enumeration stops the process. */
-TEST(Unit_DetectSuppressionCriterionDeathTest, RejectsAnUnknownCriterionFatally)
+TEST(Small_DetectSuppressionCriterionDeathTest, RejectsAnUnknownCriterionFatally)
 {
     const std::vector<float> boxes(4, 0.0f);
     const std::vector<float> scores(1, 0.5f);

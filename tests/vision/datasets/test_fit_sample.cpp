@@ -74,7 +74,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a resize scales the image and each box coordinate with its axis. */
-TEST(Unit_DatasetsFitSample, ResizeScalesTheLabelsWithEachAxis)
+TEST(Small_DatasetsFitSample, ResizeScalesTheLabelsWithEachAxis)
 {
     const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 100);
 
@@ -102,7 +102,7 @@ TEST(Unit_DatasetsFitSample, ResizeScalesTheLabelsWithEachAxis)
 }
 
 /** @brief Tests that a letterbox pads the short axis and moves the boxes by the padding. */
-TEST(Unit_DatasetsFitSample, LetterboxPadsAndMovesTheLabels)
+TEST(Small_DatasetsFitSample, LetterboxPadsAndMovesTheLabels)
 {
     const Image source = Support::uniform_image(ImageSize{2, 4}, 1, 200);
 
@@ -128,7 +128,7 @@ TEST(Unit_DatasetsFitSample, LetterboxPadsAndMovesTheLabels)
 }
 
 /** @brief Tests that an object whose box has no area is removed and the rest keep their order. */
-TEST(Unit_DatasetsFitSample, AnObjectWithoutAreaIsRemoved)
+TEST(Small_DatasetsFitSample, AnObjectWithoutAreaIsRemoved)
 {
     const Image source = Support::uniform_image(ImageSize{4, 4}, 3, 9);
 
@@ -145,7 +145,7 @@ TEST(Unit_DatasetsFitSample, AnObjectWithoutAreaIsRemoved)
 }
 
 /** @brief Tests that an input size no image has is refused before anything is read. */
-TEST(Unit_DatasetsFitSample, AnInputSizeOutsideTheBoundsIsRefused)
+TEST(Small_DatasetsFitSample, AnInputSizeOutsideTheBoundsIsRefused)
 {
     const Image source = Support::uniform_image(ImageSize{2, 2}, 1, 0);
 
@@ -156,7 +156,7 @@ TEST(Unit_DatasetsFitSample, AnInputSizeOutsideTheBoundsIsRefused)
 }
 
 /** @brief Tests that a source of no pixels is a failure and not a thrown exception. */
-TEST(Unit_DatasetsFitSample, ASourceOfNoPixelsIsAFailure)
+TEST(Small_DatasetsFitSample, ASourceOfNoPixelsIsAFailure)
 {
     FittedSample fitted;
     SA_EXPECT_FAILURE(fit_sample(Sample{}, ImageView(),

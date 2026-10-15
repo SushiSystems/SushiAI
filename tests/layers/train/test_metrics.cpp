@@ -57,7 +57,7 @@ namespace
 } // namespace
 
 /** @brief Tests that metrics are kept in the order they were added and found by name. */
-TEST(Unit_Metrics, MetricsAreKeptInOrderAndFoundByName)
+TEST(Small_Metrics, MetricsAreKeptInOrderAndFoundByName)
 {
     Metrics metrics;
     EXPECT_TRUE(metrics.all().empty());
@@ -80,7 +80,7 @@ TEST(Unit_Metrics, MetricsAreKeptInOrderAndFoundByName)
 }
 
 /** @brief Tests that an empty name, a second metric of one name and a ninth are refused. */
-TEST(Unit_Metrics, AnEmptyNameADuplicateAndAnOverflowAreRefused)
+TEST(Small_Metrics, AnEmptyNameADuplicateAndAnOverflowAreRefused)
 {
     Metrics metrics;
     SA_EXPECT_FAILURE(metrics.add(Metric{"", 1.0, false}), StatusCode::InvalidDescription,
@@ -100,14 +100,14 @@ TEST(Unit_Metrics, AnEmptyNameADuplicateAndAnOverflowAreRefused)
 }
 
 /** @brief Tests that a fraction prints as a percentage and any other number as it is. */
-TEST(Unit_Metrics, AFractionPrintsAsAPercentage)
+TEST(Small_Metrics, AFractionPrintsAsAPercentage)
 {
     EXPECT_EQ(Train::describe_metric_value(Metric{"accuracy", 0.9240, true}), "92.40%");
     EXPECT_EQ(Train::describe_metric_value(Metric{"perplexity", 12.5, false}), "12.5");
 }
 
 /** @brief Tests that only_output returns the tensor of a step that published one output. */
-TEST(Unit_Metrics, OnlyOutputReturnsTheOneTensor)
+TEST(Small_Metrics, OnlyOutputReturnsTheOneTensor)
 {
     const SushiBLAS::Tensor tensor{};
     const Data::Batch batch{};
@@ -119,7 +119,7 @@ TEST(Unit_Metrics, OnlyOutputReturnsTheOneTensor)
 }
 
 /** @brief Tests that only_output refuses no output, two outputs and an output with no tensor. */
-TEST(Unit_Metrics, OnlyOutputRefusesAnyOtherCount)
+TEST(Small_Metrics, OnlyOutputRefusesAnyOtherCount)
 {
     const SushiBLAS::Tensor tensor{};
     const Data::Batch batch{};

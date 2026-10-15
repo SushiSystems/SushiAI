@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_anchor_clustering.cpp
 
 
-Suites: `Unit_DetectAnchorClustering`.
+Suites: `Small_DetectAnchorClustering`.
 
 Tests `SeededSequence` and `cluster_anchors`. The clustering cases use a ladder of six box
 sizes with 400 boxes per rung, 2400 boxes in all, each jittered by 2 %. A rung counts as

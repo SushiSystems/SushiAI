@@ -1,7 +1,7 @@
 # tests/vision/blocks/test_segment_head.cpp
 
 
-Suites: `Unit_BlockSegmentHead`.
+Suites: `Small_BlockSegmentHead`.
 
 Tests `Vision::Blocks::SegmentHead` and `make_segment_head_node` in
 `modules/vision/blocks/include/SushiAI/vision/blocks/segment_head.hpp`. Every head takes 16

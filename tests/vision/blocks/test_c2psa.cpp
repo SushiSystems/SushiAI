@@ -214,7 +214,7 @@ namespace
 } // namespace
 
 /** @brief Tests that row 10 keeps H and W and yields the output width. */
-TEST(Unit_BlockC2psa, OutputShapeKeepsTheExtentsAndSetsTheWidth)
+TEST(Small_BlockC2psa, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C2PSA block = make_row10();
 
@@ -227,7 +227,7 @@ TEST(Unit_BlockC2psa, OutputShapeKeepsTheExtentsAndSetsTheWidth)
  *        add and the block's two, the two joins of the attention and the C2PSA join, cv1, cv2
  *        and the feed-forward's first convolution.
  */
-TEST(Unit_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
+TEST(Small_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -252,7 +252,7 @@ TEST(Unit_BlockC2psa, Row10EmitsEightSlicesThreeAddsAndThreeJoins)
  * @brief Tests that the first half is kept and the second half feeds the block, and that the
  *        join reads the kept half, then the block's result.
  */
-TEST(Unit_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlice)
+TEST(Small_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlice)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -289,7 +289,7 @@ TEST(Unit_BlockC2psa, TheJoinKeepsTheFirstHalfAndChainsTheSecondOffTheSecondSlic
 /**
  * @brief Tests that with two repeats each block reads the output of the one before it.
  */
-TEST(Unit_BlockC2psa, EachRepeatReadsTheResultOfThePreviousOne)
+TEST(Small_BlockC2psa, EachRepeatReadsTheResultOfThePreviousOne)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -310,7 +310,7 @@ TEST(Unit_BlockC2psa, EachRepeatReadsTheResultOfThePreviousOne)
  * @brief Tests that the state of traced row 10 yields the 35 records MANIFEST.json lists under
  *        model.10, names, NHWC shapes and order.
  */
-TEST(Unit_BlockC2psa, StateMatchesManifestRow10)
+TEST(Small_BlockC2psa, StateMatchesManifestRow10)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -326,7 +326,7 @@ TEST(Unit_BlockC2psa, StateMatchesManifestRow10)
  * @brief Tests that make_c2psa_node builds row 10 from its file row: the port's shape, the 35
  *        manifest records and the row's norm options on all seven norms.
  */
-TEST(Unit_BlockC2psa, TheFactoryBuildsRow10)
+TEST(Small_BlockC2psa, TheFactoryBuildsRow10)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(
@@ -357,7 +357,7 @@ TEST(Unit_BlockC2psa, TheFactoryBuildsRow10)
  * @brief Tests that a row stating neither "repeats" nor "heads" gets one PSABlock of
  *        max(hidden / 64, 1) heads, which is two for a hidden width of 128.
  */
-TEST(Unit_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
+TEST(Small_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(R"({"filters": 256, "hidden": 128})");
@@ -380,7 +380,7 @@ TEST(Unit_BlockC2psa, TheFactoryDefaultsToOneBlockAndHiddenOver64Heads)
 /**
  * @brief Tests that a hidden width under 128 gets a single head, as max(hidden / 64, 1) gives.
  */
-TEST(Unit_BlockC2psa, TheFactoryGivesOneHeadForAHiddenWidthUnder128)
+TEST(Small_BlockC2psa, TheFactoryGivesOneHeadForAHiddenWidthUnder128)
 {
     const Shape input{4, 4, 64};
     const Config::Value attributes = attributes_of(R"({"filters": 64, "hidden": 64})");
@@ -399,7 +399,7 @@ TEST(Unit_BlockC2psa, TheFactoryGivesOneHeadForAHiddenWidthUnder128)
 }
 
 /** @brief Tests that a "filters" other than the input width is refused, naming both widths. */
-TEST(Unit_BlockC2psa, TheFactoryRefusesAFilterWidthThatIsNotTheInput)
+TEST(Small_BlockC2psa, TheFactoryRefusesAFilterWidthThatIsNotTheInput)
 {
     const Shape input{20, 20, 256};
     const Config::Value attributes = attributes_of(R"({"filters": 128, "hidden": 128})");
@@ -412,7 +412,7 @@ TEST(Unit_BlockC2psa, TheFactoryRefusesAFilterWidthThatIsNotTheInput)
  * @brief Tests that a hidden width the heads do not split into parts of two or more channels is
  *        refused.
  */
-TEST(Unit_BlockC2psa, TheFactoryRefusesAHiddenWidthTheHeadsDoNotSplit)
+TEST(Small_BlockC2psa, TheFactoryRefusesAHiddenWidthTheHeadsDoNotSplit)
 {
     const Shape input{20, 20, 256};
     const Config::Value indivisible =
@@ -427,7 +427,7 @@ TEST(Unit_BlockC2psa, TheFactoryRefusesAHiddenWidthTheHeadsDoNotSplit)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing width and a flat input. */
-TEST(Unit_BlockC2psa, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockC2psa, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{20, 20, 256};
     const Shape flat{512};

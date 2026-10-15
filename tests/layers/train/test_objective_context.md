@@ -1,7 +1,7 @@
 # tests/layers/train/test_objective_context.cpp
 
 
-Suites: `Unit_ObjectiveContext`.
+Suites: `Medium_ObjectiveContext`.
 
 Tests `Train::list_output_shapes` and `Train::find_output_shape`. No case needs an engine.
 

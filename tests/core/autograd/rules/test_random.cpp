@@ -118,7 +118,7 @@ namespace
 }
 
 /** @brief Tests that dropout is differentiable, is no barrier and has the random table's rule. */
-TEST(Unit_DropoutBackward, DropoutHasARule)
+TEST(Small_DropoutBackward, DropoutHasARule)
 {
     EXPECT_TRUE(Ops::K_DROPOUT.differentiable);
     EXPECT_FALSE(Ops::K_DROPOUT.blocks_gradient);
@@ -129,7 +129,7 @@ TEST(Unit_DropoutBackward, DropoutHasARule)
 }
 
 /** @brief Tests that the gradient of x is a MUL that reads the mask the forward node saved. */
-TEST(Unit_DropoutBackward, TheInputGradientIsTheGradientTimesTheSavedMask)
+TEST(Small_DropoutBackward, TheInputGradientIsTheGradientTimesTheSavedMask)
 {
     Masked masked;
     build(masked, true);
@@ -148,7 +148,7 @@ TEST(Unit_DropoutBackward, TheInputGradientIsTheGradientTimesTheSavedMask)
 }
 
 /** @brief Tests that an input that needs no gradient adds no node that reads the mask. */
-TEST(Unit_DropoutBackward, AnInputThatNeedsNoGradientAddsNoNode)
+TEST(Small_DropoutBackward, AnInputThatNeedsNoGradientAddsNoNode)
 {
     Masked masked;
     build(masked, false);

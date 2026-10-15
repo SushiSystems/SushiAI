@@ -1,13 +1,13 @@
 # tests/vision/detect/free/test_anchors.cpp
 
 
-Suites: `Unit_DetectAnchors`, `Unit_DetectAnchorLeaves`, `Unit_DetectLevelRows`.
+Suites: `Medium_DetectAnchors`, `Small_DetectAnchorLeaves`, `Small_DetectLevelRows`.
 
 Tests the anchor grid, the per-image anchor leaves and the copies between a level and the joined
 anchor axis.
 
-This file needs no device. Its three suites, `Unit_DetectAnchors`, `Unit_DetectAnchorLeaves` and
-`Unit_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
+This file needs no device. Its three suites, `Medium_DetectAnchors`, `Small_DetectAnchorLeaves` and
+`Small_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/free/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/free/level_rows.hpp`.
 `modules/vision/detect/README.md` quotes the reference lines each unit ports. One case reads
 `loss.sacp` through `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and reports itself skipped when the

@@ -3,13 +3,13 @@
 
 The leaf and role each of the binary, multi-label and squared-error objectives declares, what each refuses, their feeds and their metrics. Needs an engine.
 
-Suites: `Unit_DenseObjectiveGraphs`, `Unit_DenseObjectives`.
+Suites: `Unit_DenseObjectiveGraphs`, `Medium_DenseObjectives`.
 
 Tests `Train::BinaryCrossEntropyObjective`, `Train::MultiLabelObjective` and
 `Train::MeanSquaredErrorObjective`: the leaf and the role each declares, what `make` and the
 factories refuse, what `feed` writes and what `measure` reports. The graph cases trace a
 Linear, ReLU, Linear model of 6 features over a batch of 4 and need no device. The
-`Unit_DenseObjectives` fixture needs an engine, and its `bind_targets` helper binds a tensor of
+`Medium_DenseObjectives` fixture needs an engine, and its `bind_targets` helper binds a tensor of
 7s to the `targets` leaf before a feed.
 
 ## BinaryDeclaresAColumnLeafAndRealLabels

@@ -92,7 +92,7 @@ namespace
 } // namespace
 
 /** @brief Tests that one box at each anchor's size measures 1 in every number. */
-TEST(Unit_DetectAnchorFit, OneBoxPerAnchorGivesOneEverywhere)
+TEST(Small_DetectAnchorFit, OneBoxPerAnchorGivesOneEverywhere)
 {
     const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = make_scaled_boxes(layout, 1.0f);
@@ -112,7 +112,7 @@ TEST(Unit_DetectAnchorFit, OneBoxPerAnchorGivesOneEverywhere)
 }
 
 /** @brief Tests that boxes at half an anchor's sides measure 0.25 and are recalled at 0.25. */
-TEST(Unit_DetectAnchorFit, HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter)
+TEST(Small_DetectAnchorFit, HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter)
 {
     const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = make_scaled_boxes(layout, 0.5f);
@@ -135,7 +135,7 @@ TEST(Unit_DetectAnchorFit, HalfSizedBoxesGiveAQuarterAndAreRecalledAtAQuarter)
 }
 
 /** @brief Tests that the yolov4-tiny masks leave the boxes of anchor 0 without a head. */
-TEST(Unit_DetectAnchorFit, V4TinyMasksLeaveASixthOfTheBoxesUnowned)
+TEST(Small_DetectAnchorFit, V4TinyMasksLeaveASixthOfTheBoxesUnowned)
 {
     const AnchorLayout layout = make_v4_tiny_layout();
     const std::vector<AnchorSize> boxes = repeat_anchor_sizes(layout, 100);
@@ -154,7 +154,7 @@ TEST(Unit_DetectAnchorFit, V4TinyMasksLeaveASixthOfTheBoxesUnowned)
 }
 
 /** @brief Tests that masks covering every anchor bring the unowned share of that case to 0. */
-TEST(Unit_DetectAnchorFit, MasksOverEveryAnchorLeaveNoBoxUnowned)
+TEST(Small_DetectAnchorFit, MasksOverEveryAnchorLeaveNoBoxUnowned)
 {
     AnchorLayout layout = make_v4_tiny_layout();
     const std::vector<AnchorSize> boxes = repeat_anchor_sizes(layout, 100);
@@ -168,7 +168,7 @@ TEST(Unit_DetectAnchorFit, MasksOverEveryAnchorLeaveNoBoxUnowned)
 }
 
 /** @brief Tests the four numbers and the shares against sums the test makes box by box. */
-TEST(Unit_DetectAnchorFit, FourNumbersEqualTheBoxByBoxSums)
+TEST(Small_DetectAnchorFit, FourNumbersEqualTheBoxByBoxSums)
 {
     AnchorLayout layout;
     layout.anchors = {{0.1f, 0.1f}, {0.2f, 0.3f}, {0.5f, 0.4f}, {0.8f, 0.9f}};
@@ -228,7 +228,7 @@ TEST(Unit_DetectAnchorFit, FourNumbersEqualTheBoxByBoxSums)
 }
 
 /** @brief Tests that the tenth percentile of ten boxes is the smallest best IoU. */
-TEST(Unit_DetectAnchorFit, TenthPercentileOfTenBoxesIsTheSmallest)
+TEST(Small_DetectAnchorFit, TenthPercentileOfTenBoxesIsTheSmallest)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};
@@ -244,7 +244,7 @@ TEST(Unit_DetectAnchorFit, TenthPercentileOfTenBoxesIsTheSmallest)
 }
 
 /** @brief Tests that of two equal anchors the lower index takes the box. */
-TEST(Unit_DetectAnchorFit, EqualAnchorsGiveTheBoxToTheLowerIndex)
+TEST(Small_DetectAnchorFit, EqualAnchorsGiveTheBoxToTheLowerIndex)
 {
     AnchorLayout layout;
     layout.anchors = {{0.25f, 0.5f}, {0.25f, 0.5f}};
@@ -262,7 +262,7 @@ TEST(Unit_DetectAnchorFit, EqualAnchorsGiveTheBoxToTheLowerIndex)
 }
 
 /** @brief Tests that an empty box list is Incompatible. */
-TEST(Unit_DetectAnchorFit, RefusesAnEmptyBoxList)
+TEST(Small_DetectAnchorFit, RefusesAnEmptyBoxList)
 {
     const std::vector<AnchorSize> boxes;
 
@@ -274,7 +274,7 @@ TEST(Unit_DetectAnchorFit, RefusesAnEmptyBoxList)
 }
 
 /** @brief Tests that a layout whose head names a missing anchor is InvalidDescription. */
-TEST(Unit_DetectAnchorFit, RefusesALayoutThatDoesNotValidate)
+TEST(Small_DetectAnchorFit, RefusesALayoutThatDoesNotValidate)
 {
     AnchorLayout layout = make_separated_layout();
     layout.head_anchors[0][2] = 3;
@@ -287,7 +287,7 @@ TEST(Unit_DetectAnchorFit, RefusesALayoutThatDoesNotValidate)
 }
 
 /** @brief Tests that a recall_iou below 0, above 1 or not a number is InvalidDescription. */
-TEST(Unit_DetectAnchorFit, RefusesARecallIoUOutsideZeroToOne)
+TEST(Small_DetectAnchorFit, RefusesARecallIoUOutsideZeroToOne)
 {
     const AnchorLayout layout = make_separated_layout();
     const std::vector<AnchorSize> boxes = {{0.5f, 0.5f}};

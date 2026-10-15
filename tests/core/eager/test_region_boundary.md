@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_boundary.cpp
 
 
-Suites: `Unit_RegionBoundary`.
+Suites: `Small_RegionBoundary`.
 
 Tests which values `find_boundaries` lists as the imports and exports of a region.
 

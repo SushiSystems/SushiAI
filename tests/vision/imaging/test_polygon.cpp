@@ -87,7 +87,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the point count is 1000 up to 1000 vertices and the length plus one above. */
-TEST(Unit_ImagingPolygon, PointCountIsAThousandOrTheLongestPlusOne)
+TEST(Small_ImagingPolygon, PointCountIsAThousandOrTheLongestPlusOne)
 {
     EXPECT_EQ(K_POLYGON_POINTS, 1000u);
     EXPECT_EQ(resampled_point_count(0), 1000u);
@@ -97,7 +97,7 @@ TEST(Unit_ImagingPolygon, PointCountIsAThousandOrTheLongestPlusOne)
 }
 
 /** @brief Tests that a short polygon keeps its vertices and gains evenly spread positions. */
-TEST(Unit_ImagingPolygon, ResampleMergesTheVerticesWithEvenPositions)
+TEST(Small_ImagingPolygon, ResampleMergesTheVerticesWithEvenPositions)
 {
     // resample_segments([square], 8) and ([square], 11) of the reference.
     expect_polygon(resample_polygon(make_square(), 8),
@@ -109,7 +109,7 @@ TEST(Unit_ImagingPolygon, ResampleMergesTheVerticesWithEvenPositions)
 }
 
 /** @brief Tests that a count one above the closed length adds one point at the first vertex. */
-TEST(Unit_ImagingPolygon, ResampleToOneMoreThanTheClosedLengthRepeatsTheFirstVertex)
+TEST(Small_ImagingPolygon, ResampleToOneMoreThanTheClosedLengthRepeatsTheFirstVertex)
 {
     // resample_segments([square], 6) of the reference: linspace(0, 4, 1) is [0.0].
     expect_polygon(resample_polygon(make_square(), 6),
@@ -117,7 +117,7 @@ TEST(Unit_ImagingPolygon, ResampleToOneMoreThanTheClosedLengthRepeatsTheFirstVer
 }
 
 /** @brief Tests that a position between two vertices is interpolated along their edge. */
-TEST(Unit_ImagingPolygon, ResampleInterpolatesAlongTheEdges)
+TEST(Small_ImagingPolygon, ResampleInterpolatesAlongTheEdges)
 {
     // resample_segments([triangle], 9) of the reference.
     expect_polygon(resample_polygon(make_triangle(), 9),
@@ -126,7 +126,7 @@ TEST(Unit_ImagingPolygon, ResampleInterpolatesAlongTheEdges)
 }
 
 /** @brief Tests that a closed polygon no shorter than the count is sampled at even positions. */
-TEST(Unit_ImagingPolygon, ResampleOfALongPolygonTakesEvenPositionsOnly)
+TEST(Small_ImagingPolygon, ResampleOfALongPolygonTakesEvenPositionsOnly)
 {
     // resample_segments([hexagon], 4) and ([hexagon], 7) of the reference.
     expect_polygon(resample_polygon(make_hexagon(), 4),
@@ -137,14 +137,14 @@ TEST(Unit_ImagingPolygon, ResampleOfALongPolygonTakesEvenPositionsOnly)
 }
 
 /** @brief Tests that a polygon of exactly the count and an empty one come back unchanged. */
-TEST(Unit_ImagingPolygon, ResampleLeavesAPolygonOfTheCountAndAnEmptyOneAlone)
+TEST(Small_ImagingPolygon, ResampleLeavesAPolygonOfTheCountAndAnEmptyOneAlone)
 {
     expect_polygon(resample_polygon(make_triangle(), 3), {0.1f, 0.2f, 0.7f, 0.3f, 0.4f, 0.9f});
     EXPECT_TRUE(resample_polygon(Polygon{}, 1000).empty());
 }
 
 /** @brief Tests that resampling to 1000 points keeps the count, the vertices and the bounds. */
-TEST(Unit_ImagingPolygon, ResampleToAThousandPointsKeepsTheOutline)
+TEST(Small_ImagingPolygon, ResampleToAThousandPointsKeepsTheOutline)
 {
     const Polygon resampled = resample_polygon(make_triangle(), K_POLYGON_POINTS);
 
@@ -160,14 +160,14 @@ TEST(Unit_ImagingPolygon, ResampleToAThousandPointsKeepsTheOutline)
 }
 
 /** @brief Tests that a count of zero is refused. */
-TEST(Unit_ImagingPolygon, ResampleRejectsACountOfZero)
+TEST(Small_ImagingPolygon, ResampleRejectsACountOfZero)
 {
     SA_EXPECT_ERROR(static_cast<void>(resample_polygon(make_triangle(), 0)), "resample_polygon",
                     "point count of 0");
 }
 
 /** @brief Tests that map_polygon multiplies each axis by its scale, then adds its offset. */
-TEST(Unit_ImagingPolygon, MapScalesThenTranslatesEachAxis)
+TEST(Small_ImagingPolygon, MapScalesThenTranslatesEachAxis)
 {
     Polygon polygon = make_square();
 
@@ -177,7 +177,7 @@ TEST(Unit_ImagingPolygon, MapScalesThenTranslatesEachAxis)
 }
 
 /** @brief Tests that clamp_polygon moves every vertex outside the bounds onto them. */
-TEST(Unit_ImagingPolygon, ClampMovesVerticesOntoTheBounds)
+TEST(Small_ImagingPolygon, ClampMovesVerticesOntoTheBounds)
 {
     Polygon polygon{Point{-3.0f, 2.0f}, Point{9.0f, -1.0f}, Point{2.0f, 7.0f}, Point{1.0f, 1.0f}};
 
@@ -187,7 +187,7 @@ TEST(Unit_ImagingPolygon, ClampMovesVerticesOntoTheBounds)
 }
 
 /** @brief Tests that a point inside, on an edge or on a vertex counts as inside. */
-TEST(Unit_ImagingPolygon, PointInsideOrOnTheOutlineIsInside)
+TEST(Small_ImagingPolygon, PointInsideOrOnTheOutlineIsInside)
 {
     const Polygon square = make_square();
 
@@ -199,7 +199,7 @@ TEST(Unit_ImagingPolygon, PointInsideOrOnTheOutlineIsInside)
 }
 
 /** @brief Tests that a point outside is outside, also in the notch of a concave polygon. */
-TEST(Unit_ImagingPolygon, PointOutsideIsOutside)
+TEST(Small_ImagingPolygon, PointOutsideIsOutside)
 {
     const Polygon square = make_square();
     const Polygon notched{Point{0.0f, 0.0f}, Point{6.0f, 0.0f}, Point{6.0f, 6.0f},
@@ -216,7 +216,7 @@ TEST(Unit_ImagingPolygon, PointOutsideIsOutside)
 }
 
 /** @brief Tests that a polygon inside the image gives the bounds of its vertices. */
-TEST(Unit_ImagingPolygon, VisibleBoxOfAPolygonInsideTheImageIsItsBounds)
+TEST(Small_ImagingPolygon, VisibleBoxOfAPolygonInsideTheImageIsItsBounds)
 {
     const Polygon inside{Point{10.0f, 20.0f}, Point{50.0f, 25.0f}, Point{30.0f, 60.0f}};
 
@@ -224,7 +224,7 @@ TEST(Unit_ImagingPolygon, VisibleBoxOfAPolygonInsideTheImageIsItsBounds)
 }
 
 /** @brief Tests that a polygon wholly outside the image, and an empty one, give four zeros. */
-TEST(Unit_ImagingPolygon, VisibleBoxOfAPolygonOutsideTheImageIsZero)
+TEST(Small_ImagingPolygon, VisibleBoxOfAPolygonOutsideTheImageIsZero)
 {
     const Polygon above_left{Point{-30.0f, -20.0f}, Point{-5.0f, -25.0f}, Point{-10.0f, -3.0f}};
     const Polygon right{Point{120.0f, 10.0f}, Point{180.0f, 40.0f}, Point{130.0f, 90.0f}};
@@ -235,7 +235,7 @@ TEST(Unit_ImagingPolygon, VisibleBoxOfAPolygonOutsideTheImageIsZero)
 }
 
 /** @brief Tests that edges crossing the image's lines bound the visible part. */
-TEST(Unit_ImagingPolygon, VisibleBoxUsesTheCrossingsOfTheImageLines)
+TEST(Small_ImagingPolygon, VisibleBoxUsesTheCrossingsOfTheImageLines)
 {
     // segment2box of the reference gives these for a 100 by 80 image (width by height).
     const Polygon crossing{Point{-20.0f, 30.0f}, Point{40.0f, -10.0f}, Point{60.0f, 50.0f}};
@@ -246,7 +246,7 @@ TEST(Unit_ImagingPolygon, VisibleBoxUsesTheCrossingsOfTheImageLines)
 }
 
 /** @brief Tests that an image corner inside the polygon belongs to the visible part. */
-TEST(Unit_ImagingPolygon, VisibleBoxIncludesTheImageCornersThePolygonContains)
+TEST(Small_ImagingPolygon, VisibleBoxIncludesTheImageCornersThePolygonContains)
 {
     // segment2box of the reference: (0, 0, 36.666664, 33) and the whole image.
     const Polygon corner{Point{-40.0f, -40.0f}, Point{70.0f, -30.0f}, Point{-30.0f, 60.0f}};

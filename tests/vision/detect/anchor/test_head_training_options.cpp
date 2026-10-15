@@ -57,13 +57,13 @@ namespace
 } // namespace
 
 /** @brief Tests that the default training options pass their check. */
-TEST(Unit_DetectAnchorDelta, DefaultTrainingOptionsValidate)
+TEST(Small_DetectAnchorDelta, DefaultTrainingOptionsValidate)
 {
     EXPECT_TRUE(validate_head_training(HeadTrainingOptions{}).is_ok());
 }
 
 /** @brief Tests that each option outside its range is an invalid description. */
-TEST(Unit_DetectAnchorDelta, TrainingOptionsOutsideTheirRangeAreRefused)
+TEST(Small_DetectAnchorDelta, TrainingOptionsOutsideTheirRangeAreRefused)
 {
     const float not_a_number = std::numeric_limits<float>::quiet_NaN();
     std::vector<HeadTrainingOptions> refused(8);

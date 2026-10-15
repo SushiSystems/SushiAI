@@ -204,7 +204,7 @@ namespace
  * @brief Tests that register_layers adds the 16 layer types, then batchnorm2d, concat, add,
  *        embedding, layernorm and dropout.
  */
-TEST(Unit_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
+TEST(Small_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
 {
     const std::vector<std::string_view> expected_layers = {
         "linear",    "gelu",     "relu",      "tanh",      "sigmoid", "leaky_relu",
@@ -222,7 +222,7 @@ TEST(Unit_NodeRegistry, RegisterLayersAddsTheRowsInOrder)
 }
 
 /** @brief Tests that a node row is refused over a node row and over a layer row of its type. */
-TEST(Unit_NodeRegistry, ATypeAddedTwiceIsRefused)
+TEST(Small_NodeRegistry, ATypeAddedTwiceIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::NodeRegistry registry, registered());
     const NN::NodeEntry* const concat = registry.find_node("concat");
@@ -242,7 +242,7 @@ TEST(Unit_NodeRegistry, ATypeAddedTwiceIsRefused)
 }
 
 /** @brief Tests that make_node over an empty registry fails and lists no type. */
-TEST(Unit_NodeRegistry, AnEmptyRegistryKnowsNoType)
+TEST(Small_NodeRegistry, AnEmptyRegistryKnowsNoType)
 {
     const NN::NodeRegistry registry;
     const std::vector<Shape> inputs = {Shape{8, 8, 2}};
@@ -261,7 +261,7 @@ TEST(Unit_NodeRegistry, AnEmptyRegistryKnowsNoType)
 }
 
 /** @brief Tests that every node row of registered() has a minimal case here, in row order. */
-TEST(Unit_NodeRegistry, EveryRowHasAMinimalCase)
+TEST(Small_NodeRegistry, EveryRowHasAMinimalCase)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const SushiRuntime::span<const NN::NodeEntry> nodes = registry.nodes();
@@ -272,7 +272,7 @@ TEST(Unit_NodeRegistry, EveryRowHasAMinimalCase)
 }
 
 /** @brief Tests that each row builds a one-port node of the expected shape from its case. */
-TEST(Unit_NodeRegistry, EachRowBuildsFromAMinimalObject)
+TEST(Small_NodeRegistry, EachRowBuildsFromAMinimalObject)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     for (const MinimalCase& minimal : K_MINIMAL_CASES)
@@ -290,7 +290,7 @@ TEST(Unit_NodeRegistry, EachRowBuildsFromAMinimalObject)
 }
 
 /** @brief Tests that each row refuses a key it does not know and names the row and the key. */
-TEST(Unit_NodeRegistry, EachRowRejectsAnUnknownKey)
+TEST(Small_NodeRegistry, EachRowRejectsAnUnknownKey)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     for (const MinimalCase& minimal : K_MINIMAL_CASES)
@@ -303,7 +303,7 @@ TEST(Unit_NodeRegistry, EachRowRejectsAnUnknownKey)
 }
 
 /** @brief Tests that a concat row over inputs of unequal H fails and names the row. */
-TEST(Unit_NodeRegistry, AConcatRowNamesItselfWhenItsInputsDisagree)
+TEST(Small_NodeRegistry, AConcatRowNamesItselfWhenItsInputsDisagree)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{4, 4, 2}, Shape{8, 4, 2}};
@@ -314,7 +314,7 @@ TEST(Unit_NodeRegistry, AConcatRowNamesItselfWhenItsInputsDisagree)
 }
 
 /** @brief Tests that a node row's type builds the row's own node, not a LayerNode. */
-TEST(Unit_NodeRegistry, ANodeTypeBuildsItsOwnNode)
+TEST(Small_NodeRegistry, ANodeTypeBuildsItsOwnNode)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{4, 4, 2}, Shape{4, 4, 3}};
@@ -328,7 +328,7 @@ TEST(Unit_NodeRegistry, ANodeTypeBuildsItsOwnNode)
 }
 
 /** @brief Tests that every layer row's type is reached through make_node as a LayerNode. */
-TEST(Unit_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
+TEST(Small_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{4, 4, 2}};
@@ -365,7 +365,7 @@ TEST(Unit_NodeRegistry, ALayerTypeIsWrappedInALayerNode)
 }
 
 /** @brief Tests that a layer type given two inputs fails and names the count and the type. */
-TEST(Unit_NodeRegistry, ALayerTypeRefusesTwoInputs)
+TEST(Small_NodeRegistry, ALayerTypeRefusesTwoInputs)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{6}, Shape{6}};
@@ -377,7 +377,7 @@ TEST(Unit_NodeRegistry, ALayerTypeRefusesTwoInputs)
 }
 
 /** @brief Tests that what a layer factory throws comes back as a status with its message. */
-TEST(Unit_NodeRegistry, ALayerFactorysRefusalComesBackAsAStatus)
+TEST(Small_NodeRegistry, ALayerFactorysRefusalComesBackAsAStatus)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> vector = {Shape{6}};
@@ -392,7 +392,7 @@ TEST(Unit_NodeRegistry, ALayerFactorysRefusalComesBackAsAStatus)
 }
 
 /** @brief Tests that the maxpool2d row reads trailing_padding as an integer or as [h, w]. */
-TEST(Unit_NodeRegistry, AMaxPoolRowReadsItsTrailingPadding)
+TEST(Small_NodeRegistry, AMaxPoolRowReadsItsTrailingPadding)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> image = {Shape{13, 13, 2}};
@@ -419,7 +419,7 @@ TEST(Unit_NodeRegistry, AMaxPoolRowReadsItsTrailingPadding)
 }
 
 /** @brief Tests that the avgpool2d row refuses trailing_padding as a key it does not know. */
-TEST(Unit_NodeRegistry, AnAvgPoolRowRefusesTrailingPadding)
+TEST(Small_NodeRegistry, AnAvgPoolRowRefusesTrailingPadding)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> image = {Shape{13, 13, 2}};
@@ -431,7 +431,7 @@ TEST(Unit_NodeRegistry, AnAvgPoolRowRefusesTrailingPadding)
 }
 
 /** @brief Tests that the maxpool2d row refuses a negative trailing_padding and names it. */
-TEST(Unit_NodeRegistry, AMaxPoolRowRefusesANegativeTrailingPadding)
+TEST(Small_NodeRegistry, AMaxPoolRowRefusesANegativeTrailingPadding)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> image = {Shape{13, 13, 2}};
@@ -444,7 +444,7 @@ TEST(Unit_NodeRegistry, AMaxPoolRowRefusesANegativeTrailingPadding)
 }
 
 /** @brief Tests that the slice_channels row keeps the channels its offset and count name. */
-TEST(Unit_NodeRegistry, ASliceChannelsRowReadsItsOffsetAndCount)
+TEST(Small_NodeRegistry, ASliceChannelsRowReadsItsOffsetAndCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> image = {Shape{4, 4, 64}};
@@ -468,7 +468,7 @@ TEST(Unit_NodeRegistry, ASliceChannelsRowReadsItsOffsetAndCount)
 }
 
 /** @brief Tests that an unknown type fails naming the row, the type and every row's type. */
-TEST(Unit_NodeRegistry, AnUnknownTypeListsBothTables)
+TEST(Small_NodeRegistry, AnUnknownTypeListsBothTables)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const std::vector<Shape> inputs = {Shape{8, 8, 2}};
@@ -491,7 +491,7 @@ TEST(Unit_NodeRegistry, AnUnknownTypeListsBothTables)
  * @brief Tests that build_model of a file and the same graph built by hand trace to equal
  *        node lists, equal outputs and equal state names and shapes.
  */
-TEST(Unit_NodeRegistry, AFileAndAHandBuiltGraphAgree)
+TEST(Small_NodeRegistry, AFileAndAHandBuiltGraphAgree)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
@@ -518,7 +518,7 @@ TEST(Unit_NodeRegistry, AFileAndAHandBuiltGraphAgree)
 }
 
 /** @brief Tests that a row built from a file reads its sources in the order the file gave. */
-TEST(Unit_NodeRegistry, ARowReadsItsSourcesInFileOrder)
+TEST(Small_NodeRegistry, ARowReadsItsSourcesInFileOrder)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     SA_ASSERT_OK_AND_ASSIGN(const ModelGraph model,
@@ -531,7 +531,7 @@ TEST(Unit_NodeRegistry, ARowReadsItsSourcesInFileOrder)
 }
 
 /** @brief Tests that "outputs" publishes a named port under the stated name, in file order. */
-TEST(Unit_NodeRegistry, OutputsArePublishedUnderTheirStatedNames)
+TEST(Small_NodeRegistry, OutputsArePublishedUnderTheirStatedNames)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
@@ -546,7 +546,7 @@ TEST(Unit_NodeRegistry, OutputsArePublishedUnderTheirStatedNames)
 }
 
 /** @brief Tests that a port entry with no name is published under the port's own name. */
-TEST(Unit_NodeRegistry, AnOutputWithoutANameKeepsThePortsName)
+TEST(Small_NodeRegistry, AnOutputWithoutANameKeepsThePortsName)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
@@ -560,7 +560,7 @@ TEST(Unit_NodeRegistry, AnOutputWithoutANameKeepsThePortsName)
 }
 
 /** @brief Tests that a source may name a port, and that an unknown port names the row. */
-TEST(Unit_NodeRegistry, ASourceMayNameAPort)
+TEST(Small_NodeRegistry, ASourceMayNameAPort)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
@@ -573,7 +573,7 @@ TEST(Unit_NodeRegistry, ASourceMayNameAPort)
 }
 
 /** @brief Tests that a row below row 0 reads the model input, joined in the file's order. */
-TEST(Unit_NodeRegistry, ALaterRowMayReadTheModelInput)
+TEST(Small_NodeRegistry, ALaterRowMayReadTheModelInput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const Config::ModelSpec spec = model_from(K_INPUT_JOINING_MODEL);
@@ -587,7 +587,7 @@ TEST(Unit_NodeRegistry, ALaterRowMayReadTheModelInput)
 }
 
 /** @brief Tests that a source naming a port of the model input is refused and names the row. */
-TEST(Unit_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
+TEST(Small_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec spec = model_from(K_INPUT_JOINING_MODEL);
@@ -598,7 +598,7 @@ TEST(Unit_NodeRegistry, ASourceCannotNameAPortOfTheModelInput)
 }
 
 /** @brief Tests that a row the factory refuses fails the build with the row's index and type. */
-TEST(Unit_NodeRegistry, ARefusedRowNamesItsIndexAndType)
+TEST(Small_NodeRegistry, ARefusedRowNamesItsIndexAndType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec spec = model_from(K_BRANCHING_MODEL);
@@ -609,7 +609,7 @@ TEST(Unit_NodeRegistry, ARefusedRowNamesItsIndexAndType)
 }
 
 /** @brief Tests that a spec built by hand is refused when a row reads a row not above it. */
-TEST(Unit_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
+TEST(Small_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec forward = model_from(K_BRANCHING_MODEL);
@@ -629,7 +629,7 @@ TEST(Unit_NodeRegistry, ARowThatReadsARowNotAboveItIsRefused)
 }
 
 /** @brief Tests that a hand-built spec with no outputs publishes its last row, as a file does. */
-TEST(Unit_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
+TEST(Small_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     const Config::ModelSpec parsed = model_from(K_BRANCHING_MODEL);
@@ -645,7 +645,7 @@ TEST(Unit_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
 }
 
 /** @brief Tests that a spec with no layer or a wrong output entry is refused. */
-TEST(Unit_NodeRegistry, AWrongOutputListIsRefused)
+TEST(Small_NodeRegistry, AWrongOutputListIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, registered());
     Config::ModelSpec empty = model_from(K_BRANCHING_MODEL);

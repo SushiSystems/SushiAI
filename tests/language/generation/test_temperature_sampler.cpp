@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 /** @brief Tests logits 0, ln 2, 0 at temperature 1: the shares are 1/4, 1/2 and 1/4. */
-TEST(Unit_GenerationTemperatureSampler, TheSharesAreTheSoftmax)
+TEST(Small_GenerationTemperatureSampler, TheSharesAreTheSoftmax)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(1.0));
@@ -63,7 +63,7 @@ TEST(Unit_GenerationTemperatureSampler, TheSharesAreTheSoftmax)
 }
 
 /** @brief Tests logits 0, ln 2 at temperature 1/2: the weights are 1 and 4, so 1/5 and 4/5. */
-TEST(Unit_GenerationTemperatureSampler, ALowerTemperatureSharpensTheShares)
+TEST(Small_GenerationTemperatureSampler, ALowerTemperatureSharpensTheShares)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(0.5));
@@ -75,7 +75,7 @@ TEST(Unit_GenerationTemperatureSampler, ALowerTemperatureSharpensTheShares)
 }
 
 /** @brief Tests that one seed gives one sequence and another seed gives another. */
-TEST(Unit_GenerationTemperatureSampler, ASeedFixesTheSequence)
+TEST(Small_GenerationTemperatureSampler, ASeedFixesTheSequence)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(1.0));
@@ -90,7 +90,7 @@ TEST(Unit_GenerationTemperatureSampler, ASeedFixesTheSequence)
 }
 
 /** @brief Tests that a temperature that is not positive and finite is refused. */
-TEST(Unit_GenerationTemperatureSampler, MakeRefusesATemperatureThatIsNotPositiveAndFinite)
+TEST(Small_GenerationTemperatureSampler, MakeRefusesATemperatureThatIsNotPositiveAndFinite)
 {
     SA_EXPECT_FAILURE(TemperatureSampler::make(0.0), StatusCode::InvalidDescription,
                       "'temperature'", "positive");

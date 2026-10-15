@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_cifar.cpp
 
 
-Suites: `Unit_DatasetsCifar`.
+Suites: `Small_DatasetsCifar`.
 
 Tests `read_cifar` in `modules/vision/datasets/include/SushiAI/vision/datasets/cifar.hpp` over
 batch files the cases write under the system's temporary directory. A record is its label

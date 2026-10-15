@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_hsv.cpp
 
 
-Suites: `Unit_ImagingHsv`.
+Suites: `Small_ImagingHsv`.
 
 Tests the hue, saturation and value jitter: its plan, its tables and both colour conversions.
 
-This file needs no device. `Unit_ImagingHsv` covers `modules/vision/imaging/include/SushiAI/vision/imaging/hsv.hpp`.
+This file needs no device. `Small_ImagingHsv` covers `modules/vision/imaging/include/SushiAI/vision/imaging/hsv.hpp`.
 `plan_hsv` draws three gains, `make_hsv_tables` turns a plan into three 256-entry tables, and
 `apply_hsv` converts each pixel with `to_hsv`, looks it up and converts back with `to_rgb`. Hue
 runs over `K_HUE_STEPS` (180) steps and every level is an integer, so the expected colours are

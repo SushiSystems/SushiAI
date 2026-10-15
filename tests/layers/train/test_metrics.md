@@ -1,7 +1,7 @@
 # tests/layers/train/test_metrics.cpp
 
 
-Suites: `Unit_Metrics`.
+Suites: `Small_Metrics`.
 
 Tests `Train::Metrics`, `Train::describe_metric_value` and `Train::only_output`.
 

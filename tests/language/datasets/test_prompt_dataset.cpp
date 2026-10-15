@@ -55,7 +55,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides the engine the batches are allocated on. */
-    class Unit_LanguageDatasetsPromptDataset : public SaTest::EngineTest
+    class Medium_LanguageDatasetsPromptDataset : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns the row and the stated length of the one batch. */
@@ -77,7 +77,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a short prompt fills the front of the row and zeros follow it. */
-TEST_F(Unit_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
+TEST_F(Medium_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
                             PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
@@ -99,7 +99,7 @@ TEST_F(Unit_LanguageDatasetsPromptDataset, AShortPromptIsFollowedByZeros)
 }
 
 /** @brief Tests that a prompt longer than the window keeps its last ids. */
-TEST_F(Unit_LanguageDatasetsPromptDataset, ALongPromptKeepsItsLastIDs)
+TEST_F(Medium_LanguageDatasetsPromptDataset, ALongPromptKeepsItsLastIDs)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
                             PromptDataset::make(*engine, {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}, 4));
@@ -113,7 +113,7 @@ TEST_F(Unit_LanguageDatasetsPromptDataset, ALongPromptKeepsItsLastIDs)
 }
 
 /** @brief Tests that no id, a negative id and a window of no position are each refused. */
-TEST_F(Unit_LanguageDatasetsPromptDataset, MakeRefusesAPromptOrAWindowThatDoesNotFit)
+TEST_F(Medium_LanguageDatasetsPromptDataset, MakeRefusesAPromptOrAWindowThatDoesNotFit)
 {
     SA_EXPECT_FAILURE(PromptDataset::make(*engine, {}, 4), StatusCode::InvalidDescription,
                       "no id");
@@ -124,7 +124,7 @@ TEST_F(Unit_LanguageDatasetsPromptDataset, MakeRefusesAPromptOrAWindowThatDoesNo
 }
 
 /** @brief Tests that the data block encodes "text" with the vocabulary file it names. */
-TEST_F(Unit_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
+TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
 {
     const Support::ScratchDirectory scratch("sushiai_prompt_section");
     const std::filesystem::path file = scratch.path() / "bytes.savb";

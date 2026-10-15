@@ -84,7 +84,7 @@ namespace
 } // namespace
 
 /** @brief Tests that boxes become fractions and category ids dense indices in id order. */
-TEST(Unit_DatasetsCocoJson, BoxesAndDenseClassesAreRead)
+TEST(Small_DatasetsCocoJson, BoxesAndDenseClassesAreRead)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_boxes");
     write_split(scratch,
@@ -120,7 +120,7 @@ TEST(Unit_DatasetsCocoJson, BoxesAndDenseClassesAreRead)
 }
 
 /** @brief Tests that the file and the image folder may be named. */
-TEST(Unit_DatasetsCocoJson, TheFileAndTheFolderMayBeNamed)
+TEST(Small_DatasetsCocoJson, TheFileAndTheFolderMayBeNamed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_named");
     scratch.make_directory("pictures");
@@ -136,7 +136,7 @@ TEST(Unit_DatasetsCocoJson, TheFileAndTheFolderMayBeNamed)
 }
 
 /** @brief Tests that a polygon is kept on request and the largest part of several is taken. */
-TEST(Unit_DatasetsCocoJson, PolygonsAreKeptWhenAskedFor)
+TEST(Small_DatasetsCocoJson, PolygonsAreKeptWhenAskedFor)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_polygons");
     write_split(scratch,
@@ -160,7 +160,7 @@ TEST(Unit_DatasetsCocoJson, PolygonsAreKeptWhenAskedFor)
 }
 
 /** @brief Tests that a run-length mask fails by its index only when polygons are asked for. */
-TEST(Unit_DatasetsCocoJson, ARunLengthMaskIsRefusedWhenPolygonsAreAskedFor)
+TEST(Small_DatasetsCocoJson, ARunLengthMaskIsRefusedWhenPolygonsAreAskedFor)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_rle");
     write_split(scratch,
@@ -178,7 +178,7 @@ TEST(Unit_DatasetsCocoJson, ARunLengthMaskIsRefusedWhenPolygonsAreAskedFor)
 }
 
 /** @brief Tests that a polygon part of an odd or short number list fails by its index. */
-TEST(Unit_DatasetsCocoJson, AMalformedPolygonIsRefused)
+TEST(Small_DatasetsCocoJson, AMalformedPolygonIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_outline");
     write_split(scratch,
@@ -192,7 +192,7 @@ TEST(Unit_DatasetsCocoJson, AMalformedPolygonIsRefused)
 }
 
 /** @brief Tests that an annotation of an unknown image or category fails by its index. */
-TEST(Unit_DatasetsCocoJson, AnUnknownImageOrCategoryNamesTheAnnotation)
+TEST(Small_DatasetsCocoJson, AnUnknownImageOrCategoryNamesTheAnnotation)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_unknown");
 
@@ -211,7 +211,7 @@ TEST(Unit_DatasetsCocoJson, AnUnknownImageOrCategoryNamesTheAnnotation)
 }
 
 /** @brief Tests that a box that is not four numbers fails by the index of its annotation. */
-TEST(Unit_DatasetsCocoJson, AMalformedBoxNamesTheAnnotation)
+TEST(Small_DatasetsCocoJson, AMalformedBoxNamesTheAnnotation)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_box");
 
@@ -231,7 +231,7 @@ TEST(Unit_DatasetsCocoJson, AMalformedBoxNamesTheAnnotation)
 }
 
 /** @brief Tests that two entries of one id, and an image of no size, fail by their indices. */
-TEST(Unit_DatasetsCocoJson, TheImagesAndTheCategoriesAreChecked)
+TEST(Small_DatasetsCocoJson, TheImagesAndTheCategoriesAreChecked)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_lists");
     scratch.make_directory("train");
@@ -259,7 +259,7 @@ TEST(Unit_DatasetsCocoJson, TheImagesAndTheCategoriesAreChecked)
 }
 
 /** @brief Tests that an absent file, an absent folder, bad JSON and a missing list fail. */
-TEST(Unit_DatasetsCocoJson, TheFileMustExistAndHoldItsThreeLists)
+TEST(Small_DatasetsCocoJson, TheFileMustExistAndHoldItsThreeLists)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_file");
 
@@ -281,7 +281,7 @@ TEST(Unit_DatasetsCocoJson, TheFileMustExistAndHoldItsThreeLists)
 }
 
 /** @brief Tests that annotations met before their images and categories still resolve. */
-TEST(Unit_DatasetsCocoJson, TheListsMayComeInAnyOrder)
+TEST(Small_DatasetsCocoJson, TheListsMayComeInAnyOrder)
 {
     const std::string annotations =
         R"("annotations": [
@@ -337,7 +337,7 @@ TEST(Unit_DatasetsCocoJson, TheListsMayComeInAnyOrder)
 }
 
 /** @brief Tests that a list the file states twice is refused by its key. */
-TEST(Unit_DatasetsCocoJson, AListStatedTwiceIsRefused)
+TEST(Small_DatasetsCocoJson, AListStatedTwiceIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_coco_twice");
     scratch.make_directory("train");

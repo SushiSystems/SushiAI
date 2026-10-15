@@ -48,7 +48,7 @@ using Graph::ValueID;
 
 namespace
 {
-    class Integration_MixedPrecision : public SaTest::EngineTest {};
+    class Medium_MixedPrecision : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -84,7 +84,7 @@ namespace
     }
 }
 
-TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
+TEST_F(Medium_MixedPrecision, AModelWithFP16ProductsStillLearns)
 {
     // Correctness is asserted; speed is not; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
@@ -129,7 +129,7 @@ TEST_F(Integration_MixedPrecision, AModelWithFP16ProductsStillLearns)
     EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.75);
 }
 
-TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
+TEST_F(Medium_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 {
     // Tensors must carry the dtypes the IR claims; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
@@ -186,7 +186,7 @@ TEST_F(Integration_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTw
     EXPECT_TRUE(std::isfinite(metrics.loss));
 }
 
-TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
+TEST_F(Medium_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
 {
     // The graph skipped the cast pass on purpose; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
@@ -219,7 +219,7 @@ TEST_F(Integration_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
                                       consistent));
 }
 
-TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
+TEST_F(Medium_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 {
     // A half buffer must not be read as float; see tests/layers/train/README.md.
     MLP model = make_model(K_FEATURES, K_HIDDEN, K_CLASSES);
@@ -260,7 +260,7 @@ TEST_F(Integration_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
 
 namespace
 {
-    class Regression_MixedPrecision : public SaTest::EngineTest {};
+    class Medium_MixedPrecisionRegressions : public SaTest::EngineTest {};
 
     constexpr int64_t K_GRAPH_HIDDEN = 16;
     constexpr int64_t K_BATCHES = 8;
@@ -347,7 +347,7 @@ namespace
  * @brief Tests that every master weight and gradient is float32 after a mixed-precision run.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
+TEST_F(Medium_MixedPrecisionRegressions, TheMasterWeightsAndTheirGradientsStayFloat32)
 {
     const MixedPrecisionPolicy precision;
     SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
@@ -369,7 +369,7 @@ TEST_F(Regression_MixedPrecision, TheMasterWeightsAndTheirGradientsStayFloat32)
  * @brief Tests that the fp32 policy adds no cast and matches no policy bit for bit.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_MixedPrecision, TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll)
+TEST_F(Medium_MixedPrecisionRegressions, TheFP32PolicyIsIndistinguishableFromNoPolicyAtAll)
 {
     const UniformPrecisionPolicy single;
 
@@ -389,7 +389,7 @@ TEST_F(Regression_MixedPrecision, TheFP32PolicyIsIndistinguishableFromNoPolicyAt
  * @brief Tests that mixed precision adds exactly as many operations as casts.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructural)
+TEST_F(Medium_MixedPrecisionRegressions, NarrowingCostsConversionsAndNothingElseStructural)
 {
     const MixedPrecisionPolicy precision;
 
@@ -404,7 +404,7 @@ TEST_F(Regression_MixedPrecision, NarrowingCostsConversionsAndNothingElseStructu
  * @brief Tests that mixed and single precision losses stay within 2e-2 relative at every step.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
+TEST_F(Medium_MixedPrecisionRegressions, MixedAndSinglePrecisionTrainToTheSamePlace)
 {
     const MixedPrecisionPolicy precision;
 
@@ -434,7 +434,7 @@ TEST_F(Regression_MixedPrecision, MixedAndSinglePrecisionTrainToTheSamePlace)
  * @brief Tests that a narrowing policy leaves GELU unfolded and in float32.
  * @see tests/layers/train/README.md
  */
-TEST_F(Regression_MixedPrecision, AGELULayerIsNotFoldedUnderANarrowingPolicy)
+TEST_F(Medium_MixedPrecisionRegressions, AGELULayerIsNotFoldedUnderANarrowingPolicy)
 {
     using GELUMLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 

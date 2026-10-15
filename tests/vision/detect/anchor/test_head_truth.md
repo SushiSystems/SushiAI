@@ -1,7 +1,7 @@
 # tests/vision/detect/anchor/test_head_truth.cpp
 
 
-Suites: `Unit_DetectAnchorHeadTruth`.
+Suites: `Small_DetectAnchorHeadTruth`.
 
 Tests `validate_head_truth` over a batch of one image with two truth rows, three classes and a
 64 by 64 network. The row under test is row 1, given by its pixel corners and its class. Every

@@ -1,7 +1,7 @@
 # tests/layers/nn/test_unflatten.cpp
 
 
-Suites: `Unit_Unflatten`.
+Suites: `Small_Unflatten`.
 
 Tests the trace, the shape rule and the rejected inputs of the Unflatten layer.
 

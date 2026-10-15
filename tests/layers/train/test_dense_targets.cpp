@@ -51,7 +51,7 @@ namespace
     constexpr double K_STALE = 7.0;
 
     /** @brief Provides the engine the role and leaf tensors are allocated on. */
-    class Unit_DenseTargets : public SaTest::EngineTest
+    class Medium_DenseTargets : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns a tensor of @p shape and @p dtype that holds @p values. */
@@ -80,7 +80,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a float32 and a float64 leaf both receive the values in order. */
-TEST_F(Unit_DenseTargets, ValuesAreCopiedInOrderIntoEitherRealType)
+TEST_F(Medium_DenseTargets, ValuesAreCopiedInOrderIntoEitherRealType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor values,
                             tensor_of(Shape{2, 3}, DType::Float32, K_VALUES));
@@ -94,7 +94,7 @@ TEST_F(Unit_DenseTargets, ValuesAreCopiedInOrderIntoEitherRealType)
 }
 
 /** @brief Tests that [N] labels fill an [N, 1] leaf, which holds as many elements. */
-TEST_F(Unit_DenseTargets, AColumnLeafTakesOneLabelPerRow)
+TEST_F(Medium_DenseTargets, AColumnLeafTakesOneLabelPerRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels,
                             tensor_of(Shape{4}, DType::Float32, K_LABELS));
@@ -106,7 +106,7 @@ TEST_F(Unit_DenseTargets, AColumnLeafTakesOneLabelPerRow)
 }
 
 /** @brief Tests that another count or element type is refused and leaves the leaf as it was. */
-TEST_F(Unit_DenseTargets, AnotherCountOrTypeIsRefusedAndTheLeafKept)
+TEST_F(Medium_DenseTargets, AnotherCountOrTypeIsRefusedAndTheLeafKept)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor values,
                             tensor_of(Shape{2, 3}, DType::Float32, K_VALUES));
@@ -127,7 +127,7 @@ TEST_F(Unit_DenseTargets, AnotherCountOrTypeIsRefusedAndTheLeafKept)
 }
 
 /** @brief Tests that a label which is neither 0 nor 1 is named and nothing is written. */
-TEST_F(Unit_DenseTargets, ALabelThatIsNotZeroOrOneIsRefused)
+TEST_F(Medium_DenseTargets, ALabelThatIsNotZeroOrOneIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor labels,
                             tensor_of(Shape{4}, DType::Float32, {1.0, 0.0, 0.5, 1.0}));

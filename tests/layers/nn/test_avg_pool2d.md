@@ -3,7 +3,7 @@
 
 The shapes the AvgPool2d layer traces and reports, and the inputs it refuses.
 
-Suites: `Unit_AvgPool2d`.
+Suites: `Small_AvgPool2d`.
 
 Tests the shapes the AvgPool2d layer traces and reports, and the inputs it refuses.
 

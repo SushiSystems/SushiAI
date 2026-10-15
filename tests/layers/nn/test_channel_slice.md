@@ -3,7 +3,7 @@
 
 The ChannelSlice layer's shape inference, the one SLICE_CHANNELS node it emits with its offset, the offsets, counts and ranks it rejects, and its empty state.
 
-Suites: `Unit_ChannelSlice`.
+Suites: `Small_ChannelSlice`.
 
 Tests `NN::ChannelSlice` in `modules/layers/nn/include/SushiAI/nn/channel_slice.hpp`, which
 keeps `count` channels of an image batch from `offset` on.

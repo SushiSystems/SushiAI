@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_import/test_yolov3_tiny_layers.cpp
 
 
-Suites: `Integration_DarknetYolov3TinyLayers`, `Integration_DarknetLayers`, in
+Suites: `Medium_DarknetYolov3TinyLayers`, `Medium_DarknetLayers`, in
 `sushiai_vision_importers_tests`.
 
 The file compares the body of a model layer by layer. It covers two models that have a dump of every

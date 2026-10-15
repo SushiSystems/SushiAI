@@ -52,7 +52,7 @@ using Graph::StateID;
 using Graph::StateIdentity;
 using Graph::ValueID;
 
-TEST(Unit_Ir, AddValueRecordsShapeDTypeAndLifetime)
+TEST(Small_Ir, AddValueRecordsShapeDTypeAndLifetime)
 {
     Graph::Graph graph;
     const ValueID id = graph.add_value(Shape{2, 3}, DType::Float64,
@@ -66,7 +66,7 @@ TEST(Unit_Ir, AddValueRecordsShapeDTypeAndLifetime)
     EXPECT_EQ(graph.value(id).producer, K_NO_NODE);
 }
 
-TEST(Unit_Ir, AddNodeClaimsItsOutputs)
+TEST(Small_Ir, AddNodeClaimsItsOutputs)
 {
     Graph::Graph graph;
     const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
@@ -79,7 +79,7 @@ TEST(Unit_Ir, AddNodeClaimsItsOutputs)
     EXPECT_EQ(graph.node(node).inputs.size(), 2u);
 }
 
-TEST(Unit_Ir, ASecondProducerForOneValueThrows)
+TEST(Small_Ir, ASecondProducerForOneValueThrows)
 {
     // A value has exactly one producer; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -91,7 +91,7 @@ TEST(Unit_Ir, ASecondProducerForOneValueThrows)
     EXPECT_THROW(graph.add_node(Ops::K_SUB.id, {a, b}, {c}), Error);
 }
 
-TEST(Unit_Ir, ReferencingAnUnknownValueThrows)
+TEST(Small_Ir, ReferencingAnUnknownValueThrows)
 {
     Graph::Graph graph;
     const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
@@ -100,7 +100,7 @@ TEST(Unit_Ir, ReferencingAnUnknownValueThrows)
     EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a}, {99}), Error);
 }
 
-TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
+TEST(Small_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -121,7 +121,7 @@ TEST(Unit_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
     EXPECT_TRUE(graph.value(z).requires_grad);
 }
 
-TEST(Unit_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
+TEST(Small_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -137,7 +137,7 @@ TEST(Unit_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     EXPECT_TRUE(graph.value(live).requires_grad);
 }
 
-TEST(Unit_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
+TEST(Small_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -153,7 +153,7 @@ TEST(Unit_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
     EXPECT_EQ(graph.value(builder.matmul(at, bt, true, true)).shape, Shape({4, 5}));
 }
 
-TEST(Unit_Ir, BuilderRejectsAContractionMismatch)
+TEST(Small_Ir, BuilderRejectsAContractionMismatch)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -164,7 +164,7 @@ TEST(Unit_Ir, BuilderRejectsAContractionMismatch)
     EXPECT_THROW((void)builder.matmul(a, b, false, false), Error);
 }
 
-TEST(Unit_Ir, BuilderChecksBiasAndLossShapes)
+TEST(Small_Ir, BuilderChecksBiasAndLossShapes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -185,7 +185,7 @@ TEST(Unit_Ir, BuilderChecksBiasAndLossShapes)
     EXPECT_THROW((void)builder.nll_loss(x, wrong), Error);
 }
 
-TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
+TEST(Small_Ir, BuilderRejectsMixedElementTypes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -197,7 +197,7 @@ TEST(Unit_Ir, BuilderRejectsMixedElementTypes)
     EXPECT_THROW((void)builder.matmul(single, doubled, false, false), Error);
 }
 
-TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
+TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
 {
     // Insertion order is a topological order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -216,7 +216,7 @@ TEST(Unit_Ir, NodesAreEmittedInTopologicalOrder)
         }
 }
 
-TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
+TEST(Small_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -241,7 +241,7 @@ TEST(Unit_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
     EXPECT_EQ(graph.value(y).producer, Graph::NodeID{1});
 }
 
-TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
+TEST(Small_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 {
     // The mirror of the case above, and the one that was guarded first.
     Graph::Graph graph;
@@ -258,7 +258,7 @@ TEST(Unit_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
     EXPECT_EQ(graph.value(z).producer, K_NO_NODE);
 }
 
-TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
+TEST(Small_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
     // Slots 8 and 9 carry the output extents out_h and out_w; see tests/core/graph/README.md.
     EXPECT_EQ(Graph::Attributes::K_CAPACITY, std::size_t{10});
@@ -273,7 +273,7 @@ TEST(Unit_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 }
 
 /** @brief Tests that a buffer leaf is persistent, produced by LEAF and never needs a gradient. */
-TEST(Unit_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
+TEST(Small_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -299,7 +299,7 @@ TEST(Unit_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
 }
 
 /** @brief Tests that the persistent lifetimes are the five that outlive a step. */
-TEST(Unit_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
+TEST(Small_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
 {
     for (Lifetime lifetime : {Lifetime::Parameter, Lifetime::Gradient, Lifetime::OptimizerState,
                               Lifetime::Input, Lifetime::Buffer})
@@ -310,7 +310,7 @@ TEST(Unit_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
 }
 
 /** @brief Tests that state_leaf returns the leaf bound to a state and NO_VALUE for any other. */
-TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
+TEST(Small_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -334,7 +334,7 @@ TEST(Unit_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
 }
 
 /** @brief Tests that a state binds one leaf and a leaf stands for one state, in one graph. */
-TEST(Unit_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
+TEST(Small_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -355,7 +355,7 @@ TEST(Unit_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
 }
 
 /** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
-TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
+TEST(Small_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -401,7 +401,7 @@ TEST(Unit_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
 }
 
 /** @brief Tests that a graph reports a refusal only once one was marked, and a copy keeps it. */
-TEST(Unit_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
+TEST(Small_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
 {
     Graph::Graph graph;
     (void)graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
@@ -416,7 +416,7 @@ TEST(Unit_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
 }
 
 /** @brief Tests that get() draws one identity per holder and that two holders never share one. */
-TEST(Unit_Ir, StateIdentityDrawsOneIdentityPerHolder)
+TEST(Small_Ir, StateIdentityDrawsOneIdentityPerHolder)
 {
     StateIdentity first;
     StateIdentity second;
@@ -433,7 +433,7 @@ TEST(Unit_Ir, StateIdentityDrawsOneIdentityPerHolder)
 }
 
 /** @brief Tests that a copied holder is new state and never takes the source's identity. */
-TEST(Unit_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
+TEST(Small_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
 {
     StateIdentity source;
     const StateID drawn = source.get();
@@ -453,7 +453,7 @@ TEST(Unit_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
 }
 
 /** @brief Tests that a move carries the identity to the target and leaves the source without. */
-TEST(Unit_Ir, AMovedStateIdentityCarriesItsIdentityAway)
+TEST(Small_Ir, AMovedStateIdentityCarriesItsIdentityAway)
 {
     StateIdentity source;
     const StateID drawn = source.get();
@@ -469,7 +469,7 @@ TEST(Unit_Ir, AMovedStateIdentityCarriesItsIdentityAway)
     EXPECT_EQ(moved.peek(), K_NO_STATE);
 }
 
-TEST(Unit_Ir, ASecondProducerNamesBothOperationsAndTheRule)
+TEST(Small_Ir, ASecondProducerNamesBothOperationsAndTheRule)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -484,7 +484,7 @@ TEST(Unit_Ir, ASecondProducerNamesBothOperationsAndTheRule)
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
 
-TEST(Unit_Ir, AnUnknownOperandNamesTheOperationThatAskedForIt)
+TEST(Small_Ir, AnUnknownOperandNamesTheOperationThatAskedForIt)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

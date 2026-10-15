@@ -4,7 +4,7 @@ The tests of the module `language/datasets`, one file per header of `modules/lan
 
 ## test_next_token_collator.cpp
 
-Suites: `Unit_LanguageDatasetsNextTokenCollator`.
+Suites: `Medium_LanguageDatasetsNextTokenCollator`.
 
 Tests `Language::Datasets::NextTokenCollator` in
 `modules/language/datasets/include/SushiAI/language/datasets/next_token_collator.hpp`. The
@@ -37,7 +37,7 @@ a batch without tensors ("one role 'labels'").
 
 ## test_prompt_dataset.cpp
 
-Suites: `Unit_LanguageDatasetsPromptDataset`.
+Suites: `Medium_LanguageDatasetsPromptDataset`.
 
 Tests `Language::Datasets::PromptDataset` in
 `modules/language/datasets/include/SushiAI/language/datasets/prompt_dataset.hpp` and
@@ -69,7 +69,7 @@ block without `text` ("the data block", "has no 'text'") and for a block with a 
 
 ## test_token_dataset.cpp
 
-Suites: `Unit_LanguageDatasetsTokenDataset`.
+Suites: `Medium_LanguageDatasetsTokenDataset`.
 
 Tests `Language::Datasets::TokenDataset` in
 `modules/language/datasets/include/SushiAI/language/datasets/token_dataset.hpp`. The fixture
@@ -137,7 +137,7 @@ inputs equals `batch_size()`.
 
 ## test_token_file.cpp
 
-Suites: `Unit_LanguageDatasetsTokenFile`.
+Suites: `Small_LanguageDatasetsTokenFile`.
 
 Tests `write_token_file`, `read_token_file_header` and `read_token_range` in
 `modules/language/datasets/include/SushiAI/language/datasets/token_file.hpp`. Most cases start
@@ -196,7 +196,7 @@ containing "2 ids from id 2" and "file of 3". Over a path that does not exist,
 
 ## test_tokens_section.cpp
 
-Suites: `Unit_LanguageDatasetsTokensSection`.
+Suites: `Medium_LanguageDatasetsTokensSection`.
 
 Tests `Language::Datasets::make_tokens_dataset` in
 `modules/language/datasets/include/SushiAI/language/datasets/tokens_section.hpp`, which builds
@@ -228,7 +228,7 @@ the code nor the message.
 
 ## test_window_layout.cpp
 
-Suites: `Unit_LanguageDatasetsWindowLayout`.
+Suites: `Small_LanguageDatasetsWindowLayout`.
 
 Tests `count_windows` and `first_token_of` over a `WindowLayout` in
 `modules/language/datasets/include/SushiAI/language/datasets/window_layout.hpp`. A layout is

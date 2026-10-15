@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_table.cpp
 
 
-Suites: `Unit_RegionTable`.
+Suites: `Small_RegionTable`.
 
 Tests what `RegionTable` keeps, records again, builds and drops from one step to the next.
 

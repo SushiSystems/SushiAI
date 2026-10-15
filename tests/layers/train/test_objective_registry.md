@@ -1,7 +1,7 @@
 # tests/layers/train/test_objective_registry.cpp
 
 
-Suites: `Unit_ObjectiveRegistry`.
+Suites: `Small_ObjectiveRegistry`.
 
 Tests `Train::ObjectiveRegistry`, `Train::register_objectives` and `Train::make_objective`. The
 file's stand-in factory returns a `CrossEntropyObjective` when the context holds a task with a

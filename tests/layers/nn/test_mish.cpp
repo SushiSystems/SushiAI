@@ -61,7 +61,7 @@ static_assert(std::tuple_size<decltype(Mish::fields())>::value == 0,
               "Mish must declare no parameter field");
 
 /** @brief Tests that tracing emits SOFTPLUS, TANH and MUL in order over the input. */
-TEST(Unit_Mish, ForwardEmitsSoftplusTanhThenMulReadingTheInput)
+TEST(Medium_Mish, ForwardEmitsSoftplusTanhThenMulReadingTheInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -96,7 +96,7 @@ TEST(Unit_Mish, ForwardEmitsSoftplusTanhThenMulReadingTheInput)
 }
 
 /** @brief Tests that a feature-vector batch keeps its shape and element type. */
-TEST(Unit_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
+TEST(Medium_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -110,7 +110,7 @@ TEST(Unit_Mish, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
 }
 
 /** @brief Tests that an image batch keeps its shape and carries the NHWC layout tag. */
-TEST(Unit_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
+TEST(Medium_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -124,7 +124,7 @@ TEST(Unit_Mish, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
 }
 
 /** @brief Tests that the result takes the layout of its input when that is NCHW. */
-TEST(Unit_Mish, ForwardCarriesTheLayoutOfItsInput)
+TEST(Medium_Mish, ForwardCarriesTheLayoutOfItsInput)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -139,7 +139,7 @@ TEST(Unit_Mish, ForwardCarriesTheLayoutOfItsInput)
 }
 
 /** @brief Tests that output_shape() returns its input for a feature vector and for an image. */
-TEST(Unit_Mish, OutputShapeReturnsItsInput)
+TEST(Medium_Mish, OutputShapeReturnsItsInput)
 {
     const Mish layer{};
 
@@ -148,7 +148,7 @@ TEST(Unit_Mish, OutputShapeReturnsItsInput)
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
-TEST(Unit_Mish, TheParameterWalkVisitsNothing)
+TEST(Medium_Mish, TheParameterWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -168,7 +168,7 @@ TEST(Unit_Mish, TheParameterWalkVisitsNothing)
 namespace
 {
     /** @brief Provides the Engine every Mish case records on. */
-    class Integration_MishValues : public SaTest::EngineTest
+    class Medium_MishValues : public SaTest::EngineTest
     {
     };
 
@@ -258,7 +258,7 @@ namespace
 } // namespace
 
 /** @brief Tests that Mish matches the exact form at -20, -1, 0, 1 and 20. */
-TEST_F(Integration_MishValues, MatchesTheExactFormAtTheAcceptancePoints)
+TEST_F(Medium_MishValues, MatchesTheExactFormAtTheAcceptancePoints)
 {
     const std::vector<double> input = {-20.0, -1.0, 0.0, 1.0, 20.0};
 
@@ -276,7 +276,7 @@ TEST_F(Integration_MishValues, MatchesTheExactFormAtTheAcceptancePoints)
  * @brief Tests Mish from -30 to 30 against the exact form, and records how far Darknet's
  * cut-off form lies from the exact form.
  */
-TEST_F(Integration_MishValues, SweepMatchesTheExactFormAndStatesTheDarknetDifference)
+TEST_F(Medium_MishValues, SweepMatchesTheExactFormAndStatesTheDarknetDifference)
 {
     const std::size_t count =
         static_cast<std::size_t>(2.0 * K_SWEEP_HALF_RANGE / K_SWEEP_STEP) + 1;

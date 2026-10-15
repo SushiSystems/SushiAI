@@ -1,7 +1,7 @@
 # tests/layers/nn/test_leaky_relu.cpp
 
 
-Suites: `Unit_LeakyReLU`.
+Suites: `Small_LeakyReLU`.
 
 Tests the LeakyReLU layer's trace, shape inference and slope range.
 

@@ -1,7 +1,7 @@
 # tests/core/graph/lowering/test_all.cpp
 
 
-Suites: `Unit_LoweringTable`.
+Suites: `Small_LoweringTable`.
 
 Tests the table that maps each operation identity to its lowering. The lowering is eight domain
 tables under `modules/core/graph/include/SushiAI/graph/lowering/`, which `all.hpp` joins into `K_LOWERINGS`. The

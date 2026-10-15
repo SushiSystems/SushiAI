@@ -55,7 +55,7 @@ namespace
 }
 
 /** @brief Tests that a default-constructed buffer is undefined and has no identity. */
-TEST(Unit_Buffer, ANewBufferIsUndefined)
+TEST(Small_Buffer, ANewBufferIsUndefined)
 {
     const Buffer buffer;
 
@@ -64,7 +64,7 @@ TEST(Unit_Buffer, ANewBufferIsUndefined)
 }
 
 /** @brief Tests that define() records the shape, the element type and the starting value. */
-TEST(Unit_Buffer, DefineRecordsTheDescription)
+TEST(Small_Buffer, DefineRecordsTheDescription)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
@@ -76,7 +76,7 @@ TEST(Unit_Buffer, DefineRecordsTheDescription)
 }
 
 /** @brief Tests that define() defaults the element type to FLOAT32. */
-TEST(Unit_Buffer, DefineDefaultsToFloat32)
+TEST(Small_Buffer, DefineDefaultsToFloat32)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
@@ -85,7 +85,7 @@ TEST(Unit_Buffer, DefineDefaultsToFloat32)
 }
 
 /** @brief Tests that a buffer that is defined and never read adds no value to a graph. */
-TEST(Unit_Buffer, ADefinedBufferAddsNoLeafUntilItIsRead)
+TEST(Small_Buffer, ADefinedBufferAddsNoLeafUntilItIsRead)
 {
     Graph::Graph graph;
     Buffer buffer;
@@ -96,7 +96,7 @@ TEST(Unit_Buffer, ADefinedBufferAddsNoLeafUntilItIsRead)
 }
 
 /** @brief Tests that define() draws the identity, which a later read and define() keep. */
-TEST(Unit_Buffer, DefineDrawsTheIdentity)
+TEST(Small_Buffer, DefineDrawsTheIdentity)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -116,7 +116,7 @@ TEST(Unit_Buffer, DefineDrawsTheIdentity)
 }
 
 /** @brief Tests that read() declares a persistent leaf of the defined shape with no gradient. */
-TEST(Unit_Buffer, ReadDeclaresABufferLeaf)
+TEST(Small_Buffer, ReadDeclaresABufferLeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -135,7 +135,7 @@ TEST(Unit_Buffer, ReadDeclaresABufferLeaf)
 }
 
 /** @brief Tests that a second read in one graph returns the first leaf and adds no value. */
-TEST(Unit_Buffer, ASecondReadInOneGraphReturnsTheFirstLeaf)
+TEST(Small_Buffer, ASecondReadInOneGraphReturnsTheFirstLeaf)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -151,7 +151,7 @@ TEST(Unit_Buffer, ASecondReadInOneGraphReturnsTheFirstLeaf)
 }
 
 /** @brief Tests that one buffer read in two graphs has its own leaf in each, under one StateID. */
-TEST(Unit_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
+TEST(Small_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
 {
     Graph::Graph first;
     Graph::Graph second;
@@ -176,7 +176,7 @@ TEST(Unit_Buffer, ABufferReadInTwoGraphsHasALeafInEach)
 }
 
 /** @brief Tests that a copied buffer keeps the description and is new state with its own leaf. */
-TEST(Unit_Buffer, ACopiedBufferHasANewStateID)
+TEST(Small_Buffer, ACopiedBufferHasANewStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -201,7 +201,7 @@ TEST(Unit_Buffer, ACopiedBufferHasANewStateID)
 }
 
 /** @brief Tests that a moved buffer keeps its StateID and the leaf it has in a graph. */
-TEST(Unit_Buffer, AMovedBufferKeepsItsStateID)
+TEST(Small_Buffer, AMovedBufferKeepsItsStateID)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -221,7 +221,7 @@ TEST(Unit_Buffer, AMovedBufferKeepsItsStateID)
 }
 
 /** @brief Tests that a moved-from buffer is undefined and holds no identity. */
-TEST(Unit_Buffer, AMovedFromBufferIsUndefined)
+TEST(Small_Buffer, AMovedFromBufferIsUndefined)
 {
     Buffer original;
     SA_EXPECT_OK(original.define(Shape{8}, 1.0));
@@ -239,7 +239,7 @@ TEST(Unit_Buffer, AMovedFromBufferIsUndefined)
 }
 
 /** @brief Tests that a copy assignment gives the target a new identity and the description. */
-TEST(Unit_Buffer, ACopyAssignedBufferHasANewStateID)
+TEST(Small_Buffer, ACopyAssignedBufferHasANewStateID)
 {
     Buffer original;
     Buffer target;
@@ -257,7 +257,7 @@ TEST(Unit_Buffer, ACopyAssignedBufferHasANewStateID)
 }
 
 /** @brief Tests that a copy of an undefined buffer is undefined and holds no identity. */
-TEST(Unit_Buffer, ACopyOfAnUndefinedBufferHasNoIdentity)
+TEST(Small_Buffer, ACopyOfAnUndefinedBufferHasNoIdentity)
 {
     const Buffer original;
     const Buffer copy = original;
@@ -267,7 +267,7 @@ TEST(Unit_Buffer, ACopyOfAnUndefinedBufferHasNoIdentity)
 }
 
 /** @brief Tests that define() called again with the same description changes nothing. */
-TEST(Unit_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
+TEST(Small_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 1.0, DType::Float64));
@@ -279,7 +279,7 @@ TEST(Unit_Buffer, DefiningTwiceWithOneDescriptionIsAccepted)
 }
 
 /** @brief Tests that define() with another shape fails, names both and keeps the first. */
-TEST(Unit_Buffer, DefiningWithAnotherShapeFails)
+TEST(Small_Buffer, DefiningWithAnotherShapeFails)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
@@ -290,7 +290,7 @@ TEST(Unit_Buffer, DefiningWithAnotherShapeFails)
 }
 
 /** @brief Tests that define() with another element type fails and names both types. */
-TEST(Unit_Buffer, DefiningWithAnotherElementTypeFails)
+TEST(Small_Buffer, DefiningWithAnotherElementTypeFails)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0, DType::Float32));
@@ -302,7 +302,7 @@ TEST(Unit_Buffer, DefiningWithAnotherElementTypeFails)
 }
 
 /** @brief Tests that define() with another starting value fails and keeps the first value. */
-TEST(Unit_Buffer, DefiningWithAnotherStartingValueFails)
+TEST(Small_Buffer, DefiningWithAnotherStartingValueFails)
 {
     Buffer buffer;
     SA_EXPECT_OK(buffer.define(Shape{8}, 0.0));
@@ -313,7 +313,7 @@ TEST(Unit_Buffer, DefiningWithAnotherStartingValueFails)
 }
 
 /** @brief Tests that read() before define() stops the process and names the buffer. */
-TEST(Unit_BufferDeathTest, ReadingBeforeDefineIsFatal)
+TEST(Small_BufferDeathTest, ReadingBeforeDefineIsFatal)
 {
     Buffer buffer;
 

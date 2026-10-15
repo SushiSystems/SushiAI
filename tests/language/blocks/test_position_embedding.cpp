@@ -69,7 +69,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a table of T rows is added to the [N, T * dim] rows in one BIAS_ADD. */
-TEST(Unit_BlockPositionEmbedding, ATraceAddsTheTableToEveryRow)
+TEST(Small_BlockPositionEmbedding, ATraceAddsTheTableToEveryRow)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -95,7 +95,7 @@ TEST(Unit_BlockPositionEmbedding, ATraceAddsTheTableToEveryRow)
 }
 
 /** @brief Tests that a sequence shorter than the table reads the table's leading rows. */
-TEST(Unit_BlockPositionEmbedding, AShorterSequenceReadsTheLeadingRows)
+TEST(Small_BlockPositionEmbedding, AShorterSequenceReadsTheLeadingRows)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -122,7 +122,7 @@ TEST(Unit_BlockPositionEmbedding, AShorterSequenceReadsTheLeadingRows)
 }
 
 /** @brief Tests that a sequence longer than the table, and a misfit input, fail the trace. */
-TEST(Unit_BlockPositionEmbedding, ASequenceLongerThanTheTableIsRefused)
+TEST(Small_BlockPositionEmbedding, ASequenceLongerThanTheTableIsRefused)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -148,7 +148,7 @@ TEST(Unit_BlockPositionEmbedding, ASequenceLongerThanTheTableIsRefused)
 }
 
 /** @brief Tests that the walk names the one table. */
-TEST(Unit_BlockPositionEmbedding, TheWalkYieldsTheTable)
+TEST(Small_BlockPositionEmbedding, TheWalkYieldsTheTable)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -166,7 +166,7 @@ TEST(Unit_BlockPositionEmbedding, TheWalkYieldsTheTable)
 }
 
 /** @brief Tests that the factory takes T for an absent "length" and refuses one below T. */
-TEST(Unit_BlockPositionEmbedding, TheFactoryReadsTheLength)
+TEST(Small_BlockPositionEmbedding, TheFactoryReadsTheLength)
 {
     const Shape input{K_LENGTH, K_DIM};
     const Shape flat{K_DIM};
@@ -226,7 +226,7 @@ namespace
 } // namespace
 
 /** @brief Tests that one position gathers the row of the fed position and adds it to the slice. */
-TEST(Unit_BlockPositionEmbedding, TheIncrementalFormAddsTheRowOfTheFedPosition)
+TEST(Small_BlockPositionEmbedding, TheIncrementalFormAddsTheRowOfTheFedPosition)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -253,7 +253,7 @@ TEST(Unit_BlockPositionEmbedding, TheIncrementalFormAddsTheRowOfTheFedPosition)
 }
 
 /** @brief Tests that a window longer than the table and a longer slice are each refused. */
-TEST(Unit_BlockPositionEmbedding, TheIncrementalFormRefusesAWindowItsTableCannotServe)
+TEST(Small_BlockPositionEmbedding, TheIncrementalFormRefusesAWindowItsTableCannotServe)
 {
     {
         Graph::Graph graph;

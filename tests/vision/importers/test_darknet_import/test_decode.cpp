@@ -263,7 +263,7 @@ namespace
     }
 
     /** @brief Runs once per model; every case reads Darknet's dumps and skips without them. */
-    class Integration_DarknetDecode : public ::testing::TestWithParam<DecodeModel>
+    class Small_DarknetDecode : public ::testing::TestWithParam<DecodeModel>
     {
     };
 
@@ -273,7 +273,7 @@ namespace
  * @brief Tests that every head of the model decodes to the boxes and scores Darknet dumped
  *        before its threshold, within 1e-6 absolute, and skips naming a missing file.
  */
-TEST_P(Integration_DarknetDecode, TheHeadsDecodeToTheDumpedRows)
+TEST_P(Small_DarknetDecode, TheHeadsDecodeToTheDumpedRows)
 {
     const DecodeModel& model = GetParam();
     const std::string missing = first_missing_file(model);
@@ -283,7 +283,7 @@ TEST_P(Integration_DarknetDecode, TheHeadsDecodeToTheDumpedRows)
     expect_decode_matches(model);
 }
 
-INSTANTIATE_TEST_SUITE_P(Models, Integration_DarknetDecode, ::testing::ValuesIn(list_models()),
+INSTANTIATE_TEST_SUITE_P(Models, Small_DarknetDecode, ::testing::ValuesIn(list_models()),
                          [](const ::testing::TestParamInfo<DecodeModel>& info)
                          {
                              return std::string(info.param.directory);

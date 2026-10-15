@@ -101,7 +101,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the head multiplies H and W by the scale and ends at the class count. */
-TEST(Unit_BlockSegmentHead, OutputShapeScalesTheExtentsAndSetsTheClasses)
+TEST(Small_BlockSegmentHead, OutputShapeScalesTheExtentsAndSetsTheClasses)
 {
     const SegmentHead head(16, 8, 5, 4, K_NORM);
     const SegmentHead unscaled(16, 8, 5, 1, K_NORM);
@@ -111,7 +111,7 @@ TEST(Unit_BlockSegmentHead, OutputShapeScalesTheExtentsAndSetsTheClasses)
 }
 
 /** @brief Tests that the trace is two convolutions, one norm, one SiLU and one upsample. */
-TEST(Unit_BlockSegmentHead, TheTraceEndsAtTheUpsample)
+TEST(Small_BlockSegmentHead, TheTraceEndsAtTheUpsample)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -129,7 +129,7 @@ TEST(Unit_BlockSegmentHead, TheTraceEndsAtTheUpsample)
 }
 
 /** @brief Tests the seven pieces of state: cv1's five, then the weight and the bias of cv2. */
-TEST(Unit_BlockSegmentHead, StateIsListedUnderCv1AndCv2)
+TEST(Small_BlockSegmentHead, StateIsListedUnderCv1AndCv2)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -148,7 +148,7 @@ TEST(Unit_BlockSegmentHead, StateIsListedUnderCv1AndCv2)
 }
 
 /** @brief Tests that the factory reads the row and that "hidden" defaults to the input width. */
-TEST(Unit_BlockSegmentHead, TheFactoryBuildsTheRow)
+TEST(Small_BlockSegmentHead, TheFactoryBuildsTheRow)
 {
     const Shape input{4, 4, 16};
     const Config::Value stated = Config::parse_json(
@@ -178,7 +178,7 @@ TEST(Unit_BlockSegmentHead, TheFactoryBuildsTheRow)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a missing class count and scale 0. */
-TEST(Unit_BlockSegmentHead, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BlockSegmentHead, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 16};
     const Config::Value unknown = Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>");

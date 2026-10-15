@@ -100,7 +100,7 @@ namespace
 }
 
 /** @brief Tests that the forward has a rule and its gradient identity has none. */
-TEST(Unit_LayerNormBackward, TheForwardHasARuleAndItsGradientHasNone)
+TEST(Small_LayerNormBackward, TheForwardHasARuleAndItsGradientHasNone)
 {
     EXPECT_TRUE(Ops::K_LAYER_NORM.differentiable);
     EXPECT_FALSE(Ops::K_LAYER_NORM_BACKWARD.differentiable);
@@ -109,7 +109,7 @@ TEST(Unit_LayerNormBackward, TheForwardHasARuleAndItsGradientHasNone)
 }
 
 /** @brief Tests that one gradient node serves x, gamma and beta and reads the saved statistics. */
-TEST(Unit_LayerNormBackward, OneGradientNodeServesTheThreeOperands)
+TEST(Small_LayerNormBackward, OneGradientNodeServesTheThreeOperands)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -134,7 +134,7 @@ TEST(Unit_LayerNormBackward, OneGradientNodeServesTheThreeOperands)
 }
 
 /** @brief Tests that an input leaf under the node comes back with no gradient value. */
-TEST(Unit_LayerNormBackward, AnInputThatNeedsNoGradientReceivesNone)
+TEST(Small_LayerNormBackward, AnInputThatNeedsNoGradientReceivesNone)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

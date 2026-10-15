@@ -148,7 +148,7 @@ namespace
 } // namespace
 
 /** @brief Tests that six rungs and two heads give three anchors per head after four trials. */
-TEST(Unit_DetectAnchorCount, LadderWithTwoHeadsChoosesThreePerHead)
+TEST(Small_DetectAnchorCount, LadderWithTwoHeadsChoosesThreePerHead)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const CountOptions options;
@@ -168,7 +168,7 @@ TEST(Unit_DetectAnchorCount, LadderWithTwoHeadsChoosesThreePerHead)
 }
 
 /** @brief Tests that each trial holds the fit of a clustering to that count made directly. */
-TEST(Unit_DetectAnchorCount, TrialsHoldTheFitOfEachCountClusteredDirectly)
+TEST(Small_DetectAnchorCount, TrialsHoldTheFitOfEachCountClusteredDirectly)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     const std::int64_t heads = 2;
@@ -195,7 +195,7 @@ TEST(Unit_DetectAnchorCount, TrialsHoldTheFitOfEachCountClusteredDirectly)
 }
 
 /** @brief Tests that one blob and three heads give one anchor per head after two trials. */
-TEST(Unit_DetectAnchorCount, BlobChoosesOnePerHead)
+TEST(Small_DetectAnchorCount, BlobChoosesOnePerHead)
 {
     const std::vector<AnchorSize> boxes = make_blob();
     const CountOptions options;
@@ -213,7 +213,7 @@ TEST(Unit_DetectAnchorCount, BlobChoosesOnePerHead)
 }
 
 /** @brief Tests that a max_per_head of 2 stops the ladder at two anchors per head. */
-TEST(Unit_DetectAnchorCount, MaxPerHeadOfTwoStopsAtTwo)
+TEST(Small_DetectAnchorCount, MaxPerHeadOfTwoStopsAtTwo)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     CountOptions options;
@@ -232,7 +232,7 @@ TEST(Unit_DetectAnchorCount, MaxPerHeadOfTwoStopsAtTwo)
 }
 
 /** @brief Tests that equal bounds make one trial and try no successor. */
-TEST(Unit_DetectAnchorCount, EqualBoundsMakeOneTrial)
+TEST(Small_DetectAnchorCount, EqualBoundsMakeOneTrial)
 {
     const std::vector<AnchorSize> boxes = make_ladder();
     CountOptions options;
@@ -249,7 +249,7 @@ TEST(Unit_DetectAnchorCount, EqualBoundsMakeOneTrial)
 }
 
 /** @brief Tests two sizes and one head: a second anchor gains 9.375 / 21 and is taken. */
-TEST(Unit_DetectAnchorCount, TwoSizesTakeTheSecondAnchorAtTheDefaultGain)
+TEST(Small_DetectAnchorCount, TwoSizesTakeTheSecondAnchorAtTheDefaultGain)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
     CountOptions options;
@@ -268,7 +268,7 @@ TEST(Unit_DetectAnchorCount, TwoSizesTakeTheSecondAnchorAtTheDefaultGain)
 }
 
 /** @brief Tests that a min_gain above 9.375 / 21 keeps one anchor and returns both trials. */
-TEST(Unit_DetectAnchorCount, TwoSizesKeepOneAnchorWhenTheGainIsBelowMinGain)
+TEST(Small_DetectAnchorCount, TwoSizesKeepOneAnchorWhenTheGainIsBelowMinGain)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
     CountOptions options;
@@ -287,7 +287,7 @@ TEST(Unit_DetectAnchorCount, TwoSizesKeepOneAnchorWhenTheGainIsBelowMinGain)
 }
 
 /** @brief Tests that the count of the clustering options is not read. */
-TEST(Unit_DetectAnchorCount, IgnoresTheCountOfTheClusteringOptions)
+TEST(Small_DetectAnchorCount, IgnoresTheCountOfTheClusteringOptions)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
     CountOptions options;
@@ -302,7 +302,7 @@ TEST(Unit_DetectAnchorCount, IgnoresTheCountOfTheClusteringOptions)
 }
 
 /** @brief Tests that a min_per_head above max_per_head is InvalidDescription. */
-TEST(Unit_DetectAnchorCount, RefusesAMinPerHeadAboveMaxPerHead)
+TEST(Small_DetectAnchorCount, RefusesAMinPerHeadAboveMaxPerHead)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
     CountOptions options;
@@ -316,7 +316,7 @@ TEST(Unit_DetectAnchorCount, RefusesAMinPerHeadAboveMaxPerHead)
 }
 
 /** @brief Tests that each option outside its range is InvalidDescription. */
-TEST(Unit_DetectAnchorCount, RefusesOptionsOutsideTheirRange)
+TEST(Small_DetectAnchorCount, RefusesOptionsOutsideTheirRange)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
     std::vector<CountOptions> refused(4);
@@ -335,7 +335,7 @@ TEST(Unit_DetectAnchorCount, RefusesOptionsOutsideTheirRange)
 }
 
 /** @brief Tests that no head and a head count whose product overflows are InvalidDescription. */
-TEST(Unit_DetectAnchorCount, RefusesAHeadCountOutsideItsRange)
+TEST(Small_DetectAnchorCount, RefusesAHeadCountOutsideItsRange)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
 
@@ -350,7 +350,7 @@ TEST(Unit_DetectAnchorCount, RefusesAHeadCountOutsideItsRange)
 }
 
 /** @brief Tests that fewer distinct boxes than the first count tried are Incompatible. */
-TEST(Unit_DetectAnchorCount, RefusesFewerDistinctBoxesThanTheFirstCount)
+TEST(Small_DetectAnchorCount, RefusesFewerDistinctBoxesThanTheFirstCount)
 {
     const std::vector<AnchorSize> boxes = make_two_sizes();
 
@@ -361,7 +361,7 @@ TEST(Unit_DetectAnchorCount, RefusesFewerDistinctBoxesThanTheFirstCount)
 }
 
 /** @brief Tests that an empty box list is Incompatible. */
-TEST(Unit_DetectAnchorCount, RefusesAnEmptyBoxList)
+TEST(Small_DetectAnchorCount, RefusesAnEmptyBoxList)
 {
     const std::vector<AnchorSize> boxes;
 

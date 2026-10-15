@@ -1,7 +1,7 @@
 # tests/layers/nn/test_embedding.cpp
 
 
-Suites: `Integration_GatherRows`.
+Suites: `Medium_GatherRows`.
 
 The file runs GATHER_ROWS, SCATTER_ADD_ROWS and the `Embedding` layer on an engine. The tables hold
 the dyadic values 0.25, 0.5, 0.75 and so on, whose copies and sums are exact, so results are
@@ -39,7 +39,7 @@ and its output holds the table rows the ids name.
 
 The Embedding layer's trace over an int32 index, its table parameter, its shape rule and its factory.
 
-Suites: `Unit_Embedding`, `Unit_EmbeddingDeathTest`.
+Suites: `Small_Embedding`, `Medium_EmbeddingDeathTest`.
 
 Tests `NN::Embedding` in `modules/layers/nn/include/SushiAI/nn/embedding.hpp` and its factory
 `NN::make_embedding_node`. Every layer has a table of 7 rows of length 3. A `static_assert`

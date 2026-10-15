@@ -146,13 +146,13 @@ namespace
 } // namespace
 
 /** @brief Tests that the defaults read back from their section unchanged. */
-TEST(Unit_DetectAnchorTrainingSection, TheDefaultsRoundTripThroughTheirSection)
+TEST(Small_DetectAnchorTrainingSection, TheDefaultsRoundTripThroughTheirSection)
 {
     expect_options_round_trip(HeadTrainingOptions{});
 }
 
 /** @brief Tests that options with no default left read back from their section unchanged. */
-TEST(Unit_DetectAnchorTrainingSection, OptionsWithNoDefaultRoundTripThroughTheirSection)
+TEST(Small_DetectAnchorTrainingSection, OptionsWithNoDefaultRoundTripThroughTheirSection)
 {
     expect_options_round_trip(make_imported_options());
 }
@@ -163,7 +163,7 @@ TEST(Unit_DetectAnchorTrainingSection, OptionsWithNoDefaultRoundTripThroughTheir
  * write_json spells a real in the shortest form that reads back to the same double, so equal
  * text means equal doubles: the tolerance is zero.
  */
-TEST(Unit_DetectAnchorTrainingSection, AFullSectionRoundTripsThroughItsOptions)
+TEST(Small_DetectAnchorTrainingSection, AFullSectionRoundTripsThroughItsOptions)
 {
     const Value section = section_from(K_FULL_SECTION);
     SA_ASSERT_OK_AND_ASSIGN(const HeadTrainingOptions options,
@@ -176,7 +176,7 @@ TEST(Unit_DetectAnchorTrainingSection, AFullSectionRoundTripsThroughItsOptions)
 }
 
 /** @brief Tests that the reader fills every field of the options from the section. */
-TEST(Unit_DetectAnchorTrainingSection, ReadsEveryFieldOfASection)
+TEST(Small_DetectAnchorTrainingSection, ReadsEveryFieldOfASection)
 {
     SA_ASSERT_OK_AND_ASSIGN(const HeadTrainingOptions options,
                             read_head_training_section(section_from(K_FULL_SECTION)));
@@ -196,7 +196,7 @@ TEST(Unit_DetectAnchorTrainingSection, ReadsEveryFieldOfASection)
 }
 
 /** @brief Tests that a section with no key, or with its type alone, gives the defaults. */
-TEST(Unit_DetectAnchorTrainingSection, AKeyLeftOutKeepsTheDefaultOfItsField)
+TEST(Small_DetectAnchorTrainingSection, AKeyLeftOutKeepsTheDefaultOfItsField)
 {
     SA_ASSERT_OK_AND_ASSIGN(const HeadTrainingOptions empty,
                             read_head_training_section(section_from("{}")));
@@ -214,7 +214,7 @@ TEST(Unit_DetectAnchorTrainingSection, AKeyLeftOutKeepsTheDefaultOfItsField)
 }
 
 /** @brief Tests that the writer states the type, every key in order and a float as a double. */
-TEST(Unit_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble)
+TEST(Small_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value section,
                             write_head_training_section(make_imported_options()));
@@ -235,7 +235,7 @@ TEST(Unit_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsIt
 }
 
 /** @brief Tests that every string of the three enumerations is read and written. */
-TEST(Unit_DetectAnchorTrainingSection, ReadsAndWritesEachEnumeratorString)
+TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachEnumeratorString)
 {
     HeadTrainingOptions options;
 
@@ -273,7 +273,7 @@ TEST(Unit_DetectAnchorTrainingSection, ReadsAndWritesEachEnumeratorString)
 }
 
 /** @brief Tests that a whole number is read where the section holds a number. */
-TEST(Unit_DetectAnchorTrainingSection, ReadsAWholeNumberAsAWeight)
+TEST(Small_DetectAnchorTrainingSection, ReadsAWholeNumberAsAWeight)
 {
     SA_ASSERT_OK_AND_ASSIGN(const HeadTrainingOptions options,
                             read_head_training_section(section_of(R"("object_weight": 2)")));
@@ -281,7 +281,7 @@ TEST(Unit_DetectAnchorTrainingSection, ReadsAWholeNumberAsAWeight)
 }
 
 /** @brief Tests that a section that is no object is refused with the kind it is. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesASectionThatIsNotAnObject)
+TEST(Small_DetectAnchorTrainingSection, RefusesASectionThatIsNotAnObject)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_from("[]")),
                       StatusCode::InvalidDescription, "objective", "an object");
@@ -290,7 +290,7 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesASectionThatIsNotAnObject)
 }
 
 /** @brief Tests that a type of another objective or of another kind is refused. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesAnotherType)
+TEST(Small_DetectAnchorTrainingSection, RefusesAnotherType)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("type": "cross_entropy")")),
                       StatusCode::InvalidDescription, "objective 'type'", "'cross_entropy'",
@@ -300,7 +300,7 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesAnotherType)
 }
 
 /** @brief Tests that a key outside the section is refused with the keys it accepts. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesAnUnknownKey)
+TEST(Small_DetectAnchorTrainingSection, RefusesAnUnknownKey)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("iou_normalizer": 0.07)")),
                       StatusCode::InvalidDescription, "objective", "'iou_normalizer'",
@@ -311,7 +311,7 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesAnUnknownKey)
 }
 
 /** @brief Tests that a value of another kind is refused with its key and its kind. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesAValueOfAnotherKind)
+TEST(Small_DetectAnchorTrainingSection, RefusesAValueOfAnotherKind)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_weight": "heavy")")),
                       StatusCode::InvalidDescription, "objective 'box_weight'", "a number");
@@ -323,7 +323,7 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesAValueOfAnotherKind)
 }
 
 /** @brief Tests that a string no enumerator has is refused with the strings of its key. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesAStringNoEnumeratorHas)
+TEST(Small_DetectAnchorTrainingSection, RefusesAStringNoEnumeratorHas)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_loss": "ciou")")),
                       StatusCode::InvalidDescription, "objective 'box_loss'", "'ciou'",
@@ -337,14 +337,14 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesAStringNoEnumeratorHas)
 }
 
 /** @brief Tests that a number float32 cannot hold as a finite value is refused. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesANumberFloat32CannotHold)
+TEST(Small_DetectAnchorTrainingSection, RefusesANumberFloat32CannotHold)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("max_delta": 1e39)")),
                       StatusCode::InvalidDescription, "objective 'max_delta'", "float32");
 }
 
 /** @brief Tests that the reader refuses the values validate_head_training refuses. */
-TEST(Unit_DetectAnchorTrainingSection, RefusesTheValuesTheOptionsCheckRefuses)
+TEST(Small_DetectAnchorTrainingSection, RefusesTheValuesTheOptionsCheckRefuses)
 {
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("match_threshold": 0.0)")),
                       StatusCode::InvalidDescription, "objective", "match threshold", "(0, 1]");
@@ -357,7 +357,7 @@ TEST(Unit_DetectAnchorTrainingSection, RefusesTheValuesTheOptionsCheckRefuses)
 }
 
 /** @brief Tests that the writer refuses the values validate_head_training refuses. */
-TEST(Unit_DetectAnchorTrainingSection, WriterRefusesTheValuesTheOptionsCheckRefuses)
+TEST(Small_DetectAnchorTrainingSection, WriterRefusesTheValuesTheOptionsCheckRefuses)
 {
     HeadTrainingOptions weightless;
     weightless.object_weight = std::numeric_limits<float>::quiet_NaN();

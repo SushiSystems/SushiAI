@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the port keeps H and W and carries the sum of the inputs' channels. */
-TEST(Unit_Concat, CreateSumsTheChannelsOfItsInputs)
+TEST(Small_Concat, CreateSumsTheChannelsOfItsInputs)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node,
                             create_over({Shape{8, 6, 3}, Shape{8, 6, 5}, Shape{8, 6, 1}}));
@@ -76,7 +76,7 @@ TEST(Unit_Concat, CreateSumsTheChannelsOfItsInputs)
 }
 
 /** @brief Tests that one input is accepted and its shape is the port's. */
-TEST(Unit_Concat, CreateAcceptsOneInput)
+TEST(Small_Concat, CreateAcceptsOneInput)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> node, create_over({Shape{8, 6, 3}}));
 
@@ -84,41 +84,41 @@ TEST(Unit_Concat, CreateAcceptsOneInput)
 }
 
 /** @brief Tests that inputs of unequal height are refused and the offending input is named. */
-TEST(Unit_Concat, CreateRejectsUnequalHeight)
+TEST(Small_Concat, CreateRejectsUnequalHeight)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{4, 6, 3}}),
                       StatusCode::InvalidDescription, "concat input 1", "H and W");
 }
 
 /** @brief Tests that inputs of unequal width are refused and the offending input is named. */
-TEST(Unit_Concat, CreateRejectsUnequalWidth)
+TEST(Small_Concat, CreateRejectsUnequalWidth)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{8, 6, 3}, Shape{8, 12, 3}}),
                       StatusCode::InvalidDescription, "concat input 2", "H and W");
 }
 
 /** @brief Tests that an input that is not rank 3 is refused and named. */
-TEST(Unit_Concat, CreateRejectsAnInputThatIsNotAFeatureMap)
+TEST(Small_Concat, CreateRejectsAnInputThatIsNotAFeatureMap)
 {
     SA_EXPECT_FAILURE(create_over({Shape{8, 6, 3}, Shape{144}}),
                       StatusCode::InvalidDescription, "concat input 1", "rank-3");
 }
 
 /** @brief Tests that a first input that is not rank 3 is refused and named as input 0. */
-TEST(Unit_Concat, CreateRejectsAFirstInputThatIsNotAFeatureMap)
+TEST(Small_Concat, CreateRejectsAFirstInputThatIsNotAFeatureMap)
 {
     SA_EXPECT_FAILURE(create_over({Shape{144}, Shape{8, 6, 3}}),
                       StatusCode::InvalidDescription, "concat input 0", "rank-3");
 }
 
 /** @brief Tests that an empty input list is refused. */
-TEST(Unit_Concat, CreateRejectsNoInput)
+TEST(Small_Concat, CreateRejectsNoInput)
 {
     SA_EXPECT_FAILURE(create_over({}), StatusCode::InvalidDescription, "at least one input");
 }
 
 /** @brief Tests that forward emits one CONCAT_CHANNELS reading every input in order. */
-TEST(Unit_Concat, ForwardEmitsOneConcatChannelsReadingEveryInputInOrder)
+TEST(Small_Concat, ForwardEmitsOneConcatChannelsReadingEveryInputInOrder)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -141,7 +141,7 @@ TEST(Unit_Concat, ForwardEmitsOneConcatChannelsReadingEveryInputInOrder)
 }
 
 /** @brief Tests that the traced value is the port's shape with the batch axis in front. */
-TEST(Unit_Concat, ForwardResultIsThePortShapeWithABatchAxis)
+TEST(Small_Concat, ForwardResultIsThePortShapeWithABatchAxis)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -159,7 +159,7 @@ TEST(Unit_Concat, ForwardResultIsThePortShapeWithABatchAxis)
 }
 
 /** @brief Tests that forward refuses an input count other than the one it was built over. */
-TEST(Unit_Concat, ForwardRejectsAnInputCountItWasNotBuiltOver)
+TEST(Small_Concat, ForwardRejectsAnInputCountItWasNotBuiltOver)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -177,7 +177,7 @@ TEST(Unit_Concat, ForwardRejectsAnInputCountItWasNotBuiltOver)
 }
 
 /** @brief Tests that a node's input count is the number of shapes it was built over. */
-TEST(Unit_Concat, TheInputCountIsTheNumberOfShapesItWasBuiltOver)
+TEST(Small_Concat, TheInputCountIsTheNumberOfShapesItWasBuiltOver)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Concat> one, create_over({Shape{8, 6, 3}}));
     SA_ASSERT_OK_AND_ASSIGN(
@@ -189,7 +189,7 @@ TEST(Unit_Concat, TheInputCountIsTheNumberOfShapesItWasBuiltOver)
 }
 
 /** @brief Tests that traced values the emitter refuses come back as a failure, not a throw. */
-TEST(Unit_Concat, ForwardReturnsTheFailureOfValuesThatDoNotJoin)
+TEST(Small_Concat, ForwardReturnsTheFailureOfValuesThatDoNotJoin)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -211,7 +211,7 @@ TEST(Unit_Concat, ForwardReturnsTheFailureOfValuesThatDoNotJoin)
 }
 
 /** @brief Tests that the factory builds a Concat over its shapes from a row with no key. */
-TEST(Unit_Concat, TheFactoryBuildsANodeFromARowWithNoKey)
+TEST(Small_Concat, TheFactoryBuildsANodeFromARowWithNoKey)
 {
     const Shape shapes[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
     const Config::Value none = Config::parse_json("{}", "<test>");
@@ -227,7 +227,7 @@ TEST(Unit_Concat, TheFactoryBuildsANodeFromARowWithNoKey)
 }
 
 /** @brief Tests that the factory refuses a key and names the row when the shapes do not join. */
-TEST(Unit_Concat, TheFactoryRefusesAKeyAndShapesThatDoNotJoin)
+TEST(Small_Concat, TheFactoryRefusesAKeyAndShapesThatDoNotJoin)
 {
     const Shape joined[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
     const Shape apart[] = {Shape{8, 6, 3}, Shape{4, 6, 5}};
@@ -241,7 +241,7 @@ TEST(Unit_Concat, TheFactoryRefusesAKeyAndShapesThatDoNotJoin)
 }
 
 /** @brief Tests that the state walk visits nothing after a trace. */
-TEST(Unit_Concat, TheStateWalkVisitsNothing)
+TEST(Small_Concat, TheStateWalkVisitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);

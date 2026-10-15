@@ -71,7 +71,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the writer produces the bytes the module README documents. */
-TEST(Unit_TextVocabularyFile, TheWriterProducesTheDocumentedBytes)
+TEST(Small_TextVocabularyFile, TheWriterProducesTheDocumentedBytes)
 {
     const Support::ScratchDirectory scratch("sushiai_test_text_vocabulary_file_bytes");
     const std::filesystem::path file = scratch.path() / "tiny.savb";
@@ -85,7 +85,7 @@ TEST(Unit_TextVocabularyFile, TheWriterProducesTheDocumentedBytes)
 }
 
 /** @brief Tests that a vocabulary with special tokens and merges comes back from its file. */
-TEST(Unit_TextVocabularyFile, AVocabularySurvivesItsFile)
+TEST(Small_TextVocabularyFile, AVocabularySurvivesItsFile)
 {
     const Support::ScratchDirectory scratch("sushiai_test_text_vocabulary_file_round_trip");
     const std::filesystem::path file = scratch.path() / "vocabulary.savb";
@@ -106,7 +106,7 @@ TEST(Unit_TextVocabularyFile, AVocabularySurvivesItsFile)
 }
 
 /** @brief Tests that every proper prefix of a file is refused as a file that ends early. */
-TEST(Unit_TextVocabularyFile, ATruncatedFileIsRefusedAtEveryLength)
+TEST(Small_TextVocabularyFile, ATruncatedFileIsRefusedAtEveryLength)
 {
     const std::string whole = one_merge();
 
@@ -124,14 +124,14 @@ TEST(Unit_TextVocabularyFile, ATruncatedFileIsRefusedAtEveryLength)
 }
 
 /** @brief Tests that bytes after the declared end are refused, naming where they begin. */
-TEST(Unit_TextVocabularyFile, BytesAfterTheDeclaredEndAreRefused)
+TEST(Small_TextVocabularyFile, BytesAfterTheDeclaredEndAreRefused)
 {
     SA_EXPECT_FAILURE(parse_vocabulary_file(one_merge() + "xyz"), StatusCode::InvalidFile,
                       "3 bytes follow", "byte 49");
 }
 
 /** @brief Tests that a file is refused for another magic and for a version it cannot read. */
-TEST(Unit_TextVocabularyFile, AnotherMagicOrVersionIsRefused)
+TEST(Small_TextVocabularyFile, AnotherMagicOrVersionIsRefused)
 {
     std::string bytes = one_merge();
     bytes[0] = 'X';
@@ -149,7 +149,7 @@ TEST(Unit_TextVocabularyFile, AnotherMagicOrVersionIsRefused)
 }
 
 /** @brief Tests that a count of the header out of its bounds names the byte it is at. */
-TEST(Unit_TextVocabularyFile, AHeaderCountOutOfBoundsNamesItsOffset)
+TEST(Small_TextVocabularyFile, AHeaderCountOutOfBoundsNamesItsOffset)
 {
     std::string bytes = one_merge();
     bytes[8] = '\x01';
@@ -168,7 +168,7 @@ TEST(Unit_TextVocabularyFile, AHeaderCountOutOfBoundsNamesItsOffset)
 }
 
 /** @brief Tests that a special token record that leaves its section names its offset. */
-TEST(Unit_TextVocabularyFile, ASpecialTokenPastItsSectionNamesItsOffset)
+TEST(Small_TextVocabularyFile, ASpecialTokenPastItsSectionNamesItsOffset)
 {
     std::string bytes = one_merge();
     bytes[24] = '\x0E';
@@ -187,7 +187,7 @@ TEST(Unit_TextVocabularyFile, ASpecialTokenPastItsSectionNamesItsOffset)
 }
 
 /** @brief Tests that a merge the vocabulary refuses is a failure of the read. */
-TEST(Unit_TextVocabularyFile, AMergeOfALaterTokenIsRefused)
+TEST(Small_TextVocabularyFile, AMergeOfALaterTokenIsRefused)
 {
     std::string bytes = one_merge();
     bytes[42] = '\x01';
@@ -201,7 +201,7 @@ TEST(Unit_TextVocabularyFile, AMergeOfALaterTokenIsRefused)
 }
 
 /** @brief Tests that the reader names the path of a file that is absent or ends early. */
-TEST(Unit_TextVocabularyFile, TheReaderNamesThePathOfAFileItRefuses)
+TEST(Small_TextVocabularyFile, TheReaderNamesThePathOfAFileItRefuses)
 {
     const Support::ScratchDirectory scratch("sushiai_test_text_vocabulary_file_refusals");
 

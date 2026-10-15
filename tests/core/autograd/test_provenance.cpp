@@ -119,7 +119,7 @@ namespace
 }
 
 /** @brief Tests that every appended node has exactly one origin and that it is a forward node. */
-TEST(Unit_Provenance, EveryBackwardNodeHasAForwardOrigin)
+TEST(Small_Provenance, EveryBackwardNodeHasAForwardOrigin)
 {
     TwoLinearGraph model;
     const std::size_t forward_nodes = model.graph.node_count();
@@ -136,7 +136,7 @@ TEST(Unit_Provenance, EveryBackwardNodeHasAForwardOrigin)
 }
 
 /** @brief Tests that the first layer's weight gradient is recorded under the first MATMUL. */
-TEST(Unit_Provenance, ARuleEmitsUnderTheNodeItDifferentiates)
+TEST(Small_Provenance, ARuleEmitsUnderTheNodeItDifferentiates)
 {
     TwoLinearGraph model;
 
@@ -154,7 +154,7 @@ TEST(Unit_Provenance, ARuleEmitsUnderTheNodeItDifferentiates)
 }
 
 /** @brief Tests that the ACCUMULATE summing a twice-read value is recorded under its producer. */
-TEST(Unit_Provenance, AFanOutAccumulateBelongsToTheProducer)
+TEST(Small_Provenance, AFanOutAccumulateBelongsToTheProducer)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -179,7 +179,7 @@ TEST(Unit_Provenance, AFanOutAccumulateBelongsToTheProducer)
 }
 
 /** @brief Tests that the ACCUMULATE summing a twice-read parameter is recorded under its LEAF. */
-TEST(Unit_Provenance, AParameterReadTwiceAccumulatesUnderItsLeaf)
+TEST(Small_Provenance, AParameterReadTwiceAccumulatesUnderItsLeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -205,7 +205,7 @@ TEST(Unit_Provenance, AParameterReadTwiceAccumulatesUnderItsLeaf)
 }
 
 /** @brief Tests that a Provenance used for a second run holds that run's origins alone. */
-TEST(Unit_Provenance, AReusedProvenanceHoldsOnlyTheLatestRun)
+TEST(Small_Provenance, AReusedProvenanceHoldsOnlyTheLatestRun)
 {
     Graph::Graph earlier;
     const GraphBuilder builder(earlier);
@@ -229,7 +229,7 @@ TEST(Unit_Provenance, AReusedProvenanceHoldsOnlyTheLatestRun)
 }
 
 /** @brief Tests that a requested value no node produces is refused when its sum needs an origin. */
-TEST(Unit_Provenance, ARequestedValueWithoutAProducerIsRefused)
+TEST(Small_Provenance, ARequestedValueWithoutAProducerIsRefused)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -248,7 +248,7 @@ TEST(Unit_Provenance, ARequestedValueWithoutAProducerIsRefused)
 }
 
 /** @brief Tests that a null provenance yields the same nodes and gradients as a recorded run. */
-TEST(Unit_Provenance, PassingNoProvenanceChangesNothing)
+TEST(Small_Provenance, PassingNoProvenanceChangesNothing)
 {
     TwoLinearGraph recorded;
     TwoLinearGraph plain;

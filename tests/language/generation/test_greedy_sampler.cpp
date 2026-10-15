@@ -49,7 +49,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the largest logit wins, and the lowest index among equal ones. */
-TEST(Unit_GenerationGreedySampler, ThePickIsTheLargestLogitAndTheFirstOfEquals)
+TEST(Small_GenerationGreedySampler, ThePickIsTheLargestLogitAndTheFirstOfEquals)
 {
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);
@@ -61,7 +61,7 @@ TEST(Unit_GenerationGreedySampler, ThePickIsTheLargestLogitAndTheFirstOfEquals)
 }
 
 /** @brief Tests that a pick leaves the generator as it was. */
-TEST(Unit_GenerationGreedySampler, APickDrawsNothing)
+TEST(Small_GenerationGreedySampler, APickDrawsNothing)
 {
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);
@@ -73,7 +73,7 @@ TEST(Unit_GenerationGreedySampler, APickDrawsNothing)
 }
 
 /** @brief Tests that a row of no logit stops the process. */
-TEST(Unit_GenerationGreedySamplerDeathTest, NoLogitIsFatal)
+TEST(Small_GenerationGreedySamplerDeathTest, NoLogitIsFatal)
 {
     SA_EXPECT_FATAL(sample_no_logit(), "no logit");
 }

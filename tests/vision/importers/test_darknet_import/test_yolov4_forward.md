@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_import/test_yolov4_forward.cpp
 
 
-Suites: `Integration_DarknetYolov4Forward`, in `sushiai_vision_importers_tests`.
+Suites: `Large_DarknetYolov4Forward`, in `sushiai_vision_importers_tests`.
 
 The fixture `DarknetParityTest` imports YOLOv4 from `yolov4.cfg` and `yolov4.weights` in the
 directory `SA_REFERENCE_DATA_DIR` names and compares its forward pass over a 608 pixel input with

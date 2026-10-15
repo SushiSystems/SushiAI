@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_mosaic.cpp
 
 
-Suites: `Unit_ImagingMosaic`.
+Suites: `Small_ImagingMosaic`.
 
 Tests the draw, the plan and the application of the four-image mosaic.
 
-This file needs no device. `Unit_ImagingMosaic` covers `modules/vision/imaging/include/SushiAI/vision/imaging/mosaic.hpp`.
+This file needs no device. `Small_ImagingMosaic` covers `modules/vision/imaging/include/SushiAI/vision/imaging/mosaic.hpp`.
 `draw_mosaic` asks a `PartnerSource` for three partners, draws the gate and then the centre.
 `plan_mosaic` turns a centre and four patch sizes into four placements on a canvas of twice the
 image size. `apply_mosaic` copies the patches onto the canvas, or shifts, joins, clips and

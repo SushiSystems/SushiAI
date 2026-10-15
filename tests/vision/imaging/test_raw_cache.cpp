@@ -153,7 +153,7 @@ namespace
     };
 } // namespace
 
-TEST(Unit_ImagingRawCache, WriterEmitsTheDocumentedBytes)
+TEST(Small_ImagingRawCache, WriterEmitsTheDocumentedBytes)
 {
     Image image(ImageSize{1, 2}, 3);
     const std::uint8_t pixels[6] = {10, 20, 30, 40, 50, 60};
@@ -169,13 +169,13 @@ TEST(Unit_ImagingRawCache, WriterEmitsTheDocumentedBytes)
     EXPECT_EQ(bytes, expected);
 }
 
-TEST(Unit_ImagingRawCache, HeaderSizeAndMagicMatchTheDocumentedLayout)
+TEST(Small_ImagingRawCache, HeaderSizeAndMagicMatchTheDocumentedLayout)
 {
     EXPECT_EQ(K_RAW_IMAGE_HEADER_BYTES, 24u);
     EXPECT_EQ(layout_bytes(1, 1, 3, K_RGB).substr(0, 4), "SAIM");
 }
 
-TEST(Unit_ImagingRawCache, RGBImageRoundTripsThroughAStream)
+TEST(Small_ImagingRawCache, RGBImageRoundTripsThroughAStream)
 {
     const Image image = make_image(ImageSize{5, 7}, 3);
     std::istringstream in(written_bytes(image, ChannelOrder::RGB), std::ios::binary);
@@ -195,7 +195,7 @@ TEST(Unit_ImagingRawCache, RGBImageRoundTripsThroughAStream)
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Unit_ImagingRawCache, GrayImageRoundTripsThroughAStream)
+TEST(Small_ImagingRawCache, GrayImageRoundTripsThroughAStream)
 {
     const Image image = make_image(ImageSize{4, 3}, 1);
     std::istringstream in(written_bytes(image, ChannelOrder::Gray), std::ios::binary);
@@ -209,7 +209,7 @@ TEST(Unit_ImagingRawCache, GrayImageRoundTripsThroughAStream)
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Unit_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)
+TEST(Small_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)
 {
     Image image(ImageSize{1, 2}, 3);
     const std::uint8_t pixels[6] = {1, 2, 3, 4, 5, 6};
@@ -227,7 +227,7 @@ TEST(Unit_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)
     EXPECT_EQ(bytes_of(read), (std::vector<std::uint8_t>{3, 2, 1, 6, 5, 4}));
 }
 
-TEST(Unit_ImagingRawCache, ReadReusesADestinationOfAnotherSize)
+TEST(Small_ImagingRawCache, ReadReusesADestinationOfAnotherSize)
 {
     const Image image = make_image(ImageSize{2, 2}, 3);
     std::istringstream in(written_bytes(image, ChannelOrder::RGB), std::ios::binary);
@@ -242,70 +242,70 @@ TEST(Unit_ImagingRawCache, ReadReusesADestinationOfAnotherSize)
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAWrongMagic)
+TEST(Small_ImagingRawCache, HeaderRejectsAWrongMagic)
 {
     std::istringstream in(header_bytes(0x474E5089u, K_RAW_IMAGE_VERSION, 1, 1, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "magic", "not a raw image file");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsANewerVersionAndNamesBoth)
+TEST(Small_ImagingRawCache, HeaderRejectsANewerVersionAndNamesBoth)
 {
     std::istringstream in(header_bytes(K_RAW_IMAGE_MAGIC, 2, 1, 1, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "format version 2", "reads version 1");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsVersionZero)
+TEST(Small_ImagingRawCache, HeaderRejectsVersionZero)
 {
     std::istringstream in(header_bytes(K_RAW_IMAGE_MAGIC, 0, 1, 1, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "format version 0", "reads version 1");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsATruncatedHeader)
+TEST(Small_ImagingRawCache, HeaderRejectsATruncatedHeader)
 {
     std::istringstream in(layout_bytes(1, 1, 3, K_RGB).substr(0, 23));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "header ended", "23 of 24");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAnEmptyStream)
+TEST(Small_ImagingRawCache, HeaderRejectsAnEmptyStream)
 {
     std::istringstream in{std::string()};
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "header ended", "0 of 24");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAZeroHeight)
+TEST(Small_ImagingRawCache, HeaderRejectsAZeroHeight)
 {
     std::istringstream in(layout_bytes(0, 4, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "height 0", "16384");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAZeroWidth)
+TEST(Small_ImagingRawCache, HeaderRejectsAZeroWidth)
 {
     std::istringstream in(layout_bytes(4, 0, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "width 0", "16384");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAHeightAboveTheLimit)
+TEST(Small_ImagingRawCache, HeaderRejectsAHeightAboveTheLimit)
 {
     std::istringstream in(layout_bytes(16385, 4, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "height 16385", "16384");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAWidthAboveTheLimit)
+TEST(Small_ImagingRawCache, HeaderRejectsAWidthAboveTheLimit)
 {
     std::istringstream in(layout_bytes(4, 16385, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "width 16385", "16384");
 }
 
-TEST(Unit_ImagingRawCache, HeaderAcceptsBothSidesAtTheLimit)
+TEST(Small_ImagingRawCache, HeaderAcceptsBothSidesAtTheLimit)
 {
     std::istringstream in(layout_bytes(16384, 16384, 3, K_RGB));
 
@@ -316,56 +316,56 @@ TEST(Unit_ImagingRawCache, HeaderAcceptsBothSidesAtTheLimit)
     EXPECT_EQ(header.pixel_bytes(), std::size_t{805306368});
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsExtentsWhoseProductWouldOverflow)
+TEST(Small_ImagingRawCache, HeaderRejectsExtentsWhoseProductWouldOverflow)
 {
     std::istringstream in(layout_bytes(0xFFFFFFFFu, 0xFFFFFFFFu, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "height 4294967295");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAnExtentWithTheSignBitSet)
+TEST(Small_ImagingRawCache, HeaderRejectsAnExtentWithTheSignBitSet)
 {
     std::istringstream in(layout_bytes(4, 0x80000001u, 3, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "width 2147483649");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsAnUnknownChannelOrder)
+TEST(Small_ImagingRawCache, HeaderRejectsAnUnknownChannelOrder)
 {
     std::istringstream in(layout_bytes(4, 4, 3, 3));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel order 3", "unknown");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsThreeChannelsInAGrayFile)
+TEST(Small_ImagingRawCache, HeaderRejectsThreeChannelsInAGrayFile)
 {
     std::istringstream in(layout_bytes(4, 4, 3, 0));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel count 3", "channel order 0");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsOneChannelInAnRGBFile)
+TEST(Small_ImagingRawCache, HeaderRejectsOneChannelInAnRGBFile)
 {
     std::istringstream in(layout_bytes(4, 4, 1, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel count 1", "channel order 1");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsFourChannels)
+TEST(Small_ImagingRawCache, HeaderRejectsFourChannels)
 {
     std::istringstream in(layout_bytes(4, 4, 4, K_RGB));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel count 4");
 }
 
-TEST(Unit_ImagingRawCache, HeaderRejectsZeroChannels)
+TEST(Small_ImagingRawCache, HeaderRejectsZeroChannels)
 {
     std::istringstream in(layout_bytes(4, 4, 0, 2));
 
     SA_EXPECT_ERROR((void)read_raw_image_header(in), "channel count 0", "channel order 2");
 }
 
-TEST(Unit_ImagingRawCache, PixelsRejectAStreamThatEndsEarly)
+TEST(Small_ImagingRawCache, PixelsRejectAStreamThatEndsEarly)
 {
     const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
     std::istringstream in(bytes.substr(0, bytes.size() - 1), std::ios::binary);
@@ -375,7 +375,7 @@ TEST(Unit_ImagingRawCache, PixelsRejectAStreamThatEndsEarly)
     SA_EXPECT_ERROR(read_raw_image_pixels(in, header, read), "pixels ended", "11 of 12");
 }
 
-TEST(Unit_ImagingRawCache, PixelsRejectAHeaderTheReaderDidNotValidate)
+TEST(Small_ImagingRawCache, PixelsRejectAHeaderTheReaderDidNotValidate)
 {
     std::istringstream in(std::string(64, '\0'), std::ios::binary);
     RawImageHeader header;
@@ -387,7 +387,7 @@ TEST(Unit_ImagingRawCache, PixelsRejectAHeaderTheReaderDidNotValidate)
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, WriterRejectsAnEmptyView)
+TEST(Small_ImagingRawCache, WriterRejectsAnEmptyView)
 {
     std::ostringstream out(std::ios::binary);
 
@@ -395,7 +395,7 @@ TEST(Unit_ImagingRawCache, WriterRejectsAnEmptyView)
     EXPECT_TRUE(out.str().empty());
 }
 
-TEST(Unit_ImagingRawCache, WriterRejectsAChannelCountThatDoesNotFitTheOrder)
+TEST(Small_ImagingRawCache, WriterRejectsAChannelCountThatDoesNotFitTheOrder)
 {
     const Image gray = make_image(ImageSize{2, 2}, 1);
     const Image color = make_image(ImageSize{2, 2}, 3);
@@ -407,7 +407,7 @@ TEST(Unit_ImagingRawCache, WriterRejectsAChannelCountThatDoesNotFitTheOrder)
     EXPECT_TRUE(out.str().empty());
 }
 
-TEST(Unit_ImagingRawCache, WriterRejectsASideAboveTheLimit)
+TEST(Small_ImagingRawCache, WriterRejectsASideAboveTheLimit)
 {
     const std::uint8_t pixel[3] = {0, 0, 0};
     const ImageView view(pixel, ImageSize{1, K_MAX_IMAGE_SIDE + 1}, 3);
@@ -417,7 +417,7 @@ TEST(Unit_ImagingRawCache, WriterRejectsASideAboveTheLimit)
     EXPECT_TRUE(out.str().empty());
 }
 
-TEST(Unit_ImagingRawCache, WriterReportsAFailedStream)
+TEST(Small_ImagingRawCache, WriterReportsAFailedStream)
 {
     const Image image = make_image(ImageSize{2, 2}, 3);
     std::ostringstream out(std::ios::binary);
@@ -426,7 +426,7 @@ TEST(Unit_ImagingRawCache, WriterReportsAFailedStream)
     SA_EXPECT_ERROR(write_raw_image(out, image.view(), ChannelOrder::RGB), "stream failed");
 }
 
-TEST(Unit_ImagingRawCache, ImageRoundTripsThroughAFile)
+TEST(Small_ImagingRawCache, ImageRoundTripsThroughAFile)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_round_trip");
     const std::filesystem::path path = directory.file("image.saim");
@@ -443,7 +443,7 @@ TEST(Unit_ImagingRawCache, ImageRoundTripsThroughAFile)
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Unit_ImagingRawCache, FileWriterReplacesALongerFile)
+TEST(Small_ImagingRawCache, FileWriterReplacesALongerFile)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_replace");
     const std::filesystem::path path = directory.file("image.saim");
@@ -458,7 +458,7 @@ TEST(Unit_ImagingRawCache, FileWriterReplacesALongerFile)
     EXPECT_EQ(bytes_of(read), bytes_of(small));
 }
 
-TEST(Unit_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
+TEST(Small_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_reject");
     const std::filesystem::path path = directory.write("image.saim", "kept");
@@ -468,7 +468,7 @@ TEST(Unit_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
     EXPECT_EQ(std::filesystem::file_size(path), 4u);
 }
 
-TEST(Unit_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
+TEST(Small_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_no_parent");
     const std::filesystem::path path = directory.file("absent") / "image.saim";
@@ -477,7 +477,7 @@ TEST(Unit_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
     SA_EXPECT_ERROR(write_raw_image_file(path, image.view(), ChannelOrder::RGB), "cannot open");
 }
 
-TEST(Unit_ImagingRawCache, FileReaderRejectsAMissingFile)
+TEST(Small_ImagingRawCache, FileReaderRejectsAMissingFile)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_missing");
     Image destination(ImageSize{1, 1}, 1);
@@ -487,7 +487,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsAMissingFile)
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, FileReaderRejectsATruncatedHeader)
+TEST(Small_ImagingRawCache, FileReaderRejectsATruncatedHeader)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_short_header");
     const std::filesystem::path path =
@@ -498,7 +498,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsATruncatedHeader)
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination)
+TEST(Small_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_short_pixels");
     const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
@@ -510,7 +510,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDes
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDestination)
+TEST(Small_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_trailing");
     const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
@@ -521,7 +521,7 @@ TEST(Unit_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDesti
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold)
+TEST(Small_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_declared_large");
     const std::filesystem::path path =
@@ -533,7 +533,7 @@ TEST(Unit_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesNo
     expect_untouched(destination);
 }
 
-TEST(Unit_ImagingRawCache, FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination)
+TEST(Small_ImagingRawCache, FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_bad_header");
     const std::filesystem::path path =

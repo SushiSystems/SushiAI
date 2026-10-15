@@ -56,7 +56,7 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_ImportWeights : public SaTest::EngineTest {};
+    class Medium_ImportWeights : public SaTest::EngineTest {};
 
     using SaTest::ScratchFile;
 
@@ -125,28 +125,28 @@ namespace
 } // namespace
 
 /** @brief Tests that a rule replaces a matching prefix and keeps the rest of the name. */
-TEST(Unit_RenameRule, RewritesAMatchingPrefix)
+TEST(Small_RenameRule, RewritesAMatchingPrefix)
 {
     const IO::RenameRule rules[] = {{"model.", ""}};
     EXPECT_EQ(IO::renamed("model.0.weight", rules), "0.weight");
 }
 
 /** @brief Tests that a name no rule's prefix starts is returned unchanged. */
-TEST(Unit_RenameRule, LeavesANameNoRuleMatches)
+TEST(Small_RenameRule, LeavesANameNoRuleMatches)
 {
     const IO::RenameRule rules[] = {{"model.", ""}};
     EXPECT_EQ(IO::renamed("other.0.weight", rules), "other.0.weight");
 }
 
 /** @brief Tests that the first rule whose prefix matches decides the name, not the longest. */
-TEST(Unit_RenameRule, TheFirstMatchingRuleWins)
+TEST(Small_RenameRule, TheFirstMatchingRuleWins)
 {
     const IO::RenameRule rules[] = {{"model.", "first."}, {"model.0", "second"}};
     EXPECT_EQ(IO::renamed("model.0.weight", rules), "first.0.weight");
 }
 
 /** @brief Tests that an empty to-prefix removes the matched prefix from the name. */
-TEST(Unit_RenameRule, AnEmptyToPrefixStripsThePrefix)
+TEST(Small_RenameRule, AnEmptyToPrefixStripsThePrefix)
 {
     const IO::RenameRule rules[] = {{"model.", ""}};
     EXPECT_EQ(IO::renamed("model.1.bias", rules), "1.bias");
@@ -156,7 +156,7 @@ TEST(Unit_RenameRule, AnEmptyToPrefixStripsThePrefix)
  * @brief Tests that a file written under foreign names loads through a rule, with every
  *        record landing in its entry bit for bit.
  */
-TEST_F(Integration_ImportWeights, ARuleStripsAForeignPrefixAndEveryRecordLands)
+TEST_F(Medium_ImportWeights, ARuleStripsAForeignPrefixAndEveryRecordLands)
 {
     const ScratchFile file("sushiai_import_rule.sushi");
 
@@ -185,7 +185,7 @@ TEST_F(Integration_ImportWeights, ARuleStripsAForeignPrefixAndEveryRecordLands)
 }
 
 /** @brief Tests that without a rule the first foreign record is refused, and named. */
-TEST_F(Integration_ImportWeights, WithoutTheRuleTheFirstRecordIsRefused)
+TEST_F(Medium_ImportWeights, WithoutTheRuleTheFirstRecordIsRefused)
 {
     const ScratchFile file("sushiai_import_no_rule.sushi");
 
@@ -206,7 +206,7 @@ TEST_F(Integration_ImportWeights, WithoutTheRuleTheFirstRecordIsRefused)
  * @brief Tests that a record whose name matches no entry is refused, with the file's name and
  *        the renamed one both in the text.
  */
-TEST_F(Integration_ImportWeights, ARecordTheStateLacksIsRefusedUnderBothNames)
+TEST_F(Medium_ImportWeights, ARecordTheStateLacksIsRefusedUnderBothNames)
 {
     const ScratchFile file("sushiai_import_unknown.sushi");
 
@@ -225,7 +225,7 @@ TEST_F(Integration_ImportWeights, ARecordTheStateLacksIsRefusedUnderBothNames)
 }
 
 /** @brief Tests that an entry no record supplies is refused, and the refusal names it. */
-TEST_F(Integration_ImportWeights, AnEntryTheFileLacksIsRefusedAndNamed)
+TEST_F(Medium_ImportWeights, AnEntryTheFileLacksIsRefusedAndNamed)
 {
     const ScratchFile file("sushiai_import_missing.sushi");
 
@@ -243,7 +243,7 @@ TEST_F(Integration_ImportWeights, AnEntryTheFileLacksIsRefusedAndNamed)
 }
 
 /** @brief Tests that a record whose shape differs from its entry is refused with both shapes. */
-TEST_F(Integration_ImportWeights, AShapeMismatchIsRefusedWithBothShapes)
+TEST_F(Medium_ImportWeights, AShapeMismatchIsRefusedWithBothShapes)
 {
     const ScratchFile file("sushiai_import_shape.sushi");
 
@@ -264,7 +264,7 @@ TEST_F(Integration_ImportWeights, AShapeMismatchIsRefusedWithBothShapes)
 }
 
 /** @brief Tests that a path that cannot be opened is refused as FileNotFound. */
-TEST_F(Integration_ImportWeights, AMissingFileIsFileNotFound)
+TEST_F(Medium_ImportWeights, AMissingFileIsFileNotFound)
 {
     const ScratchFile file("sushiai_import_absent.sushi");
 

@@ -259,7 +259,7 @@ static_assert(!NN::Module<NN::Sequential<NN::Conv2d, BatchNorm2d>> &&
               "a Sequential holding BatchNorm2d is traced through a trace only");
 
 /** @brief Tests that a training trace emits one BATCHNORM2D with the layer's epsilon. */
-TEST(Unit_BatchNorm2d, ATrainingTraceEmitsOneBatchNorm)
+TEST(Small_BatchNorm2d, ATrainingTraceEmitsOneBatchNorm)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -291,7 +291,7 @@ TEST(Unit_BatchNorm2d, ATrainingTraceEmitsOneBatchNorm)
 }
 
 /** @brief Tests that a training trace adds no buffer leaf to its graph. */
-TEST(Unit_BatchNorm2d, ATrainingTraceReadsNoBuffer)
+TEST(Small_BatchNorm2d, ATrainingTraceReadsNoBuffer)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -310,7 +310,7 @@ TEST(Unit_BatchNorm2d, ATrainingTraceReadsNoBuffer)
  * @brief Tests that a training trace requests two updates, from outputs 1 and 3 of the node
  *        into the running mean and the running variance.
  */
-TEST(Unit_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
+TEST(Small_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -340,7 +340,7 @@ TEST(Unit_BatchNorm2d, ATrainingTraceRequestsTheTwoRunningUpdates)
 }
 
 /** @brief Tests that the variance update carries n / (n - 1) for n values per channel. */
-TEST(Unit_BatchNorm2d, TheVarianceUpdateCarriesTheUnbiasedFactor)
+TEST(Small_BatchNorm2d, TheVarianceUpdateCarriesTheUnbiasedFactor)
 {
     Graph::Graph small_graph;
     const Graph::GraphBuilder small_builder(small_graph);
@@ -366,7 +366,7 @@ TEST(Unit_BatchNorm2d, TheVarianceUpdateCarriesTheUnbiasedFactor)
  * @brief Tests that an evaluation trace emits one BATCHNORM_FOLD over the two buffer leaves
  *        and one CHANNEL_AFFINE over its results, and no BATCHNORM2D.
  */
-TEST(Unit_BatchNorm2d, AnEvaluationTraceFoldsTheRunningStatistics)
+TEST(Small_BatchNorm2d, AnEvaluationTraceFoldsTheRunningStatistics)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -411,7 +411,7 @@ TEST(Unit_BatchNorm2d, AnEvaluationTraceFoldsTheRunningStatistics)
  * @brief Tests that the buffers a training trace updates are the ones an evaluation trace of
  *        the same layer reads, and that both traces share the parameters.
  */
-TEST(Unit_BatchNorm2d, BothFormsNameTheSameState)
+TEST(Small_BatchNorm2d, BothFormsNameTheSameState)
 {
     BatchNorm2d layer(3, NormOptions{});
 
@@ -446,7 +446,7 @@ TEST(Unit_BatchNorm2d, BothFormsNameTheSameState)
  * @brief Tests that the state walk yields weight, bias, running_mean and running_var in that
  *        order, each [channels], starting at one, zero, zero and one.
  */
-TEST(Unit_BatchNorm2d, TheWalkYieldsTwoParametersThenTwoBuffers)
+TEST(Small_BatchNorm2d, TheWalkYieldsTwoParametersThenTwoBuffers)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -481,7 +481,7 @@ TEST(Unit_BatchNorm2d, TheWalkYieldsTwoParametersThenTwoBuffers)
 }
 
 /** @brief Tests that training over one value per channel fails and declares nothing. */
-TEST(Unit_BatchNorm2d, TrainingOverOneValuePerChannelFails)
+TEST(Small_BatchNorm2d, TrainingOverOneValuePerChannelFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -502,7 +502,7 @@ TEST(Unit_BatchNorm2d, TrainingOverOneValuePerChannelFails)
 }
 
 /** @brief Tests that both forms refuse an integer input and declare nothing. */
-TEST(Unit_BatchNorm2d, AnIntegerInputFails)
+TEST(Small_BatchNorm2d, AnIntegerInputFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -525,7 +525,7 @@ TEST(Unit_BatchNorm2d, AnIntegerInputFails)
 }
 
 /** @brief Tests that an evaluation trace accepts one value per channel. */
-TEST(Unit_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
+TEST(Small_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -538,7 +538,7 @@ TEST(Unit_BatchNorm2d, EvaluationOverOneValuePerChannelTraces)
 }
 
 /** @brief Tests that both forms refuse an input of another channel count or rank. */
-TEST(Unit_BatchNorm2d, AnInputThatDoesNotFitFails)
+TEST(Small_BatchNorm2d, AnInputThatDoesNotFitFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -562,7 +562,7 @@ TEST(Unit_BatchNorm2d, AnInputThatDoesNotFitFails)
 }
 
 /** @brief Tests that both forms refuse an NCHW input before they declare a value. */
-TEST(Unit_BatchNorm2d, AnNCHWInputFails)
+TEST(Small_BatchNorm2d, AnNCHWInputFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -581,7 +581,7 @@ TEST(Unit_BatchNorm2d, AnNCHWInputFails)
 }
 
 /** @brief Tests that a layer without channels, epsilon or a momentum in [0, 1] fails to trace. */
-TEST(Unit_BatchNorm2d, ALayerDescribedWrongFails)
+TEST(Small_BatchNorm2d, ALayerDescribedWrongFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -604,7 +604,7 @@ TEST(Unit_BatchNorm2d, ALayerDescribedWrongFails)
 }
 
 /** @brief Tests that a second trace under another element type fails and names both types. */
-TEST(Unit_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
+TEST(Small_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
 {
     Graph::Graph first;
     const Graph::GraphBuilder first_builder(first);
@@ -626,7 +626,7 @@ TEST(Unit_BatchNorm2d, ASecondTraceUnderAnotherElementTypeFails)
 }
 
 /** @brief Tests that gamma is a SCALE that starts at one and beta a BIAS that starts at zero. */
-TEST(Unit_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
+TEST(Small_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -643,7 +643,7 @@ TEST(Unit_BatchNorm2d, TheScaleStartsAtOneAndTheShiftAtZero)
 }
 
 /** @brief Tests that the factory takes the channels from its input and reads both constants. */
-TEST(Unit_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
+TEST(Small_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
 {
     const Shape input{8, 8, 6};
     const Config::Value attributes =
@@ -664,7 +664,7 @@ TEST(Unit_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
 }
 
 /** @brief Tests that the factory refuses an unknown key, a flat input and a wrong constant. */
-TEST(Unit_BatchNorm2d, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_BatchNorm2d, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape image{8, 8, 6};
     const Shape flat{48};
@@ -681,21 +681,21 @@ TEST(Unit_BatchNorm2d, TheFactoryRefusesARowThatDoesNotFit)
 }
 
 /** @brief Tests that the training form under an evaluation trace stops the process. */
-TEST(Unit_BatchNorm2dDeathTest, TheTrainingFormUnderAnEvaluationTraceIsFatal)
+TEST(Small_BatchNorm2dDeathTest, TheTrainingFormUnderAnEvaluationTraceIsFatal)
 {
     SA_EXPECT_FATAL(train_under_an_evaluation_trace(), "trace_training",
                     "was given an evaluation trace");
 }
 
 /** @brief Tests that a trace over a value the graph does not hold stops the process. */
-TEST(Unit_BatchNorm2dDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
+TEST(Small_BatchNorm2dDeathTest, ATraceOverAValueTheGraphLacksIsFatal)
 {
     SA_EXPECT_FATAL(evaluate_over_a_value_the_graph_lacks(), "BatchNorm2d(3)", "value 7",
                     "holds 1 values");
 }
 
 /** @brief Tests that trace_layer picks the form of the trace's mode for BatchNorm2d. */
-TEST(Unit_BatchNorm2d, TraceLayerPicksTheFormOfTheMode)
+TEST(Small_BatchNorm2d, TraceLayerPicksTheFormOfTheMode)
 {
     Graph::Graph training_graph;
     const Graph::GraphBuilder training_builder(training_graph);
@@ -716,7 +716,7 @@ TEST(Unit_BatchNorm2d, TraceLayerPicksTheFormOfTheMode)
 }
 
 /** @brief Tests that output_shape returns the shape it is given, whatever that shape is. */
-TEST(Unit_BatchNorm2d, OutputShapeIsTheInputShape)
+TEST(Small_BatchNorm2d, OutputShapeIsTheInputShape)
 {
     const BatchNorm2d layer(3, NormOptions{});
 
@@ -728,7 +728,7 @@ TEST(Unit_BatchNorm2d, OutputShapeIsTheInputShape)
  * @brief Tests that updated_statistic returns (1 - momentum) * running + momentum * scale *
  *        batch, on numbers a double holds exactly.
  */
-TEST(Unit_BatchNorm2d, UpdatedStatisticBlendsTheScaledBatchValue)
+TEST(Small_BatchNorm2d, UpdatedStatisticBlendsTheScaledBatchValue)
 {
     EXPECT_NEAR(NN::updated_statistic(1.0, 3.0, 0.25, 2.0), 2.25, K_EXACT_TOLERANCE);
     EXPECT_NEAR(NN::updated_statistic(4.0, 8.0, 0.5, 1.0), 6.0, K_EXACT_TOLERANCE);
@@ -740,7 +740,7 @@ TEST(Unit_BatchNorm2d, UpdatedStatisticBlendsTheScaledBatchValue)
  * @brief Tests that the requested updates reproduce the running statistics torch left on the
  *        [2, 2, 2, 3] reference case, where the unscaled variance misses by 8.3e-3.
  */
-TEST(Unit_BatchNorm2d, TheUpdatesReproduceTheUnitReferenceCase)
+TEST(Small_BatchNorm2d, TheUpdatesReproduceTheUnitReferenceCase)
 {
     expect_reference_case("unit", K_UNIT_CASE_TOLERANCE);
 }
@@ -749,7 +749,7 @@ TEST(Unit_BatchNorm2d, TheUpdatesReproduceTheUnitReferenceCase)
  * @brief Tests that the requested updates reproduce the running statistics torch left on
  *        model.9.cv1.bn, where the unscaled variance misses by 1.4e-5.
  */
-TEST(Unit_BatchNorm2d, TheUpdatesReproduceTheModelReferenceCase)
+TEST(Small_BatchNorm2d, TheUpdatesReproduceTheModelReferenceCase)
 {
     expect_reference_case("model.9.cv1.bn", K_MODEL_CASE_TOLERANCE);
 }

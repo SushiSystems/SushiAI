@@ -77,7 +77,7 @@ namespace
 } // namespace
 
 /** @brief Tests that rows inside the input pass, a centre of exactly 0 included. */
-TEST(Unit_DetectAnchorHeadTruth, AcceptsRowsWhoseCentreLiesInsideTheInput)
+TEST(Small_DetectAnchorHeadTruth, AcceptsRowsWhoseCentreLiesInsideTheInput)
 {
     // Corners of -8 and 8 give a centre of 0, the closed end of [0, 1).
     const GroundTruthBatch truth = make_truth({-8.0f, -8.0f, 8.0f, 8.0f}, 2);
@@ -86,7 +86,7 @@ TEST(Unit_DetectAnchorHeadTruth, AcceptsRowsWhoseCentreLiesInsideTheInput)
 }
 
 /** @brief Tests that a centre of exactly 1 along the columns is refused with its row. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesACentreAtTheRightEdge)
+TEST(Small_DetectAnchorHeadTruth, RefusesACentreAtTheRightEdge)
 {
     const GroundTruthBatch truth = make_truth({56.0f, 16.0f, 72.0f, 48.0f}, 0);
 
@@ -96,7 +96,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesACentreAtTheRightEdge)
 }
 
 /** @brief Tests that a centre left of the input is refused with its value. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesACentreLeftOfTheInput)
+TEST(Small_DetectAnchorHeadTruth, RefusesACentreLeftOfTheInput)
 {
     const GroundTruthBatch truth = make_truth({-48.0f, 16.0f, 16.0f, 48.0f}, 0);
 
@@ -105,7 +105,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesACentreLeftOfTheInput)
 }
 
 /** @brief Tests that a centre below the input is refused with its value. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesACentreBelowTheInput)
+TEST(Small_DetectAnchorHeadTruth, RefusesACentreBelowTheInput)
 {
     const GroundTruthBatch truth = make_truth({16.0f, 64.0f, 48.0f, 96.0f}, 0);
 
@@ -114,7 +114,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesACentreBelowTheInput)
 }
 
 /** @brief Tests that a centre above the input is refused with its value. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesACentreAboveTheInput)
+TEST(Small_DetectAnchorHeadTruth, RefusesACentreAboveTheInput)
 {
     const GroundTruthBatch truth = make_truth({16.0f, -48.0f, 48.0f, 16.0f}, 0);
 
@@ -123,7 +123,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesACentreAboveTheInput)
 }
 
 /** @brief Tests that a centre that is not a number is refused. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesACentreThatIsNotANumber)
+TEST(Small_DetectAnchorHeadTruth, RefusesACentreThatIsNotANumber)
 {
     const float not_a_number = std::numeric_limits<float>::quiet_NaN();
     const GroundTruthBatch truth = make_truth({not_a_number, 16.0f, 48.0f, 48.0f}, 0);
@@ -133,7 +133,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesACentreThatIsNotANumber)
 }
 
 /** @brief Tests that a width of 0 is refused with the size it has. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesAWidthThatIsNotPositive)
+TEST(Small_DetectAnchorHeadTruth, RefusesAWidthThatIsNotPositive)
 {
     const GroundTruthBatch truth = make_truth({32.0f, 16.0f, 32.0f, 48.0f}, 0);
 
@@ -142,7 +142,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesAWidthThatIsNotPositive)
 }
 
 /** @brief Tests that a negative height is refused with the size it has. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesAHeightThatIsNotPositive)
+TEST(Small_DetectAnchorHeadTruth, RefusesAHeightThatIsNotPositive)
 {
     const GroundTruthBatch truth = make_truth({16.0f, 40.0f, 48.0f, 24.0f}, 0);
 
@@ -152,7 +152,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesAHeightThatIsNotPositive)
 }
 
 /** @brief Tests that a class at the head's class count is refused with its id. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesAClassAtTheClassCount)
+TEST(Small_DetectAnchorHeadTruth, RefusesAClassAtTheClassCount)
 {
     const GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, K_CLASSES);
 
@@ -162,7 +162,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesAClassAtTheClassCount)
 }
 
 /** @brief Tests that a negative class is refused with its id. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesANegativeClass)
+TEST(Small_DetectAnchorHeadTruth, RefusesANegativeClass)
 {
     const GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, -1);
 
@@ -171,7 +171,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesANegativeClass)
 }
 
 /** @brief Tests that a row the truth marks as padding is not read. */
-TEST(Unit_DetectAnchorHeadTruth, LeavesAPaddingRowUnread)
+TEST(Small_DetectAnchorHeadTruth, LeavesAPaddingRowUnread)
 {
     GroundTruthBatch truth = make_truth({56.0f, 16.0f, 72.0f, 48.0f}, K_CLASSES);
     truth.valid[1] = 0;
@@ -180,7 +180,7 @@ TEST(Unit_DetectAnchorHeadTruth, LeavesAPaddingRowUnread)
 }
 
 /** @brief Tests that a truth of another batch, or one short of box values, is refused. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesArraysThatDoNotHoldTheirShape)
+TEST(Small_DetectAnchorHeadTruth, RefusesArraysThatDoNotHoldTheirShape)
 {
     GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, 0);
 
@@ -193,7 +193,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesArraysThatDoNotHoldTheirShape)
 }
 
 /** @brief Tests that a network side below 1 is refused. */
-TEST(Unit_DetectAnchorHeadTruth, RefusesANetworkSideBelowOne)
+TEST(Small_DetectAnchorHeadTruth, RefusesANetworkSideBelowOne)
 {
     const GroundTruthBatch truth = make_truth({16.0f, 16.0f, 48.0f, 48.0f}, 0);
 
@@ -202,7 +202,7 @@ TEST(Unit_DetectAnchorHeadTruth, RefusesANetworkSideBelowOne)
 }
 
 /** @brief Tests that the delta refuses a truth outside the grid by its row and writes nothing. */
-TEST(Unit_DetectAnchorHeadTruth, TheDeltaRefusesATruthOutsideTheGrid)
+TEST(Small_DetectAnchorHeadTruth, TheDeltaRefusesATruthOutsideTheGrid)
 {
     AnchorLayout layout;
     layout.anchors = {{0.5f, 0.5f}};

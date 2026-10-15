@@ -1,7 +1,7 @@
 # tests/core/eager/test_storage_bank.cpp
 
 
-Suites: `Unit_StorageBank`.
+Suites: `Medium_StorageBank`.
 
 Tests that `StorageBank` holds, allocates and lets go of tensors by storage id.
 

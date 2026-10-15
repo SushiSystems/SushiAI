@@ -288,7 +288,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a step traced with no scope is one region with the optimizer key above it. */
-TEST(Unit_ScopePartitioner, AnUnscopedStepIsOneRegion)
+TEST(Small_ScopePartitioner, AnUnscopedStepIsOneRegion)
 {
     const Step step = unscoped_step();
 
@@ -309,7 +309,7 @@ TEST(Unit_ScopePartitioner, AnUnscopedStepIsOneRegion)
 }
 
 /** @brief Tests that every forward node carries the number of its segment as its key. */
-TEST(Unit_ScopePartitioner, ForwardKeysFollowTraceOrder)
+TEST(Small_ScopePartitioner, ForwardKeysFollowTraceOrder)
 {
     const Step step = three_segment_step();
 
@@ -331,7 +331,7 @@ TEST(Unit_ScopePartitioner, ForwardKeysFollowTraceOrder)
 }
 
 /** @brief Tests that three segments give their backward nodes keys 5, 4 and 3. */
-TEST(Unit_ScopePartitioner, BackwardKeysMirrorForwardKeys)
+TEST(Small_ScopePartitioner, BackwardKeysMirrorForwardKeys)
 {
     const Step step = three_segment_step();
 
@@ -362,7 +362,7 @@ TEST(Unit_ScopePartitioner, BackwardKeysMirrorForwardKeys)
 }
 
 /** @brief Tests that the last segment's forward and backward nodes share one forward region. */
-TEST(Unit_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
+TEST(Small_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
 {
     const Step step = three_segment_step();
 
@@ -388,7 +388,7 @@ TEST(Unit_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
 }
 
 /** @brief Tests that no node of a differentiated graph reads a value a higher key produces. */
-TEST(Unit_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
+TEST(Small_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
 {
     for (const Step& step : {unscoped_step(), three_segment_step(), shared_weight_step(),
                              repeated_block_step()})
@@ -417,7 +417,7 @@ TEST(Unit_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
 }
 
 /** @brief Tests that a weight gradient that reads an earlier segment stays in its own layer. */
-TEST(Unit_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
+TEST(Small_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
 {
     const Step step = three_segment_step();
 
@@ -442,7 +442,7 @@ TEST(Unit_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
 }
 
 /** @brief Tests that the sum of a shared weight's gradients gets its highest contributor's key. */
-TEST(Unit_ScopePartitioner, ASharedParametersAccumulateSitsAboveBothContributors)
+TEST(Small_ScopePartitioner, ASharedParametersAccumulateSitsAboveBothContributors)
 {
     const Step step = shared_weight_step();
 
@@ -469,7 +469,7 @@ TEST(Unit_ScopePartitioner, ASharedParametersAccumulateSitsAboveBothContributors
 }
 
 /** @brief Tests that a LEAF-origin node gets its highest operand key in either operand order. */
-TEST(Unit_ScopePartitioner, ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrder)
+TEST(Small_ScopePartitioner, ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrder)
 {
     TwoReLUGraph two;
     build_two_relu_graph(two);
@@ -489,7 +489,7 @@ TEST(Unit_ScopePartitioner, ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrde
 }
 
 /** @brief Tests that a key which holds no node is left out of the region list. */
-TEST(Unit_ScopePartitioner, RegionsListOnlyKeysThatHoldANode)
+TEST(Small_ScopePartitioner, RegionsListOnlyKeysThatHoldANode)
 {
     const Step step = shared_weight_step();
 
@@ -510,7 +510,7 @@ TEST(Unit_ScopePartitioner, RegionsListOnlyKeysThatHoldANode)
 }
 
 /** @brief Tests that a scope opened twice names its regions by occurrence, mirrored backward. */
-TEST(Unit_ScopePartitioner, ARepeatedScopeIsNamedByItsOccurrence)
+TEST(Small_ScopePartitioner, ARepeatedScopeIsNamedByItsOccurrence)
 {
     const Step step = repeated_block_step();
 
@@ -531,7 +531,7 @@ TEST(Unit_ScopePartitioner, ARepeatedScopeIsNamedByItsOccurrence)
 }
 
 /** @brief Tests that a graph with no backward node gets forward keys and forward regions only. */
-TEST(Unit_ScopePartitioner, AGraphWithNoBackwardNodeHasForwardRegionsOnly)
+TEST(Small_ScopePartitioner, AGraphWithNoBackwardNodeHasForwardRegionsOnly)
 {
     TwoReLUGraph two;
     build_two_relu_graph(two);
@@ -553,7 +553,7 @@ TEST(Unit_ScopePartitioner, AGraphWithNoBackwardNodeHasForwardRegionsOnly)
 }
 
 /** @brief Tests that LEAF nodes get no region and every other node gets one. */
-TEST(Unit_ScopePartitioner, LeavesBelongToNoRegion)
+TEST(Small_ScopePartitioner, LeavesBelongToNoRegion)
 {
     const Step step = three_segment_step();
 
@@ -576,7 +576,7 @@ TEST(Unit_ScopePartitioner, LeavesBelongToNoRegion)
 }
 
 /** @brief Tests that segments which stop short of the forward graph are rejected. */
-TEST(Unit_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphThrow)
+TEST(Small_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphThrow)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
@@ -606,7 +606,7 @@ TEST(Unit_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphThrow)
 }
 
 /** @brief Tests that a provenance whose node counts differ from the graph's is rejected. */
-TEST(Unit_ScopePartitioner, AProvenanceOfAnotherGraphThrows)
+TEST(Small_ScopePartitioner, AProvenanceOfAnotherGraphThrows)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
@@ -623,7 +623,7 @@ TEST(Unit_ScopePartitioner, AProvenanceOfAnotherGraphThrows)
 }
 
 /** @brief Tests that a backward node which reads a value of a higher key is rejected. */
-TEST(Unit_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
+TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
 {
     TwoReLUGraph two;
     build_two_relu_graph(two);
@@ -641,7 +641,7 @@ TEST(Unit_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
 }
 
 /** @brief Tests that a backward node with a LEAF origin that reads only leaves is rejected. */
-TEST(Unit_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesThrows)
+TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesThrows)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

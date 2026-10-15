@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_idx.cpp
 
 
-Suites: `Unit_DatasetsIdx`.
+Suites: `Small_DatasetsIdx`.
 
 Tests `read_idx` in `modules/vision/datasets/include/SushiAI/vision/datasets/idx.hpp` over IDX
 files the cases write under the system's temporary directory. The training split of the first

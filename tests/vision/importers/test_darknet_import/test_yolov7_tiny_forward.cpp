@@ -63,11 +63,11 @@ namespace
     }
 
     /** @brief Runs the parity suite of YOLOv7-tiny on an engine; skipped when a file is missing. */
-    class Integration_DarknetYolov7TinyForward : public SaTest::DarknetParityTest
+    class Medium_DarknetYolov7TinyForward : public SaTest::DarknetParityTest
     {
         protected:
             /** @brief Hands the fixture what this file states of the model. */
-            Integration_DarknetYolov7TinyForward() : SaTest::DarknetParityTest(describe_model())
+            Medium_DarknetYolov7TinyForward() : SaTest::DarknetParityTest(describe_model())
             {
 
             }
@@ -78,7 +78,7 @@ namespace
  * @brief Tests that the three published heads of the folded model equal the raw heads Darknet
  *        dumped, in both runs, within 1e-3 absolute plus 1e-4 relative.
  */
-TEST_F(Integration_DarknetYolov7TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
+TEST_F(Medium_DarknetYolov7TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
 {
     SaTest::check_folded_heads(*engine, parity);
 }
@@ -89,7 +89,7 @@ TEST_F(Integration_DarknetYolov7TinyForward, TheFoldedHeadsMatchTheDumpedHeads)
  *
  * The stretch doubles a difference of the head on x and y. The head bound is applied unchanged.
  */
-TEST_F(Integration_DarknetYolov7TinyForward, TheHostYOLOOutputsMatchTheDumpedLayers)
+TEST_F(Medium_DarknetYolov7TinyForward, TheHostYOLOOutputsMatchTheDumpedLayers)
 {
     SaTest::check_yolo_outputs(*engine, parity);
 }
@@ -102,7 +102,7 @@ TEST_F(Integration_DarknetYolov7TinyForward, TheHostYOLOOutputsMatchTheDumpedLay
  * Both sides are sorted by class, then by score. A row matches when its class is equal and its
  * box entries and score are within 1e-4. Every decision within 1e-6 of a threshold is printed.
  */
-TEST_F(Integration_DarknetYolov7TinyForward, TheDetectionsMatchTheDumpedRows)
+TEST_F(Medium_DarknetYolov7TinyForward, TheDetectionsMatchTheDumpedRows)
 {
     SaTest::check_detections(*engine, parity);
 }
@@ -113,7 +113,7 @@ TEST_F(Integration_DarknetYolov7TinyForward, TheDetectionsMatchTheDumpedRows)
  *
  * The bound is the head tolerance, 1e-3 absolute plus 1e-4 relative to the folded value.
  */
-TEST_F(Integration_DarknetYolov7TinyForward, TheSeparateFormComputesTheFoldedHeads)
+TEST_F(Medium_DarknetYolov7TinyForward, TheSeparateFormComputesTheFoldedHeads)
 {
     SaTest::check_separate_form(*engine, parity);
 }

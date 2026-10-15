@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_dense_objectives.cpp
 
 
-Suites: `Integration_DenseObjectives`.
+Suites: `Medium_DenseObjectives`.
 
 A `Linear` over three features is trained through `Train::Trainer` on a batch of four with plain
 SGD. The inputs and the weights follow fixed integer patterns. The value cases use a rate of 0, so

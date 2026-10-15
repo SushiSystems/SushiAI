@@ -168,7 +168,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the block keeps the per-sample shape. */
-TEST(Unit_BlockPsaBlock, OutputShapeIsTheInputShape)
+TEST(Small_BlockPsaBlock, OutputShapeIsTheInputShape)
 {
     const PSABlock block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
 
@@ -179,7 +179,7 @@ TEST(Unit_BlockPsaBlock, OutputShapeIsTheInputShape)
  * @brief Tests that a traced block emits three ADDs, one SILU, five norms and ten buffer
  *        updates, and keeps the input's shape.
  */
-TEST(Unit_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
+TEST(Small_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -201,7 +201,7 @@ TEST(Unit_BlockPsaBlock, EmitsThreeAddsOneSiLUFiveNormsAndTenUpdates)
  * @brief Tests that the first residual add reads the input and the attention's result, and that
  *        the second reads the first add and the feed-forward's result.
  */
-TEST(Unit_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedForward)
+TEST(Small_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedForward)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -232,7 +232,7 @@ TEST(Unit_BlockPsaBlock, TheResidualAddsReadTheInputThenAttentionThenTheFeedForw
  * @brief Tests that the state of the block yields the 25 records MANIFEST.json lists under
  *        model.10.m.0, names, NHWC shapes and order.
  */
-TEST(Unit_BlockPsaBlock, StateMatchesManifestRow10Block)
+TEST(Small_BlockPsaBlock, StateMatchesManifestRow10Block)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -245,7 +245,7 @@ TEST(Unit_BlockPsaBlock, StateMatchesManifestRow10Block)
 }
 
 /** @brief Tests that a width the head count does not divide throws, as Attention refuses it. */
-TEST(Unit_BlockPsaBlock, AWidthTheHeadCountDoesNotDivideThrows)
+TEST(Small_BlockPsaBlock, AWidthTheHeadCountDoesNotDivideThrows)
 {
     SA_EXPECT_ERROR(static_cast<void>(PSABlock(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");

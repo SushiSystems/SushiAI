@@ -74,7 +74,7 @@ namespace
 
 } // namespace
 
-TEST(Unit_StepSchedule, ConstantPolicyKeepsBaseRate)
+TEST(Small_StepSchedule, ConstantPolicyKeepsBaseRate)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -84,7 +84,7 @@ TEST(Unit_StepSchedule, ConstantPolicyKeepsBaseRate)
     expect_rate(schedule, 1000000, K_BASE_RATE);
 }
 
-TEST(Unit_StepSchedule, WarmupRisesAsPowerOfIterationFraction)
+TEST(Small_StepSchedule, WarmupRisesAsPowerOfIterationFraction)
 {
     const StepSchedule schedule = warmup_schedule();
 
@@ -101,7 +101,7 @@ TEST(Unit_StepSchedule, WarmupRisesAsPowerOfIterationFraction)
     expect_rate(schedule, 999, K_BASE_RATE * std::pow(999.0 / 1000.0, 4.0));
 }
 
-TEST(Unit_StepSchedule, WarmupEndsAtItsLengthWithTheBaseRate)
+TEST(Small_StepSchedule, WarmupEndsAtItsLengthWithTheBaseRate)
 {
     const StepSchedule schedule = warmup_schedule();
 
@@ -110,7 +110,7 @@ TEST(Unit_StepSchedule, WarmupEndsAtItsLengthWithTheBaseRate)
     expect_rate(schedule, 1001, K_BASE_RATE);
 }
 
-TEST(Unit_StepSchedule, WarmupPowerIsTheExponentOfTheRamp)
+TEST(Small_StepSchedule, WarmupPowerIsTheExponentOfTheRamp)
 {
     StepSchedule linear = warmup_schedule();
     linear.warmup_power = 1.0;
@@ -121,7 +121,7 @@ TEST(Unit_StepSchedule, WarmupPowerIsTheExponentOfTheRamp)
     expect_rate(quadratic, 500, K_BASE_RATE * 0.25);
 }
 
-TEST(Unit_StepSchedule, StepAppliesAtItsListedIteration)
+TEST(Small_StepSchedule, StepAppliesAtItsListedIteration)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -136,7 +136,7 @@ TEST(Unit_StepSchedule, StepAppliesAtItsListedIteration)
     expect_rate(schedule, 451, K_BASE_RATE * 0.1 * 0.1);
 }
 
-TEST(Unit_StepSchedule, WarmupReplacesThePolicyUntilItsLength)
+TEST(Small_StepSchedule, WarmupReplacesThePolicyUntilItsLength)
 {
     StepSchedule schedule = warmup_schedule();
     schedule.steps = {500};
@@ -150,7 +150,7 @@ TEST(Unit_StepSchedule, WarmupReplacesThePolicyUntilItsLength)
     expect_rate(schedule, 1000, K_BASE_RATE * 0.1);
 }
 
-TEST(Unit_StepSchedule, StepAtFirstIterationPastWarmupApplies)
+TEST(Small_StepSchedule, StepAtFirstIterationPastWarmupApplies)
 {
     StepSchedule schedule = warmup_schedule();
     schedule.steps = {1000};
@@ -160,7 +160,7 @@ TEST(Unit_StepSchedule, StepAtFirstIterationPastWarmupApplies)
     expect_rate(schedule, 1000, K_BASE_RATE * 0.5);
 }
 
-TEST(Unit_StepSchedule, ValidateAcceptsEmptyAndAscendingSchedules)
+TEST(Small_StepSchedule, ValidateAcceptsEmptyAndAscendingSchedules)
 {
     EXPECT_TRUE(validate_step_schedule(StepSchedule{}).is_ok());
 
@@ -170,7 +170,7 @@ TEST(Unit_StepSchedule, ValidateAcceptsEmptyAndAscendingSchedules)
     EXPECT_TRUE(validate_step_schedule(schedule).is_ok());
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesDescendingSteps)
+TEST(Small_StepSchedule, ValidateRefusesDescendingSteps)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -180,7 +180,7 @@ TEST(Unit_StepSchedule, ValidateRefusesDescendingSteps)
     EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesRepeatedStep)
+TEST(Small_StepSchedule, ValidateRefusesRepeatedStep)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -190,7 +190,7 @@ TEST(Unit_StepSchedule, ValidateRefusesRepeatedStep)
     EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesScalesLongerThanSteps)
+TEST(Small_StepSchedule, ValidateRefusesScalesLongerThanSteps)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -200,7 +200,7 @@ TEST(Unit_StepSchedule, ValidateRefusesScalesLongerThanSteps)
     EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesStepsLongerThanScales)
+TEST(Small_StepSchedule, ValidateRefusesStepsLongerThanScales)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
@@ -210,7 +210,7 @@ TEST(Unit_StepSchedule, ValidateRefusesStepsLongerThanScales)
     EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesNegativeWarmup)
+TEST(Small_StepSchedule, ValidateRefusesNegativeWarmup)
 {
     StepSchedule schedule = warmup_schedule();
     schedule.warmup_iterations = -1;
@@ -218,7 +218,7 @@ TEST(Unit_StepSchedule, ValidateRefusesNegativeWarmup)
     EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
 }
 
-TEST(Unit_StepSchedule, ValidateRefusesNegativeWarmupPower)
+TEST(Small_StepSchedule, ValidateRefusesNegativeWarmupPower)
 {
     StepSchedule schedule = warmup_schedule();
     schedule.warmup_power = -1.0;

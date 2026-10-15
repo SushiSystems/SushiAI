@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_fit_sample.cpp
 
 
-Suites: `Unit_DatasetsFitSample`.
+Suites: `Small_DatasetsFitSample`.
 
 Tests `fit_sample` in `modules/vision/datasets/include/SushiAI/vision/datasets/fit_sample.hpp`.
 A box corner may differ from its expected value by 1e-4 pixels.

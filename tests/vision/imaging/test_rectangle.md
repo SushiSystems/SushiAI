@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_rectangle.cpp
 
 
-Suites: `Unit_ImagingRectangle`.
+Suites: `Small_ImagingRectangle`.
 
 Tests the plan that orders a dataset by aspect ratio and gives each batch one shape.
 
-This file needs no device. `Unit_ImagingRectangle` covers
+This file needs no device. `Small_ImagingRectangle` covers
 `modules/vision/imaging/include/SushiAI/vision/imaging/rectangle.hpp`. The expected shapes are what lines 405 to 427 of the
 reference's `data/base.py` give for the same sizes.
 

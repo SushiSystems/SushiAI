@@ -55,9 +55,9 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    class Integration_ModelState : public SaTest::EngineTest {};
+    class Medium_ModelState : public SaTest::EngineTest {};
 
-    using Integration_ModelStateDeathTest = Integration_ModelState;
+    using Medium_ModelStateDeathTest = Medium_ModelState;
 
     /** @brief The absolute tolerance of a value that is stored and read back unchanged. */
     constexpr double K_STORED_TOLERANCE = 0.0;
@@ -90,7 +90,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a traced Sequential lists its parameters in walk order with their shapes. */
-TEST_F(Integration_ModelState, CreateListsParametersInWalkOrder)
+TEST_F(Medium_ModelState, CreateListsParametersInWalkOrder)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -115,7 +115,7 @@ TEST_F(Integration_ModelState, CreateListsParametersInWalkOrder)
  * @brief Tests that a training trace of a BatchNorm2d lists its two parameters and its two
  *        buffers under the row's name, with the buffers' constant starting values.
  */
-TEST_F(Integration_ModelState, CreateListsBuffersAfterATrainingTrace)
+TEST_F(Medium_ModelState, CreateListsBuffersAfterATrainingTrace)
 {
     NN::ModelGraph model(Shape{4, 4, 3});
     SA_ASSERT_OK_AND_ASSIGN(const auto norm,
@@ -146,7 +146,7 @@ TEST_F(Integration_ModelState, CreateListsBuffersAfterATrainingTrace)
 }
 
 /** @brief Tests that a model never traced gives a valid state with no entries. */
-TEST_F(Integration_ModelState, AnUntracedModelGivesAnEmptyState)
+TEST_F(Medium_ModelState, AnUntracedModelGivesAnEmptyState)
 {
     MLP model = make_mlp();
 
@@ -155,7 +155,7 @@ TEST_F(Integration_ModelState, AnUntracedModelGivesAnEmptyState)
 }
 
 /** @brief Tests that a prefix given to create() is joined to every entry name. */
-TEST_F(Integration_ModelState, APrefixIsJoinedToEveryName)
+TEST_F(Medium_ModelState, APrefixIsJoinedToEveryName)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -169,7 +169,7 @@ TEST_F(Integration_ModelState, APrefixIsJoinedToEveryName)
 }
 
 /** @brief Tests that two entries sharing a name are refused and the name is reported. */
-TEST_F(Integration_ModelState, TwoEntriesWithOneNameAreRefused)
+TEST_F(Medium_ModelState, TwoEntriesWithOneNameAreRefused)
 {
     std::vector<NN::StateEntry> entries{make_entry("shared", 1), make_entry("shared", 2)};
 
@@ -178,7 +178,7 @@ TEST_F(Integration_ModelState, TwoEntriesWithOneNameAreRefused)
 }
 
 /** @brief Tests that an entry with no identity stops the process and the report names it. */
-TEST_F(Integration_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
+TEST_F(Medium_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
 {
     std::vector<NN::StateEntry> entries{make_entry("orphan", 0)};
 
@@ -187,7 +187,7 @@ TEST_F(Integration_ModelStateDeathTest, AnEntryWithNoIdentityIsFatal)
 }
 
 /** @brief Tests that the name form and the identity form return the same tensor. */
-TEST_F(Integration_ModelState, TensorByNameAndByStateAreTheSameStorage)
+TEST_F(Medium_ModelState, TensorByNameAndByStateAreTheSameStorage)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -201,7 +201,7 @@ TEST_F(Integration_ModelState, TensorByNameAndByStateAreTheSameStorage)
 }
 
 /** @brief Tests that an unknown name is refused, and the refusal names it and the entry count. */
-TEST_F(Integration_ModelState, AnUnknownNameIsRefusedAndNamed)
+TEST_F(Medium_ModelState, AnUnknownNameIsRefusedAndNamed)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -213,7 +213,7 @@ TEST_F(Integration_ModelState, AnUnknownNameIsRefusedAndNamed)
 }
 
 /** @brief Tests that attach() binds each state leaf of the graph to the state's own storage. */
-TEST_F(Integration_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
+TEST_F(Medium_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -231,7 +231,7 @@ TEST_F(Integration_ModelState, AttachBindsEveryStateLeafToTheStatesStorage)
 }
 
 /** @brief Tests that attach() refuses a graph traced from a different model. */
-TEST_F(Integration_ModelState, AttachRefusesAGraphOfAnotherModel)
+TEST_F(Medium_ModelState, AttachRefusesAGraphOfAnotherModel)
 {
     MLP model = make_mlp();
     Graph::Graph graph;
@@ -247,7 +247,7 @@ TEST_F(Integration_ModelState, AttachRefusesAGraphOfAnotherModel)
 }
 
 /** @brief Tests that two pools attached to one state read and write the same numbers. */
-TEST_F(Integration_ModelState, TwoPoolsAttachedToOneStateShareStorage)
+TEST_F(Medium_ModelState, TwoPoolsAttachedToOneStateShareStorage)
 {
     MLP model = make_mlp();
     Graph::Graph graph;

@@ -196,7 +196,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the input ref is the input and a node's ref carries its index and port 0. */
-TEST(Unit_ModelGraph, RefsNameTheInputAndTheNodesInTheOrderAdded)
+TEST(Small_ModelGraph, RefsNameTheInputAndTheNodesInTheOrderAdded)
 {
     SA_ASSERT_OK_AND_ASSIGN(const BranchingModel built, build_branching_model());
 
@@ -212,7 +212,7 @@ TEST(Unit_ModelGraph, RefsNameTheInputAndTheNodesInTheOrderAdded)
 }
 
 /** @brief Tests that shape_of returns the input sample and each node's declared port shape. */
-TEST(Unit_ModelGraph, ShapeOfReturnsTheDeclaredPerSampleShapes)
+TEST(Small_ModelGraph, ShapeOfReturnsTheDeclaredPerSampleShapes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const BranchingModel built, build_branching_model());
 
@@ -227,7 +227,7 @@ TEST(Unit_ModelGraph, ShapeOfReturnsTheDeclaredPerSampleShapes)
  * @brief Tests that the branch and merge traces the op sequence of the same layers traced by
  *        hand, with one UPSAMPLE2D, one CONCAT_CHANNELS and a [2, 4, 4, 4] result.
  */
-TEST(Unit_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
+TEST(Small_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     SA_EXPECT_OK(built.model.output("features", built.mix));
@@ -260,7 +260,7 @@ TEST(Unit_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
 }
 
 /** @brief Tests that the merge is one CONCAT_CHANNELS reading the two branches in from order. */
-TEST(Unit_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
+TEST(Small_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     SA_EXPECT_OK(built.model.output("stem", built.stem));
@@ -289,7 +289,7 @@ TEST(Unit_ModelGraph, MergeEmitsOneConcatChannelsReadingBothBranches)
 }
 
 /** @brief Tests that trace returns every published output by name, in the order published. */
-TEST(Unit_ModelGraph, TraceReturnsEveryPublishedOutputByName)
+TEST(Small_ModelGraph, TraceReturnsEveryPublishedOutputByName)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     SA_EXPECT_OK(built.model.output("features", built.mix));
@@ -312,7 +312,7 @@ TEST(Unit_ModelGraph, TraceReturnsEveryPublishedOutputByName)
 }
 
 /** @brief Tests that forward returns the value trace publishes when one output is published. */
-TEST(Unit_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
+TEST(Small_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef relu, model.add("act", NN::ReLU{}, model.input()));
@@ -331,7 +331,7 @@ TEST(Unit_ModelGraph, ForwardReturnsTheSinglePublishedOutput)
 }
 
 /** @brief Tests that forward refuses a model that publishes two outputs and names both. */
-TEST(Unit_ModelGraph, ForwardFailsWhenTwoOutputsArePublished)
+TEST(Small_ModelGraph, ForwardFailsWhenTwoOutputsArePublished)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     SA_EXPECT_OK(built.model.output("features", built.mix));
@@ -350,7 +350,7 @@ TEST(Unit_ModelGraph, ForwardFailsWhenTwoOutputsArePublished)
 }
 
 /** @brief Tests that output_shape is the single output's shape, and empty without exactly one. */
-TEST(Unit_ModelGraph, OutputShapeIsTheShapeOfTheSinglePublishedOutput)
+TEST(Small_ModelGraph, OutputShapeIsTheShapeOfTheSinglePublishedOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     EXPECT_EQ(built.model.output_shape(Shape{8, 8, 3}), Shape{});
@@ -363,7 +363,7 @@ TEST(Unit_ModelGraph, OutputShapeIsTheShapeOfTheSinglePublishedOutput)
 }
 
 /** @brief Tests that a graph added to another is one node, traced and named under its name. */
-TEST(Unit_ModelGraph, AGraphIsANodeOfAnotherGraph)
+TEST(Small_ModelGraph, AGraphIsANodeOfAnotherGraph)
 {
     ModelGraph inner(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef dense,
@@ -390,7 +390,7 @@ TEST(Unit_ModelGraph, AGraphIsANodeOfAnotherGraph)
 }
 
 /** @brief Tests that a nested graph with two outputs fails the outer trace under its name. */
-TEST(Unit_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
+TEST(Small_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
 {
     ModelGraph inner(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef relu, inner.add("act", NN::ReLU{}, inner.input()));
@@ -412,7 +412,7 @@ TEST(Unit_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
 }
 
 /** @brief Tests that a Sequential and a LayerStack are each one node of a graph. */
-TEST(Unit_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
+TEST(Small_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
 {
     NN::LayerStack stack;
     stack.push(std::make_unique<NN::LayerAdapter<NN::Linear>>(NN::Linear{8, 4}, 4));
@@ -440,7 +440,7 @@ TEST(Unit_ModelGraph, ASequentialAndALayerStackAreNodesOfAGraph)
 }
 
 /** @brief Tests that the input can be published and traces to the input value itself. */
-TEST(Unit_ModelGraph, TheInputCanBePublishedAsAnOutput)
+TEST(Small_ModelGraph, TheInputCanBePublishedAsAnOutput)
 {
     ModelGraph model(Shape{6});
     SA_EXPECT_OK(model.output("echo", model.input()));
@@ -455,7 +455,7 @@ TEST(Unit_ModelGraph, TheInputCanBePublishedAsAnOutput)
 }
 
 /** @brief Tests that the walk names state "<prefix>.<node name>.<member>" in the order added. */
-TEST(Unit_ModelGraph, WalkNamesStateByNodeNameInTheOrderAdded)
+TEST(Small_ModelGraph, WalkNamesStateByNodeNameInTheOrderAdded)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     SA_EXPECT_OK(built.model.output("features", built.mix));
@@ -476,7 +476,7 @@ TEST(Unit_ModelGraph, WalkNamesStateByNodeNameInTheOrderAdded)
  * @brief Tests that a training trace reaches a modal node with its sink, and that the walk
  *        names the node's parameters and buffers under the node's name.
  */
-TEST(Unit_ModelGraph, ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers)
+TEST(Small_ModelGraph, ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers)
 {
     ModelGraph model(Shape{4, 4, 3});
     SA_ASSERT_OK_AND_ASSIGN(
@@ -508,7 +508,7 @@ TEST(Unit_ModelGraph, ATrainingTraceReachesAModalNodeAndTheWalkNamesItsBuffers)
  * @brief Tests that a chain named by row index yields the names a LayerStack yields, which are
  *        the weight and bias of rows 0 and 2.
  */
-TEST(Unit_ModelGraph, AChainNamedByIndexYieldsTheNamesOfALayerStack)
+TEST(Small_ModelGraph, AChainNamedByIndexYieldsTheNamesOfALayerStack)
 {
     const NN::Linear first{6, 8};
     const NN::Linear last{8, 4};
@@ -542,7 +542,7 @@ TEST(Unit_ModelGraph, AChainNamedByIndexYieldsTheNamesOfALayerStack)
 }
 
 /** @brief Tests that a ModelGraph inside a Sequential is traced and named under its index. */
-TEST(Unit_ModelGraph, NestsInASequentialUnderItsIndex)
+TEST(Small_ModelGraph, NestsInASequentialUnderItsIndex)
 {
     const NN::Linear linear{6, 8};
     ModelGraph inner(Shape{6});
@@ -563,7 +563,7 @@ TEST(Unit_ModelGraph, NestsInASequentialUnderItsIndex)
 }
 
 /** @brief Tests that a second node under a taken name is refused and the graph keeps its size. */
-TEST(Unit_ModelGraph, AddRejectsADuplicateName)
+TEST(Small_ModelGraph, AddRejectsADuplicateName)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef first, model.add("act", NN::ReLU{}, model.input()));
@@ -574,7 +574,7 @@ TEST(Unit_ModelGraph, AddRejectsADuplicateName)
 }
 
 /** @brief Tests that an empty node name is refused. */
-TEST(Unit_ModelGraph, AddRejectsAnEmptyName)
+TEST(Small_ModelGraph, AddRejectsAnEmptyName)
 {
     ModelGraph model(Shape{6});
 
@@ -584,7 +584,7 @@ TEST(Unit_ModelGraph, AddRejectsAnEmptyName)
 }
 
 /** @brief Tests that a node name containing '.' is refused by both adds. */
-TEST(Unit_ModelGraph, AddRejectsANameWithADot)
+TEST(Small_ModelGraph, AddRejectsANameWithADot)
 {
     ModelGraph model(Shape{6});
 
@@ -596,7 +596,7 @@ TEST(Unit_ModelGraph, AddRejectsANameWithADot)
 }
 
 /** @brief Tests that a refused name is reported before the layer is asked for its shape. */
-TEST(Unit_ModelGraph, AddReportsARefusedNameBeforeTheLayerSeesItsSource)
+TEST(Small_ModelGraph, AddReportsARefusedNameBeforeTheLayerSeesItsSource)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef first, model.add("act", NN::ReLU{}, model.input()));
@@ -609,7 +609,7 @@ TEST(Unit_ModelGraph, AddReportsARefusedNameBeforeTheLayerSeesItsSource)
 }
 
 /** @brief Tests that a layer that refuses its source's shape fails add under the node's name. */
-TEST(Unit_ModelGraph, AddReturnsTheFailureOfALayerThatRefusesItsSource)
+TEST(Small_ModelGraph, AddReturnsTheFailureOfALayerThatRefusesItsSource)
 {
     ModelGraph model(Shape{6});
 
@@ -619,7 +619,7 @@ TEST(Unit_ModelGraph, AddReturnsTheFailureOfALayerThatRefusesItsSource)
 }
 
 /** @brief Tests that a source naming a node the graph does not hold is refused by both adds. */
-TEST(Unit_ModelGraph, AddRejectsAnUnknownSource)
+TEST(Small_ModelGraph, AddRejectsAnUnknownSource)
 {
     ModelGraph other(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef row0, other.add("0", NN::ReLU{}, other.input()));
@@ -637,7 +637,7 @@ TEST(Unit_ModelGraph, AddRejectsAnUnknownSource)
 }
 
 /** @brief Tests that a source naming a port its node does not have is refused. */
-TEST(Unit_ModelGraph, AddRejectsASourcePortTheNodeDoesNotHave)
+TEST(Small_ModelGraph, AddRejectsASourcePortTheNodeDoesNotHave)
 {
     ModelGraph other(Shape{6});
     const NodeRef other_input = other.input();
@@ -656,7 +656,7 @@ TEST(Unit_ModelGraph, AddRejectsASourcePortTheNodeDoesNotHave)
 }
 
 /** @brief Tests that port selects a node's port by name and a later node can read it. */
-TEST(Unit_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
+TEST(Small_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -685,7 +685,7 @@ TEST(Unit_ModelGraph, PortSelectsANamedPortThatALaterNodeReads)
 }
 
 /** @brief Tests that port lists the node's ports for an unknown name and refuses the input. */
-TEST(Unit_ModelGraph, PortRejectsAnUnknownNameAndTheInput)
+TEST(Small_ModelGraph, PortRejectsAnUnknownNameAndTheInput)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -701,7 +701,7 @@ TEST(Unit_ModelGraph, PortRejectsAnUnknownNameAndTheInput)
 }
 
 /** @brief Tests that output_ports publishes every port of a node under the port's own name. */
-TEST(Unit_ModelGraph, OutputPortsPublishesEveryPortUnderItsOwnName)
+TEST(Small_ModelGraph, OutputPortsPublishesEveryPortUnderItsOwnName)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -726,7 +726,7 @@ TEST(Unit_ModelGraph, OutputPortsPublishesEveryPortUnderItsOwnName)
 }
 
 /** @brief Tests that output_ports publishes nothing when one of the port names is taken. */
-TEST(Unit_ModelGraph, OutputPortsPublishesNothingWhenAPortNameIsTaken)
+TEST(Small_ModelGraph, OutputPortsPublishesNothingWhenAPortNameIsTaken)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -750,7 +750,7 @@ TEST(Unit_ModelGraph, OutputPortsPublishesNothingWhenAPortNameIsTaken)
 }
 
 /** @brief Tests that output refuses a taken name, an empty name and an unknown source. */
-TEST(Unit_ModelGraph, OutputRejectsATakenNameAnEmptyNameAndAnUnknownSource)
+TEST(Small_ModelGraph, OutputRejectsATakenNameAnEmptyNameAndAnUnknownSource)
 {
     ModelGraph other(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef foreign, other.add("0", NN::ReLU{}, other.input()));
@@ -767,7 +767,7 @@ TEST(Unit_ModelGraph, OutputRejectsATakenNameAnEmptyNameAndAnUnknownSource)
 }
 
 /** @brief Tests that a node whose traced shape differs from its declared port fails the trace. */
-TEST(Unit_ModelGraph, TraceRejectsADeclaredShapeThatDisagreesWithTheTracedOne)
+TEST(Small_ModelGraph, TraceRejectsADeclaredShapeThatDisagreesWithTheTracedOne)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef wrong,
@@ -784,7 +784,7 @@ TEST(Unit_ModelGraph, TraceRejectsADeclaredShapeThatDisagreesWithTheTracedOne)
 }
 
 /** @brief Tests that an input whose sample shape is not the declared one fails before tracing. */
-TEST(Unit_ModelGraph, TraceRejectsAnInputOfAnotherSampleShape)
+TEST(Small_ModelGraph, TraceRejectsAnInputOfAnotherSampleShape)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef relu, model.add("act", NN::ReLU{}, model.input()));
@@ -804,7 +804,7 @@ TEST(Unit_ModelGraph, TraceRejectsAnInputOfAnotherSampleShape)
 }
 
 /** @brief Tests that a model with no published output fails the trace and emits no node. */
-TEST(Unit_ModelGraph, TraceRejectsAModelThatPublishesNoOutput)
+TEST(Small_ModelGraph, TraceRejectsAModelThatPublishesNoOutput)
 {
     ModelGraph model(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef relu, model.add("act", NN::ReLU{}, model.input()));
@@ -821,7 +821,7 @@ TEST(Unit_ModelGraph, TraceRejectsAModelThatPublishesNoOutput)
 }
 
 /** @brief Tests that add refuses a count of sources other than the node's input count. */
-TEST(Unit_ModelGraph, AddRejectsASourceCountTheNodeDoesNotRead)
+TEST(Small_ModelGraph, AddRejectsASourceCountTheNodeDoesNotRead)
 {
     ModelGraph model(Shape{8, 8, 3});
     const NodeRef input = model.input();
@@ -843,7 +843,7 @@ TEST(Unit_ModelGraph, AddRejectsASourceCountTheNodeDoesNotRead)
  * @brief Tests that a moved graph resolves the refs made before the move, and that the graph
  *        moved from is empty and traces a node added to it afterwards.
  */
-TEST(Unit_ModelGraph, AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph)
+TEST(Small_ModelGraph, AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
     ModelGraph moved = std::move(built.model);
@@ -870,7 +870,7 @@ TEST(Unit_ModelGraph, AMovedGraphKeepsItsRefsAndLeavesAnEmptyUsableGraph)
 }
 
 /** @brief Tests that shape_of and node stop the process on a ref or an index out of range. */
-TEST(Unit_ModelGraphDeathTest, AccessorsAreFatalOutOfRange)
+TEST(Small_ModelGraphDeathTest, AccessorsAreFatalOutOfRange)
 {
     ModelGraph other(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef foreign, other.add("0", NN::ReLU{}, other.input()));
@@ -881,7 +881,7 @@ TEST(Unit_ModelGraphDeathTest, AccessorsAreFatalOutOfRange)
 }
 
 /** @brief Tests that adding a null node stops the process and names the node. */
-TEST(Unit_ModelGraphDeathTest, AddIsFatalOnANullNode)
+TEST(Small_ModelGraphDeathTest, AddIsFatalOnANullNode)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -893,7 +893,7 @@ TEST(Unit_ModelGraphDeathTest, AddIsFatalOnANullNode)
 }
 
 /** @brief Tests that adding a node with two ports of one name stops the process and names it. */
-TEST(Unit_ModelGraphDeathTest, AddIsFatalOnANodeWithTwoPortsOfOneName)
+TEST(Small_ModelGraphDeathTest, AddIsFatalOnANodeWithTwoPortsOfOneName)
 {
     ModelGraph model(Shape{6});
     const NodeRef input = model.input();
@@ -946,7 +946,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the incremental walk calls the incremental form with the node's sample. */
-TEST(Unit_ModelGraph, TraceIncrementalHandsEachLayerThePerSampleShapeItReads)
+TEST(Small_ModelGraph, TraceIncrementalHandsEachLayerThePerSampleShapeItReads)
 {
     Shape seen{};
     ModelGraph model(Shape{5, 6});
@@ -972,7 +972,7 @@ TEST(Unit_ModelGraph, TraceIncrementalHandsEachLayerThePerSampleShapeItReads)
 }
 
 /** @brief Tests that the ordinary walk still refuses the slice the incremental walk takes. */
-TEST(Unit_ModelGraph, TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips)
+TEST(Small_ModelGraph, TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips)
 {
     Shape seen{};
     ModelGraph model(Shape{5, 6});
@@ -989,7 +989,7 @@ TEST(Unit_ModelGraph, TraceStillChecksThePerSampleShapeTheIncrementalWalkSkips)
 }
 
 /** @brief Tests that a node without an incremental form is refused by name. */
-TEST(Unit_ModelGraph, TraceIncrementalNamesTheNodeThatHasNoIncrementalForm)
+TEST(Small_ModelGraph, TraceIncrementalNamesTheNodeThatHasNoIncrementalForm)
 {
     Shape seen{};
     ModelGraph model(Shape{5, 6});
@@ -1009,7 +1009,7 @@ TEST(Unit_ModelGraph, TraceIncrementalNamesTheNodeThatHasNoIncrementalForm)
 }
 
 /** @brief Tests that the incremental walk is refused in a trace that carries nothing. */
-TEST(Unit_ModelGraph, TraceIncrementalNeedsACarryingTrace)
+TEST(Small_ModelGraph, TraceIncrementalNeedsACarryingTrace)
 {
     Shape seen{};
     ModelGraph model(Shape{5, 6});
@@ -1028,7 +1028,7 @@ TEST(Unit_ModelGraph, TraceIncrementalNeedsACarryingTrace)
 }
 
 /** @brief Tests that a nested graph traces its own nodes in their incremental form. */
-TEST(Unit_ModelGraph, ANestedGraphTracesItsIncrementalForm)
+TEST(Small_ModelGraph, ANestedGraphTracesItsIncrementalForm)
 {
     Shape seen{};
     ModelGraph inner(Shape{5, 6});

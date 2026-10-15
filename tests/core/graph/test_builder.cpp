@@ -80,7 +80,7 @@ namespace
 }
 
 /** @brief Tests that a rank-2 product still yields [m, n] and keeps the flags it was given. */
-TEST(Unit_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
+TEST(Small_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -97,7 +97,7 @@ TEST(Unit_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
 }
 
 /** @brief Tests that a rank-3 product yields [B, m, n] under each of the four flag pairs. */
-TEST(Unit_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
+TEST(Small_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
 {
     for (int flags = 0; flags < 4; ++flags)
     {
@@ -122,7 +122,7 @@ TEST(Unit_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
 }
 
 /** @brief Tests that a rank-3 product takes its batch count from the operands' shared axis. */
-TEST(Unit_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
+TEST(Small_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -137,7 +137,7 @@ TEST(Unit_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
 }
 
 /** @brief Tests that a product refuses operands whose ranks differ or are neither 2 nor 3. */
-TEST(Unit_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
+TEST(Small_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -156,7 +156,7 @@ TEST(Unit_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
 }
 
 /** @brief Tests that a rank-3 product refuses operands whose batches or inner extents differ. */
-TEST(Unit_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
+TEST(Small_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -171,7 +171,7 @@ TEST(Unit_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
 }
 
 /** @brief Tests that softmax emits RESHAPE, LOG_SOFTMAX, EXP and RESHAPE, in that order. */
-TEST(Unit_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
+TEST(Small_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -202,7 +202,7 @@ TEST(Unit_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
 }
 
 /** @brief Tests that a rank-2 softmax keeps its [rows, last] extents through the flattening. */
-TEST(Unit_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
+TEST(Small_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -217,7 +217,7 @@ TEST(Unit_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
 }
 
 /** @brief Tests that softmax refuses an operand of rank below two. */
-TEST(Unit_BatchedMatmul, SoftmaxRefusesRankBelowTwo)
+TEST(Small_BatchedMatmul, SoftmaxRefusesRankBelowTwo)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -244,7 +244,7 @@ namespace
 }
 
 /** @brief Tests that the mask is one node over its scores, with the fill in attribute slot 0. */
-TEST(Unit_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
+TEST(Small_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -266,7 +266,7 @@ TEST(Unit_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
 }
 
 /** @brief Tests that a single matrix and a value with two leading axes are both accepted. */
-TEST(Unit_CausalMaskOps, TheMaskAcceptsAnyNumberOfLeadingAxes)
+TEST(Small_CausalMaskOps, TheMaskAcceptsAnyNumberOfLeadingAxes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -283,7 +283,7 @@ TEST(Unit_CausalMaskOps, TheMaskAcceptsAnyNumberOfLeadingAxes)
 }
 
 /** @brief Tests each refusal: a vector, a matrix that is not square, an integer, a fill. */
-TEST(Unit_CausalMaskOps, TheMaskRefusesOperandsThatDoNotFit)
+TEST(Small_CausalMaskOps, TheMaskRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -339,7 +339,7 @@ namespace
 }
 
 /** @brief Tests that the forward emitter writes its identity over [input, taps] in that order. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder)
+TEST(Small_DepthwiseOps, DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -352,7 +352,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder)
 }
 
 /** @brief Tests that the forward emitter yields the window grid over the padded input. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
+TEST(Small_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -369,7 +369,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
 }
 
 /** @brief Tests that the forward emitter keeps the input's layout, element type and lifetime. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
+TEST(Small_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -384,7 +384,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
 }
 
 /** @brief Tests that the forward emitter stores its geometry in the slots MAXPOOL2D also uses. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
+TEST(Small_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -406,7 +406,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
 }
 
 /** @brief Tests that the forward emitter refuses taps of rank four. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
+TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -419,7 +419,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
 }
 
 /** @brief Tests that the forward emitter refuses taps whose window or channel extent differs. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
+TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -436,7 +436,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
 }
 
 /** @brief Tests that the forward emitter refuses an NCHW input. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
+TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -447,7 +447,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
 }
 
 /** @brief Tests that the forward emitter refuses taps of another element type. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDType)
+TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -458,7 +458,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDType)
 }
 
 /** @brief Tests that the forward emitter refuses a window that does not fit the padded input. */
-TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAWindowThatDoesNotFit)
+TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesAWindowThatDoesNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -473,7 +473,7 @@ TEST(Unit_DepthwiseOps, DepthwiseConv2dRefusesAWindowThatDoesNotFit)
 }
 
 /** @brief Tests that the input-gradient emitter writes its identity over [gradient, taps]. */
-TEST(Unit_DepthwiseOps, BackwardInputWritesItsIdentityOverGradientAndTapsInOrder)
+TEST(Small_DepthwiseOps, BackwardInputWritesItsIdentityOverGradientAndTapsInOrder)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -487,7 +487,7 @@ TEST(Unit_DepthwiseOps, BackwardInputWritesItsIdentityOverGradientAndTapsInOrder
 }
 
 /** @brief Tests that the input-gradient emitter returns the forward input's shape. */
-TEST(Unit_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
+TEST(Small_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -506,7 +506,7 @@ TEST(Unit_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
 }
 
 /** @brief Tests that the input-gradient emitter refuses a gradient on another window grid. */
-TEST(Unit_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
+TEST(Small_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -527,7 +527,7 @@ TEST(Unit_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
 }
 
 /** @brief Tests that the tap-gradient emitter writes its identity over [gradient, input]. */
-TEST(Unit_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOrder)
+TEST(Small_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOrder)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -540,7 +540,7 @@ TEST(Unit_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOrd
 }
 
 /** @brief Tests that the tap-gradient emitter yields a [kernel_h, kernel_w, C] gradient. */
-TEST(Unit_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
+TEST(Small_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -556,7 +556,7 @@ TEST(Unit_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
 }
 
 /** @brief Tests that the tap-gradient emitter refuses operands that disagree in batch or depth. */
-TEST(Unit_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
+TEST(Small_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -636,7 +636,7 @@ namespace
 }
 
 /** @brief Tests that each two-operand emitter writes its own identity over [a, b] in that order. */
-TEST(Unit_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder)
+TEST(Small_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -654,7 +654,7 @@ TEST(Unit_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrde
 }
 
 /** @brief Tests that each two-operand emitter gives its result the first operand's description. */
-TEST(Unit_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
+TEST(Small_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -674,7 +674,7 @@ TEST(Unit_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
 }
 
 /** @brief Tests that each two-operand emitter refuses a broadcastable pair of unequal shapes. */
-TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
+TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -695,7 +695,7 @@ TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
 }
 
 /** @brief Tests that each two-operand emitter refuses operands of two element types. */
-TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
+TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -712,7 +712,7 @@ TEST(Unit_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
 }
 
 /** @brief Tests that LESS_EQUAL yields its mask in the operands' element type, not a mask type. */
-TEST(Unit_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
+TEST(Small_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
 {
     for (DType dtype : {DType::Float32, DType::Float64})
     {
@@ -726,7 +726,7 @@ TEST(Unit_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
 }
 
 /** @brief Tests that each single-operand emitter writes its own identity over its operand. */
-TEST(Unit_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
+TEST(Small_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
 {
     for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
     {
@@ -744,7 +744,7 @@ TEST(Unit_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
 }
 
 /** @brief Tests that each single-operand emitter gives its result the operand's description. */
-TEST(Unit_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
+TEST(Small_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
 {
     for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
     {
@@ -763,7 +763,7 @@ TEST(Unit_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
 }
 
 /** @brief Tests that SELECT writes one node reading [condition, a, b] in that order. */
-TEST(Unit_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
+TEST(Small_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -777,7 +777,7 @@ TEST(Unit_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
 }
 
 /** @brief Tests that SELECT gives its result the shape, dtype and layout of its branches. */
-TEST(Unit_ElementwiseOps, SelectKeepsShapeDTypeAndLayout)
+TEST(Small_ElementwiseOps, SelectKeepsShapeDTypeAndLayout)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -792,7 +792,7 @@ TEST(Unit_ElementwiseOps, SelectKeepsShapeDTypeAndLayout)
 }
 
 /** @brief Tests that SELECT refuses a condition whose shape differs from its branches. */
-TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
+TEST(Small_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -806,7 +806,7 @@ TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
 }
 
 /** @brief Tests that SELECT refuses a condition whose element type differs from its branches. */
-TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherDType)
+TEST(Small_ElementwiseOps, SelectRejectsAConditionOfAnotherDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -818,7 +818,7 @@ TEST(Unit_ElementwiseOps, SelectRejectsAConditionOfAnotherDType)
 }
 
 /** @brief Tests that SELECT refuses two branches of unequal shape. */
-TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalShape)
+TEST(Small_ElementwiseOps, SelectRejectsBranchesOfUnequalShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -831,7 +831,7 @@ TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalShape)
 }
 
 /** @brief Tests that SELECT refuses two branches of unequal element type. */
-TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
+TEST(Small_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -844,7 +844,7 @@ TEST(Unit_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
 }
 
 /** @brief Tests that the activation-gradient emitter writes each input-reading gradient. */
-TEST(Unit_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
+TEST(Small_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
 {
     for (OpID gradient : K_INPUT_READING_GRADIENTS)
     {
@@ -863,7 +863,7 @@ TEST(Unit_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
 }
 
 /** @brief Tests that each input-reading gradient refuses a dy shaped unlike the input. */
-TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
+TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
 {
     for (OpID gradient : K_INPUT_READING_GRADIENTS)
     {
@@ -879,7 +879,7 @@ TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
 }
 
 /** @brief Tests that each input-reading gradient refuses a dy of another element type. */
-TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
+TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
 {
     for (OpID gradient : K_INPUT_READING_GRADIENTS)
     {
@@ -896,7 +896,7 @@ TEST(Unit_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
 }
 
 /** @brief Tests that the activation-gradient emitter refuses an identity outside ACTIVATIONS. */
-TEST(Unit_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient)
+TEST(Small_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -909,7 +909,7 @@ TEST(Unit_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivati
 }
 
 /** @brief Tests that Graph::finalise accepts a graph that uses every emitter in one layout. */
-TEST(Unit_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
+TEST(Small_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -927,7 +927,7 @@ TEST(Unit_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
 }
 
 /** @brief Tests that Graph::finalise refuses an emitted node whose operands sit in two layouts. */
-TEST(Unit_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
+TEST(Small_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
 {
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
     {
@@ -945,7 +945,7 @@ TEST(Unit_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
 }
 
 /** @brief Tests that Graph::finalise refuses a SELECT whose condition sits in another layout. */
-TEST(Unit_ElementwiseOps, FinaliseRejectsASelectConditionInAnotherLayout)
+TEST(Small_ElementwiseOps, FinaliseRejectsASelectConditionInAnotherLayout)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -959,7 +959,7 @@ TEST(Unit_ElementwiseOps, FinaliseRejectsASelectConditionInAnotherLayout)
 }
 
 /** @brief Tests that a result computed from a parameter requires a gradient after finalise. */
-TEST(Unit_ElementwiseOps, ResultsOfAParameterRequireAGradient)
+TEST(Small_ElementwiseOps, ResultsOfAParameterRequireAGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -975,7 +975,7 @@ TEST(Unit_ElementwiseOps, ResultsOfAParameterRequireAGradient)
 }
 
 /** @brief Tests that a comparison of a parameter yields a mask that requires no gradient. */
-TEST(Unit_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
+TEST(Small_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -991,7 +991,7 @@ TEST(Unit_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
 }
 
 /** @brief Tests that constant() writes one operand-free CONSTANT node holding the value. */
-TEST(Unit_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
+TEST(Small_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
 {
     constexpr double K_VALUE = 1e-7;
     constexpr double K_VALUE_TOLERANCE = 1e-20;
@@ -1011,7 +1011,7 @@ TEST(Unit_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
 }
 
 /** @brief Tests that constant() defaults to FLOAT32, as zeros() does. */
-TEST(Unit_ElementwiseOps, ConstantDefaultsToFloat32)
+TEST(Small_ElementwiseOps, ConstantDefaultsToFloat32)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1020,7 +1020,7 @@ TEST(Unit_ElementwiseOps, ConstantDefaultsToFloat32)
 }
 
 /** @brief Tests that constant() refuses an element type that is not real floating. */
-TEST(Unit_ElementwiseOps, ConstantRejectsAnElementTypeThatIsNotRealFloating)
+TEST(Small_ElementwiseOps, ConstantRejectsAnElementTypeThatIsNotRealFloating)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1034,7 +1034,7 @@ TEST(Unit_ElementwiseOps, ConstantRejectsAnElementTypeThatIsNotRealFloating)
 }
 
 /** @brief Tests that constant_like() copies the shape, dtype and layout of the value it names. */
-TEST(Unit_ElementwiseOps, ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingItsOperand)
+TEST(Small_ElementwiseOps, ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingItsOperand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1049,7 +1049,7 @@ TEST(Unit_ElementwiseOps, ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingIts
 }
 
 /** @brief Tests that constant_like() refuses to describe a value that is not real floating. */
-TEST(Unit_ElementwiseOps, ConstantLikeRejectsAValueThatIsNotRealFloating)
+TEST(Small_ElementwiseOps, ConstantLikeRejectsAValueThatIsNotRealFloating)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1063,7 +1063,7 @@ TEST(Unit_ElementwiseOps, ConstantLikeRejectsAValueThatIsNotRealFloating)
 }
 
 /** @brief Tests that a CONSTANT joins a binary operation with the value it was shaped like. */
-TEST(Unit_ElementwiseOps, AConstantLikeAValueIsAnOperandThatFinaliseAccepts)
+TEST(Small_ElementwiseOps, AConstantLikeAValueIsAnOperandThatFinaliseAccepts)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1076,7 +1076,7 @@ TEST(Unit_ElementwiseOps, AConstantLikeAValueIsAnOperandThatFinaliseAccepts)
 }
 
 /** @brief Tests that zeros() and zeros_like() still write ZERO and never CONSTANT. */
-TEST(Unit_ElementwiseOps, ZerosStillWritesTheZeroIdentity)
+TEST(Small_ElementwiseOps, ZerosStillWritesTheZeroIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1097,7 +1097,7 @@ namespace
 }
 
 /** @brief Tests that a gather over a rank-1 index writes GATHER_ROWS over [table, indices]. */
-TEST(Unit_GatherOps, GatherRowsWritesItsIdentityOverTheTableAndTheIndex)
+TEST(Small_GatherOps, GatherRowsWritesItsIdentityOverTheTableAndTheIndex)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1116,7 +1116,7 @@ TEST(Unit_GatherOps, GatherRowsWritesItsIdentityOverTheTableAndTheIndex)
 }
 
 /** @brief Tests that the result keeps every extent of the index and the table's element type. */
-TEST(Unit_GatherOps, GatherRowsAppendsTheRowLengthToAnIndexOfAnyRank)
+TEST(Small_GatherOps, GatherRowsAppendsTheRowLengthToAnIndexOfAnyRank)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1136,7 +1136,7 @@ TEST(Unit_GatherOps, GatherRowsAppendsTheRowLengthToAnIndexOfAnyRank)
 }
 
 /** @brief Tests that a table of rank 1 or 3 is refused and no node is added. */
-TEST(Unit_GatherOps, GatherRowsRefusesATableThatIsNotRankTwo)
+TEST(Small_GatherOps, GatherRowsRefusesATableThatIsNotRankTwo)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1150,7 +1150,7 @@ TEST(Unit_GatherOps, GatherRowsRefusesATableThatIsNotRankTwo)
 }
 
 /** @brief Tests that a FLOAT32 index and an INT64 index are both refused. */
-TEST(Unit_GatherOps, GatherRowsRefusesAnIndexThatIsNotInt32)
+TEST(Small_GatherOps, GatherRowsRefusesAnIndexThatIsNotInt32)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1164,7 +1164,7 @@ TEST(Unit_GatherOps, GatherRowsRefusesAnIndexThatIsNotInt32)
 }
 
 /** @brief Tests that an integer table is refused. */
-TEST(Unit_GatherOps, GatherRowsRefusesATableThatIsNotFloating)
+TEST(Small_GatherOps, GatherRowsRefusesATableThatIsNotFloating)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1177,7 +1177,7 @@ TEST(Unit_GatherOps, GatherRowsRefusesATableThatIsNotFloating)
 }
 
 /** @brief Tests that an index of the highest rank is refused, as its result has no rank left. */
-TEST(Unit_GatherOps, GatherRowsRefusesAnIndexWhoseResultWouldPassTheHighestRank)
+TEST(Small_GatherOps, GatherRowsRefusesAnIndexWhoseResultWouldPassTheHighestRank)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1190,7 +1190,7 @@ TEST(Unit_GatherOps, GatherRowsRefusesAnIndexWhoseResultWouldPassTheHighestRank)
 }
 
 /** @brief Tests that a scatter-add writes SCATTER_ADD_ROWS over [rows, indices] as [V, D]. */
-TEST(Unit_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
+TEST(Small_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1208,7 +1208,7 @@ TEST(Unit_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
 }
 
 /** @brief Tests each refusal of the scatter-add: its rows, its index and its row count. */
-TEST(Unit_GatherOps, ScatterAddRowsRefusesOperandsThatDoNotFit)
+TEST(Small_GatherOps, ScatterAddRowsRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1232,7 +1232,7 @@ TEST(Unit_GatherOps, ScatterAddRowsRefusesOperandsThatDoNotFit)
 }
 
 /** @brief Tests that finalise leaves an INT32 input without a gradient and marks the gather. */
-TEST(Unit_GatherOps, AnInt32InputLeafRequiresNoGradient)
+TEST(Small_GatherOps, AnInt32InputLeafRequiresNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1252,7 +1252,7 @@ TEST(Unit_GatherOps, AnInt32InputLeafRequiresNoGradient)
  * @brief Tests that the cast pass under mixed precision narrows the product that reads a gather
  *        and neither casts nor retypes the INT32 leaf, the table or the gather.
  */
-TEST(Unit_GatherOps, TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared)
+TEST(Small_GatherOps, TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1322,7 +1322,7 @@ namespace
 }
 
 /** @brief Tests that the node reads [x, gamma, beta] and writes the value and two [rows] saves. */
-TEST(Unit_LayerNormOps, LayerNormWritesItsValueAndTheTwoRowStatistics)
+TEST(Small_LayerNormOps, LayerNormWritesItsValueAndTheTwoRowStatistics)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1350,7 +1350,7 @@ TEST(Unit_LayerNormOps, LayerNormWritesItsValueAndTheTwoRowStatistics)
 }
 
 /** @brief Tests that a rank-1 input is one row, so both saved statistics hold one element. */
-TEST(Unit_LayerNormOps, ARankOneInputIsOneRow)
+TEST(Small_LayerNormOps, ARankOneInputIsOneRow)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1366,7 +1366,7 @@ TEST(Unit_LayerNormOps, ARankOneInputIsOneRow)
 }
 
 /** @brief Tests each refusal of the forward emitter: the input, the parameters, the epsilon. */
-TEST(Unit_LayerNormOps, LayerNormRefusesOperandsThatDoNotFit)
+TEST(Small_LayerNormOps, LayerNormRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1387,7 +1387,7 @@ TEST(Unit_LayerNormOps, LayerNormRefusesOperandsThatDoNotFit)
 }
 
 /** @brief Tests that the gradient node reads five operands and writes dx, dgamma and dbeta. */
-TEST(Unit_LayerNormOps, LayerNormBackwardWritesTheThreeGradients)
+TEST(Small_LayerNormOps, LayerNormBackwardWritesTheThreeGradients)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1415,7 +1415,7 @@ TEST(Unit_LayerNormOps, LayerNormBackwardWritesTheThreeGradients)
 }
 
 /** @brief Tests that a gradient or a saved statistic of another shape is refused. */
-TEST(Unit_LayerNormOps, LayerNormBackwardRefusesOperandsThatDoNotFit)
+TEST(Small_LayerNormOps, LayerNormBackwardRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1444,7 +1444,7 @@ namespace
 }
 
 /** @brief Tests that the gradient is one node over [dy, log_probs] shaped like both. */
-TEST(Unit_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
+TEST(Small_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1467,7 +1467,7 @@ TEST(Unit_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
 }
 
 /** @brief Tests each refusal: a rank, an integer, a gradient of another shape or type. */
-TEST(Unit_LogSoftmaxOps, TheGradientRefusesOperandsThatDoNotFit)
+TEST(Small_LogSoftmaxOps, TheGradientRefusesOperandsThatDoNotFit)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1487,7 +1487,7 @@ TEST(Unit_LogSoftmaxOps, TheGradientRefusesOperandsThatDoNotFit)
                    "a gradient like them");
 }
 
-TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
+TEST(Small_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1499,7 +1499,7 @@ TEST(Unit_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
                     "MATMUL contracts 5 against 7", "[4, 5]", "[7, 3]");
 }
 
-TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
+TEST(Small_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
 {
     // The message shows both operand shapes; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -1514,7 +1514,7 @@ TEST(Unit_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
                     "MATMUL needs two rank-2 operands", "[5, 3]", "[5]");
 }
 
-TEST(Unit_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
+TEST(Small_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1526,7 +1526,7 @@ TEST(Unit_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
                     "MATMUL needs operands of one element type", "float32", "float64");
 }
 
-TEST(Unit_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
+TEST(Small_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1544,7 +1544,7 @@ TEST(Unit_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
                     "BIAS_ADD needs a rank-2 left operand", "[3]");
 }
 
-TEST(Unit_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
+TEST(Small_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1555,7 +1555,7 @@ TEST(Unit_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
     SA_EXPECT_ERROR((void)builder.log_softmax(vector), "LOG_SOFTMAX needs a rank-2 operand", "[6]");
 }
 
-TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
+TEST(Small_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1573,7 +1573,7 @@ TEST(Unit_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
     SA_EXPECT_ERROR((void)builder.accumulate(a, b), "ACCUMULATE needs equally shaped operands");
 }
 
-TEST(Unit_Diagnostics, NLLLossNamesTheShapeItCannotServe)
+TEST(Small_Diagnostics, NLLLossNamesTheShapeItCannotServe)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1588,7 +1588,7 @@ TEST(Unit_Diagnostics, NLLLossNamesTheShapeItCannotServe)
                     "NLL_LOSS needs rank-2 operands", "[4]");
 }
 
-TEST(Unit_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
+TEST(Small_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

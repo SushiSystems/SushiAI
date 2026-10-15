@@ -4,7 +4,7 @@ The tests of the module `layers/io`, one file per header of `modules/layers/io/i
 
 ## test_checkpoint.cpp
 
-Suites: `Integration_Checkpoint`.
+Suites: `Medium_Checkpoint`.
 
 The file covers the device half of checkpointing: saving and loading records against the tensors
 of a `NN::ModelState`. The byte format's malformed-file surface needs no device and lives in
@@ -63,7 +63,7 @@ The file is built by hand because `save_checkpoint` cannot produce one: the walk
 name once. A counter-based loader would accept this file and leave a parameter reading
 uninitialised device memory.
 
-Suites: `Integration_StateCheckpoint`.
+Suites: `Medium_StateCheckpoint`.
 
 The cases save and load checkpoints over a `NN::ModelState`. The model is a batch norm named `bn`,
 so the state holds two parameters and two buffers. The cases pin the round trip, the order of the
@@ -92,9 +92,9 @@ message contains "running_mean".
 
 ## test_import_weights.cpp
 
-Suites: `Unit_RenameRule`, `Integration_ImportWeights`.
+Suites: `Small_RenameRule`, `Medium_ImportWeights`.
 
-The four `Unit_RenameRule` cases run the prefix rule with no device. They share this file with the
+The four `Small_RenameRule` cases run the prefix rule with no device. They share this file with the
 integration cases, which load a checkpoint written under foreign names into a `NN::ModelState`.
 
 ### RewritesAMatchingPrefix
@@ -147,7 +147,7 @@ A path that was never written is refused as `FileNotFound`, and the message cont
 
 ## test_run_checkpoint.cpp
 
-Suites: `Integration_RunCheckpoint`.
+Suites: `Medium_RunCheckpoint`.
 
 A run is a classifier over 6 features and 4 classes with a batch of 8, its state, an optimizer and a
 schedule, built from a seed. The cases save and load checkpoints with run state through
@@ -230,7 +230,7 @@ The last 151 bytes of a saved file are cut and its run-state count lowered by 4.
 
 The checkpoint format's round trip, a version 1 file, the run-state section, and its refusal of each malformed byte pattern.
 
-Suites: `Unit_CheckpointFormat`, `Unit_CheckpointFormatDeathTest`.
+Suites: `Small_CheckpointFormat`, `Small_CheckpointFormatDeathTest`.
 
 Tests the checkpoint format's round trip and its refusal of each malformed byte pattern.
 
@@ -390,7 +390,7 @@ a second `write` is fatal with "declared 1 run-state records" and "'b'".
 
 The three files of an imported model read back, the key order of the training file with `data` null, existing files refused or replaced, and a bad tensor writing nothing.
 
-Suites: `Unit_ImportedModelWriter`.
+Suites: `Small_ImportedModelWriter`.
 
 Tests `IO::compose_training_file` and `IO::write_imported_model`. The imported model of every
 case has one `linear` row over the input shape [4], a task of type `stub_task`, the float32
@@ -472,7 +472,7 @@ With both tensors named `0.weight`, the write fails with `InvalidDescription`, `
 
 The importer rows in insertion order, a repeated format, a row's failure passed on and an unknown format listing the rows.
 
-Suites: `Unit_ImporterRegistry`.
+Suites: `Small_ImporterRegistry`.
 
 Tests `IO::ImporterRegistry` and `IO::import_model`. The file registers two stub rows: `first`,
 whose importer returns a model with the number of files it was given as its one note, and
@@ -509,7 +509,7 @@ and "already registered".
 
 The default of a run's progress, the names of its four records, and the refusal of a resume under another seed.
 
-Suites: `Unit_RunProgress`.
+Suites: `Small_RunProgress`.
 
 Tests `IO::RunProgress` and `IO::check_run_seed` in
 `modules/layers/io/include/SushiAI/io/run_progress.hpp`.

@@ -3,7 +3,7 @@
 
 The Flatten layer's trace, shape rule, rejections and parameter walk.
 
-Suites: `Unit_Flatten`.
+Suites: `Small_Flatten`.
 
 Tests the Flatten layer's trace, shape rule, rejections and parameter walk.
 

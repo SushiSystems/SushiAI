@@ -76,7 +76,7 @@ namespace
     }
 
     /** @brief Builds the decoder, initialises it and compiles its [1, T] forward pass. */
-    class Integration_Generation : public SaTest::EngineTest
+    class Medium_Generation : public SaTest::EngineTest
     {
         protected:
             /** @brief Builds every part a generator reads, in the order they depend. */
@@ -141,14 +141,14 @@ namespace
 } // namespace
 
 /** @brief Tests that the generator reads the window and the vocabulary of the step. */
-TEST_F(Integration_Generation, TheGeneratorReadsTheExtentsOfTheStep)
+TEST_F(Medium_Generation, TheGeneratorReadsTheExtentsOfTheStep)
 {
     EXPECT_EQ(generator->window(), SaTest::K_DECODER_WINDOW);
     EXPECT_EQ(generator->vocabulary(), SaTest::K_DECODER_VOCABULARY);
 }
 
 /** @brief Tests that twelve greedy tokens equal twelve runs of one token over a grown prompt. */
-TEST_F(Integration_Generation, ARunEqualsOneTokenAtATimeOverTheGrownPrompt)
+TEST_F(Medium_Generation, ARunEqualsOneTokenAtATimeOverTheGrownPrompt)
 {
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);
@@ -178,7 +178,7 @@ TEST_F(Integration_Generation, ARunEqualsOneTokenAtATimeOverTheGrownPrompt)
 }
 
 /** @brief Tests that a drawing sampler gives one sequence for one seed. */
-TEST_F(Integration_Generation, ASeedFixesADrawnContinuation)
+TEST_F(Medium_Generation, ASeedFixesADrawnContinuation)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TemperatureSampler> sampler,
                             TemperatureSampler::make(1.0));
@@ -195,7 +195,7 @@ TEST_F(Integration_Generation, ASeedFixesADrawnContinuation)
 }
 
 /** @brief Tests that an empty prompt, an id outside the vocabulary and no token are refused. */
-TEST_F(Integration_Generation, APromptOrACountThatDoesNotFitIsRefused)
+TEST_F(Medium_Generation, APromptOrACountThatDoesNotFitIsRefused)
 {
     const GreedySampler sampler;
     RandomGenerator random(K_SEED);

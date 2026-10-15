@@ -79,7 +79,7 @@ namespace
 } // namespace
 
 /** @brief Tests that nodes traced with no scope open form one segment with an empty name. */
-TEST(Unit_ScopeTrace, NodesOutsideAnyScopeFormOneUnnamedSegment)
+TEST(Small_ScopeTrace, NodesOutsideAnyScopeFormOneUnnamedSegment)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -92,7 +92,7 @@ TEST(Unit_ScopeTrace, NodesOutsideAnyScopeFormOneUnnamedSegment)
 }
 
 /** @brief Tests that a scope in the middle of a trace yields a segment before, in and after it. */
-TEST(Unit_ScopeTrace, AScopeSplitsTheTraceIntoThreeSegments)
+TEST(Small_ScopeTrace, AScopeSplitsTheTraceIntoThreeSegments)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -115,7 +115,7 @@ TEST(Unit_ScopeTrace, AScopeSplitsTheTraceIntoThreeSegments)
  * @brief Tests that a nested scope is named "outer/inner" and the outer scope resumes with
  *        occurrence 1.
  */
-TEST(Unit_ScopeTrace, ANestedScopeIsNamedByItsPath)
+TEST(Small_ScopeTrace, ANestedScopeIsNamedByItsPath)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -139,7 +139,7 @@ TEST(Unit_ScopeTrace, ANestedScopeIsNamedByItsPath)
 }
 
 /** @brief Tests that a scope opened three times in a loop gets occurrences 0, 1 and 2. */
-TEST(Unit_ScopeTrace, AScopeOpenedTwiceGetsRisingOccurrences)
+TEST(Small_ScopeTrace, AScopeOpenedTwiceGetsRisingOccurrences)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -158,7 +158,7 @@ TEST(Unit_ScopeTrace, AScopeOpenedTwiceGetsRisingOccurrences)
 }
 
 /** @brief Tests that a scope with no node leaves no segment and does not use up an occurrence. */
-TEST(Unit_ScopeTrace, AnEmptyScopeLeavesNoSegment)
+TEST(Small_ScopeTrace, AnEmptyScopeLeavesNoSegment)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -182,7 +182,7 @@ TEST(Unit_ScopeTrace, AnEmptyScopeLeavesNoSegment)
  * @brief Tests that seal() throws while a scope is open, names that scope and leaves the running
  *        segment whole.
  */
-TEST(Unit_ScopeTrace, SealWithAScopeStillOpenThrows)
+TEST(Small_ScopeTrace, SealWithAScopeStillOpenThrows)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -204,7 +204,7 @@ TEST(Unit_ScopeTrace, SealWithAScopeStillOpenThrows)
 }
 
 /** @brief Tests that close() throws when no scope is open. */
-TEST(Unit_ScopeTrace, CloseWithNoScopeOpenThrows)
+TEST(Small_ScopeTrace, CloseWithNoScopeOpenThrows)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -217,7 +217,7 @@ TEST(Unit_ScopeTrace, CloseWithNoScopeOpenThrows)
 }
 
 /** @brief Tests that the segments' ranges join end to begin from node 0 to the node count. */
-TEST(Unit_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
+TEST(Small_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -250,7 +250,7 @@ TEST(Unit_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
 }
 
 /** @brief Tests that open() rejects an empty name and leaves the trace as it was. */
-TEST(Unit_ScopeTrace, OpenRejectsAnEmptyName)
+TEST(Small_ScopeTrace, OpenRejectsAnEmptyName)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -260,7 +260,7 @@ TEST(Unit_ScopeTrace, OpenRejectsAnEmptyName)
 }
 
 /** @brief Tests that open() rejects a name containing the path separator '/'. */
-TEST(Unit_ScopeTrace, OpenRejectsANameWithASlash)
+TEST(Small_ScopeTrace, OpenRejectsANameWithASlash)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -270,7 +270,7 @@ TEST(Unit_ScopeTrace, OpenRejectsANameWithASlash)
 }
 
 /** @brief Tests that open() rejects a name containing the occurrence separator '#'. */
-TEST(Unit_ScopeTrace, OpenRejectsANameWithAHash)
+TEST(Small_ScopeTrace, OpenRejectsANameWithAHash)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -280,7 +280,7 @@ TEST(Unit_ScopeTrace, OpenRejectsANameWithAHash)
 }
 
 /** @brief Tests that a rejected open() does not end the running segment. */
-TEST(Unit_ScopeTrace, ARejectedNameDoesNotSplitTheRunningSegment)
+TEST(Small_ScopeTrace, ARejectedNameDoesNotSplitTheRunningSegment)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -295,7 +295,7 @@ TEST(Unit_ScopeTrace, ARejectedNameDoesNotSplitTheRunningSegment)
 }
 
 /** @brief Tests that a rejected close() does not end the running segment. */
-TEST(Unit_ScopeTrace, ARejectedCloseDoesNotSplitTheRunningSegment)
+TEST(Small_ScopeTrace, ARejectedCloseDoesNotSplitTheRunningSegment)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -310,7 +310,7 @@ TEST(Unit_ScopeTrace, ARejectedCloseDoesNotSplitTheRunningSegment)
 }
 
 /** @brief Tests that a second seal() throws. */
-TEST(Unit_ScopeTrace, ASecondSealThrows)
+TEST(Small_ScopeTrace, ASecondSealThrows)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -323,7 +323,7 @@ TEST(Unit_ScopeTrace, ASecondSealThrows)
 }
 
 /** @brief Tests that open() and close() throw once the trace is sealed. */
-TEST(Unit_ScopeTrace, OpenAndCloseAfterSealThrow)
+TEST(Small_ScopeTrace, OpenAndCloseAfterSealThrow)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);

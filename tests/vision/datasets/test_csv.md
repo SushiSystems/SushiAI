@@ -1,7 +1,7 @@
 # tests/vision/datasets/test_csv.cpp
 
 
-Suites: `Unit_DatasetsCsv`.
+Suites: `Small_DatasetsCsv`.
 
 Tests `read_csv` in `modules/vision/datasets/include/SushiAI/vision/datasets/csv.hpp` over
 files the cases write under the system's temporary directory. Unless a case names another

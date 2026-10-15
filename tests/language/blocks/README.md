@@ -4,7 +4,7 @@ The tests of the module `language/blocks`, one file per header of `modules/langu
 
 ## test_causal_self_attention.cpp
 
-Suites: `Unit_BlockCausalSelfAttention`.
+Suites: `Medium_BlockCausalSelfAttention`.
 
 Tests `Language::Blocks::CausalSelfAttention` in
 `modules/language/blocks/include/SushiAI/language/blocks/causal_self_attention.hpp` and its node
@@ -134,7 +134,7 @@ order `K_CACHE_SLOT_LEAF` (`Int32`, [1, 1]), `K_ATTENTION_MASK_LEAF` ([1, 5]),
 
 ## test_expert_transformer_block.cpp
 
-Suites: `Unit_BlockExpertTransformerBlock`.
+Suites: `Small_BlockExpertTransformerBlock`.
 
 Tests `Language::Blocks::ExpertTransformerBlock` in
 `modules/language/blocks/include/SushiAI/language/blocks/expert_transformer_block.hpp`, and the
@@ -192,7 +192,7 @@ The same row with eight heads fails with `InvalidDescription` and a message cont
 
 ## test_feed_forward.cpp
 
-Suites: `Unit_BlockFeedForward`.
+Suites: `Small_BlockFeedForward`.
 
 Tests `Language::Blocks::FeedForward` in
 `modules/language/blocks/include/SushiAI/language/blocks/feed_forward.hpp` and its node factory
@@ -232,7 +232,7 @@ operation at every index. The trace declares no fed leaf and carries no value.
 
 ## test_language_head.cpp
 
-Suites: `Unit_BlockLanguageHead`, `Unit_BlockLanguageHeadDeathTest`.
+Suites: `Small_BlockLanguageHead`, `Small_BlockLanguageHeadDeathTest`.
 
 Tests `Language::Blocks::LanguageHead` in
 `modules/language/blocks/include/SushiAI/language/blocks/language_head.hpp` and its node factory
@@ -296,7 +296,7 @@ built without the rows above it ("layer 0", "not above").
 ### OutputShapeOverARankOneSampleIsFatal
 
 `output_shape([6])` stops the process with a report containing "LanguageHead::output_shape"
-and "[6]". The case is in the suite `Unit_BlockLanguageHeadDeathTest`.
+and "[6]". The case is in the suite `Small_BlockLanguageHeadDeathTest`.
 
 ### TheIncrementalFormIsTheOrdinaryTraceOfOnePosition
 
@@ -306,7 +306,7 @@ operation at every index. The trace declares no fed leaf and carries no value.
 
 ## test_moe_feed_forward.cpp
 
-Suites: `Unit_BlockMoeFeedForward`.
+Suites: `Small_BlockMoeFeedForward`.
 
 Tests `Language::Blocks::MoEFeedForward` in
 `modules/language/blocks/include/SushiAI/language/blocks/moe_feed_forward.hpp` and its node
@@ -367,7 +367,7 @@ carries no value.
 
 ## test_position_embedding.cpp
 
-Suites: `Unit_BlockPositionEmbedding`.
+Suites: `Small_BlockPositionEmbedding`.
 
 Tests `Language::Blocks::PositionEmbedding` in
 `modules/language/blocks/include/SushiAI/language/blocks/position_embedding.hpp` and its node
@@ -421,7 +421,7 @@ no fed leaf, and for a [1, 2, 6] input ("one position", "[1, 2, 6]").
 
 ## test_rotary_embedding.cpp
 
-Suites: `Unit_BlockRotaryEmbedding`.
+Suites: `Medium_BlockRotaryEmbedding`.
 
 Tests `Language::Blocks::RotaryEmbedding` in
 `modules/language/blocks/include/SushiAI/language/blocks/rotary_embedding.hpp` and
@@ -469,7 +469,7 @@ and "collect_tables", and `forward_incremental` in an evaluation trace fails wit
 
 ## test_rotary_positions.cpp
 
-Suites: `Unit_BlockRotaryPositions`, `Unit_BlockRotaryPositionsDeathTest`.
+Suites: `Small_BlockRotaryPositions`, `Small_BlockRotaryPositionsDeathTest`.
 
 Tests `Language::Blocks::rotary_angle` and `Language::Blocks::write_rotary_row` in
 `modules/language/blocks/include/SushiAI/language/blocks/rotary_positions.hpp`. Angles are
@@ -500,11 +500,11 @@ within 1e-6.
 
 `write_rotary_row` stops the process for two empty spans, with a report containing "0
 cosines", and for a span of two cosines beside a span of three sines, with "2 cosines" and "3
-sines". The case is in the suite `Unit_BlockRotaryPositionsDeathTest`.
+sines". The case is in the suite `Small_BlockRotaryPositionsDeathTest`.
 
 ## test_transformer_block.cpp
 
-Suites: `Unit_BlockTransformerBlock`.
+Suites: `Small_BlockTransformerBlock`.
 
 Tests `Language::Blocks::TransformerBlock` in
 `modules/language/blocks/include/SushiAI/language/blocks/transformer_block.hpp` and its node
@@ -573,7 +573,7 @@ The row `{"heads": 2}` builds a layer whose `attn.positions` is `Learned`, and `
 fails with `InvalidDescription` and a message containing "layer 3", "rotary positions" and "3
 channels".
 
-Suites: `Integration_AttentionGradient`, in `sushiai_language_blocks_tests`.
+Suites: `Medium_AttentionGradient`, in `sushiai_language_blocks_tests`.
 
 Every graph is FLOAT64. The file's `Probe` builds a graph, takes the cross-entropy of the `[N, C]`
 value its build function names against targets whose row r names class r mod C, differentiates it at
@@ -614,7 +614,7 @@ the same check.
 A block built with `AttentionMask::None` is differentiated at its input, with the same node count
 and the same check.
 
-Suites: `Integration_CausalAttention`, in `sushiai_language_blocks_tests`.
+Suites: `Medium_CausalAttention`, in `sushiai_language_blocks_tests`.
 
 The mask cases run CAUSAL_MASK with a fill of -1e9 on an engine and compare with a host loop. The
 block cases trace a block over a `[1, 5, 8]` input with two heads, fill every parameter from the
@@ -651,7 +651,7 @@ With `AttentionMask::None`, at least one element of positions 0 to 2 differs bet
 A causal `TransformerBlock` with a feed-forward width of 32 keeps positions 0 to 2 unchanged and
 changes positions 3 and 4.
 
-Suites: `Integration_RotaryEmbedding`, in `sushiai_language_blocks_tests`.
+Suites: `Medium_RotaryEmbedding`, in `sushiai_language_blocks_tests`.
 
 A `RotaryEmbedding` is run through a compiled step over rows of float32 values in groups of four
 channels, two pairs each. Results are compared with the host's double within 1e-5 absolute.

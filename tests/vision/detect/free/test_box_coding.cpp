@@ -111,7 +111,7 @@ namespace
 } // namespace
 
 /** @brief Tests that decoding subtracts left and top from the point and adds right and bottom. */
-TEST(Unit_DetectBoxes, DecodesDistancesToCorners)
+TEST(Medium_DetectBoxes, DecodesDistancesToCorners)
 {
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
@@ -123,7 +123,7 @@ TEST(Unit_DetectBoxes, DecodesDistancesToCorners)
 }
 
 /** @brief Tests that the centre-size decode is the corner decode's midpoint and extent. */
-TEST(Unit_DetectBoxes, DecodesDistancesToCentreAndSize)
+TEST(Medium_DetectBoxes, DecodesDistancesToCentreAndSize)
 {
     const std::vector<float> points{1.5f, 2.5f};
     const std::vector<float> distances{0.5f, 1.0f, 1.5f, 2.0f};
@@ -136,7 +136,7 @@ TEST(Unit_DetectBoxes, DecodesDistancesToCentreAndSize)
 }
 
 /** @brief Tests that the anchor points repeat for every image of a batch. */
-TEST(Unit_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
+TEST(Medium_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
 {
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f};
     const std::vector<float> distances{0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f,
@@ -150,7 +150,7 @@ TEST(Unit_DetectBoxes, RepeatsTheAnchorPointsForEachImage)
 }
 
 /** @brief Tests that encoding a decoded box returns the distances it was decoded from. */
-TEST(Unit_DetectBoxes, EncodeInvertsDecode)
+TEST(Medium_DetectBoxes, EncodeInvertsDecode)
 {
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f, 0.5f, 1.5f};
     const std::vector<float> distances{0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 0.0f,
@@ -164,7 +164,7 @@ TEST(Unit_DetectBoxes, EncodeInvertsDecode)
 }
 
 /** @brief Tests that scaling multiplies all four values of a box by its anchor's stride. */
-TEST(Unit_DetectBoxes, ScalesEachBoxByItsAnchorStride)
+TEST(Medium_DetectBoxes, ScalesEachBoxByItsAnchorStride)
 {
     const std::vector<float> boxes{1.0f, 2.0f, 3.0f, 4.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     const std::vector<float> strides{8.0f, 16.0f};
@@ -176,7 +176,7 @@ TEST(Unit_DetectBoxes, ScalesEachBoxByItsAnchorStride)
 }
 
 /** @brief Tests that rows which do not cover the anchors a whole number of times are refused. */
-TEST(Unit_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
+TEST(Medium_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
 {
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f};
     const std::vector<float> distances(12, 1.0f);
@@ -186,7 +186,7 @@ TEST(Unit_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
 }
 
 /** @brief Tests that decoding the reference's raw one-to-many boxes gives its xywh decode. */
-TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
+TEST(Medium_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2many.decoded.boxes");
@@ -203,7 +203,7 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToManyDecode)
 }
 
 /** @brief Tests that decoding the reference's raw one-to-one boxes gives its xyxy decode. */
-TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
+TEST(Medium_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     SA_READ_REFERENCE_OR_FAIL(reference, forward, "one2one.decoded.boxes");
@@ -220,7 +220,7 @@ TEST(Unit_DetectBoxes, ReproducesTheReferenceOneToOneDecode)
 }
 
 /** @brief Tests that encoding the decode of the reference's raw boxes returns the raw boxes. */
-TEST(Unit_DetectBoxes, EncodeInvertsTheDecodeOfTheReferenceBoxes)
+TEST(Medium_DetectBoxes, EncodeInvertsTheDecodeOfTheReferenceBoxes)
 {
     SA_OPEN_REFERENCE_OR_SKIP(forward, "yolo26/forward.sacp");
     std::vector<float> raw;

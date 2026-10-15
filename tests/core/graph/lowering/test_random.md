@@ -1,7 +1,7 @@
 # tests/core/graph/lowering/test_random.cpp
 
 
-Suites: `Unit_DropoutOps`.
+Suites: `Small_DropoutOps`.
 
 Tests `GraphBuilder::dropout`: the node it emits, the seed it stores, the operands it refuses
 and its row in the lowering table. The accepted cases pass the rate 0.25.

@@ -83,7 +83,7 @@ namespace
     }
 
     /** @brief Provides an engine and one parameter of zeros with a constant gradient. */
-    class Unit_ApplyStepSchedule : public SaTest::EngineTest
+    class Medium_ApplyStepSchedule : public SaTest::EngineTest
     {
         protected:
             /** @brief Returns the one slot: a parameter of zeros and a gradient of K_GRADIENT. */
@@ -111,7 +111,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the rate set is the schedule's at the number of the next update. */
-TEST_F(Unit_ApplyStepSchedule, TheRateSetIsTheScheduleAtTheNextUpdate)
+TEST_F(Medium_ApplyStepSchedule, TheRateSetIsTheScheduleAtTheNextUpdate)
 {
     Optim::SGDOptions options;
     options.learning_rate = K_MADE_RATE;
@@ -131,7 +131,7 @@ TEST_F(Unit_ApplyStepSchedule, TheRateSetIsTheScheduleAtTheNextUpdate)
 }
 
 /** @brief Tests that an update moves the parameter by the rate that was set, not the made one. */
-TEST_F(Unit_ApplyStepSchedule, AnUpdateUsesTheRateThatWasSet)
+TEST_F(Medium_ApplyStepSchedule, AnUpdateUsesTheRateThatWasSet)
 {
     Optim::SGDOptions options;
     options.learning_rate = K_MADE_RATE;
@@ -154,7 +154,7 @@ TEST_F(Unit_ApplyStepSchedule, AnUpdateUsesTheRateThatWasSet)
 }
 
 /** @brief Tests that AdamW takes a rate through the same seam as SGD. */
-TEST_F(Unit_ApplyStepSchedule, AdamWTakesTheRateThroughTheSameSeam)
+TEST_F(Medium_ApplyStepSchedule, AdamWTakesTheRateThroughTheSameSeam)
 {
     Optim::AdamWOptions options;
     options.learning_rate = K_MADE_RATE;
@@ -169,7 +169,7 @@ TEST_F(Unit_ApplyStepSchedule, AdamWTakesTheRateThroughTheSameSeam)
 }
 
 /** @brief Tests that a rate no update can use stops the process. */
-TEST_F(Unit_ApplyStepSchedule, ANegativeRateIsFatal)
+TEST_F(Medium_ApplyStepSchedule, ANegativeRateIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, make_slots(), Optim::SGDOptions{}));
@@ -178,7 +178,7 @@ TEST_F(Unit_ApplyStepSchedule, ANegativeRateIsFatal)
 }
 
 /** @brief Tests that a cosine schedule reaches an optimizer by itself and held in a variant. */
-TEST_F(Unit_ApplyStepSchedule, ACosineScheduleTakesTheSameSeam)
+TEST_F(Medium_ApplyStepSchedule, ACosineScheduleTakesTheSameSeam)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
                             Optim::SGD::make(*engine, make_slots(), Optim::SGDOptions{}));

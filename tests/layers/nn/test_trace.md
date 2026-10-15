@@ -1,7 +1,7 @@
 # tests/layers/nn/test_trace.cpp
 
 
-Suites: `Unit_Trace`, `Unit_TraceDeathTest`.
+Suites: `Small_Trace`, `Small_TraceDeathTest`.
 
 Tests Trace, the buffer-update sinks, the three layer forms and trace_layer.
 
@@ -128,7 +128,7 @@ the graph gains no value. Two calls of `discard_updates()` return the same addre
 
 ## AnUpdateOfAnUndefinedBufferIsFatal
 
-The case is in the suite `Unit_TraceDeathTest`. `update_undefined_buffer` stops the process
+The case is in the suite `Small_TraceDeathTest`. `update_undefined_buffer` stops the process
 with "define() has not given a shape".
 
 ## AnUpdateOfABufferThatWasNeverReadIsRecorded
@@ -156,7 +156,7 @@ failure.
 
 ## FailGivenASuccessIsFatal
 
-The case is in the suite `Unit_TraceDeathTest`. `trace.fail(Status())` stops the process with
+The case is in the suite `Small_TraceDeathTest`. `trace.fail(Status())` stops the process with
 "Trace::fail was given a success".
 
 ## SequentialThrowsTheFailureAChildRecorded
@@ -171,12 +171,12 @@ The case is in the suite `Unit_TraceDeathTest`. `trace.fail(Status())` stops the
 
 ## AnUpdateWithoutASourceIsFatal
 
-The case is in the suite `Unit_TraceDeathTest`. An update whose source is `K_NO_VALUE` stops the
+The case is in the suite `Small_TraceDeathTest`. An update whose source is `K_NO_VALUE` stops the
 process with "a buffer update reads value".
 
 ## AnUpdateFromAValueOutsideTheGraphIsFatal
 
-The case is in the suite `Unit_TraceDeathTest`. An update whose source is value 7, in a graph
+The case is in the suite `Small_TraceDeathTest`. An update whose source is value 7, in a graph
 of one value, stops the process with a report containing "reads value 7" and "holds 1 values".
 
 ## TraceLayerCallsTheTrainingFormInTrainingMode

@@ -66,7 +66,7 @@ namespace
 }
 
 /** @brief Tests that the training form emits one DROPOUT node with the rate and site seed 0. */
-TEST(Unit_Dropout, TheTrainingFormEmitsOneDropoutNode)
+TEST(Small_Dropout, TheTrainingFormEmitsOneDropoutNode)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -93,7 +93,7 @@ TEST(Unit_Dropout, TheTrainingFormEmitsOneDropoutNode)
 }
 
 /** @brief Tests that the evaluation form returns its input and adds no node and no value. */
-TEST(Unit_Dropout, TheEvaluationFormReturnsItsInputAndEmitsNothing)
+TEST(Small_Dropout, TheEvaluationFormReturnsItsInputAndEmitsNothing)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -112,7 +112,7 @@ TEST(Unit_Dropout, TheEvaluationFormReturnsItsInputAndEmitsNothing)
 }
 
 /** @brief Tests that a rate of zero emits nothing in training and claims no site. */
-TEST(Unit_Dropout, ARateOfZeroEmitsNothingInTraining)
+TEST(Small_Dropout, ARateOfZeroEmitsNothingInTraining)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -129,7 +129,7 @@ TEST(Unit_Dropout, ARateOfZeroEmitsNothingInTraining)
 }
 
 /** @brief Tests that two sites of a trace get seeds 0 and 1 of its seed, on every trace of it. */
-TEST(Unit_Dropout, EachSiteOfATraceGetsItsOwnSeed)
+TEST(Small_Dropout, EachSiteOfATraceGetsItsOwnSeed)
 {
     Dropout layer{};
     layer.rate = 0.5;
@@ -153,7 +153,7 @@ TEST(Unit_Dropout, EachSiteOfATraceGetsItsOwnSeed)
 }
 
 /** @brief Tests that a training trace given no seed has seed 0, and an evaluation trace too. */
-TEST(Unit_Dropout, ATraceWithoutAStatedSeedHasSeedZero)
+TEST(Small_Dropout, ATraceWithoutAStatedSeedHasSeedZero)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -165,7 +165,7 @@ TEST(Unit_Dropout, ATraceWithoutAStatedSeedHasSeedZero)
 }
 
 /** @brief Tests that a rate of one, a negative rate and a NaN are each refused by both forms. */
-TEST(Unit_Dropout, ARateOutsideItsIntervalFails)
+TEST(Small_Dropout, ARateOutsideItsIntervalFails)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -189,7 +189,7 @@ TEST(Unit_Dropout, ARateOutsideItsIntervalFails)
 }
 
 /** @brief Tests that output_shape returns the per-sample shape it is given. */
-TEST(Unit_Dropout, OutputShapeIsTheInputShape)
+TEST(Small_Dropout, OutputShapeIsTheInputShape)
 {
     const Dropout layer{};
 
@@ -197,7 +197,7 @@ TEST(Unit_Dropout, OutputShapeIsTheInputShape)
 }
 
 /** @brief Tests that the factory reads "rate" and builds a node that keeps its input shape. */
-TEST(Unit_Dropout, TheFactoryReadsTheRate)
+TEST(Small_Dropout, TheFactoryReadsTheRate)
 {
     const Shape input{6, 4};
     const Config::Value attributes = Config::parse_json(R"({"rate": 0.1})", "<test>");
@@ -214,7 +214,7 @@ TEST(Unit_Dropout, TheFactoryReadsTheRate)
 }
 
 /** @brief Tests that the factory refuses no rate, a rate of one, a stray key and two inputs. */
-TEST(Unit_Dropout, TheFactoryRefusesARowThatDoesNotFit)
+TEST(Small_Dropout, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{6, 4};
     const Shape pair[] = {Shape{4}, Shape{4}};

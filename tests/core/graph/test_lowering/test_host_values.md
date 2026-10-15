@@ -1,7 +1,7 @@
 # tests/core/graph/test_lowering/test_host_values.cpp
 
 
-Suites: `Integration_LoweredOperations`.
+Suites: `Medium_LoweredOperations`.
 
 This file runs fourteen lowerings through a compiled step and compares the result with values
 computed on the host: twelve forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
@@ -86,7 +86,7 @@ A 3x3 depthwise convolution with a pad of 1 runs over a `[1, 4, 4, 2]` image of 
 integer taps. Each output equals the sum of the taps whose input pixel lies inside the image,
 computed by a host loop, within 1e-6.
 
-Suites: `Regression_ArgmaxLifetime`.
+Suites: `Small_ArgmaxLifetime`.
 
 K_MAXPOOL2D's argmax buffer has to survive from the forward node until K_MAXPOOL2D_BACKWARD reads it,
 and no test pinned that before this file.

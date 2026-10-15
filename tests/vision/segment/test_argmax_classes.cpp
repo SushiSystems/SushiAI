@@ -50,7 +50,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the pick is the largest score of each pixel, the lowest class on a tie. */
-TEST(Unit_SegmentMetrics, ArgmaxPicksTheLargestScoreAndTheLowestClassOnATie)
+TEST(Small_SegmentMetrics, ArgmaxPicksTheLargestScoreAndTheLowestClassOnATie)
 {
     const std::vector<float> scores{0.1f, 0.9f, 0.0f, 2.0f, -1.0f, 2.0f, -3.0f, -2.0f, -1.0f};
     Classes picked(3, -1);

@@ -65,7 +65,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a sample with stored pixels is read from its offset in the file. */
-TEST(Unit_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
+TEST(Small_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_stored");
     SampleList list = list_of(scratch.write("pixels.bin", Support::rising_bytes(10, 0)));
@@ -85,7 +85,7 @@ TEST(Unit_DatasetsLoadSampleImage, StoredPixelsAreReadFromTheirOffset)
 }
 
 /** @brief Tests that a sample without stored pixels is decoded from its image file. */
-TEST(Unit_DatasetsLoadSampleImage, AnImageFileIsDecoded)
+TEST(Small_DatasetsLoadSampleImage, AnImageFileIsDecoded)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_file");
     const std::filesystem::path file = scratch.path() / "image.saim";
@@ -105,7 +105,7 @@ TEST(Unit_DatasetsLoadSampleImage, AnImageFileIsDecoded)
 }
 
 /** @brief Tests that a sample index past the list is refused with its number. */
-TEST(Unit_DatasetsLoadSampleImage, ASampleOutsideTheListIsRefused)
+TEST(Small_DatasetsLoadSampleImage, ASampleOutsideTheListIsRefused)
 {
     Image image;
     SA_EXPECT_FAILURE(load_sample_image(list_of("unread.png"), 3, DecodeOptions{}, image),
@@ -114,7 +114,7 @@ TEST(Unit_DatasetsLoadSampleImage, ASampleOutsideTheListIsRefused)
 }
 
 /** @brief Tests that a sample naming a file the list lacks is refused. */
-TEST(Unit_DatasetsLoadSampleImage, AFileIndexOutsideTheListIsRefused)
+TEST(Small_DatasetsLoadSampleImage, AFileIndexOutsideTheListIsRefused)
 {
     SampleList list = list_of("unread.png");
     list.samples[0].file = 5;
@@ -125,7 +125,7 @@ TEST(Unit_DatasetsLoadSampleImage, AFileIndexOutsideTheListIsRefused)
 }
 
 /** @brief Tests that an absent image file is a failure that names the file. */
-TEST(Unit_DatasetsLoadSampleImage, AnAbsentFileIsNamed)
+TEST(Small_DatasetsLoadSampleImage, AnAbsentFileIsNamed)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_load_absent");
 

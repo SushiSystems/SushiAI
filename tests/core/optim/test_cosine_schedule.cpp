@@ -70,7 +70,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the warm-up rises linearly from zero to the base rate. */
-TEST(Unit_CosineSchedule, TheWarmupIsLinear)
+TEST(Small_CosineSchedule, TheWarmupIsLinear)
 {
     const CosineSchedule schedule = make_schedule();
 
@@ -81,7 +81,7 @@ TEST(Unit_CosineSchedule, TheWarmupIsLinear)
 }
 
 /** @brief Tests the decay at its quarter, half and three quarters, against the cosine. */
-TEST(Unit_CosineSchedule, TheDecayFollowsHalfACosine)
+TEST(Small_CosineSchedule, TheDecayFollowsHalfACosine)
 {
     const CosineSchedule schedule = make_schedule();
 
@@ -95,7 +95,7 @@ TEST(Unit_CosineSchedule, TheDecayFollowsHalfACosine)
 }
 
 /** @brief Tests that the rate is the final one from the last iteration of the decay on. */
-TEST(Unit_CosineSchedule, TheRateStaysAtTheFinalOne)
+TEST(Small_CosineSchedule, TheRateStaysAtTheFinalOne)
 {
     const CosineSchedule schedule = make_schedule();
 
@@ -104,7 +104,7 @@ TEST(Unit_CosineSchedule, TheRateStaysAtTheFinalOne)
 }
 
 /** @brief Tests that a schedule without a warm-up starts at the base rate. */
-TEST(Unit_CosineSchedule, WithoutAWarmupTheFirstRateIsTheBaseRate)
+TEST(Small_CosineSchedule, WithoutAWarmupTheFirstRateIsTheBaseRate)
 {
     CosineSchedule schedule = make_schedule();
     schedule.warmup_iterations = 0;
@@ -114,7 +114,7 @@ TEST(Unit_CosineSchedule, WithoutAWarmupTheFirstRateIsTheBaseRate)
 }
 
 /** @brief Tests that a decay of no length steps from the base rate to the final one. */
-TEST(Unit_CosineSchedule, ADecayOfNoLengthDividesByNothing)
+TEST(Small_CosineSchedule, ADecayOfNoLengthDividesByNothing)
 {
     CosineSchedule schedule = make_schedule();
     schedule.total_iterations = schedule.warmup_iterations;
@@ -125,7 +125,7 @@ TEST(Unit_CosineSchedule, ADecayOfNoLengthDividesByNothing)
 }
 
 /** @brief Tests that a negative iteration stops the process. */
-TEST(Unit_CosineSchedule, ANegativeIterationIsFatal)
+TEST(Small_CosineSchedule, ANegativeIterationIsFatal)
 {
     const CosineSchedule schedule = make_schedule();
 
@@ -133,7 +133,7 @@ TEST(Unit_CosineSchedule, ANegativeIterationIsFatal)
 }
 
 /** @brief Tests each value the check refuses. */
-TEST(Unit_CosineSchedule, TheCheckRefusesWhatRateAtCannotUse)
+TEST(Small_CosineSchedule, TheCheckRefusesWhatRateAtCannotUse)
 {
     CosineSchedule negative_warmup = make_schedule();
     negative_warmup.warmup_iterations = -1;
@@ -157,7 +157,7 @@ TEST(Unit_CosineSchedule, TheCheckRefusesWhatRateAtCannotUse)
 }
 
 /** @brief Tests that a schedule survives the writer, JSON text, the parser and the reader. */
-TEST(Unit_CosineSchedule, ASectionRoundTripsEveryField)
+TEST(Small_CosineSchedule, ASectionRoundTripsEveryField)
 {
     CosineSchedule schedule = make_schedule();
     schedule.base_rate = 0.0006;
@@ -176,7 +176,7 @@ TEST(Unit_CosineSchedule, ASectionRoundTripsEveryField)
 }
 
 /** @brief Tests that a key left out keeps the default of its field. */
-TEST(Unit_CosineSchedule, AnEmptySectionReadsAsTheDefaults)
+TEST(Small_CosineSchedule, AnEmptySectionReadsAsTheDefaults)
 {
     SA_ASSERT_OK_AND_ASSIGN(const CosineSchedule read,
                             read_cosine_schedule_section(section_from("{}")));
@@ -188,7 +188,7 @@ TEST(Unit_CosineSchedule, AnEmptySectionReadsAsTheDefaults)
 }
 
 /** @brief Tests each section the reader refuses, and that the refusal names the key. */
-TEST(Unit_CosineSchedule, TheReaderRefusesAndNamesTheKey)
+TEST(Small_CosineSchedule, TheReaderRefusesAndNamesTheKey)
 {
     SA_EXPECT_FAILURE(read_cosine_schedule_section(section_from(R"({"type": "step"})")),
                       StatusCode::InvalidDescription, "schedule 'type'", "'step'",
@@ -207,7 +207,7 @@ TEST(Unit_CosineSchedule, TheReaderRefusesAndNamesTheKey)
 }
 
 /** @brief Tests that the writer refuses a rate JSON cannot hold. */
-TEST(Unit_CosineSchedule, TheWriterRefusesARateThatIsNotFinite)
+TEST(Small_CosineSchedule, TheWriterRefusesARateThatIsNotFinite)
 {
     CosineSchedule schedule = make_schedule();
     schedule.base_rate = std::numeric_limits<double>::infinity();

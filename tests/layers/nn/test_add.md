@@ -3,7 +3,7 @@
 
 That the Add node takes exactly two rank-3 inputs of one shape, emits one ADD reading them in order, returns a failure for values that do not add, and what its factory refuses.
 
-Suites: `Unit_Add`.
+Suites: `Small_Add`.
 
 Tests `NN::Add` in `modules/layers/nn/include/SushiAI/nn/add.hpp` and its factory
 `NN::make_add_node`. Unless a case says otherwise, the node is built over two [8, 6, 3] shapes

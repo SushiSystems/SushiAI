@@ -47,7 +47,7 @@ namespace SushiAI
         using Graph::GraphBuilder;
         using Graph::ValueID;
 
-        TEST(Unit_SpatialShapes, Im2ColProducesTheColumnMatrixAGEMMExpects)
+        TEST(Small_SpatialShapes, Im2ColProducesTheColumnMatrixAGEMMExpects)
         {
             // A row is one window, channels innermost (CV-3); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -63,7 +63,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[cols].shape, Shape({2 * 5 * 5, 3 * 3 * 3}));
         }
 
-        TEST(Unit_SpatialShapes, Im2ColHonoursStrideAndDilation)
+        TEST(Small_SpatialShapes, Im2ColHonoursStrideAndDilation)
         {
             // A dilated 3x3 covers 5 pixels; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -83,7 +83,7 @@ namespace SushiAI
                       Shape({1 * 3 * 3, 3 * 3 * 2}));
         }
 
-        TEST(Unit_SpatialShapes, Im2ColRejectsAWindowLargerThanThePaddedInput)
+        TEST(Small_SpatialShapes, Im2ColRejectsAWindowLargerThanThePaddedInput)
         {
             // The message names the geometry, not the Shape; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -96,7 +96,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.im2col(x, g), Error);
         }
 
-        TEST(Unit_SpatialShapes, Im2ColRejectsANonSpatialInput)
+        TEST(Small_SpatialShapes, Im2ColRejectsANonSpatialInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -108,7 +108,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.im2col(x, g), Error);
         }
 
-        TEST(Unit_SpatialShapes, Col2ImReturnsToTheImageItWasAskedFor)
+        TEST(Small_SpatialShapes, Col2ImReturnsToTheImageItWasAskedFor)
         {
             // The caller states the image shape; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -124,7 +124,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[image].shape, Shape({2, 5, 5, 3}));
         }
 
-        TEST(Unit_SpatialShapes, Col2ImRejectsAColumnMatrixThatDoesNotMatchTheImage)
+        TEST(Small_SpatialShapes, Col2ImRejectsAColumnMatrixThatDoesNotMatchTheImage)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -137,7 +137,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.col2im(cols, Shape({2, 6, 6, 3}), g), Error);
         }
 
-        TEST(Unit_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
+        TEST(Small_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
         {
             // The backward rule states the 13x13 extents back; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -156,7 +156,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[image].shape, Shape({1, 13, 13, 3}));
         }
 
-        TEST(Unit_SpatialShapes, Col2ImDerivingStillRejectsThatSameAsymmetricPair)
+        TEST(Small_SpatialShapes, Col2ImDerivingStillRejectsThatSameAsymmetricPair)
         {
             // The deriving col2im assumes symmetric padding; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -171,7 +171,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.col2im(cols, Shape({1, 13, 13, 3}), g), Error);
         }
 
-        TEST(Unit_SpatialShapes, Im2ColRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, Im2ColRejectsAnNCHWInput)
         {
             // im2col reads axes 1, 2, 3 as NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -186,7 +186,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.im2col(x_nchw, g), Error);
         }
 
-        TEST(Unit_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
+        TEST(Small_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
         {
             // The indices are a second result of the node; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -206,7 +206,7 @@ namespace SushiAI
                    "compare unequal to the integer the forward wrote";
         }
 
-        TEST(Unit_SpatialShapes, MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen)
+        TEST(Small_SpatialShapes, MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen)
         {
             // The caller states what ConvGeometry cannot; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -224,7 +224,7 @@ namespace SushiAI
                       Shape({1, 12, 12, 256}));
         }
 
-        TEST(Unit_SpatialShapes, AvgPoolProducesOnlyAValue)
+        TEST(Small_SpatialShapes, AvgPoolProducesOnlyAValue)
         {
             // avgpool2d records no indices (CV-6); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -238,7 +238,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[builder.avgpool2d(x, g)].shape, Shape({2, 2, 2, 3}));
         }
 
-        TEST(Unit_SpatialShapes, UpsampleMultipliesTheSpatialExtentsOnly)
+        TEST(Small_SpatialShapes, UpsampleMultipliesTheSpatialExtentsOnly)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -247,7 +247,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[builder.upsample2d(x, 2, 2)].shape, Shape({2, 6, 10, 7}));
         }
 
-        TEST(Unit_SpatialShapes, UpsampleRejectsANonPositiveScale)
+        TEST(Small_SpatialShapes, UpsampleRejectsANonPositiveScale)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -256,7 +256,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.upsample2d(x, 0, 2), Error);
         }
 
-        TEST(Unit_SpatialShapes, MaxPoolRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, MaxPoolRejectsAnNCHWInput)
         {
             // maxpool2d reads axes 1, 2, 3 as NHWC; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -271,7 +271,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.maxpool2d(x_nchw, g), Error);
         }
 
-        TEST(Unit_SpatialShapes, AvgPoolRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, AvgPoolRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -285,7 +285,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.avgpool2d(x_nchw, g), Error);
         }
 
-        TEST(Unit_SpatialShapes, UpsampleRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, UpsampleRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -295,7 +295,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.upsample2d(x_nchw, 2, 2), Error);
         }
 
-        TEST(Unit_SpatialShapes, SpatialMeanReducesToNAndC)
+        TEST(Small_SpatialShapes, SpatialMeanReducesToNAndC)
         {
             // The numeric probe's loss needs [N, C]; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -305,7 +305,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[builder.spatial_mean(x)].shape, Shape({4, 512}));
         }
 
-        TEST(Unit_SpatialShapes, SpatialMeanRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, SpatialMeanRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -315,7 +315,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.spatial_mean(x_nchw), Error);
         }
 
-        TEST(Unit_SpatialShapes, ConcatSumsTheChannelAxisAndNothingElse)
+        TEST(Small_SpatialShapes, ConcatSumsTheChannelAxisAndNothingElse)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -328,7 +328,7 @@ namespace SushiAI
                       Shape({2, 8, 8, 48}));
         }
 
-        TEST(Unit_SpatialShapes, ConcatRejectsOperandsThatDisagreeOffTheChannelAxis)
+        TEST(Small_SpatialShapes, ConcatRejectsOperandsThatDisagreeOffTheChannelAxis)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -340,7 +340,7 @@ namespace SushiAI
                 SushiRuntime::span<const ValueID>(parts.data(), parts.size())), Error);
         }
 
-        TEST(Unit_SpatialShapes, ConcatRejectsAnNCHWOperand)
+        TEST(Small_SpatialShapes, ConcatRejectsAnNCHWOperand)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -354,7 +354,7 @@ namespace SushiAI
                 SushiRuntime::span<const ValueID>(parts.data(), parts.size())), Error);
         }
 
-        TEST(Unit_SpatialShapes, SliceTakesAChannelRangeAndRefusesToOverrun)
+        TEST(Small_SpatialShapes, SliceTakesAChannelRangeAndRefusesToOverrun)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -365,7 +365,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.slice_channels(x, 32, 32), Error);
         }
 
-        TEST(Unit_SpatialShapes, SliceRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, SliceRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -375,7 +375,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.slice_channels(x_nchw, 0, 1), Error);
         }
 
-        TEST(Unit_SpatialShapes, ChannelAffineKeepsTheShapeAndChecksTheParameters)
+        TEST(Small_SpatialShapes, ChannelAffineKeepsTheShapeAndChecksTheParameters)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -390,7 +390,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.channel_affine(x, wrong, beta), Error);
         }
 
-        TEST(Unit_SpatialShapes, ChannelAffineRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, ChannelAffineRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -403,7 +403,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that batchnorm2d emits four outputs, three of them per channel. */
-        TEST(Unit_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics)
+        TEST(Small_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -437,7 +437,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.batchnorm2d(x, gamma, beta, 0.0), Error);
         }
 
-        TEST(Unit_SpatialShapes, BatchNorm2dRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, BatchNorm2dRejectsAnNCHWInput)
         {
             // The layout check runs before any extent is read; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -451,7 +451,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that batchnorm_fold emits one node of four operands and two [C] results. */
-        TEST(Unit_SpatialShapes, BatchNormFoldYieldsAPerChannelScaleAndShift)
+        TEST(Small_SpatialShapes, BatchNormFoldYieldsAPerChannelScaleAndShift)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -486,7 +486,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that batchnorm_fold names the operand whose shape or type does not fit. */
-        TEST(Unit_SpatialShapes, BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma)
+        TEST(Small_SpatialShapes, BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -518,7 +518,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that batchnorm_fold accepts a positive epsilon only. */
-        TEST(Unit_SpatialShapes, BatchNormFoldRejectsANonPositiveEpsilon)
+        TEST(Small_SpatialShapes, BatchNormFoldRejectsANonPositiveEpsilon)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -534,7 +534,7 @@ namespace SushiAI
             EXPECT_NO_THROW((void)builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
         }
 
-        TEST(Unit_SpatialShapes, SumChannelsFoldsEverythingButTheChannelAxis)
+        TEST(Small_SpatialShapes, SumChannelsFoldsEverythingButTheChannelAxis)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -546,7 +546,7 @@ namespace SushiAI
             EXPECT_THROW((void)builder.sum_channels(x_nchw), Error);
         }
 
-        TEST(Unit_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
+        TEST(Small_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
         {
             // A reshape moves no data; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -590,7 +590,7 @@ namespace SushiAI
         } // namespace
 
         /** @brief Tests that conv2d returns an NHWC value with one channel per filter. */
-        TEST(Unit_SpatialShapes, Conv2dReturnsAnNHWCValueWithOneChannelPerFilter)
+        TEST(Small_SpatialShapes, Conv2dReturnsAnNHWCValueWithOneChannelPerFilter)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -605,7 +605,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d divides the output extents by its stride. */
-        TEST(Unit_SpatialShapes, Conv2dDividesTheOutputExtentsByItsStride)
+        TEST(Small_SpatialShapes, Conv2dDividesTheOutputExtentsByItsStride)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -622,7 +622,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a biased conv2d emits RESHAPE, IM2COL, MATMUL, BIAS_ADD, RESHAPE. */
-        TEST(Unit_SpatialShapes, Conv2dWithABiasEmitsIm2colMatmulAndBiasAddBetweenTwoReshapes)
+        TEST(Small_SpatialShapes, Conv2dWithABiasEmitsIm2colMatmulAndBiasAddBetweenTwoReshapes)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -643,7 +643,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d without a bias emits no BIAS_ADD. */
-        TEST(Unit_SpatialShapes, Conv2dWithoutABiasEmitsNoBiasAdd)
+        TEST(Small_SpatialShapes, Conv2dWithoutABiasEmitsNoBiasAdd)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -662,7 +662,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d hands MATMUL a [rows, taps] and a [C_out, taps] operand. */
-        TEST(Unit_SpatialShapes, Conv2dContractsTheColumnMatrixAgainstTheTransposedFilterMatrix)
+        TEST(Small_SpatialShapes, Conv2dContractsTheColumnMatrixAgainstTheTransposedFilterMatrix)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -681,7 +681,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a 1x1 unit-stride unpadded conv2d emits no IM2COL. */
-        TEST(Unit_SpatialShapes, Conv2dPointwiseEmitsNoIm2col)
+        TEST(Small_SpatialShapes, Conv2dPointwiseEmitsNoIm2col)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -701,7 +701,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a 1x1 conv2d with a stride above one still emits IM2COL. */
-        TEST(Unit_SpatialShapes, Conv2dStridedOneByOneKernelStillEmitsIm2col)
+        TEST(Small_SpatialShapes, Conv2dStridedOneByOneKernelStillEmitsIm2col)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -725,7 +725,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d reads the weight's axes 1 and 2 as kernel height and width. */
-        TEST(Unit_SpatialShapes, Conv2dTakesANonSquareKernelInHeightThenWidthOrder)
+        TEST(Small_SpatialShapes, Conv2dTakesANonSquareKernelInHeightThenWidthOrder)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -738,7 +738,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d rejects a weight holding the window's taps transposed. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsAWeightWhoseKernelExtentsDifferFromTheWindow)
+        TEST(Small_SpatialShapes, Conv2dRejectsAWeightWhoseKernelExtentsDifferFromTheWindow)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -750,7 +750,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d names itself when a weight's C_in differs from the input's. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsAWeightWhoseInputChannelsDifferFromTheImage)
+        TEST(Small_SpatialShapes, Conv2dRejectsAWeightWhoseInputChannelsDifferFromTheImage)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -763,7 +763,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d rejects a weight that is not rank 4. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsAFlattenedWeight)
+        TEST(Small_SpatialShapes, Conv2dRejectsAFlattenedWeight)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -775,7 +775,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d rejects a rank-3 input. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsARankThreeInput)
+        TEST(Small_SpatialShapes, Conv2dRejectsARankThreeInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -787,7 +787,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a pointwise conv2d rejects an NCHW input although it skips IM2COL. */
-        TEST(Unit_SpatialShapes, Conv2dPointwiseRejectsAnNCHWInput)
+        TEST(Small_SpatialShapes, Conv2dPointwiseRejectsAnNCHWInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -801,7 +801,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d rejects a bias whose extent differs from the filter count. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsABiasWhoseExtentDiffersFromTheFilterCount)
+        TEST(Small_SpatialShapes, Conv2dRejectsABiasWhoseExtentDiffersFromTheFilterCount)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -813,7 +813,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that conv2d rejects a window larger than the padded input. */
-        TEST(Unit_SpatialShapes, Conv2dRejectsAWindowLargerThanThePaddedInput)
+        TEST(Small_SpatialShapes, Conv2dRejectsAWindowLargerThanThePaddedInput)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -825,7 +825,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a conv2d call that throws leaves the graph without a new node. */
-        TEST(Unit_SpatialShapes, Conv2dEmitsNothingWhenItRejectsItsOperands)
+        TEST(Small_SpatialShapes, Conv2dEmitsNothingWhenItRejectsItsOperands)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -846,7 +846,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that Graph::finalise accepts a graph that conv2d built. */
-        TEST(Unit_SpatialShapes, Conv2dBuildsAGraphThatFinaliseAccepts)
+        TEST(Small_SpatialShapes, Conv2dBuildsAGraphThatFinaliseAccepts)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -862,7 +862,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a loss over conv2d differentiates to a weight and a bias gradient. */
-        TEST(Unit_SpatialShapes, Conv2dDifferentiatesToAWeightAndABiasGradient)
+        TEST(Small_SpatialShapes, Conv2dDifferentiatesToAWeightAndABiasGradient)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -887,7 +887,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents pads both sides of an axis by its leading pad. */
-        TEST(Unit_SpatialShapes, WindowExtentsPadBothSidesOfAnAxisByTheLeadingPad)
+        TEST(Small_SpatialShapes, WindowExtentsPadBothSidesOfAnAxisByTheLeadingPad)
         {
             Graph::ConvGeometry g = window(3, 5);
             g.pad_top = 1;
@@ -900,7 +900,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents applies the stride and the dilation of each axis. */
-        TEST(Unit_SpatialShapes, WindowExtentsHonourStrideAndDilationPerAxis)
+        TEST(Small_SpatialShapes, WindowExtentsHonourStrideAndDilationPerAxis)
         {
             Graph::ConvGeometry g = window(3, 3);
             g.stride_h = 2;
@@ -914,7 +914,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a window as large as the padded input yields one window. */
-        TEST(Unit_SpatialShapes, WindowExtentsOfAWindowThatExactlyFitsAreOneByOne)
+        TEST(Small_SpatialShapes, WindowExtentsOfAWindowThatExactlyFitsAreOneByOne)
         {
             const Graph::SpatialExtents out = Graph::window_extents(3, 3, square_window(5, 1));
 
@@ -923,7 +923,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents names a kernel extent that is not positive. */
-        TEST(Unit_SpatialShapes, WindowExtentsRejectANonPositiveKernel)
+        TEST(Small_SpatialShapes, WindowExtentsRejectANonPositiveKernel)
         {
             SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, window(0, 3)),
                             "positive kernel", "kernel 0x3");
@@ -932,7 +932,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that a zero or negative stride is reported as the stride. */
-        TEST(Unit_SpatialShapes, WindowExtentsRejectANonPositiveStrideAndNameIt)
+        TEST(Small_SpatialShapes, WindowExtentsRejectANonPositiveStrideAndNameIt)
         {
             Graph::ConvGeometry zero = window(3, 3);
             zero.stride_h = 0;
@@ -946,7 +946,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents names a dilation that is not positive. */
-        TEST(Unit_SpatialShapes, WindowExtentsRejectANonPositiveDilation)
+        TEST(Small_SpatialShapes, WindowExtentsRejectANonPositiveDilation)
         {
             Graph::ConvGeometry g = window(3, 3);
             g.dilation_w = 0;
@@ -956,7 +956,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents refuses a negative padding on either axis. */
-        TEST(Unit_SpatialShapes, WindowExtentsRejectANegativePadding)
+        TEST(Small_SpatialShapes, WindowExtentsRejectANegativePadding)
         {
             SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, square_window(3, -1)),
                             "padding -1,-1");
@@ -967,14 +967,14 @@ namespace SushiAI
         }
 
         /** @brief Tests that window_extents names the window and the input it does not fit. */
-        TEST(Unit_SpatialShapes, WindowExtentsRejectAWindowThatDoesNotFit)
+        TEST(Small_SpatialShapes, WindowExtentsRejectAWindowThatDoesNotFit)
         {
             SA_EXPECT_ERROR((void)Graph::window_extents(4, 6, window(5, 5)),
                             "5x5 window", "4x6 input");
         }
 
         /** @brief Tests that upsampled_extents multiplies each axis by its own scale. */
-        TEST(Unit_SpatialShapes, UpsampledExtentsScaleEachAxisByItsOwnFactor)
+        TEST(Small_SpatialShapes, UpsampledExtentsScaleEachAxisByItsOwnFactor)
         {
             const Graph::SpatialExtents out = Graph::upsampled_extents(3, 5, 2, 4);
 
@@ -983,14 +983,14 @@ namespace SushiAI
         }
 
         /** @brief Tests that upsampled_extents refuses a scale below one on either axis. */
-        TEST(Unit_SpatialShapes, UpsampledExtentsRejectAScaleBelowOne)
+        TEST(Small_SpatialShapes, UpsampledExtentsRejectAScaleBelowOne)
         {
             SA_EXPECT_ERROR((void)Graph::upsampled_extents(3, 5, 0, 2), "at least one", "0x2");
             SA_EXPECT_ERROR((void)Graph::upsampled_extents(3, 5, 2, -1), "at least one", "2x-1");
         }
 
         /** @brief Tests that upsampled_extents refuses a product beyond 64 bits on either axis. */
-        TEST(Unit_SpatialShapes, UpsampledExtentsRejectAProductBeyondSixtyFourBits)
+        TEST(Small_SpatialShapes, UpsampledExtentsRejectAProductBeyondSixtyFourBits)
         {
             const int64_t scale = int64_t{1} << 62;
 
@@ -999,7 +999,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that upsampled_extents accepts the largest product 64 bits hold. */
-        TEST(Unit_SpatialShapes, UpsampledExtentsAcceptTheLargestProductThatFits)
+        TEST(Small_SpatialShapes, UpsampledExtentsAcceptTheLargestProductThatFits)
         {
             const int64_t largest = std::numeric_limits<int64_t>::max();
 
@@ -1010,7 +1010,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that upsample2d refuses an overflowing extent and emits no node. */
-        TEST(Unit_SpatialShapes, UpsampleRejectsAScaledExtentBeyondSixtyFourBits)
+        TEST(Small_SpatialShapes, UpsampleRejectsAScaledExtentBeyondSixtyFourBits)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -1022,7 +1022,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that the deriving emitters refuse a negative padding by name. */
-        TEST(Unit_SpatialShapes, TheDerivingEmittersRejectANegativePadding)
+        TEST(Small_SpatialShapes, TheDerivingEmittersRejectANegativePadding)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -1037,7 +1037,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that col2im refuses a negative padding by name. */
-        TEST(Unit_SpatialShapes, Col2ImRejectsANegativePadding)
+        TEST(Small_SpatialShapes, Col2ImRejectsANegativePadding)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -1048,7 +1048,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that col2im refuses an image shape that is not rank 4. */
-        TEST(Unit_SpatialShapes, Col2ImRejectsAnImageShapeThatIsNotRankFour)
+        TEST(Small_SpatialShapes, Col2ImRejectsAnImageShapeThatIsNotRankFour)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -1059,7 +1059,7 @@ namespace SushiAI
         }
 
         /** @brief Tests that the deriving emitters name the layout before a window's fit. */
-        TEST(Unit_SpatialShapes, TheDerivingEmittersNameTheLayoutBeforeTheWindow)
+        TEST(Small_SpatialShapes, TheDerivingEmittersNameTheLayoutBeforeTheWindow)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);

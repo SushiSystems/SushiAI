@@ -1,7 +1,7 @@
 # tests/layers/nn/test_upsample2d.cpp
 
 
-Suites: `Unit_Upsample2d`.
+Suites: `Small_Upsample2d`.
 
 Tests the shape, layout and rejections of the Upsample2d layer.
 

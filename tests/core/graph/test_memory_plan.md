@@ -1,7 +1,7 @@
 # tests/core/graph/test_memory_plan.cpp
 
 
-Suites: `Unit_MemoryPlan`.
+Suites: `Small_MemoryPlan`.
 
 Tests that the memory planner never shares a byte between two values live together.
 

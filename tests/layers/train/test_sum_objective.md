@@ -1,7 +1,7 @@
 # tests/layers/train/test_sum_objective.cpp
 
 
-Suites: `Unit_SumObjective`.
+Suites: `Small_SumObjective`.
 
 Tests `Train::SumObjective` and its factory `Train::make_sum_objective`, reached through the
 `sum` row of the registry. Most cases sum two `CrossEntropyObjective` terms over 4 rows of 3

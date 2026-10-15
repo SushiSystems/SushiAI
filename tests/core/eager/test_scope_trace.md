@@ -1,7 +1,7 @@
 # tests/core/eager/test_scope_trace.cpp
 
 
-Suites: `Unit_ScopeTrace`.
+Suites: `Small_ScopeTrace`.
 
 Tests how ScopeTrace cuts a trace into segments and which calls it rejects.
 

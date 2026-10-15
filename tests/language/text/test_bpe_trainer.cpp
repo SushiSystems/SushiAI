@@ -62,7 +62,7 @@ namespace
  * (a, b) occurs 3 times and becomes 257, leaving 257 257 257 c. (257, 257) occurs twice and
  * becomes 258 at the left, leaving 258 257 c, where every pair occurs once.
  */
-TEST(Unit_TextBpeTrainer, ItLearnsTheHandWorkedMergesOfATinyCorpus)
+TEST(Small_TextBpeTrainer, ItLearnsTheHandWorkedMergesOfATinyCorpus)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe("abababc", options_of(300)));
 
@@ -80,7 +80,7 @@ TEST(Unit_TextBpeTrainer, ItLearnsTheHandWorkedMergesOfATinyCorpus)
  * occur twice: (32, 99) becomes 257, which ends (99, 100) and makes (257, 100) occur twice;
  * (97, 98) becomes 258; (257, 100) becomes 259.
  */
-TEST(Unit_TextBpeTrainer, PairsOfOneCountMergeBySmallerLeftThenRightID)
+TEST(Small_TextBpeTrainer, PairsOfOneCountMergeBySmallerLeftThenRightID)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
                             train_bpe("ab ab cd cd", options_of(300)));
@@ -92,7 +92,7 @@ TEST(Unit_TextBpeTrainer, PairsOfOneCountMergeBySmallerLeftThenRightID)
 }
 
 /** @brief Tests that no merge joins the end of one chunk with the blank that follows it. */
-TEST(Unit_TextBpeTrainer, NoMergeCrossesTheStartOfABlankRun)
+TEST(Small_TextBpeTrainer, NoMergeCrossesTheStartOfABlankRun)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary,
                             train_bpe("a b a b a b", options_of(300)));
@@ -103,7 +103,7 @@ TEST(Unit_TextBpeTrainer, NoMergeCrossesTheStartOfABlankRun)
 }
 
 /** @brief Tests that two runs over one corpus and one seed give the same merges. */
-TEST(Unit_TextBpeTrainer, TheSameCorpusGivesTheSameVocabulary)
+TEST(Small_TextBpeTrainer, TheSameCorpusGivesTheSameVocabulary)
 {
     std::mt19937 generator(K_SEED);
     const std::string corpus = Support::drawn_bytes(generator, 20000, "abcdef  \n");
@@ -118,7 +118,7 @@ TEST(Unit_TextBpeTrainer, TheSameCorpusGivesTheSameVocabulary)
 }
 
 /** @brief Tests that a run to a smaller size learns the first merges of a run to a larger. */
-TEST(Unit_TextBpeTrainer, ARunStoppedEarlyLearnsTheFirstMergesOfALongerRun)
+TEST(Small_TextBpeTrainer, ARunStoppedEarlyLearnsTheFirstMergesOfALongerRun)
 {
     std::mt19937 generator(K_SEED);
     const std::string corpus = Support::drawn_bytes(generator, 4000, "abc ");
@@ -135,7 +135,7 @@ TEST(Unit_TextBpeTrainer, ARunStoppedEarlyLearnsTheFirstMergesOfALongerRun)
 }
 
 /** @brief Tests that training stops when the vocabulary has the size asked for. */
-TEST(Unit_TextBpeTrainer, ItStopsAtTheSizeAskedFor)
+TEST(Small_TextBpeTrainer, ItStopsAtTheSizeAskedFor)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary vocabulary, train_bpe("abababc", options_of(258)));
 
@@ -144,7 +144,7 @@ TEST(Unit_TextBpeTrainer, ItStopsAtTheSizeAskedFor)
 }
 
 /** @brief Tests that a pair that occurs once is not merged, and an empty corpus trains. */
-TEST(Unit_TextBpeTrainer, APairThatOccursOnceIsNotMerged)
+TEST(Small_TextBpeTrainer, APairThatOccursOnceIsNotMerged)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Vocabulary once, train_bpe("abcdef", options_of(300)));
     EXPECT_EQ(once.size(), 257);
@@ -154,7 +154,7 @@ TEST(Unit_TextBpeTrainer, APairThatOccursOnceIsNotMerged)
 }
 
 /** @brief Tests that the special tokens take their ids before the first merged token. */
-TEST(Unit_TextBpeTrainer, SpecialTokensPrecedeTheMergedTokens)
+TEST(Small_TextBpeTrainer, SpecialTokensPrecedeTheMergedTokens)
 {
     BPETrainerOptions options = options_of(300);
     options.special_names = {"<pad>"};
@@ -167,7 +167,7 @@ TEST(Unit_TextBpeTrainer, SpecialTokensPrecedeTheMergedTokens)
 }
 
 /** @brief Tests that a size below the base tokens or above the limit is refused. */
-TEST(Unit_TextBpeTrainer, ItRefusesASizeOutOfBounds)
+TEST(Small_TextBpeTrainer, ItRefusesASizeOutOfBounds)
 {
     SA_EXPECT_FAILURE(train_bpe("abab", options_of(256)), StatusCode::InvalidDescription,
                       "train_bpe", "256 tokens", "257 to");

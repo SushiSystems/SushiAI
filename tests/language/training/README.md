@@ -4,8 +4,8 @@ The tests of the module `language/training`, one file per header of `modules/lan
 
 ## test_expert_balance_objective.cpp
 
-Suites: `Unit_LanguageTrainingExpertBalanceObjective`,
-`Unit_LanguageTrainingExpertBalanceMetrics`.
+Suites: `Small_LanguageTrainingExpertBalanceObjective`,
+`Medium_LanguageTrainingExpertBalanceMetrics`.
 
 Tests `Language::Training::ExpertBalanceObjective` in
 `modules/language/training/include/SushiAI/language/training/expert_balance_objective.hpp` and
@@ -60,7 +60,7 @@ experts", "8 values", "holds 4"). No metric is written.
 
 ## test_next_token_objective.cpp
 
-Suites: `Unit_LanguageTrainingNextTokenObjective`.
+Suites: `Medium_LanguageTrainingNextTokenObjective`.
 
 Tests `Language::Training::NextTokenObjective` in
 `modules/language/training/include/SushiAI/language/training/next_token_objective.hpp` and its
@@ -129,7 +129,7 @@ Over the same two outputs, the factory fails with `InvalidDescription` for an em
 
 ## test_next_token_targets.cpp
 
-Suites: `Unit_LanguageTrainingNextTokenTargets`, `Unit_LanguageTrainingPerplexity`.
+Suites: `Medium_LanguageTrainingNextTokenTargets`, `Small_LanguageTrainingPerplexity`.
 
 Tests `Language::Training::fill_next_token_targets` in
 `modules/language/training/include/SushiAI/language/training/next_token_targets.hpp`, and
@@ -156,15 +156,15 @@ The fill fails with `Incompatible` for labels of the shape [2, 2] ("holds 4 labe
 ### ThePerplexityIsTheExponentialOfTheLoss
 
 `perplexity(0)` is exactly 1, `perplexity(ln 64)` is 64 within a relative 1e-12 and
-`perplexity(1e6)` is infinite. The case is in the suite `Unit_LanguageTrainingPerplexity`.
+`perplexity(1e6)` is infinite. The case is in the suite `Small_LanguageTrainingPerplexity`.
 
 ### TheMetricsAreTheLossAndThePerplexity
 
 `next_token_metrics(ln 8)` returns "loss" with exactly ln 8 and "perplexity" with 8 within a
 relative 1e-12, neither marked as a fraction. The case is in the suite
-`Unit_LanguageTrainingPerplexity`.
+`Small_LanguageTrainingPerplexity`.
 
-Suites: `Integration_NextTokenObjective`, in `sushiai_language_training_tests`.
+Suites: `Medium_NextTokenObjective`, in `sushiai_language_training_tests`.
 
 The model is an `Embedding` of five rows and width five, so the logits of a position are the table
 row of its token. The table holds `0.3 r - 0.2 c + 0.1 r c`. The batch is two rows of three tokens,
@@ -177,7 +177,7 @@ The graph binds one parameter slot. After one step the loss equals the mean of `
 the six positions, and each element of the table's gradient equals `(softmax - one_hot) / 6` summed
 by table row, both within 1e-5.
 
-Suites: `Integration_NextTokenTrainer`, in `sushiai_language_training_tests`.
+Suites: `Medium_NextTokenTrainer`, in `sushiai_language_training_tests`.
 
 The fixture fits a bigram table, an `Embedding` of five rows and width five, to one batch of two
 rows of three tokens through `Train::Trainer` and the next-token objective's own feed, for 30
@@ -194,7 +194,7 @@ The report's text names it.
 A label of 9 with five tokens is refused as `Incompatible`. The message contains "position 3", "is
 9" and "holds 5 tokens".
 
-Suites: `Integration_DecoderOverfit`, in `sushiai_language_training_tests`.
+Suites: `Medium_DecoderOverfit`, in `sushiai_language_training_tests`.
 
 The model is a decoder with a token table of 64 rows, a learned position table over 16 positions,
 two causal blocks of width 32 with two heads and a feed-forward width of 64, and a head tied to the
@@ -211,7 +211,7 @@ table, the head's normalisation weight and a `qkv` bias do not decay, and a `qkv
 the first, and its perplexity is below the first's. The step reports one compile and the optimizer
 400 steps.
 
-Suites: `Integration_RotaryDecoderOverfit`, in `sushiai_language_training_tests`.
+Suites: `Medium_RotaryDecoderOverfit`, in `sushiai_language_training_tests`.
 
 The setup is that of `test_decoder_overfit.cpp` without the position table: a token table of 64
 rows, two rotary blocks of width 32 with two heads and a feed-forward width of 64, one batch of four

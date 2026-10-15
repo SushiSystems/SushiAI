@@ -4,7 +4,7 @@ The tests of the module `core/version`, one file per header of `modules/core/ver
 
 ## test_version.cpp
 
-Suites: `Unit_Version`.
+Suites: `Small_Version`.
 
 Tests that the runtime version agrees with the compile-time macros.
 

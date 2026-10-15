@@ -152,7 +152,7 @@ namespace
 } // namespace
 
 /** @brief Tests that make() keeps the three extents and refuses one below 1. */
-TEST(Unit_LanguageTrainingNextTokenObjective, MakeKeepsItsExtentsAndRefusesNone)
+TEST(Medium_LanguageTrainingNextTokenObjective, MakeKeepsItsExtentsAndRefusesNone)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
@@ -168,7 +168,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, MakeKeepsItsExtentsAndRefusesNone)
 }
 
 /** @brief Tests that a product INT32 cannot index is refused, and the largest one is not. */
-TEST(Unit_LanguageTrainingNextTokenObjective, MakeRefusesWhatInt32CannotIndex)
+TEST(Medium_LanguageTrainingNextTokenObjective, MakeRefusesWhatInt32CannotIndex)
 {
     // 64 * 1024 * 50257 is 3 293 642 752, above 2 147 483 647.
     SA_EXPECT_FAILURE(NextTokenObjective::make(64, 1024, 50257),
@@ -182,7 +182,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, MakeRefusesWhatInt32CannotIndex)
 }
 
 /** @brief Tests that the one leaf is INT32 [N * T] and that labels are read as [T] ids. */
-TEST(Unit_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabels)
+TEST(Medium_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabels)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
@@ -205,7 +205,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, ItDeclaresAnIndexLeafAndReadsLabel
 }
 
 /** @brief Tests that the loss is one element built from a row gather and no one-hot product. */
-TEST(Unit_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPerPosition)
+TEST(Medium_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPerPosition)
 {
     NN::Embedding model = make_bigram_model();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
@@ -232,7 +232,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, TheLossGathersOneLogProbabilityPer
 }
 
 /** @brief Tests that the factory reads N, T and V from the model's one output. */
-TEST(Unit_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
+TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
@@ -247,7 +247,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, TheFactoryReadsTheModelsOutput)
 }
 
 /** @brief Tests each description the factory refuses. */
-TEST(Unit_LanguageTrainingNextTokenObjective, TheFactoryRefusesWhatDoesNotFit)
+TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesWhatDoesNotFit)
 {
     SA_EXPECT_FAILURE(
         make_next_token_objective(make_context(),
@@ -277,7 +277,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, TheFactoryRefusesWhatDoesNotFit)
 }
 
 /** @brief Tests that the objective states a batch alone feeds it, so a sum may hold it. */
-TEST(Unit_LanguageTrainingNextTokenObjective, ABatchAloneFeedsTheObjective)
+TEST(Medium_LanguageTrainingNextTokenObjective, ABatchAloneFeedsTheObjective)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
@@ -286,7 +286,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, ABatchAloneFeedsTheObjective)
 }
 
 /** @brief Tests that the objective measures the perplexity of the loss a step computed. */
-TEST(Unit_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLoss)
+TEST(Medium_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLoss)
 {
     // A uniform guess over 8 tokens costs ln(8) nats and has a perplexity of 8.
     constexpr double K_RELATIVE_TOLERANCE = 1e-12;
@@ -305,7 +305,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLo
 }
 
 /** @brief Tests that "output" names the logits of a model that publishes several values. */
-TEST(Unit_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSeveral)
+TEST(Medium_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSeveral)
 {
     Train::ObjectiveContext several = make_context();
     several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
@@ -331,7 +331,7 @@ TEST(Unit_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongSev
 }
 
 /** @brief Tests each form of "output" the factory refuses. */
-TEST(Unit_LanguageTrainingNextTokenObjective, TheFactoryRefusesAnOutputItCannotFind)
+TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesAnOutputItCannotFind)
 {
     Train::ObjectiveContext several = make_context();
     several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
@@ -426,14 +426,14 @@ namespace
     }
 
     /** @brief Provides the engine the state and the step are built on. */
-    class Integration_NextTokenObjective : public SaTest::EngineTest
+    class Medium_NextTokenObjective : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests the loss and the table's gradient of one step against the host's numbers. */
-TEST_F(Integration_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
+TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
 {
     NN::Embedding model{};
     model.num_embeddings = K_VOCABULARY;
@@ -538,7 +538,7 @@ namespace
     }
 
     /** @brief Provides the engine the state, the dataset and the step are built on. */
-    class Integration_NextTokenTrainer : public SaTest::EngineTest
+    class Medium_NextTokenTrainer : public SaTest::EngineTest
     {
         protected:
             /**
@@ -588,7 +588,7 @@ namespace
 } // namespace
 
 /** @brief Tests that fit lowers the next-token loss and reports its perplexity. */
-TEST_F(Integration_NextTokenTrainer, FitLowersTheLossAndReportsPerplexity)
+TEST_F(Medium_NextTokenTrainer, FitLowersTheLossAndReportsPerplexity)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, fit_bigram({3, 1, 1, 4, 2, 0}));
 
@@ -605,7 +605,7 @@ TEST_F(Integration_NextTokenTrainer, FitLowersTheLossAndReportsPerplexity)
 }
 
 /** @brief Tests that a label outside the vocabulary stops the first step and names its row. */
-TEST_F(Integration_NextTokenTrainer, ALabelOutsideTheVocabularyStopsTheFirstStep)
+TEST_F(Medium_NextTokenTrainer, ALabelOutsideTheVocabularyStopsTheFirstStep)
 {
     SA_EXPECT_FAILURE(fit_bigram({3, 1, 1, 9, 2, 0}), StatusCode::Incompatible, "position 3",
                       "is 9", "holds 5 tokens");
@@ -761,14 +761,14 @@ namespace
     }
 
     /** @brief Provides the engine the dataset, the state and the step are built on. */
-    class Integration_DecoderOverfit : public SaTest::EngineTest
+    class Medium_DecoderOverfit : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
-TEST_F(Integration_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
+TEST_F(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
 {
     const ScratchFile file("sushiai_decoder_overfit.satk");
     const std::vector<Language::Text::TokenID> ids = make_ids();
@@ -936,14 +936,14 @@ namespace
     };
 
     /** @brief Provides the engine the dataset, the state and the step are built on. */
-    class Integration_RotaryDecoderOverfit : public SaTest::EngineTest
+    class Medium_RotaryDecoderOverfit : public SaTest::EngineTest
     {
 
     };
 } // namespace
 
 /** @brief Tests that the loss of one fixed batch falls below a tenth of its start. */
-TEST_F(Integration_RotaryDecoderOverfit, ATwoBlockRotaryDecoderOverfitsOneBatch)
+TEST_F(Medium_RotaryDecoderOverfit, ATwoBlockRotaryDecoderOverfitsOneBatch)
 {
     const ScratchFile file("sushiai_rotary_decoder_overfit.satk");
     const std::vector<Language::Text::TokenID> ids = make_ids();

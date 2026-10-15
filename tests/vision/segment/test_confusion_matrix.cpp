@@ -53,7 +53,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a new matrix holds its class count and no pixel. */
-TEST(Unit_SegmentConfusionMatrix, ANewMatrixCountsNothing)
+TEST(Small_SegmentConfusionMatrix, ANewMatrixCountsNothing)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix matrix, ConfusionMatrix::make(3));
 
@@ -63,7 +63,7 @@ TEST(Unit_SegmentConfusionMatrix, ANewMatrixCountsNothing)
 }
 
 /** @brief Tests that each pixel is counted at its true row and its predicted column. */
-TEST(Unit_SegmentConfusionMatrix, AddCountsByTruthAndPrediction)
+TEST(Small_SegmentConfusionMatrix, AddCountsByTruthAndPrediction)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(3));
     const Classes predicted{0, 1, 1, 2, 2, 2};
@@ -83,7 +83,7 @@ TEST(Unit_SegmentConfusionMatrix, AddCountsByTruthAndPrediction)
 }
 
 /** @brief Tests that an ignored pixel is counted nowhere, whatever was predicted for it. */
-TEST(Unit_SegmentConfusionMatrix, AnIgnoredPixelIsNotCounted)
+TEST(Small_SegmentConfusionMatrix, AnIgnoredPixelIsNotCounted)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
     const Classes predicted{0, 1, 7};
@@ -97,7 +97,7 @@ TEST(Unit_SegmentConfusionMatrix, AnIgnoredPixelIsNotCounted)
 }
 
 /** @brief Tests that two batches added one after the other give the sum of their counts. */
-TEST(Unit_SegmentConfusionMatrix, CountsAccumulateOverBatches)
+TEST(Small_SegmentConfusionMatrix, CountsAccumulateOverBatches)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
     const Classes predicted{0, 1, 1};
@@ -113,7 +113,7 @@ TEST(Unit_SegmentConfusionMatrix, CountsAccumulateOverBatches)
 }
 
 /** @brief Tests that merge adds another matrix count by count and clear empties one. */
-TEST(Unit_SegmentConfusionMatrix, MergeAddsAndClearEmpties)
+TEST(Small_SegmentConfusionMatrix, MergeAddsAndClearEmpties)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix first, ConfusionMatrix::make(2));
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix second, ConfusionMatrix::make(2));
@@ -131,7 +131,7 @@ TEST(Unit_SegmentConfusionMatrix, MergeAddsAndClearEmpties)
 }
 
 /** @brief Tests that make refuses a class count outside [1, K_MAX_CONFUSION_CLASSES]. */
-TEST(Unit_SegmentConfusionMatrix, MakeRefusesAClassCountOutsideItsBounds)
+TEST(Small_SegmentConfusionMatrix, MakeRefusesAClassCountOutsideItsBounds)
 {
     SA_EXPECT_FAILURE(ConfusionMatrix::make(0), StatusCode::InvalidDescription,
                       "ConfusionMatrix", "0 classes");
@@ -140,7 +140,7 @@ TEST(Unit_SegmentConfusionMatrix, MakeRefusesAClassCountOutsideItsBounds)
 }
 
 /** @brief Tests that add refuses unequal spans and a class out of bounds, changing nothing. */
-TEST(Unit_SegmentConfusionMatrix, AddRefusesWithoutCounting)
+TEST(Small_SegmentConfusionMatrix, AddRefusesWithoutCounting)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix matrix, ConfusionMatrix::make(2));
     const Classes two{0, 1};
@@ -161,7 +161,7 @@ TEST(Unit_SegmentConfusionMatrix, AddRefusesWithoutCounting)
 }
 
 /** @brief Tests that merge refuses a matrix of another class count. */
-TEST(Unit_SegmentConfusionMatrix, MergeRefusesAnotherClassCount)
+TEST(Small_SegmentConfusionMatrix, MergeRefusesAnotherClassCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(ConfusionMatrix two, ConfusionMatrix::make(2));
     SA_ASSERT_OK_AND_ASSIGN(const ConfusionMatrix three, ConfusionMatrix::make(3));

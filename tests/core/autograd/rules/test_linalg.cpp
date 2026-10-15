@@ -74,7 +74,7 @@ namespace
 }
 
 /** @brief Tests that the mask is differentiable and has a rule. */
-TEST(Unit_CausalMaskBackward, TheMaskHasARule)
+TEST(Small_CausalMaskBackward, TheMaskHasARule)
 {
     EXPECT_TRUE(Ops::K_CAUSAL_MASK.differentiable);
     EXPECT_FALSE(Ops::K_CAUSAL_MASK.blocks_gradient);
@@ -82,7 +82,7 @@ TEST(Unit_CausalMaskBackward, TheMaskHasARule)
 }
 
 /** @brief Tests that the gradient of the scores is a second mask whose fill is zero. */
-TEST(Unit_CausalMaskBackward, TheScoreGradientIsTheGradientMaskedWithZero)
+TEST(Small_CausalMaskBackward, TheScoreGradientIsTheGradientMaskedWithZero)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -106,7 +106,7 @@ TEST(Unit_CausalMaskBackward, TheScoreGradientIsTheGradientMaskedWithZero)
 }
 
 /** @brief Tests that scores that need no gradient add no second mask. */
-TEST(Unit_CausalMaskBackward, ScoresThatNeedNoGradientAddNoNode)
+TEST(Small_CausalMaskBackward, ScoresThatNeedNoGradientAddNoNode)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -161,7 +161,7 @@ namespace
 }
 
 /** @brief Tests that the gather and its scatter-add each have a rule. */
-TEST(Unit_GatherBackward, TheGatherAndTheScatterAddEachHaveARule)
+TEST(Small_GatherBackward, TheGatherAndTheScatterAddEachHaveARule)
 {
     EXPECT_TRUE(Ops::K_GATHER_ROWS.differentiable);
     EXPECT_TRUE(Ops::K_SCATTER_ADD_ROWS.differentiable);
@@ -170,7 +170,7 @@ TEST(Unit_GatherBackward, TheGatherAndTheScatterAddEachHaveARule)
 }
 
 /** @brief Tests that the gradient of scattered rows is one GATHER_ROWS over the forward index. */
-TEST(Unit_GatherBackward, TheScatteredRowsGradientIsOneGatherOverTheForwardIndex)
+TEST(Small_GatherBackward, TheScatteredRowsGradientIsOneGatherOverTheForwardIndex)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -197,7 +197,7 @@ TEST(Unit_GatherBackward, TheScatteredRowsGradientIsOneGatherOverTheForwardIndex
 }
 
 /** @brief Tests that the index of a scatter-add gets no gradient. */
-TEST(Unit_GatherBackward, TheScatterIndexReceivesNoGradient)
+TEST(Small_GatherBackward, TheScatterIndexReceivesNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -216,7 +216,7 @@ TEST(Unit_GatherBackward, TheScatterIndexReceivesNoGradient)
 }
 
 /** @brief Tests that scattered rows that require no gradient get no gather. */
-TEST(Unit_GatherBackward, FrozenScatteredRowsAppendNoGather)
+TEST(Small_GatherBackward, FrozenScatteredRowsAppendNoGather)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -234,7 +234,7 @@ TEST(Unit_GatherBackward, FrozenScatteredRowsAppendNoGather)
 }
 
 /** @brief Tests that the table's gradient is one SCATTER_ADD_ROWS over the forward index. */
-TEST(Unit_GatherBackward, TheTableGradientIsOneScatterAddOverTheForwardIndex)
+TEST(Small_GatherBackward, TheTableGradientIsOneScatterAddOverTheForwardIndex)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -262,7 +262,7 @@ TEST(Unit_GatherBackward, TheTableGradientIsOneScatterAddOverTheForwardIndex)
 }
 
 /** @brief Tests that a requested INT32 index comes back with no gradient value. */
-TEST(Unit_GatherBackward, TheIndexReceivesNoGradient)
+TEST(Small_GatherBackward, TheIndexReceivesNoGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -281,7 +281,7 @@ TEST(Unit_GatherBackward, TheIndexReceivesNoGradient)
 }
 
 /** @brief Tests that a rank-2 index scatters the gradient in the gather's own [B, T, D] shape. */
-TEST(Unit_GatherBackward, ARankTwoIndexScattersTheGradientOfTheGathersShape)
+TEST(Small_GatherBackward, ARankTwoIndexScattersTheGradientOfTheGathersShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -303,7 +303,7 @@ TEST(Unit_GatherBackward, ARankTwoIndexScattersTheGradientOfTheGathersShape)
 }
 
 /** @brief Tests that a table that requires no gradient gets no scatter-add. */
-TEST(Unit_GatherBackward, AFrozenTableAppendsNoScatterAdd)
+TEST(Small_GatherBackward, AFrozenTableAppendsNoScatterAdd)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -321,7 +321,7 @@ TEST(Unit_GatherBackward, AFrozenTableAppendsNoScatterAdd)
 }
 
 /** @brief Tests that two gathers of one table give two scatter-adds joined by an ACCUMULATE. */
-TEST(Unit_GatherBackward, TwoGathersOfOneTableAccumulateTheirScatterAdds)
+TEST(Small_GatherBackward, TwoGathersOfOneTableAccumulateTheirScatterAdds)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

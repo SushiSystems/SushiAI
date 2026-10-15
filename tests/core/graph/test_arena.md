@@ -1,7 +1,7 @@
 # tests/core/graph/test_arena.cpp
 
 
-Suites: `Integration_Arena`, `Integration_ArenaDeathTest`.
+Suites: `Medium_Arena`, `Medium_ArenaDeathTest`.
 
 The memory planner rests on three device-side claims, and the file checks each one.
 
@@ -72,4 +72,4 @@ caller uses to get unpacked allocation.
 
 The test compares no byte counts. Its tensors are 64 bytes each and the arena aligns every slot
 to 128, so packing them costs memory. The saving belongs to realistic tensor sizes and is
-measured where that holds, in `Regression_StaticMemory`.
+measured where that holds, in `Medium_StaticMemory`.

@@ -77,7 +77,7 @@ namespace
     const std::vector<float> K_FLAGS = {1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
 
     /** @brief Provides an engine and batches whose roles hold the values above. */
-    class Unit_TruthFromRoles : public Test::EngineTest
+    class Medium_TruthFromRoles : public Test::EngineTest
     {
         protected:
             /** @brief Returns the three roles of K_SLOTS slots over K_CLASSES classes. */
@@ -115,7 +115,7 @@ namespace
 } // namespace
 
 /** @brief Tests that the description is boxes, classes and valid over M slots. */
-TEST(Unit_TruthRoles, DescribesBoxesClassesAndValidOverTheSlots)
+TEST(Small_TruthRoles, DescribesBoxesClassesAndValidOverTheSlots)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<Data::TargetDescription> roles,
                             describe_truth_roles(K_SLOTS, K_CLASSES));
@@ -138,7 +138,7 @@ TEST(Unit_TruthRoles, DescribesBoxesClassesAndValidOverTheSlots)
 }
 
 /** @brief Tests that a class count of 0 is described, for a dataset of any count. */
-TEST(Unit_TruthRoles, DescribesAClassCountOfZero)
+TEST(Small_TruthRoles, DescribesAClassCountOfZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<Data::TargetDescription> roles,
                             describe_truth_roles(1, 0));
@@ -146,7 +146,7 @@ TEST(Unit_TruthRoles, DescribesAClassCountOfZero)
 }
 
 /** @brief Tests that no slot and a negative class count are refused with their values. */
-TEST(Unit_TruthRoles, RefusesNoSlotAndANegativeClassCount)
+TEST(Small_TruthRoles, RefusesNoSlotAndANegativeClassCount)
 {
     SA_EXPECT_FAILURE(describe_truth_roles(0, K_CLASSES), StatusCode::InvalidDescription,
                       "object slot", "got 0");
@@ -159,7 +159,7 @@ TEST(Unit_TruthRoles, RefusesNoSlotAndANegativeClassCount)
  *
  * Every value is a copy or an exact conversion, so the tolerance is zero.
  */
-TEST_F(Unit_TruthFromRoles, CopiesTheCornersWidensTheClassesAndMakesTheFlagsBytes)
+TEST_F(Medium_TruthFromRoles, CopiesTheCornersWidensTheClassesAndMakesTheFlagsBytes)
 {
     const Data::Batch batch = filled_batch();
 
@@ -174,7 +174,7 @@ TEST_F(Unit_TruthFromRoles, CopiesTheCornersWidensTheClassesAndMakesTheFlagsByte
 }
 
 /** @brief Tests that the roles are found by name, in whatever order the batch holds them. */
-TEST_F(Unit_TruthFromRoles, FindsTheRolesInAnotherOrder)
+TEST_F(Medium_TruthFromRoles, FindsTheRolesInAnotherOrder)
 {
     Data::Batch batch = filled_batch();
     std::swap(batch.targets[0], batch.targets[2]);
@@ -186,7 +186,7 @@ TEST_F(Unit_TruthFromRoles, FindsTheRolesInAnotherOrder)
 }
 
 /** @brief Tests that a second batch of the same size is written into the same storage. */
-TEST_F(Unit_TruthFromRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
+TEST_F(Medium_TruthFromRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
 {
     Data::Batch batch = filled_batch();
 
@@ -206,7 +206,7 @@ TEST_F(Unit_TruthFromRoles, KeepsTheStorageOfATruthBetweenBatchesOfOneSize)
 }
 
 /** @brief Tests that a batch without one of the three roles is refused with the role. */
-TEST_F(Unit_TruthFromRoles, RefusesABatchThatLacksARole)
+TEST_F(Medium_TruthFromRoles, RefusesABatchThatLacksARole)
 {
     for (std::size_t missing = 0; missing < 3; ++missing)
     {
@@ -225,7 +225,7 @@ TEST_F(Unit_TruthFromRoles, RefusesABatchThatLacksARole)
 }
 
 /** @brief Tests that a role of another element type or rank is refused with what it holds. */
-TEST_F(Unit_TruthFromRoles, RefusesARoleOfAnotherElementTypeOrRank)
+TEST_F(Medium_TruthFromRoles, RefusesARoleOfAnotherElementTypeOrRank)
 {
     std::vector<Data::TargetDescription> described = roles();
     described[1].dtype = DType::Float32;
@@ -245,7 +245,7 @@ TEST_F(Unit_TruthFromRoles, RefusesARoleOfAnotherElementTypeOrRank)
 }
 
 /** @brief Tests that a box of three values and roles of other slot counts are refused. */
-TEST_F(Unit_TruthFromRoles, RefusesABoxOfAnotherWidthAndRolesOfOtherSlots)
+TEST_F(Medium_TruthFromRoles, RefusesABoxOfAnotherWidthAndRolesOfOtherSlots)
 {
     std::vector<Data::TargetDescription> described = roles();
     described[0].sample_shape = Shape{K_SLOTS, 3};
@@ -265,7 +265,7 @@ TEST_F(Unit_TruthFromRoles, RefusesABoxOfAnotherWidthAndRolesOfOtherSlots)
 }
 
 /** @brief Tests that a flag other than 0 and 1 is refused and the truth is left as it was. */
-TEST_F(Unit_TruthFromRoles, RefusesAFlagThatIsNeitherZeroNorOneAndLeavesTheTruth)
+TEST_F(Medium_TruthFromRoles, RefusesAFlagThatIsNeitherZeroNorOneAndLeavesTheTruth)
 {
     Data::Batch batch = filled_batch();
     GroundTruthBatch truth;
