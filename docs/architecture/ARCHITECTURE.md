@@ -154,7 +154,7 @@ sushiai_add_module(NAME graph TIER core
     TESTS tests/test_ir.cpp ...)
 
 sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
-    UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.h")
+    UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.hpp")
 ```
 
 A module's `SOURCES` feed both its `OBJECT` library and `sushiai_apply_sycl()`, so a source that
@@ -170,7 +170,7 @@ contract transitively rather than owning a copy of that guarantee, which is
 also why gradient accumulation is ordered through the graph's edges rather
 than through atomics (see `autograd/backward.hpp`).
 
-`modules/layers/umbrella/include/SushiAI/SushiAI.h` is the master header and includes every
+`modules/layers/umbrella/include/SushiAI/SushiAI.hpp` is the master header and includes every
 public header of the `sushiai` library. Two lanes live under it. Each header name below is
 relative to `SushiAI/` under the `include/` of the module that owns it:
 

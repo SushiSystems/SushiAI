@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include <SushiAI/language/registration.hpp>
+#include <SushiAI/language/registration/registration.hpp>
 
 #include <SushiAI/core/status.hpp>
 #include <SushiAI/data/dataset_registry.hpp>

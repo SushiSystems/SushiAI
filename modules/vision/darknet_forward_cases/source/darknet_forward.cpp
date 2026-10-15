@@ -72,7 +72,7 @@
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 #include <SushiAI/darknet_reference/darknet_reference.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 
 namespace SushiAI

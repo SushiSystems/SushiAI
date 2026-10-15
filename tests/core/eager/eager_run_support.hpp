@@ -54,7 +54,7 @@
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 

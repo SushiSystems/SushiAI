@@ -50,7 +50,7 @@
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
-#include <SushiAI/vision/registration.hpp>
+#include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/anchor_training_loop.hpp>

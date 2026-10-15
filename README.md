@@ -482,7 +482,7 @@ replay actually dispatches instead of reporting complete over an unarmed plan
 ## How it works (today)
 
 ```cpp
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
 namespace sb = SushiBLAS;
@@ -578,7 +578,7 @@ modules/                 One folder per module, grouped by tier
     nn/                  Parameters, the Module contract, layers, losses, init, the runtime path
     io/                  The SACP checkpoint: the byte format and the binding
     train/               The training loop, its run report and the objective
-    umbrella/            SushiAI.h, the master header of the sushiai library
+    umbrella/            SushiAI.hpp, the master header of the sushiai library
   vision/                The vision domain, library sushiai_vision; it reads core and layers only
     imaging/  detect/  blocks/  datasets/  registration/  umbrella/
   <tier>/<module>/       Each module has CMakeLists.txt, include/, source/ and tests/, and a

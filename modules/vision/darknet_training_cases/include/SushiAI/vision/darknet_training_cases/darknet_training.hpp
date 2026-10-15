@@ -40,7 +40,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/darknet_reference/darknet_reference.hpp>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 

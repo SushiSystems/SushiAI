@@ -70,7 +70,7 @@ without the balance states `next_token` alone, with its `output` key.
 
 | Header | Declares |
 | --- | --- |
-| `<SushiAI/language/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives` |
+| `<SushiAI/language/registration/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives` |
 
 ## A decoder as a model file
 

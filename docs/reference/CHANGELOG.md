@@ -5,6 +5,9 @@
 - 2026-10-15 — build: Followed the SushiBLAS layout refactor to its umbrella and its split support headers (`SushiBLAS/SushiBLAS.hpp`, `fusion_selector.hpp`, `fused.cpp`, `spatial.cpp`).
 - 2026-10-15 — tools: Copied the SushiSkills layering checker, listed the same-tier module edges and removed tools/common (`check_layering.py`, `settings.py`, `K_SAME_TIER_EDGES`).
 - 2026-10-15 — tools: Copied the shared tools again with copy_shared_tools.py and moved the repository settings into settings.py (`settings.py`, `checking/`, `check_docs_truth.py`, `check_all.py`).
+- 2026-10-14 — umbrella: Renamed SushiAI.h to SushiAI.hpp; breaks every include of it (`SushiAI/SushiAI.hpp`, `sushiai_check_umbrella`).
+- 2026-10-14 — vision: Moved the umbrella to the include root as vision.hpp and registration under its module; breaks their include paths (`SushiAI/vision.hpp`, `registration.hpp`).
+- 2026-10-14 — language: Moved the umbrella to the include root as language.hpp and registration under its module; breaks their include paths (`SushiAI/language.hpp`, `registration.hpp`).
 - 2026-10-14 — tests: Moved the program tests and the train and inference smoke tests to tests/applications/programs, one program for the application (`sushiai_programs_tests`, `test_training_run.cpp`).
 - 2026-10-14 — tools: Made the YOLO26 exporter write each reference file to the fixture folder of the tests that read it (`export_yolo26_reference.py`, `K_DESTINATIONS`).
 - 2026-10-14 — generation: Made the position feeds public headers, with detect's seeded sequence, so their tests stop reaching into source/ (`position_feed.hpp`, `seeded_sequence.hpp`).

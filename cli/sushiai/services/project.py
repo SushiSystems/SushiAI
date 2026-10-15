@@ -401,7 +401,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     a package that works only when the source tree happens to be next to it is not
     a package, so the consumer must configure from an install prefix with no access
     to this tree. It is also the only thing that would have caught a public header
-    missing from the SushiAI.h umbrella, since every in-tree test includes the
+    missing from the SushiAI.hpp umbrella, since every in-tree test includes the
     individual headers directly.
 
     One prefix is enough for all three modules: SushiBLAS and SushiRuntime are
@@ -467,7 +467,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
             "The consumer failed to compile against the installed headers.\n"
             "  - a missing header means it is either not covered by "
             "install(DIRECTORY) in cmake/SushiAIModule.cmake, or not reachable from "
-            "the modules/layers/umbrella/include/SushiAI/SushiAI.h umbrella.")
+            "the modules/layers/umbrella/include/SushiAI/SushiAI.hpp umbrella.")
         return rc
 
     exe = discovery.match_by_name(consumer, "sushiai_package_consumer")

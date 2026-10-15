@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>

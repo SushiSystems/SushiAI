@@ -40,7 +40,7 @@
 #include "run_start.hpp"
 #include "trainer_run.hpp"
 #include "training_run.hpp"
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>

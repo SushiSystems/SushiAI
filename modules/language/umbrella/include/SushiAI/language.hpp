@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* language.h                                                             */
+/* language.hpp                                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,14 +20,14 @@
 /**************************************************************************/
 
 /**
- * @file language.h
+ * @file language.hpp
  * @brief Includes SushiAI and every public header of the language domain.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include <SushiAI/language/blocks/feed_forward.hpp>
@@ -61,7 +61,7 @@
 #include <SushiAI/language/generation/temperature_sampler.hpp>
 #include <SushiAI/language/generation/top_k_sampler.hpp>
 #include <SushiAI/language/generation/window_generator.hpp>
-#include <SushiAI/language/registration.hpp>
+#include <SushiAI/language/registration/registration.hpp>
 #include <SushiAI/language/text/stream_encoder.hpp>
 
 #include <SushiAI/language/blocks/incremental.hpp>

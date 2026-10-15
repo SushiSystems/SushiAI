@@ -35,7 +35,7 @@
 #include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/core/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>

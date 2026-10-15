@@ -20,7 +20,7 @@ add_subdirectory(core)
 add_subdirectory(layers)
 
 sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
-    UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.h")
+    UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.hpp")
 
 # A domain is its own library in the same export set; see
 # docs/design/DOMAIN_MODULES.md.
@@ -28,7 +28,7 @@ if(SA_BUILD_VISION)
     add_subdirectory(vision)
 
     sushiai_add_library(NAME sushiai_vision EXPORT_NAME vision
-        UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/vision/umbrella/include/SushiAI/vision/vision.h"
+        UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/vision/umbrella/include/SushiAI/vision.hpp"
         DEPENDS sushiai)
 endif()
 
@@ -36,7 +36,7 @@ if(SA_BUILD_LANGUAGE)
     add_subdirectory(language)
 
     sushiai_add_library(NAME sushiai_language EXPORT_NAME language
-        UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/language/umbrella/include/SushiAI/language/language.h"
+        UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/language/umbrella/include/SushiAI/language.hpp"
         DEPENDS sushiai)
 endif()
 

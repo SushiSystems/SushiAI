@@ -80,7 +80,7 @@ the names of the first.
 | `datasets` | Dataset types of the domain and the readers of on-disk layouts and the collators; depends on `imaging` and `codecs` | MNIST, `read_yolo_txt` |
 | `importers` | Readers of other frameworks' model and weight files | The Darknet cfg and weights importer |
 | `registration` | The functions that add the domain's rows to a registry | `register_nodes`, `register_datasets` |
-| `umbrella` | The header that includes the library's umbrella and every header of the domain | `SushiAI/vision/vision.h` |
+| `umbrella` | The header that includes the library's umbrella and every header of the domain | `SushiAI/vision.hpp` |
 
 Namespaces: `SushiAI::Vision::Detect`, `SushiAI::Vision::Imaging`, `SushiAI::Vision::Blocks`,
 `SushiAI::Vision::Datasets`, `SushiAI::Vision::Importers`, `SushiAI::Vision::Training`. A second task (segmentation, pose) is a sibling of `detect`, not a
@@ -108,8 +108,8 @@ A tier that names what a higher tier owns cannot be built without it, so no tabl
 
 | Library | Alias | Tiers | Links | Umbrella |
 | --- | --- | --- | --- | --- |
-| `sushiai` | `SushiAI::sushiai` | `core`, `layers` | SushiBLAS, SushiRuntime | `SushiAI/SushiAI.h` |
-| `sushiai_vision` | `SushiAI::vision` | `vision` | `SushiAI::sushiai` | `SushiAI/vision/vision.h` |
+| `sushiai` | `SushiAI::sushiai` | `core`, `layers` | SushiBLAS, SushiRuntime | `SushiAI/SushiAI.hpp` |
+| `sushiai_vision` | `SushiAI::vision` | `vision` | `SushiAI::sushiai` | `SushiAI/vision.hpp` |
 
 `sushiai_add_module(NAME TIER SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS ... TESTS)` in
 `cmake/SushiAIModule.cmake` declares a module. A dependency is a key of the tier table, and an

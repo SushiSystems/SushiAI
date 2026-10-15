@@ -36,7 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "eager_run_support.hpp"
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/result.hpp>
