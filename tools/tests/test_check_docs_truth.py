@@ -158,6 +158,12 @@ class CitedPathsTest(unittest.TestCase):
         page = "# Engine\n\n`include/Project/engine/world.hpp`\n"
         self.assertEqual(_found(rule_cited_paths, {"modules/core/engine/README.md": page}), [])
 
+    def test_reads_a_page_beside_a_test_file(self) -> None:
+        """Reads every page under a source folder, not only its README."""
+        page = "# test_world\n\n`modules/core/engine/source/gone.cpp`\n"
+        self.assertEqual(_found(rule_cited_paths, {"tests/core/engine/test_world.md": page}),
+                         [("tests/core/engine/test_world.md", 3)])
+
 
 class ExampleSourceTest(unittest.TestCase):
     """Checks that an example in a manual page is taken from a file."""
@@ -334,6 +340,13 @@ class CommandLineTest(unittest.TestCase):
                 self.assertEqual(
                     main([folder, "--rule", "rule_named_symbols", "--source", "runtime"]), 0,
                 )
+
+    def test_checks_a_page_given_by_path(self) -> None:
+        """Checks a page passed on the command line, whatever its name."""
+        with tempfile.TemporaryDirectory() as folder:
+            _manual(folder, {".git/HEAD": "", "notes/probe.md": "# Probe\n\n`modules/nope/nothing.hpp`\n"})
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main([str(Path(folder) / "notes/probe.md"), "--rule", "rule_cited_paths"]), 1)
 
     def test_report_counts_the_unverified_examples(self) -> None:
         """Prints the number of blocks marked not compiled after the rule counts."""
