@@ -71,7 +71,7 @@ Every event returns whether the read goes on. An event that returns false ends t
 
 The parser is the SAX interface of `nlohmann_json`, 3.12.0 as installed; its types stay in
 `source/json_events.cpp`. `Vision::Datasets::read_coco_json` reads through it.
-`tests/test_json_events.cpp` covers the order of the events, a document longer than the buffer,
+`tests/core/config/test_json_events.cpp` covers the order of the events, a document longer than the buffer,
 a handler that stops and each refusal.
 
 ## Reading a section without throwing
@@ -94,7 +94,7 @@ a key and of a list entry from it.
 The schedule sections of `core/optim`, the anchor task and the head training section of
 `vision/detect`, the `sum` objective of `layers/train` and the sections of
 `language/generation` and `language/datasets` read through it.
-`tests/test_section_reader.cpp` pins every text above.
+`tests/core/config/test_section_reader.cpp` pins every text above.
 
 ## What the writers write
 

@@ -232,7 +232,7 @@ sa doctor         # report whether this machine can build SushiAI
 sa link           # record this checkout in a workspace's module registry
 sa unlink         # remove it from that registry
 sa config         # print resolved config with per-field source annotation
-sa env            # print the environment cmake/ctest/run subprocesses see
+sa env            # print the environment the cmake, ctest and run subprocesses see
 sa docs           # build the Doxygen API reference into build/docs/api-site/html/
 sa demo mlp       # train an MLP end to end (see below)
 sa --version      # print the CLI's version

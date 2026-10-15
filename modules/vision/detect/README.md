@@ -972,7 +972,7 @@ before the truth, so a refused truth never hides one of them.
 
 `test_detect_anchor_delta.cpp`, `test_detect_anchor_delta_iou.cpp` and
 `test_detect_anchor_delta_activated.cpp` compute each expected value in double in the test, the
-box gradient by a central difference that `tests/anchor_delta_support.hpp` defines once. An
+box gradient by a central difference that `tests/vision/detect/anchor/anchor_delta_support.hpp` defines once. An
 objectness or class delta is held to 1e-6 absolute, a box delta to 1e-5 absolute plus 1e-5
 relative. `test_detect_anchor_delta_gradient.cpp` runs both gradient forms through the delta of
 one slot and holds the compatible form to the twelve dumped deltas of REPORT section 11 at 1e-4

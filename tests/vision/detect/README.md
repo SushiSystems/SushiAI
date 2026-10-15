@@ -700,8 +700,8 @@ Tests the anchor grid, the per-image anchor leaves and the copies between a leve
 anchor axis.
 
 This file needs no device. Its three suites, `Unit_DetectAnchors`, `Unit_DetectAnchorLeaves` and
-`Unit_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/anchors.hpp`,
-`modules/vision/detect/include/SushiAI/vision/detect/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/level_rows.hpp`.
+`Unit_DetectLevelRows`, cover `modules/vision/detect/include/SushiAI/vision/detect/free/anchors.hpp`,
+`modules/vision/detect/include/SushiAI/vision/detect/free/anchor_leaves.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/free/level_rows.hpp`.
 `modules/vision/detect/README.md` quotes the reference lines each unit ports. One case reads
 `loss.sacp` through `modules/layers/reference_files/include/SushiAI/reference_files/reference_file.hpp` and reports itself skipped when the
 file is absent.
@@ -806,9 +806,9 @@ Suites: `Unit_DetectAssigner`, `Unit_DetectGroundTruth`, `Unit_DetectTargetLeave
 Tests the task-aligned assigner, its presets, the padded ground truth and the target leaves.
 
 This file needs no device. Its three suites are `Unit_DetectAssigner`, `Unit_DetectGroundTruth`
-and `Unit_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/assigner.hpp`,
-`modules/vision/detect/include/SushiAI/vision/detect/assigner_config.hpp`, `modules/vision/detect/include/SushiAI/vision/detect/ground_truth.hpp` and
-`modules/vision/detect/include/SushiAI/vision/detect/target_leaves.hpp`. Most cases build one image on a 4 by 4 grid by
+and `Unit_DetectTargetLeaves`, over `modules/vision/detect/include/SushiAI/vision/detect/free/assigner.hpp`,
+`modules/vision/detect/include/SushiAI/vision/detect/free/assigner_config.hpp`, `modules/vision/detect/include/SushiAI/vision/detect/ground_truth.hpp` and
+`modules/vision/detect/include/SushiAI/vision/detect/free/target_leaves.hpp`. Most cases build one image on a 4 by 4 grid by
 hand, with `alpha` and `beta` both 1, so the metric is the class score times the overlap and
 each expected score is a fraction a comment derives. Three cases read `loss.sacp` and report
 themselves skipped when the file is absent. `modules/vision/detect/README.md`, under
@@ -1877,7 +1877,7 @@ Suites: `Unit_DetectBoxes`.
 
 Tests box decoding and encoding, the two box formats and the IoU forms.
 
-This file needs no device. `Unit_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/box_coding.hpp`,
+This file needs no device. `Unit_DetectBoxes` covers `modules/vision/detect/include/SushiAI/vision/detect/free/box_coding.hpp`,
 `modules/vision/detect/include/SushiAI/vision/detect/box_format.hpp` and `modules/vision/detect/include/SushiAI/vision/detect/iou.hpp`. The hand cases
 write the expected value as the arithmetic that produces it. Three cases read `forward.sacp`
 and report themselves skipped when the file is absent.

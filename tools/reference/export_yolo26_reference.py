@@ -5,7 +5,7 @@
 # Commercial use requires a licence from Sushi Systems.
 """Exports YOLO26n reference tensors from the pinned Ultralytics commit as SACP files.
 
-Usage: python tools/reference/export_yolo26_reference.py OUTPUT_DIR [--seed N]
+Usage: python tools/reference/export_yolo26_reference.py TESTS_DIR [--seed N]
        [--bn-state {perturbed,initial}] [--external-weights DIR]
 """
 
