@@ -424,6 +424,9 @@ v1, to revisit for PINN and GNN work.
   (`CMakeLists.txt`, `cli/pyproject.toml`).
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
 
+- **Test the 119 untested units.** `python tools/testing/check_test_mirror.py .` lists 119 public
+  headers with no `tests/<tier>/<module>/test_<name>.cpp`; each needs its test file, sized by what
+  it uses. Planned as its own work; until it lands, `gate` is red.
 - **Bring `tests/core/autograd/test_backward.md` under 800 lines and true.** It is 804 lines, and
   its `Suites:` lines name `Small_Layout`, which `test_backward.cpp` does not hold; the file holds
   `Small_Backward`, `Small_CastInsertion`, `Small_Diagnostics`, `Small_LossRoots`, `Small_Precision` and
