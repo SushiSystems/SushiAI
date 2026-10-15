@@ -24,6 +24,8 @@ from sushiai import cli
 from sushiai import console as console_module
 from sushiai.services import project
 
+pytestmark = pytest.mark.medium
+
 K_VISIBLE_COMMANDS = [
     "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "import",
     "inference", "link", "run", "setup", "test", "tokenize", "train", "unlink",

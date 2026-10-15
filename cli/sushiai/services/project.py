@@ -13,6 +13,8 @@ from __future__ import annotations
 import enum
 import os
 import shutil
+import subprocess
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -27,6 +29,7 @@ from .. import memory_limit
 from ..config import Config, PROFILE, find_project_root, load_config
 from ..env import load_build_env
 from . import discovery
+from .sanitizer import Sanitizer, sanitize_define
 
 
 class BuildType(str, enum.Enum):
@@ -36,11 +39,12 @@ class BuildType(str, enum.Enum):
 
 
 class Suite(str, enum.Enum):
-    # These are the CTest labels tests/CMakeLists.txt assigns from the GTest suite prefix.
-    unit = "unit"
-    regression = "regression"
-    integration = "integration"
-    functional = "functional"   # umbrella: unit + regression + integration
+    # The sizes tests/CMakeLists.txt labels every case with; see the testing skill.
+    small = "small"
+    medium = "medium"
+    large = "large"
+    quarantined = "quarantined"
+    gating = "gating"   # small and medium, leaving the quarantined out
     all = "all"
 
     # package is neither a CTest label nor part of all; see test_package.
@@ -49,11 +53,16 @@ class Suite(str, enum.Enum):
 
 # Suite.all and Suite.package are absent on purpose; see cli/README.md.
 _SUITE_LABEL_REGEX = {
-    Suite.unit: "^unit$",
-    Suite.regression: "^regression$",
-    Suite.integration: "^integration$",
-    Suite.functional: "^(unit|integration|regression)$",
+    Suite.small: "^small$",
+    Suite.medium: "^medium$",
+    Suite.large: "^large$",
+    Suite.quarantined: "^quarantined$",
+    Suite.gating: "^(small|medium)$",
 }
+
+# The label a gating run leaves out, whatever size the test carries.
+_QUARANTINE_REGEX = "^quarantined$"
+
 
 # Each demo name maps to an executable of its own; see cli/README.md.
 _DEMO_TARGETS = {
@@ -208,11 +217,15 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
 
 
 def build(build_type: BuildType, clean: bool = False,
-          defines: Sequence[str] | None = None) -> int:
-    """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched."""
+          defines: Sequence[str] | None = None,
+          sanitizer: Sanitizer | None = None) -> int:
+    """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched.
+
+    *sanitizer* sets the sanitizers of host code; None keeps the cached value.
+    """
     console.header("Project Build")
     try:
-        define_args = _define_args(defines)
+        define_args = _define_args([*(defines or ()), *sanitize_define(sanitizer)])
     except DefineError as error:
         console.error(str(error))
         return 2
@@ -271,18 +284,20 @@ def _enter_memory_limit(limit_gb: float | None) -> bool:
     return True
 
 
-def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int = 0,
-         memory_limit_gb: float | None = None) -> int:
+def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0,
+         memory_limit_gb: float | None = None, cli: bool = False) -> int:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*
+    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*
 
     ``package`` is the one suite that is not a CTest label; it delegates to
     :func:`test_package`, which builds a separate project.
     """
     console.header("Project Test")
     root = find_project_root()
+    if cli:
+        return test_cli(root, suite)
     cfg = load_config()
     build_dir = _build_dir(root)
     if not build_dir.is_dir():
@@ -304,12 +319,38 @@ def test(suite: Suite = Suite.functional, filter: str | None = None, repeat: int
         # all covers every CTest test, which leaves the package suite out.
         console.info(
             "'all' covers every CTest test. The package suite is not among them "
-            "(it builds a separate project): run `sa test --suite package`.")
+            "(it builds a separate project): run `sa test --label package`.")
 
     return _DRIVER.ctest_run(
         cfg, build_dir, env,
         label_regex=None if suite is Suite.all else _SUITE_LABEL_REGEX[suite],
+        exclude_label_regex=_QUARANTINE_REGEX if suite is Suite.gating else None,
         filter=filter, repeat=repeat)
+
+
+#: The pytest marker expression of each label; the gating run leaves the quarantined out.
+_CLI_MARKERS = {
+    Suite.small: "small",
+    Suite.medium: "medium",
+    Suite.large: "large",
+    Suite.quarantined: "quarantined",
+    Suite.gating: "(small or medium) and not quarantined",
+}
+
+
+def test_cli(root: Path, suite: Suite) -> int:
+    """Runs the pytest tests of this CLI that *suite* selects and returns pytest's code.
+
+    ``all`` runs every CLI test; ``package`` has no CLI tests and returns 2.
+    """
+    if suite is Suite.package:
+        console.error("--cli takes a size label, not package.")
+        return 2
+    cmd = [sys.executable, "-m", "pytest", "-q"]
+    if suite is not Suite.all:
+        cmd += ["-m", _CLI_MARKERS[suite]]
+    console.info(" ".join(cmd))
+    return subprocess.run(cmd, cwd=root / "cli", check=False).returncode
 
 
 def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path) -> bool:

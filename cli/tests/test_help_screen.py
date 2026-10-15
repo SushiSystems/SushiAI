@@ -17,6 +17,8 @@ from typer.testing import CliRunner
 
 from sushiai.cli import app
 
+pytestmark = pytest.mark.medium
+
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean", "docs"],
     "Models": ["train", "inference", "import", "tokenize", "demo"],
@@ -29,7 +31,7 @@ K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("
 
 K_EXAMPLES = {
     "build": "sa build --type debug",
-    "test": "sa test --suite unit",
+    "test": "sa test --label small",
     "run": "sa run --sort",
     "clean": "sa clean",
     "docs": "sa docs",

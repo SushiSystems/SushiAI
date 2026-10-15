@@ -19,6 +19,8 @@ import pytest
 
 from sushiai.services import discovery
 
+pytestmark = pytest.mark.medium
+
 # cli/tests/test_tokenize.py -> cli/tests -> cli -> <repo root>
 K_REPO_ROOT = Path(__file__).resolve().parents[2]
 K_BUILD_DIR = K_REPO_ROOT / "build"

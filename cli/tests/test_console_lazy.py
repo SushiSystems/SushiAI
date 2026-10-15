@@ -14,6 +14,8 @@ import importlib
 
 import pytest
 
+pytestmark = pytest.mark.medium
+
 
 def _fresh_console_module():
     """Import (or re-import) sushiai.console with a clean module state."""

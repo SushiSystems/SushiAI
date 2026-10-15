@@ -14,6 +14,9 @@ from typer.testing import CliRunner
 from sushicore.provision.config import ProvisionSettings
 from sushiai.cli import app
 from sushiai.config import Config
+import pytest
+
+pytestmark = pytest.mark.medium
 
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 

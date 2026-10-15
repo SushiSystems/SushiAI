@@ -11,6 +11,9 @@ The reasoning is in cli/tests/README.md under "test_suites.py".
 from __future__ import annotations
 
 from sushiai.services.project import _SUITE_LABEL_REGEX, Suite
+import pytest
+
+pytestmark = pytest.mark.small
 
 
 def test_every_suite_is_either_mapped_or_deliberately_special():

@@ -14,6 +14,8 @@ import pytest
 
 from sushiai import memory_limit
 
+pytestmark = pytest.mark.small
+
 K_GB = memory_limit.K_BYTES_PER_GB
 
 

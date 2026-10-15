@@ -78,6 +78,7 @@ sa build                  # Release build (the default)
 sa build --type debug     # Debug build
 sa build --type relwithdebinfo
 sa build --clean          # delete the build tree first, then build from scratch
+sa build --sanitize address-undefined   # ASan and UBSan on host code; thread for TSan, none to clear
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
@@ -115,12 +116,14 @@ build tree and there is no other sanctioned way to set it.
 ## `sa test`
 
 ```bash
-sa test                          # functional (unit+integration+regression) — the default
-sa test --suite unit
-sa test --suite integration
-sa test --suite regression
-sa test --suite all              # every CTest test
-sa test --suite package          # the out-of-tree package consumer (no CTest)
+sa test                          # small and medium, without the quarantined: the default
+sa test --label small
+sa test --label medium
+sa test --label large            # a real GPU or a long run
+sa test --label quarantined      # the intermittent tests KNOWN_ISSUES.md names
+sa test --label all              # every CTest test
+sa test --label package          # the out-of-tree package consumer (no CTest)
+sa test --cli                    # the CLI's own pytest tests, small and medium
 ```
 
 ```bash
@@ -128,10 +131,9 @@ sa test --filter 'Version.*'  # ctest -R regex over 'Suite.Case' test names
 sa test --repeat 5            # re-run each test up to 5x, stop on first failure
 ```
 
-The three tiers come from the GTest suite-name prefix (`Unit_*`,
-`Integration_*`, `Regression_*`) and nothing else: see
-`tests/CMakeLists.txt`. `regression` holds the guarantees whose failure is
-silent (see [CONTRIBUTING.md §3](../CONTRIBUTING.md#3-building-and-testing-your-change)).
+The three sizes come from the GTest suite-name prefix (`Small_*`, `Medium_*`,
+`Large_*`) and nothing else; `cmake/SushiAITestProgram.cmake` gives each its label and
+its timeout of 60, 300 or 900 seconds, and a suite without a prefix fails the configure.
 
 For GoogleTest-level options CTest doesn't expose, run the binary directly
 with `sa run` and pass flags after `--`.
@@ -139,7 +141,7 @@ with `sa run` and pass flags after `--`.
 `sa test` needs a build with `SA_BUILD_TESTS=ON`, which is the default; a tree
 configured with `-D SA_BUILD_TESTS=OFF` has no SushiAI tests registered.
 
-### `--suite package`
+### `--label package`
 
 Every other suite is a CTest label. This one is not, and runs no CTest at all.
 It installs SushiAI to `build/package/prefix`, configures `tests/package/`
@@ -200,11 +202,11 @@ each run: a stale prefix would let a header deleted from the tree keep
 satisfying an include, and a stale consumer directory would let a DLL staged by
 an earlier run keep satisfying the loader.
 
-It is **not** part of `--suite all`, which covers only the CTest tests. A full
+It is **not** part of `--label all`, which covers only the CTest tests. A full
 install plus a second configure and build costs minutes and is rarely what you
 want mid-loop, so `all` prints a line saying the package suite is not included
 rather than leaving the gap to be discovered. `--filter` and `--repeat` are
-CTest knobs; passing either with `--suite package` exits 2 instead of being
+CTest knobs; passing either with `--label package` exits 2 instead of being
 silently ignored.
 
 The consumer compiles at C++17: the same standard as the library, and
@@ -235,7 +237,7 @@ sa run                                # run the default target
 sa run sushiai_example
 sa run --sort                         # interactively pick from the list of executables
 
-sa run sushiai_core_version_tests -- --gtest_filter='Unit_Version.*'
+sa run sushiai_core_version_tests -- --gtest_filter='Small_Version.*'
 ```
 
 ## `sa demo`: the AI-7 showcase
@@ -276,7 +278,7 @@ Two launches saved against the fallback and ten against the unfused graph, at
 pre-activation the unfused `BIAS_ADD` would have written anyway, kept instead of
 eliminated. The identical final loss across all three is the point of the
 exercise: the spill is what makes the gradients agree, and
-`Regression_Fusion.AGELUMLPTrainsIdenticallyFusedAndUnfused` pins it as a
+`Medium_Fusion.AGELUMLPTrainsIdenticallyFusedAndUnfused` pins it as a
 byte-for-byte parameter comparison rather than as six printed decimals.
 
 Under `--precision mixed` the GELU layer is **not** folded: the fusion line
