@@ -11,9 +11,9 @@ layer, which itself runs on
 two-layer model into SushiAI's own IR, differentiates that IR, lowers it to
 SushiBLAS once, compiles it once, and replays it per batch until the loss
 falls from `ln(C)` to convergence. Memory planning and kernel fusion have
-landed since, and so has **mixed precision** — fp16 products with fp32
+landed since, and so has **mixed precision**: fp16 products with fp32
 master weights (`--precision mixed`) and gradient loss scaling with overflow
-backoff (`--loss-scale S`) — see
+backoff (`--loss-scale S`): see
 [`docs/design/ROADMAP.md`](docs/design/ROADMAP.md)
 for the roadmap and [`REMAINING_WORK.md`](docs/design/REMAINING_WORK.md)
 for the list of what this tree does not do yet, including the limits the
@@ -22,14 +22,14 @@ feature that plan hasn't reached.
 
 > **Start here:** [`TUTORIAL.md`](docs/getting_started/TUTORIAL.md) walks from an empty checkout to a
 > model that trains, and then explains what each stage of the pipeline did with
-> it — including the failure modes that are silent rather than loud.
+> it, including the failure modes that are silent rather than loud.
 
 ## What exists today
 
-- **A graph IR** (`graph/ir.hpp`, `graph/builder.hpp`) — single-assignment,
+- **A graph IR** (`graph/ir.hpp`, `graph/builder.hpp`): single-assignment,
   host-only, with every operation's shape inference stated exactly once.
-- **Reverse-mode autograd as an IR-to-IR transform** (`autograd/backward.hpp`)
-  — a `constexpr` rule table, tiered fan-out accumulation with no atomics,
+- **Reverse-mode autograd as an IR-to-IR transform** (`autograd/backward.hpp`):
+  a `constexpr` rule table, tiered fan-out accumulation with no atomics,
   and a fused log-softmax + cross-entropy gradient. It touches no device.
 - **Finite-difference gradient checking in FLOAT64** (`autograd/gradcheck.hpp`),
   full-Jacobian and randomised-directional, which is what the integration
@@ -47,7 +47,7 @@ feature that plan hasn't reached.
   a `Status` or a `Result<T>`, and `core/seam.hpp` is where an exception of
   SushiBLAS or SushiRuntime becomes a status. Graph building and
   differentiation, which touch no device, throw `SushiAI::Error`.
-- **A fusion pass** (`graph/fusion.hpp`) — a catalog of recipes applied as a
+- **A fusion pass** (`graph/fusion.hpp`): a catalog of recipes applied as a
   selector over the IR before lowering, reported per-run by `sa demo mlp` and
   switchable with `--fusion off` / `--no-fuse NAME`. One entry,
   `gemm+bias+gelu`, spills its pre-activation to a second output so an
@@ -55,37 +55,37 @@ feature that plan hasn't reached.
   backward pass losing what it differentiates at; `sa demo mlp --activation
   gelu` runs it.
 - **A memory planner and per-lifetime arenas** (`graph/memory_plan.hpp`,
-  `graph/arena.hpp`) — IR values packed into arenas by lifetime instead of one
+  `graph/arena.hpp`): IR values packed into arenas by lifetime instead of one
   `Storage` each, pinned by `Regression_StaticMemory`.
 - **Mixed-precision dtype plumbing** (`graph/precision.hpp`,
-  `graph/cast_insertion.hpp`) — a per-operation precision policy and an
+  `graph/cast_insertion.hpp`): a per-operation precision policy and an
   IR-to-IR pass that inserts explicit `CAST` nodes at every dtype boundary, so
   the fp16 a GEMM reads is a *derived* value and the fp32 master weight it came
   from is untouched. `--precision mixed`.
-- **Gradient loss scaling** (`optim/loss_scaler.hpp`) — the numerics half:
+- **Gradient loss scaling** (`optim/loss_scaler.hpp`): the numerics half:
   the backward seed is multiplied by a device-resident power of two, the
   gradient is divided back out inside the optimizer's fused kernel before the
   decay and the moments, `reductions().count_nonfinite()` screens every
   gradient, and an overflowed step is skipped by a real branch in that kernel.
   Halve on overflow, double after N clean steps. `--loss-scale S`. **It does
-  nothing for this demo** — see below — and the scale is device-resident
+  nothing for this demo** (see below), and the scale is device-resident
   precisely so that changing it does not recompile the step.
-- **Layers and losses** (`nn/`) — `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
+- **Layers and losses** (`nn/`): `Linear`, `ReLU`/`GELU`/`Tanh`/`Sigmoid`,
   `Sequential` with CTAD, `CrossEntropyLoss`, Kaiming/Xavier initialisation.
   No base class and no `register_module`: a layer publishes its parameters
   through a `static constexpr fields()` list, and one generic walk produces
   the whole PyTorch-shaped named-parameter tree.
-- **Optimizers** (`optim/`) — SGD with PyTorch's momentum formulation, and
+- **Optimizers** (`optim/`): SGD with PyTorch's momentum formulation, and
   AdamW with decoupled decay applied first and `eps` added after the bias
   correction. Each parameter's whole update is **one kernel launch**, and the
   update is recorded into the same compiled step as the forward and backward
-  passes — see [ARCHITECTURE.md §5.1](docs/architecture/ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step).
-- **Data and a training loop** (`data/`, `train/`) — a `Dataset` seam, a
+  passes; see [ARCHITECTURE.md §5.1](docs/architecture/ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step).
+- **Data and a training loop** (`data/`, `train/`): a `Dataset` seam, a
   hermetic seeded synthetic classification problem generated on device, an
   MNIST IDX loader that activates only when the files are present, and a
   trainer that reports its compile count.
 - **A model can be a JSON file** (`config/`, `nn/layer.hpp`,
-  `nn/layer_stack.hpp`) — `sushiai train train.json` and
+  `nn/layer_stack.hpp`): `sushiai train train.json` and
   `sushiai inference model.json model.sushi eval.json` contain **no layer,
   loss, dataset or optimizer type name**; each arrives through a constant
   `{name, factory}` table keyed by a string out of the configuration. The
@@ -93,11 +93,11 @@ feature that plan hasn't reached.
   trace time and the graph is compiled once and replayed. An unknown key or
   `type` is an error listing what *is* accepted. See
   [CLI_GUIDE.md](docs/guides/CLI_GUIDE.md#sushiai-train-and-sushiai-inference--config-driven-runs).
-- **Checkpointing** (`io/`) — a versioned, explicitly little-endian `SACP`
+- **Checkpointing** (`io/`): a versioned, explicitly little-endian `SACP`
   format recording a name, a dtype and a `Shape` per tensor, so `[256, 6]`
   cannot load into `[6, 256]`. A checkpoint written by a hand-written
   `Sequential` loads into a `LayerStack` built from the equivalent
-  `model.json`, and the reverse — which is how the compile-time and runtime
+  `model.json`, and the reverse, which is how the compile-time and runtime
   paths are *proved* to describe one model.
 
 ```json
@@ -112,24 +112,24 @@ feature that plan hasn't reached.
 }
 ```
 
-- **`sa demo mlp`** — a real, flag-driven training program
+- **`sa demo mlp`**: a real, flag-driven training program
   (`applications/examples/source/demo_mlp.cpp`), not a wrapper around the example. See
   [the demo section](#the-demo-sa-demo-mlp) for its output.
-- `SushiAI::sushiai` — a `STATIC` library linking `SushiRuntime::SushiRuntime`
+- `SushiAI::sushiai`: a `STATIC` library linking `SushiRuntime::SushiRuntime`
   and `SushiBLAS::sushiblas` `PUBLIC`.
 - A genuine [D3-resolved](docs/architecture/ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
-  two-sibling dependency chain — the same layered CMake resolution
+  two-sibling dependency chain: the same layered CMake resolution
   (TARGET-guard → `find_package` → sibling `add_subdirectory`) used
   stack-wide, run twice (SushiRuntime, then SushiBLAS).
 - `find_package(SushiAI)`-ready packaging (SB-6's shape), verified with a
   real out-of-tree consumer in `tests/package/`.
 - The `sa` / `sushiai` CLI (Typer + rich), modeled on
-  [SushiEngine](https://github.com/SushiSystems/SushiEngine)'s `se` — a
+  [SushiEngine](https://github.com/SushiSystems/SushiEngine)'s `se`: a
   shared bundled toolchain, no toolchain selection of its own.
 
 ## Requirements
 
-- A SYCL 2020 compiler — the bundled **intel-llvm** `clang++ -fsycl`,
+- A SYCL 2020 compiler: the bundled **intel-llvm** `clang++ -fsycl`,
   provisioned by SushiStack. SushiAI selects no SYCL toolchain of its own; it
   builds with whatever its sibling checkouts resolve.
 - **CMake** 3.20 or newer (3.22 for the test suite's `gtest_discover_tests`).
@@ -138,7 +138,7 @@ feature that plan hasn't reached.
   [D3 layered CMake resolution](docs/architecture/ARCHITECTURE.md#2-the-sibling-dependency-chain-d3):
   an in-tree superproject target, an installed `find_package`, or (the
   common case) a sibling `../sushiruntime` / `../sushiblas` checkout.
-- **C++17** — the same standard SushiBLAS and SushiRuntime are built to, and
+- **C++17**: the same standard SushiBLAS and SushiRuntime are built to, and
   the same standard a consumer must compile at. Not "or later": the stack has
   to agree on one, because `SushiRuntime::span` picks between `std::span` and
   SushiRuntime's own shim on `__cplusplus` and that choice reaches the compiled
@@ -179,7 +179,7 @@ hub install-cli sushiai           # always editable, against this checkout
 
 This gives you two equivalent commands on your PATH: **`sa`** (short) and
 **`sushiai`** (long). In the common case (a SushiStack workspace, or sibling
-checkouts of SushiRuntime and SushiBLAS present) no local config is needed —
+checkouts of SushiRuntime and SushiBLAS present) no local config is needed:
 the CLI finds both siblings and the shared bundled `clang++` on its own.
 
 ```bash
@@ -216,7 +216,7 @@ cmake --build build --config Release
 you do not want someone else's suite compiled, discovered and registered into
 your CTest run.
 
-`CMAKE_C_COMPILER` must be the toolchain's plain `clang`, not `clang++` — a
+`CMAKE_C_COMPILER` must be the toolchain's plain `clang`, not `clang++`: a
 `clang++`-personality binary hardcodes C++ mode and breaks CMake's C-language
 probe (the project declares `LANGUAGES CXX C`, inherited transitively from
 SushiBLAS). Both `_DIR` variables are optional; without them,
@@ -256,7 +256,7 @@ sa demo mlp --help                            # the full flag list
 
 It trains on MNIST when the training split's two IDX files are under
 `--mnist-dir` (`data/mnist` by default) and on a seeded synthetic
-classification problem otherwise — and says which it got, in both the header
+classification problem otherwise, and says which it got, in both the header
 and the result block. The IDX files are not shipped and not downloaded, so
 out of the box you get the synthetic run below.
 
@@ -312,19 +312,19 @@ per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::p
 ================================================================
 ```
 
-`1.791759` is `ln 6` to the last digit — the exact uniform-prior loss a
+`1.791759` is `ln 6` to the last digit: the exact uniform-prior loss a
 zero-initialised classifier must start at. **`compiles: 1`** is the claim the
 whole design rests on: 128 training steps, one lowering, one compile. The
 CTest entry `Integration_Demo.MLPRunsAndReportsOneCompile` and
 `cli/tests/test_demo.py` both pin that line, so the demo cannot rot quietly.
 
-**`ops per step: 25`** is 21 graph nodes plus one fused update per parameter —
+**`ops per step: 25`** is 21 graph nodes plus one fused update per parameter:
 the optimizer is *inside* that single compiled plan
 ([ARCHITECTURE.md §5.1](docs/architecture/ARCHITECTURE.md#51-the-optimizer-is-part-of-the-compiled-step)),
 and the graph itself has been through the fusion pass
 ([§5.2](docs/architecture/ARCHITECTURE.md#52-fusion-is-a-selector-over-a-catalog-not-a-code-generator)).
-Spelled the old way — twelve separate optimizer calls per parameter flushed in
-a graph of their own, and no fusion — the same run issues 81 device tasks per
+Spelled the old way (twelve separate optimizer calls per parameter flushed in
+a graph of their own, and no fusion), the same run issues 81 device tasks per
 step where this issues 25.
 
 The **`Fusion`** line is the pass reporting itself, refusals included. Run
@@ -347,7 +347,7 @@ The steady-state figure is the slope of total wall clock against step count,
 taken between 1 024 and 4 096 steps so the fixed startup term cancels; the
 median of three replicates each, whose spread is about ±0.06 ms/step. **A
 step is about 30% cheaper, which is roughly the 29% of its kernels that
-stopped being launched** — these tensors are small enough that a step is mostly
+stopped being launched**: these tensors are small enough that a step is mostly
 launch overhead, which is exactly the regime where removing launches pays one
 for one.
 
@@ -357,7 +357,7 @@ this OpenCL backend compiles at first launch. A single-step run costs 0.97 s
 unfused and 1.88 s fused, which is the whole of the difference; it does not
 scale with the model, the batch or the step count. So **break-even on this
 machine is around 5 000 steps**, and the 128-step run printed above is far
-below it — fusion makes the default demo about 1.9x *slower* in wall clock
+below it: fusion makes the default demo about 1.9x *slower* in wall clock
 while issuing 29% fewer kernels. That is not a contradiction and it is not
 hidden: it is one-time device-code compilation, it is what AOT targeting
 (`sa build -D SB_SYCL_TARGETS=spir64`) exists to move to build time, and it is
@@ -369,14 +369,14 @@ The **`Arenas`** line now says `0% saved`, and that is fusion's doing rather
 than the planner failing: a fused subtree's intermediates stop being values at
 all, so the buffers the planner used to overlap no longer exist to overlap.
 The whole pool is 96.6 KiB against 130.9 KiB before either pass existed.
-`Regression_StaticMemory` pins both halves — packing still shrinks the
+`Regression_StaticMemory` pins both halves: packing still shrinks the
 *unfused* graph, and the fused graph is never larger than the packed unfused
 one.
 
 ### Mixed precision: what `--precision mixed` does, and what it is worth here
 
-`--precision mixed` runs the matrix products — and the bias and activation a
-fused GEMM folds into them — in **fp16**, keeping fp32 master weights, fp32
+`--precision mixed` runs the matrix products, and the bias and activation a
+fused GEMM folds into them, in **fp16**, keeping fp32 master weights, fp32
 gradients, fp32 reductions and an fp32 optimizer update. It is structure in
 the IR, not a runtime switch: a per-operation policy
 (`graph/precision.hpp`) says what each node computes in, and a pass
@@ -412,7 +412,7 @@ suite for the same reason.
 
 **The loss tracks fp32 closely and does not stall.** Both runs finish at
 0.000380 with 100% accuracy. At the largest loss where the printed digits are
-actually meaningful — epoch 1's last step, `0.037844` against `0.037880` —
+actually meaningful (epoch 1's last step, `0.037844` against `0.037880`):
 the relative deviation is 9.5e-4. The demo prints six decimals, so by epoch 8
 the losses are down at `0.000331` against `0.000332` and the apparent 3e-3
 there is dominated by the printing rather than by the arithmetic; the
@@ -421,10 +421,10 @@ doubles directly. That is a *measurement of this workload*, not a general
 claim: fp16 training without loss scaling is
 expected to lose small gradients to underflow, and on this small MLP it
 demonstrably does not. Repeating it with `--hidden 512 --batch-size 64` (a
-512-long fp16 reduction inside each product) gives the same answer — both
+512-long fp16 reduction inside each product) gives the same answer: both
 arms reach 0.000003 after 48 steps. So the loss scaling that has since landed
 is justified by theory and by larger models, and **not** by anything this
-workload does — turning it on here makes the demo no better, and saying so is
+workload does, turning it on here makes the demo no better, and saying so is
 worth more than a claim that it does.
 
 What `--loss-scale` *is* good for on this box is watching the machinery work.
@@ -432,7 +432,7 @@ What `--loss-scale` *is* good for on this box is watching the machinery work.
 `loss 1.791759 -> 1.133352`, bit-identical to the unscaled run, which is the
 whole point of a dyadic scale: the round trip through 65536 and back is exact.
 `--precision mixed --loss-scale 65536` reports one overflowed step and a
-backoff to 32768 — PyTorch's own default scale is too high for this model's
+backoff to 32768: PyTorch's own default scale is too high for this model's
 fp16 backward pass, and the backoff finds that out in one step. Pushing it to
 `--loss-scale 16777216` overflows on all 8 steps and walks the scale from
 2^24 down to 2^16 without recompiling: `compiles: 1` throughout.
@@ -440,8 +440,8 @@ fp16 backward pass, and the backoff finds that out in one step. Pushing it to
 One honest caveat: the skip is **per parameter**, not per step. A parameter
 whose own gradient stayed finite still updates on an overflowed step, so the
 report says "overflowed steps" rather than "skipped". No infinity or NaN
-reaches a parameter or a moment either way — that is asserted bit for bit in
-`Regression_LossScaling` — but it is a partial step where PyTorch would take
+reaches a parameter or a moment either way: that is asserted bit for bit in
+`Regression_LossScaling`, but it is a partial step where PyTorch would take
 none. `optim/loss_scaler.hpp` explains what a whole-step skip would cost.
 
 `gradcheck` and mixed precision are incompatible, and deliberately so:
@@ -474,7 +474,7 @@ the files under `tests/<tier>/<module>/`; `tests/README.md` describes the tree.
 SushiBLAS builds its own suite only when it is the top-level project
 (`SB_BUILD_TESTS`), so none of its tests are compiled or counted here.
 
-The `regression` tier pins guarantees whose failure is silent — today
+The `regression` tier pins guarantees whose failure is silent: today
 `compile_count() == 1` across repeated `fit()` calls, and the fact that every
 replay actually dispatches instead of reporting complete over an unarmed plan
 (see `tests/layers/train/test_trainer/test_compile_once.cpp`).
@@ -542,7 +542,7 @@ SushiAI writes no SYCL: no file here names a `sycl::` type or submits to a
 queue, and every compute call goes through `SushiBLAS::sushiblas` (linked
 `PUBLIC`). The rows under `modules/core/graph/source/lowering/` turn IR into those calls. The
 optimizers do hand SushiBLAS a device functor for their fused
-update — plain arithmetic that SushiBLAS's own elementwise seam inlines into
+update: plain arithmetic that SushiBLAS's own elementwise seam inlines into
 its own kernel. See
 [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) for the full picture and
 [the master plan](docs/design/ROADMAP.md) for what comes next.

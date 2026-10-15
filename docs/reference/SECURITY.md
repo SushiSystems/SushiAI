@@ -11,7 +11,7 @@ disclosure before a fix is available puts every user at risk.
 Instead, report it privately through one of:
 
 - **Email (preferred):** **mustafagarip@sushisystems.io**
-- **Discord:** reach the maintainer privately on the community server —
+- **Discord:** reach the maintainer privately on the community server:
   invite: `https://discord.gg/y5639YuaPh`
 
 If you prefer, you may also use GitHub's **private vulnerability reporting**
@@ -39,14 +39,14 @@ disclosure. We are happy to coordinate timing with you.
 
 ## Scope and threat model
 
-SushiAI is at **AI-1** — a graph IR, a differentiation transform, layers,
+SushiAI is at **AI-1**: a graph IR, a differentiation transform, layers,
 optimizers, a data seam and a training loop, none of which contain a kernel:
 SushiAI writes no SYCL, and every compute call goes through
 `SushiBLAS::Engine` from one file (`src/graph/lowering.cpp`).
 
 The one place SushiAI itself reads bytes it did not write is the MNIST IDX
 loader (`src/data/dataset.cpp`). It checks both magic numbers, requires the
-image and label counts to agree, and treats a short read as an error — but it
+image and label counts to agree, and treats a short read as an error, but it
 does **not** bound the declared `rows * cols` before sizing its host buffer,
 so a malformed header can turn into an allocation failure rather than a clean
 rejection. It is aimed at a corrupted download, not at a hostile file; do not
@@ -55,9 +55,9 @@ security surface still lives in
 [SushiBLAS](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/SECURITY.md)
 (the kernels) and
 [SushiRuntime](https://github.com/SushiSystems/SushiRuntime/blob/main/docs/SECURITY.md)
-(the scheduler and memory pool) — please report a bug specific to either of
+(the scheduler and memory pool): please report a bug specific to either of
 those directly to that repository. This document will grow further scope
-statements as model/checkpoint loading lands — that, like SushiBLAS's tensor
+statements as model/checkpoint loading lands: that, like SushiBLAS's tensor
 file loaders, will be a genuine untrusted-input surface worth its own
 explicit section.
 
