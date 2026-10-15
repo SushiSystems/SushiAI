@@ -22,7 +22,12 @@ set(SUSHIAI_QUARANTINED_TESTS "")
 # Fails the configure when a suite in `sources` has no size prefix: it would register no test.
 function(sushiai_check_suite_sizes)
     foreach(source IN LISTS ARGN)
-        file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${source}" text)
+        if(IS_ABSOLUTE "${source}")
+            set(path "${source}")
+        else()
+            set(path "${CMAKE_CURRENT_SOURCE_DIR}/${source}")
+        endif()
+        file(READ "${path}" text)
         string(REGEX MATCHALL "(TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)\\([ \t\r\n]*[A-Za-z0-9_]+"
             declarations "${text}")
         foreach(declaration IN LISTS declarations)
