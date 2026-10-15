@@ -431,6 +431,9 @@ v1, to revisit for PINN and GNN work.
   its `Suites:` lines name `Small_Layout`, which `test_backward.cpp` does not hold; the file holds
   `Small_Backward`, `Small_CastInsertion`, `Small_Diagnostics`, `Small_LossRoots`, `Small_Precision` and
   `Small_Rematerialise`. `check_docs_truth.py` reports the length.
+- **Give the unlisted `SA_THROW_IF` sites their rows.** `python tools/contract/check_contract.py .`
+  reports sites in `modules/core/eager/source/region_*.cpp`, `modules/core/graph/source/memory_plan.cpp`
+  and `reference_file.hpp` with no row in `tools/contract/site_classes.tsv`.
 
 ## Test tree
 
