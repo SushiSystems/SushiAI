@@ -171,15 +171,33 @@ class ModuleTree:
         call = re.search(rf"\b{re.escape(self.layout.module_function)}\s*\(([^)]*)\)", text)
         return call.group(1).split() if call else []
 
+    def key_of(self, module: Module, token: str) -> str:
+        """Returns the module key a build file token names.
+
+        `<tier>/<name>` is taken as written. A bare name is the one module of that name outside the
+        domain tiers, since a domain module that shares its name is written with its tier; failing
+        that, the module of that name in the module's own tier, then the one module of that name.
+        A token that names no module stays as written.
+        """
+        if "/" in token:
+            return token
+        named = [other for other in self.modules.values() if other.name == token]
+        shared = [other for other in named if other.tier not in self.layout.domain_tiers]
+        if len(shared) == 1:
+            return shared[0].key
+        if f"{module.tier}/{token}" in self.modules:
+            return f"{module.tier}/{token}"
+        return named[0].key if len(named) == 1 else token
+
     def declared(self, module: Module) -> dict[str, frozenset[str]]:
-        """Returns the module names a build file lists, by public and private keyword."""
+        """Returns the module keys a build file lists, by public and private keyword."""
         listed: dict[str, set[str]] = {self.layout.public_depends: set(), self.layout.private_depends: set()}
         keyword = ""
         for token in self.call_tokens(module):
             if K_CMAKE_KEYWORD.fullmatch(token):
                 keyword = token
             elif keyword in listed:
-                listed[keyword].add(token)
+                listed[keyword].add(self.key_of(module, token))
         return {keyword: frozenset(names) for keyword, names in listed.items()}
 
     def listed_edges(self, module: Module) -> frozenset[str]:
@@ -189,7 +207,8 @@ class ModuleTree:
         """
         if self.layout.module_function:
             return frozenset().union(*self.declared(module).values())
-        return frozenset(included for includer, included in self.layout.same_tier_edges if includer == module.name)
+        return frozenset(f"{module.tier}/{included}" for includer, included in self.layout.same_tier_edges
+                         if includer == module.name)
 
     def is_internal(self, module: Module) -> bool:
         """Returns whether a module's build file marks it internal, so its headers are not installed."""
@@ -255,7 +274,7 @@ def rule_same_tier_includes(tree: ModuleTree) -> Iterator[Issue]:
         if module.name == K_UMBRELLA:
             continue
         for include, target in tree.module_includes(module, module.folder):
-            if target.tier == module.tier and target.name not in tree.listed_edges(module):
+            if target.tier == module.tier and target.key not in tree.listed_edges(module):
                 source = "its CMakeLists.txt" if tree.layout.module_function else "K_SAME_TIER_EDGES"
                 yield Issue(include.path, include.line, f"{module.key} includes {target.name}, an edge {source} does not list")
 
@@ -286,7 +305,7 @@ def rule_declared_dependencies(tree: ModuleTree) -> Iterator[Issue]:
         for include, target in tree.module_includes(module, module.folder):
             keywords = ((layout.public_depends,) if tree.is_public(module, include)
                         else (layout.public_depends, layout.private_depends))
-            if not any(target.name in declared[keyword] for keyword in keywords):
+            if not any(target.key in declared[keyword] for keyword in keywords):
                 yield Issue(include.path, include.line, f"{module.name} includes {target.name}, which its "
                                                         f"CMakeLists.txt does not list in {' or '.join(keywords)}")
 
@@ -300,7 +319,7 @@ def rule_unused_dependencies(tree: ModuleTree) -> Iterator[Issue]:
         declared = tree.declared(module)
         included: dict[bool, set[str]] = {True: set(), False: set()}
         for include, target in tree.module_includes(module, module.folder):
-            included[tree.is_public(module, include)].add(target.name)
+            included[tree.is_public(module, include)].add(target.key)
         build_file = module.folder / "CMakeLists.txt"
         for name in sorted(declared[layout.public_depends] - included[True]):
             reason = (f"only source/ includes it; list it in {layout.private_depends}"
