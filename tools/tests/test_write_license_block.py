@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import subprocess
 from datetime import date
 import sys
@@ -85,6 +87,12 @@ K_OLD_HASHES = (
     "# Licensed under the Apache License, Version 2.0. See LICENSE.\n"
 )
 K_DOCSTRING = '"""Builds the graph."""\n\nimport sys\n'
+
+
+def _main(arguments: list[str]) -> int:
+    """Runs the writer from its command line, keeping its listing out of the test output."""
+    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        return main(arguments)
 
 
 def _write(name: str, text: str, header: Header = K_HEADER, year: int = 2026) -> str:
@@ -279,12 +287,12 @@ class RepositoryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = self._repository(folder)
             arguments = [str(root), "--project", K_PROJECT]
-            self.assertEqual(main([*arguments, "--report"]), 1)
+            self.assertEqual(_main([*arguments, "--report"]), 1)
             self.assertEqual((root / "graph.py").read_text(encoding="utf-8"), K_DOCSTRING)
-            self.assertEqual(main(arguments), 0)
+            self.assertEqual(_main(arguments), 0)
             self.assertIn("Copyright (c) 2024-present ", (root / "graph.py").read_text(encoding="utf-8"))
             self.assertEqual((root / "third_party" / "vendored.py").read_text(encoding="utf-8"), "x = 1\n")
-            self.assertEqual(main([*arguments, "--report"]), 0)
+            self.assertEqual(_main([*arguments, "--report"]), 0)
 
 
     def test_writes_a_file_that_is_staged_and_not_yet_committed(self) -> None:
@@ -293,7 +301,7 @@ class RepositoryTest(unittest.TestCase):
             root = self._repository(folder)
             (root / "fresh.py").write_text(K_DOCSTRING, encoding="utf-8")
             _git(root, "add", "fresh.py")
-            self.assertEqual(main([str(root), "--project", K_PROJECT]), 0)
+            self.assertEqual(_main([str(root), "--project", K_PROJECT]), 0)
             written = (root / "fresh.py").read_text(encoding="utf-8")
             self.assertIn(f"Copyright (c) {date.today().year}-present ", written)
 
@@ -302,7 +310,7 @@ class RepositoryTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = self._repository(folder)
             (root / "graph.py").unlink()
-            self.assertEqual(main([str(root), "--project", K_PROJECT, "--report"]), 0)
+            self.assertEqual(_main([str(root), "--project", K_PROJECT, "--report"]), 0)
 
 
 if __name__ == "__main__":

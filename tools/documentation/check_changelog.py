@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, Issue, run  # noqa: E402
+from checking.checker import Checker, Issue, run  # noqa: E402
 
 K_CHANGELOG = Path("docs/reference/CHANGELOG.md")
 K_LENGTH_CEILING = 240

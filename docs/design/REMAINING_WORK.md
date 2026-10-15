@@ -431,6 +431,13 @@ v1, to revisit for PINN and GNN work.
   (`CMakeLists.txt`, `cli/pyproject.toml`).
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
 
+- **Bring the manual to `check_docs_truth.py`.** Its first run on 2026-10-15 found 429 cited
+  paths, 379 em dashes, 154 named symbols, 29 history words, 16 pages over the ceiling and 11
+  examples without a source.
+- **Copy `check_layering.py` and its test again** once SushiSkills resolves the tier include
+  form, the umbrellas at the include root and one module name in two tiers; `tools/common/`
+  goes with that copy.
+
 ## Test tree
 
 The tests mirror the source (`tests/README.md`); one program per module.
