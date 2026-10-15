@@ -355,21 +355,22 @@ namespace SushiAI
             std::vector<StorageID> preset;
             SA_TRY(place_leaves(trace, preset));
 
+            std::vector<Graph::ValueID> observed = trace.observed;
+            for (const StateGradient& gradient : trace.gradients)
+            {
+                if (gradient.value != Graph::K_NO_VALUE)
+                    observed.push_back(gradient.value);
+            }
+
+            SA_TRY_ASSIGN(const BoundaryMap boundaries,
+                          find_boundaries(graph, partition,
+                                          SushiRuntime::span<const Graph::ValueID>(
+                                              observed.data(), observed.size())));
+
             StepWork work;
             Result<StepPlan> planned = ::SushiAI::Detail::guard_value(
                 ::SushiAI::Detail::SeamPhase::Record, [&]()
             {
-                std::vector<Graph::ValueID> observed = trace.observed;
-                for (const StateGradient& gradient : trace.gradients)
-                {
-                    if (gradient.value != Graph::K_NO_VALUE)
-                        observed.push_back(gradient.value);
-                }
-
-                const BoundaryMap boundaries = find_boundaries(
-                    graph, partition,
-                    SushiRuntime::span<const Graph::ValueID>(observed.data(), observed.size()));
-
                 StepPlan plan = table_.plan(
                     graph, partition, boundaries,
                     SushiRuntime::span<const StorageID>(preset.data(), preset.size()));

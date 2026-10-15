@@ -31,8 +31,9 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/ops.hpp>
+#include <SushiAI/core/status.hpp>
 
 namespace SushiAI
 {
@@ -66,9 +67,12 @@ namespace SushiAI
 
             /**
              * @brief Returns, for each value, the lowest value id that shares its buffer.
+             * @return The buffers, or StatusCode::InvalidDescription when an ACCUMULATE writes
+             *         into a leaf.
              * @see modules/core/eager/README.md
              */
-            [[nodiscard]] std::vector<Graph::ValueID> buffers_of(const Graph::Graph& graph)
+            [[nodiscard]] Result<std::vector<Graph::ValueID>> buffers_of(
+                const Graph::Graph& graph)
             {
                 std::vector<Graph::ValueID> parent(graph.value_count());
                 for (std::size_t value = 0; value < parent.size(); ++value)
@@ -80,10 +84,11 @@ namespace SushiAI
                         || node.outputs.empty())
                         continue;
 
-                    SA_THROW_IF(!is_computed(graph, node.inputs[0]),
-                                "ACCUMULATE writes into value {}, which is a leaf; a region "
-                                "cannot add into storage the session does not own",
-                                node.inputs[0]);
+                    SA_FAIL_IF(!is_computed(graph, node.inputs[0]),
+                               StatusCode::InvalidDescription,
+                               "ACCUMULATE writes into value {}, which is a leaf; a region "
+                               "cannot add into storage the session does not own",
+                               node.inputs[0]);
 
                     const Graph::ValueID a = find_buffer(parent, node.outputs[0]);
                     const Graph::ValueID b = find_buffer(parent, node.inputs[0]);
@@ -167,7 +172,7 @@ namespace SushiAI
 
             /**
              * @brief Returns the nodes of each region, in node order.
-             * @throws Error when a node that is not a LEAF has a key the partition does not list.
+             * @pre Every node that is not a LEAF has a key the partition lists.
              */
             [[nodiscard]] std::vector<std::vector<Graph::NodeID>> nodes_by_region(
                 const Graph::Graph& graph, const Partition& partition, const RegionIndex& index)
@@ -180,7 +185,7 @@ namespace SushiAI
                         continue;
 
                     const std::uint32_t region = index.of(key);
-                    SA_THROW_IF(region == K_NO_INDEX,
+                    SA_FATAL_IF(region == K_NO_INDEX,
                                 "Node {} has region key {}, which the partition does not list",
                                 i, key);
                     nodes[region].push_back(static_cast<Graph::NodeID>(i));
@@ -191,16 +196,16 @@ namespace SushiAI
 
         } // namespace
 
-        BoundaryMap find_boundaries(const Graph::Graph& graph,
-                                    const Partition& partition,
-                                    SushiRuntime::span<const Graph::ValueID> observed)
+        Result<BoundaryMap> find_boundaries(const Graph::Graph& graph,
+                                            const Partition& partition,
+                                            SushiRuntime::span<const Graph::ValueID> observed)
         {
-            SA_THROW_IF(partition.region_of_node.size() != graph.node_count(),
+            SA_FATAL_IF(partition.region_of_node.size() != graph.node_count(),
                         "The partition assigns {} nodes but the graph holds {}",
                         partition.region_of_node.size(), graph.node_count());
 
             BoundaryMap map;
-            map.buffer_of = buffers_of(graph);
+            SA_TRY_ASSIGN(map.buffer_of, buffers_of(graph));
             map.regions.resize(partition.regions.size());
 
             const RegionIndex index(partition);
@@ -222,7 +227,7 @@ namespace SushiAI
 
             for (Graph::ValueID value : observed)
             {
-                SA_THROW_IF(value >= graph.value_count(),
+                SA_FATAL_IF(value >= graph.value_count(),
                             "Observed value {} does not exist; the graph holds {} values",
                             value, graph.value_count());
                 shared.observe(map.buffer_of[value]);

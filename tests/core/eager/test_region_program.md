@@ -48,6 +48,6 @@ boundary the design names.
 
 `ProgramOptions::fusion` reaches the pass.
 
-## AKeyThatNamesNoRegionThrows
+## AKeyThatNamesNoRegionIsFatal
 
 `K_NO_REGION` is the key of the leaves and compiles to nothing.

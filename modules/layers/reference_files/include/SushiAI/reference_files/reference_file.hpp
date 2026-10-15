@@ -39,6 +39,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/shape.hpp>
@@ -87,13 +88,16 @@ namespace SushiAI
             }
 
             private:
-                /** @brief Returns the payload as @p Element values, or throws on another dtype. */
+                /**
+                 * @brief Returns the payload as @p Element values.
+                 * @pre The tensor was found and is stored as @p expected.
+                 */
                 template <typename Element>
                 [[nodiscard]] std::vector<Element> elements(DType expected) const
                 {
-                    SA_THROW_IF(!found, "a reference tensor that was not found was read: {}",
+                    SA_FATAL_IF(!found, "a reference tensor that was not found was read: {}",
                                 reason);
-                    SA_THROW_IF(dtype != expected, "a {} reference tensor was read as {}",
+                    SA_FATAL_IF(dtype != expected, "a {} reference tensor was read as {}",
                                 dtype_name(dtype), dtype_name(expected));
 
                     std::vector<Element> values(payload.size() / sizeof(Element));
@@ -176,8 +180,14 @@ namespace SushiAI
                     stream_.seekg(entry->second.offset);
                     stream_.read(reinterpret_cast<char*>(tensor.payload.data()),
                                  static_cast<std::streamsize>(tensor.payload.size()));
-                    SA_THROW_IF(!stream_, "{} ended inside the payload of '{}'", path_,
-                                record.name);
+                    if (!stream_)
+                    {
+                        tensor.payload.clear();
+                        tensor.reason = path_ + " ended inside the payload of '" + record.name + "'";
+                        ADD_FAILURE() << tensor.reason;
+                        return tensor;
+                    }
+
                     tensor.found = true;
                     return tensor;
                 }

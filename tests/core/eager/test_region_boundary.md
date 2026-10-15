@@ -56,11 +56,11 @@ K_ACCUMULATE writes its result into its first operand. The result and that opera
 buffer and the second operand has its own. The result is observed, so both values of the buffer
 are exports and the second operand is not.
 
-## AnAccumulateIntoALeafThrows
+## AnAccumulateIntoALeafIsAnInvalidDescription
 
 An accumulate whose first operand is an input leaf would add into storage the session does not
-own.
+own. The builder accepts that graph, so the failure is a `Status` and not a stop.
 
-## APartitionOfAnotherGraphThrows
+## APartitionOfAnotherGraphIsFatal
 
-A partition with one node too few is refused before any node is read.
+A partition with one node too few stops the process before any node is read.

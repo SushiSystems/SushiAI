@@ -33,6 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/core/result.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -91,10 +92,11 @@ namespace SushiAI
         /**
          * @brief Finds the values that cross a region boundary of @p partition.
          * @param observed Values read from outside the graph; each is exported.
-         * @return The imports and exports of every region and the buffer of every value.
+         * @return The imports and exports of every region and the buffer of every value, or
+         *         StatusCode::InvalidDescription when an ACCUMULATE writes into a leaf.
          * @see modules/core/eager/README.md
          */
-        [[nodiscard]] BoundaryMap find_boundaries(
+        [[nodiscard]] Result<BoundaryMap> find_boundaries(
             const Graph::Graph& graph, const Partition& partition,
             SushiRuntime::span<const Graph::ValueID> observed);
 

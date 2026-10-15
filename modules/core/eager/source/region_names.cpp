@@ -28,6 +28,7 @@
 
 #include <SushiAI/eager/region_names.hpp>
 
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -67,7 +68,7 @@ namespace SushiAI
 
         const std::string& RegionNames::label_of(RegionID id) const
         {
-            SA_THROW_IF(id >= labels_.size(), "Region id {} was never given; {} ids exist", id,
+            SA_FATAL_IF(id >= labels_.size(), "Region id {} was never given; {} ids exist", id,
                         labels_.size());
             return labels_[id];
         }

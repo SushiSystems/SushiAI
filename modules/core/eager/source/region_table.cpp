@@ -31,6 +31,7 @@
 #include <algorithm>
 #include <utility>
 
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 
 namespace SushiAI
@@ -53,7 +54,7 @@ namespace SushiAI
                         continue;
 
                     StorageID& placed = storage[boundaries.buffer_of[value]];
-                    SA_THROW_IF(placed != K_NO_STORAGE && placed != preset[value],
+                    SA_FATAL_IF(placed != K_NO_STORAGE && placed != preset[value],
                                 "Value {} is placed in storage {}, but it shares its buffer "
                                 "with value {}, which is placed in storage {}",
                                 value, preset[value], boundaries.buffer_of[value], placed);
@@ -242,13 +243,13 @@ namespace SushiAI
                                    SushiRuntime::span<const StorageID> preset)
         {
             const std::size_t region_count = partition.regions.size();
-            SA_THROW_IF(boundaries.regions.size() != region_count
+            SA_FATAL_IF(boundaries.regions.size() != region_count
                             || boundaries.buffer_of.size() != graph.value_count(),
                         "The boundary map describes {} regions and {} values, but the partition "
                         "has {} regions and the graph {} values",
                         boundaries.regions.size(), boundaries.buffer_of.size(), region_count,
                         graph.value_count());
-            SA_THROW_IF(preset.size() != graph.value_count(),
+            SA_FATAL_IF(preset.size() != graph.value_count(),
                         "The caller placed {} values, but the graph holds {}", preset.size(),
                         graph.value_count());
 
@@ -295,7 +296,7 @@ namespace SushiAI
                 for (Graph::ValueID value : boundary.imports)
                 {
                     const StorageID placed = storage[boundaries.buffer_of[value]];
-                    SA_THROW_IF(placed == K_NO_STORAGE,
+                    SA_FATAL_IF(placed == K_NO_STORAGE,
                                 "Region '{}' reads value {} ('{}'), which has no storage; a "
                                 "leaf is fed through the step or bound as state",
                                 names_.label_of(id), value, graph.value(value).debug_name);

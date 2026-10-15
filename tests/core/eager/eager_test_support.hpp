@@ -238,10 +238,19 @@ namespace SushiAI::Eager::Support
     }
 
     /** @brief Returns the boundaries of @p step with its loss and gradients observed. */
-    [[nodiscard]] inline BoundaryMap boundaries_of(const TracedStep& step)
+    [[nodiscard]] inline Result<BoundaryMap> try_boundaries_of(const TracedStep& step)
     {
         const std::vector<Graph::ValueID> observed = observed_of(step);
         return find_boundaries(step.graph, step.partition, span_of(observed));
+    }
+
+    /**
+     * @brief Returns the boundaries of @p step with its loss and gradients observed.
+     * @pre The graph of @p step has no ACCUMULATE into a leaf.
+     */
+    [[nodiscard]] inline BoundaryMap boundaries_of(const TracedStep& step)
+    {
+        return try_boundaries_of(step).value();
     }
 
     /** @brief Returns the position in Partition::regions of the region named @p name. */

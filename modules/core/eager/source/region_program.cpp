@@ -32,6 +32,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/core/check.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/core/ops.hpp>
 #include <SushiAI/graph/lowering.hpp>
@@ -92,10 +93,10 @@ namespace SushiAI
                                      RegionKey key, const RegionBoundary& boundary,
                                      const ProgramOptions& options)
         {
-            SA_THROW_IF(partition.region_of_node.size() != graph.node_count(),
+            SA_FATAL_IF(partition.region_of_node.size() != graph.node_count(),
                         "The partition assigns {} nodes but the graph holds {}",
                         partition.region_of_node.size(), graph.node_count());
-            SA_THROW_IF(key == K_NO_REGION, "Region key {} names no region", key);
+            SA_FATAL_IF(key == K_NO_REGION, "Region key {} names no region", key);
 
             RegionProgram program;
             program.imports = boundary.imports;
