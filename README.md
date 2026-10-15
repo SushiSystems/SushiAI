@@ -483,7 +483,7 @@ replay actually dispatches instead of reporting complete over an unarmed plan
 
 ```cpp
 #include <SushiAI/SushiAI.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 namespace sb = SushiBLAS;
 

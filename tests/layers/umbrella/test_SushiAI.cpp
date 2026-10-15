@@ -28,7 +28,7 @@
 
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiAI/SushiAI.h>
 
 /** @brief Shortens the SushiBLAS namespace. */

@@ -112,7 +112,7 @@ condensed; that file compiles and runs, so start by reading it.
 
 ```cpp
 #include <SushiAI/SushiAI.h>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 
 sr::Execution::RuntimeContext context;
 sb::Engine engine(context);

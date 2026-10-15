@@ -49,7 +49,7 @@
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/train/role_match.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/format.hpp>
 #include "registries.hpp"
 #include "run_start.hpp"

@@ -37,7 +37,7 @@
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/nonlinear/nonlinear.hpp>
-#include <SushiBLAS/support/safe_math.hpp>
+#include <SushiBLAS/arithmetic/safe_math.hpp>
 #include <SushiAI/core/check.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/graph/fusion.hpp>

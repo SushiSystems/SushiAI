@@ -41,7 +41,7 @@
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiBLAS/SushiBLAS.h>
+#include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiBLAS/core/format.hpp>
 #include "inference_run.hpp"
 #include "registries.hpp"
