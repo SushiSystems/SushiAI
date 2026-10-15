@@ -481,8 +481,8 @@ run state holds no `run.seed` record, which a build from before the seed existed
 
 ### Layer types
 
-`NN::LAYER_REGISTRY` in `include/SushiAI/nn/layer_registry.hpp` holds thirteen
-rows. The shapes below are per sample and leave out the batch axis. The chain
+`NN::register_layers` in `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` adds
+sixteen layer rows; the table below lists the ones a dense or convolutional chain uses. The shapes below are per sample and leave out the batch axis. The chain
 starts at `[input.features]`, and each layer receives the shape the layer
 before it reports.
 
@@ -509,7 +509,7 @@ The factories refuse both mistakes and name the missing layer.
 
 ### Dataset types
 
-`Data::DATASET_REGISTRY` in `include/SushiAI/data/dataset.hpp` holds two rows.
+`Data::register_datasets` adds `rings`, and the vision registration adds `mnist`.
 
 | `type` | Keys |
 |---|---|

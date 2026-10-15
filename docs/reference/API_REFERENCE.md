@@ -22,7 +22,7 @@ design lives in the prose docs, and those are the better place to start:
 | Understand the IR every pass rewrites | `SushiAI::Graph::Graph`: `graph/ir.hpp` |
 | Add a backward rule | `SushiAI::Autograd`: `autograd/backward.hpp` |
 | Know what fuses, and what refuses to | `SushiAI::Graph::FusedForm`: `graph/fusion.hpp` |
-| Run in fp16 with fp32 masters | `SushiAI::Graph::IPrecisionPolicy`: `graph/precision.hpp` |
+| Run in fp16 with fp32 masters | `SushiAI::Graph::PrecisionPolicy`: `graph/precision.hpp` |
 
 ## A caution about the reference
 

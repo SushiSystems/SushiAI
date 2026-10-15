@@ -114,8 +114,8 @@ condensed; that file compiles and runs, so start by reading it.
 #include <SushiAI/SushiAI.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
-sr::Execution::RuntimeContext context;
-sb::Engine engine(context);
+SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+sb::Engine engine(runtime);
 
 // 1. A model. An aggregate list, not a registration ritual.
 sa::NN::Sequential model{

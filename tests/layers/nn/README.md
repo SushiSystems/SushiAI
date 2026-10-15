@@ -2446,8 +2446,8 @@ Suites: `Unit_LayerRegistry`.
 
 Tests the layer registry: each row's factory, the keys it reads and the model it builds.
 
-This file needs no device. `NN::K_LAYER_REGISTRY` in `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` is
-a constant table of fourteen rows, and a factory turns a per-sample input shape and a parsed
+This file needs no device. `NN::register_layers` in `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp`
+adds sixteen layer rows to an `NN::NodeRegistry`, and a factory turns a per-sample input shape and a parsed
 JSON object into an `NN::Layer`. A case therefore needs a `Shape`, a string of JSON and, for
 the model cases, a host-side graph.
 
@@ -2488,7 +2488,7 @@ carries the required keys of its row and no other.
 
 ### make_layer
 
-`make_layer` looks a type up in `NN::K_LAYER_REGISTRY` with `Config::find_entry` and calls the
+`make_layer` looks a type up with `find_layer` in the registry `make_layer_registry` returns and calls the
 row's factory with the context "layer 0 '<type>'". The cases that assert a message expect that
 context in it.
 
@@ -2526,15 +2526,15 @@ makes of it.
 
 ### EveryRowHasAMinimalCase
 
-`K_MINIMAL_CASES` has as many entries as `NN::K_LAYER_REGISTRY`, and entry `i` names the type of
+`K_MINIMAL_CASES` has as many entries as the registry has layer rows, and entry `i` names the type of
 row `i`. A row added to the registry without a case here fails this test, so the two tests
 that loop over the cases cover every factory.
 
 ### TheTypeStringsAreTheOnesModelFilesSpell
 
-The `type` fields of `NN::K_LAYER_REGISTRY` are, in order, "linear", "gelu", "relu", "tanh",
+The `type` fields of the layer rows are, in order, "linear", "gelu", "relu", "tanh",
 "sigmoid", "leaky_relu", "unflatten", "conv2d", "maxpool2d", "avgpool2d", "global_avgpool",
-"flatten", "upsample" and "silu". A model file names a layer by one of these strings, so a
+"flatten", "upsample", "silu", "mish" and "slice_channels". A model file names a layer by one of these strings, so a
 renamed row fails here.
 
 ### EachFactoryBuildsFromAMinimalObject
@@ -3735,9 +3735,9 @@ value.
 
 ### AnUnknownLayerTypeListsEveryTypeThisBuildHas
 
-The model names a layer type "hologram", which no row of `NN::K_LAYER_REGISTRY` carries. The
+The model names a layer type "hologram", which no layer row carries. The
 message contains "hologram", "layer type", "'linear'" and "'gelu'". The unknown type has to
-be a name the registry does not hold, and "conv2d" is a row of the table.
+be a name the registry does not hold, and "conv2d" is a layer row.
 
 ### AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory
 

@@ -1185,10 +1185,9 @@ refusal it would not be an error; it would be an fp32 run reported as a mixed on
 
 ### AccuracyRefusesLogitsItCannotRead
 
-The mixed-precision change would otherwise have introduced this defect. `score_accuracy()`
-reads the logits on the host. It once fell back to `data_as<float>()` for anything that was not
-FLOAT64, which on a half buffer reads two elements as one and reports an accuracy that is
-fiction. Nothing throws, nothing is NaN, and the run says 100%.
+The classifier objective's accuracy reads the logits on the host. A fallback to
+`data_as<float>()` for anything that is not FLOAT64 would read two elements of a half buffer
+as one and report an accuracy that is fiction. Nothing throws, nothing is NaN, and the run says 100%.
 
 `build_classifier` lists the logits as observed, so the shipped path cannot reach this. A
 caller running the pass themselves can, and gets an error.

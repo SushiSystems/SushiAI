@@ -1309,7 +1309,7 @@ Suites: `Integration_Arena`, `Integration_ArenaDeathTest`.
 
 The memory planner rests on three device-side claims, and the file checks each one.
 
-1. Two values packed into one arena report non-overlapping `ResourceRegion`s over the same
+1. Two values packed into one arena report non-overlapping `SushiRuntime::BufferRegion`s over the same
    allocation base. Packing is safe only because of this. SushiRuntime's dependency tracker
    orders two accesses if and only if their regions overlap. Every driver once passed a region
    that named the bare allocation base; with that region every tensor in an arena would alias

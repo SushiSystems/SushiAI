@@ -4,7 +4,7 @@ The tests of `applications/programs`. The suite prefix of a case gives its ctest
 
 ## source/test_training_run.cpp, source/test_inference_run.cpp, source/test_run_start.cpp
 
-Suites: `Integration_ProgramRuns`, in `sushiai_program_tests`.
+Suites: `Integration_ProgramRuns`, in `sushiai_programs_tests`.
 
 The cases exercise the tables of `applications/programs`: the run table and its fallback, the report
 table, and the start of a run. The pieces of a run are an MLP of 6 features, 12 hidden units and 4

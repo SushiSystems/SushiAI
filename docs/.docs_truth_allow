@@ -1,0 +1,12 @@
+sushiai_[a-z_]+_tests  # test program names sushiai_add_test_program generates
+^(sr|SushiRuntime)::.*|^(AdvancedControls::live_allocation_count|TaskMetadata::params|K_MAX_PARAMS|rearm|capture_base_state|in_degree|run_plan|Memory::USMAllocator|USMRegistry)$  # SushiRuntime names, held in the sibling repository
+^(ForceSYCL|execute_reduction|execute_folding_axis_reduction|ReductionsOrderAgainstViewsOfOneAllocation|AxisReductionsOrderAgainstViewsOfOneAllocation|pad_bottom|pad_right)$  # SushiBLAS names, held in the sibling repository
+^(parallel_for|sycl_ext_codeplay_kernel_fusion)$  # SYCL and intel-llvm names
+^(GTest::gtest_main|KeyError|conj|uint64|doxygen_exe)$  # GoogleTest, Python, std, NumPy and CLI configuration names
+^(stride_tensor|reg_max|pred_bboxes|pred_scores|bbox_iou|box_iou|mask_gt|pd_scores|pd_bboxes|anc_points|gt_bboxes|select_candidates_in_gts|RotatedTaskAlignedAssigner|ap_per_class|use_scipy|compute_ap|target_img|argsort|LetterBox|scale_fill|ori_shape|ratio_pad)$  # Ultralytics names the reference comparisons cite
+^(cvtColor|warpAffine)$  # OpenCV functions the imaging parity cites
+^(register_module|zero_grad|CrossEntropy)$  # PyTorch names the manual contrasts with
+^(g_[0-9xywh]|b_[0-9])$  # mathematical symbols in formulas
+^(byte_token_count|special_count|merge_count|name_length|source_width|floored_mod|first_use)$  # field and formula names of a file format or algorithm the page defines
+^(Ops::K_SOFTSIGN|GraphBuilder::softsign|lower_softsign|sushi_apply_build_policy|pool_backward)$  # hypothetical names in a worked example or a counterfactual
+^PositionedRandomOps::bernoulli$  # planned SushiBLAS operation named by GRAPH_CAPABILITIES.md

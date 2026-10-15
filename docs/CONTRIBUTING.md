@@ -128,7 +128,7 @@ nobody types it by hand.
   place of concepts, `constexpr` in place of `consteval`). 4-space indentation.
 - **Classes/structs/namespaces**: `PascalCase` (`CompiledStep`, `TensorPool`, `SushiAI`).
 - **Enumerators**: `PascalCase` (`Lifetime::Parameter`, `StatusCode::Ok`). **Constants**
-  carry the `K_` prefix (`K_ALL`, `K_LAYER_REGISTRY`).
+  carry the `K_` prefix (`K_ALL`, `K_OPTIMIZER_REGISTRY`).
 - **Functions and variables**: `snake_case`.
 - **Private members**: trailing underscore.
 - **Allman braces** for multi-statement blocks; a single-statement

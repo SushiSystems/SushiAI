@@ -211,8 +211,8 @@ which reports and aborts the process.
 
 SushiBLAS and SushiRuntime report by throwing. `core/seam.hpp` is the one place
 such an exception becomes a status: `Detail::guard` and `Detail::guard_value`
-run a call and return what it threw as a `Status`, and `run_recorded`,
-`compile_graph`, `run_plan` and `discard_recorded` wrap the four runtime calls
+run a call and return what it threw as a `Status`, and `create_runtime`,
+`run_recorded`, `run_step` and `discard_recorded` wrap the four runtime calls
 the library makes. The `SeamPhase` argument (`Record`, `Allocate`, `Execute`)
 decides the code of a failure that carries no type of its own.
 
@@ -422,7 +422,7 @@ elements, so such an offset has no representation.
 This is only safe because SushiBLAS now honours `storage_offset` everywhere
 and `Tensor::region()` reports a view's own byte interval rather than the
 bare allocation base; two disjoint tensors in one arena therefore produce
-non-overlapping `ResourceRegion`s and do not falsely serialise. That claim is
+non-overlapping `SushiRuntime::BufferRegion`s and do not falsely serialise. That claim is
 checked directly in `tests/core/graph/test_arena.cpp`.
 
 The two reduction operands of `K_LOG_SOFTMAX` and `K_NLL_LOSS` are planned like
@@ -578,7 +578,7 @@ work follows from that one fact:
   still reads.
 - **`graph/fusion_selector.hpp` is the dynamic half**: given the device's
   `SushiBLAS::Device::Profile` and the engine's `ExecutionMode` (`Auto`,
-  `ForceSycl` or `ForceReference`), it chooses which matched entry to actually
+  `ForceSYCL` or `ForceReference`), it chooses which matched entry to actually
   spell. Device facts live only here; the IR is the same on every machine and
   only one node's spelling changes.
 - **`modules/core/graph/source/lowering/fused.cpp` holds the functors**, because a functor
@@ -858,25 +858,26 @@ model exists. A virtual cannot be a template, so the visitor is type-erased
 through `NN::ParameterVisitor`, which *refers* to its callable rather than
 owning it and therefore allocates nothing.
 
-### Four registries, and why they are constant tables
+### Four registries, and who fills them
 
 ```
 applications/programs/source/train.cpp  (no type names; never edited again)
    |
-   +-- NN::K_LAYER_REGISTRY       "linear", "gelu", "relu", "tanh", "sigmoid",
-   |                            "leaky_relu", "unflatten", "conv2d",
-   |                            "maxpool2d", "avgpool2d", "global_avgpool",
-   |                            "flatten", "upsample", "silu"
-   +-- Data::K_DATASET_REGISTRY   "rings", "mnist"
+   +-- NN::NodeRegistry          layer and node rows: NN::register_layers, then
+   |                             the vision and language registration
+   +-- Data::DatasetRegistry     "rings" from Data::register_datasets; "mnist"
+   |                             and the readers from the vision registration
+   +-- Train::ObjectiveRegistry  "cross_entropy" and the other train rows, then
+   |                             the vision and language rows
    +-- Optim::K_OPTIMIZER_REGISTRY "adamw", "sgd"
-   +-- Train::ObjectiveRegistry    "cross_entropy", "anchor"
 ```
 
-Each is a file-scope `constexpr` array of `{name, factory function pointer}`,
-in the shape of `Ops::K_ALL` and the fusion `K_CATALOG`, and `"type"` is the
-discriminator key in all four, so `Config::find_entry` is written once and
-serves all of them. **Nothing self-registers**, for the reason §4 gives for the
-backward-rule table.
+Three of the four are objects a program fills by calling a `register_*` function of each tier it
+links, so a domain adds its rows without editing a lower tier. The optimizers are a file-scope
+`constexpr` array of `{name, factory function pointer}`, read with `Config::find_entry`. In all
+four `"type"` is the discriminator key. **Nothing self-registers**, for the reason §4 gives for
+the backward-rule table: a row joins a registry only when a program calls the function that adds
+it.
 
 Two rules make growth local. A **layer's own factory** is the only thing that
 knows which keys it accepts, so adding a layer type never edits the parser; and an

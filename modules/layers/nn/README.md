@@ -60,7 +60,7 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `init.hpp` | `Nonlinearity`, `calculate_gain`, `InitFamily`, `InitPolicy`, `constant`, `kaiming_normal`, `kaiming_uniform`, `xavier_normal`, `xavier_uniform`, `zeros`, `initialize` |
 | `layer.hpp` | `Layer`, `LayerAdapter<L>` |
 | `layer_stack.hpp` | `LayerStack` |
-| `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the fourteen `make_*` factories, `K_LAYER_REGISTRY`, `build_layer_stack` |
+| `layer_registry.hpp` | `LayerFactory`, `LayerEntry`, the sixteen `make_*` factories, `register_layers`, `build_layer_stack` |
 | `node.hpp` | `Node`, `Port`, `ValueSpan`, `ShapeSpan`, `K_SINGLE_PORT_NAME`, `NodeFactory`, `NodeEntry`, `LinkedNodeFactory`, `LinkedNodeEntry` |
 | `built_rows.hpp` | `BuiltRows` |
 | `module_node.hpp` | `ModuleNode<L>` |
@@ -70,7 +70,7 @@ three trace forms, `Shape output_shape(const Shape&) const`, and one `static_ass
 | `throwing_bridge.hpp` | `Detail::bridge_throwing` |
 | `model_outputs.hpp` | `ModelOutputs` |
 | `model_graph.hpp` | `NodeRef`, `ModelGraph` |
-| `node_registry.hpp` | `K_NODE_REGISTRY`, `make_node`, `build_model` |
+| `node_registry.hpp` | `NodeRegistry`, `make_node`, `build_model` |
 
 ## State
 
@@ -424,9 +424,10 @@ Source: CV section 3, the shape-typed layer seam.
 
 ### layer_registry.hpp
 
-`K_LAYER_REGISTRY` is the constant table of the fourteen layer types a model file may name:
+`register_layers` adds to a `NodeRegistry` the sixteen layer types a model file may name,
 `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`,
-`avgpool2d`, `global_avgpool`, `flatten`, `upsample` and `silu`. A `LayerFactory` takes the
+`avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu`, `mish` and `slice_channels`, then the node types `batchnorm2d`, `concat`, `add`, `embedding`,
+`layernorm` and `dropout`. A `LayerFactory` takes the
 per-sample input shape, the row's attributes and a context string, and refuses any key it
 does not know. `build_layer_stack` builds a chain: every row must read the row before it, row
 0 the model input, and `outputs` must be empty or publish the last row whole.
@@ -487,7 +488,7 @@ Source: MG 2.4. PLAN unit U8.
 
 `LayerNode` presents a run-time `Layer` as a one-in one-out node. It owns the layer, traces
 it through the trace's builder and walks its parameters; it has no buffer. It keeps the
-base's `forward_incremental`, so a row of `K_LAYER_REGISTRY` has no incremental form.
+base's `forward_incremental`, so a layer row has no incremental form.
 
 Source: MG 2.4. PLAN unit U8.
 
@@ -549,10 +550,11 @@ Source: MG 2.5. PLAN unit U10.
 
 ### node_registry.hpp
 
-`K_NODE_REGISTRY` lists the seven node types `K_LAYER_REGISTRY` cannot hold, which its comment
-gives as several ports or a mode: `batchnorm2d`, `concat`, `conv`, `bottleneck`, `c3k`, `c3k2`
-and `sppf`. `make_node` builds a node of a type from that table, or else from a `K_LAYER_REGISTRY`
-row wrapped in a `LayerNode`; a type in neither table fails with a message that lists both.
+`NodeRegistry` holds the rows a model file may name, by type. A node row is a type a layer
+cannot hold: several ports or a mode. The vision and language registration add their own node
+rows, such as `conv`, `c3k2` and `sppf`. `make_node` builds a node of a type from a node row,
+or else from a layer row wrapped in a `LayerNode`; a type the registry does not hold fails with a
+message that lists every row.
 `build_model` builds the `ModelGraph` a `Config::ModelSpec` describes and names each row by
 its index. An empty outputs list publishes every port of the last row.
 
