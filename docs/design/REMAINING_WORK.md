@@ -102,7 +102,7 @@ reference exporter is `tools/reference/export_yolo26_reference.py`.
 The forward pass is built and equals the reference. On 2026-10-09 the 24 rows of
 `applications/examples/yolo26/model.json` built, the weights of
 `tests/vision/registration/fixtures/yolo26/` loaded through `import_weights`, and
-`Integration_Yolo26Forward` matched the Ultralytics reference: the feature maps of rows 16, 19 and
+`Medium_Yolo26Forward` matched the Ultralytics reference: the feature maps of rows 16, 19 and
 22 and the twelve raw head outputs within 1e-4, the decoded boxes within 1.3e-4, the scores within
 1e-6.
 
@@ -331,7 +331,7 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
   which needs an allocation of that residency in `core/allocation.hpp`; lower batch
   normalisation and its gradient to a few fused kernels; compute the deltas on the device.
 - **Make the one-batch overfit of YOLOv7 hold.**
-  `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
+  `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
   2026-10-13: the stored cost is 11.1 at step 199 against a bound of 3.56. It reached 1.27
   with the `gemm` SushiBLAS had before. The two runs agree to 1e-7 of the cost at step 0 and
   3e-8 at step 1, then part: 6e-5 at step 2, 1e-3 at step 3, 2 % at step 4. Both costs jump
@@ -418,8 +418,6 @@ v1, to revisit for PINN and GNN work.
   14695981039346656037, one digit longer (`include/SushiAI/core/shape.hpp`).
 - **Release readiness** is assessed in `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md`.
 
-- **Run the checkers in CI**, add a Windows lane and a release workflow
-  (`.github/workflows/ci.yml`).
 - **Tag a first release.** Every changelog entry sits under `## Unreleased` and the repository
   has no tag; the declared version is 0.1.0.
 - **Tie the CLI version to the library version**, or state that they move apart
@@ -427,9 +425,9 @@ v1, to revisit for PINN and GNN work.
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
 
 - **Bring `tests/core/autograd/test_backward.md` under 800 lines and true.** It is 804 lines, and
-  its `Suites:` lines name `Unit_Layout`, which `test_backward.cpp` does not hold; the file holds
-  `Unit_Backward`, `Unit_CastInsertion`, `Unit_Diagnostics`, `Unit_LossRoots`, `Unit_Precision` and
-  `Unit_Rematerialise`. `check_docs_truth.py` reports the length.
+  its `Suites:` lines name `Small_Layout`, which `test_backward.cpp` does not hold; the file holds
+  `Small_Backward`, `Small_CastInsertion`, `Small_Diagnostics`, `Small_LossRoots`, `Small_Precision` and
+  `Small_Rematerialise`. `check_docs_truth.py` reports the length.
 
 ## Test tree
 
@@ -438,7 +436,7 @@ The tests mirror the source (`tests/README.md`); one program per module.
 - **The darknet parity scenarios of YOLOv3, YOLOv4 and YOLOv7** in
   `tests/vision/importers/test_darknet_training/` and `test_darknet_import/` did not run after
   the move; the tiny models and every other case did.
-- **Suite names that do not start with their unit**, such as `Unit_Diagnostics` in
+- **Suite names that do not start with their unit**, such as `Small_Diagnostics` in
   `tests/core/graph/test_builder.cpp` and the `Unit_<Module><Header>` suites of the domain
   tests.
 - **Write the tests of the 119 units that have none.** `tools/testing/check_test_mirror.py`

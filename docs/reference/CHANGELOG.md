@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-15 — ci: Ran CI in stages through sa behind one gate job, with sanitizer lanes, a lane against upstream main and nightly.yml (`ci.yml`, `nightly.yml`, `setup-sa`).
+- 2026-10-15 — tests: Named every suite by its size, Small_, Medium_ or Large_, which sets its CTest label and timeout; sa test takes --label and --cli (`SushiAITestProgram.cmake`, `sa test`).
+- 2026-10-15 — build: Added sa build --sanitize, which sets SA_SANITIZE for host code (`SushiAISanitizers.cmake`, `sanitizer.py`).
+- 2026-10-15 — tests: Created the shared runtime on the first test that asks for it (`test_environment.hpp`).
 - 2026-10-15 — docs: Split the long manual pages and test READMEs into pages beside what they describe, and installed only headers (`SushiAIModule.cmake`, `LOWERING.md`, `DEMO.md`).
 - 2026-10-15 — docs: Brought the manual to check_docs_truth: paths, names, examples, history words and em dashes (`.docs_truth_allow`, `ARCHITECTURE.md`).
 - 2026-10-15 — build: Declared every module dependency the includes use and marked test-only modules `INTERNAL` (`SushiAIModule.cmake`, `sushiai_add_module`, `settings.py`).

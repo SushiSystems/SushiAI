@@ -68,23 +68,23 @@ sa build --type debug             # Debug
 sa build --clean                  # wipe the build tree first
 sa build -D SB_SYCL_TARGETS=...   # any CMake cache variable, repeatable
 
-sa test --suite unit              # fast, run this often
-sa test --suite integration
-sa test --suite regression
-sa test --suite all
+sa test --label small             # fast, run this often
+sa test                           # small and medium, as CI runs them
+sa test --label all
 sa run sushiai_core_graph_tests -- --gtest_brief=1   # one module's program; args after -- go to it
 
 sa demo mlp --epochs 1 --batches 2   # the showcase, in a couple of seconds
 ```
 
-`sa test` runs the CTest labels that the GTest suite prefixes assign. Each module builds one
+`sa test` runs the CTest size labels that the GTest suite prefixes `Small_`, `Medium_` and
+`Large_` assign. Each module builds one
 test program, `sushiai_<tier>_<module>_tests`, and `sa run` runs one of them in one process.
 SushiBLAS's own test suite does not enter this tree: its `SB_BUILD_TESTS` option
 defaults to off when SushiBLAS is added as a subdirectory, as this tree does.
 
 Expectations for a mergeable change:
 
-1. **The full test suite passes** (`sa test --suite all`).
+1. **The full test suite passes** (`sa test --label all`).
 2. **A new symbol ships with a test.** The test of a header
    `modules/<tier>/<module>/include/SushiAI/.../<name>.hpp` is
    `tests/<tier>/<module>/.../test_<name>.cpp`, listed in the `SOURCES` of
@@ -99,10 +99,21 @@ Expectations for a mergeable change:
    test, and (for a packaging change) `cmake --install` + `tests/package/`
    against the installed prefix.
 4. **A change to `sa demo mlp`'s output keeps the compile-count line.** Two
-   tests pin it: the `Integration_Demo.MLPRunsAndReportsOneCompile` CTest
+   tests pin it: the `Medium_Demo.MLPRunsAndReportsOneCompile` CTest
    entry and `cli/tests/test_demo.py`.
 
 ---
+
+### What CI runs
+
+`.github/workflows/ci.yml` runs the pre-merge stage on every pull request, behind one `gate` job:
+`python tools/check_all.py .`, the CLI's own tests, the build on Linux and Windows with the small
+and medium tests, and the small tests again under AddressSanitizer and UndefinedBehaviorSanitizer.
+A push to `main` adds ThreadSanitizer and a build against the `main` of SushiRuntime and SushiBLAS;
+a pull request builds against the refs `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` pin.
+`.github/workflows/nightly.yml` adds the quarantined tests, which report and never gate. The large
+tests run on no runner: run `sa test --label large` on a machine with a GPU before a release is
+proposed, and put the command and its output in the proposal.
 
 ## 4. Coding style
 

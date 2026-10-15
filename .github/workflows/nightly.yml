@@ -1,0 +1,65 @@
+name: Nightly
+
+# Everything post-merge runs, then the quarantined tests, which report and never gate. SushiAI
+# builds no benchmark program yet, so this file runs none. release.yml calls this file before it
+# packages.
+on:
+  schedule:
+    - cron: '0 4 * * *'   # 04:00 UTC
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  SUSHIRUNTIME_REF: v0.3.0
+  SUSHIBLAS_REF: main
+  # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
+  CL_CONFIG_CPU_VECTORIZER_MODE: "1"
+  SA_CXX: icpx
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      post_merge: true
+    secrets: inherit
+
+  quarantined:
+    name: Quarantined tests (reported, never gating)
+    timeout-minutes: 90
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: sushiai
+    steps:
+      - name: sa build, sa test --label quarantined
+        working-directory: .
+        run: echo "sa build; sa test --label quarantined"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: sushiai
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiRuntime
+          ref: ${{ env.SUSHIRUNTIME_REF }}
+          path: sushiruntime
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiBLAS
+          ref: ${{ env.SUSHIBLAS_REF }}
+          path: sushiblas
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: ./sushiai/.github/actions/setup-oneapi
+      - uses: ./sushiai/.github/actions/setup-sa
+      - name: sa build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      - name: sa test --label quarantined
+        id: quarantined
+        continue-on-error: true
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label quarantined
+      - name: Report the quarantined result
+        run: echo "::notice::sa test --label quarantined finished with ${{ steps.quarantined.outcome }}"
