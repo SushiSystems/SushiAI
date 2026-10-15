@@ -56,7 +56,7 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
-#include <SushiAI/language/registration.hpp>
+#include <SushiAI/language/registration/registration.hpp>
 #include <SushiAI/language/text/codec.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>

@@ -29,7 +29,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;

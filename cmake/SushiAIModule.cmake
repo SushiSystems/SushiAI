@@ -301,8 +301,8 @@ function(sushiai_add_internal_module)
     endforeach()
 endfunction()
 
-# Fails the configure when a header under the include roots of `library` is
-# not named by its umbrella. install(DIRECTORY) ships every header, and a
+# Fails the configure when a header under the include roots of `library`,
+# other than the umbrella itself, is not named by its umbrella. install(DIRECTORY) ships every header, and a
 # consumer that includes the umbrella never compiles one the umbrella leaves
 # out, so nothing else in the repository would notice it is broken.
 function(sushiai_check_umbrella library umbrella)
@@ -315,7 +315,7 @@ function(sushiai_check_umbrella library umbrella)
             RELATIVE "${include_root}" "${include_root}/*.hpp")
         foreach(header IN LISTS headers)
             string(FIND "${umbrella_text}" "<${header}>" found)
-            if(found EQUAL -1)
+            if(found EQUAL -1 AND NOT "${include_root}/${header}" STREQUAL "${umbrella}")
                 list(APPEND unreferenced "${header}")
             endif()
         endforeach()

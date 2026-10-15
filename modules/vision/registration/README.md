@@ -29,4 +29,4 @@ registries; their declarations live in `node_registry.hpp`, `dataset_registry.hp
 
 | Header | Declares |
 | --- | --- |
-| `<SushiAI/vision/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives`, `register_importers` |
+| `<SushiAI/vision/registration/registration.hpp>` | `register_nodes`, `register_datasets`, `register_objectives`, `register_importers` |

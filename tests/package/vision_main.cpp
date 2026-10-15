@@ -26,7 +26,7 @@
  */
 
 #include <cstdio>
-#include <SushiAI/vision/vision.h>
+#include <SushiAI/vision.hpp>
 
 /** @brief Shortens the SushiAI namespace. */
 namespace sa = SushiAI;

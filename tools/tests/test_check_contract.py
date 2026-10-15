@@ -165,7 +165,7 @@ class PathTest(unittest.TestCase):
             "vision/detect",
         )
         self.assertEqual(
-            module_of("modules/layers/umbrella/include/SushiAI/SushiAI.h"), "layers/umbrella"
+            module_of("modules/layers/umbrella/include/SushiAI/SushiAI.hpp"), "layers/umbrella"
         )
         self.assertEqual(
             module_of("applications/programs/source/train.cpp"), "applications/programs"

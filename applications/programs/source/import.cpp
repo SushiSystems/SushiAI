@@ -34,7 +34,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/imported_model_writer.hpp>
 #include <SushiAI/io/importer_registry.hpp>

@@ -39,7 +39,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/core/common.hpp>
 #include <SushiAI/data/dataset.hpp>

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* vision.h                                                               */
+/* vision.hpp                                                             */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,14 +20,14 @@
 /**************************************************************************/
 
 /**
- * @file vision.h
+ * @file vision.hpp
  * @brief Includes SushiAI and every public header of the vision domain.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 
 #include <SushiAI/vision/imaging/affine.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
@@ -117,7 +117,7 @@
 #include <SushiAI/vision/codecs/jpeg_decoder.hpp>
 #include <SushiAI/vision/codecs/png_decoder.hpp>
 
-#include <SushiAI/vision/registration.hpp>
+#include <SushiAI/vision/registration/registration.hpp>
 
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_count.hpp>

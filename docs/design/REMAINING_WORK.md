@@ -418,11 +418,6 @@ v1, to revisit for PINN and GNN work.
   14695981039346656037, one digit longer (`include/SushiAI/core/shape.hpp`).
 - **Release readiness** is assessed in `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md`.
 
-- **Declare the tiers.** `K_TIER_ORDER` in `tools/layering/check_layering.py` is empty, and the
-  checker looks for `modules/<tier>/` and `source/`, which this tree does not have.
-- **Folder names.** `src/`, `apps/`, `examples/`, `tests/functional/` and the root `Doxyfile`
-  depart from the `repository-layout` skill, as they do in SushiRuntime and SushiBLAS. One
-  decision covers the three repositories.
 - **Run the checkers in CI**, add a Windows lane and a release workflow
   (`.github/workflows/ci.yml`).
 - **Tag a first release.** Every changelog entry sits under `## Unreleased` and the repository
@@ -438,26 +433,19 @@ v1, to revisit for PINN and GNN work.
   "sushiai_add_module"` in `tools/settings.py`, `check_layering.py` found on 2026-10-15 328
   includes of a module the `CMakeLists.txt` does not list, such as `language/blocks` including
   `config`, and 42 listed dependencies nothing includes or only `source/` includes. Fix them,
-  then set the function.
+  then set the function and empty `K_SAME_TIER_EDGES` to `frozenset()`.
 
 ## Test tree
 
 The tests mirror the source (`tests/README.md`); one program per module.
 
-- **The four headers at a tier root.** `SushiAI/vision/registration.hpp`,
-  `SushiAI/language/registration.hpp`, `SushiAI/vision/vision.h` and
-  `SushiAI/language/language.h` sit directly under their tier, not under
-  `<tier>/<module>/`. The mirror checker expects their tests at a doubled path such as
-  `tests/vision/registration/vision/test_registration.cpp`; the two registration tests sit at
-  `tests/<tier>/registration/test_registration.cpp` and are reported as orphans. The headers
-  stay where they are until the owner rules on the include paths.
 - **The darknet parity scenarios of YOLOv3, YOLOv4 and YOLOv7** in
   `tests/vision/importers/test_darknet_training/` and `test_darknet_import/` did not run after
   the move; the tiny models and every other case did.
 - **Suite names that do not start with their unit**, such as `Unit_Diagnostics` in
   `tests/core/graph/test_builder.cpp` and the `Unit_<Module><Header>` suites of the domain
   tests.
-- **Write the tests of the 121 units that have none.** `tools/testing/check_test_mirror.py`
+- **Write the tests of the 119 units that have none.** `tools/testing/check_test_mirror.py`
   lists them; by module:
   - `applications/programs`: `source/domains.hpp`, `source/registries.hpp`,
     `source/trainer_run.hpp`.
@@ -485,10 +473,9 @@ The tests mirror the source (`tests/README.md`); one program per module.
   - `language/datasets`: `collator.hpp`.
   - `language/decoder_models`: `decoder_model.hpp`.
   - `language/generation`: `generator.hpp`, `sampler.hpp`.
-  - `language/registration`: `language/registration.hpp`.
   - `language/text`: `token.hpp`.
   - `language/training`: `perplexity.hpp`.
-  - `language/umbrella`: `language/language.h`.
+  - `language/umbrella`: `language.hpp`.
   - `layers/classifier_objective`: `classifier_objective.hpp`.
   - `layers/io`: `imported_model.hpp`.
   - `layers/layer_rows`: `layer_registry.hpp`, `minimal_case.hpp`.
@@ -510,10 +497,9 @@ The tests mirror the source (`tests/README.md`); one program per module.
     `free/anchor_leaves.hpp`, `free/assigner_config.hpp`, `free/assignment.hpp`,
     `free/level_rows.hpp`, `free/target_leaves.hpp`, `ground_truth.hpp`, `prediction_shape.hpp`.
   - `vision/imaging`: `affine_nearest.hpp`, `partner_source.hpp`.
-  - `vision/registration`: `vision/registration.hpp`.
   - `vision/segment`: `ignore_index.hpp`.
   - `vision/training`: `dice_targets.hpp`, `pixel_labels.hpp`, `pixel_losses.hpp`.
-  - `vision/umbrella`: `vision/vision.h`.
+  - `vision/umbrella`: `vision.hpp`.
 
 ## Estate programmes
 

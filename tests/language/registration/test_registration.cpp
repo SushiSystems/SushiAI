@@ -40,7 +40,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/config/model_config.hpp>
@@ -65,7 +65,7 @@
 #include <SushiAI/language/blocks/expert_trace.hpp>
 #include <SushiAI/language/blocks/moe_feed_forward.hpp>
 #include <SushiAI/language/decoder_models/decoder_model.hpp>
-#include <SushiAI/language/registration.hpp>
+#include <SushiAI/language/registration/registration.hpp>
 #include <SushiAI/language/training/expert_balance_objective.hpp>
 #include <SushiAI/language/training/next_token_objective.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>

@@ -37,7 +37,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/core/seam.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>

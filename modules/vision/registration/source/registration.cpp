@@ -25,7 +25,7 @@
  * @author Mustafa Garip
  */
 
-#include <SushiAI/vision/registration.hpp>
+#include <SushiAI/vision/registration/registration.hpp>
 
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/core/status.hpp>

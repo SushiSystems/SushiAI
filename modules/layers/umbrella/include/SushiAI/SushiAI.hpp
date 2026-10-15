@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* SushiAI.h                                                              */
+/* SushiAI.hpp                                                            */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file SushiAI.h
+ * @file SushiAI.hpp
  * @brief Includes the full public interface of the SushiAI library.
  * @author Mustafa Garip
  */

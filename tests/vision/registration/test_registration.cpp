@@ -46,7 +46,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
@@ -95,7 +95,7 @@
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
-#include <SushiAI/vision/registration.hpp>
+#include <SushiAI/vision/registration/registration.hpp>
 
 using namespace SushiAI;
 using NN::ModelGraph;

@@ -21,7 +21,7 @@ Made by the owner on 2026-10-11.
 ## The tier
 
 `language` is a domain tier beside `vision`: one word in the tier table, a library
-`sushiai_language` (`SushiAI::language`), an umbrella `SushiAI/language/language.h`, a test
+`sushiai_language` (`SushiAI::language`), an umbrella `SushiAI/language.hpp`, a test
 binary, and `SA_BUILD_LANGUAGE`. No module of it depends on `vision`, nor the reverse.
 
 | Module of `modules/language/` | Holds |

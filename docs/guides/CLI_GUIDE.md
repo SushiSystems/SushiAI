@@ -156,7 +156,7 @@ checkout happened to sit next to it, is invisible to all of them.
 
 **What it does not cover**, and this is worth being exact about since the
 suite was written in response to a header bug: the suite compiles what
-`SushiAI/SushiAI.h` names, so it catches *referenced but not installed*. The
+`SushiAI/SushiAI.hpp` names, so it catches *referenced but not installed*. The
 inverse — *installed but never referenced by the umbrella*, which is the actual
 bug that prompted this work, four headers missing from the umbrella — it cannot
 catch by construction. A header the umbrella does not name is simply never
@@ -282,7 +282,7 @@ byte-for-byte parameter comparison rather than as six printed decimals.
 Under `--precision mixed` the GELU layer is **not** folded — the fusion line
 shows `gemm+bias` twice — because the tanh approximation computes `x*x*x`,
 which overflows fp16 at |x| ≈ 40.3. See
-[ARCHITECTURE.md §6.2](../architecture/ARCHITECTURE.md#62-the-pass-order-is-load-bearing) for why that is a structural
+[ARCHITECTURE.md §5.3](../architecture/ARCHITECTURE.md#53-mixed-precision-is-structure-in-the-ir-not-a-runtime-switch) for why that is a structural
 consequence of the pass order rather than a special case.
 
 `--precision` is the same idea for mixed precision. `fp32` — the default —

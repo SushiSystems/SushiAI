@@ -10,7 +10,7 @@ it does, the file is wrong — please treat it as a bug.
 
 > **Conventions.** `sa` is SushiAI's CLI; never invoke `cmake`, `ninja` or
 > `ctest` directly ([CONTRIBUTING.md](../CONTRIBUTING.md)). Code samples use the
-> short namespace aliases `sa::` and `sr::`, which `<SushiAI/SushiAI.h>` brings
+> short namespace aliases `sa::` and `sr::`, which `<SushiAI/SushiAI.hpp>` brings
 > in, and `sb::`, which a program declares itself: `namespace sb = SushiBLAS;`.
 
 ---
@@ -111,7 +111,7 @@ The smallest complete training program. This is `applications/examples/source/ex
 condensed; that file compiles and runs, so start by reading it.
 
 ```cpp
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
 sr::Execution::RuntimeContext context;

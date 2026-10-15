@@ -32,7 +32,7 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/status.hpp>
-#include <SushiAI/language/registration.hpp>
+#include <SushiAI/language/registration/registration.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/node_registry.hpp>

@@ -34,7 +34,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include "eager_run_support.hpp"
 #include "eager_test_support.hpp"
-#include <SushiAI/SushiAI.h>
+#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/core/allocation.hpp>
 #include <SushiAI/core/result.hpp>
 #include <SushiAI/core/seam.hpp>
