@@ -54,7 +54,9 @@ class CopyTest(unittest.TestCase):
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + '"""Checks something."""\n\nK_VALUE = 1\n')
         _write(self.root, "tools/settings.py", 'K_TIER_ORDER = ("core",)\n')
         _write(self.root, "tools/naming/check_naming.py", "local\n")
-        self.shared = ["tools/layering/check.py", "tools/settings.py"]
+        _write(self.upstream, "tools/README.md", "# tools\nupstream\n")
+        _write(self.root, "tools/README.md", "# tools\nlocal\n")
+        self.shared = ["tools/README.md", "tools/layering/check.py", "tools/settings.py"]
 
     def tearDown(self) -> None:
         self._folder.cleanup()
@@ -67,6 +69,7 @@ class CopyTest(unittest.TestCase):
         self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"), K_LOCAL_HEADER + K_BODY)
         self.assertEqual((self.root / "tools/settings.py").read_text(encoding="utf-8"), 'K_TIER_ORDER = ("core",)\n')
         self.assertEqual((self.root / "tools/naming/check_naming.py").read_text(encoding="utf-8"), "local\n")
+        self.assertEqual((self.root / "tools/README.md").read_text(encoding="utf-8"), "# tools\nlocal\n")
         self.assertEqual(pending(self.upstream, self.root, self.shared), [])
 
     def test_missing_settings_are_written_from_upstream(self) -> None:
