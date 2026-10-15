@@ -149,6 +149,7 @@ to C++20 together.
 
 std::printf("Built against SushiAI headers %s\n", SUSHIAI_VERSION_STRING);
 ```
+Source: not compiled
 
 Like SushiBLAS, SushiAI is `STATIC`: there is no separately loaded artifact
 whose version could drift from `SUSHIAI_VERSION_STRING` at run time, so the

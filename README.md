@@ -531,6 +531,7 @@ sa::Status train()
     return sa::Status();
 }
 ```
+Source: not compiled
 
 Every step that allocates, compiles or runs returns a `Result` or a `Status`;
 `SA_TRY` and `SA_TRY_ASSIGN` return the failure to the caller.

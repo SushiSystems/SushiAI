@@ -256,6 +256,7 @@ doubled, so the compiler lists what is left.
    // modules/core/core/include/SushiAI/core/ops.hpp, inside namespace Ops
    inline constexpr OpName K_SOFTSIGN = differentiable_op("sushiai.softsign");
    ```
+   Source: not compiled
 
 2. **Builder call and shape rule.** Declare the emitter in
    `modules/core/graph/include/SushiAI/graph/builder.hpp` and define it in
@@ -271,6 +272,7 @@ doubled, so the compiler lists what is left.
        return unary(Ops::K_SOFTSIGN.id, x);
    }
    ```
+   Source: not compiled
 
 3. **Gradient rule row.** Declare the rule in the header of its domain under
    `modules/core/autograd/include/SushiAI/autograd/rules/`, define it in
@@ -286,6 +288,7 @@ doubled, so the compiler lists what is left.
        {Ops::K_SOFTSIGN.id, &softsign_backward},
    }};
    ```
+   Source: not compiled
 
    An activation takes one row in `K_ACTIVATIONS` (`core/ops.hpp`) and one in
    `K_ACTIVATION_RULES`, and its gradient is a plain `op` identity with its own lowering row.
@@ -303,6 +306,7 @@ doubled, so the compiler lists what is left.
        return record_binary(context, &SushiBLAS::ElementwiseOps::div);
    }
    ```
+   Source: not compiled
 
    `graph/lowering/all.hpp` fails the build when an identity has no row, two rows, or a row
    and a place in `K_UNLOWERED`. `K_UNLOWERED` lists the three operations recorded beside
