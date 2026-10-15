@@ -228,6 +228,7 @@ SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> step,
               Graph::CompiledStep::compile(engine, graph, pool, &optimizer));
 SA_TRY(step->run());
 ```
+Source: not compiled
 
 `SA_THROW_IF` (`core/common.hpp`) still throws `SushiAI::Error` from the host
 lane: `core/shape.hpp`, `graph/ir.hpp` and `config/registry.hpp` use it, and
@@ -450,6 +451,7 @@ records each node through its row of `K_LOWERINGS`. A row is a
 ```cpp
 using LoweringRule = Status (*)(const LoweringContext&);
 ```
+Source: `modules/core/graph/include/SushiAI/graph/lowering/rule.hpp`
 
 The rows live in eight domain tables, each a header under
 `modules/core/graph/include/SushiAI/graph/lowering/` with its functions in the `.cpp` of the
@@ -476,6 +478,7 @@ Status lower_zero(const LoweringContext& context)
     return Status();
 }
 ```
+Source: not compiled
 
 The driver runs each rule inside `Detail::guard(SeamPhase::Record, ...)`, so
 an exception SushiBLAS throws while recording comes back as a status, and it

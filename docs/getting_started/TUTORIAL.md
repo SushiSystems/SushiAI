@@ -155,6 +155,7 @@ SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
 SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*dataset));
 std::cout << report.to_string();
 ```
+Source: not compiled
 
 The statements sit in a function that returns `sa::Status`, as `run()` does in
 `applications/examples/source/example.cpp`. From step 3 on, every call allocates, compiles or runs,
@@ -251,6 +252,7 @@ struct MyOffset
     }
 };
 ```
+Source: not compiled
 
 `bias_add` and not `mul`, deliberately: `mul` goes through `require_same`, which
 compares **shape and dtype**, so multiplying an `[N, width]` activation by a
