@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  SUSHIRUNTIME_REF: v0.3.0
+  SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"

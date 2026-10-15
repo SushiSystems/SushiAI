@@ -33,7 +33,7 @@ concurrency:
 env:
   # The sibling refs a pre-merge build checks out. docs/reference/KNOWN_ISSUES.md says why
   # SushiBLAS is not yet pinned to a tag.
-  SUSHIRUNTIME_REF: v0.3.0
+  SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G

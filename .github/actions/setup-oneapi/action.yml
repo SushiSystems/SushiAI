@@ -14,7 +14,8 @@ runs:
         sudo apt-get update
         sudo apt-get install -y --no-install-recommends \
           intel-oneapi-compiler-dpcpp-cpp \
-          cmake ninja-build pkg-config git libhwloc-dev libgtest-dev
+          cmake ninja-build pkg-config git libhwloc-dev libgtest-dev \
+          nlohmann-json3-dev libjpeg-dev libpng-dev
         source /opt/intel/oneapi/setvars.sh --force
         icpx --version
         sycl-ls
