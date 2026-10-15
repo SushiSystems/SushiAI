@@ -13,8 +13,11 @@ dependencies = [
     "typer>=0.12",
     "rich>=13.0",
     "tomli>=2.0; python_version < '3.11'",
-    "sushicore==0.8.1",
+    "sushicore==0.9.0",
 ]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-timeout>=2.3", "pyflakes>=3.0"]
 
 [project.scripts]
 sa = "sushiai.cli:main"
@@ -26,3 +29,13 @@ include = ["sushiai*"]
 
 [tool.setuptools.package-data]
 sushiai = ["py.typed"]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+markers = [
+    "small: one process and one thread, no network, no sleep, no file outside the build tree (60 s)",
+    "medium: threads and processes, localhost, files in a temporary folder (300 s)",
+    "large: real hardware, or a run longer than medium allows (900 s)",
+    "quarantined: an intermittent test, out of every gating stage; see docs/reference/KNOWN_ISSUES.md",
+]

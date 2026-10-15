@@ -18,6 +18,8 @@ from sushiai.aliases import K_ALIASES, K_REMOVED_AFTER
 from sushiai.cli import app
 from sushiai.services import project
 
+pytestmark = pytest.mark.small
+
 K_OLD_SPELLINGS = ["sa doxygen"]
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_DOCS_ROW = re.compile(r"^\s+docs\b", re.MULTILINE)

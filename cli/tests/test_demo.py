@@ -17,6 +17,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.medium
+
 # cli/tests/test_demo.py -> cli/tests -> cli -> <repo root>
 REPO_ROOT = Path(__file__).resolve().parents[2]
 

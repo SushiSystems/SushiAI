@@ -27,6 +27,7 @@ from .config import PROFILE, find_project_root, load_config
 from .services import project as project_svc
 from .services.diag import DIAGNOSTICS
 from .services.project import BuildType, Suite
+from .services.sanitizer import Sanitizer
 
 K_DISTRIBUTION = "sushiai-cli"
 K_PROJECT = "Project"
@@ -92,6 +93,10 @@ def build(
         help="Pass a CMake cache variable through to configure. Repeatable. "
              "Quote values containing ';', e.g. "
              '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
+    sanitize: Optional[Sanitizer] = typer.Option(
+        None, "--sanitize", case_sensitive=False,
+        help="Sanitizers for host code: none | address-undefined | thread. "
+             "Kept in the build tree until set again."),
 ) -> None:
     """Configure and build the project.
 
@@ -99,22 +104,22 @@ def build(
     flag on a later run does not unset them; pass VAR= to clear one, or
     --clean to start over.
     """
-    raise typer.Exit(project_svc.build(type, clean, define))
+    raise typer.Exit(project_svc.build(type, clean, define, sanitize))
 
 
 @app.command(
     "test",
     rich_help_panel=K_PROJECT,
-    epilog="sa test  # Run the functional suites\n"
-           "sa test --suite unit\n"
-           "sa test --filter Unit_Version --repeat 5  # Hunt a flaky test",
+    epilog="sa test  # Run the small and medium tests\n"
+           "sa test --label small\n"
+           "sa test --filter Small_Version --repeat 5  # Hunt a flaky test",
 )
 def test(
     suite: Suite = typer.Option(
-        Suite.functional, "--suite", "-s", case_sensitive=False,
-        help="Which CTest label group to run ('all' runs every CTest test; "
-             "'package' runs none of them and instead builds tests/package/ "
-             "against a fresh install prefix)."),
+        Suite.gating, "--label", "-l", case_sensitive=False,
+        help="Which size to run: small, medium or large; 'gating' runs small and medium "
+             "without the quarantined, 'all' runs every CTest test, and 'package' runs "
+             "none of them and builds tests/package/ against a fresh install prefix."),
     filter: Optional[str] = typer.Option(
         None, "--filter", "-f", help="ctest -R regex over 'Suite.Case' test names."),
     repeat: int = typer.Option(
@@ -125,16 +130,18 @@ def test(
         None, "--memory-limit", min=0.0, metavar="GB",
         help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
              "Defaults to SA_MEMORY_LIMIT_GB, or half of the machine's memory."),
+    cli: bool = typer.Option(
+        False, "--cli", help="Run this CLI's own pytest tests of the label instead."),
 ) -> None:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*
+    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*
 
-    --suite package is the exception: it runs no CTest at all, so --filter and
+    --label package is the exception: it runs no CTest at all, so --filter and
     --repeat are rejected there.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit))
+    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli))
 
 
 @app.command(
@@ -143,7 +150,7 @@ def test(
     epilog="sa run  # Run the configured default target\n"
            "sa run sushiai_example\n"
            "sa run --sort  # Pick an executable from a list\n"
-           "sa run sushiai_core_version_tests -- --gtest_filter=Unit_Version.*  # Pass the rest on",
+           "sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(

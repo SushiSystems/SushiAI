@@ -109,17 +109,17 @@ sibling checkouts or from the config overrides and provision nothing. This mirro
 SushiEngine's `se` CLI and not SushiBLAS's `sb`, which still models an older oneAPI build
 from before SB-0 and SB-2.
 
-### Suites and CTest labels
+### Sizes and CTest labels
 
-`tests/CMakeLists.txt` registers tests through `gtest_discover_tests` and assigns the CTest
-labels `unit`, `integration` and `regression` from the GTest suite-name prefix, as sushiblas
-and sushiengine do. The `Suite` enum lists those labels.
+`cmake/SushiAITestProgram.cmake` registers tests through `gtest_discover_tests` and gives each
+case the CTest label of its size, `small`, `medium` or `large`, from the GTest suite-name
+prefix, with the size's timeout. A case named in `SUSHIAI_QUARANTINED_TESTS` also carries
+`quarantined`. The `Suite` enum lists those labels, and `sa test --label` takes one.
 
-`_SUITE_LABEL_REGEX` maps each suite to the regex `ctest -L` receives. `functional`, the
-umbrella, is an alternation over its sub-labels and not a label of its own, because a
-baked-in umbrella label does not survive `gtest_discover_tests` on current CMake; see
-`tests/CMakeLists.txt`. `all` selects everything and passes no `-L`. `package` is absent on
-purpose, because it runs no CTest at all.
+`_SUITE_LABEL_REGEX` maps each label to the regex `ctest -L` receives. `gating`, the default, is
+an alternation over `small` and `medium`, and its run also passes `-LE quarantined`. `all`
+selects everything and passes no `-L`. `package` is absent on purpose, because it runs no CTest
+at all.
 
 `package` is neither a CTest label nor part of `all`. It is an out-of-tree consumer of the
 installed package, which has to be installed and configured on its own before it can run.
@@ -129,7 +129,7 @@ that suite runs no ctest, and refusing is better than accepting a flag and silen
 nothing with it.
 
 `all` means every CTest test, which is not every test the repository has. `test()` prints a
-line that says so and names `sa test --suite package`.
+line that says so and names `sa test --label package`.
 
 ### Demo targets
 
