@@ -2,7 +2,8 @@
 
 `export_yolo26_reference.py` runs Ultralytics at commit
 `ce1399439b93c490b648b55dedd0a6334f0199da` and writes what it computes to
-`tests/fixtures/yolo26/`. Stages b and c of `docs/agent/2026_10_07_YOLO26/SPEC.md` compare
+the fixture folders of the tests that read it: `tests/vision/registration/fixtures/yolo26/`,
+`tests/vision/detect/fixtures/yolo26/` and `tests/layers/nn/fixtures/batch_norm2d/`. Stages b and c of `docs/agent/2026_10_07_YOLO26/SPEC.md` compare
 SushiAI against these files. Every number in them comes from a run; none is typed.
 
 ## Running
@@ -11,12 +12,12 @@ The exporter needs Python 3.11 with torch, numpy and the pinned Ultralytics. On 
 machine that is the conda environment `sushiai-yolo26-ref`.
 
 ```
-conda run -n sushiai-yolo26-ref python tools/reference/export_yolo26_reference.py tests/fixtures/yolo26 --seed 0
+conda run -n sushiai-yolo26-ref python tools/reference/export_yolo26_reference.py tests --seed 0
 ```
 
 | Argument | Meaning |
 | --- | --- |
-| `OUTPUT_DIR` | Where the five SACP files and `MANIFEST.json` go |
+| `TESTS_DIR` | The `tests/` folder; the five SACP files and `MANIFEST.json` go to the fixture folders below it |
 | `--seed N` | Seed of the weights, the BatchNorm draws and the input image; default 0 |
 | `--bn-state perturbed` | Default. Draws every BatchNorm weight, bias, running mean and running variance from the seed |
 | `--bn-state initial` | Keeps torch's initial BatchNorm state: weight 1, bias 0, mean 0, variance 1 |
@@ -30,8 +31,8 @@ download attempt ends the run with exit code 1. Two runs with the same seed on t
 produce byte-identical files. Building `DetectionModel` runs one extra 256 px forward inside
 Ultralytics to find the strides (`ultralytics/nn/tasks.py:517`).
 
-The exporter refuses to put more than 64 MiB (67108864 bytes) into `OUTPUT_DIR` and asks for
-`--external-weights`. Git ignores `tests/fixtures/yolo26/*.sacp` and tracks only `MANIFEST.json`,
+The exporter refuses to put more than 64 MiB (67108864 bytes) into the fixture folders and asks for
+`--external-weights`. Git ignores `tests/**/fixtures/**/*.sacp` and tracks only `MANIFEST.json`,
 so the ceiling bounds the working tree and not the repository. A seed 0 run writes 43354309
 bytes. The exporter exits 1 with one line on stderr on any failure, 0 otherwise.
 

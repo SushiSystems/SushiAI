@@ -42,10 +42,10 @@ disclosure. We are happy to coordinate timing with you.
 SushiAI is at **AI-1**: a graph IR, a differentiation transform, layers,
 optimizers, a data seam and a training loop, none of which contain a kernel:
 SushiAI writes no SYCL, and every compute call goes through
-`SushiBLAS::Engine` from one file (`src/graph/lowering.cpp`).
+`SushiBLAS::Engine` from the lowering (`modules/core/graph/source/lowering/`).
 
 The one place SushiAI itself reads bytes it did not write is the MNIST IDX
-loader (`src/data/dataset.cpp`). It checks both magic numbers, requires the
+loader (`modules/vision/datasets/source/mnist.cpp`). It checks both magic numbers, requires the
 image and label counts to agree, and treats a short read as an error, but it
 does **not** bound the declared `rows * cols` before sizing its host buffer,
 so a malformed header can turn into an allocation failure rather than a clean
@@ -64,7 +64,7 @@ explicit section.
 In scope today:
 
 - Memory-safety bugs in SushiAI's own code (`src/`, `include/SushiAI/`).
-- Malformed-input handling in the MNIST IDX loader (`src/data/dataset.cpp`),
+- Malformed-input handling in the MNIST IDX loader (`modules/vision/datasets/source/mnist.cpp`),
   within the limits stated above.
 - CMake/packaging defects that leak SushiAI's private build flags to a
   `find_package(SushiAI)` consumer (see `tests/package/`).

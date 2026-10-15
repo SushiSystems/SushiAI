@@ -146,8 +146,8 @@ program that resumes calls it.
   `run_progress.hpp` includes `core/status.hpp` alone.
 
 Two third-party libraries appear in the module without being named in the list. `checkpoint.hpp`
-includes `SushiBLAS/engine.hpp`, and `checkpoint.hpp` and `import_weights.hpp` include
-`SushiRuntime/core/span.hpp`. `source/import_weights.cpp` includes `SushiBLAS/tensor.hpp`. `core`
+includes `SushiBLAS/engine/engine.hpp`, and `checkpoint.hpp` and `import_weights.hpp` include
+`SushiRuntime/core/span.hpp`. `source/import_weights.cpp` includes `SushiBLAS/tensor/tensor.hpp`. `core`
 links SushiBLAS and SushiRuntime as external public dependencies, so both reach the module
 through `core`.
 

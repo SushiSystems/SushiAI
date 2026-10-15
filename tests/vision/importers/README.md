@@ -145,7 +145,7 @@ path's name.
 
 Suites: `Integration_DarknetImport`, in `sushiai_vision_importers_tests`.
 
-The suite runs once for each model of the parity table in `vision_support/darknet_forward.cpp`:
+The suite runs once for each model of the parity table in `modules/vision/darknet_forward_cases/source/darknet_forward.cpp`:
 `yolov3-tiny`, `yolov3`, `yolov4-tiny`, `yolov4`, `yolov7-tiny` and `yolov7`. The fixture
 `DarknetImportTest` imports the model in memory from its `.cfg` and `.weights` in the directory
 `SA_REFERENCE_DATA_DIR` names. A case is skipped when a file of its model is missing.

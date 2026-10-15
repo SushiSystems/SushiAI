@@ -150,7 +150,7 @@ the dataset in `Train::match_input`.
 
 ## Tests
 
-`tests/test_datasets_token_file.cpp`, `test_datasets_window_layout.cpp`,
+`tests/language/datasets/test_token_file.cpp`, `test_datasets_window_layout.cpp`,
 `test_datasets_next_token_collator.cpp` and `test_datasets_token_dataset.cpp`, in the suites
 `Unit_LanguageDatasetsTokenFile`, `Unit_LanguageDatasetsWindowLayout`,
 `Unit_LanguageDatasetsNextTokenCollator` and `Unit_LanguageDatasetsTokenDataset`. The last two

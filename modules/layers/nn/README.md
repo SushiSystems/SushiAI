@@ -184,7 +184,7 @@ of trace once `collect_tables(sink)` has named a `HostTableSink`, and fails with
 it is no `Parameter` and no `Buffer`, so no `ModelState`, optimizer or checkpoint holds it.
 The step built from the trace writes the values once. Two declarations are two leaves, even
 under one debug name. `RotaryEmbedding` of `language/blocks` declares its cosines and sines
-this way. `tests/test_host_table.cpp` covers the declaration and its refusals.
+this way. `tests/layers/nn/test_host_table.cpp` covers the declaration and its refusals.
 
 Source: MG 2.3. PLAN unit U6. The carrying form: `docs/design/LANGUAGE.md`, phase 5.
 

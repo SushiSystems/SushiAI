@@ -128,14 +128,14 @@ or a box against the image; `AnchorTrainingStep::run` and `validate_head_truth` 
 
 | File | Covers |
 | --- | --- |
-| `tests/test_head_delta_loss.cpp` | The four nodes, the root under autograd, the refusals |
-| `tests/test_anchor_objective.cpp` | The leaves, the summed root, the summed cost, the refusals |
-| `tests/test_anchor_objective_factory.cpp` | The heads from the published shapes, the options from the section, the refusals |
-| `tests/test_anchor_training_loop.cpp` | The rate of each update over two epochs, a run without a schedule, a run that starts at a later epoch and batch, the run count of both passes restored once, the refusals, a callback that throws |
-| `tests/test_truth_from_roles.cpp` | The three descriptions, the copy with a tolerance of zero, the storage kept between batches, the refusals |
-| `tests/test_pixel_targets.cpp` | The label check, the indices and weights of the cross entropy, the five Dice leaves, a mask with no kept pixel, the refusals and that a refused fill writes nothing. Needs an engine |
-| `tests/test_pixel_objectives.cpp` | What `make` keeps and refuses, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, the leaves, the nodes of both losses, both factories and what they refuse |
-| `tests/test_segmentation_metrics.cpp` | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine |
+| `tests/vision/training/test_head_delta_loss.cpp` | The four nodes, the root under autograd, the refusals |
+| `tests/vision/training/test_anchor_objective.cpp` | The leaves, the summed root, the summed cost, the refusals |
+| `tests/vision/training/test_anchor_objective_factory.cpp` | The heads from the published shapes, the options from the section, the refusals |
+| `tests/vision/training/test_anchor_training_loop.cpp` | The rate of each update over two epochs, a run without a schedule, a run that starts at a later epoch and batch, the run count of both passes restored once, the refusals, a callback that throws |
+| `tests/vision/training/test_truth_from_roles.cpp` | The three descriptions, the copy with a tolerance of zero, the storage kept between batches, the refusals |
+| `tests/vision/training/test_pixel_targets.cpp` | The label check, the indices and weights of the cross entropy, the five Dice leaves, a mask with no kept pixel, the refusals and that a refused fill writes nothing. Needs an engine |
+| `tests/vision/training/test_pixel_cross_entropy_objective.cpp`, `test_dice_objective.cpp`, `test_pixel_extents.cpp` | What `make` keeps and refuses, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, the leaves, the nodes of both losses, both factories and what they refuse |
+| `tests/vision/training/test_segmentation_metrics.cpp` | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine |
 | `tests/vision/training/test_pixel_cross_entropy_objective.cpp` (root) | Both losses and their gradients at the logits against the host, a mask of ignored pixels alone, a label out of bounds |
 | `tests/vision/training/test_pixel_cross_entropy_objective.cpp` (root) | Two convolutions and a `SegmentHead` fitting one batch through `Train::Trainer` |
 | `tests/vision/training/test_head_delta_loss.cpp` (root) | The gradient at the head on an engine |

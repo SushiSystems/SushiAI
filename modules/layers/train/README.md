@@ -62,8 +62,8 @@ From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 
 `autograd` is linked privately. Only `source/steps.cpp` includes it, through
 `autograd/backward.hpp`; no header under `include/` does, so a consumer does not link it. The
-headers also include `SushiBLAS/engine.hpp`, `SushiBLAS/tensor.hpp` and
-`SushiRuntime/core/run_report.hpp`, which reach the module through `core` as external public
+headers also include `SushiBLAS/engine/engine.hpp`, `SushiBLAS/tensor/tensor.hpp`,
+`SushiRuntime/core/span.hpp` and `SushiRuntime/sushiruntime.hpp`, which reach the module through `core` as external public
 dependencies.
 
 ## Public entry points
@@ -143,7 +143,7 @@ what it did before the lists existed. `make` refuses a fed leaf named "inputs", 
 value whose next value shares the storage of its leaf, and a pool whose plan packs a next
 value.
 
-`tests/test_carrying_step.cpp` runs a model that sums `x * gain` across runs.
+`tests/layers/train/test_steps.cpp` runs a model that sums `x * gain` across runs.
 
 ## Host tables
 
@@ -162,7 +162,7 @@ float32 or float64 or that holds another count of elements.
 each parameter's role into its `ParameterBinding`, and `bind_parameters` sets
 `Optim::ParameterSlot::decays` from it. A binding built by hand has the role `Weight`. The
 optimizer option `decay_all` decays every slot whatever the flag says.
-`tests/test_steps.cpp` covers the rule and the roles of a traced model.
+`tests/layers/train/test_steps.cpp` covers the rule and the roles of a traced model.
 
 ## The objective owns its feed and its metrics
 
@@ -234,7 +234,7 @@ score for `mean_iou`. The merged set holds at most `K_METRIC_CAPACITY` metrics.
 `build_training_graph` sets `StepSpec::targets` from a leaf named `targets`; a composite has
 none under that name, so the field stays unset, as it does for `dice`.
 
-`tests/test_sum_objective.cpp` covers the terms, the prefixes, the emitted nodes, the merge and
+`tests/layers/train/test_sum_objective.cpp` covers the terms, the prefixes, the emitted nodes, the merge and
 the factory. `tests/vision/training/test_pixel_cross_entropy_objective.cpp` runs a step over
 `pixel_cross_entropy` plus half of `dice` and compares the loss and its gradient with the host.
 
@@ -288,8 +288,8 @@ Every factory has one signature and receives an `ObjectiveContext` beside its ow
 `build_probe_graph` needs no engine, so the shapes are known before an objective is made and
 before a tensor is allocated.
 
-`tests/test_objective_registry.cpp` and `tests/test_objective_context.cpp` cover the registry,
-the context a factory receives and the shapes of a probe trace. `tests/test_metrics.cpp`,
+`tests/layers/train/test_objective_registry.cpp` and `tests/layers/train/test_objective_context.cpp` cover the registry,
+the context a factory receives and the shapes of a probe trace. `tests/layers/train/test_metrics.cpp`,
 `test_dense_losses.cpp`, `test_dense_targets.cpp`, `test_binary_confusion.cpp` and
 `test_dense_objectives.cpp` cover the units above, and
 `tests/layers/train/test_trainer/test_dense_objectives.cpp` compares each loss and metric with a host

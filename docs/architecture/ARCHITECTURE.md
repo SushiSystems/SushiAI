@@ -31,7 +31,7 @@ one place that turns *IR* into those calls: the driver in
 device-free and testable without hardware.
 
 Two places outside the lowering record SushiBLAS work, because neither has an
-IR node to lower: `nn/init.cpp` and `data/` build their views from the engine,
+IR node to lower: `modules/layers/nn/source/init.cpp` and `data/` build their views from the engine,
 which binds them to the engine's own recorder and RNG, and `optim/` records the
 parameter update on the recorder of the compiled step. `optim/` additionally
 hands SushiBLAS a **device functor**:
@@ -151,7 +151,7 @@ module, and the library each tier is archived into. The `core` and `layers` tier
 sushiai_add_module(NAME graph TIER core
     SOURCES source/builder.cpp source/fusion.cpp ...
     PUBLIC_DEPENDS core
-    TESTS tests/test_ir.cpp ...)
+    TESTS tests/core/graph/test_ir.cpp ...)
 
 sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
     UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.hpp")
@@ -187,7 +187,7 @@ relative to `SushiAI/` under the `include/` of the module that owns it:
   every one of those headers is `<cstddef>`-and-friends deep:
   `<SushiBLAS/core/common.hpp>` for the dtype/layout enums,
   `<SushiBLAS/core/format.hpp>` for the message formatter, and
-  `<SushiRuntime/core/span.hpp>` and `<SushiRuntime/graph/task_types.hpp>` for
+  `<SushiRuntime/core/span.hpp>` and `<SushiRuntime/core/operation_id.hpp>` for
   the span and the `OpID`.
 - The **device lane** (`core/allocation.hpp`, `core/seam.hpp`,
   `graph/arena.hpp`, `graph/tensor_pool.hpp`, `graph/step_recorder.hpp`,
@@ -296,7 +296,7 @@ this repository's own tests. So each domain's rules reach the table by being
 named in a file-scope `constexpr` array of `{OpID, function pointer}` that
 `all.hpp` concatenates. Missing one is a compile error in this repository, not
 a link-time absence in somebody else's. `core/ops.hpp`'s identity table,
-`graph/fusion.cpp`'s `K_CATALOG` and the lowering tables of §5.0 are the same
+`modules/core/graph/source/fusion.cpp`'s `K_CATALOG` and the lowering tables of §5.0 are the same
 shape for the same reason.
 
 ### 4.2 Three invariants the IR proves rather than assumes

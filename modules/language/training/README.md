@@ -115,10 +115,10 @@ call that module.
 
 ## Tests
 
-`tests/test_training_next_token_objective.cpp` and `test_training_next_token_targets.cpp`, in
+`tests/language/training/test_next_token_objective.cpp` and `test_training_next_token_targets.cpp`, in
 the suites `Unit_LanguageTrainingNextTokenObjective`, `Unit_LanguageTrainingNextTokenTargets`
 and `Unit_LanguageTrainingPerplexity`. The second suite allocates tensors on an engine.
-`tests/test_training_expert_balance_objective.cpp` holds
+`tests/language/training/test_expert_balance_objective.cpp` holds
 `Unit_LanguageTrainingExpertBalanceObjective` and, on an engine,
 `Unit_LanguageTrainingExpertBalanceMetrics`.
 `tests/language/training/test_next_token_objective.cpp` compares the loss and its gradient with a

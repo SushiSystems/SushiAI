@@ -161,8 +161,8 @@ inverse: *installed but never referenced by the umbrella*, which is the actual
 bug that prompted this work, four headers missing from the umbrella: it cannot
 catch by construction. A header the umbrella does not name is simply never
 compiled, and nothing fails. That half is checked at configure time instead, in
-`src/CMakeLists.txt`: every `include/SushiAI/**/*.hpp` must appear in the
-umbrella or the configure fails with the list. The two checks are
+`sushiai_check_umbrella` in `cmake/SushiAIModule.cmake`: every public header must appear in
+the umbrella or the configure fails with the list. The two checks are
 complementary and neither subsumes the other.
 
 It also checks what the exported CMake interface *does not* carry: warnings,
@@ -316,7 +316,7 @@ neither stalls nor underflows, so the flag is for watching the machinery:
 halvings, with `compiles: 1` throughout, which is what the scale being a
 device-resident value rather than a graph attribute buys.
 
-`sa demo mlp` runs `sushiai_demo_mlp` (`examples/demo_mlp.cpp`) from the repo
+`sa demo mlp` runs `sushiai_demo_mlp` (`applications/examples/source/demo_mlp.cpp`) from the repo
 root, so a relative data path such as the demo's `data/mnist` default means
 the same thing wherever you invoked `sa` from. It trains an MLP end to end and
 reports the compile count, the per-epoch loss trajectory, the final accuracy
@@ -328,7 +328,7 @@ Two deliberate choices:
 - **The demo is its own binary, not `sushiai_example` with flags.** A demo is
   a supported entry point whose flags and printed lines are a contract the
   test suite pins; an example is a teaching file people are meant to edit.
-  `examples/demo_mlp.cpp`'s header comment argues it in full.
+  `applications/examples/source/demo_mlp.cpp`'s header comment argues it in full.
 - **Every flag is forwarded verbatim, including `--help`.** The demo owns its
   flag surface; restating it in Typer would give two places to change and one
   to forget. `sa demo --help` still lists the available demos. Until the demo
@@ -341,7 +341,7 @@ Two deliberate choices:
 ```bash
 sushiai train      examples/heavy_mlp/train.json
 sushiai inference  examples/heavy_mlp/model.json \
-                   examples/heavy_mlp/heavy_mlp.sushi \
+                   applications/examples/heavy_mlp/heavy_mlp.sushi \
                    examples/heavy_mlp/eval.json
 ```
 
@@ -356,7 +356,7 @@ files, for a convolutional network on MNIST. Its README says where the IDX files
 
 A model's architecture lives in a JSON file rather than in the C++ type
 system, and these two drivers consume it. The point is not convenience: it is
-that `apps/train.cpp` contains **no layer, loss, dataset or optimizer type
+that `applications/programs/source/train.cpp` contains **no layer, loss, dataset or optimizer type
 name** and therefore never has to be edited as the library grows. Every one of
 those arrives through a constant registry table keyed by a string out of the
 configuration, so adding a layer type or a detection loss is a table row and
@@ -654,7 +654,7 @@ refused.
 
 ```bash
 sa config         # print the resolved config and where each value came from
-sa env            # print the environment cmake/ctest/run subprocesses run under
+sa env            # print the environment the cmake, ctest and run subprocesses run under
 sa env --all      # show every variable, not just the build-relevant ones (-a for short)
 ```
 

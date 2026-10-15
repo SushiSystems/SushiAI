@@ -65,7 +65,7 @@ surplus, stated twice or of the other kind, and `LossScaleState::restore` refuse
 is no power of two within its bounds and a clean-step count at or above the growth interval.
 `check_state_owner(owner)` refuses state another type wrote, with both type names.
 `IO::save_run_checkpoint` and `IO::load_run_checkpoint` write and read the listing.
-`tests/test_run_state.cpp` covers the names, the restore and each refusal.
+`tests/core/optim/test_run_state.cpp` covers the names, the restore and each refusal.
 
 ## The step schedule
 
@@ -73,7 +73,7 @@ is no power of two within its bounds and a clean-step count at or above the grow
 `warmup_iterations` it is `base_rate * (iteration / warmup_iterations) ^ warmup_power`; after
 that it is `base_rate` times the scale of every step whose iteration has been reached.
 `validate_step_schedule` refuses a schedule whose steps do not ascend or whose scales are not as
-many as its steps. The schedule holds no state and names no optimizer. `tests/test_step_schedule.cpp` covers it.
+many as its steps. The schedule holds no state and names no optimizer. `tests/core/optim/test_step_schedule.cpp` covers it.
 
 ## The schedule section
 
@@ -121,7 +121,7 @@ One table in `step_schedule_section.cpp` holds each key with its reader and its 
 new field of `StepSchedule` is one row there. The private header `source/schedule_section.hpp`
 holds what every schedule section shares: the row type and the loops that read and write a
 table. The checks of the keys, of `type` and of each kind are those of
-`Config::SectionReader`, so the texts of the refusals are the ones `core/config` states. `tests/test_step_schedule_section.cpp`
+`Config::SectionReader`, so the texts of the refusals are the ones `core/config` states. `tests/core/optim/test_step_schedule_section.cpp`
 round-trips the defaults and a two-step schedule with a tolerance of zero and has a case for
 each refusal.
 
@@ -145,7 +145,7 @@ does, and a final rate that is negative or above the base rate. Its section stat
 }
 ```
 
-`tests/test_cosine_schedule.cpp` covers the rate at the quarters of the decay, the check and
+`tests/core/optim/test_cosine_schedule.cpp` covers the rate at the quarters of the decay, the check and
 the section.
 
 ## A schedule of any type
@@ -157,7 +157,7 @@ the closed set a file may name, and code that holds a `const StepSchedule*` keep
 `read_rate_schedule_section` reads `type` and calls the reader of that row of its table; a
 section that states no `type` is read as `step`, and a type no row has is refused with every
 type there is. `apply_step_schedule` is a template over any type with `rate_at`, and has one
-overload over the variant. `tests/test_rate_schedule.cpp` covers the table.
+overload over the variant. `tests/core/optim/test_rate_schedule.cpp` covers the table.
 
 ## The rate of each update
 
@@ -170,7 +170,7 @@ updates is therefore the rate of the next one, and the step is compiled once.
 finite stops the process. `apply_step_schedule(schedule, optimizer)` sets
 `schedule.rate_at(optimizer.step_count() + 1)` and returns it. The iteration comes from the
 optimizer's own count of applied updates, so the caller keeps no counter and an update the loss
-scaler skipped does not use up an iteration. `tests/test_apply_step_schedule.cpp` covers both
+scaler skipped does not use up an iteration. `tests/core/optim/test_apply_step_schedule.cpp` covers both
 optimizers and the parameter after three updates.
 
 ## One source of the rate
@@ -189,7 +189,7 @@ so a loop names neither type.
 | `schedule` without `base_rate`, or with one at or below zero | `InvalidDescription` |
 
 Neither section is the default of the other, so no file trains at a rate it does not state.
-`tests/test_run_schedule.cpp` has a case for each row.
+`tests/core/optim/test_run_schedule.cpp` has a case for each row.
 
 ## Weight decay by slot
 
@@ -197,7 +197,7 @@ Neither section is the default of the other, so no file trains at a rate it does
 decays; `Train::bind_parameters` sets the flag from the parameter's role. Both kernels of both
 optimizers skip the decay of a slot that does not take it. The option `decay_all`, false by
 default, decays every slot; a training file states it as `optimizer.decay_all`.
-`tests/test_parameter_decay.cpp` covers both optimizers, both kernels and the key.
+`tests/core/optim/test_optimizer.cpp` covers both optimizers, both kernels and the key.
 
 ## Clipping by global norm
 
@@ -214,7 +214,7 @@ separate-kernel optimizer refuses a clip, and so do gradients of more than one e
 A training file states the norm as `optimizer.clip_norm`; the key left out means no clip.
 `GradientClip::applied_scale()` reads the factor of the last update. The folding task squares
 each gradient's norm, so a norm above the square root of the largest float gives a factor of 0.
-`tests/test_gradient_clip.cpp` covers both optimizers, the task count and the key.
+`tests/core/optim/test_gradient_clip.cpp` covers both optimizers, the task count and the key.
 
 The folding task is recorded as `sushiai.optim.clip_scale`. Its identity is
 `Ops::K_CLIP_SCALE`, a row of `Ops::K_ALL` listed in `Graph::K_UNLOWERED` beside the two
