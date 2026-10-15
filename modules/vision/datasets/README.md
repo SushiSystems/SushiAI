@@ -122,495 +122,91 @@ and a context string.
 
 ### sample.hpp
 
-| `SampleList` field | Holds |
-| --- | --- |
-| `files` | Every file a sample's pixels or its mask are in, once each |
-| `samples` | One `Sample` per sample, in the order the reader lists them |
-| `class_names` | One name per class; empty when the layout names no class |
-| `class_count` | The bound of a sample's class index and of an object's class |
-| `table` | A `ValueTable`: row `i` for sample `i` of a tabular list; no row for a list of images |
-
-| `Sample` field | Holds |
-| --- | --- |
-| `file` | The index of the sample's file in `SampleList::files` |
-| `stored` | The place of raw pixels inside that file; absent when the file is one encoded image |
-| `class_index` | The class of the whole image; absent when the layout labels objects |
-| `objects` | An `Imaging::FileLabels`: a class, a normalised box and a polygon per object |
-| `mask` | The index, in `SampleList::files`, of the file with one class per pixel; absent when the layout has none |
-
-| Reader | `files` | `stored` | `class_index` | `objects` | `mask` | `class_names` | `table` |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `read_image_folder` | One per sample | Absent | Set | Empty | Absent | The folder names | Empty |
-| `read_yolo_txt` | One per sample | Absent | Absent | Parsed | Absent | Empty | Empty |
-| `read_idx` | The image file | Set, interleaved | Set | Empty | Absent | Empty | Empty |
-| `read_cifar` | One per binary file | Set, planar | Set | Empty | Absent | Empty | Empty |
-| `read_coco_json` | One per image | Absent | Absent | Boxes, and polygons on request | Absent | The category names | Empty |
-| `read_voc_xml` | One per image | Absent | Absent | Boxes | Absent | Stated or collected | Empty |
-| `read_mask_png` | The images, then the masks | Absent | Absent | Empty | Set | Empty | Empty |
-| `read_csv` | The CSV file | Absent | Absent | Empty | Absent | Empty | One row per record |
-
-A sample holds an index and not a path, so the 60 000 samples of an IDX file share one path.
-`Sample` is 128 bytes in the release build, 8 of them `mask`. A sample of a tabular list
-carries nothing but its file index; its numbers are in the table.
+[`include/SushiAI/vision/datasets/sample.md`](include/SushiAI/vision/datasets/sample.md) describes it.
 
 ### value_table.hpp
 
-A `ValueTable` holds `feature_count + target_count` floats per row, the features first, one row
-after another in `values`, and the column names in the same order in `columns`. `features(row)`
-and `targets(row)` return views of one row; they check no index. A list of images has a table of
-no column and no row.
+[`include/SushiAI/vision/datasets/value_table.md`](include/SushiAI/vision/datasets/value_table.md) describes it.
 
 ### stored_pixels.hpp
 
-IDX and CIFAR keep the pixels inside the annotation file. Their samples carry a `StoredPixels`:
-the byte offset, the size, the channel count and the `PlaneLayout`. `read_stored_pixels` seeks to
-the offset and copies the bytes into an `Imaging::Image`. `Interleaved` bytes are copied as they
-are. `Planar` bytes are read plane by plane, 4096 bytes at a time into a buffer on the stack, and
-plane `c` becomes channel `c` of every pixel. One form takes a stream the caller keeps open and
-the other takes a path; the second opens the file on every call.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | A side outside [1, `Imaging::K_MAX_IMAGE_SIDE`], a channel count outside [1, 4], or an offset no stream seeks to |
-| `InvalidFile` | The file cannot be opened, the seek fails or the bytes end early; the message gives the bytes read and wanted |
-| `OutOfMemory` | The image cannot be allocated |
+[`include/SushiAI/vision/datasets/stored_pixels.md`](include/SushiAI/vision/datasets/stored_pixels.md) describes it.
 
 ### image_extensions.hpp
 
-`has_image_extension` is true for `.jpg`, `.jpeg`, `.png` and `.saim`, whatever the case of the
-ASCII letters. The four are one table in `source/image_extensions.cpp`. `vision/codecs` picks a
-decoder from a file's leading bytes and keeps no list of extensions, so the list lives here.
+[`include/SushiAI/vision/datasets/image_extensions.md`](include/SushiAI/vision/datasets/image_extensions.md) describes it.
 
 ### image_folder.hpp
 
-`read_image_folder` reads `root/<split>`, or `root` when `split` is empty. Each folder there is
-a class; the classes are sorted by path and class `i` is folder `i`. A sample is a file with an
-image extension at any depth below its class folder. A class lists its samples sorted by path. A
-file that sits beside the class folders is ignored. A folder with no image is still a class, so
-adding images to it later moves no class index.
-
-| Code | When |
-| --- | --- |
-| `FileNotFound` | The split is not a directory |
-| `InvalidFile` | The split holds no folder, the folders hold no image file, or a directory cannot be listed |
-| `OutOfMemory` | An allocation fails |
+[`include/SushiAI/vision/datasets/image_folder.md`](include/SushiAI/vision/datasets/image_folder.md) describes it.
 
 ### yolo_txt.hpp
 
-A split has one of two forms, tried in this order:
-
-1. The image list `root/<split>.txt`: one image path per line. Spaces, tabs and a carriage
-   return around a path are dropped and a line with nothing else is skipped. A relative path is
-   taken from `root`. The samples keep the order of the list.
-2. The image folder `root/images/<split>`: every file with an image extension at any depth,
-   sorted by path.
-
-`yolo_label_path` gives the label file of an image: the last folder named `images` on the path
-becomes `labels` and the extension becomes `.txt`. A path with no `images` folder keeps its
-folder, so the label file sits beside the image. An image whose label file is absent has no
-object. A label file that exists is read whole and parsed by `Imaging::parse_label_text`, which
-takes box rows (`class cx cy w h`) and polygon rows (`class x1 y1 x2 y2 ...`), all normalised.
-`class_count` comes from the caller, because the layout stores it in a file this reader does not
-read.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | `class_count` is below 1 |
-| `FileNotFound` | The split has neither form; a line of the list names no file, and the message gives the list and the line |
-| `InvalidFile` | The parser rejects a label file, and the message gives the label file and the parser's text with its line; the split holds no image; a file cannot be read |
-| `OutOfMemory` | An allocation fails |
+[`include/SushiAI/vision/datasets/yolo_txt.md`](include/SushiAI/vision/datasets/yolo_txt.md) describes it.
 
 ### idx_file.hpp
 
-An IDX file opens with two zero bytes, an element code and a dimension count, then one 32-bit
-extent per dimension with the most significant byte first, then the elements. `read_idx_header`
-returns the element type, the extents and the byte count of the elements. It refuses a file
-whose size is not the header plus those bytes, and extents whose product passes 64 bits.
-`read_idx_payload` returns the element bytes as the file stores them; it converts no byte order.
-
-| Element | Code | Bytes |
-| --- | --- | --- |
-| `UInt8` | `0x08` | 1 |
-| `Int8` | `0x09` | 1 |
-| `Int16` | `0x0B` | 2 |
-| `Int32` | `0x0C` | 4 |
-| `Float32` | `0x0D` | 4 |
-| `Float64` | `0x0E` | 8 |
-
-`source/mnist.cpp` still parses its own IDX headers. Its failure messages differ from those of
-`read_idx_header`, and it reads both files inside one guarded allocation, so moving it would
-change what a caller sees.
+[`include/SushiAI/vision/datasets/idx_file.md`](include/SushiAI/vision/datasets/idx_file.md) describes it.
 
 ### idx.hpp
 
-`read_idx` reads an image file and a label file of `root`. With `image_file` and `label_file`
-empty it takes the names of the MNIST distribution, which Fashion-MNIST and KMNIST share:
-
-| `split` | Image file | Label file |
-| --- | --- | --- |
-| `train` | `train-images-idx3-ubyte` | `train-labels-idx1-ubyte` |
-| `test` | `t10k-images-idx3-ubyte` | `t10k-labels-idx1-ubyte` |
-
-A set with other names, such as EMNIST, sets both fields, and `split` is then not read. The image
-file holds unsigned bytes in three dimensions (count, height, width) or four (a channel count
-last). The label file holds one unsigned byte per image. `class_count` is one more than the
-largest label.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | A file name is empty and `split` is neither `train` nor `test` |
-| `FileNotFound` | A file is absent |
-| `InvalidFile` | `read_idx_header` rejects a file; the image file has another element type or rank; the label file is not one dimension of unsigned bytes; the two counts differ; there is no image |
-| `Unsupported` | A side outside [1, `Imaging::K_MAX_IMAGE_SIDE`] or more than four channels |
-| `OutOfMemory` | An allocation fails |
+[`include/SushiAI/vision/datasets/idx.md`](include/SushiAI/vision/datasets/idx.md) describes it.
 
 ### cifar.hpp
 
-A record is its label bytes and then 3072 pixel bytes: a 32 by 32 red plane, a green one and a
-blue one, each row-major.
-
-| `CIFARVariant` | Label bytes | Label taken | Classes | `train` | `test` |
-| --- | --- | --- | --- | --- | --- |
-| `CIFAR10` | 1 | Byte 0 | 10 | `data_batch_1.bin` to `data_batch_5.bin` | `test_batch.bin` |
-| `CIFAR100Fine` | 2 | Byte 1 | 100 | `train.bin` | `test.bin` |
-| `CIFAR100Coarse` | 2 | Byte 0 | 20 | `train.bin` | `test.bin` |
-
-The rows are `K_FORMATS` in `source/cifar.cpp`. The reader seeks to the label byte of each record
-and reads it; it reads no pixel. The label that is not taken is not checked.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | `split` is neither `train` nor `test` |
-| `FileNotFound` | A file of the split is absent |
-| `InvalidFile` | A file is empty or not a whole number of records; a label is at or above the class count, and the message gives the file and the one-based record |
-| `OutOfMemory` | An allocation fails |
+[`include/SushiAI/vision/datasets/cifar.md`](include/SushiAI/vision/datasets/cifar.md) describes it.
 
 ### coco_json.hpp
 
-`read_coco_json` reads one file with the lists `images`, `categories` and `annotations`, and an
-image folder. With `annotation_file` empty the file is `root/annotations/instances_<split>.json`;
-with `image_folder` empty the folder is `root/<split>`. A relative path of either is taken from
-`root`. A sample is one entry of `images`, in the order of the list, and its file is the folder
-joined with `file_name`. No image is checked to exist.
-
-| Member of the file | Becomes |
-| --- | --- |
-| `categories[].id` | A class index: the rank of the id among all ids, in rising order. `class_names` holds `name` in that order |
-| `annotations[].bbox` | `[x, y, width, height]` in pixels becomes a centre and an extent as fractions of `width` and `height` of its image, computed in double |
-| `annotations[].iscrowd` | A whole number other than 0 leaves the annotation out |
-| `annotations[].segmentation` | Not read with `COCOSegmentation::Ignored`. With `Polygons`, a list of flat `[x1, y1, x2, y2, ...]` parts gives the part of the largest area as the object's polygon, in fractions of the image |
-
-An annotation is left out when its box has a width or a height that is not positive. A crowd
-annotation is checked for its image and its category before it is left out, and its
-`segmentation` is never read.
-
-| Code | When |
-| --- | --- |
-| `FileNotFound` | The image folder is not a directory; the file is absent |
-| `InvalidFile` | The text is not JSON; one of the three lists is absent; `images` or `categories` is empty; two entries of a list share an id, with both indices; an image has no `file_name` or no positive size, with its index; an annotation names an image or a category the file lacks, with its index; a `bbox` is not four numbers, with its index; with `Polygons`, a `segmentation` that is a run-length mask or a part that is not at least three pairs of numbers, with the index of the annotation |
-| `OutOfMemory` | An allocation fails |
-
-An index counts from 0 in the order of the list, as in "annotation 12".
-
-`Config::read_json_events` streams the file to the reader's handler through a 64 KiB buffer,
-so no document and no tree of `Config::Value` is held. The reader keeps the three lists it
-returns and nothing else of the file. A file that states `images`, `annotations` or
-`categories` twice is refused.
+[`include/SushiAI/vision/datasets/coco_json.md`](include/SushiAI/vision/datasets/coco_json.md) describes it.
 
 ### xml_element.hpp
 
-`parse_xml` reads a document into its root `XMLElement`: a name, the text, the child elements
-and the line of the opening tag.
-
-| Read | How |
-| --- | --- |
-| A UTF-8 byte order mark and one `<?xml ...?>` declaration at the start | Skipped |
-| Comments, before, inside and after the root | Skipped |
-| `<name>...</name>` and `<name/>` | An element; a name opens with an ASCII letter, `_` or `:` and goes on with those, digits, `-` and `.` |
-| Attributes, `name="value"` or `name='value'` | Read and dropped |
-| Character data | Appended to the text of the element it is in; the text loses the white space around it |
-| `&amp;` `&lt;` `&gt;` `&quot;` `&apos;` | Replaced by their characters |
-
-Every other thing is `InvalidFile`, and the message opens with `line <n>`: another entity,
-a numeric character reference, a CDATA section, a `<!...>` declaration, a `<?...?>` instruction
-other than the leading declaration, a closing tag of another name, an element or a comment left
-open, an attribute without `=` or without quotes, text outside the root, a second root, and more than
-`K_XML_MAX_DEPTH` (64) elements open at once. Bytes above ASCII pass through text unchanged and
-are not allowed in a name. `find_child` returns the first child of a name.
+[`include/SushiAI/vision/datasets/xml_element.md`](include/SushiAI/vision/datasets/xml_element.md) describes it.
 
 ### voc_xml.hpp
 
-`read_voc_xml` reads the layout of the Pascal VOC development kit below `root`:
-
-| Path | Holds |
-| --- | --- |
-| `ImageSets/Main/<split>.txt` | One image stem per line; what follows the stem on its line is not read. With `split` empty the reader takes every `.xml` file of `Annotations`, sorted |
-| `Annotations/<stem>.xml` | One `annotation` element: `size` with `width` and `height`, and one `object` per object with `name`, `bndbox` (`xmin`, `ymin`, `xmax`, `ymax`) and `difficult` |
-| `JPEGImages/` | The images; a sample's file is this folder joined with the text of `filename`, or with `<stem>.jpg` when the annotation has none |
-
-The layout counts pixels from 1 and a box includes both of its ends, so a box spans
-`[xmin - 1, xmax]` by `[ymin - 1, ymax]` in the continuous coordinates of `vision/imaging`; a
-start below 1 is taken as 1. The box is stored as fractions of `width` and `height`. An object
-whose `difficult` is `1` is left out with `VOCDifficult::Dropped`, the default.
-
-`class_names` gives class `i` at entry `i`. When it is empty the classes are the names the
-objects of the split use, sorted by byte, so a split that lacks a class has fewer classes.
-
-| Code | When |
-| --- | --- |
-| `FileNotFound` | The split has no list; a line of the list names a stem with no annotation, with the list and the line |
-| `InvalidFile` | `parse_xml` refuses an annotation, with the file and the line; the root is not `annotation`; `size`, `width`, `height`, `name`, `bndbox` or an edge is absent, or a number is not one, with the file and the line; a box ends before it starts; an object names a class the class list lacks, with the file and the line of the object; the split holds no annotation |
-| `InvalidDescription` | The class list names a class twice; the split holds no object and the class list is empty |
-| `OutOfMemory` | An allocation fails |
+[`include/SushiAI/vision/datasets/voc_xml.md`](include/SushiAI/vision/datasets/voc_xml.md) describes it.
 
 ### mask_png.hpp
 
-`read_mask_png` lists the files with an image extension at any depth below
-`root/<image_folder>/<split>`, sorted by path, and pairs each with the file of the same relative
-path and the extension `.png` below `root/<mask_folder>/<split>`. The folders default to `images`
-and `masks`; an empty `split` reads the two folders themselves. `files` holds the images and then
-the masks, and a sample's `mask` is the index of its mask. No file is opened, so `class_count`
-comes from the caller and no mask is checked against it.
-
-`image_suffix` and `mask_suffix` pair names that differ. The mask of
-`<image_folder>/<split>/a/b<image_suffix>.jpg` is `<mask_folder>/<split>/a/b<mask_suffix>.png`,
-and both are empty by default. With a `mask_suffix`, only the `.png` files whose stem ends in it
-are masks; the others in the mask folder are not listed. Cityscapes pairs with
-`"images": "leftImg8bit"`, `"masks": "gtFine"`, `"image_suffix": "_leftImg8bit"` and
-`"mask_suffix": "_gtFine_labelIds"`.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | `class_count` is below 1 |
-| `FileNotFound` | One of the two folders is not a directory; an image has no mask, with both paths |
-| `InvalidFile` | The image folder holds no image; an image whose stem does not end in `image_suffix`, with its path; a mask has no image, with its path; two images share a stem and so a mask; a directory cannot be listed |
-| `OutOfMemory` | An allocation fails |
-
-A mask extension is compared as `.png` in lower case, and a suffix byte for byte in UTF-8.
+[`include/SushiAI/vision/datasets/mask_png.md`](include/SushiAI/vision/datasets/mask_png.md) describes it.
 
 ### csv.hpp
 
-`read_csv` reads `root/<split>.csv`, or `file` when it is set. The first record that is no blank
-line is the header. `targets` names the target columns and defaults to the last column;
-`features` names the feature columns and defaults to every column that is no target, in file
-order. A column that is neither is not read, so it may hold text. A sample is one record below
-the header, and its row of `SampleList::table` holds its features and then its targets.
-
-| Syntax | Rule |
-| --- | --- |
-| Records | End at a line feed, a carriage return and a line feed, or the end of the file. A line with nothing on it is skipped |
-| Fields | Separated by commas. A field in double quotes may hold commas and line breaks, and `""` is one quote |
-| Header names | Lose the spaces and tabs around them and must differ from each other |
-| Cells | Lose the spaces and tabs around them and must spell a finite number a `float` holds, as `std::from_chars` reads a double, with one leading `+` allowed |
-| Start of the file | A UTF-8 byte order mark is skipped |
-
-| Code | When |
-| --- | --- |
-| `FileNotFound` | The file is absent |
-| `InvalidDescription` | `features` or `targets` names a column the header lacks, with the names it has; a column is named as both; no column is left as a feature |
-| `InvalidFile` | A cell of a column that is read is not a finite number, with the line, the column and its name; a record has another field count than the header, with the line; a quoted field is not closed, text follows a closing quote, or a quote stands inside a field that does not open with one, with the line and the column; a header name occurs twice; the file has no header or no record |
-| `OutOfMemory` | An allocation fails |
-
-A column counts from 1. For a cell and for a field count the line is the line the record starts
-on, also when a quoted field of the record holds a line break. A failure of a quote names the
-line the quote is on.
+[`include/SushiAI/vision/datasets/csv.md`](include/SushiAI/vision/datasets/csv.md) describes it.
 
 ### load_sample_image.hpp
 
-`load_sample_image` takes a list and the index of a sample. A sample with `stored` set goes
-through `read_stored_pixels` on its file; any other goes through `Codecs::load_image` with the
-`DecodeOptions` passed in. It converts no channel and resizes nothing.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | The sample index, or the sample's file index, is outside the list |
-| Any other | What `read_stored_pixels` or `Codecs::load_image` returns |
+[`include/SushiAI/vision/datasets/load_sample_image.md`](include/SushiAI/vision/datasets/load_sample_image.md) describes it.
 
 ### fit_sample.hpp
 
-`fit_sample` turns a loaded image and its `Sample` into a `FittedSample`: the pixels at the
-input size, the objects as pixel boxes of that image, and the class index and file index copied.
-
-| `SampleFit` | Image | Objects |
-| --- | --- | --- |
-| `Resize` | `Imaging::resize_bilinear` to the input size; each axis has its own scale | `Imaging::to_pixel_labels` on the input size |
-| `Letterbox` | `Imaging::plan_letterbox` and `Imaging::apply_letterbox` with `SampleFitOptions::letterbox` | `Imaging::to_pixel_labels` on the source size, then `Imaging::apply_letterbox` with the same plan |
-
-After either fit the objects go through `Imaging::clip_labels` and `Imaging::remove_empty_boxes`,
-so a box lies inside the input and has an area above zero. The two fits are the table `K_FITS`
-in `source/fit_sample.cpp`.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | The input size is outside [1, `Imaging::K_MAX_IMAGE_SIDE`], or the fit names no row of the table |
-| `OutOfMemory` | An allocation fails |
-| `InvalidFile` | A function of `vision/imaging` throws, such as for a source of no pixels; the message holds its text |
+[`include/SushiAI/vision/datasets/fit_sample.md`](include/SushiAI/vision/datasets/fit_sample.md) describes it.
 
 ### load_sample_mask.hpp
 
-`load_sample_mask` decodes the file a sample's `mask` names through `Codecs::load_image` with
-`ChannelLayout::Stored` and `PaletteRead::Indices`, so a palette PNG gives its indices and a
-gray PNG its bytes. It is `InvalidDescription` for a sample index outside the list, a sample
-with no mask and a mask index outside `files`; any other failure is the decoder's.
+[`include/SushiAI/vision/datasets/load_sample_mask.md`](include/SushiAI/vision/datasets/load_sample_mask.md) describes it.
 
 ### fit_mask.hpp
 
-`fit_mask` fits a one-channel mask with the geometry `fit_sample` gives the image it belongs
-to, by nearest neighbour: fitted column `x` of `W` takes source column
-`min(floor((2x + 1) * w / (2W)), w - 1)` of `w`, the column the centre of the fitted pixel falls
-in, and rows likewise. No two classes are blended.
-
-| `SampleFit` | Mask |
-| --- | --- |
-| `Resize` | Each axis is scaled to the input size |
-| `Letterbox` | `Imaging::plan_letterbox` over the mask's size with `SampleFitOptions::letterbox`; the mask is scaled to `plan.resized` and written from row `plan.top` and column `plan.left`; every other byte is `K_MASK_VOID`, 255 |
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | The input size is outside its bounds, or the fit names no row of the table |
-| `Incompatible` | The mask has more than one channel, or another size than its image |
-| `InvalidFile` | `Imaging::plan_letterbox` throws; the message holds its text |
-| `OutOfMemory` | An allocation fails |
-
-`vision/imaging` has no nearest-neighbour resize and no letterbox for a mask.
-`docs/design/DATASETS.md` gives mask geometry to `vision/segment`, which does not exist yet, so
-the fit is a unit of this module until that one is written.
+[`include/SushiAI/vision/datasets/fit_mask.md`](include/SushiAI/vision/datasets/fit_mask.md) describes it.
 
 ### batch_inputs.hpp
 
-`write_batch_inputs` writes image `n` of a batch into row `n` of a float32 `[N, H, W, C]` tensor,
-each byte divided by 255, the scaling of `source/mnist.cpp`. It is `Incompatible` when the tensor
-is not float32 of rank 4, when `N` is not the sample count, or when an image is not `H` by `W` of
-`C` channels; the message gives the image's position in the batch.
+[`include/SushiAI/vision/datasets/batch_inputs.md`](include/SushiAI/vision/datasets/batch_inputs.md) describes it.
 
 ### collator.hpp
 
-| Member | Does |
-| --- | --- |
-| `task()` | Returns the task's name as a training file spells it |
-| `targets()` | Returns one `Data::TargetDescription` per role |
-| `collate(list, samples, batch)` | Writes `batch.inputs` and every role; `list` is read for file names |
-
-`batch` comes from `Data::allocate_batch` over `targets()`. A batch that lacks a role, or holds
-it with another element type or count, is `Incompatible`. A sample the task cannot use is
-`InvalidDescription`, and the message opens with the sample's file in quotes. Every collator of
-images writes the inputs through `write_batch_inputs`; `RegressionCollator` copies
-`FittedSample::features` into inputs of `[N, F]` float32.
-
-| Collator | `make` | Role | Shape | Type | `classes` |
-| --- | --- | --- | --- | --- | --- |
-| `ClassificationCollator` | `class_count` | `labels` | `[N]` | int32 | `class_count` |
-| `DetectionCollator` | `class_count`, `max_objects` | `boxes` | `[N, M, 4]` | float32 | 0 |
-| | | `classes` | `[N, M]` | int32 | `class_count` |
-| | | `valid` | `[N, M]` | float32 | 0 |
-| `BinaryCollator` | `positive_class` | `labels` | `[N]` | float32 | 0 |
-| `MultiLabelCollator` | `class_count` | `labels` | `[N, C]` | float32 | 0 |
-| `RegressionCollator` | `feature_count`, `target_count` | `values` | `[N, K]` | float32 | 0 |
-| `SegmentationCollator` | `SegmentationOptions` | `mask` | `[N, H, W]` | int32 | `class_count` |
-
-`BinaryCollator` reads a set of two classes and writes 1 for a sample whose `class_index` is
-`positive_class` and 0 for the other. A sample without a class index, or with one outside
-[0, 2), fails.
-
-`MultiLabelCollator` writes row `n` as `C` flags: 1 for every class one of the sample's objects
-has, and for its `class_index` when it has one; 0 elsewhere. A sample with neither has a row of
-zeros. The objects are the ones `fit_sample` kept, so a class whose only box has no area after
-the fit is not flagged. A class outside [0, `C`) fails.
-
-`RegressionCollator` copies the `F` features of sample `n` into row `n` of the inputs and its
-`K` targets into row `n` of `values`. A sample that does not hold `F` and `K` numbers fails, as
-a sample of an image does.
-
-`SegmentationCollator` writes pixel `(y, x)` of `FittedSample::mask` into `mask[n, y, x]`. A
-byte below `class_count` is a class. The byte `K_MASK_VOID`, 255, which is also the padding of
-`fit_mask`, becomes `ignore_index`, 255 by default. Any other byte fails with the file, the row
-and the column. `class_count` is in [1, 255], because a mask holds bytes and 255 names no class;
-`ignore_index` is any int32 outside [0, `class_count`). A sample with no mask of the input size
-fails.
-
-`SegmentationOptions::origin` selects where that mask comes from. `MaskOrigin::File`, the
-default, reads `FittedSample::mask`. `MaskOrigin::Polygons` paints the polygons of
-`FittedSample::objects` with `paint_polygon_mask`, after the fit, so the vertices are already in
-pixels of the input and nothing is resampled. `background` is the class of a pixel no polygon
-holds; left out, such a pixel is `K_MASK_VOID` and becomes `ignore_index`. The padding of a
-letterbox and the border of a warp hold no polygon, so they take the background too. A
-`background` that is no class, or one stated with `MaskOrigin::File`, is `InvalidDescription`.
-
-`ClassificationCollator` copies `class_index`. A sample without one, or with one outside
-[0, `class_count`), fails.
-
-`DetectionCollator` writes object `m` of image `n` into slot `m`. A box is `x1, y1, x2, y2` in
-pixels of the input, the units of `Detect::GroundTruthBatch`, which `AnchorTrainingStep::run`
-takes. `valid` is 1 in a slot that holds an object and 0 in a padding slot, whose box and class
-are 0. `M` is `max_objects`. An image with more than `M` objects fails and names its file; no
-object is dropped. An object whose class is outside [0, `class_count`) fails the same way.
-
-The role names are `K_ROLE_LABELS`, `K_ROLE_BOXES`, `K_ROLE_CLASSES`, `K_ROLE_VALID`,
-`K_ROLE_VALUES` and `K_ROLE_MASK` of `<SushiAI/data/roles.hpp>`.
+[`include/SushiAI/vision/datasets/collator.md`](include/SushiAI/vision/datasets/collator.md) describes it.
 
 ### polygon_mask.hpp
 
-`paint_polygon_mask(objects, size, background, mask)` resets `mask` to `size` with one channel,
-fills it with `background` and paints the polygon of each object with the object's class, in
-the order of the label set. Where two objects overlap, the later one wins. A polygon holds the
-pixels whose centres it holds by the even-odd rule of `Segment::fill_outline`.
-
-| Code | When |
-| --- | --- |
-| `InvalidDescription` | An object has a box and no polygon; a class is outside [0, 254]; a size outside the bounds of an image; a vertex that is not finite |
-| `OutOfMemory` | An allocation fails |
-
-An object holds one polygon, so its outline has one part and no hole. `Segment::ClassOutline`
-already takes several parts per object. A multi-part outline needs `Imaging::LabelSet` to hold
-a list of polygons per object, `read_coco_json` to keep every part and the transforms of
-`vision/imaging` to move each part; nothing in this unit would change but the span it passes.
+[`include/SushiAI/vision/datasets/polygon_mask.md`](include/SushiAI/vision/datasets/polygon_mask.md) describes it.
 
 ### sample_cache.hpp
 
-`write_sample_cache(list, options)` decodes each image file of a list once with
-`Codecs::load_image` and writes it as a raw image file of `vision/imaging` under
-`options.directory`. `use_sample_cache(list, options)` returns the list with each of those
-files replaced by its cache file, so `load_sample_image` reads raw pixels. A file a sample
-reads stored pixels from, and a mask file, are neither cached nor replaced.
-
-| `SampleCacheOptions` field | Default | Meaning |
-| --- | --- | --- |
-| `directory` | none | Where the cache files are; created when absent |
-| `longest_side` | `0` | An image whose longer side exceeds it is reduced to it with `Imaging::resize_bilinear` before it is written; 0 keeps every stored size, and a smaller image is never enlarged |
-| `layout` | `Color` | The channels an image is decoded to: `Gray` gives one, `Color` three |
-
-The cache file of a source is `<directory>/<stem>-<hash>.saim`. `<stem>` is the source's file
-name without its extension. `<hash>` is sixteen hexadecimal digits of the 64-bit FNV-1a hash of
-the text `<path>|<bytes>|<modified>|<longest_side>|<layout>`: the source path as the list holds
-it, with forward slashes, in UTF-8; its byte count; the tick count of its modification time;
-and the two options. `sample_cache_path` returns it.
-
-A source that changed in size or in modification time has another name, so its old cache file
-is not found: `use_sample_cache` returns `FileNotFound` with the source, and the next
-`write_sample_cache` writes the new file. That is the whole staleness check, and it opens no
-cache file. The old file stays in the directory; nothing prunes it. A path spelled differently,
-for instance a root given once relative and once absolute, is another source.
-
-A cache file is written under `<name>.partial` and renamed, so a file with its final name is
-whole. The tick count is the one of `std::filesystem::file_time_type` of the platform, so a
-cache copied to another operating system is written again.
-
-A list with masks is cached at its stored size only: a `longest_side` would leave each mask at
-another size than its image, which `fit_mask` refuses.
-
-| Code | From | When |
-| --- | --- | --- |
-| `InvalidDescription` | `write_sample_cache` | No directory; a `longest_side` outside [0, 16384]; a `longest_side` above 0 over a list with masks; a sample that names no file of the list |
-| `FileNotFound` | `use_sample_cache`, `sample_cache_path` | A source that is absent; a source whose cache file is absent |
-| `Unsupported` | `write_sample_cache` | A decoded image of two or four channels |
-| Any other | all | What `Codecs::load_image` returns; `InvalidFile` for what the file system or the raw image writer throws |
-
-Disk size, by estimate and not measured: COCO train2017 has 118 287 images, most of them 640
-pixels on the longer side already, about 280 000 pixels each. At three bytes a pixel that is
-about 0.84 MB an image and about 99 GB for the split, at `longest_side` 640 or at the stored
-size. The upper bound, every image 640 by 640, is 145 GB. The JPEG files are about 18 GB.
-
-The pass runs on one thread and decodes one image at a time.
+[`include/SushiAI/vision/datasets/sample_cache.md`](include/SushiAI/vision/datasets/sample_cache.md) describes it.
 
 ### Pipelines
 
@@ -661,186 +257,23 @@ adapter keeps the status and hands over an image of no pixels, which the pipelin
 
 ### reader_dataset.hpp
 
-| `ReaderDatasetOptions` field | Default | Meaning |
-| --- | --- | --- |
-| `fit` | `Resize`, no size | The input size, the fit and the letterbox settings; the caller sets the size |
-| `channels` | `3` | Channels of the input. `1` decodes an image file as gray; any other count decodes it as RGB |
-| `batch_size` | `16` | Samples per batch |
-| `name` | `"reader"` | The name a run report prints |
-| `shuffle` | `false` | `true` gives every epoch its own order of the samples |
-| `seed` | `0` | The seed of those orders; read when `shuffle` is set |
-
-`ReaderDataset::make` takes the engine, the list, the collator, a pipeline and the options. The
-form without a pipeline builds a `FitPipeline` of `fit` and `channels`. `ReaderDataset` derives
-from `Data::Dataset` and from `Data::EpochAware`.
-
-Batch `i` holds positions `i * batch_size` to `(i + 1) * batch_size - 1` of the epoch. Without
-`shuffle` a position is the sample of that index in the list. With it, position `p` is sample
-`Data::EpochPermutation(seed, epoch, sample count).at(p)`: every sample once per epoch, in an
-order that depends on the seed and the epoch alone. The positions past the last whole batch are
-never read, so under `shuffle` the samples left out differ from epoch to epoch.
-
-`begin_epoch(epoch)` stores the epoch in an atomic; it is 0 until the first call. A loop that
-never calls it reads the order of epoch 0, and the draws of epoch 0, in every epoch.
-
-`read(i, batch)` takes the epoch once, asks the pipeline for the fitted samples of the batch,
-readies `batch` with `Data::prepare_batch` and calls the collator. `prepare_batch` allocates
-the tensors on the first read into a `Batch` and keeps them on the next, unless something else
-references them; `modules/core/data/README.md`, section "Reading a batch", has the rule. The
-fitted samples, and the scratch images of the pipeline, are allocated on every call. `read`
-changes no member, so threads may read at once, each into its own `Batch`: the engine's
-allocator takes calls from any thread (`modules/core/data/README.md`, section "The loader on
-threads").
-
-| Code | From | When |
-| --- | --- | --- |
-| `InvalidDescription` | `make` | A null collator or pipeline; an input size or a channel count outside its bounds; a batch size below 1; fewer samples than one batch |
-| `Incompatible` | `read` | A sample the pipeline made has another channel count than `channels`; the message opens with the file |
-| Any other | `read` | What the pipeline, `Data::prepare_batch` or the collator returns |
-
-A batch index at or past `batch_count()` is a broken precondition of `Data::Dataset::read` and
-stops the process.
+[`include/SushiAI/vision/datasets/reader_dataset.md`](include/SushiAI/vision/datasets/reader_dataset.md) describes it.
 
 ### table_dataset.hpp
 
-`TableDataset` is the `Data::Dataset` of a list whose samples are rows of `SampleList::table`.
-`make` takes the engine, the list, the collator and a `TableDatasetOptions`: `batch_size`, 16 by
-default, and `name`, `"table"` by default. Its sample shape is `[feature_count]`. `read(i, batch)`
-gives each sample of the batch a view of its row, readies `batch` with `Data::prepare_batch` and
-calls the collator. It opens no file. Batches, the samples past the last whole batch and a batch
-index out of range are as in `ReaderDataset`.
-
-| Code | From | When |
-| --- | --- | --- |
-| `InvalidDescription` | `make` | A null collator; a table with no feature; a table whose number count is not the sample count times the row width; a batch size below 1; fewer samples than one batch |
-| Any other | `read` | What `Data::prepare_batch` or the collator returns |
-
-`ReaderDataset` loads and fits an image per sample and states an input of `[H, W, C]`; a row of
-numbers has neither step and an input of `[F]`. The tabular case is a class of its own so that
-`ReaderDataset` has no branch on the kind of its samples.
+[`include/SushiAI/vision/datasets/table_dataset.md`](include/SushiAI/vision/datasets/table_dataset.md) describes it.
 
 ### reader_table.hpp
 
-A row is a name, a function that takes a `ReaderRequest`, and the keys of the section the row
-reads. A `ReaderRequest` holds the root, the split, the class count the section states, 0 when
-it states none, the section itself and what a diagnostic calls it. A request built without a
-section holds a null one, and a row then takes the default of each of its keys.
-
-| Row | Calls | Reads of the request | Own keys |
-| --- | --- | --- | --- |
-| `yolo_txt` | `read_yolo_txt` | Root, split and class count; a count of 0 is refused by the reader | none |
-| `image_folder` | `read_image_folder` | Root and split | none |
-| `idx` | `read_idx` | Root and split; the files take the MNIST names of the split | none |
-| `cifar` | `read_cifar` | Root and split; a class count of 0 or 10 reads CIFAR-10, 100 the fine labels of CIFAR-100, 20 the coarse ones, and any other is `InvalidDescription` | none |
-| `coco_json` | `read_coco_json` | Root and split | `annotations`, a string: the JSON file. `images`, a string: the image folder. `polygons`, a boolean, `false` by default: `true` keeps polygons |
-| `voc_xml` | `read_voc_xml` | Root and split | `class_names`, an array of strings. `keep_difficult`, a boolean, `false` by default |
-| `mask_png` | `read_mask_png` | Root, split and class count; a count of 0 is refused by the reader | `images` and `masks`, strings: the two folders, `images` and `masks` by default. `image_suffix` and `mask_suffix`, strings, empty by default |
-| `csv` | `read_csv` | Root and split | `file`, a string. `features` and `targets`, arrays of strings |
-
-A key left out, or an empty string, gives the default of the reader's options. A value of
-another kind is a thrown `Error` that names the key, as it is for a shared key.
-
-A new reader is a function of that signature and one row of `K_READERS`.
+[`include/SushiAI/vision/datasets/reader_table.md`](include/SushiAI/vision/datasets/reader_table.md) describes it.
 
 ### task_table.hpp
 
-A row is a name, the fit of the task, the keys the task reads beside the shared ones, the
-function that builds its collator and the function that builds its dataset. A collator factory
-takes the section and a `CollatorRequest`: the list the reader returned, the class count and the
-input size. A `DatasetBuilder` reads the keys of its dataset class, calls the reader, then the
-collator factory, in that order, so a section with a bad key fails before a file is read.
-
-| Row | Fit | Own keys | Collator | Dataset |
-| --- | --- | --- | --- | --- |
-| `detection` | `SampleFit::Letterbox` | `max_objects`, required, at least 1 | `DetectionCollator` | `ReaderDataset` |
-| `classification` | `SampleFit::Resize` | none | `ClassificationCollator` | `ReaderDataset` |
-| `binary` | `SampleFit::Resize` | `positive`: a class name of the list or a class index; the second class by default | `BinaryCollator` | `ReaderDataset` |
-| `multi_label` | `SampleFit::Resize` | none | `MultiLabelCollator` | `ReaderDataset` |
-| `regression` | not read | none | `RegressionCollator`, over the columns of the list's table | `TableDataset` |
-| `segmentation` | `SampleFit::Letterbox` | `ignore_index`, a whole number, 255 by default. `background`, a class index, for a list of polygons | `SegmentationCollator`, over the input size | `ReaderDataset` |
-
-`segmentation` takes its masks from files when a sample of the list names one, as the samples
-of `mask_png` do, and from polygons when none does, as with `yolo_txt` and with `coco_json`
-under `"polygons": true`.
-
-The two builders are `Detail::build_image_dataset` and `Detail::build_table_dataset` of
-`source/task_dataset.cpp`. The first reads `input`, `channels`, `batch_size`, `shuffle`, `seed`,
-`pipeline`, `cache` and `cache_side`, refuses a reader that lists rows of numbers, and writes
-and uses the cache before it builds the collator. The second reads `batch_size`, refuses those
-five image keys and refuses a reader that lists no row. `binary` refuses a class count other
-than 2.
+[`include/SushiAI/vision/datasets/task_table.md`](include/SushiAI/vision/datasets/task_table.md) describes it.
 
 ### reader_section.hpp
 
-`make_reader_dataset(engine, section, context)` has the signature of a `Data::DatasetFactory`.
-`vision/registration` adds it to a `Data::DatasetRegistry` as the row `reader`, and
-`Config::parse_train` gives that type to a data block that spells `reader` and no `type`.
-
-| Key | Kind | Default | Meaning |
-| --- | --- | --- | --- |
-| `reader` | string | required | A row of the reader table |
-| `task` | string | required | A row of the task table |
-| `root` | string | required | The directory of the dataset; a relative one resolves against the working directory |
-| `split` | string | `"train"` | The split, as the reader takes it |
-| `batch_size` | whole number | `16` | Samples per batch |
-| `input` | `[height, width]` | required for a task of images | The input size every image is fitted to |
-| `channels` | whole number | `3` | Channels of the input, 1 to 4 |
-| `classes` | whole number | the count of the list | Classes of the collator; at least the count the samples name |
-| `cache` | string | none | The directory of the raw cache; the images are decoded into it when the dataset is built, and read from it |
-| `cache_side` | whole number | `0` | The longest side an image is cached at; 0 keeps the stored size. Needs `cache` |
-| `shuffle` | boolean | `false` | A new order of the samples in every epoch |
-| `seed` | whole number | `0` | The seed of the order and of the pipeline's draws; any 64-bit pattern |
-| `pipeline` | string | `"none"` | A row of the pipeline table |
-| `workers` | whole number | `0` | Threads that read batches ahead; 0 reads on the caller's thread |
-| `prefetch` | whole number | the value of `workers` | Batches read ahead and held; at least 1. Needs `workers` above 0 |
-
-These fifteen are the shared keys. A section may also hold the keys of its reader's row and of
-its task's row, which the two sections above list. `regression` reads neither `input` nor
-`channels`, and a section that states them for it is not refused; it refuses `cache`,
-`cache_side`, `shuffle`, `seed` and `pipeline`.
-
-With `workers` above 0 the dataset is wrapped in a `Data::ThreadedLoader`, whatever the task.
-
-A detection block with all four:
-
-```json
-{ "reader": "yolo_txt", "task": "detection", "root": "data/coco", "split": "train2017",
-  "batch_size": 16, "input": [640, 640], "classes": 80, "max_objects": 256,
-  "cache": "data/coco/cache_640", "cache_side": 640,
-  "shuffle": true, "seed": 20261011, "pipeline": "default",
-  "workers": 4, "prefetch": 4 }
-```
-
-The dataset reports the reader's name. Its sample shape is `[height, width, channels]` for a
-task of images and `[features]` for `regression`.
-
-One block per task:
-
-```json
-{ "reader": "image_folder", "task": "classification", "root": "data/flowers", "split": "train",
-  "batch_size": 32, "input": [224, 224] }
-
-{ "reader": "image_folder", "task": "binary", "root": "data/cats_dogs", "split": "train",
-  "batch_size": 32, "input": [224, 224], "positive": "dog" }
-
-{ "reader": "coco_json", "task": "multi_label", "root": "data/coco", "split": "train2017",
-  "batch_size": 32, "input": [448, 448] }
-
-{ "reader": "csv", "task": "regression", "root": "data/housing", "split": "train",
-  "batch_size": 64, "features": ["rooms", "area"], "targets": ["price"] }
-
-{ "reader": "voc_xml", "task": "detection", "root": "data/VOC2012", "split": "trainval",
-  "batch_size": 16, "input": [416, 416], "max_objects": 64 }
-
-{ "reader": "mask_png", "task": "segmentation", "root": "data/ade", "split": "train",
-  "batch_size": 8, "input": [512, 512], "classes": 150, "ignore_index": 255 }
-```
-
-| Outcome | When |
-| --- | --- |
-| `InvalidDescription` | A reader, a task or a pipeline no table holds, with every name the table has; an `input` that is not two entries; a count below its lowest value or above the largest int32; `classes` below the count of the list; a task of images over a reader of rows, or the reverse; `prefetch` without `workers`; `cache_side` without `cache`; an image key on a section of rows |
-| A thrown `Error` | A key that neither the shared list, nor the reader, nor the task holds; a required key left out; a value of another kind |
-| Any other status | What the reader, the collator's `make` or the dataset's `make` returns |
+[`include/SushiAI/vision/datasets/reader_section.md`](include/SushiAI/vision/datasets/reader_section.md) describes it.
 
 ### Failure messages
 

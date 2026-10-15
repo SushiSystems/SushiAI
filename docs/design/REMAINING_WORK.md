@@ -426,9 +426,10 @@ v1, to revisit for PINN and GNN work.
   (`CMakeLists.txt`, `cli/pyproject.toml`).
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
 
-- **Bring the manual to `check_docs_truth.py`.** Its first run on 2026-10-15 found 429 cited
-  paths, 379 em dashes, 154 named symbols, 29 history words, 16 pages over the ceiling and 11
-  examples without a source.
+- **Bring `tests/core/autograd/test_backward.md` under 800 lines and true.** It is 804 lines, and
+  its `Suites:` lines name `Unit_Layout`, which `test_backward.cpp` does not hold; the file holds
+  `Unit_Backward`, `Unit_CastInsertion`, `Unit_Diagnostics`, `Unit_LossRoots`, `Unit_Precision` and
+  `Unit_Rematerialise`. `check_docs_truth.py` reports the length.
 
 ## Test tree
 

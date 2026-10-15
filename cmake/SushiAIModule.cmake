@@ -248,7 +248,9 @@ function(sushiai_add_module)
             "${CMAKE_CURRENT_SOURCE_DIR}/${test}")
     endforeach()
 
-    install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+    # A header's page (<name>.md) sits beside it and is not installed.
+    install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+        FILES_MATCHING PATTERN "*.hpp")
 endfunction()
 
 # Links one dependency of an internal module: an internal dependency itself, a
