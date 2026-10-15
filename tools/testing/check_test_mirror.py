@@ -3,13 +3,15 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks that tests/ mirrors the source: one test file per header or source file, no other folder.
+"""Checks that tests/ mirrors the source: one test file per header or source file, no other folder,
+and no test that includes a private header from a source/ folder.
 
 Usage: python tools/testing/check_test_mirror.py [repository root] [--report] [--rule NAME]
 """
 
 from __future__ import annotations
 
+import re
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
@@ -17,8 +19,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, Issue, run  # noqa: E402
-from common.ignored_paths import ignored_folders  # noqa: E402
+from checking.checker import Checker, Issue, run  # noqa: E402
+from checking.ignored_paths import ignored_folders  # noqa: E402
 
 K_DATA_FOLDERS = frozenset({"fixtures", "goldens", "Fixtures", "Goldens"})
 K_UNITY_MARKER = "ProjectSettings"
@@ -30,6 +32,9 @@ K_UNITY_NOT_PRODUCTS = frozenset({
 })
 K_PACKAGE_FOLDER = "package"
 K_APPLICATIONS_FOLDER = "applications"
+K_PRIVATE_FOLDER = "source"
+K_CPP_TEST_SUFFIXES = frozenset({".cpp", ".h", ".hpp"})
+K_INCLUDE = re.compile(r'^\s*#\s*include\s*([<"])([^>"]+)[>"]')
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +243,39 @@ def rule_unit_file_and_folder(mirror: TestMirror) -> Iterator[Issue]:
             yield Issue(test, 1, "the unit has a test file and a test folder; keep one")
 
 
+def _private_headers(root: Path) -> frozenset[str]:
+    """Returns the path below its source/ folder of every header private to a module or the root."""
+    folders = [root / K_PRIVATE_FOLDER]
+    modules = root / "modules"
+    if modules.is_dir():
+        folders += [module / K_PRIVATE_FOLDER for tier in modules.iterdir() if tier.is_dir()
+                    for module in tier.iterdir() if module.is_dir()]
+    return frozenset(
+        header.relative_to(folder).as_posix()
+        for folder in folders if folder.is_dir()
+        for header in folder.rglob("*") if header.is_file() and header.suffix in K_CPP.suffixes
+    )
+
+
+def rule_private_include(mirror: TestMirror) -> Iterator[Issue]:
+    """Yields an issue for each include in a test that names a header under a source/ folder."""
+    private = _private_headers(mirror.root)
+    for path in mirror.walk():
+        if not path.is_file() or path.suffix not in K_CPP_TEST_SUFFIXES:
+            continue
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+        for number, line in enumerate(lines, start=1):
+            match = K_INCLUDE.match(line)
+            if not match:
+                continue
+            quote, target = match.groups()
+            through_source = f"/{K_PRIVATE_FOLDER}/" in f"/{target}"
+            if not through_source and quote == '"' and (path.parent / target).is_file():
+                continue
+            if through_source or target in private:
+                yield Issue(path, number, f"includes the private header {target}; test it through the public surface")
+
+
 K_CHECKER = Checker(
     description="Checks that tests/ mirrors the source of the repository.",
     collect=collect,
@@ -246,6 +284,7 @@ K_CHECKER = Checker(
         "rule_orphan_test": rule_orphan_test,
         "rule_mirror_folders": rule_mirror_folders,
         "rule_unit_file_and_folder": rule_unit_file_and_folder,
+        "rule_private_include": rule_private_include,
     },
 )
 

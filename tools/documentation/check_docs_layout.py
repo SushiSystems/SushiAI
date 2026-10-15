@@ -21,12 +21,12 @@ from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, Issue, run  # noqa: E402
+from checking.checker import Checker, Issue, run  # noqa: E402
 
 K_DOCS_ENTRIES = frozenset(
     {
         "README.md", "CONTRIBUTING.md", "DOCUMENTATION_STYLE_GUIDE.md", "publish.toml",
-        "getting_started", "architecture", "guides", "reference", "design", "agent", "archive",
+        ".docs_truth_allow", "getting_started", "architecture", "guides", "reference", "design", "agent", "archive",
     }
 )
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
@@ -48,6 +48,9 @@ K_LINK_SUFFIX = re.compile(r"[#?]")
 K_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:")
 K_FENCE = re.compile(r"^(`{3,}|~{3,})(.*)$")
 K_CODE_SPAN = re.compile(r"`[^`]*`")
+K_HEADING = re.compile(r"^#{1,6}\s+(.*)$")
+K_HEADING_LABEL = re.compile(r"\{#([^}]+)\}")
+K_ANCHOR_DROPPED = re.compile(r"[^\w\- ]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +147,45 @@ def _relative_links(path: Path) -> Iterator[tuple[int, str]]:
             yield text.count("\n", 0, match.start()) + 1, target
 
 
+def _anchored_links(path: Path) -> Iterator[tuple[int, str, str]]:
+    """Yields the line, the path part and the anchor of each relative link that has one."""
+    text = _prose(path)
+    for match in K_LINK.finditer(text):
+        target, mark, anchor = match.group(1).partition("#")
+        if mark and anchor and not K_SCHEME.match(target):
+            yield text.count("\n", 0, match.start()) + 1, unquote(target), unquote(anchor)
+
+
+def heading_anchors(path: Path) -> set[str]:
+    """Returns the anchors of a document: each heading as GitHub slugs it, and each {#label}."""
+    anchors: set[str] = set()
+    seen: dict[str, int] = {}
+    fence = ""
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        opener = K_FENCE.match(line.lstrip())
+        if fence:
+            fence = "" if opener and opener.group(1).startswith(fence) else fence
+            continue
+        if opener and opener.group(1)[0] not in opener.group(2):
+            fence = opener.group(1)
+            continue
+        heading = K_HEADING.match(line)
+        if heading is None:
+            continue
+        title = heading.group(1).strip()
+        label = K_HEADING_LABEL.search(title)
+        if label:
+            anchors.add(label.group(1))
+            title = title[:label.start()].strip()
+        slug = K_ANCHOR_DROPPED.sub("", title.replace("`", "")).strip().lower().replace(" ", "-")
+        if not slug:
+            continue
+        count = seen.get(slug, 0)
+        seen[slug] = count + 1
+        anchors.add(slug if count == 0 else f"{slug}-{count}")
+    return anchors
+
+
 def _reachable(repository: Repository) -> set[Path]:
     """Returns the manual documents docs/README.md reaches without leaving the manual."""
     manual = {path.resolve() for path in repository.manual_documents()}
@@ -211,6 +253,20 @@ def rule_links(repository: Repository) -> Iterator[Issue]:
                 yield Issue(path, number, f"link target does not exist: {target}")
 
 
+def rule_link_anchors(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for each link whose anchor names no heading of the document it reaches."""
+    known: dict[Path, set[str]] = {}
+    for path in repository.live_documents():
+        for number, target, anchor in _anchored_links(path):
+            reached = (path.parent / target).resolve() if target else path.resolve()
+            if reached.suffix != ".md" or not reached.is_file():
+                continue
+            if reached not in known:
+                known[reached] = heading_anchors(reached)
+            if anchor not in known[reached]:
+                yield Issue(path, number, f"no heading for the anchor: {target}#{anchor}")
+
+
 def rule_required_entries(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each required document missing from docs/."""
     for name in K_REQUIRED_ENTRIES:
@@ -262,6 +318,7 @@ K_CHECKER = Checker(
         "rule_status_lines": rule_status_lines,
         "rule_design_ceiling": rule_design_ceiling,
         "rule_links": rule_links,
+        "rule_link_anchors": rule_link_anchors,
         "rule_reachable_from_index": rule_reachable_from_index,
         "rule_module_readmes": rule_module_readmes,
         "rule_archive_candidates": rule_archive_candidates,

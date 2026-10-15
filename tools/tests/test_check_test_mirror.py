@@ -19,6 +19,7 @@ from testing.check_test_mirror import (  # noqa: E402
     discover,
     rule_mirror_folders,
     rule_orphan_test,
+    rule_private_include,
     rule_unit_file_and_folder,
     rule_untested_unit,
 )
@@ -85,6 +86,50 @@ class MultiModuleTest(unittest.TestCase):
         _touch(self.root, "tests/package/main.cpp")
         self.assertEqual(list(rule_mirror_folders(discover(self.root))), [])
         self.assertEqual(list(rule_orphan_test(discover(self.root))), [])
+
+
+class PrivateIncludeTest(unittest.TestCase):
+    """Covers tests that include a header from a module's or the root's source/ folder."""
+
+    def setUp(self) -> None:
+        self._folder = tempfile.TemporaryDirectory()
+        self.root = Path(self._folder.name)
+        _touch(self.root, "modules/physics/rigid_body/include/Sushi/rigid_body/physics_world.hpp")
+        _touch(self.root, "modules/physics/rigid_body/source/island_builder.hpp")
+        _touch(self.root, "modules/physics/rigid_body/source/detail/sweep.hpp")
+
+    def tearDown(self) -> None:
+        self._folder.cleanup()
+
+    def _write(self, relative: str, text: str) -> None:
+        """Writes a test file below root."""
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+    def _found(self) -> list[tuple[str, int]]:
+        """Returns the file name and line of every private include."""
+        return [(issue.path.name, issue.line) for issue in rule_private_include(discover(self.root))]
+
+    def test_a_public_include_is_clean(self) -> None:
+        self._write("tests/physics/rigid_body/test_physics_world.cpp",
+                    "#include <Sushi/rigid_body/physics_world.hpp>\n")
+        self.assertEqual(self._found(), [])
+
+    def test_a_private_header_by_name_is_reported(self) -> None:
+        self._write("tests/physics/rigid_body/test_physics_world.cpp",
+                    "#include <gtest/gtest.h>\n#include \"island_builder.hpp\"\n#include <detail/sweep.hpp>\n")
+        self.assertEqual(self._found(), [("test_physics_world.cpp", 2), ("test_physics_world.cpp", 3)])
+
+    def test_a_path_through_source_is_reported(self) -> None:
+        self._write("tests/physics/rigid_body/helper.hpp",
+                    "#include \"../../../modules/physics/rigid_body/source/island_builder.hpp\"\n")
+        self.assertEqual(self._found(), [("helper.hpp", 1)])
+
+    def test_a_helper_beside_the_test_is_not_private(self) -> None:
+        _touch(self.root, "tests/physics/rigid_body/island_builder.hpp")
+        self._write("tests/physics/rigid_body/test_physics_world.cpp", "#include \"island_builder.hpp\"\n")
+        self.assertEqual(self._found(), [])
 
 
 class LanguagesAndApplicationsTest(unittest.TestCase):

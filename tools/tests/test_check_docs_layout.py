@@ -15,11 +15,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Issue  # noqa: E402
+from checking.checker import Issue  # noqa: E402
 from documentation.check_docs_layout import (  # noqa: E402
     K_REQUIRED_ENTRIES,
     K_CHECKER,
     Repository,
+    rule_docs_entries,
+    rule_link_anchors,
     rule_links,
     rule_reachable_from_index,
     rule_required_entries,
@@ -154,6 +156,57 @@ class ReachabilityTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"guides/X.md": "# X\n"})
             self.assertEqual(list(rule_reachable_from_index(repository)), [])
+
+
+class DocsEntriesTest(unittest.TestCase):
+    """Checks which entries may sit directly under docs/."""
+
+    def test_accepts_the_publish_list(self) -> None:
+        """Accepts docs/publish.toml and still reports any other loose file."""
+        with tempfile.TemporaryDirectory() as folder:
+            repository = _repository(
+                folder, {"README.md": "# R\n", "publish.toml": "", "notes.txt": ""},
+            )
+            self.assertEqual(_names(rule_docs_entries(repository)), ["notes.txt"])
+
+    def test_accepts_the_docs_truth_allow_list(self) -> None:
+        """Accepts docs/.docs_truth_allow, the one configuration file a checker reads."""
+        with tempfile.TemporaryDirectory() as folder:
+            repository = _repository(folder, {"README.md": "# R\n", ".docs_truth_allow": ""})
+            self.assertEqual(_names(rule_docs_entries(repository)), [])
+
+
+class LinkAnchorsTest(unittest.TestCase):
+    """Covers the rule that a link's anchor names a heading of the document it reaches."""
+
+    def test_accepts_a_heading_slug_and_a_label(self) -> None:
+        """Checks that a slugged heading, a repeated heading and a {#label} all resolve."""
+        files = {
+            "README.md": "[a](guides/A.md#the-first-step) [b](guides/A.md#the-first-step-1) "
+                         "[c](guides/A.md#module-a) [d](#index)\n\n## Index\n",
+            "guides/A.md": "# A {#module-a}\n\n## The `first` step\n\n## The first step\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(list(rule_link_anchors(_repository(folder, files))), [])
+
+    def test_reports_an_anchor_no_heading_has(self) -> None:
+        """Checks that an anchor of a renamed section is a finding on the line of the link."""
+        files = {
+            "README.md": "# Index\n\n[a](guides/A.md#the-old-name)\n",
+            "guides/A.md": "# A\n\n## The new name\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            issues = list(rule_link_anchors(_repository(folder, files)))
+        self.assertEqual([issue.line for issue in issues], [3])
+
+    def test_ignores_a_heading_inside_a_fence(self) -> None:
+        """Checks that a heading line inside a fenced block gives no anchor."""
+        files = {
+            "README.md": "# Index\n\n[a](guides/A.md#fenced)\n",
+            "guides/A.md": "# A\n\n```\n## Fenced\n```\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(len(list(rule_link_anchors(_repository(folder, files)))), 1)
 
 
 if __name__ == "__main__":
