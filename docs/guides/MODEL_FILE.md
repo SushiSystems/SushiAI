@@ -149,16 +149,17 @@ the shapes of those ports, and publishes what `outputs` lists. A failure is an
 the row before it, and an `outputs` that publishes anything but the whole of the last row; both
 messages name `build_model`. Every version 1 file is a chain.
 
-A `type` is looked up in two tables, and no type is in both.
+A `type` is looked up in an `NN::NodeRegistry`, which holds node rows and layer rows; no type
+has two rows.
 
-| Table | Types | A row reads |
+| Row | Types | A row reads |
 | --- | --- | --- |
-| `NN::K_NODE_REGISTRY` | `batchnorm2d`, `concat`, `embedding`, `layernorm`, `dropout`, `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf` | One value; `concat` reads one or more |
-| `NN::K_LAYER_REGISTRY` | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu` | One value |
+| Node | `batchnorm2d`, `concat`, `add`, `embedding`, `layernorm`, `dropout`; the vision rows `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf`, `c2psa`, `detect`, `segment_head`; the language rows | One value; `concat` reads one or more |
+| Layer | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu`, `mish`, `slice_channels` | One value |
 
-`build_model` reads both tables. `build_layer_stack` reads `K_LAYER_REGISTRY` only, so a chain of
-`conv` rows builds with `build_model`. A type in neither table fails with a message that lists
-both.
+`build_model` reads both kinds of row. `build_layer_stack` reads the layer rows only, so a chain
+of `conv` rows builds with `build_model`. A type the registry does not hold fails with a message
+that lists every row.
 
 A `ModelSpec` filled in code is checked as a parsed one is. Both builders treat an empty
 `outputs` list as a file without `outputs`: the last row is published whole.

@@ -66,7 +66,7 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | Fatal check | `SA_FATAL_IF`: stops the process on a programmer's misuse, in every build (`core/check.hpp`) |
 | Seam | The guards that turn an exception of SushiBLAS or SushiRuntime into a `Status` (`Detail::guard`, `Detail::guard_value` in `core/seam.hpp`). The contract places them in that header alone; KNOWN_ISSUES records where the library does not follow this yet |
 | Factory | A static function that builds an object and returns a `Result` instead of throwing: `Graph::CompiledStep::compile`, `Train::Trainer::make`, `Optim::AdamW::make`, `Optim::SGD::make`, `Optim::LossScaler::make`, `Optim::StepScalars::make`, the datasets' `make`, `IO::CheckpointWriter::create` and `IO::CheckpointReader::open` |
-| Execution mode | `SushiBLAS::ExecutionMode`: `Auto` lets the library choose the SYCL kernel, `ForceSycl` runs it and `ForceReference` runs the host reference path. The fusion selector reads it (`graph/fusion_selector.hpp`) |
+| Execution mode | `SushiBLAS::ExecutionMode`: `Auto` lets the library choose the SYCL kernel, `ForceSYCL` runs it and `ForceReference` runs the host reference path. The fusion selector reads it (`graph/fusion_selector.hpp`) |
 
 ## Stack and tools
 

@@ -489,8 +489,8 @@ namespace sb = SushiBLAS;
 
 sa::Status train()
 {
-    sr::Execution::RuntimeContext context;
-    sb::Engine engine(context);
+    SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+    sb::Engine engine(runtime);
 
     // A model is an aggregate list, not a registration ritual.
     sa::NN::Sequential model{

@@ -180,8 +180,9 @@ namespace SushiAI
                                           std::string_view context);
 
         /**
-         * @brief Adds the fourteen layer types, then the node types batchnorm2d and concat.
-         * @return InvalidDescription when @p registry already holds one of the sixteen types.
+         * @brief Adds the sixteen layer types, then the node types batchnorm2d, concat, add,
+         *        embedding, layernorm and dropout.
+         * @return InvalidDescription when @p registry already holds one of the twenty-two types.
          */
         [[nodiscard]] Status register_layers(NodeRegistry& registry);
 
