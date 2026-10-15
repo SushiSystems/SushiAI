@@ -17,7 +17,7 @@ from collections.abc import Iterable
 from pathlib import Path
 
 K_TOOLS = "tools"
-K_SETTINGS = "tools/settings.py"
+K_KEPT = frozenset({"tools/settings.py", "tools/README.md"})
 K_HEADER_SUFFIX = ".py"
 K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
@@ -48,7 +48,7 @@ def _read(path: Path) -> str | None:
 def _wanted(upstream: Path, root: Path, relative: str) -> str | None:
     """Returns the text a shared file should hold in the repository, or None when it should stay."""
     current = _read(root / relative)
-    if relative == K_SETTINGS and current is not None:
+    if relative in K_KEPT and current is not None:
         return None
     text = merged(relative, _read(upstream / relative) or "", current)
     return None if text == current else text

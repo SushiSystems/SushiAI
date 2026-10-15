@@ -10,7 +10,6 @@ A rule is fixed there first and copied here with `checking/copy_shared_tools.py`
 | `checking/checker.py` | Nothing itself; runs a checker's rule table and prints findings | |
 | `checking/copy_shared_tools.py` | Nothing; copies the shared tools of SushiSkills into this repository, or lists the files that differ with `--report` | Repository root, `--from` |
 | `checking/ignored_paths.py` | Nothing itself; names the files and folders git ignores, which no checker reads | |
-| `common/checker.py`, `common/ignored_paths.py` | The same as the two files above, for `layering/check_layering.py` alone | |
 | `settings.py` | Nothing; holds the settings of this repository that the shared checkers read | |
 | `documentation/check_source_comments.py` | C++, GLSL, TypeScript and Python: license block, file header, block ceiling, `//` and `#` runs, separators, history words, `@date` | Files or folders |
 | `documentation/check_docs_layout.py` | `docs/` entries, required documents, document names, work folders, status lines, design ceiling, links under `docs/`, reachability from `docs/README.md`, READMEs under `modules/<tier>/<module>/`, archive candidates | Repository root |
@@ -41,11 +40,10 @@ reporting, 2 on a bad path. Python 3.11, standard library only.
 
 ## Per-repository settings
 
-`settings.py` holds them: `K_TIER_ORDER`, the tiers lowest first; `K_CLOSED`, whether the
-repository is closed source; `K_MACRO_PREFIXES`, the prefixes `check_docs_truth.py` reads as
-macro names.
-
-`layering/check_layering.py` and `tests/test_check_layering.py` are shared files that differ
-from SushiSkills: the copy there does not yet resolve the tier include form, the umbrellas at
-the include root or one module name in two tiers. They keep their own settings at the top of the
-checker and import `common/`, until SushiSkills takes the same shape and the two are copied again.
+`settings.py` holds them. `K_TIER_ORDER` lists the tiers lowest first. `K_DOMAIN_TIERS` names the
+tiers that share a rank and never include each other, here `vision` and `language`.
+`K_SAME_TIER_EDGES` lists each `(includer, included)` pair of modules in one tier; it repeats the
+same-tier `PUBLIC_DEPENDS` and `PRIVATE_DEPENDS` of the module `CMakeLists.txt` files.
+`K_MODULE_FUNCTION` is empty, so the includes are not yet compared with those declarations.
+`K_CLOSED` makes `check_source_comments.py` expect the closed licence lines, and
+`K_MACRO_PREFIXES` names the prefixes `check_docs_truth.py` reads as macro names.

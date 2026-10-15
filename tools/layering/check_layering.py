@@ -3,9 +3,8 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks that modules under modules/<tier>/<module>/ include only down the tier order.
+"""Checks that modules under modules/<tier>/<module>/ depend only down the tier order.
 
-The tier table is the one cmake/SushiAILayers.cmake holds for the build.
 Usage: python tools/layering/check_layering.py [repository root] [--report] [--rule NAME]
 """
 
@@ -14,125 +13,78 @@ from __future__ import annotations
 import posixpath
 import re
 import sys
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.checker import Checker, Issue, run  # noqa: E402
+from checking.checker import Checker, Issue, run  # noqa: E402
+from settings import (  # noqa: E402
+    K_DOMAIN_TIERS,
+    K_INTERNAL_MARK,
+    K_MODULE_FUNCTION,
+    K_PRIVATE_DEPENDS,
+    K_PUBLIC_DEPENDS,
+    K_SAME_TIER_EDGES,
+    K_TIER_ORDER,
+)
 
-K_TIER_ORDER: tuple[str, ...] = ("core", "layers", "vision", "language")
-K_DOMAIN_TIERS: tuple[str, ...] = ("vision", "language")
-K_MODULE_TIERS: dict[str, str] = {
-    "core": "core",
-    "version": "core",
-    "graph": "core",
-    "config": "core",
-    "autograd": "core",
-    "optim": "core",
-    "data": "core",
-    "eager": "core",
-    "engine_fixture": "core",
-    "failure_expectations": "core",
-    "tensor_values": "core",
-    "seeded_noise": "core",
-    "scratch_files": "core",
-    "model_text": "core",
-    "darknet_reference": "core",
-    "nn": "layers",
-    "io": "layers",
-    "train": "layers",
-    "umbrella": "layers",
-    "layer_rows": "layers",
-    "layer_traces": "layers",
-    "sample_models": "layers",
-    "reference_files": "layers",
-    "classifier_objective": "layers",
-    "vision/imaging": "vision",
-    "vision/codecs": "vision",
-    "vision/detect": "vision",
-    "vision/segment": "vision",
-    "vision/blocks": "vision",
-    "vision/datasets": "vision",
-    "vision/importers": "vision",
-    "vision/training": "vision",
-    "vision/registration": "vision",
-    "vision/umbrella": "vision",
-    "vision/darknet_forward_cases": "vision",
-    "vision/darknet_import_cases": "vision",
-    "vision/darknet_training_cases": "vision",
-    "language/text": "language",
-    "language/blocks": "language",
-    "language/datasets": "language",
-    "language/training": "language",
-    "language/generation": "language",
-    "language/registration": "language",
-    "language/umbrella": "language",
-    "language/decoder_models": "language",
-}
-K_SCOPED_ROOTS: dict[str, str | None] = {
-    "tests": None,
-    "applications": None,
-}
-K_MODULES_ROOT = "modules"
+K_SETTINGS = Path(__file__).resolve().parents[1] / "settings.py"
+K_MODULES = "modules"
+K_TESTS = "tests"
 K_PUBLIC_FOLDER = "include"
-K_PRIVATE_FOLDERS: tuple[str, ...] = ("source", "tests")
-K_SOURCE_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".inl"})
+K_UMBRELLA = "umbrella"
+K_SOURCE_SUFFIXES = frozenset({".h", ".hpp", ".inl", ".cpp", ".glsl", ".comp", ".vert", ".frag"})
 K_INCLUDE = re.compile(r'^\s*#\s*include\s*(?:<([^>]+)>|"([^"]+)")')
+K_CMAKE_SOURCE_REACH = re.compile(r"(?:^|[/\s\"'])([A-Za-z0-9_]+)/source\b")
+K_CMAKE_COMMENT = re.compile(r"#.*")
+K_CMAKE_KEYWORD = re.compile(r"[A-Z][A-Z_]*")
 
 
 @dataclass(frozen=True, slots=True)
 class Layout:
-    """Holds the declared tiers of one repository and the roots outside the modules.
+    """Holds a repository's declared tiers, its domains and its build declaration names.
 
-    A scoped root maps to the highest tier its files may include, or to None for any tier.
+    Domain tiers share one rank and never include each other.
     """
 
     tier_order: tuple[str, ...]
-    domain_tiers: tuple[str, ...]
-    module_tiers: Mapping[str, str]
-    scoped_roots: Mapping[str, str | None]
+    domain_tiers: tuple[str, ...] = ()
+    same_tier_edges: frozenset[tuple[str, str]] = frozenset()
+    module_function: str = ""
+    public_depends: str = "DEPENDS"
+    private_depends: str = "PRIVATE_DEPENDS"
+    internal_mark: str = "INTERNAL"
 
     def rank(self, tier: str) -> int | None:
-        """Returns a tier's rank, lowest first and equal for every domain, or None."""
+        """Returns a tier's rank, lowest first and equal for every domain, or None when undeclared."""
         if tier not in self.tier_order:
             return None
         if tier in self.domain_tiers:
             return min(self.tier_order.index(domain) for domain in self.domain_tiers)
         return self.tier_order.index(tier)
 
-    def key(self, tier: str, name: str) -> str:
-        """Returns a module's key: `<tier>/<name>` in a domain tier, the name elsewhere."""
-        return f"{tier}/{name}" if tier in self.domain_tiers else name
 
-
-K_LAYOUT = Layout(K_TIER_ORDER, K_DOMAIN_TIERS, K_MODULE_TIERS, K_SCOPED_ROOTS)
+K_LAYOUT = Layout(
+    K_TIER_ORDER, K_DOMAIN_TIERS, K_SAME_TIER_EDGES, K_MODULE_FUNCTION,
+    K_PUBLIC_DEPENDS, K_PRIVATE_DEPENDS, K_INTERNAL_MARK,
+)
 
 
 @dataclass(frozen=True, slots=True)
 class Module:
-    """Holds one module folder, the tier folder it sits under and its key."""
+    """Holds one module folder and its tier; `<tier>/<name>` is its key."""
 
-    key: str
     tier: str
     name: str
     folder: Path
 
-
-@dataclass(frozen=True, slots=True)
-class Scope:
-    """Holds one module or one scoped root: its folder and the tier that bounds its includes.
-
-    The nested folders belong to another scope and are not read as part of this one.
-    """
-
-    label: str
-    tier: str | None
-    folder: Path
-    nested: tuple[Path, ...]
-    module: Module | None
+    @property
+    def key(self) -> str:
+        """Returns the module's key, unique in the repository."""
+        return f"{self.tier}/{self.name}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,12 +97,10 @@ class Include:
     is_quoted: bool
 
 
-def _read_includes(scope: Scope) -> Iterator[Include]:
-    """Yields every include directive of every source file a scope owns."""
-    for path in sorted(scope.folder.rglob("*")):
+def _includes(folder: Path) -> Iterator[Include]:
+    """Yields every include directive of every C-family source file below a folder."""
+    for path in sorted(folder.rglob("*")) if folder.is_dir() else ():
         if not path.is_file() or path.suffix not in K_SOURCE_SUFFIXES:
-            continue
-        if any(folder in path.parents for folder in scope.nested):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         for number, line in enumerate(text.splitlines(), start=1):
@@ -158,8 +108,8 @@ def _read_includes(scope: Scope) -> Iterator[Include]:
                 yield Include(path, number, match.group(1) or match.group(2), not match.group(1))
 
 
-class SourceTree:
-    """Holds one repository's modules, its scoped roots and their includes."""
+class ModuleTree:
+    """Holds the modules of one repository, their includes and their build declarations."""
 
     def __init__(self, root: Path, layout: Layout) -> None:
         """Remembers the root and the layout; the tree is read when a rule first asks."""
@@ -167,60 +117,19 @@ class SourceTree:
         self.layout = layout
 
     @cached_property
-    def discovered(self) -> tuple[Module, ...]:
-        """Returns every folder two levels below the modules root as a module."""
-        base = self.root / K_MODULES_ROOT
-        if not base.is_dir():
-            return ()
-        return tuple(
-            Module(self.layout.key(tier.name, folder.name), tier.name, folder.name, folder)
-            for tier in sorted(entry for entry in base.iterdir() if entry.is_dir())
-            for folder in sorted(entry for entry in tier.iterdir() if entry.is_dir())
-        )
-
-    @cached_property
     def modules(self) -> dict[str, Module]:
-        """Returns the discovered modules by key; the first folder holds a repeated key."""
-        found: dict[str, Module] = {}
-        for module in self.discovered:
-            found.setdefault(module.key, module)
-        return found
-
-    @cached_property
-    def scopes(self) -> tuple[Scope, ...]:
-        """Returns every module scope, then every scoped root that exists."""
-        roots = {
-            label: self.root / label
-            for label in self.layout.scoped_roots
-            if (self.root / label).is_dir()
+        """Returns every folder two levels below modules/, by key."""
+        base = self.root / K_MODULES
+        return {
+            module.key: module
+            for tier in sorted(entry for entry in base.iterdir() if entry.is_dir())
+            for module in (Module(tier.name, folder.name, folder)
+                           for folder in sorted(entry for entry in tier.iterdir() if entry.is_dir()))
         }
-        scoped = [
-            Scope(
-                label,
-                self.layout.scoped_roots[label],
-                folder,
-                tuple(other for other in roots.values() if folder in other.parents),
-                None,
-            )
-            for label, folder in roots.items()
-        ]
-        modules = [
-            Scope(module.key, module.tier, module.folder, (), module)
-            for module in self.modules.values()
-        ]
-        return (*modules, *scoped)
-
-    @cached_property
-    def includes(self) -> dict[str, tuple[Include, ...]]:
-        """Returns the include directives of each scope, by scope label."""
-        return {scope.label: tuple(_read_includes(scope)) for scope in self.scopes}
 
     @cached_property
     def owners(self) -> dict[str, Module | None]:
-        """Returns the module of each public header and header folder, None when shared.
-
-        The paths are those an include names, relative to a module's include/ folder.
-        """
+        """Returns the module of each path below an include/ folder, None when several share it."""
         found: dict[str, Module | None] = {}
         for module in self.modules.values():
             public = module.folder / K_PUBLIC_FOLDER
@@ -230,132 +139,191 @@ class SourceTree:
         return found
 
     def resolve(self, target: str) -> Module | None:
-        """Returns the module whose public headers an include target names, or None."""
+        """Returns the module whose public tree holds an include target, or None."""
         path = PurePosixPath(posixpath.normpath(target))
         for candidate in (path, *path.parents):
             if owner := self.owners.get(candidate.as_posix()):
                 return owner
         return None
 
-    def module_includes(self, scope: Scope) -> Iterator[tuple[Include, Module]]:
-        """Yields each include of a scope that names another module, with that module."""
-        for include in self.includes[scope.label]:
+    def module_includes(self, module: Module, folder: Path) -> Iterator[tuple[Include, Module]]:
+        """Yields each include below a folder that names another module, with that module."""
+        for include in _includes(folder):
             target = self.resolve(include.target)
-            if target is not None and target is not scope.module:
+            if target is not None and target is not module:
                 yield include, target
 
-    def private_owners(self, target: str) -> Iterator[tuple[Module, str]]:
-        """Yields each module whose source/ or tests/ a path names, with that folder's name."""
-        parts = PurePosixPath(posixpath.normpath(target)).parts
-        tiers = {module.tier for module in self.discovered}
-        for index, part in enumerate(parts):
-            if index == 0 or part not in K_PRIVATE_FOLDERS:
+    def scopes(self) -> Iterator[tuple[Module, Path, bool]]:
+        """Yields each module with its own folder, then with its test folder; True marks the tests."""
+        for module in self.modules.values():
+            yield module, module.folder, False
+        for module in self.modules.values():
+            tests = self.root / K_TESTS / module.tier / module.name
+            if tests.is_dir():
+                yield module, tests, True
+
+    def call_tokens(self, module: Module) -> list[str]:
+        """Returns the arguments of the module's declaring call in its build file."""
+        build_file = module.folder / "CMakeLists.txt"
+        if not self.layout.module_function or not build_file.is_file():
+            return []
+        text = K_CMAKE_COMMENT.sub("", build_file.read_text(encoding="utf-8"))
+        call = re.search(rf"\b{re.escape(self.layout.module_function)}\s*\(([^)]*)\)", text)
+        return call.group(1).split() if call else []
+
+    def declared(self, module: Module) -> dict[str, frozenset[str]]:
+        """Returns the module names a build file lists, by public and private keyword."""
+        listed: dict[str, set[str]] = {self.layout.public_depends: set(), self.layout.private_depends: set()}
+        keyword = ""
+        for token in self.call_tokens(module):
+            if K_CMAKE_KEYWORD.fullmatch(token):
+                keyword = token
+            elif keyword in listed:
+                listed[keyword].add(token)
+        return {keyword: frozenset(names) for keyword, names in listed.items()}
+
+    def is_internal(self, module: Module) -> bool:
+        """Returns whether a module's build file marks it internal, so its headers are not installed."""
+        return self.layout.internal_mark in self.call_tokens(module)
+
+    def is_public(self, module: Module, include: Include) -> bool:
+        """Returns whether an include sits in a header the module installs."""
+        return (module.folder / K_PUBLIC_FOLDER) in include.path.parents
+
+
+def collect(paths: list[Path]) -> Iterable[ModuleTree]:
+    """Returns the module tree of each given repository that has one."""
+    return [ModuleTree(path, K_LAYOUT) for path in paths if (path / K_MODULES).is_dir()]
+
+
+def rule_declared_tiers(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each tier folder or domain missing from the declared order."""
+    if not tree.layout.tier_order:
+        yield Issue(K_SETTINGS, 1, "K_TIER_ORDER is empty; declare the repository's tiers")
+        return
+    for domain in tree.layout.domain_tiers:
+        if domain not in tree.layout.tier_order:
+            yield Issue(K_SETTINGS, 1, f"domain tier '{domain}' is not in K_TIER_ORDER")
+    for tier in sorted({module.tier for module in tree.modules.values()}):
+        if tree.layout.rank(tier) is None:
+            yield Issue(tree.root / K_MODULES / tier, 1, f"tier '{tier}' is not in K_TIER_ORDER")
+
+
+def rule_upward_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include, in a module or its tests, of a module in a higher tier.
+
+    A test may include an umbrella header: it is what a consumer includes.
+    """
+    for module, folder, is_test in tree.scopes():
+        own = tree.layout.rank(module.tier)
+        for include, target in tree.module_includes(module, folder):
+            if is_test and target.name == K_UMBRELLA:
                 continue
-            above = parts[index - 2] if index >= 2 else None
-            for module in self.modules.values():
-                if module.name != parts[index - 1]:
-                    continue
-                if above not in tiers or above == module.tier:
-                    yield module, part
-
-
-def collect(paths: list[Path]) -> Iterable[SourceTree]:
-    """Returns one source tree per path given, read against the declared layout."""
-    return [SourceTree(path if path.is_dir() else path.parent, K_LAYOUT) for path in paths]
-
-
-def rule_declared_tiers(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue where the declared tables and the folders of the tree disagree."""
-    layout = tree.layout
-    base = tree.root / K_MODULES_ROOT
-    for domain in layout.domain_tiers:
-        if domain not in layout.tier_order:
-            yield Issue(base / domain, 1, f"domain tier '{domain}' is not in K_TIER_ORDER")
-    for module in tree.discovered:
-        declared = layout.module_tiers.get(module.key)
-        if tree.modules[module.key] is not module:
-            yield Issue(module.folder, 1, f"module key '{module.key}' names a second folder")
-        elif declared is None:
-            yield Issue(module.folder, 1, f"module folder '{module.key}' is not in K_MODULE_TIERS")
-        elif declared != module.tier:
-            message = f"module '{module.key}' is declared {declared} and sits under {module.tier}"
-            yield Issue(module.folder, 1, message)
-    for key, tier in layout.module_tiers.items():
-        if key not in tree.modules:
-            yield Issue(base / tier / key.split("/")[-1], 1, f"module '{key}' has no folder")
-        if layout.rank(tier) is None:
-            yield Issue(base / tier, 1, f"tier '{tier}' of '{key}' is not in K_TIER_ORDER")
-    for label, tier in layout.scoped_roots.items():
-        if not (tree.root / label).is_dir():
-            yield Issue(tree.root / label, 1, f"scoped root '{label}' is declared and missing")
-        if tier is None:
-            continue
-        if layout.rank(tier) is None:
-            yield Issue(tree.root / label, 1, f"tier '{tier}' of '{label}' is not in K_TIER_ORDER")
-        if tier in layout.domain_tiers:
-            yield Issue(tree.root / label, 1, f"scoped root '{label}' is bound to domain '{tier}'")
-
-
-def rule_upward_includes(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each include of a module that ranks above the includer's tier."""
-    for scope in tree.scopes:
-        own = None if scope.tier is None else tree.layout.rank(scope.tier)
-        for include, target in tree.module_includes(scope):
             other = tree.layout.rank(target.tier)
             if own is not None and other is not None and other > own:
-                reached = f"{target.key} ({target.tier})"
-                message = f"{scope.label} ({scope.tier}) includes up into {reached}"
-                yield Issue(include.path, include.line, message)
+                yield Issue(include.path, include.line, f"{module.key} includes up into {target.key}")
 
 
-def rule_cross_domain_includes(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each include by which a file of one domain names another domain."""
+def rule_cross_domain_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include, in a module or its tests, of a module in another domain."""
     domains = tree.layout.domain_tiers
-    for scope in tree.scopes:
-        if scope.tier not in domains:
+    for module, folder, _is_test in tree.scopes():
+        if module.tier not in domains:
             continue
-        for include, target in tree.module_includes(scope):
-            if target.tier in domains and target.tier != scope.tier:
-                message = f"{scope.label} of domain {scope.tier} includes {target.key}"
-                yield Issue(include.path, include.line, message)
+        for include, target in tree.module_includes(module, folder):
+            if target.tier in domains and target.tier != module.tier:
+                yield Issue(include.path, include.line, f"{module.key} of one domain includes {target.key}")
 
 
-def _private_reach(tree: SourceTree, scope: Scope, include: Include) -> str | None:
-    """Returns what is wrong with one include's path, or None when it stays where it may."""
-    owners = list(tree.private_owners(include.target))
-    if owners and all(module is not scope.module for module, _ in owners):
-        module, folder = owners[0]
-        return f'"{include.target}" reaches {folder}/ of module {module.key}'
-    if scope.module is None or not include.is_quoted:
-        return None
-    home = PurePosixPath(posixpath.normpath(scope.folder.as_posix()))
-    reached = PurePosixPath(
-        posixpath.normpath((include.path.parent / include.target).as_posix())
-    )
-    if home != reached and home not in reached.parents:
-        return f'"{include.target}" leaves the folder of module {scope.module.key}'
-    return None
+def rule_same_tier_includes(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of a module of the same tier whose edge is not listed.
 
-
-def rule_private_reach(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each include that names another module's source/ or tests/.
-
-    A quoted include of a module file that leaves the module's folder is reported too.
+    An umbrella includes every module of its scope, so its includes need no listed edge.
     """
-    for scope in tree.scopes:
-        for include in tree.includes[scope.label]:
-            if message := _private_reach(tree, scope, include):
-                yield Issue(include.path, include.line, message)
+    for module in tree.modules.values():
+        if module.name == K_UMBRELLA:
+            continue
+        for include, target in tree.module_includes(module, module.folder):
+            if target.tier == module.tier and (module.name, target.name) not in tree.layout.same_tier_edges:
+                yield Issue(include.path, include.line,
+                            f"{module.key} includes {target.name}, an edge K_SAME_TIER_EDGES does not list")
+
+
+def rule_private_reach(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include or build line that reaches another module's source/."""
+    names = {module.name for module in tree.modules.values()}
+    for module in tree.modules.values():
+        for include in _includes(module.folder):
+            if include.is_quoted and ("../" in include.target or "source/" in include.target):
+                yield Issue(include.path, include.line, "quoted include leaves the module or names a source/ folder")
+        build_file = module.folder / "CMakeLists.txt"
+        if not build_file.is_file():
+            continue
+        for number, line in enumerate(build_file.read_text(encoding="utf-8").splitlines(), start=1):
+            for name in K_CMAKE_SOURCE_REACH.findall(line):
+                if name != module.name and name in names:
+                    yield Issue(build_file, number, f"reaches into {name}/source")
+
+
+def rule_declared_dependencies(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of a module that the includer's build file does not list."""
+    layout = tree.layout
+    for module in tree.modules.values():
+        if not tree.call_tokens(module):
+            continue
+        declared = tree.declared(module)
+        for include, target in tree.module_includes(module, module.folder):
+            keywords = ((layout.public_depends,) if tree.is_public(module, include)
+                        else (layout.public_depends, layout.private_depends))
+            if not any(target.name in declared[keyword] for keyword in keywords):
+                yield Issue(include.path, include.line, f"{module.name} includes {target.name}, which its "
+                                                        f"CMakeLists.txt does not list in {' or '.join(keywords)}")
+
+
+def rule_unused_dependencies(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each module a build file lists beyond what the module's files include."""
+    layout = tree.layout
+    for module in tree.modules.values():
+        if not tree.call_tokens(module):
+            continue
+        declared = tree.declared(module)
+        included: dict[bool, set[str]] = {True: set(), False: set()}
+        for include, target in tree.module_includes(module, module.folder):
+            included[tree.is_public(module, include)].add(target.name)
+        build_file = module.folder / "CMakeLists.txt"
+        for name in sorted(declared[layout.public_depends] - included[True]):
+            reason = (f"only source/ includes it; list it in {layout.private_depends}"
+                      if name in included[False] else "no file includes it")
+            yield Issue(build_file, 1, f"{module.name} lists {name} in {layout.public_depends} and {reason}")
+        for name in sorted(declared[layout.private_depends] - included[True] - included[False]):
+            yield Issue(build_file, 1, f"{module.name} lists {name} in {layout.private_depends} "
+                                       "and no file includes it")
+
+
+def rule_public_headers(tree: ModuleTree) -> Iterator[Issue]:
+    """Yields an issue for each include of an internal module in a header a public module installs."""
+    internal = {module.key for module in tree.modules.values() if tree.is_internal(module)}
+    for module in tree.modules.values():
+        if module.key in internal:
+            continue
+        for include, target in tree.module_includes(module, module.folder):
+            if tree.is_public(module, include) and target.key in internal:
+                yield Issue(include.path, include.line, f"{module.name} is installed and includes "
+                                                        f"{target.name}, an internal module whose headers are not")
 
 
 K_CHECKER = Checker(
-    description="Checks includes against the declared tiers and the domain boundaries.",
+    description="Checks module dependencies against the declared tier order.",
     collect=collect,
     rules={
         "rule_declared_tiers": rule_declared_tiers,
         "rule_upward_includes": rule_upward_includes,
         "rule_cross_domain_includes": rule_cross_domain_includes,
+        "rule_same_tier_includes": rule_same_tier_includes,
         "rule_private_reach": rule_private_reach,
+        "rule_declared_dependencies": rule_declared_dependencies,
+        "rule_unused_dependencies": rule_unused_dependencies,
+        "rule_public_headers": rule_public_headers,
     },
 )
 
