@@ -149,7 +149,7 @@ class CitedPathsTest(unittest.TestCase):
             "# Guide\n\n`applications/examples/quickstart.cpp:4`, `Project/engine/world.hpp`,\n"
             "`modules/<tier>/<module>/`, `~/.claude/skills/`, `https://example.org/a.html`,\n"
             "`build/bin/quickstart.exe`, `read/write`, `engine/include/` and the optional\n"
-            "`docs/.docs_truth_allow`.\n"
+            "`docs/.docs_truth_allow` and `<new root>/.lock`.\n"
         )
         self.assertEqual(_found(rule_cited_paths, {"docs/guides/GUIDE.md": page}), [])
 

@@ -47,10 +47,11 @@ class Language:
     test_suffix: str
     skipped_names: frozenset[str]
     has_project_folder: bool
+    entry_names: frozenset[str] = frozenset()
 
     def test_name(self, unit: Path) -> str:
-        """Returns the name of the test file of a unit."""
-        return f"{self.test_prefix}{unit.stem}{self.test_suffix}"
+        """Returns the name of the test file of a unit; a package entry such as `__main__` drops its underscores."""
+        return f"{self.test_prefix}{unit.stem.strip('_')}{self.test_suffix}"
 
     def is_test(self, name: str) -> bool:
         """Says whether a file name has this language's test file shape."""
@@ -60,7 +61,8 @@ class Language:
 K_CPP = Language("include", frozenset({".h", ".hpp"}), "test_", ".cpp", frozenset(), True)
 K_LANGUAGES = (
     K_CPP,
-    Language("source", frozenset({".py"}), "test_", ".py", frozenset({"__init__.py", "__main__.py"}), True),
+    Language("source", frozenset({".py"}), "test_", ".py", frozenset({"__init__.py"}), True,
+             frozenset({"__main__.py"})),
     Language("source", frozenset({".ts", ".tsx"}), "", ".test.ts", frozenset({"index.ts"}), False),
 )
 
@@ -128,7 +130,8 @@ def _units(folder: Path, language: Language) -> Iterator[Path]:
         yield from (
             path for path in sorted(folder.rglob("*"))
             if path.is_file() and path.suffix in language.suffixes
-            and path.name not in language.skipped_names and not path.name.startswith("_")
+            and path.name not in language.skipped_names
+            and (not path.name.startswith("_") or path.name in language.entry_names)
         )
 
 

@@ -5,6 +5,9 @@
 # Commercial use requires a licence from Sushi Systems.
 """Runs every checker and the checker tests over a repository; prints only what failed.
 
+The shared checkers run first, then every other `tools/<area>/check_<what>.py` the repository
+holds as its own.
+
 Usage: python tools/check_all.py [root]
 """
 
@@ -22,12 +25,20 @@ K_CHECKERS = (
     "documentation/check_docs_truth.py",
     "layering/check_layering.py",
     "testing/check_test_mirror.py",
+    "testing/check_test_sizes.py",
 )
+
+
+def own_checkers(tools: Path) -> tuple[str, ...]:
+    """Returns the checkers under a tools folder that are not shared, as paths below it."""
+    found = (path.relative_to(tools).as_posix() for path in sorted(tools.glob("*/check_*.py")))
+    return tuple(name for name in found if name not in K_CHECKERS and not name.startswith("tests/"))
 
 
 def _commands(root: Path) -> list[tuple[str, list[str]]]:
     """Returns each check by name with the command that runs it."""
-    checks = [(name, [sys.executable, str(K_TOOLS / name), str(root)]) for name in K_CHECKERS]
+    names = (*K_CHECKERS, *own_checkers(K_TOOLS))
+    checks = [(name, [sys.executable, str(K_TOOLS / name), str(root)]) for name in names]
     tests = [sys.executable, "-m", "unittest", "discover", "-q", "-s", str(K_TOOLS / "tests")]
     return [*checks, ("tests", tests)]
 
@@ -42,7 +53,8 @@ def main(argv: list[str] | None = None) -> int:
         if completed.returncode != 0:
             failed.append(name)
             print(f"== {name}\n{completed.stdout}{completed.stderr}".rstrip())
-    print(f"failed: {', '.join(failed)}" if failed else f"clean: {len(K_CHECKERS)} checkers, tests")
+    count = len(K_CHECKERS) + len(own_checkers(K_TOOLS))
+    print(f"failed: {', '.join(failed)}" if failed else f"clean: {count} checkers, tests")
     return 1 if failed else 0
 
 

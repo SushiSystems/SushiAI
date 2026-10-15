@@ -146,9 +146,10 @@ class LanguagesAndApplicationsTest(unittest.TestCase):
         _touch(self.root, "source/sushi_cli/commands/build.py")
         _touch(self.root, "source/sushi_cli/__init__.py")
         _touch(self.root, "source/sushi_cli/_private.py")
+        _touch(self.root, "source/sushi_cli/bundle/__main__.py")
         self.assertEqual(
-            [test.relative_to(self.root).as_posix() for test in discover(self.root).expected],
-            ["tests/commands/test_build.py"],
+            sorted(test.relative_to(self.root).as_posix() for test in discover(self.root).expected),
+            ["tests/bundle/test_main.py", "tests/commands/test_build.py"],
         )
 
     def test_typescript_mirrors_each_source_file_of_a_module(self) -> None:

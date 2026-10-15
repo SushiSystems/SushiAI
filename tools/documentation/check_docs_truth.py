@@ -105,6 +105,7 @@ K_PASCAL = re.compile(r"(?<![\w:-])(?=[A-Z0-9]*[a-z])(?:[A-Z]+(?![a-z])|[A-Z][a-
 K_SNAKE = re.compile(r"(?<![\w:-])_?[a-z][a-z0-9]*(?:_[a-z0-9]+)+_?(?!\w)")
 K_UPPER = re.compile(r"(?<![\w:-])[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?!\w)")
 K_PLACEHOLDER = re.compile(r"(?<![A-Za-z0-9])<[A-Za-z_][\w -]*>|\*|\.\.\.|\$|\{|%")
+K_PLACEHOLDER_TAIL = re.compile(r"^[\w -]+>/")
 K_FILE_NAME = re.compile(r"^[\w.+-]*\.[A-Za-z][A-Za-z0-9]{0,5}$")
 K_PATH_TRIM = re.compile(r"^[\"'(<\[@]+|[\"')>\],;:.]+$|(?::\d+(?:-\d+)?|#\S*)$")
 K_OUTSIDE_PATH = re.compile(r"^(?:[A-Za-z][A-Za-z0-9+.-]*:|[/~\\]|\.\.?/\.\.)|^-")
@@ -350,8 +351,8 @@ class SourceTree:
 
     @cached_property
     def top_level(self) -> frozenset[str]:
-        """Returns the names of the entries directly under the root."""
-        return frozenset(entry.name for entry in self.root.iterdir())
+        """Returns the names of the entries directly under the root that git does not ignore."""
+        return frozenset(entry.name for entry in self.root.iterdir() if entry.resolve() not in self.ignored)
 
     def lines_of(self, relative: str) -> frozenset[str] | None:
         """Returns the trimmed lines of a file named from the root, or None when it is absent."""
@@ -508,6 +509,8 @@ def _cited(page: Page) -> Iterator[tuple[int, str]]:
 
 def _repository_path(manual: Manual, token: str) -> str | None:
     """Returns a token as a repository path when it reads as one, or None."""
+    if K_PLACEHOLDER_TAIL.search(token):
+        return None
     path = K_PATH_TRIM.sub("", K_PATH_TRIM.sub("", token)).replace("\\", "/")
     if "/" not in path or K_PLACEHOLDER.search(path) or K_OUTSIDE_PATH.match(path):
         return None
