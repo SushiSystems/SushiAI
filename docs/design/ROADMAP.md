@@ -23,7 +23,7 @@ from SushiBLAS (`SushiAI → SushiBLAS → SushiRuntime`, never touching SYCL di
 SushiEngine will draw its future in-engine inference evaluators (PINN physics, RL agents) from
 SushiBLAS: a dependency already recorded in the engine's own
 `docs/slop/cross_platform_engineering_plan.md` (2026-08-01 entries). SushiBLAS becomes a real
-SushiStack member (not a frozen vendored snapshot), and SushiAI: previously a solo CUDA/cuBLAS
+SushiStack member (not a frozen vendored snapshot), and SushiAI, a solo CUDA/cuBLAS
 hobby prototype (`enable_language(CUDA)`, hard-coded toolkit path, links `cudart`), unrelated to
 the stack: is rebuilt from zero as an AAA-quality ML framework. Three numbered tracks: **ST-\***
 (stack & CLI wiring), **SB-\*** (SushiBLAS repair), **AI-\*** (SushiAI construction): kept apart
@@ -415,7 +415,7 @@ The swap contract is cancelled: the engine permanently owns its fixed-size math.
 - Update `core/types.hpp`'s file comment (delete the "when SushiBLAS is available, replace…"
   block), `core/blas_placeholder.hpp`'s header comment, `docs/ARCHITECTURE.md` §6, and the
   `animation_system.md`/`physics_system.md` slop references.
-- Rename `core/blas_placeholder.hpp` → `core/math.hpp` (it is no longer a placeholder for
+- Rename `core/blas_placeholder.hpp` → `core/math.hpp` (it is not a placeholder for
   anything; the name is now actively misleading). One-file rename, still reached only through
   `core/types.hpp`.
 - The engine's *future* SushiBLAS dependency (PINN/RL forward evaluators, per its own
@@ -451,7 +451,7 @@ and committed, and the verification list is done:
 - Library + tests + example build, link, and run against both live siblings
   on real hardware; a real out-of-tree `find_package(SushiAI)` consumer
   (`tests/package/`) configured, built, and ran.
-- **The Release-build blocker this section used to leave open is gone.** A
+- **The Release build passes.** A
   full `sa build --type release` compiles
   `test_constant.cpp`/`test_leaky_relu.cpp`/`test_gelu.cpp` cleanly (they
   failed under `-O3 -DNDEBUG` on 2026-08-02 with the diagnostics unread), and
@@ -480,7 +480,7 @@ replay-without-rebuild). Documented limitation; revisit if PINN/GNN work actuall
 
 ## 18. AI-2: Static memory planning
 
-Once a graph is compiled for a fixed shape, run a liveness/interval pass: any buffer no longer
+Once a graph is compiled for a fixed shape, run a liveness/interval pass: any buffer not
 read by a later op becomes reusable. One static USM arena (via SushiBLAS's refcounted `Storage`)
 sized by the plan; tensor storages bind to arena offsets. Gate: zero allocator calls in the
 steady-state training loop (assert via allocator instrumentation, not by eyeballing).
@@ -531,8 +531,7 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   what makes the pass need no activation-specific knowledge: the pre-activation then has one
   consumer, so an ordinary use count folds ReLU and refuses GELU. (GELU folds now as well, but not
   on a use count; see the `GELU_AUX_BIAS` entry below.)
-- **The `GELU_AUX_BIAS` shape was declined for a seam reason that no longer holds, and is now
-  built.** `execute_gemm` used to declare A, B and C and hand the epilogue's own accesses back to
+- **The `GELU_AUX_BIAS` shape is built.** Without an access set, `execute_gemm` declares only A, B and C and hands the epilogue's own accesses back to
   the caller, so an aux buffer the functor wrote would get no edge and its reader would race the
   write. SushiBLAS now takes the epilogue's access set:
   `Dispatch::gemm_epilogue(f).reads(t).writes(t)`, so the aux write is declarable. Everything this
@@ -545,7 +544,7 @@ engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves 
   `K_MATMUL`'s result instead of the `K_BIAS_ADD`'s would be as silently wrong as spilling nothing.
   The one thing the entry cannot do is run under a narrowing precision policy, and that is
   deliberate: see §25's precision note and `graph/precision.hpp` rule 5.
-- **That gap also used to cost one node per fused GEMM, and no longer does.** The epilogue's *bias*
+- **A fused GEMM costs no extra ordering node.** The epilogue's *bias*
   read is a parameter the optimizer rewrites in the same plan, and it was declared with a
   `Lowering::declare_epilogue_operand()` that emitted a do-nothing `TaskGraph::add_native` node,
   counted apart in `RunReport::ordering_nodes_per_step`. `record_fused_gemm` declares it through
@@ -687,7 +686,7 @@ A full literature review plus a four-repo API survey turned up substrate facts t
 parts of §17–§19's design as originally sketched. Recorded here because each was expensive to
 find and each would be expensive to rediscover.
 
-**AI-0 is closed.** The Release-build blocker §16 used to leave open is gone: a full `sa build
+**AI-0 is closed.** The Release build passes: a full `sa build
 --type release` (208/208, reconfigure in place) compiled `test_leaky_relu.cpp`, `test_gelu.cpp`
 and `test_constant.cpp` cleanly, and `sa test --suite all` is green. It predated the SB-3/SB-6
 commits. §16 above has been corrected; SushiBLAS's own CHANGELOG is that repo's to fix.

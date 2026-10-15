@@ -367,7 +367,7 @@ because reporting only the favourable half would be dishonest.
 
 The **`Arenas`** line now says `0% saved`, and that is fusion's doing rather
 than the planner failing: a fused subtree's intermediates stop being values at
-all, so the buffers the planner used to overlap no longer exist to overlap.
+all, so the buffers the planner would overlap do not exist.
 The whole pool is 96.6 KiB against 130.9 KiB before either pass existed.
 `Regression_StaticMemory` pins both halves: packing still shrinks the
 *unfused* graph, and the fused graph is never larger than the packed unfused

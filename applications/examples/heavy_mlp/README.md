@@ -1,7 +1,7 @@
 # heavy_mlp: a deep MLP on a problem no linear model can solve
 
-Three JSON files and no C++ at all. This directory used to hold a pair of
-programs; it holds configuration now, and the two drivers that read it:
+Three JSON files and no C++ at all. This directory holds configuration, and the two drivers
+that read it:
 `applications/programs/source/train.cpp` and `applications/programs/source/inference.cpp`: name no layer type, no loss, no
 dataset and no optimizer. That is the point: they were written once and do not
 change as the library grows.

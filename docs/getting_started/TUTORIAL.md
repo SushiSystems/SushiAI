@@ -283,7 +283,7 @@ member it names.
 > `TheTutorialsCustomLayerTracesAndIsWalkable` and
 > `TheTutorialIsRightThatMulWouldNotBroadcast` hold the same code and assert
 > both claims this section makes about it, so this sample cannot rot into
-> something that no longer builds. Edit one, edit the other.
+> something that does not build. Edit one, edit the other.
 
 If your layer needs an operation the builder does not have, you are adding an
 op, not a layer; see §10.

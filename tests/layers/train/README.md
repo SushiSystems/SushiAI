@@ -1394,7 +1394,7 @@ bit cannot cancel out.
 ### TwoIdenticalAdamWRunsAgreeByteForByte
 
 AdamW divides by the square root of an accumulated second moment. After that division a one-ULP
-difference in the gradient is no longer one ULP.
+difference in the gradient is more than one ULP.
 
 ### InitialisationFromOneSeedIsBitwiseIdentical
 
@@ -1716,7 +1716,7 @@ The saving is ten for this model. The first layer's gemm+bias+relu replaces five
 and ger for the bias; copy and relu) with one. The second layer's gemm+bias replaces three with
 one. The cross-entropy gradient's exp/sub/scale replaces five with one.
 
-The saving has no cost beside it. Each fused GEMM used to need a host-side ordering node carrying
+The saving has no cost beside it. Each fused GEMM needs no host-side ordering node to carry
 the dependency edges execute_gemm could not declare for a bias its functor dereferences. Two layers
 meant two extra nodes. SushiBLAS's seam now takes the epilogue's own access set, so
 `operations_per_step` is the whole plan again and the two counts cannot drift apart.
@@ -1733,8 +1733,7 @@ in the right order on any given run, so a falling loss proves nothing about orde
 failure mode survives an otherwise green suite. The case reads the edge from
 `SushiRuntime::Graph::plan()`, as the predecessor count of the second recorded node. The node
 count is asserted for a related reason:
-the plan used to hold three nodes, the third being a host-side ordering node that ran nothing and
-existed only to carry this edge.
+the plan holds two nodes, and no host-side ordering node carries this edge.
 
 The bias-writing task in the test stands in for the optimizer's update: a task in the same plan
 that writes the bias the epilogue reads. It is recorded first, so an edge can only run from it to
@@ -1858,7 +1857,7 @@ the only honest control.
 
 The `fusion` parameter says what the fusion pass is allowed to do. Fusion is a confound in these
 measurements: a fused subtree's intermediates stop being values, so fusion removes exactly the
-buffers packing used to overlap. Every test in this file therefore says which graph its claim is
+buffers packing would overlap. Every test in this file therefore says which graph its claim is
 about.
 
 ### ATrainingLoopAllocatesNothingAfterTheFirstStep
@@ -1881,7 +1880,7 @@ the day a new catalog entry landed.
 This test states the interaction between fusion and packing so that nobody has to rediscover it. On
 the fused graph the planner's own report reads like a broken planner: every remaining activation's
 live range intersects every other's, so the planner overlaps nothing and prints "0% saved". The
-planner is not broken. The buffers it used to overlap no longer exist, because a fused subtree's
+planner is not broken. The buffers it would overlap do not exist, because a fused subtree's
 intermediates are not values any more. That is the better outcome of the two, and it is why the
 arena has nothing left to do.
 

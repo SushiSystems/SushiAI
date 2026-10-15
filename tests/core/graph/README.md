@@ -116,9 +116,9 @@ graphs the pass must decline, one per rule:
 - an intermediate the caller reads by id (the same loss, seen from outside),
 - a spilled pre-activation read by a node that runs before the fused one.
 
-The activation whose gradient differentiates at its input used to be a fourth entry on that
-list. It no longer is. K_GEMM_BIAS_GELU folds it by spilling the pre-activation to a second
-output, so the refusal became a condition: an INPUT-gradient activation may be folded only by an
+The activation whose gradient differentiates at its input is not on that list.
+K_GEMM_BIAS_GELU folds it by spilling the pre-activation to a second
+output, so the refusal is a condition: an INPUT-gradient activation may be folded only by an
 entry that writes the tensor its gradient reads, and only if it writes the right one. That
 condition has a compile-time half in `modules/core/graph/source/fusion.cpp`, where an entry breaking either half
 fails a static_assert. A test cannot cover that half, because a test that fails to compile is
@@ -1549,7 +1549,7 @@ float in place or handed to a cast that refuses anything but real float to real 
 
 Neither half showed up in a shape check. The case runs the passes in the order
 `Trainer::build` runs them and executes the result. A routing table that has been through a
-float is no longer a routing table, and the gradient is where that shows.
+float is not a routing table, and the gradient is where that shows.
 
 The graph is assembled by hand and not through `Trainer::build`, because no NN layer emits a
 pool yet and the trainer cannot reach this operation.
@@ -1747,7 +1747,7 @@ Suites: `Regression_LogSoftmaxStability`.
 
 This file tests a log-softmax that was stabilised by the wrong maximum.
 
-The lowering used to shift the whole batch by the batch's global maximum, on the argument that
+Shifting the whole batch by the batch's global maximum rests on the argument that
 log-softmax is invariant to subtracting any single scalar from a row. The argument is sound in real
 arithmetic and false in binary32. The exponential destroys the invariance, not the subtraction: a
 row sitting a long way below the batch maximum has every `exp(x - global_max)` collapse into the

@@ -593,7 +593,7 @@ valid partition under `RegionKey`.
 The node that produces the second layer's weight gradient has key 4, the backward key of the
 second segment. The case then asserts that this node reads a value produced under key 1. If a
 change to the differentiation rules removed that read, the first assertion would hold for a
-graph that no longer contains the case, and the message on the last assertion says so.
+graph that does not contain the case, and the message on the last assertion says so.
 
 ### ASharedParametersAccumulateSitsAboveBothContributors
 
