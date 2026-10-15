@@ -25,7 +25,7 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 | Issue | Where |
 | --- | --- |
 | The step bounds of YOLOv4 hold a head to 0.31 of the dump and those of YOLOv7 to 0.0079, 1.5 times the one measured difference; no layer before the heads is compared and the cause is not known | `tests/vision/importers/test_darknet_training/test_yolov4.cpp`, `tests/vision/importers/test_darknet_training/test_yolov7.cpp` |
-| `Integration_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails: the cost is 11.1 at step 199 against a bound of 3.56; the run is unstable on its batch and the order of one sum decides the outcome | `tests/vision/importers/test_darknet_training/test_yolov7.cpp` |
+| `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails: the cost is 11.1 at step 199 against a bound of 3.56; the run is unstable on its batch and the order of one sum decides the outcome | `tests/vision/importers/test_darknet_training/test_yolov7.cpp` |
 | The step bounds of YOLOv3 hold a head to 0.36 of the dump, 1.5 times the one measured difference; no layer before the heads is compared | `tests/vision/importers/test_darknet_training/test_yolov3.cpp:56-61` |
 
 ## Documentation
@@ -44,10 +44,9 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 
 | Issue | Where |
 | --- | --- |
-| The `cli` job installs the CLI with `pip install -e ./cli`, which needs `sushicore>=0.7.0` from PyPI; that version is not confirmed there (see Documentation) | `.github/workflows/ci.yml:162`, `cli/pyproject.toml:16` |
-| The pyflakes step ends in `\|\| true` and cannot fail | `.github/workflows/ci.yml:167` |
-| The workflow header cites `docs/CLAUDE.md`, which does not exist; the file is `CLAUDE.md` at the root | `.github/workflows/ci.yml:26` |
-| The `checkers` job does not run `tools/contract/check_contract.py`, which its README asks to run before any report | `.github/workflows/ci.yml:214-223` |
+| The CI jobs install the CLI with `pip install -e ./sushiai/cli[test]`, which needs `sushicore==0.9.0` from PyPI; that version is not confirmed there | `.github/actions/setup-sa/action.yml`, `cli/pyproject.toml` |
+| A pre-merge build checks out SushiBLAS at `main` (`SUSHIBLAS_REF`), because SushiBLAS has no tag. SushiAI includes headers of SushiBLAS's layout refactor, which `main` does not hold until that branch merges, so the build jobs fail until it does; the pin moves to a tag once SushiBLAS tags one | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
+| No CI run has executed this workflow: it was written on a machine with no runner | `.github/workflows/ci.yml` |
 | `PROJECT_NUMBER` is "v1 (unreleased)"; the library and the CLI declare 0.1.0 | `.config/doxygen/Doxyfile:14` |
 | Three rules ignore a `docs/api-site/` nothing writes | `.gitignore:23-25` |
 | The manifest spells the repository URL in lower case; the remote is `SushiSystems/SushiAI` | `sushi-module.toml:12` |

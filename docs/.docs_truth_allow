@@ -17,7 +17,6 @@ cli/config\.local\.toml  # the per-machine CLI configuration, gitignored
 Sushi(BLAS|Runtime)/.*|modules/.*/include/Sushi(BLAS|Runtime)/.*|sushiblas/.*  # SushiBLAS and SushiRuntime paths, held in the sibling repositories
 tests/.*/fixtures(/.*)?  # fixture folders whose generated files git ignores
 docs/api-site  # the Doxygen output folder KNOWN_ISSUES.md names as stale
-docs/CLAUDE\.md  # the wrong path KNOWN_ISSUES.md quotes from a workflow header
 docs/architecture-packaging-section  # a branch name in the branch naming example
 core/tensor\.h|src/CMakeLists\.txt  # files of the retired 2025-06 prototype
 load_train\("no/such/train\.json  # a path a test passes because it does not exist
