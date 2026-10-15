@@ -182,6 +182,15 @@ class ModuleTree:
                 listed[keyword].add(token)
         return {keyword: frozenset(names) for keyword, names in listed.items()}
 
+    def listed_edges(self, module: Module) -> frozenset[str]:
+        """Returns the modules a module may include from its own tier.
+
+        With a declaring function the build file is the one list; without one K_SAME_TIER_EDGES is.
+        """
+        if self.layout.module_function:
+            return frozenset().union(*self.declared(module).values())
+        return frozenset(included for includer, included in self.layout.same_tier_edges if includer == module.name)
+
     def is_internal(self, module: Module) -> bool:
         """Returns whether a module's build file marks it internal, so its headers are not installed."""
         return self.layout.internal_mark in self.call_tokens(module)
@@ -238,15 +247,17 @@ def rule_cross_domain_includes(tree: ModuleTree) -> Iterator[Issue]:
 def rule_same_tier_includes(tree: ModuleTree) -> Iterator[Issue]:
     """Yields an issue for each include of a module of the same tier whose edge is not listed.
 
+    The edge is listed in the module's build file when a declaring function is named, else in K_SAME_TIER_EDGES.
+
     An umbrella includes every module of its scope, so its includes need no listed edge.
     """
     for module in tree.modules.values():
         if module.name == K_UMBRELLA:
             continue
         for include, target in tree.module_includes(module, module.folder):
-            if target.tier == module.tier and (module.name, target.name) not in tree.layout.same_tier_edges:
-                yield Issue(include.path, include.line,
-                            f"{module.key} includes {target.name}, an edge K_SAME_TIER_EDGES does not list")
+            if target.tier == module.tier and target.name not in tree.listed_edges(module):
+                source = "its CMakeLists.txt" if tree.layout.module_function else "K_SAME_TIER_EDGES"
+                yield Issue(include.path, include.line, f"{module.key} includes {target.name}, an edge {source} does not list")
 
 
 def rule_private_reach(tree: ModuleTree) -> Iterator[Issue]:

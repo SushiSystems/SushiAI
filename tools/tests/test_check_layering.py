@@ -155,6 +155,13 @@ class BuildDeclarationTest(LayeringTest):
         self.assertEqual(_messages(rule_unused_dependencies(ModuleTree(self.root, K_BUILD))),
                          ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
 
+    def test_reads_same_tier_edges_from_the_build_file(self) -> None:
+        _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log)")
+        self.assertEqual(_messages(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))),
+                         ["foundation/log includes core, an edge its CMakeLists.txt does not list"] * 2)
+        _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS core)")
+        self.assertEqual(list(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))), [])
+
     def test_reports_an_installed_header_that_includes_an_internal_module(self) -> None:
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log DEPENDS core)")
         self.assertEqual(_messages(rule_public_headers(ModuleTree(self.root, K_BUILD))),
