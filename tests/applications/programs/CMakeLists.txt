@@ -11,19 +11,42 @@
 # process are compiled here beside the tests.
 set(SUSHIAI_PROGRAM_SOURCE_DIR "${PROJECT_SOURCE_DIR}/applications/programs/source")
 
+set(SUSHIAI_PROGRAM_TEST_DOMAINS)
+set(SUSHIAI_PROGRAM_TEST_LINKS)
+if(SA_BUILD_VISION)
+    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_vision.cpp")
+    list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_vision)
+else()
+    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_vision_none.cpp")
+endif()
+if(SA_BUILD_LANGUAGE)
+    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_language.cpp")
+    list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_language)
+else()
+    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_language_none.cpp")
+endif()
+
 sushiai_add_test_program(APPLICATION programs
     SOURCES
+        source/test_domains.cpp
         source/test_inference_run.cpp
+        source/test_registries.cpp
         source/test_run_start.cpp
+        source/test_trainer_run.cpp
         source/test_training_run.cpp
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/registries.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
+        ${SUSHIAI_PROGRAM_TEST_DOMAINS}
     DEPENDS
         classifier_objective
         failure_expectations
         scratch_files
+    LINKS
+        ${SUSHIAI_PROGRAM_TEST_LINKS}
     INCLUDES
         "${SUSHIAI_PROGRAM_SOURCE_DIR}")
 

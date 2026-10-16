@@ -36,6 +36,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
@@ -370,7 +371,7 @@ TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot
     EXPECT_EQ(plan.scratch_placement(second, 1), nullptr);
 }
 
-TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
+TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -379,10 +380,10 @@ TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsRefused)
     const Graph::ScratchRequest request{static_cast<NodeID>(graph.node_count()), 0, unit_shape(),
                                         DType::Float32};
 
-    EXPECT_THROW((void)MemoryPlan::build(
-                     graph, PlanOptions{},
-                     SushiRuntime::span<const Graph::ScratchRequest>(&request, 1)),
-                 Error);
+    SA_EXPECT_FATAL((void)MemoryPlan::build(
+                        graph, PlanOptions{},
+                        SushiRuntime::span<const Graph::ScratchRequest>(&request, 1)),
+                    "scratch request names node");
 }
 
 TEST(Small_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)

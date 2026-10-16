@@ -46,7 +46,6 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 | --- | --- |
 | The CI jobs install the CLI with `pip install -e ./sushiai/cli[test]`, which needs `sushicore==0.9.0` from PyPI; that version is not confirmed there | `.github/actions/setup-sa/action.yml`, `cli/pyproject.toml` |
 | A pre-merge build checks out SushiRuntime and SushiBLAS at `main` (`SUSHIRUNTIME_REF`, `SUSHIBLAS_REF`). SushiBLAS has no tag, and SushiRuntime's latest tag, `v0.3.0`, predates the SushiRuntime that SushiBLAS `main` configures against. The pins move to tags once both repositories tag a release | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
-| The `gate` job is red because `python tools/check_all.py .` fails: 119 public headers have no test file (`check_test_mirror.py`). Their tests are being written | `.github/workflows/ci.yml`, `tools/check_all.py` |
 | `PROJECT_NUMBER` is "v1 (unreleased)"; the library and the CLI declare 0.1.0 | `.config/doxygen/Doxyfile:14` |
 | Three rules ignore a `docs/api-site/` nothing writes | `.gitignore:23-25` |
 | The manifest spells the repository URL in lower case; the remote is `SushiSystems/SushiAI` | `sushi-module.toml:12` |

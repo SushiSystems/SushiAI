@@ -424,10 +424,6 @@ v1, to revisit for PINN and GNN work.
   (`CMakeLists.txt`, `cli/pyproject.toml`).
 - **Add `.gitattributes`** to pin line endings to the `lf` that `.editorconfig` asks for.
 
-- **Test the 119 untested units.** `python tools/testing/check_test_mirror.py .` lists 119 public
-  headers with no `tests/<tier>/<module>/test_<name>.cpp`; each needs its test file, sized by what
-  it uses. Planned as its own work; until it lands, `gate` is red.
-
 ## Test tree
 
 The tests mirror the source (`tests/README.md`); one program per module.
@@ -438,61 +434,10 @@ The tests mirror the source (`tests/README.md`); one program per module.
 - **Suite names that do not start with their unit**, such as `Small_Diagnostics` in
   `tests/core/graph/test_builder.cpp` and the `Unit_<Module><Header>` suites of the domain
   tests.
-- **Write the tests of the 119 units that have none.** `tools/testing/check_test_mirror.py`
-  lists them; by module:
-  - `applications/programs`: `source/domains.hpp`, `source/registries.hpp`,
-    `source/trainer_run.hpp`.
-  - `core/autograd`: `rule.hpp`, `rules/activation.hpp`, `rules/elementwise.hpp`, `rules/loss.hpp`,
-    `rules/shape.hpp`, `tape.hpp`.
-  - `core/config`: `registry.hpp`.
-  - `core/core`: `allocation.hpp`, `check.hpp`, `common.hpp`, `tensor_shape.hpp`.
-  - `core/darknet_reference`: `darknet_reference.hpp`.
-  - `core/data`: `dataset.hpp`, `epoch.hpp`, `input.hpp`, `materialised_dataset.hpp`, `roles.hpp`.
-  - `core/eager`: `partition.hpp`, `region_names.hpp`, `region_partitioner.hpp`, `scope.hpp`,
-    `segment.hpp`, `step.hpp`, `step_executor.hpp`, `storage_id.hpp`.
-  - `core/engine_fixture`: `engine_test.hpp`, `test_environment.hpp`.
-  - `core/failure_expectations`: `status_expectations.hpp`, `throw_expectations.hpp`.
-  - `core/graph`: `cast_insertion.hpp`, `fusion_selector.hpp`, `lowering/activation.hpp`,
-    `lowering/context.hpp`, `lowering/elementwise.hpp`, `lowering/fused.hpp`, `lowering/norm.hpp`,
-    `lowering/rule.hpp`, `lowering/shape.hpp`, `lowering/spatial.hpp`, `lowering/unlowered.hpp`,
-    `node_range.hpp`, `precision.hpp`, `replay_prelude.hpp`, `state_id.hpp`, `tensor_pool.hpp`.
-  - `core/model_text`: `model_text.hpp`.
-  - `core/optim`: `adamw.hpp`, `cosine_schedule_section.hpp`, `optimizer_registry.hpp`,
-    `rate_schedule_section.hpp`, `sgd.hpp`, `step_scalars.hpp`.
-  - `core/scratch_files`: `scratch_file.hpp`.
-  - `core/seeded_noise`: `host_noise.hpp`.
-  - `core/tensor_values`: `tensor_values.hpp`.
-  - `language/blocks`: `expert_projection.hpp`, `expert_trace.hpp`, `incremental.hpp`.
-  - `language/datasets`: `collator.hpp`.
-  - `language/decoder_models`: `decoder_model.hpp`.
-  - `language/generation`: `generator.hpp`, `sampler.hpp`.
-  - `language/text`: `token.hpp`.
-  - `language/training`: `perplexity.hpp`.
-  - `language/umbrella`: `language.hpp`.
-  - `layers/classifier_objective`: `classifier_objective.hpp`.
-  - `layers/io`: `imported_model.hpp`.
-  - `layers/layer_rows`: `layer_registry.hpp`, `minimal_case.hpp`.
-  - `layers/layer_traces`: `trace_summary.hpp`.
-  - `layers/nn`: `layer.hpp`, `layer_node.hpp`, `loss.hpp`, `module_node.hpp`,
-    `node_attributes.hpp`.
-  - `layers/reference_files`: `reference_file.hpp`.
-  - `layers/sample_models`: `two_output_model.hpp`.
-  - `layers/train`: `batch_role.hpp`, `decision_threshold.hpp`, `feed.hpp`, `host_values.hpp`,
-    `parameter_groups.hpp`, `step_view.hpp`, `training_graph.hpp`, `training_step.hpp`.
-  - `vision/codecs`: `decode_options.hpp`.
-  - `vision/darknet_forward_cases`: `darknet_forward.hpp`.
-  - `vision/darknet_import_cases`: `darknet_import.hpp`.
-  - `vision/darknet_training_cases`: `darknet_training.hpp`.
-  - `vision/datasets`: `collator.hpp`, `fitted_sample.hpp`, `image_extensions.hpp`,
-    `load_sample_mask.hpp`, `mnist.hpp`, `reader_table.hpp`, `sample.hpp`, `sample_pipeline.hpp`,
-    `task_table.hpp`, `value_table.hpp`.
-  - `vision/detect`: `anchor/anchor_size.hpp`, `anchor/seeded_sequence.hpp`, `detection_row.hpp`,
-    `free/anchor_leaves.hpp`, `free/assigner_config.hpp`, `free/assignment.hpp`,
-    `free/level_rows.hpp`, `free/target_leaves.hpp`, `ground_truth.hpp`, `prediction_shape.hpp`.
-  - `vision/imaging`: `affine_nearest.hpp`, `partner_source.hpp`.
-  - `vision/segment`: `ignore_index.hpp`.
-  - `vision/training`: `dice_targets.hpp`, `pixel_labels.hpp`, `pixel_losses.hpp`.
-  - `vision/umbrella`: `vision.hpp`.
+- **List the new test pages in the folder READMEs** that keep a test-file table, such as
+  `tests/core/eager/README.md`, and give the 18 new test folders a README.
+- **Move the cases of `check.hpp`, `load_sample_mask.hpp` and `perplexity.hpp`** out of
+  `test_status.cpp`, `test_fit_mask.cpp` and `test_next_token_targets.cpp` into their mirror files.
 
 ## Estate programmes
 

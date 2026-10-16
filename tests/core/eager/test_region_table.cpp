@@ -34,7 +34,7 @@
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/region_table.hpp>
 #include <SushiAI/eager/storage_id.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 using namespace SushiAI;
@@ -193,7 +193,7 @@ TEST(Small_RegionTable, AScopeThatDisappearsIsDroppedByItsOldKeys)
     EXPECT_FALSE(second.released.empty());
 }
 
-TEST(Small_RegionTable, ALeafWithoutStorageThrows)
+TEST(Small_RegionTable, ALeafWithoutStorageIsFatal)
 {
     Eager::StorageIDSource ids;
     RegionTable table(ids);
@@ -201,7 +201,7 @@ TEST(Small_RegionTable, ALeafWithoutStorageThrows)
     const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
     const std::vector<StorageID> preset(step.graph.value_count(), Eager::K_NO_STORAGE);
 
-    SA_EXPECT_ERROR(
+    SA_EXPECT_FATAL(
         (void)table.plan(step.graph, step.partition, boundaries, Support::span_of(preset)),
         "linear#0 forward", "no storage");
 }

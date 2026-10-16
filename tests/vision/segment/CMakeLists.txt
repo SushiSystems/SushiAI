@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER vision/segment
         test_argmax_classes.cpp
         test_confusion_matrix.cpp
         test_fill_outline.cpp
+        test_ignore_index.cpp
         test_intersection_over_union.cpp
         test_pixel_accuracy.cpp
         test_rasterise_outlines.cpp

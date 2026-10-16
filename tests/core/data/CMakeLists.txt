@@ -8,8 +8,13 @@
 
 sushiai_add_test_program(OWNER data
     SOURCES
+        test_dataset.cpp
         test_dataset_registry.cpp
+        test_epoch.cpp
         test_epoch_permutation.cpp
+        test_input.cpp
+        test_materialised_dataset.cpp
+        test_roles.cpp
         test_target.cpp
         test_threaded_loader.cpp
     DEPENDS

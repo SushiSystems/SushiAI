@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER language/text
         test_bpe_trainer.cpp
         test_codec.cpp
         test_stream_encoder.cpp
+        test_token.cpp
         test_vocabulary.cpp
         test_vocabulary_file.cpp
     DEPENDS
