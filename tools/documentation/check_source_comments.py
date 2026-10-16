@@ -25,14 +25,16 @@ from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
 from settings import K_CLOSED  # noqa: E402
 
-K_C_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".glsl", ".comp", ".vert", ".frag", ".ts", ".tsx"})
+K_C_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".inc", ".glsl", ".comp", ".vert", ".frag", ".geom",
+                           ".tesc", ".tese", ".mesh", ".task", ".rgen", ".rchit", ".rahit", ".rmiss", ".rint",
+                           ".rcall", ".ts", ".tsx"})
 K_PYTHON_SUFFIXES = frozenset({".py"})
 K_SKIPPED_FOLDERS = frozenset({".git", "third_party", "build", "__pycache__", "node_modules"})
 K_FILE_HEADER_CEILING = 6
 K_BLOCK_CEILING = 8
 K_SEPARATOR = re.compile(r"[-=*_~#]{5,}")
 K_HISTORY = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b|\b(previously|formerly|fixed in)\b", re.IGNORECASE)
-K_DATE_TAG = re.compile(r"@date\b")
+K_DATE_TAG = re.compile(r"[@\\]date\b")
 K_LICENSE_LINE = re.compile(r"^/\*.*\*/\s*$")
 K_HOLDER = "Mustafa Garip & Sushi Systems"
 K_PART_OF = "This file is part of:"

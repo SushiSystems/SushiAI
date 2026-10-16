@@ -22,6 +22,7 @@ from urllib.parse import unquote
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
+from checking.ignored_paths import drop_ignored  # noqa: E402
 
 K_DOCS_ENTRIES = frozenset(
     {
@@ -202,7 +203,7 @@ def _reachable(repository: Repository) -> set[Path]:
 
 def rule_docs_entries(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each entry directly under docs/ that the tree does not name."""
-    for entry in sorted(repository.docs.iterdir()):
+    for entry in drop_ignored(repository.root, sorted(repository.docs.iterdir())):
         if entry.name not in K_DOCS_ENTRIES:
             yield Issue(entry, 1, "not part of the docs/ tree")
 

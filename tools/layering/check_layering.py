@@ -26,6 +26,7 @@ from settings import (  # noqa: E402
     K_INTERNAL_MARK,
     K_MODULE_FUNCTION,
     K_PRIVATE_DEPENDS,
+    K_PRIVATE_DEPENDS_ALSO,
     K_PUBLIC_DEPENDS,
     K_SAME_TIER_EDGES,
     K_TIER_ORDER,
@@ -57,6 +58,7 @@ class Layout:
     public_depends: str = "DEPENDS"
     private_depends: str = "PRIVATE_DEPENDS"
     internal_mark: str = "INTERNAL"
+    private_depends_also: tuple[str, ...] = ()
 
     def rank(self, tier: str) -> int | None:
         """Returns a tier's rank, lowest first and equal for every domain, or None when undeclared."""
@@ -69,7 +71,7 @@ class Layout:
 
 K_LAYOUT = Layout(
     K_TIER_ORDER, K_DOMAIN_TIERS, K_SAME_TIER_EDGES, K_MODULE_FUNCTION,
-    K_PUBLIC_DEPENDS, K_PRIVATE_DEPENDS, K_INTERNAL_MARK,
+    K_PUBLIC_DEPENDS, K_PRIVATE_DEPENDS, K_INTERNAL_MARK, K_PRIVATE_DEPENDS_ALSO,
 )
 
 
@@ -190,12 +192,15 @@ class ModuleTree:
         return named[0].key if len(named) == 1 else token
 
     def declared(self, module: Module) -> dict[str, frozenset[str]]:
-        """Returns the module keys a build file lists, by public and private keyword."""
+        """Returns the module keys a build file lists, by public and private keyword.
+
+        A keyword in `private_depends_also` lists into the private keyword's set.
+        """
         listed: dict[str, set[str]] = {self.layout.public_depends: set(), self.layout.private_depends: set()}
         keyword = ""
         for token in self.call_tokens(module):
             if K_CMAKE_KEYWORD.fullmatch(token):
-                keyword = token
+                keyword = self.layout.private_depends if token in self.layout.private_depends_also else token
             elif keyword in listed:
                 listed[keyword].add(self.key_of(module, token))
         return {keyword: frozenset(names) for keyword, names in listed.items()}
