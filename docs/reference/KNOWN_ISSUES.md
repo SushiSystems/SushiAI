@@ -38,14 +38,14 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 | Comments cite `docs/architecture/ARCHITECTURE.md`; the file is `docs/architecture/ARCHITECTURE.md` | `CMakeLists.txt:72` |
 | A comment cites `docs/README.md` for the demo's quoted output; that text is in the root `README.md` | `tests/CMakeLists.txt:118` |
 | The links to the SECURITY pages of SushiBLAS and SushiRuntime were not checked against those repositories' `main` | `docs/reference/SECURITY.md` |
-| No changelog entry records the `sushicore` floor moving from 0.4.0 to 0.7.0, and 0.7.0 was not confirmed on PyPI | `cli/pyproject.toml:16` |
+| No changelog entry records the `sushicore` floor moving from 0.4.0 to 0.7.0 | `cli/pyproject.toml:16` |
 
 ## Build, CI and root files
 
 | Issue | Where |
 | --- | --- |
 | `check_logging.py` reports `rule_console_output` because the default fatal handler writes to stderr with `fputs`; it moves to `SA_LOG_FATAL` once SushiRuntime's per-project logging lands (`docs/agent/2026_10_16_LOGGING_FRONT/PLAN.md`, T2), and the Checkers job stays red until then | `modules/core/core/source/check.cpp:43` |
-| The CI jobs install the CLI with `pip install -e ./sushiai/cli[test]`, which needs `sushicore==0.9.0` from PyPI; that version is not confirmed there | `.github/actions/setup-sa/action.yml`, `cli/pyproject.toml` |
+| `sa test --jobs 1` runs ctest with its own default instead of one test at a time: `sushicore` 0.9.0 passes no count of 1. Any count of 2 or more is passed. The next `sushicore` release fixes it | `cli/sushiai/services/project.py`, `cli/pyproject.toml` |
 | A pre-merge build checks out SushiRuntime and SushiBLAS at `main` (`SUSHIRUNTIME_REF`, `SUSHIBLAS_REF`). SushiBLAS has no tag, and SushiRuntime's latest tag, `v0.3.0`, predates the SushiRuntime that SushiBLAS `main` configures against. The pins move to tags once both repositories tag a release | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
 | `PROJECT_NUMBER` is "v1 (unreleased)"; the library and the CLI declare 0.1.0 | `.config/doxygen/Doxyfile:14` |
 | Three rules ignore a `docs/api-site/` nothing writes | `.gitignore:23-25` |
