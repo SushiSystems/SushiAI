@@ -51,6 +51,12 @@ class _Driver:
         if self._removes:
             shutil.rmtree(build_dir)
 
+    def ctest_run(self, cfg, build_dir, env, **options) -> int:
+        """Records the options of the ctest run and reports success."""
+        self.calls.append("ctest_run")
+        self.ctest_options = options
+        return 0
+
 
 class _Runner:
     """Stands in for the process runner and records each command."""
@@ -159,3 +165,16 @@ def test_the_mlp_demo_names_its_program():
     """demo_target maps a demo's name to the executable that is that demo."""
     assert project.demo_target("mlp") == "sushiai_demo_mlp"
     assert project.demo_target("no-such-demo") is None
+
+
+@pytest.mark.parametrize("jobs", [3, None])
+def test_jobs_reach_ctest_as_given(jobs, console, tree, monkeypatch):
+    """--jobs reaches ctest_run unchanged, and None leaves the count to ctest."""
+    driver = _Driver(removes=False)
+    monkeypatch.setattr(project, "_DRIVER", driver)
+    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace())
+    monkeypatch.setattr(project, "load_build_env", lambda cfg, build_dir: {})
+    monkeypatch.setattr(project, "_enter_memory_limit", lambda limit: True)
+
+    assert project.test(jobs=jobs) == 0
+    assert driver.ctest_options["jobs"] == jobs

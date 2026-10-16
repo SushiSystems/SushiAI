@@ -124,8 +124,9 @@ at all.
 `package` is neither a CTest label nor part of `all`. It is an out-of-tree consumer of the
 installed package, which has to be installed and configured on its own before it can run.
 
-`test()` refuses `--filter` and `--repeat` for the package suite. Both are ctest knobs and
-that suite runs no ctest, and refusing is better than accepting a flag and silently doing
+`test()` passes `--jobs` to ctest as the number of tests run at once, and leaves the count to
+ctest when it is omitted. It refuses `--filter`, `--repeat` and `--jobs` for the package
+suite. All three are ctest knobs and that suite runs no ctest, and refusing is better than accepting a flag and silently doing
 nothing with it.
 
 `all` means every CTest test, which is not every test the repository has. `test()` prints a
