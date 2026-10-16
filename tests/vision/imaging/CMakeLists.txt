@@ -9,6 +9,7 @@
 sushiai_add_test_program(OWNER vision/imaging
     SOURCES
         test_affine.cpp
+        test_affine_nearest.cpp
         test_boxes.cpp
         test_dataset_partners.cpp
         test_flip.cpp
@@ -20,6 +21,7 @@ sushiai_add_test_program(OWNER vision/imaging
         test_letterbox.cpp
         test_mask_pipeline.cpp
         test_mosaic.cpp
+        test_partner_source.cpp
         test_pipeline.cpp
         test_polygon.cpp
         test_random.cpp

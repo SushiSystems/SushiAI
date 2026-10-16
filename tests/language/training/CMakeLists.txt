@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER language/training
         test_expert_balance_objective.cpp
         test_next_token_objective.cpp
         test_next_token_targets.cpp
+        test_perplexity.cpp
     DEPENDS
         failure_expectations
         scratch_files

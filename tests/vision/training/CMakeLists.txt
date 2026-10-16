@@ -13,9 +13,12 @@ sushiai_add_test_program(OWNER vision/training
         test_anchor_training_loop.cpp
         test_anchor_training_step.cpp
         test_dice_objective.cpp
+        test_dice_targets.cpp
         test_head_delta_loss.cpp
         test_pixel_cross_entropy_objective.cpp
         test_pixel_extents.cpp
+        test_pixel_labels.cpp
+        test_pixel_losses.cpp
         test_pixel_targets.cpp
         test_segmentation_metrics.cpp
         test_truth_from_roles.cpp

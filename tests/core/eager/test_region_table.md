@@ -42,9 +42,9 @@ region keeps key 1 and is kept, and the new scope's region is built with no prev
 The plan lists the two keys the "extra" scope's regions held, forward before backward, and
 releases the slots only they used.
 
-## ALeafWithoutStorageThrows
+## ALeafWithoutStorageIsFatal
 
-A plan with no preset names the region and the value it could not place.
+A plan with no preset stops the process, naming the region and the value it could not place.
 
 ## ForgetBuildsEveryRegionAgain
 

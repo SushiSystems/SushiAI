@@ -24,11 +24,14 @@ sushiai_add_test_program(OWNER nn
         test_host_table.cpp
         test_identity.cpp
         test_init.cpp
+        test_layer.cpp
+        test_layer_node.cpp
         test_layer_norm.cpp
         test_layer_registry.cpp
         test_layer_stack.cpp
         test_layers.cpp
         test_leaky_relu.cpp
+        test_loss.cpp
         test_max_pool2d.cpp
         test_mish.cpp
         test_model_graph.cpp
@@ -36,7 +39,9 @@ sushiai_add_test_program(OWNER nn
         test_model_state.cpp
         test_module.cpp
         test_module_list.cpp
+        test_module_node.cpp
         test_node.cpp
+        test_node_attributes.cpp
         test_node_registry.cpp
         test_silu.cpp
         test_throwing_bridge.cpp

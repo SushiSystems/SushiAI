@@ -8,17 +8,25 @@
 
 sushiai_add_test_program(OWNER eager
     SOURCES
+        test_partition.cpp
         test_region_boundary.cpp
         test_region_emitter.cpp
         test_region_executor.cpp
+        test_region_names.cpp
+        test_region_partitioner.cpp
         test_region_program.cpp
         test_region_signature.cpp
         test_region_table.cpp
+        test_scope.cpp
         test_scope_partitioner.cpp
         test_scope_trace.cpp
+        test_segment.cpp
         test_session.cpp
         test_slot_ledger.cpp
+        test_step.cpp
+        test_step_executor.cpp
         test_storage_bank.cpp
+        test_storage_id.cpp
     DEPENDS
         failure_expectations
         tensor_values)

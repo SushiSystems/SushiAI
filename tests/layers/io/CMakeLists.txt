@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER io
         test_checkpoint.cpp
         test_checkpoint_format.cpp
         test_import_weights.cpp
+        test_imported_model.cpp
         test_imported_model_writer.cpp
         test_importer_registry.cpp
         test_run_checkpoint.cpp

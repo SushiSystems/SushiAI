@@ -8,7 +8,9 @@
 
 add_subdirectory(blocks)
 add_subdirectory(datasets)
+add_subdirectory(decoder_models)
 add_subdirectory(generation)
 add_subdirectory(registration)
 add_subdirectory(text)
 add_subdirectory(training)
+add_subdirectory(umbrella)

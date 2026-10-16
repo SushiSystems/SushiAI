@@ -12,6 +12,7 @@ sushiai_add_test_program(OWNER config
         test_json_writer.cpp
         test_model_config.cpp
         test_model_writer.cpp
+        test_registry.cpp
         test_section_reader.cpp
         test_train_config.cpp
         test_value.cpp

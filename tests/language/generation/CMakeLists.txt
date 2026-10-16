@@ -10,10 +10,12 @@ sushiai_add_test_program(OWNER language/generation
     SOURCES
         test_cached_generator.cpp
         test_generation_task.cpp
+        test_generator.cpp
         test_greedy_sampler.cpp
         test_nucleus_sampler.cpp
         test_position_feed.cpp
         test_ring_position_feed.cpp
+        test_sampler.cpp
         test_sampler_section.cpp
         test_table_position_feed.cpp
         test_temperature_sampler.cpp

@@ -9,8 +9,11 @@
 sushiai_add_test_program(OWNER language/blocks
     SOURCES
         test_causal_self_attention.cpp
+        test_expert_projection.cpp
+        test_expert_trace.cpp
         test_expert_transformer_block.cpp
         test_feed_forward.cpp
+        test_incremental.cpp
         test_language_head.cpp
         test_moe_feed_forward.cpp
         test_position_embedding.cpp

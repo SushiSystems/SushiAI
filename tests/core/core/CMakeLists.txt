@@ -8,11 +8,15 @@
 
 sushiai_add_test_program(OWNER core
     SOURCES
+        test_allocation.cpp
+        test_check.cpp
+        test_common.cpp
         test_ops.cpp
         test_result.cpp
         test_seam.cpp
         test_shape.cpp
         test_status.cpp
+        test_tensor_shape.cpp
     DEPENDS
         failure_expectations
         tensor_values)
