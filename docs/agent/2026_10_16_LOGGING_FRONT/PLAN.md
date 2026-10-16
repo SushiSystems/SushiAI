@@ -7,17 +7,16 @@ and `dependencies` skills.
 
 ## Dependency
 
-- SushiLog v0.1.0 (`b2dc144bc4587f512ad2241b9efc29abca1bab3c`) and `sushicore` 0.9.1 are
+- SushiLog v0.1.2 (`01da0e7464040a02025f44e50cfca64579215a22`) and `sushicore` 0.9.1 are
   released.
-- Task 7, SushiRuntime's front over SushiLog, must be on SushiRuntime `main`; sushiskills-3a
-  gives the start signal.
+- Task 7, SushiRuntime's front over SushiLog, is on SushiRuntime `main` (`e59249f`).
 - SushiBLAS's front must also move to SushiLog (the SushiBLAS half of task 9). SushiAI includes
   SushiBLAS headers that log, so it cannot build until SushiBLAS builds against SushiLog.
 
 ## Open question for the owner
 
 The `dependencies` skill pins each Sushi library with a release tag and its commit. SushiLog
-has one: `v0.1.0`. SushiRuntime's latest tag, `v0.3.0`, predates the SushiRuntime that adopts
+has one: `v0.1.2`. SushiRuntime's latest tag, `v0.3.0`, predates the SushiRuntime that adopts
 SushiLog, and SushiBLAS has no tag. Until both tag a release, the fragment can pin only
 SushiLog. Pinning a commit with no tag breaks rule 1 of that section.
 
@@ -29,7 +28,7 @@ Each task has one acceptance criterion and one build (3 threads).
 
 **T2. Resolve and pin SushiLog.**
 - `cli/sushistack.deps.toml`: `sushilog` in `[module] depends_on`, and `[sushi.sushilog]` with
-  `version = "v0.1.0"` and the full commit. SushiRuntime and SushiBLAS are pinned the same way
+  `version = "v0.1.2"` and the full commit. SushiRuntime and SushiBLAS are pinned the same way
   once they have tags (see the open question).
 - `cli/pyproject.toml`: `sushicore==0.9.1`.
 - `cmake/Log.cmake`, included before `Runtime.cmake`: if no `SushiLog::SushiLog` target exists
@@ -37,7 +36,7 @@ Each task has one acceptance criterion and one build (3 threads).
   copy `sa setup` fetched, in that order. CMake never downloads. The target guard lets
   SushiRuntime and SushiBLAS reuse the same target.
 - CI checks SushiLog out at the pin, as it does SushiRuntime and SushiBLAS.
-- Acceptance: `sa setup` on a clone with no sibling fetches SushiLog at `v0.1.0`, and
+- Acceptance: `sa setup` on a clone with no sibling fetches SushiLog at `v0.1.2`, and
   `sa build` configures with one `SushiLog::SushiLog` target.
 
 **T3. The front, in `core/core`.**
@@ -70,9 +69,13 @@ no log call beyond the fatal report.
 
 ## Work in the tree
 
-T3 and T4 are written against SushiRuntime's `SR_LOG_FRONT_AT` and are uncommitted. They move
-to SushiLog's names when the start signal arrives; they were never built, because SushiBLAS's
-headers do not compile against SushiRuntime `afb9156`.
+T2 to T5 are written on SushiLog and uncommitted; nothing is built. The build waits for the
+owner's order and for SushiBLAS's adoption on its `main`.
+- `check_all` is clean, `rule_front_reexport` included.
+- 99 CLI tests pass. The 33 that spawn `sa.exe` or `sushiai.exe` from `~/.local/bin` fail
+  there: that Python has no `sushicore`.
+- The engine fixture's `main` calls `SushiLog::set_log_synchronous(true)` once, in place of the
+  SushiRuntime and SushiBLAS calls.
 
 ## Boundary items with the owner
 
