@@ -44,6 +44,7 @@ $env:ONEAPI_DEVICE_SELECTOR="opencl:cpu"; pytest cli/tests -q
 
 | Issue | Where |
 | --- | --- |
+| `check_logging.py` reports `rule_console_output` because the default fatal handler writes to stderr with `fputs`; it moves to `SA_LOG_FATAL` once SushiRuntime's per-project logging lands (`docs/agent/2026_10_16_LOGGING_FRONT/PLAN.md`, T2), and the Checkers job stays red until then | `modules/core/core/source/check.cpp:43` |
 | The CI jobs install the CLI with `pip install -e ./sushiai/cli[test]`, which needs `sushicore==0.9.0` from PyPI; that version is not confirmed there | `.github/actions/setup-sa/action.yml`, `cli/pyproject.toml` |
 | A pre-merge build checks out SushiRuntime and SushiBLAS at `main` (`SUSHIRUNTIME_REF`, `SUSHIBLAS_REF`). SushiBLAS has no tag, and SushiRuntime's latest tag, `v0.3.0`, predates the SushiRuntime that SushiBLAS `main` configures against. The pins move to tags once both repositories tag a release | `.github/workflows/ci.yml`, `.github/workflows/nightly.yml` |
 | `PROJECT_NUMBER` is "v1 (unreleased)"; the library and the CLI declare 0.1.0 | `.config/doxygen/Doxyfile:14` |
