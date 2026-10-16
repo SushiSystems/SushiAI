@@ -129,6 +129,7 @@ sa test --cli                    # the CLI's own pytest tests, small and medium
 ```bash
 sa test --filter 'Version.*'  # ctest -R regex over 'Suite.Case' test names
 sa test --repeat 5            # re-run each test up to 5x, stop on first failure
+sa test --jobs 3              # run at most 3 tests at once
 ```
 
 The three sizes come from the GTest suite-name prefix (`Small_*`, `Medium_*`,
@@ -205,8 +206,8 @@ an earlier run keep satisfying the loader.
 It is **not** part of `--label all`, which covers only the CTest tests. A full
 install plus a second configure and build costs minutes and is rarely what you
 want mid-loop, so `all` prints a line saying the package suite is not included
-rather than leaving the gap to be discovered. `--filter` and `--repeat` are
-CTest knobs; passing either with `--label package` exits 2 instead of being
+rather than leaving the gap to be discovered. `--filter`, `--repeat` and
+`--jobs` are CTest knobs; passing any of them with `--label package` exits 2 instead of being
 silently ignored.
 
 The consumer compiles at C++17: the same standard as the library, and

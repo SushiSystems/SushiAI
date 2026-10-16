@@ -126,6 +126,10 @@ def test(
         0, "--repeat", "-r", min=0,
         help="Re-run each test up to N times, stopping on the first failure "
              "(ctest --repeat until-fail). Handy for hunting flaky tests."),
+    jobs: Optional[int] = typer.Option(
+        None, "--jobs", "-j", min=1,
+        help="Tests run at once. When omitted ctest decides, and "
+             "CTEST_PARALLEL_LEVEL is honoured."),
     memory_limit: Optional[float] = typer.Option(
         None, "--memory-limit", min=0.0, metavar="GB",
         help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
@@ -138,10 +142,10 @@ def test(
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*
 
-    --label package is the exception: it runs no CTest at all, so --filter and
-    --repeat are rejected there.
+    --label package is the exception: it runs no CTest at all, so --filter,
+    --repeat and --jobs are rejected there.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli))
+    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli, jobs))
 
 
 @app.command(

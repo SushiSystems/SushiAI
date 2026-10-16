@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-16 — cli: Added --jobs to sa test, the number of tests ctest runs at once (`cli.py`, `project.py`).
 - 2026-10-16 — tests: Added a test file for each of the 119 public headers that had none, in 18 new test programs and the existing ones (`tests/`).
 - 2026-10-16 — eager: Made find_boundaries return a Result, InvalidDescription for an ACCUMULATE into a leaf, and made the region checks fatal (`region_boundary.hpp`, `region_table.cpp`).
 - 2026-10-16 — graph: Made a scratch request that names a missing node fatal (`memory_plan.cpp`).

@@ -285,7 +285,8 @@ def _enter_memory_limit(limit_gb: float | None) -> bool:
 
 
 def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0,
-         memory_limit_gb: float | None = None, cli: bool = False) -> int:
+         memory_limit_gb: float | None = None, cli: bool = False,
+         jobs: int | None = None) -> int:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
@@ -309,9 +310,9 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
         return 2
 
     if suite is Suite.package:
-        if filter or repeat:
-            # Both are ctest knobs, and this suite runs no ctest.
-            console.error("--filter and --repeat do not apply to the package suite.")
+        if filter or repeat or jobs is not None:
+            # All three are ctest knobs, and this suite runs no ctest.
+            console.error("--filter, --repeat and --jobs do not apply to the package suite.")
             return 2
         return test_package(cfg, root, build_dir, env)
 
@@ -325,7 +326,7 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
         cfg, build_dir, env,
         label_regex=None if suite is Suite.all else _SUITE_LABEL_REGEX[suite],
         exclude_label_regex=_QUARANTINE_REGEX if suite is Suite.gating else None,
-        filter=filter, repeat=repeat)
+        filter=filter, repeat=repeat, jobs=jobs)
 
 
 #: The pytest marker expression of each label; the gating run leaves the quarantined out.
