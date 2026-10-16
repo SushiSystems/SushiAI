@@ -347,7 +347,7 @@ else.
 
 ## Tests
 
-`modules/vision/datasets/tests/`. No test needs a device and none reads a file from the
+`tests/vision/datasets/`. No test needs a device and none reads a file from the
 repository. Each writes files of a few bytes, or CIFAR records of 3073 or 3074 bytes, under the
 system's temporary directory and removes them. `datasets_test_support.hpp` holds the scratch
 directory and the IDX file builder the tests share. The MNIST loader's tests are in
