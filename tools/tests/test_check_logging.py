@@ -72,7 +72,8 @@ class LoggingTest(unittest.TestCase):
     def test_reports_a_call_without_a_category(self) -> None:
         self.write("modules/core/ecs/source/world.cpp",
                    "PX_LOG_WARN(K_ECS_LOG_CATEGORY, \"a {}\", 1);\nPX_LOG_ERROR(\"b {}\", 2);\n"
-                   "#define PX_LOG_INFO(...) PX_LOG_AT(__VA_ARGS__)\n")
+                   "#define PX_LOG_INFO(...) PX_LOG_AT(__VA_ARGS__)\n"
+                   " * @code PX_LOG_WARN(\"c\"); @endcode\nf(); // PX_LOG_WARN(\"d\")\n")
         self.assertEqual(self.found(rule_uncategorized_call), [("world.cpp", 2)])
 
     def test_reports_a_call_under_another_modules_category(self) -> None:
