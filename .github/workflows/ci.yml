@@ -113,13 +113,22 @@ jobs:
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiai/.github/actions/setup-oneapi
       - uses: ./sushiai/.github/actions/setup-sa
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: ccache
         with:
           path: .ccache
           key: ccache-linux-icpx-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-${{ github.sha }}
-          restore-keys: ccache-linux-icpx-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+          restore-keys: |
+            ccache-linux-icpx-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+            ccache-linux-icpx-release-
       - name: sa build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa build -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      # Saved even when a later step fails or times out, so the next run starts warm.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
       - name: sa test --label small
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label small
       - name: sa test --label medium
@@ -154,15 +163,24 @@ jobs:
       - uses: ./sushiai/.github/actions/setup-sa
       - name: choco install ccache
         run: choco install ccache -y --no-progress
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: ccache
         with:
           path: .ccache
           key: ccache-windows-intel-llvm-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-${{ github.sha }}
-          restore-keys: ccache-windows-intel-llvm-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+          restore-keys: |
+            ccache-windows-intel-llvm-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+            ccache-windows-intel-llvm-release-
       - name: sa setup --yes --no-gpu
         run: sa setup --yes --no-gpu
       - name: sa build
         run: sa build
+      # Saved even when a later step fails or times out, so the next run starts warm.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
       - name: sa test --label small
         run: sa test --label small
       - name: sa test --label medium
@@ -199,14 +217,23 @@ jobs:
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiai/.github/actions/setup-oneapi
       - uses: ./sushiai/.github/actions/setup-sa
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: ccache
         with:
           path: .ccache
           key: ccache-linux-icpx-asan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-${{ github.sha }}
-          restore-keys: ccache-linux-icpx-asan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+          restore-keys: |
+            ccache-linux-icpx-asan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+            ccache-linux-icpx-asan-
       # Release, because SushiRuntime turns ThreadSanitizer on for its own debug builds.
       - name: sa build --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa build --sanitize address-undefined -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      # Saved even when a later step fails or times out, so the next run starts warm.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
       - name: sa test --label small
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label small
 
@@ -257,14 +284,23 @@ jobs:
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: ./sushiai/.github/actions/setup-oneapi
       - uses: ./sushiai/.github/actions/setup-sa
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: ccache
         with:
           path: .ccache
           key: ccache-linux-icpx-tsan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-${{ github.sha }}
-          restore-keys: ccache-linux-icpx-tsan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+          restore-keys: |
+            ccache-linux-icpx-tsan-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
+            ccache-linux-icpx-tsan-
       # RelWithDebInfo, so SushiRuntime instruments its own threads as well.
       - name: sa build --type relwithdebinfo --sanitize thread -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa build --type relwithdebinfo --sanitize thread -D CMAKE_C_COMPILER=icx -D CMAKE_CXX_FLAGS=-fsycl
+      # Saved even when a later step fails or times out, so the next run starts warm.
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .ccache
+          key: ${{ steps.ccache.outputs.cache-primary-key }}
       - name: sa test --label small
         run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label small
       - name: sa test --label medium
