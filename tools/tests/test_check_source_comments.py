@@ -22,6 +22,7 @@ from documentation.check_source_comments import (  # noqa: E402
     K_PART_OF,
     collect,
     rule_comment_runs,
+    rule_no_date,
     rule_license_block,
 )
 
@@ -175,6 +176,19 @@ class PythonCommentTest(unittest.TestCase):
         """Still reports a comment run in a file with an unclosed bracket."""
         body = "# first reason\n# second reason\nx = (1,\n"
         self.assertEqual(self._runs(body), [self._head_lines() + 1])
+
+
+class DateTagTest(unittest.TestCase):
+    """Checks that both spellings of the date tag are reported, in shader files too."""
+
+    def test_reports_both_spellings_in_a_ray_tracing_shader(self) -> None:
+        """Reports the at and the backslash spelling in a `.rgen` file."""
+        body = "/** @date 2026 */\nint a;\n/** \\date 2026 */\nint b;\n"
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "trace.rgen"
+            path.write_text(_boxed("trace.rgen") + body, encoding="utf-8")
+            found = [issue for source in collect([path]) for issue in rule_no_date(source)]
+        self.assertEqual(len(found), 2)
 
 
 if __name__ == "__main__":

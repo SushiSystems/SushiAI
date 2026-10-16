@@ -19,3 +19,11 @@ K_MODULE_FUNCTION = "sushiai_add_module"
 K_PUBLIC_DEPENDS = "PUBLIC_DEPENDS"
 K_PRIVATE_DEPENDS = "PRIVATE_DEPENDS"
 K_INTERNAL_MARK = "INTERNAL"
+K_PRIVATE_DEPENDS_ALSO: tuple[str, ...] = ()
+K_LOG_PREFIX = "SA"
+K_CONSOLE_PATHS: tuple[str, ...] = (
+    "applications/",
+    "cli/sushiai/services/",
+    "modules/vision/darknet_forward_cases/",
+    "modules/vision/darknet_training_cases/",
+)

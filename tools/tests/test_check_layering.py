@@ -168,6 +168,17 @@ class BuildDeclarationTest(LayeringTest):
         self.assertEqual(_messages(rule_unused_dependencies(ModuleTree(self.root, K_BUILD))),
                          ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
 
+    def test_a_further_private_keyword_declares_a_source_include(self) -> None:
+        layout = Layout(("foundation",), module_function="project_add_module",
+                        private_depends_also=("COMPILE_ONLY_DEPENDS",))
+        _write(self.root, "modules/foundation/log/include/Project/log/log.hpp")
+        _write(self.root, "modules/foundation/log/CMakeLists.txt",
+               "project_add_module(NAME log COMPILE_ONLY_DEPENDS core clock)")
+        tree = ModuleTree(self.root, layout)
+        self.assertEqual(_messages(rule_declared_dependencies(tree)), [])
+        self.assertEqual(_messages(rule_unused_dependencies(tree)),
+                         ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
+
     def test_reads_same_tier_edges_from_the_build_file(self) -> None:
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log)")
         self.assertEqual(_messages(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))),

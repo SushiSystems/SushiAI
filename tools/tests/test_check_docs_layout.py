@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -173,6 +174,14 @@ class DocsEntriesTest(unittest.TestCase):
         """Accepts docs/.docs_truth_allow, the one configuration file a checker reads."""
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"README.md": "# R\n", ".docs_truth_allow": ""})
+            self.assertEqual(_names(rule_docs_entries(repository)), [])
+
+    def test_leaves_out_a_folder_git_ignores(self) -> None:
+        """Reports nothing for a generated folder under docs/ that .gitignore names."""
+        with tempfile.TemporaryDirectory() as folder:
+            subprocess.run(["git", "init", "-q", folder], check=True)
+            (Path(folder) / ".gitignore").write_text("docs/api-site/\n", encoding="utf-8")
+            repository = _repository(folder, {"README.md": "# R\n", "api-site/index.html": ""})
             self.assertEqual(_names(rule_docs_entries(repository)), [])
 
 
