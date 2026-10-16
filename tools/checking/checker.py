@@ -70,6 +70,7 @@ def _parse_arguments(checker: Checker[Subject], argv: list[str]) -> argparse.Nam
     parser.add_argument("paths", nargs="*", type=Path, help="files or folders; default: .")
     parser.add_argument("--report", action="store_true", help="print counts per rule, exit 0")
     parser.add_argument("--rule", action="append", choices=sorted(checker.rules), help="run this rule only; repeatable")
+    parser.add_argument("--list-rules", action="store_true", help="print the rule names, one a line, exit 0")
     return parser.parse_args(argv)
 
 
@@ -88,6 +89,9 @@ def _collect_findings(
 def run(checker: Checker[Subject], argv: list[str] | None = None) -> int:
     """Runs a checker from the command line and returns its exit code."""
     arguments = _parse_arguments(checker, sys.argv[1:] if argv is None else argv)
+    if arguments.list_rules:
+        print("\n".join(checker.rules))
+        return K_EXIT_CLEAN
     paths = arguments.paths or [Path.cwd()]
     missing = [path for path in paths if not path.exists()]
     if missing:

@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from logs import check_logging  # noqa: E402
 from logs.check_logging import (  # noqa: E402
     discover,
+    rule_front_reexport,
     rule_console_output,
     rule_foreign_category,
     rule_missing_category_header,
@@ -97,6 +98,18 @@ class LoggingTest(unittest.TestCase):
                    "import logging\n_log = logging.getLogger(__name__)\nlogging.info('x')\n"
                    "other = logging.getLogger('px')\n_log.warning(f'{x}')\n_log.warning('%s', x)\n")
         self.assertEqual(self.found(rule_python_logger), [("store.py", 3), ("store.py", 4), ("store.py", 5)])
+
+    def test_reports_a_front_that_re_exports_sushilog(self) -> None:
+        self.write("modules/foundation/log/include/PX/log/log_level.hpp",
+                   "using LogLevel = SushiLog::LogLevel;\nusing SushiLog::make_log_category;\n"
+                   "inline constexpr SushiLog::LogProject K_PX_LOG_PROJECT{\"px\", \"PX_LOG_LEVEL\"};\n")
+        self.write("modules/foundation/log/include/PX/log/log_c_sink.h",
+                   "static inline void px_set_log_sink(SushiLogSinkFunction f, void* u)\n{\n"
+                   "    sl_set_log_sink(f, u);\n}\n")
+        self.write("modules/foundation/log/source/capture.cpp",
+                   "Capture::~Capture()\n{\n    SushiLog::set_log_sink(SushiLog::LogSink());\n}\n")
+        self.assertEqual(self.found(rule_front_reexport),
+                         [("log_c_sink.h", 1), ("log_level.hpp", 1), ("log_level.hpp", 2)])
 
 
 if __name__ == "__main__":
