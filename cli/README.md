@@ -30,6 +30,9 @@ for every CLI that builds against them, so `sa` must read the variables those CL
 profile's prefix. It is a module attribute because `sa config` reports which values came
 from the environment and needs the reverse map.
 
+Each Sushi library the fragment pins, SushiLog among them, reaches CMake as `<NAME>_DIR`
+through sushicore's `sushi_definitions`; `services/project.py` adds them to every configure.
+
 An empty `sushiruntime_dir` means `../sushiruntime` relative to the project root, and an
 empty `sushiblas_dir` means `../sushiblas`. Both match the defaults of `SUSHIRUNTIME_DIR`
 and `SUSHIBLAS_DIR` in the root `CMakeLists.txt`.

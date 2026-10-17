@@ -211,6 +211,8 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
     args += _toolchain_args(cfg, root)
     if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
         args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
+    # Each pinned Sushi library reaches CMake as <NAME>_DIR; CMake never downloads.
+    args += cfg.sushi_definitions(root)
 
     # A caller's -D comes last, so no default set above outranks it.
     return args + list(define_args)
