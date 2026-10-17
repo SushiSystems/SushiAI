@@ -27,9 +27,9 @@
 
 #include <SushiAI/language/blocks/position_embedding.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/traced.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>

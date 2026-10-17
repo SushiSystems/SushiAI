@@ -28,7 +28,7 @@
 #include <SushiAI/vision/blocks/bottleneck.hpp>
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include "block_attributes.hpp"
 

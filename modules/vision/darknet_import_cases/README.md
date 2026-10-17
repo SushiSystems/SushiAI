@@ -9,8 +9,9 @@ weights it stores and the model it rebuilds.
 
 ## Depends on
 
-- `core`, `io`, `nn`, `umbrella`, `vision/importers`, `engine_fixture` and `failure_expectations`
-  (`PUBLIC_DEPENDS`).
+- `failure`, `dtype`, `shape`, `io`, `nn`, `umbrella`, `vision/importers`, `engine_fixture` and
+  `failure_expectations`
+  (`PUBLIC_DEPENDS`). Of the core modules, `dtype` and `shape` are private (`PRIVATE_DEPENDS`).
 - `config`, `train`, `vision/detect`, `vision/darknet_forward_cases` and `darknet_reference`
   (`PRIVATE_DEPENDS`).
 

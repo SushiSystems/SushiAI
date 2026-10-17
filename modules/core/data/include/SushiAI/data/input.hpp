@@ -27,8 +27,8 @@
 
 #pragma once
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {

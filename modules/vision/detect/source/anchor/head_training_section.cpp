@@ -37,7 +37,7 @@
 #include <vector>
 
 #include <SushiAI/config/section_reader.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
 
 namespace SushiAI

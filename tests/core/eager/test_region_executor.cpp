@@ -35,10 +35,10 @@
 #include "eager_run_support.hpp"
 #include "eager_test_support.hpp"
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/region_program.hpp>

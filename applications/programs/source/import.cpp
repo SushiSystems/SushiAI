@@ -38,7 +38,7 @@
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/imported_model_writer.hpp>
 #include <SushiAI/io/importer_registry.hpp>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include "registries.hpp"
 
 namespace
@@ -140,30 +140,30 @@ namespace
     {
         std::cout << "sushiai import\n"
                   << "----------------------------------------------------------------\n"
-                  << SushiBLAS::Core::format("Format     : {}\n", request.format);
+                  << SushiLog::format_text("Format     : {}\n", request.format);
         for (const std::filesystem::path& file : request.files)
-            std::cout << SushiBLAS::Core::format("Input      : {}\n", file.string());
+            std::cout << SushiLog::format_text("Input      : {}\n", file.string());
 
         const std::string task =
             imported.model.task.is_null()
                 ? std::string("no task")
                 : "task " + imported.model.task.at("type", "the task section")
                                 .as_string("the task type");
-        std::cout << SushiBLAS::Core::format("Model      : {} rows, {} outputs, {}\n",
+        std::cout << SushiLog::format_text("Model      : {} rows, {} outputs, {}\n",
                                              imported.model.layers.size(),
                                              imported.model.outputs.size(), task)
-                  << SushiBLAS::Core::format("Weights    : {} tensors\n\n",
+                  << SushiLog::format_text("Weights    : {} tensors\n\n",
                                              imported.weights.size());
 
         for (const std::filesystem::path& file : written.files)
-            std::cout << SushiBLAS::Core::format("wrote {}\n", file.string());
+            std::cout << SushiLog::format_text("wrote {}\n", file.string());
 
         std::cout << "\nnotes:\n";
         for (const std::string& note : imported.notes)
             std::cout << "  - " << note << "\n";
 
         // The data block is the one part of a run no foreign file states.
-        std::cout << SushiBLAS::Core::format(
+        std::cout << SushiLog::format_text(
             "  - {} states \"data\": null, and `sushiai train` refuses it until the block "
             "names a dataset\n",
             written.files.back().string());

@@ -6,7 +6,8 @@ types, the two state types `Parameter` and `Buffer`, the
 `Trace` a layer is traced under, the `Node` seam, the `ModelGraph` container and the two
 registries a model file selects through.
 
-The module depends on `core` (`Shape`, `Status`, `Result`, `Error`), on `graph` (the IR, the
+The module depends on `failure`, `dtype`, `shape`, `seam`, `execution`, `allocation` (`Shape`,
+`Status`, `Result`, `Error`), on `graph` (the IR, the
 builder and `Graph::StateID`) and on `config` (`Config::Value`, `Config::ModelSpec`). `init.hpp`
 and `model_state.hpp` also take a `SushiBLAS::Engine`; they are the only headers here that do.
 

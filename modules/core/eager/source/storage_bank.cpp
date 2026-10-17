@@ -30,10 +30,10 @@
 
 #include <utility>
 
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

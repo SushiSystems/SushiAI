@@ -28,7 +28,7 @@
 #include <SushiAI/language/blocks/expert_transformer_block.hpp>
 
 #include <utility>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 #include "normalised_branch.hpp"

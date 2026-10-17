@@ -29,8 +29,8 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/layer_traces/trace_summary.hpp>
 #include <SushiAI/nn/flatten.hpp>

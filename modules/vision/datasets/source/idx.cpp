@@ -34,7 +34,6 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/vision/datasets/idx_file.hpp>
 
 #include "disk.hpp"

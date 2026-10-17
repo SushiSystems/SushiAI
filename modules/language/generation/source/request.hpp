@@ -32,7 +32,7 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
 #include <SushiAI/language/text/token.hpp>
 

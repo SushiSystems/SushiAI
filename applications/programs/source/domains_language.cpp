@@ -35,13 +35,13 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/language/blocks/incremental.hpp>
@@ -254,11 +254,11 @@ namespace SushiAI
                     vocabulary, TokenSpan(generated.data(), generated.size()), text));
 
                 print_inference_header(
-                    run, SushiBLAS::Core::format("{} tokens", generator->vocabulary()));
-                std::cout << SushiBLAS::Core::format("Generator  : {}\n", row.name)
-                          << SushiBLAS::Core::format("Sampler    : {}, seed {}\n",
+                    run, SushiLog::format_text("{} tokens", generator->vocabulary()));
+                std::cout << SushiLog::format_text("Generator  : {}\n", row.name)
+                          << SushiLog::format_text("Sampler    : {}, seed {}\n",
                                                      task.sampler->name(), task.seed)
-                          << SushiBLAS::Core::format(
+                          << SushiLog::format_text(
                                  "Generated  : {} tokens after a prompt of {}\n\n",
                                  generated.size(), prompt.size())
                           << text << "\n";

@@ -38,9 +38,8 @@
 #include <system_error>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include "disk.hpp"
 

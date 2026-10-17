@@ -19,4 +19,6 @@ sushiai_add_module(NAME autograd TIER core
         source/rules/shape.cpp
         source/rules/spatial.cpp
         source/tape.cpp
-    PUBLIC_DEPENDS core graph)
+    PUBLIC_DEPENDS failure graph ops
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS SushiLog::text)

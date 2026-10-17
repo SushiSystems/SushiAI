@@ -18,7 +18,8 @@ been run against them.
 
 ## Depends on
 
-- `core`, for `Status`, `Result` and the failure macros (`PUBLIC_DEPENDS`).
+- `failure`, `seam`, for `Status`, `Result` and the failure macros (`PUBLIC_DEPENDS`). Of the core
+  modules, `seam` is private (`PRIVATE_DEPENDS`).
 - `vision/imaging`, for `Image`, `ImageSize`, `Point` and `Polygon` (`PUBLIC_DEPENDS`).
 - `SushiRuntime`, for `span`.
 

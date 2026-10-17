@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <filesystem>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 

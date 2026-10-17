@@ -27,7 +27,8 @@
 
 #include <SushiAI/train/metrics.hpp>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 
 namespace SushiAI
 {
@@ -85,9 +86,9 @@ namespace SushiAI
         std::string describe_metric_value(const Metric& metric)
         {
             if (metric.is_fraction)
-                return SushiBLAS::Core::format("{:.2f}%", metric.value * K_PERCENT);
+                return SushiLog::format_text("{}%", SushiLog::fixed(metric.value * K_PERCENT, 2));
 
-            return SushiBLAS::Core::format("{:.6g}", metric.value);
+            return SushiLog::format_text("{}", SushiLog::general(metric.value, 6));
         }
 
     } // namespace Train

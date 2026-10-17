@@ -31,8 +31,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 
 namespace SushiAI
 {

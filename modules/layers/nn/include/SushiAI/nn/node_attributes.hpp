@@ -35,9 +35,9 @@
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/layer_norm.hpp>
 #include <SushiAI/nn/module_node.hpp>

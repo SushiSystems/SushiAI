@@ -17,7 +17,7 @@ reads. `Attention` and `PSABlock` have none.
 
 ## Depends on
 
-- `config`, `core`, `graph` and `nn` (`PUBLIC_DEPENDS`).
+- `config`, `failure`, `shape`, `graph` and `nn` (`PUBLIC_DEPENDS`).
 
 ## Public entry points
 

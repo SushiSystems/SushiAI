@@ -33,7 +33,7 @@
 #include <string_view>
 #include <utility>
 #include <variant>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/cosine_schedule_section.hpp>
 #include <SushiAI/optim/step_schedule_section.hpp>
 #include "schedule_section.hpp"

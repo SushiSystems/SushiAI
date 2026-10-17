@@ -33,9 +33,8 @@
 #include <string>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

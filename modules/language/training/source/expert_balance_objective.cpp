@@ -31,10 +31,9 @@
 #include <cstddef>
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/train/host_values.hpp>
 
 namespace SushiAI::Language::Training

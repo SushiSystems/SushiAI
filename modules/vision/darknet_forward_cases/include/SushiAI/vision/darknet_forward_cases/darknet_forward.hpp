@@ -37,7 +37,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>

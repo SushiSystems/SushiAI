@@ -9,7 +9,7 @@ the window, the width and the blocks.
 
 ## Depends on
 
-`config`, `core`, `nn`, `language/registration` and `model_text`.
+`config`, `failure`, `nn`, `language/registration` and `model_text`.
 
 ## Public entry points
 

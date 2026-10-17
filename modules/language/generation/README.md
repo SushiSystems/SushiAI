@@ -11,9 +11,11 @@ keys and the values of the positions before it. Everything is in namespace
 
 ## Depends on
 
-- `core`, `config`, `data` and `train` (`PUBLIC_DEPENDS`): `Status` and `Result`,
+- `failure`, `dtype`, `shape`, `seam`, `config`, `data` and `train` (`PUBLIC_DEPENDS`): `Status` and
+  `Result`,
   `Config::Value` for the two sections, `Data::Batch` for the window a run feeds, and
-  `Train::EvaluationStep`.
+  `Train::EvaluationStep`. Of the core modules, `dtype`, `shape` and `seam` are private
+  (`PRIVATE_DEPENDS`).
 - `language/text` (`PUBLIC_DEPENDS`), for `Text::TokenID`.
 
 ## Public entry points

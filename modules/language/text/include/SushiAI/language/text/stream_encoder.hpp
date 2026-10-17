@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <istream>
 #include <vector>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
 

@@ -32,12 +32,12 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_node.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
@@ -323,7 +323,7 @@ namespace SushiAI
 
             return Status::from_message(StatusCode::InvalidDescription, [&]()
             {
-                return SushiBLAS::Core::format(
+                return SushiLog::format_text(
                     "{} has the type '{}', which this build does not have; the node types "
                     "are: {}; the layer types are: {}",
                     context, type, list_node_types(registry),

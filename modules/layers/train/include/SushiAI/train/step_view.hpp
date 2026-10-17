@@ -30,7 +30,7 @@
 #include <string>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 
 namespace SushiAI

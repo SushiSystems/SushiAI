@@ -32,8 +32,8 @@
 #include <string_view>
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Language::Generation::Detail
 {

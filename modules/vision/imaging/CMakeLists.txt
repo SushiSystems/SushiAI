@@ -29,4 +29,5 @@ sushiai_add_module(NAME imaging TIER vision
         source/recent_partners.cpp
         source/rectangle.cpp
         source/resize.cpp
-    PUBLIC_DEPENDS core)
+    PUBLIC_DEPENDS failure
+    PRIVATE_DEPENDS seam)

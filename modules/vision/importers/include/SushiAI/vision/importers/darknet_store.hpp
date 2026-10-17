@@ -29,7 +29,7 @@
 
 #include <string>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 

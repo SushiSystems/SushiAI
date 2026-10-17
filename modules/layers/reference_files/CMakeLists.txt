@@ -7,5 +7,5 @@
 # reference_files: the YOLO26 reference tensors and the comparisons against them.
 
 sushiai_add_module(NAME reference_files TIER layers INTERNAL
-    PUBLIC_DEPENDS core io
-    EXTERNAL_PUBLIC GTest::gtest)
+    PUBLIC_DEPENDS dtype failure io shape
+    EXTERNAL_PUBLIC GTest::gtest SushiRuntime::core)

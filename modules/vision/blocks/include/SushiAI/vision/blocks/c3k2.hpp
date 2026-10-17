@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>

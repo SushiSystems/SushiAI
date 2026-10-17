@@ -30,8 +30,8 @@
 #include <array>
 #include <cstddef>
 #include <vector>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 

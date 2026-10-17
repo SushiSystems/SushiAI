@@ -33,7 +33,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/io/imported_model.hpp>
 
 namespace SushiAI

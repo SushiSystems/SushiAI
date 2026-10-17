@@ -33,10 +33,9 @@
 #include <string>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
 #include <SushiAI/nn/model_state.hpp>

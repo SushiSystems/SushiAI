@@ -29,8 +29,8 @@
 #include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/eager/scope.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/segment.hpp>

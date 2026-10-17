@@ -17,9 +17,10 @@ foreach(target IN LISTS SUSHIAI_EXAMPLE_TARGETS)
     if(WIN32)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+                "$<TARGET_FILE:SushiRuntime::shared_library>"
+                "$<TARGET_FILE:SushiLog::SushiLog>"
                 $<TARGET_FILE_DIR:${target}>
-            COMMENT "Copying runtime DLL beside ${target}..."
+            COMMENT "Copying the runtime and log DLLs beside ${target}..."
         )
     endif()
 endforeach()

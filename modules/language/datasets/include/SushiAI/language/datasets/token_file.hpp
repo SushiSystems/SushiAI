@@ -35,8 +35,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/text/token.hpp>
 
 /** @brief Holds the token file of a corpus and the dataset that reads it in windows. */

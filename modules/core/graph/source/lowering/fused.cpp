@@ -38,8 +38,8 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/nonlinear/nonlinear.hpp>
 #include <SushiBLAS/arithmetic/safe_math.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 

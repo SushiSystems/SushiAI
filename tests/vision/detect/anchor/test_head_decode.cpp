@@ -31,7 +31,7 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>

@@ -34,7 +34,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/language/text/token.hpp>
 
 /** @brief Holds the tokens of a text, the vocabulary and the byte-pair tokenizer. */

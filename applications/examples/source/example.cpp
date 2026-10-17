@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>

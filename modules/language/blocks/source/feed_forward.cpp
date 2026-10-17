@@ -27,7 +27,7 @@
 
 #include <SushiAI/language/blocks/feed_forward.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include "block_attributes.hpp"
 #include "sequence.hpp"

@@ -28,7 +28,8 @@
 #include <SushiAI/nn/depthwise_conv2d.hpp>
 
 #include <cstdint>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -34,7 +34,7 @@
 #include <initializer_list>
 #include <limits>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 #include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
 

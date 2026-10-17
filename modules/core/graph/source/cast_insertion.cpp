@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 
@@ -139,7 +139,7 @@ namespace SushiAI
 
         std::string CastReport::to_string() const
         {
-            std::string text = SushiBLAS::Core::format(
+            std::string text = SushiLog::format_text(
                 "precision      : {}\n"
                 "casts inserted : {} ({} nodes -> {})\n",
                 policy_.empty() ? std::string_view{"fp32"} : policy_,
@@ -147,10 +147,10 @@ namespace SushiAI
 
             if (casts_.empty()) return text;
 
-            text += SushiBLAS::Core::format("values retyped : {}\n", retyped_);
+            text += SushiLog::format_text("values retyped : {}\n", retyped_);
 
             for (const InsertedCast& cast : casts_)
-                text += SushiBLAS::Core::format(
+                text += SushiLog::format_text(
                     "  {} {} -> {} for {} ({})\n",
                     cast.feeds_operand ? "operand" : "result ",
                     dtype_name(cast.from), dtype_name(cast.to),
@@ -355,7 +355,7 @@ namespace SushiAI
 
         std::string describe(const DTypeMismatch& mismatch)
         {
-            return SushiBLAS::Core::format(
+            return SushiLog::format_text(
                 "node {} ({}) computes in {} but its {} value {} is {}",
                 mismatch.node, Ops::name_of(mismatch.op), dtype_name(mismatch.expected),
                 mismatch.is_result ? "result" : "operand",

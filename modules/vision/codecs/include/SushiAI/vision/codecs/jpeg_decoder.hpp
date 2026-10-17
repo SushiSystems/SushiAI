@@ -30,7 +30,7 @@
 #include <cstdint>
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 

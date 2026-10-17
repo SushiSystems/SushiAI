@@ -32,7 +32,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 

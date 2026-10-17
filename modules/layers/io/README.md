@@ -133,23 +133,26 @@ program that resumes calls it.
 
 `CMakeLists.txt` lists `PUBLIC_DEPENDS config core nn optim`. The module uses these four modules:
 
-- `core`: `Status`, `Result`, `Shape`, `DType` and `shape_of`, through `core/status.hpp`,
-  `core/result.hpp`, `core/shape.hpp`, `core/common.hpp` and `core/tensor_shape.hpp`.
+- `failure`, `shape` and `dtype`: `Status`, `Result`, `Shape`, `DType` and `shape_of`, through
+  `failure/status.hpp`, `failure/result.hpp`, `shape/shape.hpp`, `dtype/dtype.hpp` and
+  `shape/tensor_shape.hpp`.
 - `nn`: `NN::ModelState`, the state the checkpoint functions write and fill, through
   `nn/model_state.hpp`. `checkpoint.hpp` and `import_weights.hpp` include it;
-  `checkpoint_format.hpp` includes only `core` headers.
+  `checkpoint_format.hpp` includes only `failure`, `dtype`, `shape`, `seam`, `execution` headers. Of
+  the core modules, `seam` is private (`PRIVATE_DEPENDS`).
 - `config`: `Config::ModelSpec` and `Config::Value`, which `imported_model.hpp` holds, and
   `write_model`, `write_json` and `K_TRAIN_VERSION`, which `source/imported_model_writer.cpp`
   calls.
 - `optim`: `Optim::Optimizer` and `Optim::RunState`, which `run_checkpoint.hpp` and
   `source/run_checkpoint.cpp` read and restore. No other header of the module includes it.
-  `run_progress.hpp` includes `core/status.hpp` alone.
+  `run_progress.hpp` includes `failure/status.hpp` alone.
 
 Two third-party libraries appear in the module without being named in the list. `checkpoint.hpp`
 includes `SushiBLAS/engine/engine.hpp`, and `checkpoint.hpp` and `import_weights.hpp` include
-`SushiRuntime/core/span.hpp`. `source/import_weights.cpp` includes `SushiBLAS/tensor/tensor.hpp`. `core`
+`SushiRuntime/core/span.hpp`. `source/import_weights.cpp` includes `SushiBLAS/tensor/tensor.hpp`.
+`failure`, `dtype`, `shape`, `seam`
 links SushiBLAS and SushiRuntime as external public dependencies, so both reach the module
-through `core`.
+through `failure`, `dtype`, `shape`, `seam`.
 
 ## Public entry points
 

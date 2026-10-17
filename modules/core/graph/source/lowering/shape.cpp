@@ -33,7 +33,7 @@
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 

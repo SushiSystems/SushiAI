@@ -35,9 +35,8 @@
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/optim/gradient_clip.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>

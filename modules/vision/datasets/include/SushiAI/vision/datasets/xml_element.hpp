@@ -33,7 +33,7 @@
 #include <string_view>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
 namespace SushiAI::Vision::Datasets

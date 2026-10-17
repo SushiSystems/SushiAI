@@ -34,7 +34,7 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>

@@ -29,7 +29,7 @@
 
 #include <limits>
 #include <string_view>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

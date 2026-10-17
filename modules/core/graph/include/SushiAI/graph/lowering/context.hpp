@@ -33,7 +33,7 @@
 #include <SushiBLAS/core/blas_types.hpp>
 #include <SushiBLAS/engine/rng_stream.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>

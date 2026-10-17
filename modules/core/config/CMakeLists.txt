@@ -20,5 +20,7 @@ sushiai_add_module(NAME config TIER core
         source/section_reader.cpp
         source/train_config.cpp
         source/value.cpp
-    PUBLIC_DEPENDS core
-    EXTERNAL_PRIVATE_INCLUDES nlohmann_json::nlohmann_json)
+    PUBLIC_DEPENDS dtype failure shape
+    PRIVATE_DEPENDS seam
+    EXTERNAL_PRIVATE_INCLUDES nlohmann_json::nlohmann_json
+    EXTERNAL_PUBLIC SushiRuntime::core)

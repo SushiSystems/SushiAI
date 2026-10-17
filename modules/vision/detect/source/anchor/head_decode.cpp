@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 #include "slot_decode.hpp"

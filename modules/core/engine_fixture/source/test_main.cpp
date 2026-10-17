@@ -26,16 +26,14 @@
  */
 
 #include <gtest/gtest.h>
-#include <SushiBLAS/core/logger.hpp>
-#include <SushiRuntime/api/runtime/logging.hpp>
+#include <SushiLog/log/log_calls.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
 
 /** @brief Runs every registered test under the shared TestEnvironment. */
 int main(int argc, char** argv)
 {
     // Logging is synchronous so it cannot interleave with GTest's own output.
-    SushiRuntime::set_log_synchronous(true);
-    SB_LOGGER_SET_SYNC_MODE(true);
+    SushiLog::set_log_synchronous(true);
 
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::AddGlobalTestEnvironment(new SushiAI::Test::TestEnvironment());

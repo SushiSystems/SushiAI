@@ -223,6 +223,7 @@ function(sushiai_add_module)
 
     foreach(external IN LISTS ARG_EXTERNAL_PUBLIC)
         target_link_libraries(${target} ${public_scope} ${external})
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_PUBLIC_LINKS_${library} ${external})
     endforeach()
 
     if(ARG_EXTERNAL_PRIVATE_LINKS AND NOT ARG_SOURCES)
@@ -382,12 +383,12 @@ function(sushiai_add_library)
     target_include_directories(${ARG_NAME} PUBLIC
         "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>")
 
-    # PUBLIC so a consumer inherits both siblings' include paths and, through
-    # SushiRuntime, its deterministic floating-point contract.
-    target_link_libraries(${ARG_NAME} PUBLIC
-        SushiRuntime::SushiRuntime
-        SushiBLAS::sushiblas
-        ${ARG_DEPENDS})
+    # PUBLIC: the external targets its modules link publicly, so a consumer inherits their
+    # include paths and, through each SushiRuntime target, the deterministic floating-point
+    # contract.
+    get_property(public_links GLOBAL PROPERTY SUSHIAI_PUBLIC_LINKS_${ARG_NAME})
+    list(REMOVE_DUPLICATES public_links)
+    target_link_libraries(${ARG_NAME} PUBLIC ${public_links} ${ARG_DEPENDS})
 
     if(private_links)
         list(REMOVE_DUPLICATES private_links)

@@ -38,7 +38,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_emitter.hpp>
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/region_program.hpp>

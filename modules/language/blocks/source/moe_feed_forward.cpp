@@ -27,7 +27,7 @@
 
 #include <SushiAI/language/blocks/moe_feed_forward.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 #include "block_attributes.hpp"

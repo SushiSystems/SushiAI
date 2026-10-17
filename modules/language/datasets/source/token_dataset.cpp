@@ -31,12 +31,11 @@
 #include <ios>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/language/text/token.hpp>

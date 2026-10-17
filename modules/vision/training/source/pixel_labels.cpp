@@ -27,7 +27,7 @@
 
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI::Vision::Training
 {

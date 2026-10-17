@@ -27,7 +27,7 @@
 
 #include <cstddef>
 #include <vector>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 

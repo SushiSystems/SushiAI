@@ -31,7 +31,7 @@
 #include <string>
 #include <utility>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>

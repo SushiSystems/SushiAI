@@ -30,13 +30,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -50,7 +50,7 @@ namespace SushiAI
             /** @brief Renders @p input as "int32 [16] per sample". */
             std::string describe(const Data::InputDescription& input)
             {
-                return SushiBLAS::Core::format("{} {} per sample", dtype_name(input.dtype),
+                return SushiLog::format_text("{} {} per sample", dtype_name(input.dtype),
                                                input.sample_shape.to_string());
             }
         } // namespace

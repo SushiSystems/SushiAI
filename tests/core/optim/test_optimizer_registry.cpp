@@ -33,9 +33,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/adamw.hpp>

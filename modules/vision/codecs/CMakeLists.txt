@@ -17,5 +17,6 @@ sushiai_add_module(NAME codecs TIER vision
         source/image_format.cpp
         source/jpeg_decoder.cpp
         source/png_decoder.cpp
-    PUBLIC_DEPENDS vision/imaging core
-    EXTERNAL_PRIVATE_LINKS JPEG::JPEG PNG::PNG)
+    PUBLIC_DEPENDS failure vision/imaging
+    EXTERNAL_PRIVATE_LINKS JPEG::JPEG PNG::PNG SushiLog::text
+    EXTERNAL_PUBLIC SushiRuntime::core)

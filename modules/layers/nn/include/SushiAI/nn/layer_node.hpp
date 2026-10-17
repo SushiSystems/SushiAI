@@ -32,7 +32,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/node.hpp>

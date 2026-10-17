@@ -31,12 +31,13 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/traced.hpp>
 
@@ -874,7 +875,7 @@ namespace SushiAI
  * @brief Returns a refusal through @p builder with a formatted message when @p condition holds.
  * @param builder An object whose @c refuse(Status) records the refusal and returns the Status.
  * @param condition Expression to evaluate; the same polarity as SA_THROW_IF.
- * @param ... Format string and arguments for SushiBLAS::Core::format, evaluated only on failure.
+ * @param ... Format string and arguments for SushiLog's format_text, evaluated only on failure.
  */
 #define SA_REFUSE_IF(builder, condition, ...)                                          \
     do                                                                                 \
@@ -884,7 +885,7 @@ namespace SushiAI
             return (builder).refuse(::SushiAI::Status::from_message(                   \
                 ::SushiAI::StatusCode::InvalidDescription, [&]()                       \
                 {                                                                      \
-                    return ::SushiBLAS::Core::format(__VA_ARGS__);                     \
+                    return ::SushiLog::format_text(__VA_ARGS__);                     \
                 }));                                                                   \
         }                                                                              \
     } while (0)

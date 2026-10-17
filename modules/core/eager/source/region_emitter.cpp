@@ -30,7 +30,7 @@
 
 #include <SushiBLAS/engine/task_recorder.hpp>
 
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/graph/lowering.hpp>
 
 namespace SushiAI

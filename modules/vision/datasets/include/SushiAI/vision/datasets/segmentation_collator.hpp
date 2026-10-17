@@ -33,7 +33,7 @@
 #include <string_view>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 

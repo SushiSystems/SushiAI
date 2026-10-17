@@ -30,7 +30,7 @@
 #include <optional>
 #include <string_view>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/rate_schedule.hpp>
 
 namespace SushiAI

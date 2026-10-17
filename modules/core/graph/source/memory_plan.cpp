@@ -31,7 +31,7 @@
 #include <unordered_map>
 #include <utility>
 #include <SushiAI/graph/memory_plan.hpp>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

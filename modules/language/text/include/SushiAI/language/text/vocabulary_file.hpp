@@ -32,8 +32,8 @@
 #include <filesystem>
 #include <string_view>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>
 
 /** @brief Holds the tokens of a text, the vocabulary and the byte-pair tokenizer. */

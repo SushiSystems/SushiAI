@@ -23,4 +23,7 @@ sushiai_add_module(NAME optim TIER core
         source/step_scalars.cpp
         source/step_schedule.cpp
         source/step_schedule_section.cpp
-    PUBLIC_DEPENDS config core graph)
+    PUBLIC_DEPENDS config dtype failure graph
+    PRIVATE_DEPENDS allocation execution ops seam shape
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS SushiLog::text)

@@ -31,11 +31,11 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/target.hpp>

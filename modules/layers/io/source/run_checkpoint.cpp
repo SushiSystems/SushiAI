@@ -40,11 +40,12 @@
 #include <variant>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/run_progress.hpp>

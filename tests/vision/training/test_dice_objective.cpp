@@ -41,11 +41,11 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>

@@ -31,11 +31,10 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>

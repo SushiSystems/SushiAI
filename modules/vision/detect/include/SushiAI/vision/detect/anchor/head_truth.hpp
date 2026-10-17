@@ -30,7 +30,7 @@
 
 #include <cstdint>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 

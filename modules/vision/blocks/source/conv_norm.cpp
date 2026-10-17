@@ -28,7 +28,7 @@
 #include <SushiAI/vision/blocks/conv_norm.hpp>
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include "block_attributes.hpp"
 
 namespace SushiAI

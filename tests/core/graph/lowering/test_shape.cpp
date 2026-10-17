@@ -29,7 +29,7 @@
 #include <array>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
 #include <SushiAI/graph/lowering/shape.hpp>
 

@@ -37,7 +37,8 @@ table gives the pipeline.
 
 ## Depends on
 
-- `core`, `config` and `data` (`PUBLIC_DEPENDS`).
+- `failure`, `shape`, `dtype`, `seam`, `config` and `data` (`PUBLIC_DEPENDS`). Of the core modules,
+  `dtype` and `seam` are private (`PRIVATE_DEPENDS`).
 - `vision/imaging` (`PUBLIC_DEPENDS`), for the readers: `sample.hpp` names `Imaging::FileLabels`,
   `stored_pixels.hpp` names `Imaging::Image`, and `read_yolo_txt` calls `Imaging::parse_label_text`.
 

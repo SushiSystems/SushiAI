@@ -36,10 +36,10 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/language/blocks/expert_trace.hpp>
 #include <SushiAI/nn/module.hpp>

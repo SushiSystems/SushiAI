@@ -29,9 +29,8 @@
 
 #include <filesystem>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
 #include <SushiAI/vision/datasets/load_sample_image.hpp>
 #include <SushiAI/vision/datasets/load_sample_mask.hpp>

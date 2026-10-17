@@ -34,8 +34,8 @@
 
 #include <SushiBLAS/engine/task_recorder.hpp>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

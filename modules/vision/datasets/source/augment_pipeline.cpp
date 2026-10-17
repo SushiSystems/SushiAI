@@ -31,9 +31,9 @@
 #include <string>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
 #include <SushiAI/vision/datasets/load_sample_image.hpp>
@@ -136,7 +136,7 @@ namespace SushiAI::Vision::Datasets
             if (*record.mask < list.files.size())
                 return Detail::display_of(list.files[*record.mask]);
 
-            return SushiBLAS::Core::format("mask file {}", *record.mask);
+            return SushiLog::format_text("mask file {}", *record.mask);
         }
 
         /** @brief Holds the two pipelines and the sample they reuse within one batch. */

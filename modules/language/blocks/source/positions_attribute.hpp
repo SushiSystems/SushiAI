@@ -30,9 +30,9 @@
 #include <string>
 #include <string_view>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include "block_attributes.hpp"
 

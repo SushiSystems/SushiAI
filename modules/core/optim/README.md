@@ -14,7 +14,8 @@ a configured type name to a factory through `K_OPTIMIZER_REGISTRY`.
 
 ## Depends on
 
-The module declares `core`, `graph` and `config` as public dependencies. It declares no private
+The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation`, `graph`
+and `config` as public dependencies. It declares no private
 dependency.
 
 ## Public entry points

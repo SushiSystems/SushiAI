@@ -15,7 +15,8 @@ nothing throws across the module's surface.
 
 ## Depends on
 
-- `core`, `config`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`).
+- `failure`, `dtype`, `shape`, `seam`, `config`, `nn` and `vision/detect` (`PUBLIC_DEPENDS`). Of the
+  core modules, `dtype`, `shape` and `seam` are private (`PRIVATE_DEPENDS`).
 - `io` (`PUBLIC_DEPENDS`), for `IO::ImportedModel` and `IO::ImportedTensor`.
 - `optim` (`PRIVATE_DEPENDS`), for `write_step_schedule_section`.
 

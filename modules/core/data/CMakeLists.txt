@@ -17,5 +17,6 @@ sushiai_add_module(NAME data TIER core
         source/epoch_permutation.cpp
         source/materialised_dataset.cpp
         source/threaded_loader.cpp
-    PUBLIC_DEPENDS config core
-    EXTERNAL_PUBLIC Threads::Threads)
+    PUBLIC_DEPENDS config dtype failure shape
+    PRIVATE_DEPENDS allocation execution seam
+    EXTERNAL_PUBLIC Threads::Threads SushiRuntime::core)

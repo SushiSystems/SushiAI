@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 

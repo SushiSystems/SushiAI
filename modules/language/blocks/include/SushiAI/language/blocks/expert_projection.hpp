@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>

@@ -35,8 +35,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/execution/execution.hpp>
 
 namespace SushiAI
 {

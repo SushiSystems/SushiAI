@@ -31,11 +31,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

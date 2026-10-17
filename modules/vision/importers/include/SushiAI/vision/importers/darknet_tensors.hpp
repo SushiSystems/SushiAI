@@ -29,7 +29,7 @@
 
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>

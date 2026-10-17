@@ -34,7 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "text_test_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/text/bpe_trainer.hpp>
 #include <SushiAI/language/text/codec.hpp>

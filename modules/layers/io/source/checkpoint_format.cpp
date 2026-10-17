@@ -35,7 +35,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiLog/text/value_text.hpp>
 
 namespace SushiAI
 {
@@ -328,7 +329,8 @@ namespace SushiAI
             SA_TRY_ASSIGN(const std::uint32_t magic, read_u32(in, "the magic number"));
             SA_FAIL_IF(magic != K_CHECKPOINT_MAGIC, StatusCode::InvalidFile,
                        "this is not a SushiAI checkpoint: expected the magic bytes "
-                       "'SACP' (0x{:08X}), got 0x{:08X}", K_CHECKPOINT_MAGIC, magic);
+                       "'SACP' (0x{}), got 0x{}", SushiLog::hex(K_CHECKPOINT_MAGIC, 8),
+                       SushiLog::hex(magic, 8));
 
             SA_TRY_ASSIGN(const std::uint32_t version, read_u32(in, "the version"));
             SA_FAIL_IF(version < K_CHECKPOINT_FIRST_VERSION || version > K_CHECKPOINT_VERSION,

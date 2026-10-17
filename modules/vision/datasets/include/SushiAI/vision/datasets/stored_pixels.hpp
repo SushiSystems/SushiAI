@@ -32,7 +32,7 @@
 #include <filesystem>
 #include <iosfwd>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */

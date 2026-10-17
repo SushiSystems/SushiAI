@@ -30,7 +30,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/elementwise.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 using SushiAI::Autograd::BackwardRule;
 using SushiAI::Autograd::K_ELEMENTWISE_RULES;

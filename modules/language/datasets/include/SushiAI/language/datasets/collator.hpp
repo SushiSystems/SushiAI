@@ -33,7 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/language/text/token.hpp>

@@ -28,7 +28,7 @@
 #include <SushiAI/vision/registration/registration.hpp>
 
 #include <SushiAI/config/train_config.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>

@@ -32,8 +32,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI

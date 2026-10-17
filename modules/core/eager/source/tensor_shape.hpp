@@ -32,7 +32,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {

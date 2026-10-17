@@ -31,7 +31,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "generation_test_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/generation/top_k_sampler.hpp>
 

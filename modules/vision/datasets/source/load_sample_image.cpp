@@ -30,9 +30,8 @@
 #include <filesystem>
 #include <string_view>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/datasets/stored_pixels.hpp>
 

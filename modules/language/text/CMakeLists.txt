@@ -14,4 +14,6 @@ sushiai_add_module(NAME text TIER language
         source/stream_encoder.cpp
         source/vocabulary.cpp
         source/vocabulary_file.cpp
-    PUBLIC_DEPENDS core)
+    PUBLIC_DEPENDS failure
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS SushiLog::text)

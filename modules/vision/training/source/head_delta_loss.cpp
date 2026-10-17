@@ -29,7 +29,7 @@
 
 #include <cstdint>
 
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI::Vision::Training
 {

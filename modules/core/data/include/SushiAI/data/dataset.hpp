@@ -35,9 +35,9 @@
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/target.hpp>
 

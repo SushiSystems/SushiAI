@@ -29,7 +29,8 @@
 #include <random>
 #include <vector>
 #include <algorithm>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 
 namespace SushiAI
@@ -69,11 +70,12 @@ namespace SushiAI
 
         std::string GradCheckResult::to_string() const
         {
-            return SushiBLAS::Core::format(
-                "gradcheck {}: max relative error {:.3e} over {} probe(s); worst at index {} "
-                "(analytic {:.9e}, numeric {:.9e})",
-                passed ? "passed" : "FAILED", max_relative_error, probes,
-                worst_index, worst_analytic, worst_numeric);
+            return SushiLog::format_text(
+                "gradcheck {}: max relative error {} over {} probe(s); worst at index {} "
+                "(analytic {}, numeric {})",
+                passed ? "passed" : "FAILED", SushiLog::scientific(max_relative_error, 3), probes,
+                worst_index, SushiLog::scientific(worst_analytic, 9),
+                SushiLog::scientific(worst_numeric, 9));
         }
 
         void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options)

@@ -31,8 +31,8 @@
 #include <cstdint>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>

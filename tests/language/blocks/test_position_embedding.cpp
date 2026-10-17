@@ -32,10 +32,10 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>

@@ -7,4 +7,4 @@
 # seeded_noise: a reproducible stream of values from a seed.
 
 sushiai_add_module(NAME seeded_noise TIER core INTERNAL
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)
+    EXTERNAL_PUBLIC SushiRuntime::core)

@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
 

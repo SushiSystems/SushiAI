@@ -36,15 +36,19 @@
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_writer.hpp>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/log/sushiai_log_project.hpp>
+#include <SushiAI/log/log.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -222,3 +226,6 @@
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/optim/run_state.hpp>
+
+/** @brief Short alias for the library's namespace, matching sb:: and sr::. */
+namespace sa = SushiAI;

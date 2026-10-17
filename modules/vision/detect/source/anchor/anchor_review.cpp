@@ -31,7 +31,7 @@
 #include <cmath>
 #include <vector>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
 
 namespace SushiAI

@@ -34,8 +34,8 @@
 
 #include <SushiBLAS/engine/engine.hpp>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/session.hpp>
 #include <SushiAI/graph/builder.hpp>

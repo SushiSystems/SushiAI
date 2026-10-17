@@ -31,7 +31,7 @@
 #include <string>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/model_state.hpp>
 
 namespace SushiAI

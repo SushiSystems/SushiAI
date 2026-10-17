@@ -29,8 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 

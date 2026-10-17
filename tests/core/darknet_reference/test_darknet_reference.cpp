@@ -36,7 +36,7 @@
 #include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/darknet_reference/darknet_reference.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 

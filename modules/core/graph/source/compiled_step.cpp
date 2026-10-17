@@ -30,8 +30,9 @@
 #include <cstdint>
 #include <utility>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/graph/lowering.hpp>
 
 namespace SushiAI

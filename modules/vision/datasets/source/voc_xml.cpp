@@ -35,9 +35,8 @@
 #include <system_error>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/xml_element.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 

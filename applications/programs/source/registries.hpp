@@ -27,7 +27,7 @@
 
 #pragma once
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/io/importer_registry.hpp>
 #include <SushiAI/nn/node_registry.hpp>

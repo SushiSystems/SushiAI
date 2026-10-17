@@ -31,7 +31,6 @@
 #include <string_view>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/vision/datasets/fit_mask.hpp>

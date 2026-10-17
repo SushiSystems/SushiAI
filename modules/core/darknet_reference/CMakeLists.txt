@@ -9,5 +9,5 @@
 sushiai_add_module(NAME darknet_reference TIER core INTERNAL
     SOURCES
         source/darknet_reference.cpp
-    PUBLIC_DEPENDS config core
+    PUBLIC_DEPENDS config failure
     EXTERNAL_PUBLIC GTest::gtest)

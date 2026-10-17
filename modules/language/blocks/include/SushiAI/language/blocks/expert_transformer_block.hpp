@@ -30,8 +30,8 @@
 
 #include <cstdint>
 #include <tuple>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include <SushiAI/language/blocks/expert_trace.hpp>

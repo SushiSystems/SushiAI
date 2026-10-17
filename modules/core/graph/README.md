@@ -13,7 +13,8 @@ across graphs, and `Traced` carries a traced value or the failure that stopped t
 
 ## Depends on
 
-The module declares `core` as a public dependency. It declares no private dependency.
+The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation` as a
+public dependency. It declares no private dependency.
 
 ## Public entry points
 

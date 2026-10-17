@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <string>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include "block_attributes.hpp"
 
 namespace SushiAI

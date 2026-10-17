@@ -9,7 +9,7 @@
 sushiai_add_module(NAME registration TIER vision
     SOURCES
         source/registration.cpp
-    PUBLIC_DEPENDS core
+    PUBLIC_DEPENDS failure
     PRIVATE_DEPENDS
         config
         data

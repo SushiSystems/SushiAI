@@ -33,9 +33,10 @@
 #include <iostream>
 #include <memory>
 #include <utility>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiAI/data/epoch.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/train/metrics.hpp>
@@ -54,11 +55,14 @@ namespace SushiAI
             void print_epoch(std::int64_t epoch, std::int64_t epochs,
                              const Train::StepMetrics& last)
             {
-                std::cout << SushiBLAS::Core::format("  epoch {:>3}/{:<3} loss {:.6f}", epoch,
-                                                     epochs, last.loss);
+                std::cout << SushiLog::format_text("  epoch {}/{} loss {}", SushiLog::right(epoch,
+                                                                                            3),
+                                                     SushiLog::left(epochs, 3),
+                                                     SushiLog::fixed(last.loss, 6));
                 for (const Train::Metric& metric : last.metrics.all())
-                    std::cout << SushiBLAS::Core::format(
-                        "   {} {:>7}", metric.name, Train::describe_metric_value(metric));
+                    std::cout << SushiLog::format_text(
+                        "   {} {}", metric.name,
+                        SushiLog::right(Train::describe_metric_value(metric), 7));
                 std::cout << "\n";
             }
 

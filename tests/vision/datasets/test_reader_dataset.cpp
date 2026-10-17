@@ -36,9 +36,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include "datasets_test_support.hpp"
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>

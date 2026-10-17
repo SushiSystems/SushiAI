@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <variant>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/cosine_schedule.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 

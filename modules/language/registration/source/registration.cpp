@@ -27,7 +27,7 @@
 
 #include <SushiAI/language/registration/registration.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include <SushiAI/language/blocks/feed_forward.hpp>

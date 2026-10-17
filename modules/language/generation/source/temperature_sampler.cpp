@@ -29,8 +29,8 @@
 
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include "weights.hpp"
 
 namespace SushiAI::Language::Generation

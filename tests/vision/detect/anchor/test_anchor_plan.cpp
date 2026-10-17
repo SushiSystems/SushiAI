@@ -36,8 +36,8 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_count.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_fit.hpp>

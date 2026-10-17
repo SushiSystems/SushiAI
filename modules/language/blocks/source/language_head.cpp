@@ -27,8 +27,8 @@
 
 #include <SushiAI/language/blocks/language_head.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/embedding.hpp>
 #include "block_attributes.hpp"

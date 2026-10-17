@@ -33,8 +33,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>

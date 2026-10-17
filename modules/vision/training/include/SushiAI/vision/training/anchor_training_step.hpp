@@ -37,8 +37,8 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/optim/optimizer.hpp>

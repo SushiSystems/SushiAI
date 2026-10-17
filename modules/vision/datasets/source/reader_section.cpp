@@ -35,7 +35,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
 #include <SushiAI/vision/datasets/reader_table.hpp>
 #include <SushiAI/vision/datasets/task_table.hpp>

@@ -27,8 +27,8 @@
 
 #pragma once
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 

@@ -31,7 +31,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>

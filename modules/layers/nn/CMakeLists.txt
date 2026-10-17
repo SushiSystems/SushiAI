@@ -39,4 +39,7 @@ sushiai_add_module(NAME nn TIER layers
         source/trace.cpp
         source/unflatten.cpp
         source/upsample2d.cpp
-    PUBLIC_DEPENDS config core graph)
+    PUBLIC_DEPENDS config dtype failure graph seam shape
+    PRIVATE_DEPENDS allocation execution
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS SushiLog::text)

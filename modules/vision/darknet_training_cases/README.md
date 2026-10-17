@@ -10,8 +10,10 @@ one-batch overfit.
 
 ## Depends on
 
-- `config`, `core`, `umbrella`, `vision/detect`, `darknet_reference`, `engine_fixture` and
-  `failure_expectations` (`PUBLIC_DEPENDS`).
+- `config`, `failure`, `shape`, `ops`, `allocation`, `umbrella`, `vision/detect`,
+  `darknet_reference`, `engine_fixture` and
+  `failure_expectations` (`PUBLIC_DEPENDS`). Of the core modules, `shape`, `ops` and `allocation`
+  are private (`PRIVATE_DEPENDS`).
 - `graph`, `nn`, `optim`, `train`, `vision/importers`, `vision/training` and
   `vision/darknet_forward_cases` (`PRIVATE_DEPENDS`).
 

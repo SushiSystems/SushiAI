@@ -37,9 +37,9 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>

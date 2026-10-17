@@ -28,8 +28,8 @@
 #include <SushiAI/train/dense_losses.hpp>
 
 #include <cstdint>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {

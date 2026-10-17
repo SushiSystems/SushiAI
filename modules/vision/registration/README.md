@@ -20,7 +20,7 @@ registries; their declarations live in `node_registry.hpp`, `dataset_registry.hp
 
 ## Depends on
 
-- `core` (`PUBLIC_DEPENDS`).
+- `failure` (`PUBLIC_DEPENDS`).
 - `config`, `data`, `nn`, `train`, `vision/blocks`, `vision/datasets`, `vision/detect` and
   `vision/training` (`PRIVATE_DEPENDS`). `config` holds `Config::K_READER_DATA_TYPE` of
   `train_config.hpp`.

@@ -29,7 +29,7 @@
 #include <cmath>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 
 namespace

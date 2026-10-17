@@ -36,8 +36,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>

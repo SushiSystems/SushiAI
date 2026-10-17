@@ -41,7 +41,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>

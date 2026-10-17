@@ -36,9 +36,8 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
 
 #include "disk.hpp"

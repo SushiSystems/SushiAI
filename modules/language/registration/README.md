@@ -63,7 +63,7 @@ without the balance states `next_token` alone, with its `output` key.
 
 ## Depends on
 
-- `core` (`PUBLIC_DEPENDS`).
+- `failure` (`PUBLIC_DEPENDS`).
 - `data`, `nn`, `train`, `language/blocks`, `language/datasets` and `language/training`
   (`PRIVATE_DEPENDS`).
 

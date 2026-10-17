@@ -28,8 +28,8 @@
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>
 #include <SushiAI/layer_rows/minimal_case.hpp>

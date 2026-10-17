@@ -30,9 +30,9 @@
 
 #include <vector>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>

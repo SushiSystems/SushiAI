@@ -28,7 +28,8 @@
 #include <algorithm>
 #include <array>
 #include <utility>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiAI/graph/fusion.hpp>
 
 namespace SushiAI
@@ -516,19 +517,20 @@ namespace SushiAI
         {
             if (!enabled_) return "fusion: disabled; the graph was lowered as it was built\n";
 
-            std::string text = SushiBLAS::Core::format("fusion: {} node(s) -> {}, {} subtree(s) fused\n",
-                                                        before_, after_, fused_.size());
+            std::string text = SushiLog::format_text(
+                "fusion: {} node(s) -> {}, {} subtree(s) fused\n", before_, after_, fused_.size());
 
             for (const FusedSubtree& subtree : fused_)
             {
-                text += SushiBLAS::Core::format("  fused {:<18} nodes [", fused_form_name(subtree.form));
+                text += SushiLog::format_text("  fused {} nodes [",
+                                              SushiLog::left(fused_form_name(subtree.form), 18));
                 for (std::size_t i = 0; i < subtree.chain.size(); ++i)
-                    text += SushiBLAS::Core::format("{}{}", i ? ", " : "", subtree.chain[i]);
-                text += SushiBLAS::Core::format("] -> value {}", subtree.result);
+                    text += SushiLog::format_text("{}{}", i ? ", " : "", subtree.chain[i]);
+                text += SushiLog::format_text("] -> value {}", subtree.result);
 
                 // Formats spilled auxiliary value alongside primary result.
                 if (subtree.spilled != K_NO_VALUE)
-                    text += SushiBLAS::Core::format(", spilling the pre-activation to value {}",
+                    text += SushiLog::format_text(", spilling the pre-activation to value {}",
                                                     subtree.spilled);
 
                 if (!subtree.eliminated.empty())
@@ -536,7 +538,7 @@ namespace SushiAI
                     text += ", dropping value";
                     text += subtree.eliminated.size() > 1 ? "s " : " ";
                     for (std::size_t i = 0; i < subtree.eliminated.size(); ++i)
-                        text += SushiBLAS::Core::format("{}{}", i ? ", " : "", subtree.eliminated[i]);
+                        text += SushiLog::format_text("{}{}", i ? ", " : "", subtree.eliminated[i]);
                 }
                 text += "\n";
             }
@@ -548,10 +550,11 @@ namespace SushiAI
                     ? fused_form_name(decline.form)
                     : Ops::name_of(decline.op);
 
-                text += SushiBLAS::Core::format("  declined {:<15} at node {}", label, decline.root);
+                text += SushiLog::format_text("  declined {} at node {}",
+                                              SushiLog::left(label, 15), decline.root);
                 if (decline.blocked_by != K_NO_VALUE)
-                    text += SushiBLAS::Core::format(" (value {})", decline.blocked_by);
-                text += SushiBLAS::Core::format(": {}\n", fusion_decline_reason(decline.reason));
+                    text += SushiLog::format_text(" (value {})", decline.blocked_by);
+                text += SushiLog::format_text(": {}\n", fusion_decline_reason(decline.reason));
             }
 
             return text;

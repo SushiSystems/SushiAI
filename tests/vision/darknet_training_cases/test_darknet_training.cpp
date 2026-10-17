@@ -30,7 +30,7 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/darknet_training_cases/darknet_training.hpp>
 

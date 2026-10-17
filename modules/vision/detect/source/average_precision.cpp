@@ -32,7 +32,7 @@
 #include <cmath>
 #include <numeric>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/iou.hpp>

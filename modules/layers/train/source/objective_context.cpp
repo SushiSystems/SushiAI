@@ -27,7 +27,7 @@
 
 #include <SushiAI/train/objective_context.hpp>
 
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

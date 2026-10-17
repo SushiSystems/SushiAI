@@ -31,7 +31,7 @@
 #include <cstring>
 #include <utility>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI::Vision::Imaging
 {

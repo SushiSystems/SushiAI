@@ -22,4 +22,6 @@ sushiai_add_module(NAME training TIER vision
         source/pixel_targets.cpp
         source/segmentation_metrics.cpp
         source/truth_from_roles.cpp
-    PUBLIC_DEPENDS config core data graph nn optim train vision/detect vision/segment)
+    PUBLIC_DEPENDS config data dtype failure graph nn optim train vision/detect vision/segment
+    PRIVATE_DEPENDS execution seam shape
+    EXTERNAL_PUBLIC SushiRuntime::core)

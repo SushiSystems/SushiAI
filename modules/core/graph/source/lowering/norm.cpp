@@ -35,10 +35,10 @@
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 
 namespace SushiAI

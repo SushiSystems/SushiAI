@@ -30,8 +30,7 @@
 #include <cstddef>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/autograd/tape.hpp>

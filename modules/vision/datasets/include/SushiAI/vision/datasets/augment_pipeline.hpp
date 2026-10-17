@@ -32,7 +32,7 @@
 #include <memory>
 #include <string_view>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 

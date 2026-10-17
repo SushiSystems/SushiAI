@@ -33,8 +33,8 @@
 
 #include <SushiBLAS/tensor/tensor.hpp>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/vision/datasets/fitted_sample.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>

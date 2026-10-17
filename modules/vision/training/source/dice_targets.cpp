@@ -32,9 +32,9 @@
 #include <string_view>
 #include <type_traits>
 #include <vector>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
 #include "host_reals.hpp"

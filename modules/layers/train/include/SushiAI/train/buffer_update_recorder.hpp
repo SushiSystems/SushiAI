@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 
 namespace SushiAI

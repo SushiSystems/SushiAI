@@ -9,8 +9,10 @@ outputs of each layer, the heads and the detections after suppression.
 
 ## Depends on
 
-- `core`, `umbrella`, `vision/detect`, `vision/importers`, `darknet_reference`, `engine_fixture`
-  and `failure_expectations` (`PUBLIC_DEPENDS`).
+- `failure`, `shape`, `allocation`, `umbrella`, `vision/detect`, `vision/importers`,
+  `darknet_reference`, `engine_fixture`
+  and `failure_expectations` (`PUBLIC_DEPENDS`). Of the core modules, `shape` and `allocation` are
+  private (`PRIVATE_DEPENDS`).
 - `config`, `graph`, `nn` and `train` (`PRIVATE_DEPENDS`).
 
 ## Public entry points

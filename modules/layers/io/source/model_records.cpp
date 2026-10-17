@@ -30,11 +30,11 @@
 #include <string>
 #include <unordered_set>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 
 namespace SushiAI::IO::Detail

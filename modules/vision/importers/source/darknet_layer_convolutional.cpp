@@ -33,8 +33,8 @@
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_store.hpp>

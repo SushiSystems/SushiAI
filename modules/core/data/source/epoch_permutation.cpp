@@ -27,7 +27,7 @@
 
 #include <SushiAI/data/epoch_permutation.hpp>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

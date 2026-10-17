@@ -30,8 +30,8 @@
 #include <cmath>
 #include <string>
 #include <utility>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/train/batch_role.hpp>

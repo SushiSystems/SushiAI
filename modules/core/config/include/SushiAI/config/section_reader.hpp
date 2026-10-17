@@ -34,8 +34,8 @@
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

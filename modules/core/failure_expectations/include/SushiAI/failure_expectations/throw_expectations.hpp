@@ -32,7 +32,7 @@
 #include <string>
 #include <string_view>
 #include <gtest/gtest.h>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

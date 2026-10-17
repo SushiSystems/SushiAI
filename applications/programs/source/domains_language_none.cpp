@@ -27,7 +27,7 @@
 
 #include "domains.hpp"
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

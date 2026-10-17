@@ -29,7 +29,7 @@
 
 #include <limits>
 #include <type_traits>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 
 #include "host_reals.hpp"

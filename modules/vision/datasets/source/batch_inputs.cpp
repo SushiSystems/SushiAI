@@ -31,9 +31,8 @@
 #include <cstdint>
 #include <string_view>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 namespace SushiAI::Vision::Datasets

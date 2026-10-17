@@ -32,8 +32,8 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "eager_test_support.hpp"
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>

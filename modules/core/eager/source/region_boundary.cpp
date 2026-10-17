@@ -31,9 +31,9 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

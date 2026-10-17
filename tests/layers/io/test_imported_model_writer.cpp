@@ -42,10 +42,10 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>

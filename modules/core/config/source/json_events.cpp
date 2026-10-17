@@ -34,7 +34,7 @@
 #include <string>
 #include <vector>
 #include <nlohmann/json.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

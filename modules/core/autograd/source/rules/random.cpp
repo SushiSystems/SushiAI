@@ -27,7 +27,7 @@
 
 #include <SushiAI/autograd/rules/random.hpp>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/builder.hpp>
 
 namespace SushiAI

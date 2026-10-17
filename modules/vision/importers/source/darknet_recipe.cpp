@@ -33,12 +33,12 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 #include <SushiAI/optim/step_schedule_section.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
@@ -114,7 +114,7 @@ namespace SushiAI
                     for (const UnplacedKey& row : unplaced)
                     {
                         if (option.key == row.key)
-                            notes.push_back(SushiBLAS::Core::format(
+                            notes.push_back(SushiLog::format_text(
                                 "line {}: {}={} of [{}] is not carried over: {}", option.line,
                                 option.key, option.value, section.type, row.reason));
                     }

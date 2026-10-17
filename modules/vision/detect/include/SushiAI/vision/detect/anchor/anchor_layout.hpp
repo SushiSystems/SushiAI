@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <vector>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 
 namespace SushiAI

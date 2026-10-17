@@ -4,9 +4,10 @@ The host-side data pipeline of the YOLO26 programme: label parsing, the raw imag
 letterbox, mosaic, random affine, HSV jitter and horizontal flip, composed into a training
 pipeline and a validation pipeline. Everything works on `uint8` pixels and `float` boxes in host
 memory. Nothing here reaches an engine, SYCL or a third-party library, so every unit is tested
-without a device. The module depends on `core` for `Error` and `SA_THROW_IF` and on the C++
+without a device. The module depends on `failure`, `seam` for `Error` and `SA_THROW_IF` and on the
+C++
 standard library. `affine_nearest.hpp` and `mask_pipeline.hpp` return a `Status` and include
-`<SushiAI/core/status.hpp>`, so `core` has to become a public dependency;
+`<SushiAI/failure/status.hpp>`, so `failure`, `seam` has to become a public dependency;
 `modules/vision/imaging/CMakeLists.txt` still declares it private.
 
 Each header has one source under `modules/vision/imaging/source/` and one test file under

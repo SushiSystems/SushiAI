@@ -33,8 +33,9 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {

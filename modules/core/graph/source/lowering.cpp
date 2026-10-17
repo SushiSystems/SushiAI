@@ -27,10 +27,10 @@
 
 #include <SushiAI/graph/lowering.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
 
 namespace SushiAI

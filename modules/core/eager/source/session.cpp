@@ -35,9 +35,10 @@
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/step.hpp>
 

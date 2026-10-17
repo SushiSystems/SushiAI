@@ -7,4 +7,4 @@
 # decoder_models: the small decoder model files the language tests build.
 
 sushiai_add_module(NAME decoder_models TIER language INTERNAL
-    PUBLIC_DEPENDS config core language/registration model_text nn)
+    PUBLIC_DEPENDS config failure model_text nn language/registration)

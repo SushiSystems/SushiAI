@@ -14,9 +14,11 @@ layers tier; `tests/language/training/test_next_token_objective.cpp` does. A cal
 
 ## Depends on
 
-- `core`, `graph`, `config`, `data`, `nn` and `train` (`PUBLIC_DEPENDS`): `Status`, the
+- `failure`, `dtype`, `shape`, `seam`, `graph`, `config`, `data`, `nn` and `train`
+  (`PUBLIC_DEPENDS`): `Status`, the
   graph builder, the attributes a factory receives, `Data::Batch` and the role names,
-  `NN::ModelOutputs`, and the `Objective` interface with its registry.
+  `NN::ModelOutputs`, and the `Objective` interface with its registry. Of the core modules, `dtype`,
+  `shape` and `seam` are private (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

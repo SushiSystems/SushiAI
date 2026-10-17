@@ -24,7 +24,8 @@ experts returns the failure and records nothing; their `forward` records it.
 
 ## Depends on
 
-- `config`, `core`, `graph` and `nn` (`PUBLIC_DEPENDS`).
+- `config`, `failure`, `shape`, `dtype`, `seam`, `graph` and `nn` (`PUBLIC_DEPENDS`). Of the core
+  modules, `dtype` and `seam` are private (`PRIVATE_DEPENDS`).
 
 ## Public entry points
 

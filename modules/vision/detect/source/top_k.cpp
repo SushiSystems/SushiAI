@@ -32,7 +32,7 @@
 #include <cstddef>
 #include <numeric>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

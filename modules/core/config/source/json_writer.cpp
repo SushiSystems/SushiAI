@@ -34,7 +34,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

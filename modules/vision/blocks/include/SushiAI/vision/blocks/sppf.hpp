@@ -31,8 +31,8 @@
 #include <memory>
 #include <string_view>
 #include <tuple>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/max_pool2d.hpp>

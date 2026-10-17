@@ -26,11 +26,11 @@
  */
 
 #include <SushiAI/nn/model_graph.hpp>
+#include <SushiLog/text/text_format.hpp>
 
 #include <algorithm>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/builder.hpp>
 
 namespace SushiAI
@@ -159,7 +159,7 @@ namespace SushiAI
 
             return Status::from_message(StatusCode::InvalidDescription, [&]()
             {
-                return SushiBLAS::Core::format("node '{}' has no port named '{}'; its ports: {}",
+                return SushiLog::format_text("node '{}' has no port named '{}'; its ports: {}",
                                                entries_[of.node()].name, name,
                                                list_ports(ports));
             });

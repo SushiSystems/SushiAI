@@ -31,7 +31,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

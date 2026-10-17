@@ -34,8 +34,8 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>

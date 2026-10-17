@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>

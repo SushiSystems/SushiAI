@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
 #include <SushiAI/vision/datasets/polygon_mask.hpp>

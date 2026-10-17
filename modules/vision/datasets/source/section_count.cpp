@@ -30,7 +30,7 @@
 #include <limits>
 #include <string>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Datasets::Detail
 {

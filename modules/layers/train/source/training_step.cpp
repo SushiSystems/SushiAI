@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

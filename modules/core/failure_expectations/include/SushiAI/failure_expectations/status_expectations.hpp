@@ -31,8 +31,8 @@
 #include <string>
 #include <string_view>
 #include <gtest/gtest.h>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

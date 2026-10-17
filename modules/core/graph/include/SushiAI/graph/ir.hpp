@@ -31,9 +31,10 @@
 #include <cstdint>
 #include <utility>
 #include <string_view>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/graph/state_id.hpp>
 
 namespace SushiAI

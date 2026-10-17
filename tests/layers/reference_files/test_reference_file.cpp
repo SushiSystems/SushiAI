@@ -31,8 +31,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 

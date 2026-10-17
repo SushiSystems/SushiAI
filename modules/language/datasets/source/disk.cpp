@@ -29,7 +29,7 @@
 
 #include <system_error>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
 namespace SushiAI::Language::Datasets::Detail
 {
@@ -59,7 +59,7 @@ namespace SushiAI::Language::Datasets::Detail
     {
         return Status::from_message(code, [&]()
         {
-            return SushiBLAS::Core::format("{}: {}", unit, what);
+            return SushiLog::format_text("{}: {}", unit, what);
         });
     }
 
@@ -68,7 +68,7 @@ namespace SushiAI::Language::Datasets::Detail
     {
         return Status::from_message(code, [&]()
         {
-            return SushiBLAS::Core::format("'{}': {}: {}", display_of(subject), unit, what);
+            return SushiLog::format_text("'{}': {}: {}", display_of(subject), unit, what);
         });
     }
 } // namespace SushiAI::Language::Datasets::Detail

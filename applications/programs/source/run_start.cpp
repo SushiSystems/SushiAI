@@ -27,7 +27,7 @@
 
 #include "run_start.hpp"
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/nn/init.hpp>

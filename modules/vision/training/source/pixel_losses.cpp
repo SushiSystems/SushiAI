@@ -29,9 +29,9 @@
 
 #include <cstdint>
 #include <string_view>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI::Vision::Training
 {

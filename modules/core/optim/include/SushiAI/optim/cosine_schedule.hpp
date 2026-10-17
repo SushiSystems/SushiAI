@@ -28,7 +28,7 @@
 #pragma once
 
 #include <cstdint>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

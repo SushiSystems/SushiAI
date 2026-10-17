@@ -31,7 +31,7 @@
 #include <filesystem>
 #include <string>
 #include <utility>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/datasets/next_token_collator.hpp>
 #include <SushiAI/language/datasets/token_dataset.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>

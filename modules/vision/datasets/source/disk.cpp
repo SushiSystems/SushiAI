@@ -32,7 +32,7 @@
 #include <limits>
 #include <system_error>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
 namespace SushiAI::Vision::Datasets::Detail
 {
@@ -141,7 +141,7 @@ namespace SushiAI::Vision::Datasets::Detail
     {
         return Status::from_message(code, [&]()
         {
-            return SushiBLAS::Core::format("{}: {}", reader, what);
+            return SushiLog::format_text("{}: {}", reader, what);
         });
     }
 
@@ -150,7 +150,7 @@ namespace SushiAI::Vision::Datasets::Detail
     {
         return Status::from_message(code, [&]()
         {
-            return SushiBLAS::Core::format("'{}': {}: {}", display_of(subject), reader, what);
+            return SushiLog::format_text("'{}': {}: {}", display_of(subject), reader, what);
         });
     }
 } // namespace SushiAI::Vision::Datasets::Detail

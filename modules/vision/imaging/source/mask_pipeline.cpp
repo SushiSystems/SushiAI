@@ -29,9 +29,8 @@
 
 #include <string_view>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/imaging/affine.hpp>
 #include <SushiAI/vision/imaging/affine_nearest.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>

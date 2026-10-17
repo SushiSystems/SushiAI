@@ -27,7 +27,7 @@
 
 #include <SushiAI/nn/built_rows.hpp>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 
 namespace SushiAI

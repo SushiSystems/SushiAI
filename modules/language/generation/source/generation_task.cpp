@@ -28,7 +28,7 @@
 #include <SushiAI/language/generation/generation_task.hpp>
 
 #include <utility>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
 #include <SushiAI/language/generation/sampler_section.hpp>
 #include "section.hpp"

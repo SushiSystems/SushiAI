@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/tape.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 using SushiAI::Autograd::BackwardRule;
 using SushiAI::Autograd::concat_rules;

@@ -32,7 +32,7 @@
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/registry.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

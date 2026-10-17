@@ -27,7 +27,7 @@
 
 #include <SushiAI/autograd/rules/norm.hpp>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/builder.hpp>
 
 namespace SushiAI

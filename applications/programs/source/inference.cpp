@@ -38,11 +38,12 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include "inference_run.hpp"
 #include "registries.hpp"
 
@@ -93,7 +94,7 @@ namespace
         const sa::Data::Dataset& dataset = run.dataset;
         const int64_t rows = dataset.batch_size();
         const int64_t outputs = scores_tensor->shape[1];
-        sa::Apps::print_inference_header(run, SushiBLAS::Core::format("{} outputs", outputs));
+        sa::Apps::print_inference_header(run, SushiLog::format_text("{} outputs", outputs));
 
         // Top-1 agreement needs one output per class; see applications/programs/README.md.
         const sa::Data::TargetDescription* const described =
@@ -131,22 +132,26 @@ namespace
             }
         }
 
-        std::cout << SushiBLAS::Core::format("Evaluated {} samples over {} batches.\n\n",
+        std::cout << SushiLog::format_text("Evaluated {} samples over {} batches.\n\n",
                                              samples, dataset.batch_count());
         std::cout << "  output  predicted\n";
         for (std::size_t i = 0; i < predicted_counts.size(); ++i)
-            std::cout << SushiBLAS::Core::format("  {:>6}  {:>9} ({:5.2f}%)\n", i,
-                                                 predicted_counts[i],
-                                                 100.0 * static_cast<double>(predicted_counts[i])
-                                                       / static_cast<double>(samples));
+        {
+            const double share = 100.0 * static_cast<double>(predicted_counts[i])
+                                 / static_cast<double>(samples);
+            std::cout << SushiLog::format_text("  {}  {} ({}%)\n", SushiLog::right(i, 6),
+                                               SushiLog::right(predicted_counts[i], 9),
+                                               SushiLog::right(SushiLog::fixed(share, 2), 5));
+        }
 
         if (labelled)
-            std::cout << SushiBLAS::Core::format(
-                "\ntop-1 agreement with the labels: {}/{} = {:.2f}%\n",
+            std::cout << SushiLog::format_text(
+                "\ntop-1 agreement with the labels: {}/{} = {}%\n",
                 agreeing, samples,
-                100.0 * static_cast<double>(agreeing) / static_cast<double>(samples));
+                SushiLog::fixed(
+                    100.0 * static_cast<double>(agreeing) / static_cast<double>(samples), 2));
         else
-            std::cout << SushiBLAS::Core::format(
+            std::cout << SushiLog::format_text(
                 "\nThe model has {} outputs and the data {} classes, so top-1 agreement "
                 "is not comparable and is not reported.\n",
                 outputs, classes);
@@ -230,7 +235,7 @@ namespace
             SA_TRY(report_classes(prepared, published.front().first));
         }
 
-        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", step->step().compile_count());
+        std::cout << SushiLog::format_text("\ncompiles: {}\n", step->step().compile_count());
         if (step->step().compile_count() != 1)
             std::cerr << "The step must be compiled exactly once.\n";
 

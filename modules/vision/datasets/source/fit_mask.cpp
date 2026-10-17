@@ -32,7 +32,6 @@
 #include <iterator>
 #include <string_view>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include <SushiAI/vision/imaging/letterbox.hpp>
 
