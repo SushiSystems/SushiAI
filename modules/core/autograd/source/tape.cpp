@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/autograd/tape.hpp>
+#include <SushiAI/failure/error.hpp>
 #include "differentiator.hpp"
 
 namespace SushiAI

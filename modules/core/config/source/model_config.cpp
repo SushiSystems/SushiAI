@@ -33,6 +33,7 @@
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/registry.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

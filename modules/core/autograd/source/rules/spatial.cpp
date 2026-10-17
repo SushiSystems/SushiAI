@@ -28,6 +28,7 @@
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/rules/spatial.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

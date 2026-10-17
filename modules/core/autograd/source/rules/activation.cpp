@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/autograd/rules/activation.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

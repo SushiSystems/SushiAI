@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include <array>
 #include <cmath>

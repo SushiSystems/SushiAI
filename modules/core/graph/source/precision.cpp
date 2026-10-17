@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/graph/precision.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

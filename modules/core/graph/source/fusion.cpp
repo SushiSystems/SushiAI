@@ -31,6 +31,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

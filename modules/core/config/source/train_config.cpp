@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include <utility>
 #include <SushiRuntime/core/span.hpp>

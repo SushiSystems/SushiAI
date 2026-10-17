@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include <fstream>
 #include <iterator>

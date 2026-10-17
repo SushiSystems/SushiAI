@@ -39,6 +39,7 @@
 #include <SushiAI/train/batch_role.hpp>
 #include <SushiAI/train/host_values.hpp>
 #include <SushiAI/train/one_hot.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

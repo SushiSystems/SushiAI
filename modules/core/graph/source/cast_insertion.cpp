@@ -32,6 +32,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

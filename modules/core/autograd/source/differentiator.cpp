@@ -30,6 +30,7 @@
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/rules/all.hpp>
 #include <SushiAI/autograd/rules/loss.hpp>
+#include <SushiAI/failure/error.hpp>
 #include "differentiator.hpp"
 
 namespace SushiAI
