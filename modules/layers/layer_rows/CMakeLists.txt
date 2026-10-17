@@ -7,4 +7,5 @@
 # layer_rows: the rows of the layer registry a test builds.
 
 sushiai_add_module(NAME layer_rows TIER layers INTERNAL
-    PUBLIC_DEPENDS core failure_expectations model_text nn)
+    PUBLIC_DEPENDS failure failure_expectations model_text nn shape
+    EXTERNAL_PUBLIC SushiRuntime::core)

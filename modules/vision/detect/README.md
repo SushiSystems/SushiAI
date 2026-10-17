@@ -12,7 +12,7 @@ and the validation metric. Every unit is a function or a small class over `Sushi
 with the shape written in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`,
 so every unit is tested without a device.
 
-The module depends on `core` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`) and on `config`
+The module depends on `failure` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`) and on `config`
 (`Config::Value`, which `anchor/anchor_task.hpp` reads and writes). Nothing depends on
 it yet. It adds no IR operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
 `docs/agent/2026_10_07_YOLO26/SPEC.md`; the rulings that put label assignment on the host and ask
@@ -143,7 +143,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 
 `anchor/` holds detection with anchor boxes, the family of YOLOv3, v4 and v7. It is written from
 the behaviour `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` states in formulas (sections 4.4 and
-5.5) and ports no code. A content failure comes back as a `Status` of `core`; a call that breaks
+5.5) and ports no code. A content failure comes back as a `Status` of `failure`; a call that breaks
 a stated precondition stops the process through `SA_FATAL_IF`. Nothing in this part throws.
 
 An anchor is stored as a fraction of the network input, so one layout serves every input size

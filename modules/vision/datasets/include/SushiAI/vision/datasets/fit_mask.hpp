@@ -29,7 +29,7 @@
 
 #include <cstdint>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 

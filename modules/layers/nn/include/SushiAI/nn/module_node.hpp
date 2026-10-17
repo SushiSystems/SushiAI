@@ -35,9 +35,9 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>

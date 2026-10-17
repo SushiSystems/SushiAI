@@ -13,7 +13,7 @@ included. No unit of the module reads a tensor or an engine.
 
 ## Depends on
 
-- `core` (`PUBLIC_DEPENDS`), for `Status` and `Result`.
+- `failure` (`PUBLIC_DEPENDS`), for `Status` and `Result`.
 
 ## Public entry points
 

@@ -39,12 +39,13 @@
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 /** @brief Shortens the SushiBLAS namespace. */
@@ -459,7 +460,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         {
             return DataChoice{
                 std::move(loaded).value(),
-                SushiBLAS::Core::format("MNIST (real IDX files) from {}", mnist.directory.string()),
+                SushiLog::format_text("MNIST (real IDX files) from {}", mnist.directory.string()),
                 true,
             };
         }
@@ -480,7 +481,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         return DataChoice{
             std::move(generated),
-            SushiBLAS::Core::format("SYNTHETIC FALLBACK - no MNIST here.\n"
+            SushiLog::format_text("SYNTHETIC FALLBACK - no MNIST here.\n"
                                     "           Looked for {}.",
                                     sa::Vision::Datasets::mnist_expected_paths(mnist)),
             false,
@@ -493,8 +494,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      */
     std::string human_bytes(std::size_t bytes)
     {
-        if (bytes < 1024) return SushiBLAS::Core::format("{} B", bytes);
-        return SushiBLAS::Core::format("{:.1f} KiB", static_cast<double>(bytes) / 1024.0);
+        if (bytes < 1024) return SushiLog::format_text("{} B", bytes);
+        return SushiLog::format_text("{} KiB", SushiLog::fixed(static_cast<double>(bytes) / 1024.0,
+                                                               1));
     }
 
     /**
@@ -510,24 +512,24 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         if (report.fused().empty() && report.declined().empty())
             return "Fusion   : nothing in this graph matches the catalog\n";
 
-        std::string text = SushiBLAS::Core::format("Fusion   : {} node(s) -> {}\n",
+        std::string text = SushiLog::format_text("Fusion   : {} node(s) -> {}\n",
                                                    report.nodes_before(), report.nodes_after());
 
         for (const sa::Graph::FusedSubtree& subtree : report.fused())
         {
-            text += SushiBLAS::Core::format("           fused    {} -> value {}",
+            text += SushiLog::format_text("           fused    {} -> value {}",
                                             sa::Graph::fused_form_name(subtree.form),
                                             subtree.result);
 
             // The one form that writes two values names the spilled value here.
             if (subtree.spilled != sa::Graph::K_NO_VALUE)
-                text += SushiBLAS::Core::format(" (+ pre-activation spilled to value {})",
+                text += SushiLog::format_text(" (+ pre-activation spilled to value {})",
                                                 subtree.spilled);
             text += "\n";
         }
 
         for (const sa::Graph::DeclinedFusion& decline : report.declined())
-            text += SushiBLAS::Core::format("           declined {}: {}\n",
+            text += SushiLog::format_text("           declined {}: {}\n",
                                             decline.form != sa::Graph::FusedForm::None
                                                 ? sa::Graph::fused_form_name(decline.form)
                                                 : sa::Ops::name_of(decline.op),
@@ -544,11 +546,11 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     std::string describe_precision(const sa::Graph::CastReport& report)
     {
         if (report.count() == 0)
-            return SushiBLAS::Core::format(
+            return SushiLog::format_text(
                 "Precision: {}; every operation computes in the graph's own type\n",
                 report.policy());
 
-        return SushiBLAS::Core::format(
+        return SushiLog::format_text(
             "Precision: {}; {} cast(s) - {} narrowing, {} widening back to the master type\n",
             report.policy(), report.count(),
             report.count_into(sa::DType::Half),
@@ -586,12 +588,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             ? 0.0
             : 100.0 * (1.0 - static_cast<double>(packed) / static_cast<double>(loose));
 
-        std::string text = SushiBLAS::Core::format(
-            "Arenas   : {} ({}), {} buffers in {} instead of {} - {:.0f}% saved\n",
-            arenas.size(), classes, buffers, human_bytes(packed), human_bytes(loose), saved);
+        std::string text = SushiLog::format_text(
+            "Arenas   : {} ({}), {} buffers in {} instead of {} - {}% saved\n",
+            arenas.size(), classes, buffers, human_bytes(packed), human_bytes(loose),
+            SushiLog::fixed(saved, 0));
 
         if (!plan.reuse_enabled())
-            text += SushiBLAS::Core::format("           live ranges were not overlapped: {}\n",
+            text += SushiLog::format_text("           live ranges were not overlapped: {}\n",
                                             plan.reuse_note());
 
         return text;
@@ -685,35 +688,35 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << "SushiAI  : " << SushiAI::version_string()
             << " on SushiBLAS " << SUSHIBLAS_VERSION_STRING << "\n"
             << "Data     : " << data.provenance << "\n"
-            << SushiBLAS::Core::format("Model    : {} -> {} -> {}  ({} learnable scalars)\n",
+            << SushiLog::format_text("Model    : {} -> {} -> {}  ({} learnable scalars)\n",
                                        features, settings.hidden, classes,
                                        sa::NN::parameter_elements(model))
-            << SushiBLAS::Core::format("Optimizer: {} (lr {:g}{})\n",
+            << SushiLog::format_text("Optimizer: {} (lr {}{})\n",
                                        settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw",
-                                       learning_rate,
+                                       SushiLog::general(learning_rate),
                                        settings.optimizer == OptimizerKind::SGD
-                                           ? SushiBLAS::Core::format(", momentum {:g}",
-                                                                     K_SGD_MOMENTUM)
+                                           ? SushiLog::format_text(
+                                                 ", momentum {}", SushiLog::general(K_SGD_MOMENTUM))
                                            : std::string{})
-            << SushiBLAS::Core::format("Batches  : {} x {} from '{}'\n",
+            << SushiLog::format_text("Batches  : {} x {} from '{}'\n",
                                        dataset.batch_count(), settings.batch_size, dataset.name())
-            << SushiBLAS::Core::format("Graph    : {} IR nodes over {} values\n",
+            << SushiLog::format_text("Graph    : {} IR nodes over {} values\n",
                                        built.graph.node_count(), built.graph.value_count())
             << describe_precision(built.casts)
             << (scaling
-                    ? SushiBLAS::Core::format("Scaling  : gradients scaled by {:.0f}, "
+                    ? SushiLog::format_text("Scaling  : gradients scaled by {}, "
                                               "halved on overflow, doubled every {} clean "
                                               "steps\n",
-                                              scaler->scale(),
+                                              SushiLog::fixed(scaler->scale(), 0),
                                               scaler->state().options().growth_interval)
                     : std::string{"Scaling  : off; no node is emitted and the graph is "
                                   "unchanged\n"})
             << describe_fusion(built.fusion)
-            << SushiBLAS::Core::format("Buffers  : {} tensors, {} (one allocation each: {})\n",
+            << SushiLog::format_text("Buffers  : {} tensors, {} (one allocation each: {})\n",
                                        pool.tensor_count(), human_bytes(pool.allocated_bytes()),
                                        human_bytes(pool.unpacked_bytes()))
             << describe_arenas(pool)
-            << SushiBLAS::Core::format("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
+            << SushiLog::format_text("Schedule : {} epochs x {} batches = {} steps, seed {}\n\n",
                                        settings.epochs, dataset.batch_count(), total_steps,
                                        settings.seed);
 
@@ -732,11 +735,14 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             run.steps += epoch_report.steps;
             run.duration_ms += epoch_report.duration_ms;
 
-            trajectory += SushiBLAS::Core::format(
-                "  epoch {:>3}/{:<3} loss {:.6f} -> {:.6f}   accuracy {:6.2f}%\n",
-                epoch, settings.epochs, epoch_report.first_loss,
-                epoch_report.last_loss,
-                epoch_report.last_metrics.value_or("accuracy", 0.0) * 100.0);
+            trajectory += SushiLog::format_text(
+                "  epoch {}/{} loss {} -> {}   accuracy {}%\n",
+                SushiLog::right(epoch, 3), SushiLog::left(settings.epochs, 3),
+                SushiLog::fixed(epoch_report.first_loss, 6),
+                SushiLog::fixed(epoch_report.last_loss, 6),
+                SushiLog::right(SushiLog::fixed(epoch_report.last_metrics.value_or("accuracy",
+                                                                                   0.0) * 100.0,
+                                                                                   2), 6));
         }
         run.compile_count = trainer->compile_count();
 
@@ -746,13 +752,13 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             << " SushiAI MLP demo - result\n"
             << " " << (data.is_mnist ? "MNIST" : "synthetic fallback")
             << ", " << (settings.optimizer == OptimizerKind::SGD ? "sgd" : "adamw")
-            << SushiBLAS::Core::format(", {} -> {} -> {}\n", features, settings.hidden, classes)
+            << SushiLog::format_text(", {} -> {} -> {}\n", features, settings.hidden, classes)
             << "================================================================\n"
             << trajectory
             << "\n" << run.to_string()
             << (scaling ? scaler->to_string() : std::string{})
             << "----------------------------------------------------------------\n"
-            << SushiBLAS::Core::format(
+            << SushiLog::format_text(
                    "  compiles: {}  <- one lowering, one compile, {} replays.\n",
                    run.compile_count, run.steps)
             << "================================================================\n"

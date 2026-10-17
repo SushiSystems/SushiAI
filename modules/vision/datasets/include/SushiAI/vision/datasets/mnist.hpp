@@ -34,8 +34,7 @@
 #include <string_view>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 
 namespace SushiAI::Vision::Datasets

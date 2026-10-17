@@ -33,9 +33,10 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/language/blocks/incremental.hpp>
 #include <SushiAI/language/blocks/rotary_positions.hpp>

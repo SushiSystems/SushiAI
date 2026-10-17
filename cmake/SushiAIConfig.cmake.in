@@ -14,7 +14,7 @@
 # it; those live on PRIVATE targets and never enter the export set (see
 # cmake/SushiAIBuildPolicy.cmake). The floating-point determinism contract
 # still travels — but it comes from SushiRuntime, not from here, since
-# SushiRuntime::SushiRuntime is a PUBLIC dependency of SushiAI::sushiai.
+# SushiAI::sushiai links SushiRuntime::core and SushiRuntime::api as PUBLIC.
 
 include(CMakeFindDependencyMacro)
 
@@ -22,6 +22,10 @@ include(CMakeFindDependencyMacro)
 # SushiBLAS): its own future autograd core emits nodes straight into
 # SushiRuntime::TaskGraph, so both targets must be resolvable here, the same
 # way SushiBLAS's own config resolves its one upstream.
+# The log headers of core include SushiLog, and the library links it.
+if(NOT TARGET SushiLog::SushiLog)
+    find_dependency(SushiLog CONFIG)
+endif()
 if(NOT TARGET SushiRuntime::SushiRuntime)
     find_dependency(SushiRuntime)
 endif()

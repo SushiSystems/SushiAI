@@ -7,5 +7,5 @@
 # failure_expectations: assertions over a failed Status and a thrown Error.
 
 sushiai_add_module(NAME failure_expectations TIER core INTERNAL
-    PUBLIC_DEPENDS core
+    PUBLIC_DEPENDS failure
     EXTERNAL_PUBLIC GTest::gtest)

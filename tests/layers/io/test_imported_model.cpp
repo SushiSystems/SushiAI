@@ -28,8 +28,8 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/imported_model.hpp>
 

@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <string>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {

@@ -28,7 +28,7 @@
 #pragma once
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/rules/elementwise.hpp>
 #include <SushiAI/autograd/rules/linalg.hpp>
@@ -81,7 +81,7 @@ namespace SushiAI
         static_assert(every_differentiable_op_has_a_rule(
                           SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(),
                                                                 Ops::K_ALL.size())),
-                      "An operation is declared differentiable in core/ops.hpp but has no "
+                      "An operation is declared differentiable in ops/ops.hpp but has no "
                       "backward rule. Declaring an identity and forgetting its rule is "
                       "otherwise silent: the graph builds, differentiate() skips the node, "
                       "and the model trains with a missing gradient.");
@@ -105,7 +105,7 @@ namespace SushiAI
         static_assert(no_gradient_barrier_has_a_rule(
                           SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(),
                                                                 Ops::K_ALL.size())),
-                      "An operation is declared a gradient barrier in core/ops.hpp and also has "
+                      "An operation is declared a gradient barrier in ops/ops.hpp and also has "
                       "a backward rule. The reverse walk steps over a barrier, so the rule "
                       "would never run. Remove the row, or declare the operation differentiable.");
     }

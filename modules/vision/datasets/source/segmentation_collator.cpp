@@ -30,11 +30,10 @@
 #include <cstddef>
 #include <string>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/vision/datasets/batch_inputs.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>

@@ -38,11 +38,11 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/scope.hpp>

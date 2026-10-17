@@ -38,10 +38,10 @@
 #include "eager_run_support.hpp"
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_program.hpp>
 #include <SushiAI/eager/region_table.hpp>

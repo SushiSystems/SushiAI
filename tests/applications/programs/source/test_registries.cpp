@@ -29,7 +29,7 @@
 #include <cstddef>
 #include <gtest/gtest.h>
 #include "registries.hpp"
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace Apps = SushiAI::Apps;

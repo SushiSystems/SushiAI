@@ -32,8 +32,8 @@
 #include <string_view>
 #include <tuple>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/built_rows.hpp>
 #include <SushiAI/nn/layer_norm.hpp>

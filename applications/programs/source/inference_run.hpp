@@ -35,7 +35,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/train/evaluation_step.hpp>

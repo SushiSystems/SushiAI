@@ -34,10 +34,10 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/autograd/backward.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 #include "tensor_shape.hpp"
 

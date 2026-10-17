@@ -9,5 +9,5 @@
 sushiai_add_module(NAME engine_fixture TIER core INTERNAL
     SOURCES
         source/test_main.cpp
-    PUBLIC_DEPENDS core
-    EXTERNAL_PUBLIC GTest::gtest)
+    PUBLIC_DEPENDS execution failure
+    EXTERNAL_PUBLIC GTest::gtest SushiRuntime::api)

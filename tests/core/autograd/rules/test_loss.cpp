@@ -29,7 +29,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/loss.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 using SushiAI::Autograd::K_LOSS_RULES;
 using SushiAI::Autograd::starts_from_implicit_seed;

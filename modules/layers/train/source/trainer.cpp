@@ -35,11 +35,13 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/arena.hpp>
@@ -163,22 +165,23 @@ namespace SushiAI
 
         std::string RunReport::to_string() const
         {
-            std::string text = SushiBLAS::Core::format(
+            std::string text = SushiLog::format_text(
                 "compiles       : {}\n"
                 "steps          : {}\n"
                 "ops per step   : {}\n",
                 compile_count, steps, operations_per_step);
 
-            text += SushiBLAS::Core::format("loss           : {:.6f} -> {:.6f}\n", first_loss,
-                                            last_loss);
+            text += SushiLog::format_text("loss           : {} -> {}\n",
+                                          SushiLog::fixed(first_loss, 6),
+                                            SushiLog::fixed(last_loss, 6));
             for (const Metric& metric : last_metrics.all())
             {
-                text += SushiBLAS::Core::format("final {:<9}: {}\n", metric.name,
+                text += SushiLog::format_text("final {}: {}\n", SushiLog::left(metric.name, 9),
                                                 describe_metric_value(metric));
             }
-            text += SushiBLAS::Core::format(
-                "wall clock     : {:.1f} ms ({:.2f} ms/step)\n", duration_ms,
-                steps ? duration_ms / static_cast<double>(steps) : 0.0);
+            text += SushiLog::format_text(
+                "wall clock     : {} ms ({} ms/step)\n", SushiLog::fixed(duration_ms, 1),
+                SushiLog::fixed(steps ? duration_ms / static_cast<double>(steps) : 0.0, 2));
 
             if (node_timings.empty())
             {
@@ -190,10 +193,12 @@ namespace SushiAI
             text += "per-node timing:\n";
             for (const SushiRuntime::NodeTiming& timing : node_timings)
             {
-                text += SushiBLAS::Core::format(
-                    "  [{:>3}] {:<24} x{:<6} device {:>8.3f} ms  host {:>8.3f} ms\n",
-                    timing.plan_index, timing.name, timing.invocations, timing.device_ms,
-                    timing.host_ms);
+                text += SushiLog::format_text(
+                    "  [{}] {} x{} device {} ms  host {} ms\n",
+                    SushiLog::right(timing.plan_index, 3), SushiLog::left(timing.name, 24),
+                    SushiLog::left(timing.invocations, 6),
+                    SushiLog::right(SushiLog::fixed(timing.device_ms, 3), 8),
+                    SushiLog::right(SushiLog::fixed(timing.host_ms, 3), 8));
             }
 
             return text;

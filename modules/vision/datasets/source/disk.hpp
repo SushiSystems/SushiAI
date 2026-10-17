@@ -36,8 +36,8 @@
 #include <utility>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 /** @brief Holds the units of the datasets module that no caller names. */
 namespace SushiAI::Vision::Datasets::Detail

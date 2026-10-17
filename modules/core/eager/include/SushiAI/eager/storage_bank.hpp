@@ -33,9 +33,9 @@
 
 #include <SushiBLAS/engine/engine.hpp>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/storage_id.hpp>
 
 namespace SushiAI

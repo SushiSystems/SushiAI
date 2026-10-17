@@ -32,7 +32,7 @@
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiBLAS/spatial/spatial.hpp>
 #include <SushiBLAS/geometry/spatial_geometry.hpp>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 
 namespace SushiAI

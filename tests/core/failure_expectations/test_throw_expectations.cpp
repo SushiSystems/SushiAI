@@ -29,7 +29,7 @@
 #include <stdexcept>
 #include <string>
 #include <gtest/gtest.h>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 
 namespace

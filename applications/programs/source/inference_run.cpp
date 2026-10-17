@@ -29,9 +29,9 @@
 
 #include <iostream>
 #include <string>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {
@@ -91,10 +91,10 @@ namespace SushiAI
         {
             std::cout << "sushiai inference\n"
                       << "----------------------------------------------------------------\n"
-                      << SushiBLAS::Core::format("Model      : {} ({} layers -> {})\n",
+                      << SushiLog::format_text("Model      : {} ({} layers -> {})\n",
                                                  run.model_path.string(), run.layers, outputs)
-                      << SushiBLAS::Core::format("Checkpoint : {}\n", run.weights_path.string())
-                      << SushiBLAS::Core::format("Data       : {} ({} x {})\n\n",
+                      << SushiLog::format_text("Checkpoint : {}\n", run.weights_path.string())
+                      << SushiLog::format_text("Data       : {} ({} x {})\n\n",
                                                  run.dataset.name(), run.dataset.batch_count(),
                                                  run.dataset.batch_size());
         }

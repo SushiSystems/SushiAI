@@ -18,7 +18,8 @@ dataset whose batches depend on the epoch, `EpochPermutation` is the order of on
 
 ## Depends on
 
-The module declares `core` and `config` as public dependencies. It declares no private
+The module declares `failure`, `dtype`, `shape`, `seam`, `execution`, `allocation` and `config` as
+public dependencies. It declares no private
 dependency.
 
 ## Public entry points
@@ -113,7 +114,8 @@ gives the same order on every platform.
 The orders are not drawn uniformly from all `count!` permutations; no generator with a 64-bit
 seed can do that for a `count` above 20.
 
-`Vision::Imaging::Random` holds the same finaliser. `core` cannot include a domain module, so
+`Vision::Imaging::Random` holds the same finaliser. `failure`, `dtype`, `shape`, `seam`,
+`allocation` cannot include a domain module, so
 the constants are written in both.
 
 ## The loader on threads
@@ -157,7 +159,7 @@ threads already started are joined.
 builds its batches calls `prepare_batch` and so `allocate_tensor`, then writes the elements
 through the tensor's host pointer. Both are safe from any thread:
 
-- `allocate_tensor` (`modules/core/core/source/allocation.cpp`) builds a `SushiBLAS::Storage`
+- `allocate_tensor` (`modules/core/allocation/source/allocation.cpp`) builds a `SushiBLAS::Storage`
   with `Residency::Shared` and reads `Engine::layout()`. It touches no recorder and no
   graph of the engine.
 - `Storage` calls `Runtime::buffer` (sushiblas:

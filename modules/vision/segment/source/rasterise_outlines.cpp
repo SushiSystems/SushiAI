@@ -29,8 +29,7 @@
 
 #include <cstddef>
 #include <string_view>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/segment/fill_outline.hpp>
 
 namespace SushiAI::Vision::Segment

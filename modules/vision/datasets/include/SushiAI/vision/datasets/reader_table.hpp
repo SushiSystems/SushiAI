@@ -35,7 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 namespace SushiAI::Vision::Datasets

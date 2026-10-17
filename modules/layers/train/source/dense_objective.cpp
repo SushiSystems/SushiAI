@@ -27,7 +27,7 @@
 
 #include "dense_objective.hpp"
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

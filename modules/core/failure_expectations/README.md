@@ -24,7 +24,7 @@ header and no SYCL header, so a device-free test can use it.
 
 ## Depends on
 
-`core`, for `Status`, `Result` and `Error`, and GTest.
+`failure`, for `Status`, `Result` and `Error`, and GTest.
 
 ## Public entry points
 

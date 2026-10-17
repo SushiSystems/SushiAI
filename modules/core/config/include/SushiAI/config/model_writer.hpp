@@ -29,7 +29,7 @@
 
 #include <string>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {

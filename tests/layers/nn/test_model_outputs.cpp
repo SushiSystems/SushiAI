@@ -29,8 +29,8 @@
 #include <string>
 #include <type_traits>
 #include <gtest/gtest.h>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>

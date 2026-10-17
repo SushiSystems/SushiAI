@@ -29,8 +29,8 @@
 
 #include <cstdint>
 #include <utility>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/nn/node_attributes.hpp>

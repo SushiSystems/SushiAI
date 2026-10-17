@@ -36,7 +36,6 @@
 #include <utility>
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
 
 #include "disk.hpp"
 

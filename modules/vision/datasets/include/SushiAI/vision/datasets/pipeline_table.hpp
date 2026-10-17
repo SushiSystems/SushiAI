@@ -33,7 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
 

@@ -35,7 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/scope.hpp>
 #include <SushiAI/eager/scope_partitioner.hpp>

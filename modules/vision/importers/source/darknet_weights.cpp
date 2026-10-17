@@ -39,8 +39,8 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 static_assert(std::numeric_limits<float>::is_iec559 && sizeof(float) == 4,
               "the .weights reader stores each float as an IEEE 754 binary32 bit pattern");

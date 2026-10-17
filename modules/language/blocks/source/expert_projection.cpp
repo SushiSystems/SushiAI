@@ -27,9 +27,9 @@
 
 #include <SushiAI/language/blocks/expert_projection.hpp>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI

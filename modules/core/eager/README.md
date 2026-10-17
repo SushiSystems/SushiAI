@@ -24,8 +24,10 @@ when a value is read, when an update is applied or when `finish` is called.
 
 ## Depends on
 
-The module declares `core`, `graph` and `autograd` as public dependencies. It declares no
-private dependency. SushiBLAS and SushiRuntime reach it through `core`.
+The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation`, `graph`
+and `autograd` as public dependencies. It declares no
+private dependency. SushiBLAS and SushiRuntime reach it through `failure`, `dtype`, `shape`, `ops`,
+`seam`, `allocation`.
 
 ## Public entry points
 

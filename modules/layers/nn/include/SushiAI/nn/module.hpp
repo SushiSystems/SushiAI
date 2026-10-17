@@ -36,8 +36,9 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/state_id.hpp>

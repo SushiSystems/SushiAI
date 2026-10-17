@@ -32,7 +32,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {

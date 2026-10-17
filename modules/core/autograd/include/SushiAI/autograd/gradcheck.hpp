@@ -32,7 +32,6 @@
 #include <functional>
 #include <string>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
 
 namespace SushiAI
 {

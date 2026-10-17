@@ -32,7 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI
 {

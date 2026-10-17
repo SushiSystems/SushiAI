@@ -33,7 +33,7 @@
 #include <string>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/train/evaluation_step.hpp>

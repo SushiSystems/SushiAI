@@ -31,7 +31,7 @@
 #include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>

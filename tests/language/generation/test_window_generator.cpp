@@ -34,8 +34,8 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>

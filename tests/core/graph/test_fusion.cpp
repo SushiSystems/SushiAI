@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>

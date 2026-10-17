@@ -31,7 +31,7 @@
 #include <limits>
 #include <utility>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
 

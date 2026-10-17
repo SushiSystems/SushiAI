@@ -30,7 +30,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 

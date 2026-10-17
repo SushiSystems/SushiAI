@@ -28,8 +28,7 @@
 
 #include <SushiAI/eager/region_names.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

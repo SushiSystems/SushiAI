@@ -31,8 +31,8 @@
 #include <filesystem>
 #include <string>
 #include <utility>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/language/datasets/window_layout.hpp>
 #include <SushiAI/language/text/codec.hpp>

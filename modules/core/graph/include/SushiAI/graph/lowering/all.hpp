@@ -29,7 +29,7 @@
 
 #include <cstddef>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/rule.hpp>
 #include <SushiAI/graph/lowering/unlowered.hpp>
 #include <SushiAI/graph/lowering/elementwise.hpp>
@@ -139,12 +139,12 @@ namespace SushiAI
         static_assert(every_identity_is_accounted_for(
                           SushiRuntime::span<const Ops::OpName>(Ops::K_ALL.data(),
                                                                 Ops::K_ALL.size())),
-                      "An identity of core/ops.hpp has no lowering row, has two, or has a row and "
+                      "An identity of ops/ops.hpp has no lowering row, has two, or has a row and "
                       "is also listed in unlowered.hpp. A graph that held it would stop at "
                       "Lowering::record with no hint at build time.");
 
         static_assert(K_LOWERINGS.size() + K_UNLOWERED.size() == Ops::K_ALL.size(),
-                      "The lowering tables name an operation that core/ops.hpp does not declare.");
+                      "The lowering tables name an operation that ops/ops.hpp does not declare.");
 
     } // namespace Graph
 } // namespace SushiAI

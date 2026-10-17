@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <initializer_list>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI::Vision::Imaging
 {

@@ -33,7 +33,7 @@
 #include <cstring>
 #include <utility>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include "bilinear.hpp"
 

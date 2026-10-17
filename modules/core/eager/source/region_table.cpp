@@ -31,8 +31,8 @@
 #include <algorithm>
 #include <utility>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -30,7 +30,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/text/token.hpp>
 #include <SushiAI/language/text/vocabulary.hpp>

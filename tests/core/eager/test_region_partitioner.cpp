@@ -34,7 +34,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include "eager_run_support.hpp"
 #include <SushiAI/autograd/provenance.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/region_partitioner.hpp>

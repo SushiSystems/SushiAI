@@ -31,8 +31,8 @@
 #include <memory>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/step_scalars.hpp>
 
 namespace SushiAI

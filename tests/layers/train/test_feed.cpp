@@ -30,8 +30,8 @@
 #include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/train/feed.hpp>
 

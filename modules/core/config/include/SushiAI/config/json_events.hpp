@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string_view>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

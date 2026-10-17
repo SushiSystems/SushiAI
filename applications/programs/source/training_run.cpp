@@ -29,8 +29,8 @@
 
 #include <cstdint>
 #include <string>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

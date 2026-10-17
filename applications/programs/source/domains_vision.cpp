@@ -34,13 +34,14 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
@@ -72,10 +73,11 @@ namespace SushiAI
             void print_epoch(const Vision::Training::AnchorProgress& progress,
                              std::int64_t epochs)
             {
-                std::cout << SushiBLAS::Core::format(
-                    "  epoch {:>3}/{:<3} loss {:.6f}   box {:.6f}   rate {:.6g}\n",
-                    progress.epoch, epochs, progress.cost.total, progress.cost.box,
-                    progress.rate);
+                std::cout << SushiLog::format_text(
+                    "  epoch {}/{} loss {}   box {}   rate {}\n",
+                    SushiLog::right(progress.epoch, 3), SushiLog::left(epochs, 3),
+                    SushiLog::fixed(progress.cost.total, 6), SushiLog::fixed(progress.cost.box, 6),
+                    SushiLog::general(progress.rate, 6));
             }
 
             /**
@@ -244,15 +246,20 @@ namespace SushiAI
             void print_detections(std::size_t image, const std::vector<float>& detections)
             {
                 const std::size_t count = detections.size() / Vision::Detect::K_DETECTION_VALUES;
-                std::cout << SushiBLAS::Core::format("image {}: {} detections\n", image, count);
+                std::cout << SushiLog::format_text("image {}: {} detections\n", image, count);
                 for (std::size_t at = 0; at < count; ++at)
                 {
                     const float* const row =
                         detections.data() + at * Vision::Detect::K_DETECTION_VALUES;
-                    std::cout << SushiBLAS::Core::format(
-                        "  class {:>3}  score {:.4f}  box {:8.2f} {:8.2f} {:8.2f} {:8.2f}\n",
-                        static_cast<std::int64_t>(row[Vision::Detect::K_DETECTION_CLASS]),
-                        row[Vision::Detect::K_DETECTION_SCORE], row[0], row[1], row[2], row[3]);
+                    std::cout << SushiLog::format_text(
+                        "  class {}  score {}  box {} {} {} {}\n",
+                        SushiLog::right(
+                            static_cast<std::int64_t>(row[Vision::Detect::K_DETECTION_CLASS]), 3),
+                        SushiLog::fixed(row[Vision::Detect::K_DETECTION_SCORE], 4),
+                        SushiLog::right(SushiLog::fixed(row[0], 2), 8),
+                        SushiLog::right(SushiLog::fixed(row[1], 2), 8),
+                        SushiLog::right(SushiLog::fixed(row[2], 2), 8),
+                        SushiLog::right(SushiLog::fixed(row[3], 2), 8));
                 }
             }
 
@@ -278,9 +285,9 @@ namespace SushiAI
                     rows += head.rows;
 
                 print_inference_header(
-                    run, SushiBLAS::Core::format("{} heads, {} classes", heads.size(),
+                    run, SushiLog::format_text("{} heads, {} classes", heads.size(),
                                                  task.num_classes));
-                std::cout << SushiBLAS::Core::format(
+                std::cout << SushiLog::format_text(
                     "Detections : score above {}, suppression above {}; boxes are x1 y1 x2 y2 "
                     "in pixels of the {} by {} input\n\n",
                     K_SCORE_THRESHOLD, K_SUPPRESSION_THRESHOLD, input[1], input[0]);
@@ -318,7 +325,7 @@ namespace SushiAI
                     }
                 }
 
-                std::cout << SushiBLAS::Core::format(
+                std::cout << SushiLog::format_text(
                     "\n{} detections over {} images.\n", found,
                     run.dataset.batch_count() * batch_size);
                 return Status();

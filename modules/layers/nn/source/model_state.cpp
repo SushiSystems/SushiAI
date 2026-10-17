@@ -34,10 +34,10 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI
 {

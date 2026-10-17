@@ -37,12 +37,12 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

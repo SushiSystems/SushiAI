@@ -31,9 +31,9 @@
 #include <memory>
 #include <string_view>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/train/decision_threshold.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>

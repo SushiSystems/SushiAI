@@ -30,7 +30,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/fitted_sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */

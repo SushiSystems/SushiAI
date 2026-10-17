@@ -28,7 +28,7 @@
 #pragma once
 
 #include <string_view>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/target.hpp>
 

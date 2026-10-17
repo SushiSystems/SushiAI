@@ -29,7 +29,8 @@ that select a row from a file.
 
 ## Depends on
 
-The module declares `core` as a public dependency. Its JSON parser comes from `nlohmann_json`,
+The module declares `failure`, `dtype`, `shape`, `seam` as a public dependency. Its JSON parser
+comes from `nlohmann_json`,
 which the module takes through `EXTERNAL_PRIVATE_INCLUDES`: the module receives the include
 directories and definitions of that target, and the target name stays out of the module's link
 interface. It declares no other private dependency.

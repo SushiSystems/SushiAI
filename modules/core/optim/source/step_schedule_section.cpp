@@ -33,7 +33,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include "schedule_section.hpp"
 
 namespace SushiAI

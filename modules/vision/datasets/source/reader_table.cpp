@@ -31,7 +31,7 @@
 #include <iterator>
 #include <vector>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/cifar.hpp>
 #include <SushiAI/vision/datasets/coco_json.hpp>
 #include <SushiAI/vision/datasets/csv.hpp>

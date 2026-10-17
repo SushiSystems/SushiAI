@@ -38,7 +38,7 @@
 #include <variant>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
@@ -50,7 +50,8 @@
 #include <SushiAI/train/objective_registry.hpp>
 #include <SushiAI/train/role_match.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include "registries.hpp"
 #include "run_start.hpp"
 #include "training_run.hpp"
@@ -91,17 +92,19 @@ namespace
     /** @brief Returns what the header prints for a step schedule. */
     [[nodiscard]] std::string describe_schedule(const sa::Optim::StepSchedule& schedule)
     {
-        return SushiBLAS::Core::format("scheduled from {:.6g}, {} warm-up iterations, {} steps",
-                                       schedule.base_rate, schedule.warmup_iterations,
+        return SushiLog::format_text("scheduled from {}, {} warm-up iterations, {} steps",
+                                       SushiLog::general(schedule.base_rate, 6),
+                                       schedule.warmup_iterations,
                                        schedule.steps.size());
     }
 
     /** @brief Returns what the header prints for a cosine schedule. */
     [[nodiscard]] std::string describe_schedule(const sa::Optim::CosineSchedule& schedule)
     {
-        return SushiBLAS::Core::format(
-            "scheduled from {:.6g}, {} warm-up iterations, cosine to {:.6g} at iteration {}",
-            schedule.base_rate, schedule.warmup_iterations, schedule.final_rate,
+        return SushiLog::format_text(
+            "scheduled from {}, {} warm-up iterations, cosine to {} at iteration {}",
+            SushiLog::general(schedule.base_rate, 6), schedule.warmup_iterations,
+            SushiLog::general(schedule.final_rate, 6),
             schedule.total_iterations);
     }
 
@@ -210,22 +213,22 @@ namespace
                   << "----------------------------------------------------------------\n"
                   << "SushiAI    : " << SushiAI::version_string()
                   << " on SushiBLAS " << SUSHIBLAS_VERSION_STRING << "\n"
-                  << SushiBLAS::Core::format("Config     : {}\n", argv[1])
-                  << SushiBLAS::Core::format("Model      : {} ({} layers, {} learnable scalars)\n",
+                  << SushiLog::format_text("Config     : {}\n", argv[1])
+                  << SushiLog::format_text("Model      : {} ({} layers, {} learnable scalars)\n",
                                              spec.model_path.string(), model.size(),
                                              sa::NN::parameter_elements(model))
-                  << SushiBLAS::Core::format("Weights    : {}\n",
+                  << SushiLog::format_text("Weights    : {}\n",
                                              sa::Apps::describe_start(spec))
-                  << SushiBLAS::Core::format("Objective  : {}\n", objective->name())
-                  << SushiBLAS::Core::format("Data       : {} ({} x {})\n",
+                  << SushiLog::format_text("Objective  : {}\n", objective->name())
+                  << SushiLog::format_text("Data       : {} ({} x {})\n",
                                              dataset->name(), dataset->batch_count(),
                                              dataset->batch_size())
-                  << SushiBLAS::Core::format("Optimizer  : {}\n", spec.optimizer_type)
-                  << SushiBLAS::Core::format("Rate       : {}\n", describe_rate(schedule))
-                  << SushiBLAS::Core::format("Graph      : {} IR nodes over {} values\n",
+                  << SushiLog::format_text("Optimizer  : {}\n", spec.optimizer_type)
+                  << SushiLog::format_text("Rate       : {}\n", describe_rate(schedule))
+                  << SushiLog::format_text("Graph      : {} IR nodes over {} values\n",
                                              built.graph.node_count(), built.graph.value_count())
-                  << SushiBLAS::Core::format("Seed       : {}\n", start.seed)
-                  << SushiBLAS::Core::format("Schedule   : {} epochs\n\n", spec.epochs);
+                  << SushiLog::format_text("Seed       : {}\n", start.seed)
+                  << SushiLog::format_text("Schedule   : {} epochs\n\n", spec.epochs);
 
         // The run is a row or the fallback run; see applications/programs/README.md.
         sa::Apps::PreparedRun prepared{
@@ -236,7 +239,7 @@ namespace
                       sa::Apps::run_training(registries.runs, spec.objective_type, prepared));
 
         // CTest pins this line's shape, as in `sa demo mlp`; see applications/programs/README.md.
-        std::cout << SushiBLAS::Core::format("\ncompiles: {}\n", summary.compile_count);
+        std::cout << SushiLog::format_text("\ncompiles: {}\n", summary.compile_count);
         if (summary.compile_count != 1)
             std::cerr << "The step must be compiled exactly once.\n";
 
@@ -247,7 +250,7 @@ namespace
         {
             SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, state, *optimizer, engine,
                                                summary.progress));
-            std::cout << SushiBLAS::Core::format("wrote {} ({} scalars)\n",
+            std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),
                                                  sa::NN::parameter_elements(model));
         }

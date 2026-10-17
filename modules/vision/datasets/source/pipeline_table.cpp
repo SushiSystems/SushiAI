@@ -31,9 +31,8 @@
 #include <iterator>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/augment_pipeline.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>
 #include <SushiAI/vision/imaging/image.hpp>

@@ -29,7 +29,7 @@
 
 #include <cstdint>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 /** @brief Holds the token file of a corpus and the dataset that reads it in windows. */
 namespace SushiAI::Language::Datasets

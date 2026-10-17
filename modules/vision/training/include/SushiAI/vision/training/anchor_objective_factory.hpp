@@ -31,7 +31,7 @@
 #include <string_view>
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>

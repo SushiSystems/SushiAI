@@ -29,7 +29,7 @@
 
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI::Vision::Training::Detail
 {

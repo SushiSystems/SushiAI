@@ -32,8 +32,8 @@
 #include <cstdint>
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/traced.hpp>
 #include <SushiAI/nn/node_attributes.hpp>

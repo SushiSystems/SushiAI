@@ -34,8 +34,8 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>

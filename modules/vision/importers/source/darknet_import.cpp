@@ -33,9 +33,9 @@
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>

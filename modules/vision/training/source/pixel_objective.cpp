@@ -29,7 +29,7 @@
 
 #include <limits>
 #include <string>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/vision/segment/ignore_index.hpp>
 

@@ -28,7 +28,7 @@
 #pragma once
 
 #include <tuple>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/module.hpp>

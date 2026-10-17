@@ -46,5 +46,7 @@ sushiai_add_module(NAME datasets TIER vision
         source/voc_xml.cpp
         source/xml_element.cpp
         source/yolo_txt.cpp
-    PUBLIC_DEPENDS config core data vision/codecs vision/imaging
-    PRIVATE_DEPENDS vision/segment)
+    PUBLIC_DEPENDS config data failure shape vision/codecs vision/imaging
+    PRIVATE_DEPENDS dtype seam vision/segment
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS SushiLog::text)

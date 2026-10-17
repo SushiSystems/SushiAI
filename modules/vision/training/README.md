@@ -24,7 +24,8 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 - `vision/segment`, for the confusion matrix, the two metrics read from it, the class pick
   and `K_DEFAULT_IGNORE_INDEX`.
 - `data`, for `Batch`, `TargetDescription` and the role names.
-- `graph`, `nn`, `optim` and `core`, as `train` names them.
+- `graph`, `nn`, `optim` and `failure`, `dtype`, `shape`, `seam`, `execution`, as `train` names
+  them.
 
 ## Public entry points
 

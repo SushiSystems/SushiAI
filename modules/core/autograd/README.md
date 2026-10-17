@@ -11,7 +11,7 @@ finite differences.
 
 ## Depends on
 
-The module declares `core` and `graph` as public dependencies. It declares no private
+The module declares `failure`, `ops` and `graph` as public dependencies. It declares no private
 dependency.
 
 ## Public entry points

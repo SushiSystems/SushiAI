@@ -30,7 +30,7 @@
 #include <string>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/train_config.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/optim/optimizer.hpp>

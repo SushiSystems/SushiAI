@@ -29,7 +29,7 @@
 
 #include <utility>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/rate_schedule_section.hpp>
 
 namespace SushiAI

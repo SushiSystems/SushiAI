@@ -28,8 +28,8 @@
 #pragma once
 
 #include <utility>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 namespace SushiAI

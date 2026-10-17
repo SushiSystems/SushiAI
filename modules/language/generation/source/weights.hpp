@@ -31,7 +31,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/generation/sampler.hpp>
 
 namespace SushiAI::Language::Generation::Detail

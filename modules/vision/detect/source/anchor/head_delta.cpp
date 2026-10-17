@@ -32,8 +32,8 @@
 #include <cstddef>
 #include <string>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/head_truth.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 

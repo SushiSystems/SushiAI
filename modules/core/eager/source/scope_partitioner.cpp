@@ -33,8 +33,8 @@
 #include <string>
 #include <vector>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
 {

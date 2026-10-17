@@ -31,7 +31,7 @@
 #include <string_view>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/launch/device_policy.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/graph/fusion.hpp>
 
 namespace SushiAI

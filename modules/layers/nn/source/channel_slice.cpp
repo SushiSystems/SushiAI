@@ -28,7 +28,7 @@
 #include <SushiAI/nn/channel_slice.hpp>
 
 #include <cstdint>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

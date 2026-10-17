@@ -28,8 +28,9 @@
 #pragma once
 
 #include <string_view>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
 {

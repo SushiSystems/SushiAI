@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>
 #include <SushiAI/vision/datasets/pipeline_table.hpp>

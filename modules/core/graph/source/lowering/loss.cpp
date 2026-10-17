@@ -32,9 +32,9 @@
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 
 namespace SushiAI

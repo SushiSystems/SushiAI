@@ -32,7 +32,7 @@
 #include <limits>
 #include <utility>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {

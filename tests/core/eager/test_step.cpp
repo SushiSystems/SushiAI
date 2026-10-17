@@ -30,7 +30,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "eager_run_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/step.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>

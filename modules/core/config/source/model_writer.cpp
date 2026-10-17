@@ -37,8 +37,8 @@
 #include <vector>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

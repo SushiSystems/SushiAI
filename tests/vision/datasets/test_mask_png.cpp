@@ -31,8 +31,8 @@
 #include <string>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/datasets/mask_png.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>

@@ -29,7 +29,7 @@
 
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/nonlinear/nonlinear.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/lowering/context.hpp>
 
 namespace SushiAI

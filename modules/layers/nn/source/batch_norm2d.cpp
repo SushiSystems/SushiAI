@@ -30,9 +30,9 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/node_attributes.hpp>

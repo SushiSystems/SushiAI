@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <vector>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 namespace SushiAI

@@ -33,8 +33,8 @@
 #include <cstring>
 #include <unordered_map>
 
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {

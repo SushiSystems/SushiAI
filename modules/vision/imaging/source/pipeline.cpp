@@ -30,7 +30,7 @@
 #include <string_view>
 #include <utility>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/recent_partners.hpp>

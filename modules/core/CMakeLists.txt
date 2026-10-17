@@ -7,7 +7,14 @@
 # core: the tier that knows no layer type and no domain.
 # A module is added by its folder and one line here.
 
-add_subdirectory(core)
+add_subdirectory(log)
+add_subdirectory(failure)
+add_subdirectory(dtype)
+add_subdirectory(shape)
+add_subdirectory(ops)
+add_subdirectory(seam)
+add_subdirectory(execution)
+add_subdirectory(allocation)
 add_subdirectory(version)
 add_subdirectory(graph)
 add_subdirectory(config)

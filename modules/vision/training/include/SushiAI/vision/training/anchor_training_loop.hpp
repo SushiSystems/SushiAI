@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <functional>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/optim/rate_schedule.hpp>
 #include <SushiAI/vision/detect/anchor/head_cost.hpp>

@@ -29,7 +29,7 @@
 
 #include <cstddef>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/image.hpp>

@@ -29,8 +29,8 @@
 
 #include <cstdint>
 #include <limits>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Language::Training
 {

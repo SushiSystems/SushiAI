@@ -31,8 +31,8 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>

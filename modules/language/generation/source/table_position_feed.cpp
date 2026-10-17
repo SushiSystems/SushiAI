@@ -28,9 +28,9 @@
 #include <SushiAI/language/generation/table_position_feed.hpp>
 
 #include <utility>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include "step_leaf.hpp"

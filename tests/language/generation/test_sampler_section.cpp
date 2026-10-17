@@ -30,7 +30,7 @@
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
 #include <SushiAI/language/generation/nucleus_sampler.hpp>

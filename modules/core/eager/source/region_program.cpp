@@ -32,9 +32,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 

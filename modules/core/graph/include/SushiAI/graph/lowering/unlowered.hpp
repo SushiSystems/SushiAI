@@ -28,7 +28,7 @@
 #pragma once
 
 #include <array>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
 {

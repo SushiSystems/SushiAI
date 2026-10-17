@@ -10,11 +10,12 @@ sushiai_add_module(NAME darknet_forward_cases TIER vision INTERNAL
     SOURCES
         source/darknet_forward.cpp
     PUBLIC_DEPENDS
-        core
         darknet_reference
         engine_fixture
+        failure
         failure_expectations
         umbrella
         vision/detect
         vision/importers
-    PRIVATE_DEPENDS config graph nn train)
+    PRIVATE_DEPENDS allocation config graph nn shape train
+    EXTERNAL_PUBLIC SushiRuntime::core)

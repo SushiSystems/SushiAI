@@ -13,5 +13,6 @@ sushiai_add_module(NAME segment TIER vision
         source/intersection_over_union.cpp
         source/pixel_accuracy.cpp
         source/rasterise_outlines.cpp
-    PUBLIC_DEPENDS core vision/imaging
-    EXTERNAL_PUBLIC SushiRuntime::SushiRuntime)
+    PUBLIC_DEPENDS failure vision/imaging
+    PRIVATE_DEPENDS seam
+    EXTERNAL_PUBLIC SushiRuntime::core)

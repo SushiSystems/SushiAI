@@ -34,11 +34,11 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>

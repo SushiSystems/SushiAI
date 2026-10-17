@@ -31,7 +31,6 @@
 #include <cstddef>
 #include <optional>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include "chunks.hpp"
 #include "disk.hpp"

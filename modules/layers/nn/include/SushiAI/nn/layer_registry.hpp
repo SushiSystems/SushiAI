@@ -32,8 +32,8 @@
 #include <string_view>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
 

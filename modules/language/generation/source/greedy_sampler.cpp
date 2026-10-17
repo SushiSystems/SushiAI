@@ -28,7 +28,7 @@
 #include <SushiAI/language/generation/greedy_sampler.hpp>
 
 #include <algorithm>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI::Language::Generation
 {

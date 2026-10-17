@@ -30,8 +30,8 @@
 #include <string>
 #include <tuple>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>

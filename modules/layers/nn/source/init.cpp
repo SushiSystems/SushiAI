@@ -31,7 +31,8 @@
 #include <cstddef>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/nn/model_state.hpp>
 
 namespace SushiAI

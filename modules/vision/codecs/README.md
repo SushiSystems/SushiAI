@@ -14,7 +14,7 @@ no libjpeg call ends the process.
 
 ## Depends on
 
-- `vision/imaging` and `core` (`PUBLIC_DEPENDS`).
+- `vision/imaging` and `failure` (`PUBLIC_DEPENDS`).
 - libjpeg-turbo and libpng (`EXTERNAL_PRIVATE_LINKS`, targets `JPEG::JPEG` and `PNG::PNG`).
   `source/jpeg_decoder.cpp` includes `jpeglib.h` and `jerror.h`; `source/png_decoder.cpp` includes
   `png.h`. No public header names a type of either library. `JCS_EXT_RGB` is a libjpeg-turbo

@@ -10,7 +10,7 @@ holds what `register_layers` adds, `types_of` lists the type of each row, and `M
 
 ## Depends on
 
-`core`, `nn`, `model_text` and `failure_expectations`.
+`failure`, `shape`, `nn`, `model_text` and `failure_expectations`.
 
 ## Public entry points
 

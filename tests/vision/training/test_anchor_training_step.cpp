@@ -39,7 +39,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/core/allocation.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>

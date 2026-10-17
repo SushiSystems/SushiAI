@@ -32,7 +32,7 @@
 #include <cmath>
 #include <cstddef>
 
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI

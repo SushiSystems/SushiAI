@@ -43,9 +43,9 @@
 #include <jerror.h>
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
@@ -224,7 +224,7 @@ namespace SushiAI::Vision::Codecs
                                         : StatusCode::InvalidFile;
             return Status::from_message(code, [&]()
             {
-                return SushiBLAS::Core::format("decode_jpeg: {}",
+                return SushiLog::format_text("decode_jpeg: {}",
                                                static_cast<const char*>(session.message));
             });
         }
@@ -352,7 +352,7 @@ namespace SushiAI::Vision::Codecs
 
             return Status::from_message(StatusCode::Unsupported, [&]()
             {
-                return SushiBLAS::Core::format(
+                return SushiLog::format_text(
                     "decode_jpeg: colour space {} of libjpeg's J_COLOR_SPACE is not decoded",
                     static_cast<int>(stored));
             });
@@ -434,7 +434,7 @@ namespace SushiAI::Vision::Codecs
         {
             return Status::from_message(StatusCode::InvalidFile, [&]()
             {
-                return SushiBLAS::Core::format("decode_jpeg: {}", error.what());
+                return SushiLog::format_text("decode_jpeg: {}", error.what());
             });
         }
     }

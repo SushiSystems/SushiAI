@@ -35,7 +35,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_program.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>

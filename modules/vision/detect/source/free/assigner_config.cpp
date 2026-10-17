@@ -28,7 +28,7 @@
 
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -34,7 +34,6 @@
 #include <limits>
 #include <ostream>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include "disk.hpp"
 #include "little_endian.hpp"

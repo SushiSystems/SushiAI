@@ -151,8 +151,9 @@ function(sushiai_add_test_program)
     if(WIN32)
         add_custom_command(TARGET ${program} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                "$<TARGET_FILE:SushiRuntime::SushiRuntime>"
+                "$<TARGET_FILE:SushiRuntime::shared_library>"
+                "$<TARGET_FILE:SushiLog::SushiLog>"
                 $<TARGET_FILE_DIR:${program}>
-            COMMENT "Copying the runtime DLL beside ${program}...")
+            COMMENT "Copying the runtime and log DLLs beside ${program}...")
     endif()
 endfunction()

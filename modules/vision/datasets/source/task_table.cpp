@@ -35,7 +35,7 @@
 #include <utility>
 #include <vector>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
 #include <SushiAI/vision/datasets/classification_collator.hpp>
 #include <SushiAI/vision/datasets/detection_collator.hpp>

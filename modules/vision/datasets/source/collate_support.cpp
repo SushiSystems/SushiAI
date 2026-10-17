@@ -27,9 +27,9 @@
 
 #include "collate_support.hpp"
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/target.hpp>
 
 #include "disk.hpp"
@@ -41,7 +41,7 @@ namespace SushiAI::Vision::Datasets::Detail
         if (sample.file < list.files.size())
             return display_of(list.files[sample.file]);
 
-        return SushiBLAS::Core::format("file {}", sample.file);
+        return SushiLog::format_text("file {}", sample.file);
     }
 
     Result<SushiBLAS::Tensor*> role_tensor(Data::Batch& batch, std::string_view role,

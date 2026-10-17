@@ -30,8 +30,8 @@
 #include <cstdint>
 #include <string>
 #include <utility>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/generation/greedy_sampler.hpp>
 #include <SushiAI/language/generation/nucleus_sampler.hpp>
 #include <SushiAI/language/generation/temperature_sampler.hpp>

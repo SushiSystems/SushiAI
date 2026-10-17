@@ -29,7 +29,7 @@
 #include <gtest/gtest.h>
 #include "trainer_run.hpp"
 #include "training_run.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::StatusCode;

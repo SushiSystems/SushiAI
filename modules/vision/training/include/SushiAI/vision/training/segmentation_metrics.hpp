@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <string_view>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>

@@ -31,10 +31,9 @@
 #include <cstddef>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include "disk.hpp"
 #include "pair_key.hpp"

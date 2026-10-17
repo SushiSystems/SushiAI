@@ -28,7 +28,7 @@
 #include <SushiAI/nn/flatten.hpp>
 
 #include <cstdint>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -29,9 +29,8 @@
 
 #include <string_view>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Language::Datasets
 {

@@ -31,8 +31,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/model_text/model_text.hpp>

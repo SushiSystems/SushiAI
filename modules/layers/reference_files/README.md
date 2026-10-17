@@ -13,7 +13,7 @@ element. A file is named by its path below `SA_TEST_FIXTURE_DIR`, the `fixtures/
 
 ## Depends on
 
-`core`, `io`, for the checkpoint format, and GTest.
+`failure`, `dtype`, `shape`, `io`, for the checkpoint format, and GTest.
 
 ## Public entry points
 

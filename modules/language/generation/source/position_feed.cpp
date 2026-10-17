@@ -27,8 +27,8 @@
 
 #include <SushiAI/language/generation/position_feed.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/generation/ring_position_feed.hpp>
 #include "step_leaf.hpp"
 #include <SushiAI/language/generation/table_position_feed.hpp>

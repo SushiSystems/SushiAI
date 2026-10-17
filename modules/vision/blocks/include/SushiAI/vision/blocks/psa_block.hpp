@@ -29,7 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/layers.hpp>

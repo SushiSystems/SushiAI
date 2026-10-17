@@ -41,11 +41,11 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/model_writer.hpp>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/shape.hpp>
-#include <SushiAI/core/status.hpp>
-#include <SushiAI/core/tensor_shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>

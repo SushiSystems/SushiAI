@@ -27,8 +27,8 @@
  */
 
 #include <gtest/gtest.h>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/input.hpp>
 
 using namespace SushiAI;

@@ -52,7 +52,7 @@ their bytes.
 From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 `PRIVATE_DEPENDS autograd`. The module's headers use these:
 
-- `core`: `Status`, `Result`, `Shape` and `DType`.
+- `failure`, `dtype`, `shape`, `seam`, `execution`: `Status`, `Result`, `Shape` and `DType`.
 - `graph`: the IR, the builder, `TensorPool`, `CompiledStep`, `StepRecorder` and the cast and
   fusion reports.
 - `nn`: `NN::Trace`, `NN::ModelState`, `NN::ModelOutputs` and `trace_layer`.
@@ -63,7 +63,8 @@ From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 `autograd` is linked privately. Only `source/steps.cpp` includes it, through
 `autograd/backward.hpp`; no header under `include/` does, so a consumer does not link it. The
 headers also include `SushiBLAS/engine/engine.hpp`, `SushiBLAS/tensor/tensor.hpp`,
-`SushiRuntime/core/span.hpp` and `SushiRuntime/sushiruntime.hpp`, which reach the module through `core` as external public
+`SushiRuntime/core/span.hpp` and `SushiRuntime/sushiruntime.hpp`, which reach the module through
+`failure`, `dtype`, `shape`, `seam` as external public
 dependencies.
 
 ## Public entry points

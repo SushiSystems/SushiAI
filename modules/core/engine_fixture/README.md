@@ -19,7 +19,7 @@ mode, because asynchronous logging interleaves with the output of GTest.
 
 ## Depends on
 
-`core`, for `Detail::create_runtime()`, and GTest.
+`execution`, for `Detail::create_runtime()`, `failure`, and GTest.
 
 ## Public entry points
 

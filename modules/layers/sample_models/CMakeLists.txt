@@ -7,4 +7,4 @@
 # sample_models: small models the tests build.
 
 sushiai_add_module(NAME sample_models TIER layers INTERNAL
-    PUBLIC_DEPENDS core nn)
+    PUBLIC_DEPENDS failure nn shape)

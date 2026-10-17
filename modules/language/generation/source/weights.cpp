@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI::Language::Generation::Detail
 {

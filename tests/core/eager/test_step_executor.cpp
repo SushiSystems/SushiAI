@@ -32,7 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "eager_run_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/scope_partitioner.hpp>
 #include <SushiAI/eager/session.hpp>

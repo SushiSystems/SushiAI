@@ -31,10 +31,10 @@
 #include <string>
 #include <string_view>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 
 namespace SushiAI::Language::Generation::Detail

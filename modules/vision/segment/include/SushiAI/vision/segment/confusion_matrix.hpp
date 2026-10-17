@@ -31,8 +31,8 @@
 #include <cstdint>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 /** @brief Holds the mask geometry and the metrics of semantic segmentation. */
 namespace SushiAI::Vision::Segment

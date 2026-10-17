@@ -31,7 +31,7 @@
 #include <string_view>
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 
 namespace SushiAI

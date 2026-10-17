@@ -29,7 +29,7 @@
 #include <memory>
 #include <gtest/gtest.h>
 #include "position_feed_test_support.hpp"
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/language/generation/position_feed.hpp>

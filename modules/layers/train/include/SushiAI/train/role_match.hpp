@@ -28,7 +28,7 @@
 #pragma once
 
 #include <vector>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/target.hpp>
 

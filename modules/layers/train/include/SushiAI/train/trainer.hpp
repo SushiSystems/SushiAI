@@ -35,9 +35,8 @@
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/graph/compiled_step.hpp>

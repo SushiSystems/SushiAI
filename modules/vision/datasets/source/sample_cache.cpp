@@ -34,9 +34,9 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
@@ -207,7 +207,7 @@ namespace SushiAI::Vision::Datasets
                        "'{}': {}: the modification time cannot be read: {}",
                        Detail::display_of(source), K_CACHE, error.message());
 
-            const std::string key = SushiBLAS::Core::format(
+            const std::string key = SushiLog::format_text(
                 "{}|{}|{}|{}|{}", source.generic_u8string(), bytes,
                 static_cast<std::int64_t>(modified.time_since_epoch().count()),
                 options.longest_side, static_cast<std::int32_t>(options.layout));

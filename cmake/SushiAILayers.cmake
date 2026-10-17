@@ -27,7 +27,14 @@ set(SUSHIAI_TIER_LIBRARY
 # Pairs: module key, then its tier. A module of a domain tier is keyed
 # <tier>/<module>, so two domains may each have a `blocks` or a `datasets`.
 set(SUSHIAI_MODULE_TIERS
-    core                 core
+    log                  core
+    failure              core
+    dtype                core
+    shape                core
+    ops                  core
+    seam                 core
+    execution            core
+    allocation           core
     version              core
     graph                core
     config               core

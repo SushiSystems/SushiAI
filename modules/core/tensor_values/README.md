@@ -15,7 +15,7 @@ guards it reads bits. `first_difference` gives the first byte where two such rea
 
 ## Depends on
 
-`core`, for `DType` and `dtype_size`, and GTest.
+`dtype`, for `DType` and `dtype_size`, and GTest.
 
 ## Public entry points
 

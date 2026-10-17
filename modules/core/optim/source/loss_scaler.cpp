@@ -27,10 +27,11 @@
 
 #include <cmath>
 #include <utility>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
 #include <SushiBLAS/reductions/reductions.hpp>
-#include <SushiAI/core/allocation.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 
 namespace SushiAI
@@ -267,9 +268,10 @@ namespace SushiAI
         std::string LossScaler::to_string() const
         {
             // Format loss scale metrics reporting overflowed steps, backoffs, and growths.
-            return SushiBLAS::Core::format(
-                "loss scale     : {:.0f} (steps overflowed: {}, backoffs: {}, growths: {})\n",
-                state_.scale(), state_.skipped_steps(), state_.backoffs(), state_.growths());
+            return SushiLog::format_text(
+                "loss scale     : {} (steps overflowed: {}, backoffs: {}, growths: {})\n",
+                SushiLog::fixed(state_.scale(), 0), state_.skipped_steps(), state_.backoffs(),
+                state_.growths());
         }
 
     } // namespace Optim

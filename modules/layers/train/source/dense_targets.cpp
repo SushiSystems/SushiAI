@@ -28,7 +28,7 @@
 #include <SushiAI/train/dense_targets.hpp>
 
 #include <cstdint>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI
 {

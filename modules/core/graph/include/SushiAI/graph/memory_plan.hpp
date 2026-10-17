@@ -33,7 +33,8 @@
 #include <vector>
 #include <SushiRuntime/core/common.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 namespace SushiAI

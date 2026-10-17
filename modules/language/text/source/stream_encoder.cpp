@@ -29,7 +29,7 @@
 
 #include <string>
 #include <string_view>
-#include <SushiAI/core/check.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/language/text/codec.hpp>
 #include "chunks.hpp"
 #include "disk.hpp"

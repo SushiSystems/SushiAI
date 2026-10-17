@@ -32,7 +32,6 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include <SushiAI/language/text/token.hpp>
 

@@ -29,7 +29,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <gtest/gtest.h>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/unlowered.hpp>
 
 using namespace SushiAI;

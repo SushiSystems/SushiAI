@@ -33,8 +33,7 @@
 #include <limits>
 #include <string_view>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 
 namespace SushiAI::Vision::Segment
 {

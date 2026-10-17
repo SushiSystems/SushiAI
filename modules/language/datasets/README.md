@@ -21,7 +21,8 @@ generation starts from. `modules/language/registration` adds both factories to a
 
 ## Depends on
 
-- `core` and `data` (`PUBLIC_DEPENDS`), for `Status`, `Shape`, `Data::Dataset`, `Data::Batch`
+- `failure`, `dtype`, `shape` and `data` (`PUBLIC_DEPENDS`), for `Status`, `Shape`, `Data::Dataset`,
+  `Data::Batch`
   and the role names.
 - `language/text` (`PUBLIC_DEPENDS`), for `Text::TokenID` in the public signatures, and for
   the vocabulary file and the encoder `make_prompt_dataset` reads a text with.

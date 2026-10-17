@@ -27,7 +27,7 @@
 
 #include <SushiAI/train/host_values.hpp>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 
 namespace SushiAI
 {

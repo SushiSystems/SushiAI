@@ -29,7 +29,7 @@
 
 #include <cmath>
 #include <string_view>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include "schedule_section.hpp"
 
 namespace SushiAI

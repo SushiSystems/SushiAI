@@ -31,7 +31,7 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI

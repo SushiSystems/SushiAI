@@ -44,9 +44,9 @@
 #include <vector>
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
@@ -133,7 +133,7 @@ namespace SushiAI::Vision::Codecs
             {
                 return Status::from_message(StatusCode::InvalidFile, [&]()
                 {
-                    return SushiBLAS::Core::format("decode_image: {}", error.what());
+                    return SushiLog::format_text("decode_image: {}", error.what());
                 });
             }
         }
@@ -218,7 +218,7 @@ namespace SushiAI::Vision::Codecs
 
         return Status::from_message(StatusCode::Unsupported, [&]()
         {
-            return SushiBLAS::Core::format(
+            return SushiLog::format_text(
                 "decode_image: the first of {} bytes open no image format this build decodes",
                 bytes.size());
         });
@@ -235,7 +235,7 @@ namespace SushiAI::Vision::Codecs
         {
             return Status::from_message(StatusCode::OutOfMemory, [&]()
             {
-                return SushiBLAS::Core::format(
+                return SushiLog::format_text(
                     "'{}': load_image: the file's bytes could not be allocated", display_of(path));
             });
         }
@@ -243,7 +243,7 @@ namespace SushiAI::Vision::Codecs
         {
             return Status::from_message(StatusCode::InvalidFile, [&]()
             {
-                return SushiBLAS::Core::format("'{}': load_image: {}", display_of(path),
+                return SushiLog::format_text("'{}': load_image: {}", display_of(path),
                                                error.what());
             });
         }

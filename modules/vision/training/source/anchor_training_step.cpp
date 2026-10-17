@@ -36,9 +36,10 @@
 
 #include <SushiBLAS/blas/blas.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>

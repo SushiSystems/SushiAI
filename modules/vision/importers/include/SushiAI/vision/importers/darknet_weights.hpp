@@ -32,7 +32,7 @@
 #include <iosfwd>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {

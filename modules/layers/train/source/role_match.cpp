@@ -29,11 +29,11 @@
 
 #include <string>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/common.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/target.hpp>
 
@@ -46,12 +46,12 @@ namespace SushiAI
             /** @brief Renders @p target as "4 classes of int32 [] per sample". */
             std::string describe(const Data::TargetDescription& target)
             {
-                const std::string values = SushiBLAS::Core::format(
+                const std::string values = SushiLog::format_text(
                     "{} {} per sample", dtype_name(target.dtype), target.sample_shape.to_string());
 
                 return target.classes == 0
                      ? values
-                     : SushiBLAS::Core::format("{} classes of {}", target.classes, values);
+                     : SushiLog::format_text("{} classes of {}", target.classes, values);
             }
 
             /** @brief Lists the roles of @p targets in quotes, or "(none)". */

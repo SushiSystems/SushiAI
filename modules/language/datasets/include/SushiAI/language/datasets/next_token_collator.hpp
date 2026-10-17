@@ -32,7 +32,7 @@
 #include <string_view>
 #include <vector>
 
-#include <SushiAI/core/result.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/language/datasets/collator.hpp>
 
 /** @brief Holds the token file of a corpus and the dataset that reads it in windows. */

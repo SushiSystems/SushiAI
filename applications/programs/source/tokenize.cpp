@@ -38,10 +38,10 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
-#include <SushiBLAS/core/format.hpp>
+#include <SushiLog/text/text_format.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/datasets/token_file.hpp>
 #include <SushiAI/language/text/bpe_trainer.hpp>
 #include <SushiAI/language/text/stream_encoder.hpp>
@@ -240,11 +240,11 @@ namespace
 
         std::cout << "sushiai tokenize train\n"
                   << "----------------------------------------------------------------\n"
-                  << SushiBLAS::Core::format("Corpus     : {} ({} bytes)\n",
+                  << SushiLog::format_text("Corpus     : {} ({} bytes)\n",
                                              request.corpus.string(), corpus.size())
-                  << SushiBLAS::Core::format("Vocabulary : {} tokens, {} of them merges\n",
+                  << SushiLog::format_text("Vocabulary : {} tokens, {} of them merges\n",
                                              vocabulary.size(), vocabulary.merges().size())
-                  << SushiBLAS::Core::format("\nwrote {}\n", request.output.string());
+                  << SushiLog::format_text("\nwrote {}\n", request.output.string());
         return Status();
     }
 
@@ -270,11 +270,11 @@ namespace
 
         std::cout << "sushiai tokenize encode\n"
                   << "----------------------------------------------------------------\n"
-                  << SushiBLAS::Core::format("Corpus     : {}\n", request.corpus.string())
-                  << SushiBLAS::Core::format("Vocabulary : {} ({} tokens)\n",
+                  << SushiLog::format_text("Corpus     : {}\n", request.corpus.string())
+                  << SushiLog::format_text("Vocabulary : {} ({} tokens)\n",
                                              request.vocabulary.string(), vocabulary.size())
-                  << SushiBLAS::Core::format("Tokens     : {}\n", ids.size())
-                  << SushiBLAS::Core::format("\nwrote {}\n", request.output.string());
+                  << SushiLog::format_text("Tokens     : {}\n", ids.size())
+                  << SushiLog::format_text("\nwrote {}\n", request.output.string());
         return Status();
     }
 

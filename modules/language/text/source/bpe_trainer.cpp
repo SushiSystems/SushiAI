@@ -34,10 +34,9 @@
 #include <unordered_map>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
-#include <SushiAI/core/check.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/language/text/token.hpp>
 
 #include "chunks.hpp"

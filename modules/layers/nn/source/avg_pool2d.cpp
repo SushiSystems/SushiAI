@@ -28,7 +28,7 @@
 #include <SushiAI/nn/avg_pool2d.hpp>
 
 #include <string_view>
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -30,8 +30,8 @@
 #include <cstdint>
 #include <string_view>
 #include <utility>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 

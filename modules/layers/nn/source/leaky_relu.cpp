@@ -27,7 +27,7 @@
 
 #include <SushiAI/nn/leaky_relu.hpp>
 
-#include <SushiAI/core/common.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

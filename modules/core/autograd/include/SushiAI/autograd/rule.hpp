@@ -29,7 +29,7 @@
 
 #include <array>
 #include <cstddef>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/autograd/tape.hpp>
 
 namespace SushiAI

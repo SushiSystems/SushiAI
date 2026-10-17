@@ -26,7 +26,7 @@
  */
 
 #include <utility>
-#include <SushiAI/core/seam.hpp>
+#include <SushiAI/seam/seam.hpp>
 #include <SushiAI/graph/arena.hpp>
 
 namespace SushiAI

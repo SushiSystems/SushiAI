@@ -27,7 +27,7 @@
 
 #include <SushiAI/train/step_view.hpp>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

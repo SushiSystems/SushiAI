@@ -33,7 +33,6 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
 
 #include "disk.hpp"

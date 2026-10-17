@@ -39,10 +39,9 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include <SushiAI/config/json_events.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/polygon.hpp>
 

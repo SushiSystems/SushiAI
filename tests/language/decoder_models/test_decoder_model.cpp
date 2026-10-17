@@ -30,7 +30,7 @@
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/config/model_config.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/decoder_models/decoder_model.hpp>
 #include <SushiAI/model_text/model_text.hpp>

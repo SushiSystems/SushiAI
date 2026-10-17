@@ -18,4 +18,6 @@ sushiai_add_module(NAME blocks TIER language
         source/rotary_embedding.cpp
         source/rotary_positions.cpp
         source/transformer_block.cpp
-    PUBLIC_DEPENDS config core graph nn)
+    PUBLIC_DEPENDS config failure graph nn shape
+    PRIVATE_DEPENDS dtype seam
+    EXTERNAL_PUBLIC SushiRuntime::core)

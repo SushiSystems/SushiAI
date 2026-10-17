@@ -39,9 +39,9 @@
 #include <png.h>
 
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/result.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
@@ -135,7 +135,7 @@ namespace SushiAI::Vision::Codecs
         {
             return Status::from_message(StatusCode::InvalidFile, [&]()
             {
-                return SushiBLAS::Core::format("decode_png: {}",
+                return SushiLog::format_text("decode_png: {}",
                                                static_cast<const char*>(control.message));
             });
         }
@@ -227,7 +227,7 @@ namespace SushiAI::Vision::Codecs
         {
             return Status::from_message(StatusCode::InvalidFile, [&]()
             {
-                return SushiBLAS::Core::format("decode_png: {}", error.what());
+                return SushiLog::format_text("decode_png: {}", error.what());
             });
         }
     }

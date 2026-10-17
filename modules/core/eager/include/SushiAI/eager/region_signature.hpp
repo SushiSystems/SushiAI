@@ -33,7 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/graph/ir.hpp>
 

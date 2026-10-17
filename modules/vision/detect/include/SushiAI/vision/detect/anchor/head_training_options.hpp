@@ -30,7 +30,7 @@
 
 #include <cstdint>
 
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
 

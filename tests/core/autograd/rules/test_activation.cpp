@@ -30,7 +30,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/activation.hpp>
-#include <SushiAI/core/ops.hpp>
+#include <SushiAI/ops/ops.hpp>
 
 using SushiAI::Autograd::K_ACTIVATION_RULES;
 namespace Autograd = SushiAI::Autograd;

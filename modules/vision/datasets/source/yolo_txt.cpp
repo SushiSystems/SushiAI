@@ -36,8 +36,8 @@
 #include <utility>
 #include <vector>
 
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/common.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
 
@@ -172,7 +172,7 @@ namespace SushiAI::Vision::Datasets
             {
                 return Status::from_message(StatusCode::InvalidFile, [&]()
                 {
-                    return SushiBLAS::Core::format("'{}': {}", Detail::display_of(label),
+                    return SushiLog::format_text("'{}': {}", Detail::display_of(label),
                                                    error.what());
                 });
             }

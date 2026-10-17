@@ -35,7 +35,7 @@
 #include <utility>
 
 #include <SushiAI/config/section_reader.hpp>
-#include <SushiAI/core/status.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {

@@ -35,9 +35,10 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiBLAS/core/format.hpp>
-#include <SushiAI/core/seam.hpp>
-#include <SushiAI/core/shape.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiLog/text/value_text.hpp>
+#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -179,11 +180,11 @@ namespace SushiAI::Vision::Datasets
             const std::uint32_t label_count = read_be32(labels);
 
             SA_FAIL_IF(image_magic != 0x00000803u, StatusCode::InvalidFile,
-                       "{} is not an IDX3 image file (magic 0x{:08x})",
-                       image_path(options).string(), image_magic);
+                       "{} is not an IDX3 image file (magic 0x{})",
+                       image_path(options).string(), SushiLog::hex(image_magic, 8));
             SA_FAIL_IF(label_magic != 0x00000801u, StatusCode::InvalidFile,
-                       "{} is not an IDX1 label file (magic 0x{:08x})",
-                       label_path(options).string(), label_magic);
+                       "{} is not an IDX1 label file (magic 0x{})",
+                       label_path(options).string(), SushiLog::hex(label_magic, 8));
             SA_FAIL_IF(image_count != label_count, StatusCode::InvalidFile,
                        "MNIST holds {} images but {} labels", image_count, label_count);
             SA_FAIL_IF(image_rows == 0 || image_cols == 0, StatusCode::InvalidFile,
@@ -261,7 +262,7 @@ namespace SushiAI::Vision::Datasets
 
     std::string mnist_expected_paths(const MNISTOptions& options)
     {
-        return SushiBLAS::Core::format("images: {}, labels: {}",
+        return SushiLog::format_text("images: {}, labels: {}",
                                        image_path(options).string(),
                                        label_path(options).string());
     }

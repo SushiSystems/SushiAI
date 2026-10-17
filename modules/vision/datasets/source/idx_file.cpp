@@ -36,7 +36,6 @@
 #include <string_view>
 #include <utility>
 
-#include <SushiBLAS/core/format.hpp>
 
 #include "disk.hpp"
 
