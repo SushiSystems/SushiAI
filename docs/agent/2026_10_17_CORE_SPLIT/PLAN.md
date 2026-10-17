@@ -42,8 +42,10 @@ Each header moves to `SushiAI/<module>/<name>.hpp`. Tier `core` throughout.
 - **`dtype` is a sixth module that was not on the owner's list.** `DType`, `Layout` and
   `K_MAX_RANK` share `common.hpp` with `Error`, but they describe elements, not failures. `ops`
   and `seam` need neither, and a file that needs only `DType` stops pulling in `Error`.
-- **The alias `sa` goes.** Each file names `SushiAI::`. A file that relies on `sa::` is rewritten
-  in the same task.
+- **The alias `sa` moves to the umbrella `SushiAI/SushiAI.hpp`.** Six files outside the library
+  use it: the examples, the programs and `tests/package/vision_main.cpp`, and each reaches
+  the umbrella, directly or through `SushiAI/vision.hpp`. Removing it would change the public surface, which is the owner's
+  decision.
 - Every module that names `core` today in `PUBLIC_DEPENDS` or `PRIVATE_DEPENDS` instead names
   the modules whose headers it includes, public or private by where the include sits.
 - `SushiRuntime::SushiRuntime` narrows to SushiRuntime's per-module targets once sushiruntime-d1
