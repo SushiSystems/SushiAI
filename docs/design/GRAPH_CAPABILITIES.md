@@ -17,7 +17,7 @@ estimate names the benchmark that would replace it.
 ## 1. The items
 
 Owners: **R** is SushiRuntime, **B** is SushiBLAS, **G** is SushiAI's graph
-(`modules/core/core`, `modules/core/graph`, `modules/core/autograd`), **A** is SushiAI above
+(the `core` tier: `modules/core/graph`, `modules/core/autograd` and the modules beneath them), **A** is SushiAI above
 the graph. Size counts units, a unit being a file added or an existing file edited, tests
 included: small is 1 to 3, medium 4 to 8, large more than 8.
 
@@ -821,7 +821,7 @@ Each item is the SushiAI session's work. "Now" means it needs nothing from secti
 and is written before them; like the rest of the tree, it is verified at the first build.
 
 Common to the items: a new operation is one `OpName` in
-`modules/core/core/include/SushiAI/core/ops.hpp` and its entry in `K_ALL`, one emitter of
+`modules/core/ops/include/SushiAI/ops/ops.hpp` and its entry in `K_ALL`, one emitter of
 `GraphBuilder` that returns a `Traced` and refuses as `gather_rows` does, one row of its
 domain's lowering table, and one row of its domain's rule table when it is differentiable. The
 static assertions `every_differentiable_op_has_a_rule` and `no_gradient_barrier_has_a_rule`
@@ -896,7 +896,7 @@ training form.
 ### G2. Square root, logarithm and power (now)
 
 **Limit.** The IR has `K_EXP`, `K_ABS` and `K_ATAN` as its unary math
-(`modules/core/core/include/SushiAI/core/ops.hpp:149-164`). SushiBLAS has the three kernels
+(`modules/core/ops/include/SushiAI/ops/ops.hpp:149-164`). SushiBLAS has the three kernels
 (`sushiblas/modules/operations/elementwise/include/SushiBLAS/elementwise/elementwise.hpp:108`,
 `:148`, `:163`).
 
@@ -1010,7 +1010,7 @@ the label as the index, an ignored pixel keeps the ignore index and reads as zer
 ### G6. A backward rule for the scatter-add (now)
 
 **Limit.** `K_SCATTER_ADD_ROWS` is declared without a gradient
-(`modules/core/core/include/SushiAI/core/ops.hpp:274`), so Dice feeds an `R * C` one-hot leaf
+(`modules/core/ops/include/SushiAI/ops/ops.hpp:274`), so Dice feeds an `R * C` one-hot leaf
 from the host at each step, 157 MB for one 512 by 512 image over 150 classes
 (`modules/vision/training/README.md:255-259`).
 

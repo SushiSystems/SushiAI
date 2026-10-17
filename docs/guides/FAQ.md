@@ -24,8 +24,8 @@ SushiAI is built on SushiBLAS's tensor and BLAS layer, and SushiBLAS runs on Sus
 graph. SushiAI writes no SYCL: no file names a `sycl::` type or submits to a queue, every
 compute call goes through SushiBLAS, and the eight per-domain tables under `modules/core/graph/source/lowering/`
 turn IR into those calls, each through a view built from the step's `SushiBLAS::TaskRecorder`.
-The library target `SushiAI::sushiai` links `SushiRuntime::SushiRuntime` and
-`SushiBLAS::sushiblas` `PUBLIC`.
+The library target `SushiAI::sushiai` links `SushiRuntime::core`, `SushiRuntime::api`,
+`SushiBLAS::sushiblas` and `SushiLog::SushiLog` `PUBLIC`.
 
 The [glossary](../reference/GLOSSARY.md) defines SushiStack as the set of repositories
 SushiRuntime, SushiBLAS, SushiEngine, SushiAI and the hub. `hub` is the workspace CLI that
@@ -144,11 +144,11 @@ equivalent `model.json`, and the reverse.
 ## How does a call report a failure?
 
 A call that allocates, records, compiles or runs returns a `Status` or a `Result<T>`
-(`core/status.hpp`, `core/result.hpp`). `AdamW`, `SGD`, `Trainer`, `LossScaler`, `StepScalars`
+(`failure/status.hpp`, `failure/result.hpp`). `AdamW`, `SGD`, `Trainer`, `LossScaler`, `StepScalars`
 and the datasets are built by a static `make`, `CompiledStep` by `compile`, and the checkpoint
 stream classes by `CheckpointWriter::create` and `CheckpointReader::open`; each returns a
 `Result`. `initialize`, `save_checkpoint` and `load_checkpoint` return a `Status`.
-`core/seam.hpp` turns an exception of SushiBLAS or SushiRuntime into a status.
+`seam/seam.hpp` turns an exception of SushiBLAS or SushiRuntime into a status.
 
 Code that touches no device still throws `SushiAI::Error`: the graph builder, the layers' `forward`,
 `Autograd::differentiate` and `build_layer_stack`. Reading `value()` from a failed `Result` is a

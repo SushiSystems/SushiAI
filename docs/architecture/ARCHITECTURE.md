@@ -98,19 +98,19 @@ The pieces C++20 had been supplying are C++17 spellings now:
 | was | is | where |
 |---|---|---|
 | `std::span` | `SushiRuntime::span` | 105 sites across 31 files: the same type wherever `std::span` exists |
-| `std::format` | `SushiBLAS::Core::format` | `SA_FAIL_IF`, `SA_FATAL_IF`, `SA_THROW_IF` and every report/diagnostic string |
+| `std::format` | `SushiLog::format_text` | `SA_FAIL_IF`, `SA_FATAL_IF`, `SA_THROW_IF` and every report/diagnostic string |
 | `concept Module` / `ModuleContainer` | `constexpr bool` variable templates over `std::void_t` detectors | `nn/module.hpp` |
 | `template<Module... Ls>` | `template<typename... Ls>` + a `static_assert` fold | `nn/layers.hpp`'s `Sequential` |
-| `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `core/ops.hpp`, `modules/core/graph/source/fusion.cpp` |
+| `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `ops/ops.hpp`, `modules/core/graph/source/fusion.cpp` |
 
-`SushiBLAS::Core::format` is **shared, not copied**: SushiBLAS carries the
-stand-in as an installed public header and SushiAI links SushiBLAS
-unconditionally, so a third copy of the same code would only have meant a
-third place to delete when the stack returns to C++20. One guarantee is
-genuinely lost with it: `std::format`'s `consteval` check on a literal format
-string, so a placeholder/argument mismatch is now a slightly worse message
-rather than a compile error. Diagnostics never fail the program; that is the
-trade.
+`SushiLog::format_text` is **shared, not copied**: the stack keeps one general
+formatter, in SushiLog's `text` module, and SushiAI links `SushiLog::text` from
+the module `failure`, whose macros build every message with it. Each `{}` takes
+the next argument through `operator<<`, and there are no format specs: a value
+that needs a width, a precision or hex goes through one of SushiLog's value
+helpers first. `std::format`'s `consteval` check on a literal format string is
+lost, so a placeholder/argument mismatch is a worse message rather than a
+compile error.
 
 ---
 
@@ -150,7 +150,7 @@ module, and the library each tier is archived into. The `core` and `layers` tier
 ```cmake
 sushiai_add_module(NAME graph TIER core
     SOURCES source/builder.cpp source/fusion.cpp ...
-    PUBLIC_DEPENDS core
+    PUBLIC_DEPENDS allocation dtype failure ops seam shape
     TESTS tests/core/graph/test_ir.cpp ...)
 
 sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
@@ -159,9 +159,9 @@ sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
 
 A module's `SOURCES` feed both its `OBJECT` library and `sushiai_apply_sycl()`, so a source that
 was compiled outside that list would lack `-fsycl` on the intel-llvm path and would fail to link
-the moment it touched a SushiBLAS kernel. One list, both consumers. `sushiai_add_library()` gives
-each library the same `PUBLIC` links to `SushiRuntime::SushiRuntime` and `SushiBLAS::sushiblas`,
-and the vision library adds `DEPENDS sushiai`.
+the moment it touched a SushiBLAS kernel. One list, both consumers. `sushiai_add_library()` links
+each library `PUBLIC` to the external targets its modules name in `EXTERNAL_PUBLIC`, such as
+`SushiRuntime::core` and `SushiBLAS::sushiblas`, and the vision library adds `DEPENDS sushiai`.
 
 A module only the tests use passes `INTERNAL` to `sushiai_add_module()`. It joins no library and
 installs nothing. `tools/layering/check_layering.py` compares every include of a module with
@@ -178,18 +178,18 @@ than through atomics (see `autograd/backward.hpp`).
 public header of the `sushiai` library. Two lanes live under it. Each header name below is
 relative to `SushiAI/` under the `include/` of the module that owns it:
 
-- The **host lane** (`core/` (except `core/allocation.hpp` and
-  `core/seam.hpp`), `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
+- The **host lane** (`core/` (except `allocation/allocation.hpp` and
+  `seam/seam.hpp`), `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
   `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
   `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp`) reaches no SushiBLAS
   *engine* and no SYCL. The `Small_*` tests include these directly and run
   without a device. What it does reach of its siblings is vocabulary only, and
   every one of those headers is `<cstddef>`-and-friends deep:
   `<SushiBLAS/core/common.hpp>` for the dtype/layout enums,
-  `<SushiBLAS/core/format.hpp>` for the message formatter, and
+  `<SushiLog/text/text_format.hpp>` for the message formatter, and
   `<SushiRuntime/core/span.hpp>` and `<SushiRuntime/core/operation_id.hpp>` for
   the span and the `OpID`.
-- The **device lane** (`core/allocation.hpp`, `core/seam.hpp`,
+- The **device lane** (`allocation/allocation.hpp`, `seam/seam.hpp`,
   `graph/arena.hpp`, `graph/tensor_pool.hpp`, `graph/step_recorder.hpp`,
   `graph/lowering.hpp`, `graph/lowering/`, `graph/compiled_step.hpp`,
   `nn/init.hpp`, `optim/`, `data/`, `train/`, `io/checkpoint.hpp`) reaches
@@ -203,17 +203,17 @@ reapplying it.
 ### 3.1 How a failure leaves the library
 
 A content error, such as a file that does not parse, a shape that does not
-fit or an allocation the device refuses, is a `Status` (`core/status.hpp`) or
-a `Result<T>` (`core/result.hpp`). `SA_FAIL_IF` builds one with a `StatusCode`,
+fit or an allocation the device refuses, is a `Status` (`failure/status.hpp`) or
+a `Result<T>` (`failure/result.hpp`). `SA_FAIL_IF` builds one with a `StatusCode`,
 `SA_TRY` and `SA_TRY_ASSIGN` pass one up, and `SA_ANNOTATE` prefixes the
-caller's context. A programmer's misuse is `SA_FATAL_IF` (`core/check.hpp`),
+caller's context. A programmer's misuse is `SA_FATAL_IF` (`failure/check.hpp`),
 which reports and aborts the process.
 
-SushiBLAS and SushiRuntime report by throwing. `core/seam.hpp` is the one place
+SushiBLAS and SushiRuntime report by throwing. `seam/seam.hpp` is the one place
 such an exception becomes a status: `Detail::guard` and `Detail::guard_value`
-run a call and return what it threw as a `Status`, and `create_runtime`,
-`run_recorded`, `run_step` and `discard_recorded` wrap the four runtime calls
-the library makes. The `SeamPhase` argument (`Record`, `Allocate`, `Execute`)
+run a call and return what it threw as a `Status`. `execution/execution.hpp`
+holds the four runtime calls the library makes, `create_runtime`, `run_recorded`,
+`run_step` and `discard_recorded`, each mapping its failure through the seam. The `SeamPhase` argument (`Record`, `Allocate`, `Execute`)
 decides the code of a failure that carries no type of its own.
 
 A type whose construction can fail has a private constructor and a factory
@@ -230,8 +230,8 @@ SA_TRY(step->run());
 ```
 Source: not compiled
 
-`SA_THROW_IF` (`core/common.hpp`) still throws `SushiAI::Error` from the host
-lane: `core/shape.hpp`, `graph/ir.hpp` and `config/registry.hpp` use it, and
+`SA_THROW_IF` (`failure/error.hpp`) still throws `SushiAI::Error` from the host
+lane: `shape/shape.hpp`, `graph/ir.hpp` and `config/registry.hpp` use it, and
 `docs/reference/KNOWN_ISSUES.md` holds the count. `NN::Detail::bridge_throwing` (`nn/throwing_bridge.hpp`)
 turns that exception into `InvalidDescription` where a layer is built from a
 file.
@@ -295,7 +295,7 @@ plainly has one, and it happens *only in a downstream consumer's build*, not in
 this repository's own tests. So each domain's rules reach the table by being
 named in a file-scope `constexpr` array of `{OpID, function pointer}` that
 `all.hpp` concatenates. Missing one is a compile error in this repository, not
-a link-time absence in somebody else's. `core/ops.hpp`'s identity table,
+a link-time absence in somebody else's. `ops/ops.hpp`'s identity table,
 `modules/core/graph/source/fusion.cpp`'s `K_CATALOG` and the lowering tables of §5.0 are the same
 shape for the same reason.
 
@@ -335,7 +335,7 @@ belt-and-braces rather than load-bearing, and it is where the tag stops being
 bookkeeping, since `lower_layout_convert()` (`modules/core/graph/source/lowering/shape.cpp`)
 reads it to decide whether to relabel a side into `[N,H,W,C]`.
 
-**The `differentiable` flag is split from its proof.** `core/ops.hpp` carries
+**The `differentiable` flag is split from its proof.** `ops/ops.hpp` carries
 the flag on each `OpName`: the *claim* that an operation has a gradient.
 `autograd/rules/all.hpp` carries the `static_assert` that every operation
 making that claim is in the rule table: the *proof*. They are apart because

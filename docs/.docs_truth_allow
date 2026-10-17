@@ -14,7 +14,7 @@ sushiai_[a-z_]+_tests  # test program names sushiai_add_test_program generates
 (images|labels|masks|JPEGImages|Annotations|annotations|ImageSets|gtFine|leftImg8bit|train|val|sub|root|cat|dog|dir|pictures|runs)/.*|data/(train|images|labels|tiny_decoder)/.*|data/(set\.csv|images\.txt)  # dataset and run folder layouts a reader builds; the pages show them as examples
 .*\.(sushi|savb|satk)  # files a training or tokenizer run writes
 cli/config\.local\.toml  # the per-machine CLI configuration, gitignored
-Sushi(BLAS|Runtime)/.*|modules/.*/include/Sushi(BLAS|Runtime)/.*|sushiblas/.*  # SushiBLAS and SushiRuntime paths, held in the sibling repositories
+Sushi(BLAS|Runtime|Log)/.*|modules/.*/include/Sushi(BLAS|Runtime|Log)/.*|sushiblas/.*  # SushiBLAS, SushiRuntime and SushiLog paths, held in the sibling repositories
 tests/.*/fixtures(/.*)?  # fixture folders whose generated files git ignores
 docs/api-site  # the Doxygen output folder KNOWN_ISSUES.md names as stale
 docs/architecture-packaging-section  # a branch name in the branch naming example

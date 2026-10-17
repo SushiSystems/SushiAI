@@ -42,9 +42,9 @@ feature that plan hasn't reached.
   from the step's `SushiBLAS::TaskRecorder`. `CompiledStep`
   (`graph/compiled_step.hpp`) owns the `TaskGraph` and that recorder, compiles
   once in `CompiledStep::compile` and replays in `run()`.
-- **One failure contract** (`core/status.hpp`, `core/result.hpp`,
-  `core/seam.hpp`): anything that allocates, records, compiles or runs returns
-  a `Status` or a `Result<T>`, and `core/seam.hpp` is where an exception of
+- **One failure contract** (`failure/status.hpp`, `failure/result.hpp`,
+  `seam/seam.hpp`): anything that allocates, records, compiles or runs returns
+  a `Status` or a `Result<T>`, and `seam/seam.hpp` is where an exception of
   SushiBLAS or SushiRuntime becomes a status. Graph building and
   differentiation, which touch no device, throw `SushiAI::Error`.
 - **A fusion pass** (`graph/fusion.hpp`): a catalog of recipes applied as a
@@ -115,8 +115,8 @@ feature that plan hasn't reached.
 - **`sa demo mlp`**: a real, flag-driven training program
   (`applications/examples/source/demo_mlp.cpp`), not a wrapper around the example. See
   [the demo section](#the-demo-sa-demo-mlp) for its output.
-- `SushiAI::sushiai`: a `STATIC` library linking `SushiRuntime::SushiRuntime`
-  and `SushiBLAS::sushiblas` `PUBLIC`.
+- `SushiAI::sushiai`: a `STATIC` library linking `PUBLIC` the external targets its modules
+  link: `SushiRuntime::core`, `SushiRuntime::api`, `SushiBLAS::sushiblas` and `SushiLog::SushiLog`.
 - A genuine [D3-resolved](docs/architecture/ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
   two-sibling dependency chain: the same layered CMake resolution
   (TARGET-guard → `find_package` → sibling `add_subdirectory`) used

@@ -515,7 +515,7 @@ per op.
 **not** "compose functors into one before a kernel is emitted": that is a code generator, and
 `sycl_ext_codeplay_kernel_fusion` is removed from intel-llvm, so a composition exists only if some
 template was instantiated with it at *this library's* compile time. What landed is therefore a
-**catalog** of five pre-instantiated forms (`core/ops.hpp`), a **static tree pass** matching
+**catalog** of five pre-instantiated forms (`ops/ops.hpp`), a **static tree pass** matching
 subtrees against it (`graph/fusion.hpp`, host lane, pure IR→IR, device-free unit tests), and a
 **dynamic selector** choosing between matched entries at bind time from `Device::Profile` and the
 engine's `ExecutionMode` (`graph/fusion_selector.hpp`). The functors themselves live in

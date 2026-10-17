@@ -135,7 +135,7 @@ nobody types it by hand.
   compiled ABI: see
   [ARCHITECTURE.md §1](architecture/ARCHITECTURE.md#the-whole-stack-is-c17-and-that-is-not-a-style-choice)
   for the full reasoning and the table of C++17 spellings this implies
-  (`SushiRuntime::span`, `SushiBLAS::Core::format`, `constexpr bool` traits in
+  (`SushiRuntime::span`, `SushiLog::format_text`, `constexpr bool` traits in
   place of concepts, `constexpr` in place of `consteval`). 4-space indentation.
 - **Classes/structs/namespaces**: `PascalCase` (`CompiledStep`, `TensorPool`, `SushiAI`).
 - **Enumerators**: `PascalCase` (`Lifetime::Parameter`, `StatusCode::Ok`). **Constants**
@@ -157,11 +157,11 @@ states an invariant. The `cpp-code-style` skill sets the 100-column limit.
 ### Failures
 
 - A content error, one a caller can cause with the input it supplies, is a `Status` or a
-  `Result<T>` (`core/status.hpp`, `core/result.hpp`). `SA_FAIL_IF` makes one; `SA_TRY` and
+  `Result<T>` (`failure/status.hpp`, `failure/result.hpp`). `SA_FAIL_IF` makes one; `SA_TRY` and
   `SA_TRY_ASSIGN` pass one on.
-- A programmer's misuse stops the process with `SA_FATAL_IF` (`core/check.hpp`).
+- A programmer's misuse stops the process with `SA_FATAL_IF` (`failure/check.hpp`).
 - No exception crosses the public surface. A sibling's exception becomes a `Status` only in
-  the guards of `core/seam.hpp`.
+  the guards of `seam/seam.hpp`.
 - This is the target of stage 2 of [`PROGRAMME.md`](design/PROGRAMME.md). The tree does not
   meet it yet; [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) lists where it does not.
 
@@ -240,11 +240,19 @@ fragment is
 
 ```toml
 [module]
-depends_on = ["sushiruntime", "sushiblas"]
+depends_on = ["sushilog", "sushiruntime", "sushiblas"]
+
+[sushi.sushilog]
+version = "v0.2.1"
+commit  = "56631fd10919f20c3cac3bd6512f927e7f09cccc"
 ```
 
+Source: `cli/sushistack.deps.toml`
+
 `depends_on` folds both siblings' own toolchain requirements into SushiAI's
-readiness picture. If SushiAI ever needs a library neither sibling already
+readiness picture. A `[sushi.<name>]` table pins a Sushi library at a release tag and its
+commit; `sa setup` fetches it when no `<NAME>_DIR` or sibling checkout provides it, and
+`sa build` hands the path to CMake as `<NAME>_DIR`. If SushiAI ever needs a library neither sibling already
 provisions, add a top-level TOML table the way SushiRuntime's own fragment
 documents (description/required/linux_apt/windows_vcpkg/check_cmd), then
 update `CMakeLists.txt` to find and link it. Verify with `sa setup --dry-run`
@@ -258,13 +266,13 @@ An operation is one identity and one row in each table that owns a piece of it. 
 headers named below carry `static_assert`s that fail the build when a row is missing or
 doubled, so the compiler lists what is left.
 
-1. **Identity.** Declare it in `modules/core/core/include/SushiAI/core/ops.hpp` and add it to `K_ALL`. Use
+1. **Identity.** Declare it in `modules/core/ops/include/SushiAI/ops/ops.hpp` and add it to `K_ALL`. Use
    `differentiable_op` when a backward rule must exist, `gradient_barrier_op` when its
    result lets no gradient reach its operands, and `op` otherwise. The name is dotted and
    starts with `sushiai.`.
 
    ```cpp
-   // modules/core/core/include/SushiAI/core/ops.hpp, inside namespace Ops
+   // modules/core/ops/include/SushiAI/ops/ops.hpp, inside namespace Ops
    inline constexpr OpName K_SOFTSIGN = differentiable_op("sushiai.softsign");
    ```
    Source: not compiled
@@ -301,7 +309,7 @@ doubled, so the compiler lists what is left.
    ```
    Source: not compiled
 
-   An activation takes one row in `K_ACTIVATIONS` (`core/ops.hpp`) and one in
+   An activation takes one row in `K_ACTIVATIONS` (`ops/ops.hpp`) and one in
    `K_ACTIVATION_RULES`, and its gradient is a plain `op` identity with its own lowering row.
 
 4. **Lowering row.** Declare `[[nodiscard]] Status lower_softsign(const LoweringContext& context);`

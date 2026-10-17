@@ -11,11 +11,11 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | IR | SushiAI's own graph: a single-assignment DAG of tensor operations, built on the host and touching no device. Namespace `SushiAI::Graph` (`graph/ir.hpp`) |
 | Node | One operation in the IR: an identity, its operands and its results (`Graph::Node`) |
 | Value | One single-assignment, tensor-shaped result in the IR (`Graph::Value`) |
-| Op identity | The name an operation carries, such as `sushiai.log_softmax`; all of them are declared in `core/ops.hpp` |
+| Op identity | The name an operation carries, such as `sushiai.log_softmax`; all of them are declared in `ops/ops.hpp` |
 | Lifetime | The class a value belongs to: `Parameter`, `Gradient`, `OptimizerState`, `Input`, `Buffer`, `Activation` or `Scratch` (`Graph::Lifetime`, `graph/ir.hpp`). Only values of one class share an arena |
 | Layout | Where the channel axis sits. `NHWC` is the native layout; `NCHW` appears at a boundary only (`Graph::TensorLayout`) |
 | Backward rule | A function that writes the IR for one operation's gradient. Autograd is an IR-to-IR transform (`autograd/backward.hpp`, `modules/core/autograd/source/rules/`) |
-| Gradient barrier | An operation declared with `gradient_barrier_op`: its result lets no gradient reach its operands, so it has no backward rule (`core/ops.hpp`) |
+| Gradient barrier | An operation declared with `gradient_barrier_op`: its result lets no gradient reach its operands, so it has no backward rule (`ops/ops.hpp`) |
 | gradcheck | The finite-difference check of a backward rule, run in FLOAT64 (`autograd/gradcheck.hpp`) |
 
 ## From graph to device
@@ -60,11 +60,11 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 
 | Word | Meaning |
 | --- | --- |
-| Status | A success, or a failure with a `StatusCode`, a message and no exception. A content error returns one (`core/status.hpp`) |
-| Result | A value or a `Status`: what a function returns when a content error can make it fail (`core/result.hpp`) |
-| `SA_FAIL_IF`, `SA_TRY` | Macros that make a `Status` from a condition and pass a failed one on (`core/status.hpp`). `SA_TRY_ASSIGN` does the second for a `Result` (`core/result.hpp`) |
-| Fatal check | `SA_FATAL_IF`: stops the process on a programmer's misuse, in every build (`core/check.hpp`) |
-| Seam | The guards that turn an exception of SushiBLAS or SushiRuntime into a `Status` (`Detail::guard`, `Detail::guard_value` in `core/seam.hpp`). The contract places them in that header alone; KNOWN_ISSUES records where the library does not follow this yet |
+| Status | A success, or a failure with a `StatusCode`, a message and no exception. A content error returns one (`failure/status.hpp`) |
+| Result | A value or a `Status`: what a function returns when a content error can make it fail (`failure/result.hpp`) |
+| `SA_FAIL_IF`, `SA_TRY` | Macros that make a `Status` from a condition and pass a failed one on (`failure/status.hpp`). `SA_TRY_ASSIGN` does the second for a `Result` (`failure/result.hpp`) |
+| Fatal check | `SA_FATAL_IF`: stops the process on a programmer's misuse, in every build (`failure/check.hpp`) |
+| Seam | The guards that turn an exception of SushiBLAS or SushiRuntime into a `Status` (`Detail::guard`, `Detail::guard_value` in `seam/seam.hpp`). The contract places them in that header alone; KNOWN_ISSUES records where the library does not follow this yet |
 | Factory | A static function that builds an object and returns a `Result` instead of throwing: `Graph::CompiledStep::compile`, `Train::Trainer::make`, `Optim::AdamW::make`, `Optim::SGD::make`, `Optim::LossScaler::make`, `Optim::StepScalars::make`, the datasets' `make`, `IO::CheckpointWriter::create` and `IO::CheckpointReader::open` |
 | Execution mode | `SushiBLAS::ExecutionMode`: `Auto` lets the library choose the SYCL kernel, `ForceSYCL` runs it and `ForceReference` runs the host reference path. The fusion selector reads it (`graph/fusion_selector.hpp`) |
 

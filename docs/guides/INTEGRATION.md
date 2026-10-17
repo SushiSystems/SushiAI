@@ -22,16 +22,16 @@ for exactly why the flag has to be `PUBLIC` there: SushiAI inherits it
 unchanged.
 
 One consequence worth planning around: `modules/layers/umbrella/include/SushiAI/SushiAI.hpp` pulls in
-both lanes. The **host lane** (`core/common.hpp`, `core/ops.hpp`,
-`core/shape.hpp`, `core/check.hpp`, `core/status.hpp`, `core/result.hpp`,
+both lanes. The **host lane** (`dtype/dtype.hpp`, `failure/error.hpp`, `ops/ops.hpp`,
+`shape/shape.hpp`, `failure/check.hpp`, `failure/status.hpp`, `failure/result.hpp`,
 `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
 `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
 `autograd/`, `nn/module.hpp`, `nn/layers.hpp`, `nn/loss.hpp`) reaches no SushiBLAS *engine*
 and no SYCL (only sibling *vocabulary* headers: the dtype/layout enums, the
 message formatter, `SushiRuntime::span` and `OpID`), so a translation unit
 that only builds or inspects a graph can include those headers directly and
-stay off the device compiler. Everything else, `core/allocation.hpp` and
-`core/seam.hpp` included, is the device lane. See
+stay off the device compiler. Everything else, `allocation/allocation.hpp` and
+`seam/seam.hpp` included, is the device lane. See
 [ARCHITECTURE.md §3](../architecture/ARCHITECTURE.md#3-the-library-target).
 
 ---

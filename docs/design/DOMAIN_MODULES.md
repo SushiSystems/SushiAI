@@ -22,7 +22,7 @@ Each was made by the owner on 2026-10-09.
 | `NodeRegistry` | One registry with two `add` overloads, `find_node` and `find_layer` |
 | Vision switched off | The programs link a registration file with or without vision; the examples are built only with it |
 | Detection | `vision/detect` stays one module, split inside itself: the root holds what both families use (boxes, IoU, suppression, top-k, average precision), `free/` the anchor-free path of YOLO26 (`Vision::Detect::Free`) and `anchor/` the anchor-box path of the Darknet-era models (`Vision::Detect::Anchor`) |
-| Detection training | The detection objectives, the host stage and the training step live in a module `vision/training`, which depends on `train` and `vision/detect`; `vision/detect` depends on modules of the core tier alone (`core`, and `config` for the task section of a model file) |
+| Detection training | The detection objectives, the host stage and the training step live in a module `vision/training`, which depends on `train` and `vision/detect`; `vision/detect` depends on modules of the core tier alone (`failure`, and `config` for the task section of a model file) |
 | Anchoring | Anchors are derived, assigned to heads and checked against a dataset by the unit, as automatically as sound engineering allows; an imported model keeps the anchors of its file |
 | Reference implementations | Nothing is quoted from one. Darknet and Ultralytics are run outside the repository to produce tensors; SushiAI's own implementation is written from the behaviour |
 
@@ -54,7 +54,7 @@ domain to another.
 
 | Tier | Modules | Knows |
 | --- | --- | --- |
-| `core` | `core`, `version`, `graph`, `config`, `autograd`, `optim`, `data`, `eager` | No layer type, no domain |
+| `core` | `log`, `failure`, `dtype`, `shape`, `ops`, `seam`, `allocation`, `version`, `graph`, `config`, `autograd`, `optim`, `data`, `eager` | No layer type, no domain |
 | `layers` | `nn`, `io`, `train`, `umbrella` | The core tier. Layer types, `ModelGraph`, `ModelState`, the steps and the checkpoints over them, the registries' types. No domain |
 | `language` | `text`, `blocks`, `datasets`, `training`, `generation`, `registration`, `umbrella` | The core and layers tiers. No other domain |
 | `vision` | `imaging`, `codecs`, `detect`, `segment`, `blocks`, `datasets`, `importers`, `training`, `registration`, `umbrella` | The core and layers tiers. No other domain |

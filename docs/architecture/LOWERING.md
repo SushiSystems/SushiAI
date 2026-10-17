@@ -34,7 +34,7 @@ Two decisions in it are load-bearing:
 `ArenaSet::make` allocates one `Storage` per arena, or returns the
 `OutOfMemory` failure of the first arena the allocator refuses, and the set
 never allocates again. It hands out views through `view_tensor()`
-(`core/allocation.hpp`), which stops the process on a byte offset that is not
+(`allocation/allocation.hpp`), which stops the process on a byte offset that is not
 a whole number of the view's elements. `Tensor::storage_offset` counts
 elements, so such an offset has no representation.
 

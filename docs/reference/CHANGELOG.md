@@ -2,7 +2,12 @@
 
 ## Unreleased
 
+- 2026-10-17 — failure: Built every message with SushiLog::format_text in place of SushiBLAS::Core::format, which SushiBLAS removed, linking SushiLog::text (`check.hpp`, `status.hpp`, `error.hpp`).
 - 2026-10-17 — cli: Made the CLI tests run this checkout's CLI through python -m sushiai, never a sa or sushiai found on PATH (`checkout_cli.py`, `test_demo.py`, `test_train.py`, `test_import.py`, `test_tokenize.py`).
+- 2026-10-17 — build: Linked SushiLog v0.2.1, pinned in the fragment and resolved as SUSHILOG_DIR, and staged sushilog.dll beside tests and programs (`sushistack.deps.toml`, `Log.cmake`, `SushiAITestProgram.cmake`).
+- 2026-10-17 — cli: Moved to sushicore 0.9.1 and passed each pinned Sushi library to the configure as `<NAME>_DIR` (`pyproject.toml`, `project.py`).
+- 2026-10-17 — core: Split core/core into log, failure, dtype, shape, ops, seam, execution and allocation, one responsibility each; every include path moves to SushiAI/<module>/ (`SushiAILayers.cmake`, `modules/core/`).
+- 2026-10-17 — log: Added the SA_LOG_* front on SushiLog, and failure's fatal handler logs at FATAL in [sushiai.failure] at the failed check's call site (`log.hpp`, `failure_log_category.hpp`, `check.cpp`).
 - 2026-10-16 — cli: Added --jobs to sa test, the number of tests ctest runs at once (`cli.py`, `project.py`).
 - 2026-10-16 — tests: Added a test file for each of the 119 public headers that had none, in 18 new test programs and the existing ones (`tests/`).
 - 2026-10-16 — eager: Made find_boundaries return a Result, InvalidDescription for an ACCUMULATE into a leaf, and made the region checks fatal (`region_boundary.hpp`, `region_table.cpp`).
