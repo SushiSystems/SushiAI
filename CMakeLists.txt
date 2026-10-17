@@ -25,6 +25,7 @@ project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 # SushiRuntime resolved first so SushiBLAS's own internal Runtime.cmake
 # TARGET-guards onto the same target instead of re-adding it (see
 # cmake/Runtime.cmake's header comment).
+include(Log)      # SUSHILOG_DIR from the CLI -> SushiLog::SushiLog
 include(Runtime)  # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime
 include(BLAS)     # add_subdirectory(sushiblas)    -> SushiBLAS::sushiblas
 include(SushiAISyclTarget)  # sushiai_apply_sycl() helper
