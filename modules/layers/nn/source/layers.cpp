@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/nn/layers.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

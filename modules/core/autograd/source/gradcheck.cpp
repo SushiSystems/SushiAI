@@ -32,6 +32,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

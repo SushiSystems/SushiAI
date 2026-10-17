@@ -26,6 +26,7 @@
  */
 
 #include <SushiAI/nn/layer_stack.hpp>
+#include <SushiAI/failure/error.hpp>
 
 #include <utility>
 

@@ -29,6 +29,7 @@
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {
