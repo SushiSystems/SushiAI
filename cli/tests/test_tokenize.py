@@ -11,11 +11,12 @@ The reasoning is in cli/tests/README.md under "test_tokenize.py".
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from checkout_cli import run_cli
 
 from sushiai.services import discovery
 
@@ -41,17 +42,13 @@ def _is_tokenize_built() -> bool:
     return discovery.match_by_name(K_BUILD_DIR, K_TOKENIZE_TARGET) is not None
 
 
-_needs_cli = pytest.mark.skipif(
-    shutil.which("sushiai") is None, reason="the `sushiai` CLI is not on PATH")
 _needs_build = pytest.mark.skipif(
     not _is_tokenize_built(), reason="sushiai_tokenize is not built; run `sa build` first")
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
-    """Runs the sushiai CLI from the repository root, decoding its output as UTF-8."""
-    return subprocess.run(
-        ["sushiai", *args], cwd=K_REPO_ROOT, capture_output=True,
-        encoding="utf-8", errors="replace", timeout=900)
+    """Runs this checkout's CLI from the repository root, decoding its output as UTF-8."""
+    return run_cli(*args, cwd=K_REPO_ROOT, timeout=900)
 
 
 @pytest.fixture
@@ -69,7 +66,6 @@ def _train(corpus: Path, vocabulary: Path, *extra: str) -> subprocess.CompletedP
         "--output", str(vocabulary), *extra)
 
 
-@_needs_cli
 @_needs_build
 def test_tokenize_train_writes_a_vocabulary_file(corpus: Path, tmp_path: Path):
     """The file carries the vocabulary magic, and the report states the size asked for."""
@@ -81,7 +77,6 @@ def test_tokenize_train_writes_a_vocabulary_file(corpus: Path, tmp_path: Path):
     assert f"{K_VOCABULARY_SIZE} tokens" in completed.stdout, completed.stdout
 
 
-@_needs_cli
 @_needs_build
 def test_tokenize_encode_writes_one_id_per_token_it_reports(corpus: Path, tmp_path: Path):
     """The token file is its header and four bytes for each token the report counts."""
@@ -102,7 +97,6 @@ def test_tokenize_encode_writes_one_id_per_token_it_reports(corpus: Path, tmp_pa
     assert 0 < int(counted.group(1)) < len(K_CORPUS)
 
 
-@_needs_cli
 @_needs_build
 def test_tokenize_refuses_to_replace_a_file_without_force(corpus: Path, tmp_path: Path):
     """A second run into the same file stops, and --force lets it through."""
@@ -117,7 +111,6 @@ def test_tokenize_refuses_to_replace_a_file_without_force(corpus: Path, tmp_path
     assert forced.returncode == 0, forced.stdout + forced.stderr
 
 
-@_needs_cli
 @_needs_build
 def test_train_without_a_vocabulary_size_names_the_flag(corpus: Path, tmp_path: Path):
     """The C++ diagnostic reaches the caller and names `--vocabulary-size`."""
@@ -128,7 +121,6 @@ def test_train_without_a_vocabulary_size_names_the_flag(corpus: Path, tmp_path: 
     assert "--vocabulary-size" in completed.stdout + completed.stderr
 
 
-@_needs_cli
 @_needs_build
 def test_an_unknown_verb_lists_the_verbs_the_program_has(corpus: Path, tmp_path: Path):
     """The diagnostic names the verb given and the two the program has."""

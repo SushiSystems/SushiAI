@@ -11,11 +11,12 @@ The reasoning is in cli/tests/README.md under "test_import.py".
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from checkout_cli import run_cli
 
 from sushiai.services import discovery
 
@@ -46,17 +47,13 @@ def _is_import_built() -> bool:
     return discovery.match_by_name(K_BUILD_DIR, K_IMPORT_TARGET) is not None
 
 
-_needs_cli = pytest.mark.skipif(
-    shutil.which("sushiai") is None, reason="the `sushiai` CLI is not on PATH")
 _needs_build = pytest.mark.skipif(
     not _is_import_built(), reason="sushiai_import is not built; run `sa build` first")
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
-    """Runs the sushiai CLI from the repository root, decoding its output as UTF-8."""
-    return subprocess.run(
-        ["sushiai", *args], cwd=K_REPO_ROOT, capture_output=True,
-        encoding="utf-8", errors="replace", timeout=900)
+    """Runs this checkout's CLI from the repository root, decoding its output as UTF-8."""
+    return run_cli(*args, cwd=K_REPO_ROOT, timeout=900)
 
 
 @pytest.fixture
@@ -67,7 +64,6 @@ def small_cfg(tmp_path: Path) -> Path:
     return path
 
 
-@_needs_cli
 @_needs_build
 def test_import_writes_a_model_file_and_a_training_file(small_cfg: Path, tmp_path: Path):
     """A .cfg without weights becomes model.json and train.json, and no weight file."""
@@ -84,7 +80,6 @@ def test_import_writes_a_model_file_and_a_training_file(small_cfg: Path, tmp_pat
     assert not (output / "weights.sushi").exists()
 
 
-@_needs_cli
 @_needs_build
 def test_import_prints_a_note_for_each_key_it_cannot_place(small_cfg: Path, tmp_path: Path):
     """subdivisions and max_batches have no key in a training file, and the output says so."""
@@ -95,7 +90,6 @@ def test_import_prints_a_note_for_each_key_it_cannot_place(small_cfg: Path, tmp_
     assert "max_batches=2000" in completed.stdout, completed.stdout
 
 
-@_needs_cli
 @_needs_build
 def test_train_refuses_the_imported_file_until_its_data_is_filled(
     small_cfg: Path, tmp_path: Path,
@@ -111,7 +105,6 @@ def test_train_refuses_the_imported_file_until_its_data_is_filled(
     assert "'data'" in combined, combined
 
 
-@_needs_cli
 @_needs_build
 def test_import_refuses_to_replace_a_file_without_force(small_cfg: Path, tmp_path: Path):
     """A second import into the same directory stops, and --force lets it through."""
@@ -126,7 +119,6 @@ def test_import_refuses_to_replace_a_file_without_force(small_cfg: Path, tmp_pat
     assert forced.returncode == 0, forced.stdout + forced.stderr
 
 
-@_needs_cli
 @_needs_build
 def test_an_unknown_format_lists_the_formats_the_build_has(small_cfg: Path, tmp_path: Path):
     """The C++ diagnostic reaches the caller and names `darknet`."""
