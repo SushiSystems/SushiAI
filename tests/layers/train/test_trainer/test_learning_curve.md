@@ -1,7 +1,7 @@
 # tests/layers/train/test_trainer/test_learning_curve.cpp
 
 
-Suites: `Small_LearningCurve`.
+Suites: `Medium_LearningCurve`.
 
 This file holds the test that catches "everything passes and the model stops training".
 

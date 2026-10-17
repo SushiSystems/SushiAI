@@ -1,7 +1,7 @@
 # tests/core/graph/test_step_recorder.cpp
 
 
-Suites: `Small_StepRecorder`, `Small_StepRecorderDeathTest`.
+Suites: `Medium_StepRecorder`, `Medium_StepRecorderDeathTest`.
 
 Tests that StepRecorderList drives its members as one recorder, in the order added.
 
@@ -76,10 +76,10 @@ An outer list of a, an inner list holding b, and c records 7 tasks and journals 
 
 A second `add` of the same recorder is a programmer's misuse, so it stops the process with a report
 containing "StepRecorderList::add" and "already". The case runs as a death test in
-`Small_StepRecorderDeathTest`. The parent process then checks that the list still records that
+`Medium_StepRecorderDeathTest`. The parent process then checks that the list still records that
 member once: 2 tasks and one journal entry.
 
 ## AddRejectsTheListItself
 
 `list.add(list)` stops the process with a report containing "StepRecorderList::add" and "itself".
-It is a death test in `Small_StepRecorderDeathTest`, and the list stays empty.
+It is a death test in `Medium_StepRecorderDeathTest`, and the list stays empty.
