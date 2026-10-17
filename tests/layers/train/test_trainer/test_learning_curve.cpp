@@ -48,7 +48,7 @@ using Graph::TensorPool;
 
 namespace
 {
-    class Small_LearningCurve : public ::testing::Test {};
+    class Medium_LearningCurve : public ::testing::Test {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
 
@@ -188,7 +188,7 @@ namespace
  * @brief Tests that every step's loss is within its tolerance of the recorded reference.
  * @see tests/layers/train/README.md
  */
-TEST_F(Small_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
+TEST_F(Medium_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
 
@@ -216,7 +216,7 @@ TEST_F(Small_LearningCurve, TheLossTrajectoryMatchesTheRecordedReference)
  * @brief Tests that the trajectory starts at ln(C), stays finite and improves every epoch.
  * @see tests/layers/train/README.md
  */
-TEST_F(Small_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
+TEST_F(Medium_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
     ASSERT_FALSE(losses.empty());
