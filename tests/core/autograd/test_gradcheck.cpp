@@ -31,6 +31,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
+#include <SushiAI/failure/error.hpp>
 
 using namespace SushiAI::Autograd;
 

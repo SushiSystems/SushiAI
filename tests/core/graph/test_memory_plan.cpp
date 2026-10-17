@@ -40,6 +40,7 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/failure/error.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
