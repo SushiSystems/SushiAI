@@ -8,7 +8,8 @@ name: CI
 # SushiAI builds against SushiRuntime and SushiBLAS checkouts beside it (cmake/Runtime.cmake,
 # cmake/BLAS.cmake), so the build jobs check this repository out under sushiai/ and the two
 # siblings beside it. A pre-merge job checks out the refs SUSHIRUNTIME_REF and SUSHIBLAS_REF pin;
-# the upstream-main job checks out their main. On Linux the compiler is the oneAPI icpx that
+# the upstream-main job checks out their main. Every job checks SushiLog out at SUSHILOG_REF, the
+# tag cli/sushistack.deps.toml pins, and sa hands the sibling to CMake as SUSHILOG_DIR. On Linux the compiler is the oneAPI icpx that
 # setup-oneapi installs; SA_CXX hands it to sa, and icx takes the C slot. On Windows `sa setup`
 # provisions the intel/llvm toolchain.
 on:
@@ -35,6 +36,7 @@ env:
   # SushiBLAS is not yet pinned to a tag.
   SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
+  SUSHILOG_REF: v0.2.1
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G
   CMAKE_C_COMPILER_LAUNCHER: ccache
@@ -101,6 +103,12 @@ jobs:
           path: sushiai
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
           repository: SushiSystems/SushiRuntime
           ref: ${{ env.SUSHIRUNTIME_REF }}
           path: sushiruntime
@@ -148,6 +156,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
@@ -203,6 +217,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
@@ -272,6 +292,12 @@ jobs:
           path: sushiai
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
           repository: SushiSystems/SushiRuntime
           ref: ${{ env.SUSHIRUNTIME_REF }}
           path: sushiruntime
@@ -324,6 +350,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime

@@ -15,6 +15,7 @@ permissions:
 env:
   SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
+  SUSHILOG_REF: v0.2.1
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
   SA_CXX: icpx
@@ -41,6 +42,12 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiLog
+          ref: ${{ env.SUSHILOG_REF }}
+          path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: SushiSystems/SushiRuntime
