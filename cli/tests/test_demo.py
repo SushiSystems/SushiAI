@@ -11,11 +11,11 @@ The reasoning is in cli/tests/README.md under "test_demo.py".
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
+
+from checkout_cli import run_cli
 
 pytestmark = pytest.mark.medium
 
@@ -37,14 +37,13 @@ _DEMO_ARGS = [
 ]
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_runs_and_reports_one_compile():
     """`sa demo mlp` exits 0 and reports exactly one compile."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS,
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -58,15 +57,14 @@ _PRECISION_CASES = [
 ]
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 @pytest.mark.parametrize("mode,expected", _PRECISION_CASES, ids=[c[0] for c in _PRECISION_CASES])
 def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
     """`--precision fp32|mixed` is forwarded and changes what the banner says."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--precision", mode],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--precision", mode,
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -76,20 +74,19 @@ def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
     """`--loss-scale` is forwarded, reported, and changes no fp32 number."""
     loss = re.compile(r"^loss\s+:\s+(\S+) -> (\S+)$", re.MULTILINE)
 
-    plain = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    plain = run_cli(
+        "demo", "mlp", *_DEMO_ARGS,
+        cwd=REPO_ROOT, timeout=900,
     )
-    scaled = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "65536"],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    scaled = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "65536",
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert plain.returncode == 0, plain.stdout + plain.stderr
@@ -107,28 +104,26 @@ def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
     )
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_a_non_dyadic_loss_scale():
     """A scale that is not a power of two fails rather than rounding quietly."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "3"],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "3",
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode != 0
     assert "power of two" in (completed.stdout + completed.stderr)
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_an_unknown_precision():
     """An unrecognised `--precision` value fails rather than falling back."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--precision", "bfloat16"],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--precision", "bfloat16",
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode != 0
@@ -142,16 +137,15 @@ _ACTIVATION_CASES = [
 ]
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 @pytest.mark.parametrize("activation,form", _ACTIVATION_CASES,
                          ids=[c[0] for c in _ACTIVATION_CASES])
 def test_sa_demo_mlp_activation_flag_reaches_the_demo(activation, form):
     """`--activation relu|gelu` is forwarded and changes which form is fused."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--activation", activation],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--activation", activation,
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
@@ -159,14 +153,13 @@ def test_sa_demo_mlp_activation_flag_reaches_the_demo(activation, form):
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@pytest.mark.skipif(shutil.which("sa") is None, reason="the `sa` CLI is not on PATH")
 @pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_an_unknown_activation():
     """An unrecognised `--activation` value fails rather than falling back."""
-    completed = subprocess.run(
-        ["sa", "demo", "mlp", *_DEMO_ARGS, "--activation", "swish"],
-        cwd=REPO_ROOT, capture_output=True, text=True, timeout=900,
+    completed = run_cli(
+        "demo", "mlp", *_DEMO_ARGS, "--activation", "swish",
+        cwd=REPO_ROOT, timeout=900,
     )
 
     assert completed.returncode != 0

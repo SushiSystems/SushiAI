@@ -11,11 +11,12 @@ The reasoning is in cli/tests/README.md under "test_train.py".
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+
+from checkout_cli import run_cli
 
 pytestmark = pytest.mark.medium
 
@@ -32,20 +33,15 @@ _CHECKPOINT = _BUILT_TINY_RUN / "tiny.sushi"
 _MODEL_CONFIG = _TINY_RUN / "tiny_model.json"
 _EVAL_CONFIG = _TINY_RUN / "tiny_eval.json"
 
-_needs_cli = pytest.mark.skipif(
-    shutil.which("sushiai") is None, reason="the `sushiai` CLI is not on PATH")
 _needs_build = pytest.mark.skipif(
     not _TRAIN_CONFIG.is_file(), reason="no build tree — run `sa build` first")
 
 
 def _run(*args: str) -> subprocess.CompletedProcess:
-    """Runs the sushiai CLI from the repository root, decoding its output as UTF-8."""
-    return subprocess.run(
-        ["sushiai", *args], cwd=REPO_ROOT, capture_output=True,
-        encoding="utf-8", errors="replace", timeout=900)
+    """Runs this checkout's CLI from the repository root, decoding its output as UTF-8."""
+    return run_cli(*args, cwd=REPO_ROOT, timeout=900)
 
 
-@_needs_cli
 @_needs_build
 def test_sushiai_train_runs_and_reports_one_compile():
     """`sushiai train <train.json>` exits 0 and compiles the step exactly once."""
@@ -56,7 +52,6 @@ def test_sushiai_train_runs_and_reports_one_compile():
     assert _CHECKPOINT.is_file(), "train did not write the checkpoint it was asked for"
 
 
-@_needs_cli
 @_needs_build
 def test_sushiai_inference_loads_the_checkpoint_train_wrote():
     """`sushiai inference` reads a checkpoint and reports one compile."""
@@ -69,7 +64,6 @@ def test_sushiai_inference_loads_the_checkpoint_train_wrote():
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@_needs_cli
 @_needs_build
 def test_both_commands_appear_in_the_top_level_help():
     """They are subcommands of the same app `sa` is, not a separate program."""
@@ -80,7 +74,6 @@ def test_both_commands_appear_in_the_top_level_help():
     assert "inference" in completed.stdout
 
 
-@_needs_cli
 @_needs_build
 def test_a_wrong_document_kind_is_refused_with_the_librarys_own_message():
     """The C++ diagnostic reaches the caller rather than being swallowed.
@@ -96,7 +89,6 @@ def test_a_wrong_document_kind_is_refused_with_the_librarys_own_message():
     assert "sushiai_train" in combined, combined
 
 
-@_needs_cli
 @_needs_build
 def test_a_missing_config_names_the_path():
     """An absent file is refused by name rather than by a generic failure."""
