@@ -182,7 +182,7 @@ Then, per tensor, in order:
 | Name length | `u32` | Bytes in the name, at most 256 | `checkpoint_format.hpp:60`, `checkpoint_format.cpp:156` |
 | Name | bytes | UTF-8, no terminator | `checkpoint_format.cpp:157` |
 | Dtype | `u32` | The `DataType` enumerator's value | `checkpoint_format.cpp:158` |
-| Rank | `u32` | At most 6 | `checkpoint_format.cpp:159`; limit at `modules/core/core/include/SushiAI/core/common.hpp:52` |
+| Rank | `u32` | At most 6 | `checkpoint_format.cpp:159`; limit at `modules/core/dtype/include/SushiAI/dtype/dtype.hpp:50` |
 | Extents | `i64` per dimension | Each positive | `checkpoint_format.cpp:160-161`; checked at `:246` |
 | Payload | bytes | Elements row-major, element count times element size | `checkpoint_format.cpp:163-164`, size at `checkpoint_format.hpp:81-83` |
 
@@ -191,7 +191,8 @@ byte first, two's complement (`checkpoint_format.cpp:74-80`).
 
 Dtype codes follow the order of `SushiBLAS::Core::DataType`
 (`D:\Projects\sushiblas\include\SushiBLAS\core\common.hpp:49-58`), with element sizes from
-`modules/core/core/include/SushiAI/core/common.hpp:63-69`: `half` 0, `float32` 1, `float64` 2, `complex32` 3,
+`modules/core/dtype/include/SushiAI/dtype/dtype.hpp:61-67`: `half` 0, `float32` 1, `float64` 2,
+`complex32` 3,
 `complex64` 4, `int32` 5, `int64` 6. The exporter writes `float32`, `int32` and `int64`.
 
 Whether the C++ reader accepts a rank-0 record was not checked, so the one scalar,

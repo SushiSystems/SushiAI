@@ -328,7 +328,7 @@ seven phases are in [`LANGUAGE.md`](LANGUAGE.md). Phases 1 to 5 and 7 are writte
 
   Left, in the order of what each would return: keep the host off shared pages, by copying
   each head into a `Residency::Host` tensor on the device and each delta back the same way,
-  which needs an allocation of that residency in `core/allocation.hpp`; lower batch
+  which needs an allocation of that residency in `allocation/allocation.hpp`; lower batch
   normalisation and its gradient to a few fused kernels; compute the deltas on the device.
 - **Make the one-batch overfit of YOLOv7 hold.**
   `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` fails since
@@ -415,7 +415,7 @@ v1, to revisit for PINN and GNN work.
   token, so the functional job has never compiled a SushiAI source
   (`.github/workflows/ci.yml`).
 - **`Shape::hash` starts from 1469598103934665603**; the 64-bit FNV-1a offset basis is
-  14695981039346656037, one digit longer (`include/SushiAI/core/shape.hpp`).
+  14695981039346656037, one digit longer (`include/SushiAI/shape/shape.hpp`).
 - **Release readiness** is assessed in `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md`.
 
 - **Tag a first release.** Every changelog entry sits under `## Unreleased` and the repository

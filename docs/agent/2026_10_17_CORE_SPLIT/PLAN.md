@@ -100,12 +100,56 @@ threads, then `sa test --label small` and `--label medium`, then `python tools/c
 
 ## Build count
 
-There are two full builds: build 1 for T1 to T3 together, and build 2 for T5 when
-SushiRuntime's targets land. T4 and T6 build nothing. Each build recompiles almost the whole tree, because
+There is one full build: build 1 for T1 to T3 and T5 together, since SushiRuntime's targets
+landed before the build. T4 and T6 build nothing. Each build recompiles almost the whole tree, because
 every module's include paths change. None starts before the owner's order and before SushiBLAS's
 adoption is on its `main`.
 
 ## Pins
 
-Only SushiLog is pinned, at `v0.1.2`. SushiRuntime and SushiBLAS are pinned when the owner tags
+Only SushiLog is pinned, at `v0.2.1`. SushiRuntime and SushiBLAS are pinned when the owner tags
 them.
+
+## Written state
+
+T1 to T4 and the docs of T6 are written; nothing is built. T4 is committed (`907d7ac`), and its
+123 CLI tests pass with `~/.local/bin` off PATH. T1 to T3 and the SushiLog front of
+`2026_10_16_LOGGING_FRONT` are uncommitted. Build 1 waits for the owner's order and for
+SushiBLAS's adoption on its `main`.
+- `modules/core/core` and `tests/core/core` are gone. 876 sources name the new include paths;
+  `common.hpp` became `dtype/dtype.hpp` and `failure/error.hpp`, each file taking the one whose
+  symbols it uses.
+- 37 module build files name the core modules their includes use. A module's `include/` gives
+  `PUBLIC_DEPENDS` and its `source/` gives `PRIVATE_DEPENDS`.
+- `check_all` is clean: layering, contract (six rows moved to the new paths) and docs truth.
+- What only build 1 can show: a file that used something `common.hpp` brought in only
+  transitively, such as SushiBLAS's formatter, without naming it.
+
+## Later decisions, written into build 1
+
+- **`execution`** (owner, 2026-10-17): `seam` keeps the mapping of a failure to a `Status`.
+  `execution` takes `create_runtime`, `run_recorded` and `run_step`, plus `discard_recorded`,
+  `abandon_recording` and `record_and_run`, which manage the same recorded tasks. It depends on
+  `seam`. Its tests are `tests/core/execution/test_execution.cpp`, the three `record_and_run`
+  cases.
+- **T5 is written.** SushiRuntime `deca176` exports one target per module. Each SushiAI module
+  links the SushiRuntime targets its includes use: `SushiRuntime::core` for
+  `<SushiRuntime/core/...>`, and `SushiRuntime::api` for `<SushiRuntime/sushiruntime.hpp>`.
+  The library links the external targets its modules name in `EXTERNAL_PUBLIC`, in place of
+  `SushiRuntime::SushiRuntime`. The DLL is copied from `SushiRuntime::shared_library`. T5 joins
+  build 1, so there is one build in all.
+- **The formatter** (owner, 2026-10-17): SushiBLAS removed `Core::format` (`ae0ec86`). Every
+  message is built with `SushiLog::format_text` from `<SushiLog/text/text_format.hpp>`, and
+  `failure` links `SushiLog::text` as public in place of SushiBLAS, which it no longer uses.
+  SushiAI keeps no formatter of its own. 36 files call it.
+
+## Open before build 1
+
+- SushiLog v0.2.1 (`56631fd10919f20c3cac3bd6512f927e7f09cccc`) carries `SushiLog::text` and `log_at`. The
+  fragment, `SUSHILOG_REF` in both workflows and `docs/CONTRIBUTING.md` pin it.
+- The 13 files that formatted a value with a spec now pass it through SushiLog's value helpers
+  (`fixed`, `general`, `scientific`, `hex`, `left`, `right`, from
+  `<SushiLog/text/value_text.hpp>`); `{:8.2f}` is `right(fixed(v, 2), 8)`. `hex` writes lower
+  case, so the bytes a wrong file holds in place of the checkpoint magic
+  (`checkpoint_format.cpp`) print with lower-case letters where they printed upper case; no
+  test matches that text.

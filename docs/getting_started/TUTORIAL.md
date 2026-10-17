@@ -159,8 +159,8 @@ Source: not compiled
 
 The statements sit in a function that returns `sa::Status`, as `run()` does in
 `applications/examples/source/example.cpp`. From step 3 on, every call allocates, compiles or runs,
-so it returns a `Status` or a `Result<T>` (`core/status.hpp`,
-`core/result.hpp`). `SA_TRY` returns a failed status to the caller, and
+so it returns a `Status` or a `Result<T>` (`failure/status.hpp`,
+`failure/result.hpp`). `SA_TRY` returns a failed status to the caller, and
 `SA_TRY_ASSIGN` does the same or binds the value. `AdamW`, `SGD`, `Trainer` and
 the datasets are built by a static `make`, and `CompiledStep` by
 `CompiledStep::compile`; each returns a `Result`. Steps 1 and 2 touch no device.

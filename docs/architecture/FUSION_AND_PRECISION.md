@@ -11,7 +11,7 @@ compositions exist* is decided when SushiAI is compiled and a pass running at
 graph-build time can only choose among them. Everything about the shape of this
 work follows from that one fact:
 
-- **`core/ops.hpp` holds the catalog's identities**: `gemm_bias`,
+- **`ops/ops.hpp` holds the catalog's identities**: `gemm_bias`,
   `gemm_bias_relu`, `gemm_bias_sigmoid`, `gemm_bias_tanh`, `gemm_bias_gelu`,
   `exp_sub_scale`:
   each a distinct kernel in the binary rather than a flag on a generic one.
