@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Copies the shared tools of SushiSkills into a repository, keeping its settings and its own tools.
+"""Copies the shared tools and community files of SushiSkills into a repository, keeping its settings and its own tools.
 
 Usage: python tools/checking/copy_shared_tools.py ROOT --from UPSTREAM [--report]
 """
@@ -17,7 +17,9 @@ from collections.abc import Iterable
 from pathlib import Path
 
 K_TOOLS = "tools"
+K_COMMUNITY = (".github/CODE_OF_CONDUCT.md", ".github/SECURITY.md")
 K_KEPT = frozenset({"tools/settings.py", "tools/README.md"})
+K_HEADER_TEMPLATE = "tools/check_all.py"
 K_HEADER_SUFFIX = ".py"
 K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
@@ -33,11 +35,23 @@ def _split_header(text: str) -> tuple[str, str]:
     return "".join(lines[:count]), "".join(lines[count:])
 
 
-def merged(relative: str, upstream: str, current: str | None) -> str:
-    """Returns a shared file as the repository should hold it: upstream's body under its own header."""
-    if current is None or not relative.endswith(K_HEADER_SUFFIX):
+def merged(relative: str, upstream: str, current: str | None, template: str | None = None) -> str:
+    """Returns a shared file as the repository should hold it: upstream's body under its own header.
+
+    A file the repository does not hold yet takes the header of *template*, one of the
+    repository's own shared files, with its first line naming the new file.
+    """
+    if not relative.endswith(K_HEADER_SUFFIX):
         return upstream
-    return _split_header(current)[0] + _split_header(upstream)[1]
+    if current is not None:
+        return _split_header(current)[0] + _split_header(upstream)[1]
+    if template is None:
+        return upstream
+    header = _split_header(template)[0].splitlines(keepends=True)
+    if not header:
+        return upstream
+    header[0] = f"# {Path(relative).name}\n"
+    return "".join(header) + _split_header(upstream)[1]
 
 
 def _read(path: Path) -> str | None:
@@ -50,7 +64,7 @@ def _wanted(upstream: Path, root: Path, relative: str) -> str | None:
     current = _read(root / relative)
     if relative in K_KEPT and current is not None:
         return None
-    text = merged(relative, _read(upstream / relative) or "", current)
+    text = merged(relative, _read(upstream / relative) or "", current, _read(root / K_HEADER_TEMPLATE))
     return None if text == current else text
 
 
@@ -74,8 +88,8 @@ def copy(upstream: Path, root: Path, shared: Iterable[str]) -> list[str]:
 
 
 def shared_files(upstream: Path) -> list[str]:
-    """Returns the files git tracks under the upstream tools folder."""
-    listed = subprocess.run(["git", "-C", str(upstream), "ls-files", K_TOOLS],
+    """Returns the files git tracks under the upstream tools folder, and the shared community files."""
+    listed = subprocess.run(["git", "-C", str(upstream), "ls-files", K_TOOLS, *K_COMMUNITY],
                             capture_output=True, text=True, encoding="utf-8", check=True)
     return [line for line in listed.stdout.splitlines() if line]
 
