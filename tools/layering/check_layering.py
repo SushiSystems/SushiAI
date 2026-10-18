@@ -146,7 +146,20 @@ class ModuleTree:
         for candidate in (path, *path.parents):
             if owner := self.owners.get(candidate.as_posix()):
                 return owner
-        return None
+        return self.generated_owners.get(path.parts[1]) if len(path.parts) > 2 else None
+
+    @cached_property
+    def generated_owners(self) -> dict[str, Module]:
+        """Returns each module with no include/ folder by name, when no other module shares the name.
+
+        Such a module ships only headers its build generates, so an include of
+        <Project/module/...> names it although no file below modules/ matches.
+        """
+        counts: dict[str, int] = {}
+        for module in self.modules.values():
+            counts[module.name] = counts.get(module.name, 0) + 1
+        return {module.name: module for module in self.modules.values()
+                if counts[module.name] == 1 and not (module.folder / K_PUBLIC_FOLDER).is_dir()}
 
     def module_includes(self, module: Module, folder: Path) -> Iterator[tuple[Include, Module]]:
         """Yields each include below a folder that names another module, with that module."""

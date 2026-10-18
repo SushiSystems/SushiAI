@@ -80,5 +80,19 @@ class CopyTest(unittest.TestCase):
         self.assertEqual((self.root / "tools/settings.py").read_text(encoding="utf-8"), "K_TIER_ORDER = ()\n")
 
 
+class NewFileHeaderTest(unittest.TestCase):
+    """Checks that a shared file new to a repository takes the repository's header."""
+
+    def test_a_new_python_file_takes_the_template_header_with_its_own_name(self) -> None:
+        upstream = "# check_x.py\n# SushiSkills - url\n# Licensed A.\n\"\"\"Doc.\"\"\"\nbody\n"
+        template = "# check_all.py\n# SushiEngine - url\n# All rights reserved.\n\"\"\"Other.\"\"\"\n"
+        self.assertEqual(merged("tools/testing/check_x.py", upstream, None, template),
+                         "# check_x.py\n# SushiEngine - url\n# All rights reserved.\n\"\"\"Doc.\"\"\"\nbody\n")
+
+    def test_without_a_template_the_upstream_header_stays(self) -> None:
+        upstream = "# check_x.py\n# SushiSkills - url\nbody\n"
+        self.assertEqual(merged("tools/testing/check_x.py", upstream, None, None), upstream)
+
+
 if __name__ == "__main__":
     unittest.main()

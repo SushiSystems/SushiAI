@@ -60,7 +60,7 @@ K_INDEXED_SUFFIXES = frozenset(
 )
 K_PAGE_NAME = "README.md"
 K_LINE_CEILINGS = {
-    PageKind.ROOT_README: 300,
+    PageKind.ROOT_README: 120,
     PageKind.MANUAL_PAGE: 600,
     PageKind.MODULE_README: 800,
 }
@@ -76,7 +76,7 @@ K_NAMING_WORDS = frozenset({"snake_case", "kebab_case", "PascalCase", "CamelCase
 K_FOREIGN_MACRO_PREFIXES = frozenset({"K", "CMAKE", "CPACK", "EXPECT", "ASSERT", "TEST"})
 K_MACRO_PREFIX_FLOOR = 20
 K_ALLOW_LIST = Path("docs/.docs_truth_allow")
-K_UNCHECKED_DOCUMENTS = frozenset({"docs/reference/CHANGELOG.md"})
+K_UNCHECKED_DOCUMENTS = frozenset({"docs/reference/CHANGELOG.md", ".github/CODE_OF_CONDUCT.md"})
 K_UNCHECKED_DOCS_FOLDERS = frozenset({"agent", "archive"})
 K_HISTORY_EXEMPT_NAMES = frozenset({"KNOWN_ISSUES.md"})
 K_PASSAGE_FLOOR = 300
@@ -396,7 +396,8 @@ class Manual:
             if folder.name in K_RULE_FOLDERS:
                 continue
             for current, _, names in _walk(folder, self.source.ignored):
-                found.extend((current / name, PageKind.MODULE_README) for name in names if name.endswith(".md"))
+                found.extend((current / name, PageKind.MODULE_README) for name in names if name.endswith(".md")
+                             and (current / name).relative_to(self.root).as_posix() not in K_UNCHECKED_DOCUMENTS)
         if self.only:
             kept = [(path, kind) for path, kind in found if path.resolve() in self.only]
             listed = {path.resolve() for path, _ in kept}

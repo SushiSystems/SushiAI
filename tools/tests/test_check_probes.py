@@ -16,11 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from testing.check_probes import (  # noqa: E402
     discover,
-    rule_probe_name_stem,
-    rule_probe_in_test_runner,
-    rule_probe_outside_folder,
-    rule_probe_test_framework,
-    rule_unlisted_probe,
+    rule_program_name_stem,
+    rule_program_in_test_runner,
+    rule_program_outside_folder,
+    rule_program_test_framework,
+    rule_unlisted_program,
 )
 
 
@@ -50,27 +50,39 @@ class ProbesTest(unittest.TestCase):
         self.write("applications/render_probe/main.cpp")
         self.write("modules/render/source/gi/probe/volume.cpp")
         self.write("tests/foundation/device_probe/test_query.cpp")
-        self.assertEqual(self.found(rule_probe_outside_folder), ["applications/render_probe", "tools/probes"])
+        self.assertEqual(self.found(rule_program_outside_folder), ["applications/render_probe", "tools/probes"])
 
     def test_reports_a_probe_that_uses_a_test_framework(self) -> None:
         self.write("applications/probes/golden/main.cpp", "#include <cstdio>\n#include <gtest/gtest.h>\n")
         self.write("applications/probes/water/main.cpp", "#include <cstdio>\n")
-        self.assertEqual(self.found(rule_probe_test_framework), ["applications/probes/golden/main.cpp"])
+        self.assertEqual(self.found(rule_program_test_framework), ["applications/probes/golden/main.cpp"])
 
     def test_reports_a_probe_added_to_the_test_runner(self) -> None:
         self.write("applications/probes/water/CMakeLists.txt", "add_executable(water main.cpp)\nadd_test(NAME w COMMAND water)\n")
-        self.assertEqual(self.found(rule_probe_in_test_runner), ["applications/probes/water/CMakeLists.txt"])
+        self.assertEqual(self.found(rule_program_in_test_runner), ["applications/probes/water/CMakeLists.txt"])
 
     def test_reports_a_probe_named_after_another(self) -> None:
         for name in ("atmosphere", "atmosphere_global", "water"):
             self.write(f"applications/probes/{name}/main.cpp")
-        self.assertEqual(self.found(rule_probe_name_stem), ["applications/probes/atmosphere_global"])
+        self.assertEqual(self.found(rule_program_name_stem), ["applications/probes/atmosphere_global"])
 
     def test_reports_a_probe_the_readme_does_not_name(self) -> None:
         self.write("applications/probes/README.md", "# probes\n\n### water\n\nMeasures `clouds` too.\n")
         for name in ("water", "clouds", "atmosphere"):
             self.write(f"applications/probes/{name}/main.cpp")
-        self.assertEqual(self.found(rule_unlisted_probe), ["applications/probes/README.md"])
+        self.assertEqual(self.found(rule_unlisted_program), ["applications/probes/README.md"])
+
+    def test_applies_the_same_rules_to_scenario_benchmarks(self) -> None:
+        self.write("applications/benchmarks/README.md", "# benchmarks\n\n### matter\n")
+        self.write("applications/benchmarks/matter/main.cpp", "#include <cstdio>\n")
+        self.write("applications/benchmarks/matter_extra/main.cpp", "#include <gtest/gtest.h>\n")
+        self.write("applications/matter_benchmark/main.cpp")
+        self.write("applications/probes/matter/main.cpp")
+        self.write("applications/probes/README.md", "`matter`\n")
+        self.assertEqual(self.found(rule_program_outside_folder), ["applications/matter_benchmark"])
+        self.assertEqual(self.found(rule_program_test_framework), ["applications/benchmarks/matter_extra/main.cpp"])
+        self.assertEqual(self.found(rule_program_name_stem), ["applications/benchmarks/matter_extra"])
+        self.assertEqual(self.found(rule_unlisted_program), ["applications/benchmarks/README.md"])
 
 
 if __name__ == "__main__":

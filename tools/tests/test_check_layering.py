@@ -179,6 +179,15 @@ class BuildDeclarationTest(LayeringTest):
         self.assertEqual(_messages(rule_unused_dependencies(tree)),
                          ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
 
+    def test_an_include_of_a_generated_header_uses_a_module_with_no_include_tree(self) -> None:
+        _write(self.root, "modules/foundation/shaders/CMakeLists.txt", "project_add_module(NAME shaders)")
+        _write(self.root, "modules/foundation/shaders/triangle.vert")
+        _write(self.root, "modules/foundation/log/source/draw.cpp", "#include <Project/shaders/triangle.vert.h>")
+        _write(self.root, "modules/foundation/log/CMakeLists.txt",
+               "project_add_module(NAME log DEPENDS core PRIVATE_DEPENDS shaders clock)")
+        self.assertEqual(_messages(rule_unused_dependencies(ModuleTree(self.root, K_BUILD))),
+                         ["log lists clock in PRIVATE_DEPENDS and no file includes it"])
+
     def test_reads_same_tier_edges_from_the_build_file(self) -> None:
         _write(self.root, "modules/foundation/log/CMakeLists.txt", "project_add_module(NAME log)")
         self.assertEqual(_messages(rule_same_tier_includes(ModuleTree(self.root, K_BUILD))),
