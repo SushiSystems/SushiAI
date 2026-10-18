@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-18 — docs: Cut the root README to the six-section front page and moved the requirements into the CLI guide (`README.md`, `CLI_GUIDE.md`).
+- 2026-10-18 — tools: Refreshed the shared checkers and added the shared community files from SushiSkills 2d7221e (`.github/SECURITY.md`, `.github/CODE_OF_CONDUCT.md`).
 - 2026-10-17 — failure: Built every message with SushiLog::format_text in place of SushiBLAS::Core::format, which SushiBLAS removed, linking SushiLog::text (`check.hpp`, `status.hpp`, `error.hpp`).
 - 2026-10-17 — cli: Made the CLI tests run this checkout's CLI through python -m sushiai, never a sa or sushiai found on PATH (`checkout_cli.py`, `test_demo.py`, `test_train.py`, `test_import.py`, `test_tokenize.py`).
 - 2026-10-17 — build: Linked SushiLog v0.2.1, pinned in the fragment and resolved as SUSHILOG_DIR, and staged sushilog.dll beside tests and programs (`sushistack.deps.toml`, `Log.cmake`, `SushiAITestProgram.cmake`).
