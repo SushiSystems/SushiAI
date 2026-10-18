@@ -6,6 +6,22 @@ the example, and generating documentation. It is a thin wrapper around CMake
 and CTest that reads your machine-specific toolchain paths from a config file
 so you don't have to retype long compiler flags.
 
+## Requirements
+
+- A SYCL 2020 compiler: the bundled intel-llvm `clang++ -fsycl` that SushiStack provisions.
+  SushiAI selects no toolchain of its own.
+- CMake 3.20 or newer, 3.22 for the test suite's `gtest_discover_tests`, and GoogleTest.
+- SushiLog, SushiRuntime and SushiBLAS: an in-tree target, an installed `find_package`, or a
+  sibling checkout, as
+  [ARCHITECTURE.md](../architecture/ARCHITECTURE.md#2-the-sibling-dependency-chain-d3)
+  describes.
+- C++17, the one standard the whole stack builds at;
+  [INTEGRATION.md](INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply) says what that
+  means for a consumer.
+
+The one-line install, `curl -fsSL https://sushisystems.io/install.sh | bash` or
+`irm https://sushisystems.io/install.ps1 | iex` on Windows, provisions all of it.
+
 ## Installing the CLI
 
 The CLI is a Python package that lives in the `cli/` folder. Install it once
