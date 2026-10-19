@@ -11,7 +11,7 @@
 
 PROJECT_NAME           = "SushiAI"
 PROJECT_BRIEF          = "Graph-native deep learning — C++ API reference"
-PROJECT_NUMBER         = "v1 (unreleased)"
+PROJECT_NUMBER         = "0.1.0"
 
 OUTPUT_DIRECTORY       = build/docs/api-site
 HTML_OUTPUT            = html
