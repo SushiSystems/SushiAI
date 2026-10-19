@@ -1,6 +1,6 @@
 # YOLO26 on SushiAI: requirements map
 
-**Status:** Open. Requirements only; nothing here is designed in detail or implemented.
+**Status:** Open — the forward pass is built; RW-34 to RW-42.
 
 This map lists what training Ultralytics YOLO26 from scratch, and running its forward pass, needs from SushiAI, SushiBLAS and SushiRuntime. Nothing was built or run for it. Every "exists" is a reading of source that has never executed (SPEC:3, SPEC:59-60). Ultralytics line numbers are from commit `ce1399439b93c490b648b55dedd0a6334f0199da`.
 

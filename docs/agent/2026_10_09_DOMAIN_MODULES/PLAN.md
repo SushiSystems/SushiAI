@@ -1,6 +1,6 @@
 # Domain modules: implementation plan
 
-**Status:** Planned. Phases 1 and 2 are built; the move to the `repository-layout` tree is not started. Section 8 holds seven questions.
+**Status:** Shipped — 2026-10-09. The module tree is built.
 
 The owner ruled on 2026-10-09 that the whole repository follows the `repository-layout` skill.
 This plan replaces the four-phase plan: it takes the tree from HEAD `bb86983` plus the

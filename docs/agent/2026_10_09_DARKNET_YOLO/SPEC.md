@@ -1,6 +1,6 @@
 # Darknet-era YOLO: specification
 
-**Status:** Draft, revised 2026-10-09 to the owner's rulings of that day and to `REPORT.md`. Nothing here is built or run. Stage 6 of `docs/design/PROGRAMME.md`; backlog section "Darknet-era YOLO" of `docs/design/REMAINING_WORK.md`. The units and waves are in `PLAN.md` beside this file.
+**Status:** Open — stage 6 of `docs/design/PROGRAMME.md`; RW-45 to RW-50.
 
 ## 1. Requirements
 

@@ -1,6 +1,6 @@
 # Closing the CV track: the layer API and the MNIST gate
 
-**Status:** In progress. Written and syntax-checked only; the owner forbade builds and test runs on 2026-10-07 and builds himself at the end.
+**Status:** Open — written and syntax-checked; the runs are RW-8.
 
 The IR, the gradient rules and the lowerings for convolutional networks landed in August under the
 design `docs/archive/superpowers/specs/2026-08-07-cv-pipeline-layers-design.md`. No layer used

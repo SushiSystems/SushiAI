@@ -13,6 +13,7 @@ Usage: python tools/check_all.py [root]
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -22,6 +23,7 @@ K_CHECKERS = (
     "documentation/check_source_comments.py",
     "documentation/check_docs_layout.py",
     "documentation/check_changelog.py",
+    "documentation/check_backlog.py",
     "documentation/check_docs_truth.py",
     "layering/check_layering.py",
     "testing/check_test_mirror.py",
@@ -45,16 +47,23 @@ def _commands(root: Path) -> list[tuple[str, list[str]]]:
     return [*checks, ("tests", tests)]
 
 
+def run_check(command: list[str]) -> tuple[int, str]:
+    """Runs one check and returns its exit code and everything it printed, read as UTF-8."""
+    environment = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=environment)
+    return completed.returncode, f"{completed.stdout}{completed.stderr}"
+
+
 def main(argv: list[str] | None = None) -> int:
     """Runs every check and returns 1 when any of them failed."""
     arguments = sys.argv[1:] if argv is None else argv
     root = Path(arguments[0]) if arguments else Path.cwd()
     failed = []
     for name, command in _commands(root):
-        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8")
-        if completed.returncode != 0:
+        code, output = run_check(command)
+        if code != 0:
             failed.append(name)
-            print(f"== {name}\n{completed.stdout}{completed.stderr}".rstrip())
+            print(f"== {name}\n{output}".rstrip())
     count = len(K_CHECKERS) + len(own_checkers(K_TOOLS))
     print(f"failed: {', '.join(failed)}" if failed else f"clean: {count} checkers, tests")
     return 1 if failed else 0

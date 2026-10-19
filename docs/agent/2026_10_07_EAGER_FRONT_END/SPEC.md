@@ -1,6 +1,6 @@
 # Eager front end
 
-**Status:** Draft for owner review. Nothing here is implemented in SushiAI.
+**Status:** Open — written, not built; RW-15 to RW-22.
 
 SushiAI gains a second way to run a model. Today a model is traced once, compiled once and
 replayed by `Train::Trainer`. The eager front end traces the model again on every step, so plain

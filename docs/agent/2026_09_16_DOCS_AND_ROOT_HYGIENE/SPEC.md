@@ -1,5 +1,7 @@
 # Dokümantasyon Ağacı ve Kök Dizin Standartlaştırılması Tasarım Belgesi
 
+**Status:** Shipped — 2026-09-16
+
 **Tarih:** 2026-09-16  
 **Durum:** Taslak (Kullanıcı İncelemesinde)  
 **Kapsam:** SushiAI deposunun SushiStack ve SushiSkills standartlarına (`repository-layout`, `documentation`, `cpp-code-style`) uyumlu hale getirilmesi.

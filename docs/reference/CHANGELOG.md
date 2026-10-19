@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-19 — docs: Moved the backlog and the known issues to the SushiSkills entry format, archived the superseded roadmap and took the backlog checker with the shared tools (`REMAINING_WORK.md`, `KNOWN_ISSUES.md`, `ROADMAP.md`).
 - 2026-10-18 — docs: Cut the root README to the six-section front page and moved the requirements into the CLI guide (`README.md`, `CLI_GUIDE.md`).
 - 2026-10-18 — tools: Refreshed the shared checkers and added the shared community files from SushiSkills 2d7221e (`.github/SECURITY.md`, `.github/CODE_OF_CONDUCT.md`).
 - 2026-10-17 — failure: Built every message with SushiLog::format_text in place of SushiBLAS::Core::format, which SushiBLAS removed, linking SushiLog::text (`check.hpp`, `status.hpp`, `error.hpp`).

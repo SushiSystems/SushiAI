@@ -1,8 +1,6 @@
 # Model graph and batch normalisation
 
-**Status:** Approved in outline on 2026-10-07; see "Decided" below. Units U1 to U12 are written and
-syntax-checked only; `PLAN.md` records them. Where this text and the pinned reference disagree
-(the `shortcut` of rows 2 and 4, the SPPF notes, the emitter list), `PLAN.md` section 6 is right.
+**Status:** Shipped — 2026-10-09. Built and run; see `REPORT.md`.
 
 ## Decided
 

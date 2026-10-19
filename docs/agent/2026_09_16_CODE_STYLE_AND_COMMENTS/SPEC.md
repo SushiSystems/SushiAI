@@ -1,5 +1,7 @@
 # Kaynak Kod Yorumları ve Kod Stili Standartlaştırma Tasarım Belgesi
 
+**Status:** Shipped — 2026-09-16
+
 **Tarih:** 2026-09-16  
 **Durum:** Taslak (Kullanıcı İncelemesinde)  
 **Kapsam:** `include/` ve `src/` ağacındaki C++ başlık ve kaynak dosyalarının `source-comments`, `cpp-code-style` ve `project-tools` standartlarına uyumlu hale getirilmesi.

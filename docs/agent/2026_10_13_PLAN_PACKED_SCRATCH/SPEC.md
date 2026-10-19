@@ -1,8 +1,6 @@
 # Plan-packed scratch: specification
 
-**Status:** Implemented 2026-10-13 in a narrower shape than sections 4 and 5 propose; the
-owner left the three choices of section 5 to the engineer. `REPORT.md` states what was built
-and where it leaves this page.
+**Status:** Shipped — 2026-10-13. Narrower than sections 4 and 5 propose; see `REPORT.md`.
 
 ## 1. The problem
 

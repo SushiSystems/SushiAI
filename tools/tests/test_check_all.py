@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from check_all import K_CHECKERS, own_checkers  # noqa: E402
+from check_all import K_CHECKERS, own_checkers, run_check  # noqa: E402
 
 
 class OwnCheckersTest(unittest.TestCase):
@@ -28,6 +28,15 @@ class OwnCheckersTest(unittest.TestCase):
                 (tools / name).parent.mkdir(parents=True, exist_ok=True)
                 (tools / name).write_text("\n", encoding="utf-8")
             self.assertEqual(own_checkers(tools), ("layering/check_package_layers.py",))
+
+
+class RunCheckTest(unittest.TestCase):
+    """Covers how one check's output is read back."""
+
+    def test_reads_a_non_ascii_finding(self) -> None:
+        """Reads an em dash a checker prints, whatever the console's code page."""
+        code, output = run_check([sys.executable, "-c", "print('Open — phase 1'); raise SystemExit(1)"])
+        self.assertEqual((code, output.strip()), (1, "Open — phase 1"))
 
 
 if __name__ == "__main__":

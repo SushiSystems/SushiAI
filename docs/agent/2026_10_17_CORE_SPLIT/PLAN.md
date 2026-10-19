@@ -1,5 +1,7 @@
 # Plan: split core/core by responsibility
 
+**Status:** Shipped — 2026-10-17
+
 The owner's decisions on the task 9 report (relayed by sushiskills-3a, 2026-10-17):
 - The logging front gets its own module, `core/log`.
 - `core/core` is split now, one module per responsibility, with its edges declared. Each module

@@ -5,7 +5,7 @@ actually exists under `modules/`, `applications/`, and `cmake/`. **AI-1** has
 landed: the graph IR, the differentiation transform, the lowering to
 SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
 end to end. It will keep growing section by section: see
-[`ROADMAP.md`](../design/ROADMAP.md)
+[`PROGRAMME.md`](../design/PROGRAMME.md)
 for what's coming and in what order.
 
 > If you only want to *use* the library, the top-level [README.md](../../README.md)

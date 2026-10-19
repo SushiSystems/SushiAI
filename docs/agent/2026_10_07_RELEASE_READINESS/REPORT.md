@@ -1,6 +1,6 @@
 # SushiAI 0.1.0 readiness
 
-**Status:** Complete. Read-only assessment of 2026-10-07; four assessors, each blocker checked by a second agent. Nothing was built or run.
+**Status:** Shipped — 2026-10-07. Read-only assessment; nothing was built or run.
 
 ## Answer
 

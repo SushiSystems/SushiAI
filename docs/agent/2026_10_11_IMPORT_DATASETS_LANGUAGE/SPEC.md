@@ -1,5 +1,7 @@
 # Model import, datasets and language
 
+**Status:** Open — the phases live in `MODEL_IMPORT.md`, `DATASETS.md` and `LANGUAGE.md`.
+
 The work is specified by three design documents, ruled by the owner on 2026-10-11:
 
 - [`MODEL_IMPORT.md`](../../design/MODEL_IMPORT.md): one import door, a model file and a

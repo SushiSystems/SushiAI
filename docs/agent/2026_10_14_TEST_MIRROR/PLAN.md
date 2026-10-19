@@ -1,6 +1,6 @@
 # Test mirror
 
-**Status:** Done; see `REPORT.md`
+**Status:** Shipped — 2026-10-14. See `REPORT.md`.
 
 Moves every test of SushiAI into the mirror of `repository-layout/TESTS.md`: one test file per
 public header at `tests/<tier>/<module>/test_<name>.cpp`, one test program per module, the kind

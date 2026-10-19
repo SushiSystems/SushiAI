@@ -1,6 +1,6 @@
 # Error contract and naming wave
 
-**Status:** Approved in outline on 2026-10-07; see "Decided" below. Nothing here is implemented.
+**Status:** Open — the naming half is done; the status contract is RW-11.
 
 ## Decided
 

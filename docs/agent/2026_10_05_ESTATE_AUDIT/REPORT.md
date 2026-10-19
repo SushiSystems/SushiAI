@@ -1,6 +1,6 @@
 # Estate audit: sushiai
 
-**Status:** Complete. Read-only audit of 2026-10-05; nothing in the repository was changed.
+**Status:** Shipped — 2026-10-05. Read-only audit; nothing in the repository was changed.
 
 One auditing agent per dimension read the tree and a second agent checked each finding against
 the files. A finding marked *confirmed* was re-read by the reviewer; *unclear* means the reviewer

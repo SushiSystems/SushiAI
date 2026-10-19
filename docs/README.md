@@ -25,7 +25,6 @@ the manual.
 | [Security policy](reference/SECURITY.md) | How to report a vulnerability |
 | [Design map](design/README.md) | Which design document covers which topic |
 | [Programme](design/PROGRAMME.md) | The target, the owner's rulings and the stages towards 0.1.0 |
-| [Roadmap](design/ROADMAP.md) | The plan that built SushiBLAS and SushiAI up to the MLP showcase |
 | [Remaining work](design/REMAINING_WORK.md) | The backlog |
 | [Contributing](CONTRIBUTING.md) | How a change is built, tested, documented and committed |
 | [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | Where a document goes and how it is written |

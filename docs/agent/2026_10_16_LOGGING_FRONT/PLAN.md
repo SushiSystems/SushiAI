@@ -1,5 +1,7 @@
 # Plan: the SushiAI logging front
 
+**Status:** Superseded — 2026-10-17 by [the core split](../2026_10_17_CORE_SPLIT/PLAN.md)
+
 SushiAI logs through SushiLog, the one logger every Sushi library links, and keeps its own
 front: `SA_LOG_*` macros, `sushiai.<module>` categories and `SA_LOG_LEVEL`. This is task 9 of
 SushiSkills `docs/agent/2026_10_16_SUSHILOG_REPOSITORY/PLAN.md`; the rules are in the `logging`
