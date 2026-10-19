@@ -24,7 +24,7 @@ included: small is 1 to 3, medium 4 to 8, large more than 8.
 | Id | Limit | Owner | Unblocks in SushiAI | Size | Depends on |
 | --- | --- | --- | --- | --- | --- |
 | R1 | Host-written memory read by a replayed plan is relied on and stated nowhere | R | G1, and what the gather offsets, the mask vectors and `StepScalars` already do | small | none |
-| R2 | A run over several machines | R | Deferred; section 3 lists what would have to be exposed | not sized | the owner raising it |
+| R2 | A run over several machines | R | Moved to [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) | not sized | that design's phase 0 |
 | B1 | A random fill fixes its seed and offset when recorded | B | Dropout (G1) | medium | R1 |
 | B2 | Row gather goes through a sparse product: int32 `r * V + label`, no bounds rule, host-filled offsets | B | Losses over integer labels of any size (G5), the embedding | large | none |
 | B3 | No broadcasting: operands of one elementwise call share one shape | B | Broadcast operations in the IR (G3), shorter special forms (G4) | large | none |
@@ -98,7 +98,7 @@ build before its tests can run.
 | 1 | R1 (free); B7, B8 (after); G2, G6, G8, G9 (written now) | `sr build` and `sr test` with the R1 test; `sb build` and `sb test --suite unit` with the B7 and B8 tests | `sa build`, `sa test --suite unit`: the gradient checks of G2 and G6, the half-precision mask test of G8, the recorder-only step of G9 |
 | 2 | B1, B4, B5, B6 (after); then G1, G7, G10, A11 | `sb build`, `sb test`, and a tagged SushiBLAS release | The pin in `cli/sushistack.deps.toml` moves to that tag; a dropout step draws two different masks from one compile; a bilinear head passes the one-batch overfit test of segmentation; `measure_segmentation` equals its host form |
 | 3 | B2, B3 (after); then G5, G3, G4, A12 | `sb build`, `sb test`, the two benchmarks of B2 and B3 run on the RTX 3080 Ti, and a tagged release | The next-token and per-pixel losses and gradients equal their current values within the tolerances of their tests, with the int32 refusals removed; each re-lowering of G4 lands only with its before and after timing |
-| 4 | R2 | Not scheduled | Not scheduled |
+| 4 | R2 | Phases of [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) | That design's section 7 |
 
 Phases 2 and 3 do not depend on each other and may swap. Inside a phase the B items are
 independent of one another. Rule 4 of the `api-stability` skill holds: SushiAI consumes a phase
@@ -154,23 +154,10 @@ each time. The case runs on every device queue the context has.
 **SushiAI then.** Nothing changes; `modules/core/graph/README.md` cites the contract where it
 describes the host-filled scratch.
 
-### R2. Several machines: what would have to be exposed
+### R2. Several machines
 
-Not designed. The owner defers it until he raises it (`docs/design/LANGUAGE.md:17`), and it
-needs four facts first (`docs/design/LANGUAGE.md:166-167`). The distributed layer ships named
-kernels and buffer references (`sushiruntime/modules/extension/distributed/README.md:3-5`). A
-SushiAI step is made of closures that capture local addresses
-(`sushiblas/modules/engine/engine/include/SushiBLAS/engine/task_recorder.hpp:159-168`), so
-before any design these would have to exist:
-
-- SushiBLAS: each operation reachable as a registered kernel name with its parameters in a
-  wire form, where today it is a closure recorded by `record_pair`;
-- SushiBLAS: a tensor that names a `BufferHandle` of the cluster, where today it names a local
-  USM address;
-- SushiRuntime: a way to run one compiled plan on a worker against buffers the master names,
-  and to return named buffers (the gradients, or the updated parameters);
-- SushiRuntime or SushiBLAS: a sum of the workers' gradients in a fixed worker order, so a run
-  repeats bit for bit under `SR_DETERMINISTIC_FP`.
+The design is [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md); its section 4 holds what the
+runtime has to provide.
 
 ## 4. SushiBLAS
 
@@ -1102,7 +1089,7 @@ the engineer of the SushiAI session, who took the recommendation in each case:
 
 ## 7. What the plan leaves out
 
-- **A design for several machines.** Deferred by the owner; R2 lists prerequisites only.
+- **A design for several machines.** [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) holds it.
 - **Removing a special form.** `K_LAYER_NORM`, `K_CAUSAL_MASK`, `K_BIAS_ADD` and
   `K_LOG_SOFTMAX_BACKWARD` stay as nodes. G4 changes how they lower, row by row, and only on a
   measured gain. Whether a composition from G2 and G3 could replace a node is not claimed: it

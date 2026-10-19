@@ -137,6 +137,15 @@ Every consumer downstream (SushiAI's own targets, the CLI's `-D` flags, an
 out-of-tree `find_package(SushiAI)` consumer) links the same two namespaced
 aliases regardless of which mode actually resolved them.
 
+The two siblings have separate roles. SushiRuntime holds the graphs and the
+memory and decides where each node runs; it computes nothing. SushiBLAS
+computes every operation and records it into the recorder it is handed. SushiAI
+owns the graph of a step: `CompiledStep` records on a `SushiRuntime::Graph` of
+its own through a `SushiBLAS::TaskRecorder` built over that graph's recorder.
+The execution helpers `run_recorded()` and `discard_recorded()` still use the
+graph SushiBLAS's `Engine` keeps; moving them is task A0 of
+[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION.md).
+
 ---
 
 ## 3. The library target

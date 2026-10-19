@@ -39,7 +39,7 @@ Each was made by the owner on 2026-10-07.
 | Domain modules | Ruled on 2026-10-09: a field of use is a top folder and its own library target; vision is the first; layers stay in `nn`. The design is [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md) |
 | Model import | Ruled on 2026-10-11: every foreign format (Darknet, later ONNX, Caffe, Ultralytics) enters through one import step that writes a model file in JSON and a `.sushi` weight file; training and inference read those alone. `.sushi` is the official weight extension. The design is [`MODEL_IMPORT.md`](MODEL_IMPORT.md) |
 | Datasets | Ruled on 2026-10-11: a dataset is a task and a format reader; `Data::Batch` breaks to carry roles; classification, binary, multi-label, detection, semantic segmentation and regression are inside the feature freeze of 0.1.0; libjpeg-turbo and libpng are dependencies. The design is [`DATASETS.md`](DATASETS.md) |
-| Language | Ruled on 2026-10-11: a language domain is inside the feature freeze of 0.1.0. A decoder-only transformer trains on the library; the reference for parity is a nanoGPT-scale PyTorch model run outside the repository. Training across several machines through SushiRuntime's distributed layer is wanted; its design is not written |
+| Language | Ruled on 2026-10-11: a language domain is inside the feature freeze of 0.1.0. A decoder-only transformer trains on the library; the reference for parity is a nanoGPT-scale PyTorch model run outside the repository. Training across several machines through SushiRuntime's distributed layer is wanted; ruled on 2026-10-19 to go through SushiBLAS, designed in [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) |
 | Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
 ## Stages
@@ -55,7 +55,7 @@ Each was made by the owner on 2026-10-07.
 | 6 | Darknet-era YOLO | YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference, then trains; v3, v4-tiny, v4, v7-tiny and v7 follow through the same anchor unit | `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` and `PLAN.md` |
 | 7 | Model import | A Darknet model is imported once and its six parity suites pass from the imported files | [`MODEL_IMPORT.md`](MODEL_IMPORT.md) |
 | 8 | Datasets and tasks | A YOLOv7-tiny trains from a model file, a `.sushi` file and a folder of images; a binary and a segmentation model each overfit one batch | [`DATASETS.md`](DATASETS.md) |
-| 9 | Language | A small decoder-only transformer equals its reference on one forward pass and one step, then trains on one machine; the multi-machine run follows its own design | [`LANGUAGE.md`](LANGUAGE.md) |
+| 9 | Language | A small decoder-only transformer equals its reference on one forward pass and one step, then trains on one machine; the multi-machine run follows [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) | [`LANGUAGE.md`](LANGUAGE.md) |
 | 10 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
 
 Stages 1 and 2 touch the same files and are planned as one pass over the library. Stages 3 to 5

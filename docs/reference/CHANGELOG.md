@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-20 — docs: Designed SushiAI's share of layered execution: its own graphs only, and training over five machines through SushiBLAS (`LAYERED_EXECUTION.md`).
 - 2026-10-19 — tests: Granted the Darknet parity suites the one exception to the outside-file rule; their references stay outside (`tests/README.md`).
 - 2026-10-19 — core: Started `Shape::hash` from the 64-bit FNV-1a offset basis, which had lost its last digit (`shape.hpp`).
 - 2026-10-19 — docs: Named the Doxygen output folder and `sa docs` in the agent files (`CLAUDE.md`, `AGENTS.md`).

@@ -14,7 +14,7 @@ Made by the owner on 2026-10-11.
 | Scope | A language domain is inside the feature freeze of 0.1.0 |
 | First model | A decoder-only transformer of nanoGPT scale |
 | Reference | A PyTorch model of that scale, run outside the repository to produce tensors. Nothing of its source enters the repository |
-| Several machines | Training across the owner's five machines through SushiRuntime's distributed layer is wanted. It has its own design, not written: it waits on what the machines and the network between them are |
+| Several machines | Training across the owner's five machines through SushiRuntime's distributed layer is wanted. Its design is [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) |
 | Mixture of experts | Asked about. Phase 7 below; possible on one machine with the operations phases 1 and 2 add |
 | Decision model | A non-autoregressive model that answers typed questions about a text, of the kind TypeSafe AI's Jev is; the owner will use it in his games. Phase 6 below |
 
@@ -202,5 +202,5 @@ Each is the owner's decision unless it says otherwise.
 - **The tokenizer's file format** and whether a vocabulary trained elsewhere is imported
   through the door of [`MODEL_IMPORT.md`](MODEL_IMPORT.md).
 - **The decision model's frame budget and its training data.** Not stated yet.
-- **The multi-machine design.** It needs four facts: the device of each machine, the network
-  between them, their operating systems, and whether the distributed layer has run on them.
+- **The multi-machine run.** Its plan is section 7 of
+  [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md).

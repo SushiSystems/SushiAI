@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-130
+Next id: RW-131
 
 ## Decisions waiting for the owner
 
@@ -8,40 +8,37 @@ Next id: RW-130
 - State: decision
 - Done when: the owner has approved 0.1.0 and `## Unreleased` becomes its section
 
-### RW-2 Rule how `BatchNorm2d` and a nested `ModelGraph` refuse a misfit when added
-- State: decision
-- Done when: the owner has ruled and both refuse that way
+## Rulings to carry out
+
+### RW-130 Carry out layered execution across the stack
+- State: open
+- Done when: tasks A0 to A7 of `docs/design/LAYERED_EXECUTION.md` are closed, and with them
+  `sushiruntime RW-65`, SushiBLAS's B1 to B13 and SushiEngine's E0 to E14
+- Source: `docs/design/LAYERED_EXECUTION.md`
+
+The four repositories each hold a `docs/design/LAYERED_EXECUTION.md` with their share. The owner
+ruled on 2026-10-19 how a run spans machines: through SushiRuntime's distributed layer, carried by
+SushiBLAS, YOLOv3-tiny first. The runtime's measurements (its R13) come after the placement
+labels, as ruled on 2026-10-20.
+
+### RW-2 Make `BatchNorm2d` and a nested `ModelGraph` refuse a misfit with a `Status`
+- State: open
+- Done when: both return a `Status` when added with a misfit, as the owner ruled on 2026-10-19
 - Source: `docs/agent/2026_10_07_YOLO26/SPEC.md`
 
-### RW-3 Rule where the Darknet reference data lives
-- State: decision
-- Done when: the suites that read `SA_REFERENCE_DATA_DIR` have an exception to rule 4 of the
-  `testing` skill, or their references are inside the repository
+### RW-5 Design value-dependent control flow in autograd
+- State: open
+- Done when: a design says how `Autograd::differentiate` treats a branch or loop that depends on
+  a value; the owner took it into scope on 2026-10-19
 
-The suites skip when the directory is absent.
+### RW-6 Test a model file with a missing block
+- State: open
+- Done when: `TheYOLO26FileNamesEachMissingBlock` has a successor under `vision/registration`
 
-### RW-4 Rule how a run spans machines
-- State: decision
-- Done when: the owner has ruled what a step ships on SushiRuntime's distributed layer and what
-  the network between the five machines carries
-
-Deferred by the owner. Mixture of experts is asked about; it needs a top-k router and a balance
-term.
-
-### RW-5 Rule on value-dependent control flow in autograd
-- State: decision
-- Done when: the owner has ruled it in or out of scope; it was out of scope for v1, to revisit
-  for PINN and GNN work
-
-### RW-6 Decide whether a model file with a missing block needs a case
-- State: decision
-- Done when: `TheYOLO26FileNamesEachMissingBlock` has a successor under `vision/registration`,
-  or the owner has ruled it unneeded
-
-### RW-7 Decide whether the archived August plans are renamed
-- State: decision
+### RW-7 Rename the archived August plans
+- State: open
 - Done when: the five lower-kebab files under `docs/archive/superpowers/` move to the
-  `docs/archive/agent/` shape, or the owner leaves the frozen archive as it is
+  `docs/archive/agent/` shape
 
 ## Runs not yet made
 
@@ -576,7 +573,7 @@ repository's current work is done.
 - Done when: the G and A items of section 5 are closed
 - Source: `docs/design/GRAPH_CAPABILITIES.md`
 
-R1 is `sushiruntime RW-62`; R2 is the owner's deferred question, `RW-4`. The B items belong to
+R1 is `sushiruntime RW-62`; R2 is `docs/design/LAYERED_EXECUTION.md`, `RW-130`. The B items belong to
 SushiBLAS, and their entry there waits until that repository's current work is done.
 
 ### RW-121 Move onto SushiBLAS's views, enums and `BLASScalar`
@@ -594,36 +591,6 @@ SushiBLAS, and their entry there waits until that repository's current work is d
 - Done when: the numbers of `TUTORIAL.md`, sections 1 to 6 of `ARCHITECTURE.md` and the flag
   tables of `CLI_GUIDE.md` are checked against the code
 
-### RW-124 Correct the agent files and a test comment
-- State: open
-- Done when: `CLAUDE.md` and `AGENTS.md` name `build/docs/api-site` and `sa docs`, and
-  `tests/CMakeLists.txt` cites `docs/guides/DEMO.md` for the demo's output
-
-### RW-125 Point the security page at the shared policies
-- State: open
-- Done when: `docs/reference/SECURITY.md` links each sibling's policy where it is
-
-### RW-126 Record the `sushicore` floor raise in the changelog
-- State: open
-- Done when: `docs/reference/CHANGELOG.md` records the move from 0.4.0 to 0.7.0
-
-## Layout, tools and release
-
-### RW-115 Fix the offset basis of `Shape::hash`
-- State: open
-- Done when: it starts from 14695981039346656037, the 64-bit FNV-1a basis
-
-### RW-127 Set the documentation's version
-- State: open
-- Done when: `PROJECT_NUMBER` in `.config/doxygen/Doxyfile` is the library's version
-
-### RW-128 Drop the ignore rules of `docs/api-site/`
-- State: open
-- Done when: `.gitignore` names no folder nothing writes
-
-### RW-129 Spell the repository URL in `sushi-module.toml` as GitHub does
-- State: open
-- Done when: the manifest names `SushiSystems/SushiAI`
 
 ## Test tree
 
