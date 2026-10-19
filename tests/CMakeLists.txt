@@ -48,7 +48,7 @@ endif()
 
 # --- The `sa demo mlp` smoke test ---
 # A demo whose output nobody checks rots into a lie, and this one's output is
-# quoted in docs/README.md. The run is deliberately tiny (2 steps on the
+# quoted in docs/guides/DEMO.md. The run is deliberately tiny (2 steps on the
 # synthetic fallback, pointed at a directory that cannot hold MNIST) so it
 # costs about as much as one GTest case.
 #

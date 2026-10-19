@@ -75,16 +75,6 @@ Next id: KI-17
 
 ## Documentation
 
-### KI-9 The agent files name an output folder and a command that are not so
-- Origin: own
-- Where: `CLAUDE.md`, `AGENTS.md`, `tests/CMakeLists.txt`
-- Cause: `CLAUDE.md` names `docs/api-site/` where the Doxyfile writes `build/docs/api-site`, both
-  files say `sa doxygen` for `sa docs`, and a test comment cites `docs/README.md` for the demo
-  output now in `docs/guides/DEMO.md`
-- Recognise: the named folder is empty; `sa doxygen` runs as an old word until 2027-03-25
-- Workaround: use `sa docs` and read `build/docs/api-site`
-- Fix: RW-124
-
 ### KI-10 The demo page's node counts were never checked against a run
 - Origin: own
 - Where: `docs/guides/DEMO.md`
@@ -92,22 +82,6 @@ Next id: KI-17
 - Recognise: the two counts disagree
 - Workaround: run the demo and read its counts
 - Fix: RW-9
-
-### KI-11 The security page links sibling policies at old paths
-- Origin: own
-- Where: `docs/reference/SECURITY.md`
-- Cause: the links were written before the policies moved under `.github/`
-- Recognise: the SushiBLAS and SushiRuntime links resolve nowhere
-- Workaround: read each sibling's `.github/SECURITY.md`
-- Fix: RW-125
-
-### KI-12 No changelog entry records the `sushicore` floor moving from 0.4.0 to 0.7.0
-- Origin: own
-- Where: `docs/reference/CHANGELOG.md`
-- Cause: the entry was never written
-- Recognise: `cli/pyproject.toml` history has the raise; the changelog does not
-- Workaround: read `git log`
-- Fix: RW-126
 
 ## Build, CI and root files
 
@@ -120,26 +94,3 @@ Next id: KI-17
 - Workaround: none
 - Fix: RW-45
 
-### KI-14 The documentation states version v1
-- Origin: own
-- Where: `.config/doxygen/Doxyfile`
-- Cause: `PROJECT_NUMBER` is "v1 (unreleased)" while the library and the CLI are 0.1.0
-- Recognise: the API site names v1
-- Workaround: read the version from `CMakeLists.txt`
-- Fix: RW-127
-
-### KI-15 Three ignore rules name a folder nothing writes
-- Origin: own
-- Where: `.gitignore`
-- Cause: the rules of `docs/api-site/` outlived the output's move to `build/`
-- Recognise: lines 23 to 25 of `.gitignore`
-- Workaround: none needed
-- Fix: RW-128
-
-### KI-16 The manifest spells the repository URL in lower case
-- Origin: own
-- Where: `sushi-module.toml`
-- Cause: the URL was written by hand
-- Recognise: it differs from `SushiSystems/SushiAI`
-- Workaround: none needed on a case-blind host
-- Fix: RW-129

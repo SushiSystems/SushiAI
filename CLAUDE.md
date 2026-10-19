@@ -7,7 +7,7 @@ When starting work on this project:
 1. Follow the Sushi Systems doctrine (`sushiskills`) and repository conventions.
 2. Read `docs/CONTRIBUTING.md` first and follow its rules.
 3. Read `docs/README.md` (the manual index) and `docs/architecture/ARCHITECTURE.md` before modifying subsystems.
-4. `docs/design/` holds design specifications and roadmaps. Read the relevant design document before changing a subsystem. Never edit generated Doxygen output under `docs/api-site/`.
+4. `docs/design/` holds design specifications and roadmaps. Read the relevant design document before changing a subsystem. Never edit generated Doxygen output under `build/docs/api-site/`.
 
 ## Active skills
 
@@ -54,7 +54,7 @@ If a task requires an architectural or policy decision, ask the user instead of 
 
 ### Building and toolchain
 
-Never invoke CMake, Ninja, or CTest directly. All builds, tests, and tool invocations must run through the `sa` CLI (`sa build`, `sa test`, `sa run`, `sa doxygen`). Only the CLI configures the necessary environment and runtime library paths.
+Never invoke CMake, Ninja, or CTest directly. All builds, tests, and tool invocations must run through the `sa` CLI (`sa build`, `sa test`, `sa run`, `sa docs`). Only the CLI configures the necessary environment and runtime library paths.
 
 ### Task tracking
 

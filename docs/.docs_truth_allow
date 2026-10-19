@@ -16,7 +16,6 @@ sushiai_[a-z_]+_tests  # test program names sushiai_add_test_program generates
 cli/config\.local\.toml  # the per-machine CLI configuration, gitignored
 Sushi(BLAS|Runtime|Log)/.*|modules/.*/include/Sushi(BLAS|Runtime|Log)/.*|sushiblas/.*  # SushiBLAS, SushiRuntime and SushiLog paths, held in the sibling repositories
 tests/.*/fixtures(/.*)?  # fixture folders whose generated files git ignores
-docs/api-site  # the Doxygen output folder KNOWN_ISSUES.md names as stale
 docs/architecture-packaging-section  # a branch name in the branch naming example
 core/tensor\.h|src/CMakeLists\.txt  # files of the retired 2025-06 prototype
 load_train\("no/such/train\.json  # a path a test passes because it does not exist

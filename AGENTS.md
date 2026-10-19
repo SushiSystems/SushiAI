@@ -18,7 +18,7 @@ Execute all build, test, and runtime operations through the repository's dedicat
 sa build
 sa test
 sa run <target>
-sa doxygen
+sa docs
 ```
 
 Never invoke `cmake`, `ninja`, `ctest`, or compiler binaries directly. Only `sa` configures the required runtime environment, compiler flags, and dynamic library search paths.

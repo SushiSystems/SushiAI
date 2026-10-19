@@ -52,9 +52,9 @@ so a malformed header can turn into an allocation failure rather than a clean
 rejection. It is aimed at a corrupted download, not at a hostile file; do not
 point it at input you do not control. Nearly all other compute-relevant
 security surface still lives in
-[SushiBLAS](https://github.com/SushiSystems/SushiBLAS/blob/main/docs/SECURITY.md)
+[SushiBLAS](https://github.com/SushiSystems/SushiBLAS/blob/main/.github/SECURITY.md)
 (the kernels) and
-[SushiRuntime](https://github.com/SushiSystems/SushiRuntime/blob/main/docs/SECURITY.md)
+[SushiRuntime](https://github.com/SushiSystems/SushiRuntime/blob/main/.github/SECURITY.md)
 (the scheduler and memory pool): please report a bug specific to either of
 those directly to that repository. This document will grow further scope
 statements as model/checkpoint loading lands: that, like SushiBLAS's tensor

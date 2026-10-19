@@ -3,6 +3,9 @@
 ## Unreleased
 
 - 2026-10-19 — core: Started `Shape::hash` from the 64-bit FNV-1a offset basis, which had lost its last digit (`shape.hpp`).
+- 2026-10-19 — docs: Named the Doxygen output folder and `sa docs` in the agent files (`CLAUDE.md`, `AGENTS.md`).
+- 2026-10-19 — docs: Cited the demo guide for the demo's output (`tests/CMakeLists.txt`).
+- 2026-10-19 — docs: Linked each sibling's security policy under `.github/` (`SECURITY.md`).
 - 2026-10-19 — build: Set the documentation's version to 0.1.0 (`Doxyfile`).
 - 2026-10-19 — build: Dropped the ignore rules of `docs/api-site/`, which nothing writes (`.gitignore`).
 - 2026-10-19 — build: Spelled the repository URL as GitHub does (`sushi-module.toml`).
@@ -261,6 +264,7 @@
 - 2026-10-05 — docs: Described `sa docs`, `--version` and `--describe` (`CLI_GUIDE.md`, `README.md`).
 - 2026-10-05 — licence: Changed the licence from Apache-2.0 to PolyForm Noncommercial 1.0.0, which ends commercial use without a licence from Sushi Systems (`LICENSE`, `COMMERCIAL.md`, `NOTICE.md`, `README.md`, `docs/CONTRIBUTING.md`).
 - 2026-10-04 — cli: Added setup, doctor, link and unlink from sushicore (`cli/sushiai/cli.py`, `cli/sushiai/config.py`).
+- 2026-10-04 — cli: Raised the `sushicore` floor from 0.4.0 to 0.7.0 (`pyproject.toml`).
 - 2026-09-22 — cli: Grouped `sa --help` under Project, Models and Diagnostics and added examples to each command (`cli.py`, `console.py`).
 - 2026-09-22 — cli: Replaced raw Rich colour names with theme styles (`project.py`).
 - 2026-09-22 — cli: Raised the `sushicore` floor to 0.4.0 (`pyproject.toml`).
