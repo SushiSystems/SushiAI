@@ -36,6 +36,14 @@ The Darknet cases of `sushiai_vision_importers_tests` read their dumps from
 `SA_REFERENCE_DATA_DIR`. The training cases of the full YOLOv3, YOLOv4 and YOLOv7 models need
 several gigabytes of device memory.
 
+These Darknet parity suites are the one exception to rule 4 of the `testing` skill, which bars a
+file outside the repository. The owner ruled it on 2026-10-19: the weights, the cfg files and the
+reference tensors stay outside, none of them is committed, not even the tiny models' part. A case
+whose file is absent is reported skipped by name and never counted as passed. The folder layout
+and the Darknet commit the dumps come from are in section 6 of
+[the Darknet plan's spec](../docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md). Any other suite that
+reads a file outside the repository is a defect.
+
 ## The SaTest alias
 
 Inside a `TEST_F` body the fixture's base class injects the name `Test`, so `Test` alone resolves
