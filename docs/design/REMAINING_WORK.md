@@ -13,7 +13,7 @@ Next id: RW-131
 ### RW-130 Carry out layered execution across the stack
 - State: open
 - Done when: tasks A0 to A7 of `docs/design/LAYERED_EXECUTION.md` are closed, and with them
-  `sushiruntime RW-65`, SushiBLAS's B1 to B13 and SushiEngine's E0 to E14
+  `sushiruntime RW-65`, SushiBLAS's B1 to B13 and SushiEngine's E1 to E17
 - Source: `docs/design/LAYERED_EXECUTION.md`
 
 The four repositories each hold a `docs/design/LAYERED_EXECUTION.md` with their share. The owner

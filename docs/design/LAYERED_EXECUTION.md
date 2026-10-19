@@ -13,7 +13,7 @@ Each repository of the stack holds its own share in a document of this name:
 | SushiRuntime | Placement class and key, scopes, topology, placement rules, the distributed layer's needs (R1 to R14) |
 | SushiBLAS | An engine without its own graph, the per-index seam, two general operations, the cluster module (B1 to B13) |
 | SushiAI | This document (A0 to A7) |
-| SushiEngine | Every kernel through SushiBLAS, placement scopes, physics islands on several machines (E0 to E14) |
+| SushiEngine | Two lanes behind one contract: SushiRuntime and SushiBLAS, or the engine's native runtime and BLAS; placement scopes; physics islands on several machines in the runtime lane (E1 to E17) |
 
 ## 1. Roles
 
