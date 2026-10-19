@@ -149,7 +149,7 @@ namespace SushiAI
              */
             constexpr std::uint64_t hash() const noexcept
             {
-                std::uint64_t h = 1469598103934665603ull;
+                std::uint64_t h = 14695981039346656037ull;
                 const auto mix = [&h](std::uint64_t v) constexpr
                 {
                     for (int b = 0; b < 8; ++b)
