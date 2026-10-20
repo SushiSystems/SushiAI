@@ -4,14 +4,6 @@ Next id: KI-17
 
 ## Library behaviour
 
-### KI-1 An overflowed gradient in mixed precision skips one parameter's update only
-- Origin: own
-- Where: `modules/core/optim/include/SushiAI/optim/loss_scaler.hpp`
-- Cause: `LossScaler` screens each parameter's gradient and skips that parameter alone
-- Recognise: one step updates some layers and not others
-- Workaround: none
-- Fix: RW-108
-
 ### KI-2 Differentiating `K_LOG_SOFTMAX` on its own throws
 - Origin: own
 - Where: `modules/core/autograd/source/rules/loss.cpp`
@@ -44,35 +36,6 @@ Next id: KI-17
 - Workaround: call through `seam/seam.hpp`
 - Fix: RW-11
 
-## Tests
-
-### KI-6 The step bounds of YOLOv4 and YOLOv7 are wide and unexplained
-- Origin: own
-- Where: `tests/vision/importers/test_darknet_training/test_yolov4.cpp`,
-  `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
-- Cause: unknown; no layer before the heads is compared
-- Recognise: a head is held to 0.31 of the dump in YOLOv4 and 0.0079 in YOLOv7, 1.5 times the one
-  measured difference
-- Workaround: none
-- Fix: RW-101
-
-### KI-7 The one-batch overfit of YOLOv7 fails
-- Origin: own
-- Where: `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
-- Cause: the run is unstable on its batch, and the order of one sum decides the outcome
-- Recognise: `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` reads 11.1 at step
-  199 against a bound of 3.56
-- Workaround: none
-- Fix: RW-103
-
-### KI-8 The step bounds of YOLOv3 are wide and unexplained
-- Origin: own
-- Where: `tests/vision/importers/test_darknet_training/test_yolov3.cpp`
-- Cause: unknown; no layer before the heads is compared
-- Recognise: a head is held to 0.36 of the dump, 1.5 times the one measured difference
-- Workaround: none
-- Fix: RW-104
-
 ## Documentation
 
 ### KI-10 The demo page's node counts were never checked against a run
@@ -82,15 +45,3 @@ Next id: KI-17
 - Recognise: the two counts disagree
 - Workaround: run the demo and read its counts
 - Fix: RW-9
-
-## Build, CI and root files
-
-### KI-13 A pre-merge build checks out SushiRuntime and SushiBLAS at `main`
-- Origin: own
-- Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
-- Cause: SushiBLAS has no tag, and SushiRuntime's latest tag predates the runtime SushiBLAS
-  `main` configures against
-- Recognise: `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` are `main`
-- Workaround: none
-- Fix: RW-45
-

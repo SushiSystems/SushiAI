@@ -27,6 +27,7 @@ from documentation.check_backlog import (  # noqa: E402
     rule_ids,
     rule_paths,
     rule_references,
+    rule_scope,
     rule_shape,
 )
 
@@ -70,7 +71,7 @@ Next id: KI-3
 - Where: `src/save.py`
 - Cause: a 32-bit length
 - Recognise: the file ends at exactly 4 GiB
-- Workaround: none
+- Workaround: split the save into files below 4 GiB
 - Fix: RW-2
 
 ### KI-2 The linker drops a symbol
@@ -119,10 +120,13 @@ class RegistrationTest(unittest.TestCase):
     """Checks the rule table."""
 
     def test_names_every_rule(self) -> None:
-        """Holds the six rules under their names."""
+        """Holds the seven rules under their names."""
         self.assertEqual(
             sorted(K_CHECKER.rules),
-            ["rule_design_coverage", "rule_entry_size", "rule_ids", "rule_paths", "rule_references", "rule_shape"],
+            [
+                "rule_design_coverage", "rule_entry_size", "rule_ids", "rule_paths",
+                "rule_references", "rule_scope", "rule_shape",
+            ],
         )
 
 
@@ -197,9 +201,39 @@ class ShapeTest(unittest.TestCase):
         issues = issues.replace("- Origin: toolchain\n- Cause: unknown\n", "- Origin: beta\n")
         self.assertEqual(len(self._shape(issues=issues)), 3)
 
+    def test_accepts_where_on_a_backlog_entry(self) -> None:
+        """Reads Where as a field of a backlog entry."""
+        backlog = K_BACKLOG.replace("- Done when: each program", "- Where: `src/save.py`\n- Done when: each program")
+        self.assertEqual(self._shape(backlog=backlog), [])
+
     def test_accepts_continuation_lines(self) -> None:
         """Reads an indented line as the rest of the field above it."""
         self.assertEqual(self._shape(), [])
+
+
+class ScopeTest(unittest.TestCase):
+    """Covers the scope of the known issues."""
+
+    def _scope(self, issues: str) -> list[str]:
+        """Returns the scope messages for the given known issues."""
+        with tempfile.TemporaryDirectory() as folder:
+            repository = _repository(folder, {"docs/reference/KNOWN_ISSUES.md": issues})
+            return _messages(rule_scope(repository))
+
+    def test_reports_an_own_defect_with_a_fix_and_no_workaround(self) -> None:
+        """Reports work that sits in the known issues: a scheduled fix and nothing a reader can do."""
+        self.assertEqual(len(self._scope(K_ISSUES.replace("split the save into files below 4 GiB", "none"))), 1)
+
+    def test_accepts_a_limitation_chosen_on_purpose_with_no_workaround(self) -> None:
+        """Accepts Workaround: none beside Fix: none with its reason."""
+        issues = K_ISSUES.replace("split the save into files below 4 GiB", "none").replace(
+            "- Fix: RW-2", "- Fix: none, the format caps a file at 4 GiB"
+        )
+        self.assertEqual(self._scope(issues), [])
+
+    def test_accepts_a_toolchain_issue_with_no_workaround(self) -> None:
+        """Leaves an issue the repository cannot fix to the known issues."""
+        self.assertEqual(self._scope(K_ISSUES.replace("build the debug configuration", "none")), [])
 
 
 class IdsTest(unittest.TestCase):

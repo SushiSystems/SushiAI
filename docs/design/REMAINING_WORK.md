@@ -228,6 +228,11 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 - Done when: the spellings this tree uses build against SushiRuntime v0.4.0, and CI pins
   `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` to tags
 - Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`
+- Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
+
+A pre-merge build checks out SushiRuntime and SushiBLAS at `main`. `SUSHIRUNTIME_REF` and
+`SUSHIBLAS_REF` are `main`. Cause: SushiBLAS has no tag, and SushiRuntime's latest tag predates the
+runtime SushiBLAS `main` configures against.
 
 ### RW-46 Confirm weight-only decay against Darknet
 - State: unmeasured
@@ -481,9 +486,15 @@ A rule leaves out a buffer the host fills once or a replay prelude writes.
 - State: open
 - Done when: a Darknet dump of each layer's output under batch statistics and a case that walks
   them show where YOLOv4 and YOLOv7 leave it
+- Where: `tests/vision/importers/test_darknet_training/test_yolov4.cpp`,
+  `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
 
 A head of YOLOv4 is up to 0.205 from the dump on values near 40, one of YOLOv7 up to 0.0052; the
 tiny models hold 1e-3, and the memory plan is ruled out for them.
+
+The step bounds of YOLOv4 and YOLOv7 are wide and unexplained. A head is held to 0.31 of the dump in
+YOLOv4 and 0.0079 in YOLOv7, 1.5 times the one measured difference. Cause: unknown; no layer before
+the heads is compared.
 
 ### RW-102 Close the step time against Darknet
 - State: open
@@ -501,11 +512,21 @@ normalisation and its gradient, compute the deltas on the device.
 - State: open
 - Done when: `Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` passes, the cause of
   the instability found and the bound ruled by the owner
+- Where: `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
+
+The one-batch overfit of YOLOv7 fails.
+`Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` reads 11.1 at step 199 against a
+bound of 3.56. Cause: the run is unstable on its batch, and the order of one sum decides the
+outcome.
 
 ### RW-104 Measure where YOLOv3's training step leaves Darknet, layer by layer
 - State: unmeasured
 - Done when: a per-layer dump under batch statistics shows whether the difference grows over the
   75 convolutions or enters at one
+- Where: `tests/vision/importers/test_darknet_training/test_yolov3.cpp`
+
+The step bounds of YOLOv3 are wide and unexplained. A head is held to 0.36 of the dump, 1.5 times
+the one measured difference. Cause: unknown; no layer before the heads is compared.
 
 ### RW-105 Feed a batch without two copies
 - State: blocked
@@ -532,6 +553,11 @@ The SushiBLAS whole-tensor reduction takes no transform functor.
 - State: open
 - Done when: one overflowed gradient freezes every parameter for that step, through a task that
   reads the count buffer and writes a gradient
+- Where: `modules/core/optim/include/SushiAI/optim/loss_scaler.hpp`
+
+An overflowed gradient in mixed precision skips one parameter's update only. One step updates some
+layers and not others. Cause: `LossScaler` screens each parameter's gradient and skips that
+parameter alone.
 
 ### RW-109 Add bfloat16
 - State: open

@@ -44,6 +44,8 @@ K_FINISHED_SECTION = re.compile(r"\b(?:done|completed|finished|confirmed|landed)
 K_REFERENCE = re.compile(r"^(?:(?P<repository>[a-z0-9][a-z0-9_.-]*) )?(?P<id>(?:RW|KI)-\d+)$")
 K_EXTERNAL = re.compile(r"^external: \S")
 K_FIX = re.compile(r"^(?:RW-\d+|none, \S.*)$")
+K_NO_WORKAROUND = re.compile(r"^none\b", re.IGNORECASE)
+K_BACKLOG_REFERENCE = re.compile(r"^RW-\d+$")
 K_SIBLING_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 K_CODE_SPAN = re.compile(r"`([^`]+)`")
 K_SOURCE = re.compile(r"^`[^`]+`(?: §\d+(?:\.\d+)*)?$")
@@ -152,7 +154,7 @@ def _issue_needs(entry: Entry) -> Iterator[str]:
 
 K_BACKLOG_KIND = Kind(
     K_BACKLOG, "# Remaining work", "RW",
-    frozenset({"State", "Done when", "Blocked by", "Source"}), _backlog_needs, True, True,
+    frozenset({"State", "Done when", "Blocked by", "Where", "Source"}), _backlog_needs, True, True,
 )
 K_ISSUES_KIND = Kind(
     K_ISSUES, "# Known issues", "KI",
@@ -399,6 +401,15 @@ def _value_shapes(path: Path, entry: Entry) -> Iterator[Issue]:
         yield Issue(path, where.line, f"Where: one to {K_WHERE_CEILING} paths in backticks")
 
 
+def rule_scope(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for an own known issue that has a scheduled fix and no workaround."""
+    issues = repository.documents.get(K_ISSUES_KIND.prefix)
+    for entry in issues.entries if issues else []:
+        fix = entry.value("Fix")
+        if entry.value("Origin") == "own" and K_BACKLOG_REFERENCE.match(fix) and K_NO_WORKAROUND.match(entry.value("Workaround")):
+            yield Issue(issues.path, entry.line, f"{entry.ident}: a scheduled fix and no workaround is backlog work; move it to {fix}")
+
+
 def rule_ids(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for a duplicate ID, an ID past the counter or an ID of the other file."""
     for document in repository.documents.values():
@@ -465,6 +476,7 @@ K_CHECKER = Checker(
         "rule_ids": rule_ids,
         "rule_paths": rule_paths,
         "rule_references": rule_references,
+        "rule_scope": rule_scope,
         "rule_entry_size": rule_entry_size,
         "rule_design_coverage": rule_design_coverage,
     },
