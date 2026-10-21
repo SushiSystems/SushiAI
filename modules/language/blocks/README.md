@@ -375,4 +375,4 @@ above, a row that is no `embedding` row, and a table that is not `[vocabulary, d
 refused when the model is built, with the row's context. A tied row may leave out
 `vocabulary`, which is then the table's row count.
 
-Source: `docs/design/LANGUAGE.md`, phase 2, and phase 7 for the two blocks with experts.
+Source: `docs/design/LANGUAGE/README.md`, phase 2, and phase 7 for the two blocks with experts.

@@ -230,7 +230,7 @@ absent.
 **Limit.** `CausalSelfAttention` masks with -1e9
 (`modules/language/blocks/source/causal_self_attention.cpp:46`), and the lowering converts the
 fill to the operand's type (`modules/core/graph/source/lowering/linalg.cpp:157`, `:170-171`).
-In HALF that is minus infinity (`docs/design/LANGUAGE.md:80`).
+In HALF that is minus infinity (`docs/design/LANGUAGE/README.md:80`).
 
 **Design.** `triangle_affine` bounds the fill to the lowest finite value of the operand's
 element type before it writes the vector: -65504 in HALF. The attribute and the emitter are
@@ -241,7 +241,7 @@ unchanged. The product `x * 0` for an infinite score stays until G4's select for
 ## G9. A step made of recorders alone (now)
 
 **Limit.** Gradient accumulation needs "a replay without the update"
-(`docs/design/MODEL_IMPORT.md:121-122`). The update is the trailing recorder of the step that
+(`docs/design/MODEL_IMPORT/README.md:121-122`). The update is the trailing recorder of the step that
 runs backward (`modules/core/graph/source/compiled_step.cpp:78-85`). Two steps solve it: one
 of forward, backward and an `axpy` of each gradient into an accumulator, and one that holds
 the update alone. `CompiledStep::compile` takes a graph; reading

@@ -26,7 +26,7 @@ No other directories exist under `docs/`. The root holds only the files the `rep
 
 - Live documents use `UPPER_SNAKE_CASE.md` (e.g. `ARCHITECTURE.md`, `CLI_GUIDE.md`, `KNOWN_ISSUES.md`).
 - Topic map files are named `README.md` within their respective section (e.g. `docs/design/README.md`).
-- Agent work folders use `YYYY_MM_DD_WORK_NAME` format (e.g. `docs/agent/2026_09_16_DOCS_AND_ROOT_HYGIENE/`).
+- Agent work folders use `YYYY_MM_DD_WORK_NAME` format (the date, then the work in capitals).
 - Inside an agent work folder, only three files are permitted: `SPEC.md`, `PLAN.md`, and `REPORT.md`.
 
 ## 3. Placement Rules
@@ -35,8 +35,8 @@ To determine where new content belongs, evaluate these questions in order:
 
 1. **Is it a fact specific to one module?** Place it in that module's `README.md`.
 2. **Was it generated during an active agent work session?** Place it in `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`.
-3. **Is it an active proposal or phased technical design?** Place it in `docs/design/<TOPIC>.md`.
-4. **Is it a completed record idle for over 90 days?** Move it to `docs/archive/`.
+3. **Is it an active proposal or phased technical design?** Place it in `docs/design/<TOPIC>/README.md`.
+4. **Is it a completed record?** Delete it once its decisions are in the design; the version history keeps it.
 5. **Is it permanent reference material?** Place it under the manual: `getting_started/`, `architecture/`, `guides/`, or `reference/`.
 
 ## 4. Design Documents and Backlog

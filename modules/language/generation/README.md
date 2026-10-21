@@ -209,4 +209,4 @@ The keys and the values are leaves of the step and not `NN::Buffer` state of a b
 listed in a block would make every checkpoint written before it unreadable, and a cache is
 what one run holds and no part of a model.
 
-Source: `docs/design/LANGUAGE.md`, phase 5.
+Source: `docs/design/LANGUAGE/README.md`, phase 5.

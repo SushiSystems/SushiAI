@@ -221,3 +221,9 @@ rows, `ger` writes minus that sum into every column of the zeroed scratch, the r
 `exp(log_probs)`, and an in-place `mul` and an `axpy` finish it. SushiBLAS has no kernel that
 scales each row of a matrix by its own scalar in place; with one the `[N, C]` scratch would go.
 The operation does not narrow under `MixedPrecisionPolicy`.
+
+## Designs
+
+<!-- designs:begin -->
+- [GRAPH_CAPABILITIES](../../../docs/design/GRAPH_CAPABILITIES/README.md): The changes below SushiAI's layers tier that lift the limits found while the language, dataset, model-import and Darknet work was written in October 2026.
+<!-- designs:end -->

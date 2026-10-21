@@ -79,4 +79,4 @@ and momentum 0.03. A row that states either key keeps its own value.
 A graph built from this file names its state by row index, so a checkpoint record is
 `0.conv.weight` where the Ultralytics state dictionary has `model.0.conv.weight`.
 
-The design is `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md`, sections 2.6 and 2.10.
+The design is the model graph spec in the version history, sections 2.6 and 2.10.

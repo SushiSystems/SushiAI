@@ -5,7 +5,7 @@ actually exists under `modules/`, `applications/`, and `cmake/`. **AI-1** has
 landed: the graph IR, the differentiation transform, the lowering to
 SushiBLAS, the layer/optimizer/data/training layers, and an MLP that trains
 end to end. It will keep growing section by section: see
-[`PROGRAMME.md`](../design/PROGRAMME.md)
+[`PROGRAMME.md`](../design/PROGRAMME/README.md)
 for what's coming and in what order.
 
 > If you only want to *use* the library, the top-level [README.md](../../README.md)
@@ -144,7 +144,7 @@ owns the graph of a step: `CompiledStep` records on a `SushiRuntime::Graph` of
 its own through a `SushiBLAS::TaskRecorder` built over that graph's recorder.
 The execution helpers `run_recorded()` and `discard_recorded()` still use the
 graph SushiBLAS's `Engine` keeps; moving them is task A0 of
-[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION.md).
+[`LAYERED_EXECUTION.md`](../design/LAYERED_EXECUTION/README.md).
 
 ---
 

@@ -20,6 +20,7 @@ from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
 from documentation.design_status import (  # noqa: E402
@@ -47,7 +48,7 @@ K_WORK_FOLDER = re.compile(r"^\d{4}_\d{2}_\d{2}_[A-Z0-9]+(?:_[A-Z0-9]+)*$")
 K_DOCUMENT_NAME = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$")
 K_FORBIDDEN_KINDS = re.compile(r"ROADMAP|JOURNAL|HANDOVER|MILESTONE|PRIORITY|TODO")
 K_DESIGN_LINE_CEILING = 400
-K_ARCHIVE_AFTER_DAYS = 90
+K_CLOSED_GRACE_DAYS = 90
 K_LINK = re.compile(r'(?<!!)\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
 K_LINK_SUFFIX = re.compile(r"[#?]")
 K_SCHEME = re.compile(r"^[a-z][a-z0-9+.-]*:")
@@ -63,6 +64,7 @@ class Repository:
     """Holds the root of one repository whose documentation is checked."""
 
     root: Path
+    closed_grace_days: int = K_CLOSED_GRACE_DAYS
 
     @property
     def docs(self) -> Path:
@@ -93,7 +95,8 @@ class Repository:
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
     """Returns each given folder that holds a docs/ tree."""
-    return [Repository(path) for path in paths if (path / "docs").is_dir()]
+    grace = int(getattr(settings, "K_CLOSED_GRACE_DAYS", K_CLOSED_GRACE_DAYS))
+    return [Repository(path, grace) for path in paths if (path / "docs").is_dir()]
 
 
 def _prose(path: Path) -> str:
@@ -273,16 +276,22 @@ def rule_module_readmes(repository: Repository) -> Iterator[Issue]:
                 yield Issue(module, 1, "module lacks README.md")
 
 
-def rule_archive_candidates(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each work folder or design document closed longer than the limit."""
+def rule_closed_work(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for each work folder, and each superseded or withdrawn design, closed longer than the grace.
+
+    A shipped design stays: it is the record of its decisions and graduates in size, not in place.
+    """
     today = datetime.date.today()
+    grace = repository.closed_grace_days
     for path in status_documents(repository.docs):
-        date = read_status(path).closed_on
-        if date is None or (today - date).days <= K_ARCHIVE_AFTER_DAYS:
+        status = read_status(path)
+        if status.closed_on is None or (today - status.closed_on).days < grace:
             continue
         work = path.parent.parent == repository.docs / "agent"
+        if status.is_shipped and not work:
+            continue
         candidate = path.parent if work or path.name == "README.md" else path
-        yield Issue(candidate, 1, f"closed {(today - date).days} days ago; move to docs/archive/")
+        yield Issue(candidate, 1, f"closed {(today - status.closed_on).days} days ago; delete it, the version history keeps it")
 
 
 def rule_forbidden_kinds(repository: Repository) -> Iterator[Issue]:
@@ -306,7 +315,7 @@ K_CHECKER = Checker(
         "rule_link_anchors": rule_link_anchors,
         "rule_reachable_from_index": rule_reachable_from_index,
         "rule_module_readmes": rule_module_readmes,
-        "rule_archive_candidates": rule_archive_candidates,
+        "rule_closed_work": rule_closed_work,
         "rule_forbidden_kinds": rule_forbidden_kinds,
     },
 )

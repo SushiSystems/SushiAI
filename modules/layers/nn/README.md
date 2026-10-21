@@ -12,9 +12,9 @@ builder and `Graph::StateID`) and on `config` (`Config::Value`, `Config::ModelSp
 and `model_state.hpp` also take a `SushiBLAS::Engine`; they are the only headers here that do.
 
 Two designs are the source of most headers. `MG` below is
-`docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` and `CV` is
+the model graph spec in the version history and `CV` is
 `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`. `PLAN` is
-`docs/agent/2026_10_07_MODEL_GRAPH/PLAN.md`, which lists the public symbols of each unit.
+the model graph plan in the version history, which lists the public symbols of each unit.
 
 Two error contracts meet in this module. `Buffer::define`, `Trace::update`, every `Node`,
 `ModelOutputs`, `ModelGraph`, the node factories, `make_node` and `build_model` return `Status`
@@ -187,7 +187,7 @@ The step built from the trace writes the values once. Two declarations are two l
 under one debug name. `RotaryEmbedding` of `language/blocks` declares its cosines and sines
 this way. `tests/layers/nn/test_host_table.cpp` covers the declaration and its refusals.
 
-Source: MG 2.3. PLAN unit U6. The carrying form: `docs/design/LANGUAGE.md`, phase 5.
+Source: MG 2.3. PLAN unit U6. The carrying form: `docs/design/LANGUAGE/README.md`, phase 5.
 
 ## Layers
 
@@ -335,7 +335,7 @@ of rank 1 to 4 and takes two required keys, both whole numbers above zero:
 | `num_embeddings` | The row count of the table |
 | `embedding_dim` | The length of one row, which becomes the last extent of the result |
 
-Source: `docs/design/LANGUAGE.md`, phase 1.
+Source: `docs/design/LANGUAGE/README.md`, phase 1.
 
 ### layer_norm.hpp
 
@@ -353,7 +353,7 @@ of rank 1 to 5, takes `dim` from its last extent, and has one optional key:
 | --- | --- |
 | `ln_epsilon` | The constant added to a row's variance, a positive number; 1e-5 when absent |
 
-Source: `docs/design/LANGUAGE.md`, phase 2.
+Source: `docs/design/LANGUAGE/README.md`, phase 2.
 
 ### dropout.hpp
 
@@ -381,7 +381,7 @@ any rank and has one required key:
 | --- | --- |
 | `rate` | The probability of dropping an element, a number in `[0, 1)` |
 
-Source: `docs/design/LANGUAGE.md`, the layers that go to `nn`.
+Source: `docs/design/LANGUAGE/README.md`, the layers that go to `nn`.
 
 ## Loss and initialisation
 

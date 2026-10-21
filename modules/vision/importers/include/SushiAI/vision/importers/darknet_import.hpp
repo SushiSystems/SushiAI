@@ -23,7 +23,7 @@
  * @file darknet_import.hpp
  * @brief Declares the Darknet importer: a .cfg and its .weights as an imported model.
  * @author Mustafa Garip
- * @see docs/design/MODEL_IMPORT.md
+ * @see docs/design/MODEL_IMPORT/README.md
  */
 
 #pragma once

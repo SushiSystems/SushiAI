@@ -68,4 +68,4 @@ optimizers do hand SushiBLAS a device functor for their fused
 update: plain arithmetic that SushiBLAS's own elementwise seam inlines into
 its own kernel. See
 [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) for the full picture and
-[the programme](../design/PROGRAMME.md) for what comes next.
+[the programme](../design/PROGRAMME/README.md) for what comes next.

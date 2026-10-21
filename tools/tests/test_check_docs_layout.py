@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime
 import subprocess
 import sys
@@ -22,7 +23,7 @@ from documentation.check_docs_layout import (  # noqa: E402
     K_REQUIRED_ENTRIES,
     K_CHECKER,
     Repository,
-    rule_archive_candidates,
+    rule_closed_work,
     rule_docs_entries,
     rule_forbidden_kinds,
     rule_link_anchors,
@@ -266,28 +267,45 @@ class StatusLinesTest(unittest.TestCase):
                              ["agent/2026_10_01_B/REPORT.md"])
 
 
-class ArchiveCandidatesTest(unittest.TestCase):
-    """Covers the archive clock, which reads the date in the status line."""
+class ClosedWorkTest(unittest.TestCase):
+    """Covers the clock on closed work, which reads the date in the status line."""
 
     def test_counts_from_the_status_date(self) -> None:
-        """Lists a document and a folder dated 91 days ago, not ones dated 89 days ago."""
+        """Lists a withdrawn document and a folder dated 91 days ago, not ones dated 89 days ago."""
         files = {
-            "design/OLD.md": f"# O\n\n**Status:** Shipped — {_days_ago(91)}\n",
+            "design/OLD.md": f"# O\n\n**Status:** Withdrawn — {_days_ago(91)}, dropped\n",
             "design/NEW.md": f"# N\n\n**Status:** Withdrawn — {_days_ago(89)}, dropped\n",
             "design/OPEN.md": "# P\n\n**Status:** Open — phase 1 of 2\n",
             "agent/2026_01_01_OLD/SPEC.md": f"# W\n\n**Status:** Superseded — {_days_ago(91)} by X\n",
         }
         with tempfile.TemporaryDirectory() as folder:
-            self.assertEqual(sorted(_names(rule_archive_candidates(_repository(folder, files)))),
+            self.assertEqual(sorted(_names(rule_closed_work(_repository(folder, files)))),
                              ["agent/2026_01_01_OLD", "design/OLD.md"])
 
-    def test_a_fresh_commit_does_not_reset_the_clock(self) -> None:
-        """Lists a document shipped 91 days ago that a commit touched today."""
+    def test_keeps_a_shipped_design_and_deletes_a_shipped_work_folder(self) -> None:
+        """Leaves a shipped design alone, since it is the record of its decisions, and lists a shipped folder."""
+        files = {
+            "design/SHIPPED.md": f"# S\n\n**Status:** Shipped — {_days_ago(400)}\n",
+            "agent/2026_01_01_DONE/SPEC.md": f"# W\n\n**Status:** Shipped — {_days_ago(91)}\n",
+        }
         with tempfile.TemporaryDirectory() as folder:
-            repository = _repository(folder, {"design/OLD.md": f"# O\n\n**Status:** Shipped — {_days_ago(91)}\n"})
+            self.assertEqual(_names(rule_closed_work(_repository(folder, files))), ["agent/2026_01_01_DONE"])
+
+    def test_a_grace_of_zero_lists_work_closed_today(self) -> None:
+        """Lists a work folder closed today when the repository deletes at close."""
+        files = {"agent/2026_10_21_NOW/SPEC.md": f"# W\n\n**Status:** Shipped — {_days_ago(0)}\n"}
+        with tempfile.TemporaryDirectory() as folder:
+            repository = dataclasses.replace(_repository(folder, files), closed_grace_days=0)
+            self.assertEqual(_names(rule_closed_work(repository)), ["agent/2026_10_21_NOW"])
+            self.assertEqual(_names(rule_closed_work(dataclasses.replace(repository, closed_grace_days=90))), [])
+
+    def test_a_fresh_commit_does_not_reset_the_clock(self) -> None:
+        """Lists a document withdrawn 91 days ago that a commit touched today."""
+        with tempfile.TemporaryDirectory() as folder:
+            repository = _repository(folder, {"design/OLD.md": f"# O\n\n**Status:** Withdrawn — {_days_ago(91)}, dropped\n"})
             for command in (["init", "-q"], ["add", "."], ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "t"]):
                 subprocess.run(["git", "-C", folder, *command], check=True, capture_output=True)
-            self.assertEqual(_names(rule_archive_candidates(repository)), ["design/OLD.md"])
+            self.assertEqual(_names(rule_closed_work(repository)), ["design/OLD.md"])
 
 
 class ForbiddenKindsTest(unittest.TestCase):

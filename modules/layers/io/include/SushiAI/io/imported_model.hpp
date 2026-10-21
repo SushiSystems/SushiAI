@@ -23,7 +23,7 @@
  * @file imported_model.hpp
  * @brief Declares what an importer returns: a model, its weights and its training recipe.
  * @author Mustafa Garip
- * @see docs/design/MODEL_IMPORT.md
+ * @see docs/design/MODEL_IMPORT/README.md
  */
 
 #pragma once

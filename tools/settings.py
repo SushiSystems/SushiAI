@@ -27,3 +27,7 @@ K_CONSOLE_PATHS: tuple[str, ...] = (
     "modules/vision/darknet_forward_cases/",
     "modules/vision/darknet_training_cases/",
 )
+K_DESIGN_TOPICS = True
+K_FOLDER_CEILING = 60
+K_CLOSED_GRACE_DAYS = 0
+K_ARCHIVE_UNTRACKED = True

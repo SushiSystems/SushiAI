@@ -5,7 +5,7 @@ the layers, which values each layer reads and which values the model publishes. 
 module owns the format. `modules/core/config/include/SushiAI/config/model_config.hpp` declares
 the reader and the `ModelSpec` it produces, and `modules/core/config/source/model_config.cpp`
 holds the schema. `write_model` in `model_writer.hpp` writes a `ModelSpec` back as the text of a
-model file, for the import step of `docs/design/MODEL_IMPORT.md`; a person writes the others.
+model file, for the import step of `docs/design/MODEL_IMPORT/README.md`; a person writes the others.
 
 The current version is 2.
 

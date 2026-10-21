@@ -7,7 +7,7 @@
 # The tier table: which tier every module belongs to, the order of the tiers,
 # and the library each tier is archived into. cmake/SushiAIModule.cmake reads
 # it; tools/layering/check_layering.py holds the same table for the includes.
-# The design is docs/design/DOMAIN_MODULES.md.
+# The design is docs/design/DOMAIN_MODULES/README.md.
 
 # Lowest first. A module may depend on a module of its own tier or of a lower one.
 set(SUSHIAI_TIER_ORDER core layers vision language)

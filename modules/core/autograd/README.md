@@ -42,3 +42,9 @@ and contributes `(exp(log_probs) - targets) / N` to the logits. That closed form
 derivative only when each target row sums to one. Every other `K_LOG_SOFTMAX` is differentiated
 by `log_softmax_backward`, a row of `K_LOSS_RULES`, which emits `K_LOG_SOFTMAX_BACKWARD` over the
 incoming gradient and the forward result: `dx = dy - exp(log_probs) * rowsum(dy)`.
+
+## Designs
+
+<!-- designs:begin -->
+- [GRAPH_CAPABILITIES](../../../docs/design/GRAPH_CAPABILITIES/README.md): The changes below SushiAI's layers tier that lift the limits found while the language, dataset, model-import and Darknet work was written in October 2026.
+<!-- designs:end -->

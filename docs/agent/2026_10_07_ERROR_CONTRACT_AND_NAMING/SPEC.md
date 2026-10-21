@@ -15,9 +15,9 @@ engineer, who takes the recommendation written beside each. Section 9 still stat
 | D2 to D5, D7 to D10, D12 to D16 | The recommendation of section 9 in each case | Engineer |
 | D7, death tests | Taken with its condition: the start-up time of one death test is measured at the owner's first build before the fatal-class tests are written in bulk | Engineer |
 
-Stage 2 of the programme (`docs/design/PROGRAMME.md:46`) ends when no exception crosses the public
+Stage 2 of the programme (`docs/design/PROGRAMME/README.md:46`) ends when no exception crosses the public
 surface and the library has one naming form. Stage 1, the SushiBLAS v0.1.0 migration, touches the
-same files and is planned as the same pass (`docs/design/PROGRAMME.md:52`). This document specifies
+same files and is planned as the same pass (`docs/design/PROGRAMME/README.md:52`). This document specifies
 the status and result types, where each failure in the tree goes, the conversion at the sibling
 seam, the rename, and the order of work. Section 9 lists the choices that are the owner's. The
 rest of the document is written under the recommendation given for each.
@@ -28,10 +28,10 @@ The two rulings, as written:
 
 | Subject | Ruling | Where |
 | --- | --- | --- |
-| Error contract | Status values everywhere: every operation that can fail returns a status, and no exception crosses the public surface | `docs/design/PROGRAMME.md:28` |
-| Naming | The `cpp-code-style` rule for the whole library, applied in one wave: `K_` constants, PascalCase enumerators, no `I` prefix | `docs/design/PROGRAMME.md:29` |
-| Builds | The owner builds and tests once the programme's code is written. Until then work is checked by reading and by single-file syntax checks | `docs/design/PROGRAMME.md:30` |
-| Eager surface | `Session`, `Step` and `Scope` must not break after they ship | `docs/design/PROGRAMME.md:25` |
+| Error contract | Status values everywhere: every operation that can fail returns a status, and no exception crosses the public surface | `docs/design/PROGRAMME/README.md:28` |
+| Naming | The `cpp-code-style` rule for the whole library, applied in one wave: `K_` constants, PascalCase enumerators, no `I` prefix | `docs/design/PROGRAMME/README.md:29` |
+| Builds | The owner builds and tests once the programme's code is written. Until then work is checked by reading and by single-file syntax checks | `docs/design/PROGRAMME/README.md:30` |
+| Eager surface | `Session`, `Step` and `Scope` must not break after they ship | `docs/design/PROGRAMME/README.md:25` |
 
 `cpp-code-style` splits failures in two: a broken precondition goes to the assert family, and a
 failure with an outside cause (file, parse, device, network) returns a status. The ruling says
@@ -83,7 +83,7 @@ wrote it in JSON or in C++. Four facts in the tree decide this:
 - Extents reach an emitter from data. A dataset whose inner extent disagrees with the model
   reaches the `ka != kb` check in `GraphBuilder::matmul` (`src/graph/builder.cpp:172`) in a
   program with no defect.
-- The eager front end traces on every step (`docs/design/PROGRAMME.md:14-16`), so an abort in an
+- The eager front end traces on every step (`docs/design/PROGRAMME/README.md:14-16`), so an abort in an
   emitter ends a training run over a batch of the wrong size.
 - The alternative keeps each check twice, once fatal for C++ and once as a status for JSON. The
   tree already shows where that leads: four layers catch the emitter's exception to re-word it
@@ -417,7 +417,7 @@ interface's `output_shape()` takes no argument and is `noexcept` already (`ilaye
 concrete `output_shape(const Shape&)` of each layer returns `Result<Shape>`. `LayerFactory`
 returns `Result<std::unique_ptr<Layer>>`. Adding a layer stays one file and one registry row.
 
-The programme adds multi-input layers in stage 3 (`docs/design/PROGRAMME.md:47`). The form of a
+The programme adds multi-input layers in stage 3 (`docs/design/PROGRAMME/README.md:47`). The form of a
 multi-input `forward` is settled before this wave edits `forward`, or every layer, the trait and
 the adapter are edited twice.
 
@@ -555,7 +555,7 @@ value in `checkpoint_format.cpp`.
 
 **Names SushiAI cannot rename.** `DType::FLOAT32`, `ExecutionMode::FORCE_REFERENCE` and the other
 sibling enumerators stay in capitals, so `Lifetime::Activation` sits beside `DType::FLOAT32` in
-one expression. "One naming form" (`docs/design/PROGRAMME.md:46`) then holds for names SushiAI
+one expression. "One naming form" (`docs/design/PROGRAMME/README.md:46`) then holds for names SushiAI
 declares and not for names it aliases. Section 9, D11 gives the two ways to close that.
 
 **Renaming with no compiler in the loop.** A tokenising tool, `tools/naming/rename_identifiers.py`,
@@ -576,7 +576,7 @@ enums go last, by hand. Bare occurrences the tool cannot resolve by qualifier ar
 list for a person to clear.
 
 `build/compile_commands.json` exists. The Builds ruling permits single-file syntax checks
-(`docs/design/PROGRAMME.md:30`). If the owner allows them for this wave, `clang -fsyntax-only`
+(`docs/design/PROGRAMME/README.md:30`). If the owner allows them for this wave, `clang -fsyntax-only`
 over every translation unit after each commit is the strongest check on the rename and on every
 changed signature. The safeguards above stand without it.
 
@@ -1252,7 +1252,7 @@ Measured figures are counts of matching lines on 2026-10-07. Estimates are marke
 **What breaks for a consumer.** Every source-level use: each `catch (const SushiAI::Error&)`,
 the return type of every emitter and of `forward`, every converted constructor, the op constant
 names, the enumerators of the library's enums, five interface names and one header path. No tag
-exists (`docs/design/PROGRAMME.md:27`), so the consumers are the in-tree apps, examples and
+exists (`docs/design/PROGRAMME/README.md:27`), so the consumers are the in-tree apps, examples and
 tests, and no deprecation alias is proposed. File formats and the first line the apps print do
 not change.
 

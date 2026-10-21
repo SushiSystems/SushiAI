@@ -92,5 +92,5 @@ With the rows of `nn` and of this module a decoder is a model file:
 
 `applications/examples/tiny_decoder/` holds one of five blocks with its training file.
 
-Source: `docs/design/LANGUAGE.md`, and `docs/design/DOMAIN_MODULES.md` for the shape of a
+Source: `docs/design/LANGUAGE/README.md`, and `docs/design/DOMAIN_MODULES/README.md` for the shape of a
 registration module.

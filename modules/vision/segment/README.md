@@ -6,7 +6,7 @@ The host side of semantic segmentation: the mask painted from polygon outlines, 
 matrix of predicted against true classes, and the three numbers read from it. Everything is in
 namespace `SushiAI::Vision::Segment`. Every unit is a function or a small class over
 `SushiRuntime::span` or `Imaging::Image`; nothing here reaches an engine, a graph or a tensor, so
-every unit is tested without a device. The intent is `docs/design/DATASETS.md`, section
+every unit is tested without a device. The intent is `docs/design/DATASETS/README.md`, section
 "Segmentation".
 
 The objectives that train a segmentation model are in `vision/training`

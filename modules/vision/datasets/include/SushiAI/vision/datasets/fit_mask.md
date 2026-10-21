@@ -19,5 +19,5 @@ in, and rows likewise. No two classes are blended.
 | `OutOfMemory` | An allocation fails |
 
 `vision/imaging` has no nearest-neighbour resize and no letterbox for a mask.
-`docs/design/DATASETS.md` gives mask geometry to `vision/segment`, which does not exist yet, so
+`docs/design/DATASETS/README.md` gives mask geometry to `vision/segment`, which does not exist yet, so
 the fit is a unit of this module until that one is written.

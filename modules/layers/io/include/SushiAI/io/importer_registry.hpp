@@ -23,7 +23,7 @@
  * @file importer_registry.hpp
  * @brief Declares the importer registry, its rows and the import of a model by format name.
  * @author Mustafa Garip
- * @see docs/design/MODEL_IMPORT.md
+ * @see docs/design/MODEL_IMPORT/README.md
  */
 
 #pragma once

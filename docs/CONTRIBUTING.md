@@ -1,7 +1,7 @@
 # Contributing to SushiAI
 
 SushiAI is currently a personal project developed by Mustafa Garip. Its state is
-recorded in [`docs/design/PROGRAMME.md`](design/PROGRAMME.md): stage 1, the
+recorded in [`docs/design/PROGRAMME/README.md`](design/PROGRAMME/README.md): stage 1, the
 SushiBLAS v0.1.0 migration, is built and passing, and the naming half of stage 2
 is done. To maintain a unified vision while the architecture is still being
 designed, **external pull requests are not being accepted at this stage**. Bug
@@ -16,7 +16,7 @@ Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 > New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md): it walks from
 > an empty checkout to a model that trains, and then explains what the library
 > did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design,
-> [`docs/design/PROGRAMME.md`](design/PROGRAMME.md) for the stages in the order they
+> [`docs/design/PROGRAMME/README.md`](design/PROGRAMME/README.md) for the stages in the order they
 > are planned, and [`REMAINING_WORK.md`](design/REMAINING_WORK.md) for what is still
 > open. `sa demo mlp` is the fastest way to see the whole pipeline do something.
 
@@ -49,7 +49,7 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 
 - This is a personal project; if you're not the maintainer, the productive
   path is an issue (a bug report or a design discussion), not a PR.
-- **The open design decisions are in [`PROGRAMME.md`](design/PROGRAMME.md).** The
+- **The open design decisions are in [`PROGRAMME.md`](design/PROGRAMME/README.md).** The
   IR, the differentiation transform, the layer/optimizer/data/training layers, the
   compile-once contract, memory planning, fusion and the precision policy are all
   decided in code now, and so is mixed precision's *numerics* half: loss scaling
@@ -162,7 +162,7 @@ states an invariant. The `cpp-code-style` skill sets the 100-column limit.
 - A programmer's misuse stops the process with `SA_FATAL_IF` (`failure/check.hpp`).
 - No exception crosses the public surface. A sibling's exception becomes a `Status` only in
   the guards of `seam/seam.hpp`.
-- This is the target of stage 2 of [`PROGRAMME.md`](design/PROGRAMME.md). The tree does not
+- This is the target of stage 2 of [`PROGRAMME.md`](design/PROGRAMME/README.md). The tree does not
   meet it yet; [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) lists where it does not.
 
 ### Build-system names are prefixed with the full program name

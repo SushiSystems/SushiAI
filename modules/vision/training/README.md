@@ -14,7 +14,7 @@ The delta itself and its reported cost belong to `vision/detect`, part `anchor/`
 
 It also owns the two objectives of semantic segmentation, `pixel_cross_entropy` and `dice`,
 which a batch alone can feed and `Train::Trainer` therefore drives. Their intent is
-`docs/design/DATASETS.md`, section "Segmentation".
+`docs/design/DATASETS/README.md`, section "Segmentation".
 
 ## Depends on
 
@@ -98,7 +98,7 @@ must be float32 and host-addressable, as the loss and the logits `Train::Trainer
 
 ## The truth from roles
 
-A detection dataset publishes three roles (`docs/design/DATASETS.md`): `boxes` `[N, M, 4]`
+A detection dataset publishes three roles (`docs/design/DATASETS/README.md`): `boxes` `[N, M, 4]`
 float32 as x1, y1, x2, y2 in pixels of the input, `classes` `[N, M]` int32, and `valid`
 `[N, M]` float32. `AnchorTrainingStep::run` reads a `Detect::GroundTruthBatch`, which holds the
 same rows as int64 labels and byte flags. `truth_from_roles.hpp` joins the two.

@@ -77,9 +77,22 @@ paths are relative to `include/SushiAI/` of the module that owns them, `modules/
 | D3 | The order a dependency is resolved in: an in-tree CMake target, then an installed package through `find_package`, then a sibling checkout |
 | `sa` | This repository's CLI, also installed as `sushiai` (`cli/`) |
 | Tier | A rank in the module tree: `core`, `layers` or `vision`, lowest first. A module may depend on modules of its own tier or a lower one (`cmake/SushiAILayers.cmake`) |
-| Domain | A tier that is a field of use built on the layers. `vision` is the only one, and no domain may depend on another (`docs/design/DOMAIN_MODULES.md`) |
+| Domain | A tier that is a field of use built on the layers. `vision` is the only one, and no domain may depend on another (`docs/design/DOMAIN_MODULES/README.md`) |
 | `hub` | The SushiStack workspace CLI, which installs module CLIs and provisions several checkouts |
 | ST, SB, AI | The three tracks of the 2026-08 roadmap, now superseded by `PROGRAMME.md`: stack and CLI wiring, SushiBLAS repair, SushiAI construction. `AI-0` to `AI-7` are the steps of the third (`ROADMAP.md`) |
 | Stage | A numbered step of `PROGRAMME.md`, 0 to 6. Stage 1 is the SushiBLAS v0.1.0 migration; stage 2 is the error contract and naming |
 | Checker | A script under `tools/` that reads the repository and reports where it breaks a skill |
 | Work folder | `docs/agent/<YYYY_MM_DD>_<WORK_NAME>/`, holding the `SPEC.md`, `PLAN.md` and `REPORT.md` of one piece of agent work |
+
+## Design topics
+
+A topic is a module or a subject that spans modules, and it has one design document.
+The list is generated in `docs/design/README.md`.
+
+**GRAPH_CAPABILITIES**: The changes below SushiAI's layers tier that lift the limits found while the language, dataset, model-import and Darknet work was written in October 2026. See [the design](../design/GRAPH_CAPABILITIES/README.md).
+
+**LANGUAGE**: How SushiAI trains and runs a decoder-only transformer on text, and an encoder that answers typed questions in one forward pass: the second domain after vision, laid out as... See [the design](../design/LANGUAGE/README.md).
+
+**LAYERED_EXECUTION**: SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed... See [the design](../design/LAYERED_EXECUTION/README.md).
+
+**MODEL_IMPORT**: How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the format engine below) enters SushiAI once, through one door, and is trained and run afterwards... See [the design](../design/MODEL_IMPORT/README.md).

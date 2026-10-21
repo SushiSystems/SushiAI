@@ -23,7 +23,7 @@
  * @file imported_model_writer.hpp
  * @brief Declares the writer of an imported model: a model file, a weight file, a training file.
  * @author Mustafa Garip
- * @see docs/design/MODEL_IMPORT.md
+ * @see docs/design/MODEL_IMPORT/README.md
  */
 
 #pragma once

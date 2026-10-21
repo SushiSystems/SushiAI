@@ -128,4 +128,4 @@ host computation, `tests/language/training/test_next_token_objective.cpp` trains
 `tests/language/training/test_next_token_objective.cpp` fits it through `Train::Trainer`, and
 `tests/language/registration/test_registration.cpp` trains a decoder of experts with and without the balance.
 
-Source: `docs/design/LANGUAGE.md`, phases 4 and 7.
+Source: `docs/design/LANGUAGE/README.md`, phases 4 and 7.

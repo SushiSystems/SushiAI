@@ -17,7 +17,7 @@ Each header has one source under `modules/vision/imaging/source/` and one test f
 `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
 fixed-point arithmetic the resize, the letterbox and the warp share.
 
-The rulings this module implements are in `docs/design/PROGRAMME.md` and
+The rulings this module implements are in `docs/design/PROGRAMME/README.md` and
 `docs/agent/2026_10_07_YOLO26/SPEC.md`, section 8: the default augmentation pipeline in full and
 none of the pieces that are off by default; statistical equivalence with the reference, not bit
 parity with OpenCV; images decoded once into a raw cache by a separate tool.

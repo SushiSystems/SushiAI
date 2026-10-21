@@ -96,7 +96,7 @@ mixed precision must not move them. It is a flag for the same reason `--fusion` 
 question is what the difference is on one machine, one dataset and one seed, and only two
 runs of the same binary answer it. The development machine has no low-precision matrix unit,
 so the difference worth measuring there is the loss curve and never the wall clock. See
-ground truth #23 in [`docs/archive/design/ROADMAP.md`](../../docs/archive/design/ROADMAP.md).
+ground truth #23 in the roadmap document in the version history.
 
 `loss_scale` is off by default. With it off no node is emitted, so the graph, the operation
 count and every number the demo prints are what they were before loss scaling existed. On

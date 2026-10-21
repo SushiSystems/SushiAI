@@ -1,6 +1,6 @@
 # Darknet-era YOLO: specification
 
-**Status:** Open — stage 6 of `docs/design/PROGRAMME.md`; RW-45 to RW-50.
+**Status:** Open — stage 6 of `docs/design/PROGRAMME/README.md`; RW-45 to RW-50.
 
 ## 1. Requirements
 
@@ -14,7 +14,7 @@ Ruled by the owner on 2026-10-09:
 | R4 | The anchor code lives inside `modules/vision/detect`, one module and one target in three parts: the root `Vision::Detect` (what both families use), `free/` `Vision::Detect::Free` (the anchor-free path of YOLO26) and `anchor/` `Vision::Detect::Anchor`. There is no module `vision/detect_anchor`. `vision/detect` depends on `core` only |
 | R5 | One anchor unit with options structures serves the six models; no class per version |
 | R6 | The detection objective, the host stage and the training step live in a new module `vision/training`, which depends on `train` and `vision/detect`. YOLO26's objective lands beside the anchor one |
-| R7 | The importer is the `vision/importers` module `docs/design/DOMAIN_MODULES.md` foresees; it emits a `Config::ModelSpec` |
+| R7 | The importer is the `vision/importers` module `docs/design/DOMAIN_MODULES/README.md` foresees; it emits a `Config::ModelSpec` |
 | R8 | Anchoring is as automatic as the data allows (section 5): derived anchors, a chosen count, a computed head assignment, a fit report with a proposal, fractional storage, derived thresholds. An imported model keeps the anchors of its cfg, since parity is measured with them |
 | R9 | Every model trains. Training is checked by assignment parity, cost parity, gradient parity at the heads and overfitting one batch. No full COCO run |
 | R10 | A domain adds layers and algorithms; an operation, a gradient rule or a lowering is written in the core tier (`DOMAIN_MODULES.md`, "Open") |

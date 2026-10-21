@@ -18,7 +18,7 @@ The values in `train.json` are untuned first guesses.
 | `data/coco128/` | A dataset in the YOLO layout, copied by the user | No |
 
 `sushiai import` is written and has not been built or run;
-[`docs/design/MODEL_IMPORT.md`](../../../docs/design/MODEL_IMPORT.md) describes it as phase 4.
+[`docs/design/MODEL_IMPORT/README.md`](../../../docs/design/MODEL_IMPORT/README.md) describes it as phase 4.
 The import step writes `model.json` with a `task` section of type `anchor_detection`, which
 states the classes, the anchors and the heads; the `anchor` objective reads that section, so a
 model file without it is refused.

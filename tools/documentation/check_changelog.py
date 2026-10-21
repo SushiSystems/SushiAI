@@ -84,7 +84,7 @@ def rule_live_releases(entry: Entry) -> Iterator[Issue]:
         if line.startswith("## ") and line != "## Unreleased"
     ]
     if headings.index(entry.text) >= K_LIVE_RELEASE_CEILING:
-        yield Issue(entry.path, entry.number, "older release; move it to docs/archive/changelog/")
+        yield Issue(entry.path, entry.number, "older release; delete it, the tag of its release holds it")
 
 
 def rule_length(entry: Entry) -> Iterator[Issue]:

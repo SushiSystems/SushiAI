@@ -5,7 +5,7 @@
 
 The two functions convert a `HeadTrainingOptions` to and from the `objective` object of a
 training file, whose `type` is `K_ANCHOR_OBJECTIVE_TYPE`, `anchor`
-(`docs/design/MODEL_IMPORT.md`). The section holds the training-only values of an anchor model;
+(`docs/design/MODEL_IMPORT/README.md`). The section holds the training-only values of an anchor model;
 what decoding needs is in the task section above. Each key is the name of the field it states,
 and the two thresholds are stated beside the others, not under a `thresholds` object:
 

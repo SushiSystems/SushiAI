@@ -3,7 +3,7 @@
 **Status:** Open — written and syntax-checked; the runs are RW-8.
 
 The IR, the gradient rules and the lowerings for convolutional networks landed in August under the
-design `docs/archive/superpowers/specs/2026-08-07-cv-pipeline-layers-design.md`. No layer used
+design the cv pipeline layers design spec in the version history. No layer used
 them: `nn/layers.hpp` held `Linear` and four activations, and the layer registry held `linear` and
 `gelu`. This work makes a convolutional network definable from the layer API and from a JSON model
 file, and trainable on MNIST through `Trainer` and `sa train`.

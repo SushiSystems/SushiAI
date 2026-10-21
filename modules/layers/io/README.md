@@ -23,7 +23,7 @@ that resumes. The private header
 which the two writers and the three loaders share.
 
 The module also owns the door a model of another framework enters through,
-`docs/design/MODEL_IMPORT.md`. `ImportedModel` is what an importer returns: a
+`docs/design/MODEL_IMPORT/README.md`. `ImportedModel` is what an importer returns: a
 `Config::ModelSpec` with its task section, the weights, the training recipe and a list of
 notes. `ImporterRegistry` holds one row per format name, and a domain adds its rows to it;
 this module adds none. `write_imported_model` writes `model.json`, `weights.sushi` and

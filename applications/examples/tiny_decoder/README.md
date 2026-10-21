@@ -88,7 +88,7 @@ against `NN::parameter_elements` on a model of `D = 16`; no run has counted this
 
 - The head scores with the token table, so the table is counted once and has one gradient.
 - `"dropout"` rows are left out: a compiled step replays one recorded mask, so a model that
-  states a rate trains without dropout today. See `docs/design/LANGUAGE.md`.
+  states a rate trains without dropout today. See `docs/design/LANGUAGE/README.md`.
 - The training file states no `schedule`.
   [`docs/guides/CLI_GUIDE.md`](../../../docs/guides/CLI_GUIDE.md) documents the key.
 - One batch holds 32 windows of 256 ids, and its logits are `32 * 256 * 4096` floats, which

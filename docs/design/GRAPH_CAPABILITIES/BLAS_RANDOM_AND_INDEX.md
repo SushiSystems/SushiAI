@@ -34,7 +34,7 @@ is recorded and captures the seed and the offset by value
 each `run()` re-arms and executes the same plan
 (`modules/core/graph/source/compiled_step.cpp:111-127`). A Bernoulli fill in that plan would
 draw one mask for the whole run, so `NN::Dropout` emits no node
-(`modules/layers/nn/include/SushiAI/nn/dropout.hpp:45-47`, `docs/design/LANGUAGE.md:74-78`).
+(`modules/layers/nn/include/SushiAI/nn/dropout.hpp:45-47`, `docs/design/LANGUAGE/README.md:74-78`).
 
 **Design.** A second view, `PositionedRandomOps`, whose fill takes the position as a tensor
 operand and reads it on the device at each execution. The caller writes the position between

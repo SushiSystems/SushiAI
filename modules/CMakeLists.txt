@@ -23,7 +23,7 @@ sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
     UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.hpp")
 
 # A domain is its own library in the same export set; see
-# docs/design/DOMAIN_MODULES.md.
+# docs/design/DOMAIN_MODULES/README.md.
 if(SA_BUILD_VISION)
     add_subdirectory(vision)
 

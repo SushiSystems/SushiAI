@@ -310,7 +310,7 @@ token file module has none.
 
 `sushiai import <format> <files...> --output <directory>` writes `model.json`, `weights.sushi`
 and `train.json` into the directory, as
-[`docs/design/MODEL_IMPORT.md`](../../docs/design/MODEL_IMPORT.md) describes. The driver looks
+[`docs/design/MODEL_IMPORT/README.md`](../../docs/design/MODEL_IMPORT/README.md) describes. The driver looks
 `<format>` up in the `IO::ImporterRegistry` of `Registries`, hands the files to the row, and
 passes the `IO::ImportedModel` it gets back to `IO::write_imported_model`. It names no format:
 `darknet` is a row `register_vision_domain` adds in `domains_vision.cpp`, and a format with no row is
@@ -342,3 +342,9 @@ No foreign file names a dataset, and the import invents none. `train.json` carri
 key with the value `null`, so the file shows the key a person has to fill.
 `sushiai train` refuses the file as it is: `Config::parse_train` reports that `data` must be
 an object and is null, and names the file.
+
+## Designs
+
+<!-- designs:begin -->
+- [LAYERED_EXECUTION](../../docs/design/LAYERED_EXECUTION/README.md): SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed...
+<!-- designs:end -->

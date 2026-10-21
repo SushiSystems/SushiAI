@@ -43,7 +43,7 @@ namespace SushiAI::Vision::Datasets
 {
     /**
      * @brief Writes the inputs and the roles of one task from the samples of one batch.
-     * @see docs/design/DATASETS.md, section "The parts of a dataset".
+     * @see docs/design/DATASETS/README.md, section "The parts of a dataset".
      */
     class Collator
     {

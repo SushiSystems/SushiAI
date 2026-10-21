@@ -14,6 +14,10 @@ from pathlib import Path
 
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
 K_WORK_FILES_IN_ORDER = ("SPEC.md", "PLAN.md", "REPORT.md")
+K_FENCE = re.compile(r"^(`{3,}|~{3,})")
+K_SECTION = re.compile(r"^## (\S.*?)\s*$")
+K_TABLE_ROW = re.compile(r"^\|(.*)\|\s*$")
+K_TABLE_RULE = re.compile(r"^\|[\s:|-]+\|\s*$")
 K_STATUS_FORMS = re.compile(
     r"^\*\*Status:\*\* (?:(?P<open>Open) — \S"
     r"|Shipped — (?P<shipped>\d{4}-\d{2}-\d{2})(?:$|\. \S)"
@@ -30,6 +34,7 @@ class Status:
     is_known: bool
     is_open: bool
     closed_on: datetime.date | None
+    is_shipped: bool = False
 
 
 def design_documents(docs: Path) -> list[Path]:
@@ -79,4 +84,43 @@ def read_status(path: Path) -> Status:
         closed_on = datetime.date.fromisoformat(match["shipped"] or match["superseded"] or match["withdrawn"])
     except ValueError:
         return Status(number, False, False, None)
-    return Status(number, True, False, closed_on)
+    return Status(number, True, False, closed_on, bool(match["shipped"]))
+
+
+def body_lines(path: Path) -> list[tuple[int, str]]:
+    """Returns the number and text of each line of a document outside fenced blocks."""
+    kept: list[tuple[int, str]] = []
+    fence = ""
+    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
+        opener = K_FENCE.match(line.lstrip())
+        if fence:
+            fence = "" if opener and opener.group(1).startswith(fence) else fence
+        elif opener:
+            fence = opener.group(1)
+        else:
+            kept.append((number, line))
+    return kept
+
+
+def section_names(path: Path) -> list[tuple[int, str]]:
+    """Returns the number and name of each `##` heading of a document."""
+    found = ((number, K_SECTION.match(line)) for number, line in body_lines(path))
+    return [(number, match.group(1)) for number, match in found if match]
+
+
+def section_body(path: Path, name: str) -> list[tuple[int, str]]:
+    """Returns the lines under the named `##` heading, up to the next one."""
+    body: list[tuple[int, str]] = []
+    inside = False
+    for number, line in body_lines(path):
+        heading = K_SECTION.match(line)
+        if heading:
+            inside = heading.group(1) == name
+        elif inside:
+            body.append((number, line))
+    return body
+
+
+def table_cells(line: str) -> list[str]:
+    """Returns the trimmed cells of a table row."""
+    return [cell.strip() for cell in line.strip().strip("|").split("|")]

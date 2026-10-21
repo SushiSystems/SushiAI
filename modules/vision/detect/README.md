@@ -16,7 +16,7 @@ The module depends on `failure` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`
 (`Config::Value`, which `anchor/anchor_task.hpp` reads and writes). Nothing depends on
 it yet. It adds no IR operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
 `docs/agent/2026_10_07_YOLO26/SPEC.md`; the rulings that put label assignment on the host and ask
-for both validation heads are in `docs/design/PROGRAMME.md`.
+for both validation heads are in `docs/design/PROGRAMME/README.md`.
 
 Each unit is a port of Ultralytics at commit `ce1399439b93c490b648b55dedd0a6334f0199da`. `U/` below
 is `ultralytics/` at that commit, installed read-only in the conda environment

@@ -12,11 +12,11 @@ Next id: RW-131
 
 ### RW-130 Carry out layered execution across the stack
 - State: open
-- Done when: tasks A0 to A7 of `docs/design/LAYERED_EXECUTION.md` are closed, and with them
+- Done when: tasks A0 to A7 of `docs/design/LAYERED_EXECUTION/README.md` are closed, and with them
   `sushiruntime RW-65`, SushiBLAS's B1 to B13 and SushiEngine's E1 to E17
-- Source: `docs/design/LAYERED_EXECUTION.md`
+- Source: `docs/design/LAYERED_EXECUTION/README.md`
 
-The four repositories each hold a `docs/design/LAYERED_EXECUTION.md` with their share. The owner
+The four repositories each hold a `docs/design/LAYERED_EXECUTION/README.md` with their share. The owner
 ruled on 2026-10-19 how a run spans machines: through SushiRuntime's distributed layer, carried by
 SushiBLAS, YOLOv3-tiny first. The runtime's measurements (its R13) come after the placement
 labels, as ruled on 2026-10-20.
@@ -34,11 +34,6 @@ labels, as ruled on 2026-10-20.
 ### RW-6 Test a model file with a missing block
 - State: open
 - Done when: `TheYOLO26FileNamesEachMissingBlock` has a successor under `vision/registration`
-
-### RW-7 Rename the archived August plans
-- State: open
-- Done when: the five lower-kebab files under `docs/archive/superpowers/` move to the
-  `docs/archive/agent/` shape
 
 ## Runs not yet made
 
@@ -64,7 +59,7 @@ labels, as ruled on 2026-10-20.
 - Done when: no `SA_THROW_IF` site throws `SushiAI::Error` where the contract asks for a `Status`
   or a `Result`, and no `try` or `catch` sits outside `seam/seam.hpp` but the ones the contract
   allows
-- Source: `docs/design/PROGRAMME.md`
+- Source: `docs/design/PROGRAMME/README.md`
 
 Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridging eleven, and
 `Scope`'s destructor throwing through `ScopeTrace::close()`.
@@ -214,7 +209,7 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 ### RW-43 Split `sushiai_add_module` by concern
 - State: open
 - Done when: key, target, dependencies, tests and install are one function each
-- Source: `docs/design/DOMAIN_MODULES.md`
+- Source: `docs/design/DOMAIN_MODULES/README.md`
 
 ### RW-44 Give the join that lists type names one home
 - State: open
@@ -260,7 +255,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-51 Build and run the writers and the task section
 - State: unmeasured
 - Done when: `write_json`, `write_model`, `AnchorTask` and their tests pass
-- Source: `docs/design/MODEL_IMPORT.md`
+- Source: `docs/design/MODEL_IMPORT/README.md`
 
 ### RW-52 Give the `task` section a registry row
 - State: open
@@ -277,7 +272,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-55 Close what phase 3 of the import lacks
 - State: open
 - Done when: subdivisions, options per head and a restorable step count exist
-- Source: `docs/design/MODEL_IMPORT.md`
+- Source: `docs/design/MODEL_IMPORT/README.md`
 
 ### RW-56 Build and run the import
 - State: unmeasured
@@ -297,7 +292,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-59 Build and run `Batch` with roles and `vision/codecs`
 - State: unmeasured
 - Done when: both pass, with `test_learning_curve`, `test_determinism` and `test_compile_once`
-- Source: `docs/design/DATASETS.md`
+- Source: `docs/design/DATASETS/README.md`
 
 ### RW-60 See the engine allocate under concurrent calls
 - State: unmeasured
@@ -323,7 +318,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-65 Write the raw cache from a folder of images
 - State: open
 - Done when: the rest of phase 2 of the datasets design exists
-- Source: `docs/design/DATASETS.md`
+- Source: `docs/design/DATASETS/README.md`
 
 ### RW-66 Give the decoders one exception boundary
 - State: open
@@ -391,7 +386,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-81 Design the decision model, phase 6
 - State: open
 - Done when: phase 6 is designed, the first work after the build passes by the owner's ruling
-- Source: `docs/design/LANGUAGE.md`
+- Source: `docs/design/LANGUAGE/README.md`
 
 ### RW-82 Show per-term losses in a step's view
 - State: open
@@ -441,7 +436,7 @@ runtime SushiBLAS `main` configures against.
 ### RW-93 Close the points phase 2 left open
 - State: open
 - Done when: the points the language design lists are closed
-- Source: `docs/design/LANGUAGE.md`
+- Source: `docs/design/LANGUAGE/README.md`
 
 ### RW-94 Fill the dropout mask on the device
 - State: open
@@ -499,7 +494,6 @@ the heads is compared.
 ### RW-102 Close the step time against Darknet
 - State: open
 - Done when: a full-size step takes the time of a Darknet iteration on the same card
-- Source: `docs/agent/2026_10_13_PLAN_PACKED_SCRATCH/REPORT.md`
 
 RTX 3080 Ti, batch 2, 200 steps: YOLOv4 0.76 s a step against 0.21 s, YOLOv7 0.70 s against
 0.18 s. The host stage costs YOLOv4 115 ms to read the heads and 120 ms to write the deltas, all
@@ -599,7 +593,7 @@ repository's current work is done.
 - Done when: the G and A items of section 5 are closed
 - Source: `docs/design/GRAPH_CAPABILITIES/README.md`
 
-R1 is `sushiruntime RW-62`; R2 is `docs/design/LAYERED_EXECUTION.md`, `RW-130`. The B items belong to
+R1 is `sushiruntime RW-62`; R2 is `docs/design/LAYERED_EXECUTION/README.md`, `RW-130`. The B items belong to
 SushiBLAS, and their entry there waits until that repository's current work is done.
 
 ### RW-121 Move onto SushiBLAS's views, enums and `BLASScalar`

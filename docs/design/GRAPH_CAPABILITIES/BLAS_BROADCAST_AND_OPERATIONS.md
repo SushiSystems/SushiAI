@@ -164,7 +164,7 @@ the table above onto `execute_broadcast`, each behind its own measurement.
 (`sushiblas/modules/operations/spatial/include/SushiBLAS/spatial/spatial.hpp:153-170`), so
 `K_UPSAMPLE2D` is nearest (`modules/core/graph/source/lowering/spatial.cpp:194`) and a class
 boundary of `SegmentHead` falls on a multiple of the head's scale
-(`docs/design/DATASETS.md:162-163`).
+(`docs/design/DATASETS/README.md:162-163`).
 
 **Design.** Two members of `SpatialOps` beside the nearest pair, shaped like them: integer
 scales, NHWC through the operands' strides, the gradient as a gather. Sample positions are
@@ -279,7 +279,7 @@ agreement with `argmax` on a one-row matrix; each refusal.
 
 **Limit and evidence.** `NonLinearOps::gelu` is the tanh approximation
 (`sushiblas/modules/operations/nonlinear/include/SushiBLAS/nonlinear/nonlinear.hpp:160-168`),
-so the language reference is run with the same one (`docs/design/LANGUAGE.md:79`). Weights
+so the language reference is run with the same one (`docs/design/LANGUAGE/README.md:79`). Weights
 trained with the error-function form would be evaluated with another function.
 
 **Signature**, two members of `NonLinearOps` beside `gelu`:

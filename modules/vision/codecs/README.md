@@ -5,7 +5,7 @@
 The decoding of an image file into an `Imaging::Image`: the detection of the format from the
 leading bytes, a JPEG decoder over libjpeg-turbo, a PNG decoder over libpng, and the dispatch
 that picks one of them or the raw image reader of `vision/imaging`. Everything is in namespace
-`SushiAI::Vision::Codecs`. The design is `docs/design/DATASETS.md`, section "Image decoding".
+`SushiAI::Vision::Codecs`. The design is `docs/design/DATASETS/README.md`, section "Image decoding".
 
 Every function works on bytes in host memory and returns `uint8` pixels in the layout of
 `vision/imaging`: row-major, channels innermost, RGB with red at channel 0. Nothing here reaches

@@ -2,7 +2,7 @@
 
 ## Owns
 
-The format readers of `docs/design/DATASETS.md`, the collators of its six tasks with the sample
+The format readers of `docs/design/DATASETS/README.md`, the collators of its six tasks with the sample
 loaders they stand on, and the MNIST dataset loader.
 
 A format reader knows one on-disk layout and no task. It lists the samples of a root and a

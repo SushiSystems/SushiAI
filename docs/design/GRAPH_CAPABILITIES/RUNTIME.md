@@ -52,5 +52,5 @@ describes the host-filled scratch.
 
 ## R2. Several machines
 
-The design is [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION.md); its "One step on five machines" holds what the
+The design is [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION/README.md); its "One step on five machines" holds what the
 runtime has to provide.

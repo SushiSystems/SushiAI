@@ -23,7 +23,7 @@
  * @file darknet_recipe.hpp
  * @brief Declares the training settings of a .cfg in the shape of a training file.
  * @author Mustafa Garip
- * @see docs/design/MODEL_IMPORT.md
+ * @see docs/design/MODEL_IMPORT/README.md
  */
 
 #pragma once

@@ -1,6 +1,8 @@
 # Graph capabilities
 
 **Status:** Open — phase 0 of 4; plan written and its decisions ruled, nothing implemented
+**About:** The changes below SushiAI's layers tier that lift the limits found while the language, dataset, model-import and Darknet work was written in October 2026.
+**Modules:** modules/core/autograd, modules/core/graph
 
 ## Problem
 
@@ -11,7 +13,7 @@ and SushiBLAS carries out the three pages for them; the SushiAI session carries 
 How to read a path: one that starts with `sushiblas/` or `sushiruntime/` is in that sibling
 checkout, and every other path is in this repository. A path under a heading "Adds" does not
 exist yet. Line numbers are those of the checkouts when the plan was written; their commits are in
-`docs/agent/2026_10_21_GRAPH_CAPABILITIES_SOURCES/REPORT.md`.
+the graph capabilities sources report in the version history.
 
 Nothing in this plan was built or measured: builds are closed until SushiBLAS follows
 SushiRuntime v0.4.0. Every cost stated here is read from the code or is an estimate, and each
@@ -50,7 +52,7 @@ included: small is 1 to 3, medium 4 to 8, large more than 8.
 | Id | Limit | Owner | Unblocks in SushiAI | Size | Depends on |
 | --- | --- | --- | --- | --- | --- |
 | R1 | Host-written memory read by a replayed plan is relied on and stated nowhere | R | G1, and what the gather offsets, the mask vectors and `StepScalars` already do | small | none |
-| R2 | A run over several machines | R | Moved to [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION.md) | not sized | that design's phase 0 |
+| R2 | A run over several machines | R | Moved to [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION/README.md) | not sized | that design's phase 0 |
 | B1 | A random fill fixes its seed and offset when recorded | B | Dropout (G1) | medium | R1 |
 | B2 | Row gather goes through a sparse product: int32 `r * V + label`, no bounds rule, host-filled offsets | B | Losses over integer labels of any size (G5), the embedding | large | none |
 | B3 | No broadcasting: operands of one elementwise call share one shape | B | Broadcast operations in the IR (G3), shorter special forms (G4) | large | none |
@@ -98,8 +100,8 @@ The masked score is G8. Concurrent allocation is B7, and the code already answer
 machines R2.
 
 Found in the source documents beyond that list: B5 with G10
-(`modules/vision/training/README.md:190-195`), B6 (`docs/design/LANGUAGE.md:79`), A6
-(`docs/design/LANGUAGE.md:90-91`), A7 (`docs/design/DATASETS.md:159-161`), A9
+(`modules/vision/training/README.md:190-195`), B6 (`docs/design/LANGUAGE/README.md:79`), A6
+(`docs/design/LANGUAGE/README.md:90-91`), A7 (`docs/design/DATASETS/README.md:159-161`), A9
 (`docs/design/REMAINING_WORK.md:255-256`) and A10 (`modules/core/optim/README.md:185-186`).
 
 Added on 2026-10-11 by the mixture of experts, after this plan was handed over, and not yet
@@ -122,7 +124,7 @@ a top-k, a sort and a compaction do not.
 
 ### What the plan leaves out
 
-- **A design for several machines.** [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION.md) holds it.
+- **A design for several machines.** [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION/README.md) holds it.
 - **Removing a special form.** `K_LAYER_NORM`, `K_CAUSAL_MASK`, `K_BIAS_ADD` and
   `K_LOG_SOFTMAX_BACKWARD` stay as nodes. G4 changes how they lower, row by row, and only on a
   measured gain. Whether a composition from G2 and G3 could replace a node is not claimed: it
@@ -136,18 +138,18 @@ a top-k, a sort and a compaction do not.
   elements per buffer per token.
 - **A parallel `add_rows`.** B2 in [BLAS_RANDOM_AND_INDEX.md](BLAS_RANDOM_AND_INDEX.md): gated on a profile.
 - **Sine and cosine in the IR.** They serve rotary positions, which the owner has not chosen
-  over the learned table (`docs/design/LANGUAGE.md:161-162`). SushiBLAS has both kernels; the
+  over the learned table (`docs/design/LANGUAGE/README.md:161-162`). SushiBLAS has both kernels; the
   work would be the shape of G2.
 - **Restoring the random stream on resume.** After G1 a resumed run draws its masks from
   offset 0, because `RNGStream::reseed` rewinds the offset and nothing sets it
   (`sushiblas/modules/engine/engine/include/SushiBLAS/engine/rng_stream.hpp:57-62`).
   `sushiblas/modules/README.md`, under `RNGStream::reseed`, already names the shape such a
   method would take. It belongs with A3 and is raised when A3 is designed.
-- **Top-k for the mixture of experts.** Phase 7 of `docs/design/LANGUAGE.md` is not started
+- **Top-k for the mixture of experts.** Phase 7 of `docs/design/LANGUAGE/README.md` is not started
   and no document states what it lacks.
 - **Everything in the A rows** beyond the items table above. They are SushiAI's own and are
-  planned in `docs/design/LANGUAGE.md`, `docs/design/DATASETS.md` and
-  `docs/design/MODEL_IMPORT.md`.
+  planned in `docs/design/LANGUAGE/README.md`, `docs/design/DATASETS/README.md` and
+  `docs/design/MODEL_IMPORT/README.md`.
 
 ## Phases
 
@@ -162,11 +164,17 @@ build before its tests can run.
 | 1 | Items: R1 (free); B7, B8 (after); G2, G6, G8, G9 (written now). Closes with: `sr build` and `sr test` with the R1 test; `sb build` and `sb test --suite unit` with the B7 and B8 tests. SushiAI then checks: `sa build`, `sa test --suite unit`: the gradient checks of G2 and G6, the half-precision mask test of G8, the recorder-only step of G9 | planned |
 | 2 | Items: B1, B4, B5, B6 (after); then G1, G7, G10, A11. Closes with: `sb build`, `sb test`, and a tagged SushiBLAS release. SushiAI then checks: The pin in `cli/sushistack.deps.toml` moves to that tag; a dropout step draws two different masks from one compile; a bilinear head passes the one-batch overfit test of segmentation; `measure_segmentation` equals its host form | planned |
 | 3 | Items: B2, B3 (after); then G5, G3, G4, A12. Closes with: `sb build`, `sb test`, the two benchmarks of B2 and B3 run on the RTX 3080 Ti, and a tagged release. SushiAI then checks: The next-token and per-pixel losses and gradients equal their current values within the tolerances of their tests, with the int32 refusals removed; each re-lowering of G4 lands only with its before and after timing | planned |
-| 4 | Items: R2. Closes with: Phases of [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION.md). SushiAI then checks: That design's Phases table | planned |
+| 4 | Items: R2. Closes with: Phases of [`LAYERED_EXECUTION.md`](../LAYERED_EXECUTION/README.md). SushiAI then checks: That design's Phases table | planned |
 
 Phases 2 and 3 do not depend on each other and may swap. Inside a phase the B items are
 independent of one another. Rule 4 of the `api-stability` skill holds: SushiAI consumes a phase
 only from a SushiBLAS tag, never from a branch.
+
+### Work
+
+<!-- work:begin -->
+No open work.
+<!-- work:end -->
 
 ## Open questions
 
