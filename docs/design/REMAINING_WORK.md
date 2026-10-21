@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-131
+Next id: RW-132
 
 ## Decisions waiting for the owner
 
@@ -633,3 +633,11 @@ SushiBLAS, and their entry there waits until that repository's current work is d
 - State: open
 - Done when: the cases of `check.hpp`, `load_sample_mask.hpp` and `perplexity.hpp` leave
   `test_status.cpp`, `test_fit_mask.cpp` and `test_next_token_targets.cpp`
+
+## Documentation architecture
+
+### RW-131 Write the About line of each design topic by hand
+- State: open
+- Done when: each topic has an `**About:**` line of one sentence written for a cold reader
+
+The topic model generated the lines from the first sentence of each document or from its title.
