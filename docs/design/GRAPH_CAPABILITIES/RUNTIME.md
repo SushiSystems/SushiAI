@@ -17,7 +17,7 @@ kernels of the next execution to read it:
 The memory is Shared: `TensorFactory::create` defaults to `Residency::Shared`
 (`sushiblas/modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp:103-107`) and
 `TensorPool::create` passes no residency (`modules/core/graph/source/tensor_pool.cpp:63-66`).
-`sushiruntime/docs/design/GRAPH_REPLAY.md` section D designs the same pattern for late-bound
+`sushiruntime/docs/design/GRAPH_REPLAY/README.md` section D designs the same pattern for late-bound
 counts: a kernel reads a host-USM word the step machinery writes before each submission. No
 header states it as a contract of `SushiRuntime::Graph` and its plan, and no test replays a plan
 around a host write.

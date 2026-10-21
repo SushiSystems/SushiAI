@@ -45,7 +45,7 @@ has: a value that varies between replays lives in memory the kernel reads
 Rejected:
 
 - Reserving inside the task body at each execution. Bodies run on whichever worker reaches
-  them (`sushiruntime/docs/design/GRAPH_REPLAY.md`, section A), so two fills of one step would
+  them (`sushiruntime/docs/design/GRAPH_REPLAY/README.md`, section A), so two fills of one step would
   take their offsets in an order that differs between runs.
 - Adding the replay count to the recorded offset. `RNGStream::reserve` hands consecutive
   offsets to consecutive tasks
