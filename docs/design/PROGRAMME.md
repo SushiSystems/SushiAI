@@ -2,20 +2,20 @@
 
 **Status:** Open — stage 1 of 7 built and passing; the naming half of stage 2 is done
 
+## Problem
+
 What SushiAI is being built towards, in what order, and the owner's rulings that fix the shape of
 the work. Open items are in [`REMAINING_WORK.md`](REMAINING_WORK.md); each stage's design is in the
 work folder named beside it. This document replaces [`ROADMAP.md`](../archive/design/ROADMAP.md), which planned the
 construction of SushiBLAS and SushiAI up to the MLP showcase and is kept as the record of that
 period.
 
-## Target
-
 SushiAI trains Ultralytics YOLO26 from scratch and runs its forward pass, on the stack's own
 kernels, and runs the Darknet-era YOLO models. The first tag, 0.1.0, is cut when that works. Along the way the library becomes both
 compiled and eager: a model is traced once and replayed, or traced on every step with plain C++
 control flow, over one IR, one rule table and one lowering.
 
-## Rulings
+## Decision
 
 Each was made by the owner on 2026-10-07.
 
@@ -42,27 +42,15 @@ Each was made by the owner on 2026-10-07.
 | Language | Ruled on 2026-10-11: a language domain is inside the feature freeze of 0.1.0. A decoder-only transformer trains on the library; the reference for parity is a nanoGPT-scale PyTorch model run outside the repository. Training across several machines through SushiRuntime's distributed layer is wanted; ruled on 2026-10-19 to go through SushiBLAS, designed in [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) |
 | Batch normalisation | The batch variance is an output of `K_BATCHNORM2D`; the running statistics are updated beside the graph |
 
-## Stages
+## Design
 
-| # | Stage | Ends when | Design |
-| --- | --- | --- | --- |
-| 0 | The owner's build | The tree builds, the suites pass on a named device, and the "No kernel named" failure in the test logs is explained | `REMAINING_WORK.md`, first section |
-| 1 | SushiBLAS v0.1.0 migration | Every call site uses the recorder, the lowering is per-domain tables, `TensorPool` has its own header | sushiblas: `docs/agent/2026_10_07_V010/` |
-| 2 | Error contract and naming | No exception crosses the public surface; one naming form | `docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md` |
-| 3 | Convolutional networks | A CNN trains on MNIST from a JSON file; batch normalisation, multi-input layers and a rank-4 input exist | `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`, `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` |
-| 4 | Eager front end | A model traced under scopes trains to the same loss as the compiled path, and a changed scope rebuilds only its own regions | `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md` |
-| 5 | YOLO26 | Stages a to e of its map: body forward, imported-weight parity, loss parity, overfit, full run | `docs/agent/2026_10_07_YOLO26/SPEC.md` |
-| 6 | Darknet-era YOLO | YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference, then trains; v3, v4-tiny, v4, v7-tiny and v7 follow through the same anchor unit | `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` and `PLAN.md` |
-| 7 | Model import | A Darknet model is imported once and its six parity suites pass from the imported files | [`MODEL_IMPORT.md`](MODEL_IMPORT.md) |
-| 8 | Datasets and tasks | A YOLOv7-tiny trains from a model file, a `.sushi` file and a folder of images; a binary and a segmentation model each overfit one batch | [`DATASETS.md`](DATASETS.md) |
-| 9 | Language | A small decoder-only transformer equals its reference on one forward pass and one step, then trains on one machine; the multi-machine run follows [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md) | [`LANGUAGE.md`](LANGUAGE.md) |
-| 10 | Release 0.1.0 | The readiness list is closed | `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` |
+### Order of the stages
 
 Stages 1 and 2 touch the same files and are planned as one pass over the library. Stages 3 to 5
 each have units that call no engine and are written ahead of stage 1; their lowerings are written
 once, after it.
 
-## Feature freeze of 0.1.0
+### Feature freeze of 0.1.0
 
 The first tag holds what stages 1 to 9 name and nothing else: the compiled and the eager front
 end, the status contract, convolutional networks from a model file, YOLO26 training and forward
@@ -70,3 +58,23 @@ pass, the Darknet-era YOLO models through the anchor-based detection unit, the i
 of stage 7, the datasets and tasks of stage 8 and the language domain of stage 9. A feature outside
 this list waits for a later version; the owner adds to the list, as he did on 2026-10-09 for
 stage 6 and on 2026-10-11 for stages 7 to 9.
+
+## Phases
+
+| Id | Phase | State |
+| --- | --- | --- |
+| 0 | The owner's build. Ends when: The tree builds, the suites pass on a named device, and the "No kernel named" failure in the test logs is explained. Design: `REMAINING_WORK.md`, first section | planned |
+| 1 | SushiBLAS v0.1.0 migration. Ends when: Every call site uses the recorder, the lowering is per-domain tables, `TensorPool` has its own header. Design: sushiblas: `docs/agent/2026_10_07_V010/` | built |
+| 2 | Error contract and naming. Ends when: No exception crosses the public surface; one naming form. Design: `docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md` | building |
+| 3 | Convolutional networks. Ends when: A CNN trains on MNIST from a JSON file; batch normalisation, multi-input layers and a rank-4 input exist. Design: `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`, `docs/agent/2026_10_07_MODEL_GRAPH/SPEC.md` | building |
+| 4 | Eager front end. Ends when: A model traced under scopes trains to the same loss as the compiled path, and a changed scope rebuilds only its own regions. Design: `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md` | building |
+| 5 | YOLO26. Ends when: Stages a to e of its map: body forward, imported-weight parity, loss parity, overfit, full run. Design: `docs/agent/2026_10_07_YOLO26/SPEC.md` | building |
+| 6 | Darknet-era YOLO. Ends when: YOLOv3-tiny runs its forward pass on imported Darknet weights and equals a reference, then trains; v3, v4-tiny, v4, v7-tiny and v7 follow through the same anchor unit. Design: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md` and `PLAN.md` | building |
+| 7 | Model import. Ends when: A Darknet model is imported once and its six parity suites pass from the imported files. Design: [`MODEL_IMPORT.md`](MODEL_IMPORT.md) | building |
+| 8 | Datasets and tasks. Ends when: A YOLOv7-tiny trains from a model file, a `.sushi` file and a folder of images; a binary and a segmentation model each overfit one batch. Design: [`DATASETS.md`](DATASETS.md) | planned |
+| 9 | Language. Ends when: A small decoder-only transformer equals its reference on one forward pass and one step, then trains on one machine; the multi-machine run follows [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md). Design: [`LANGUAGE.md`](LANGUAGE.md) | planned |
+| 10 | Release 0.1.0. Ends when: The readiness list is closed. Design: `docs/agent/2026_10_07_RELEASE_READINESS/REPORT.md` | planned |
+
+## Open questions
+
+None. The open items are in [`REMAINING_WORK.md`](REMAINING_WORK.md).

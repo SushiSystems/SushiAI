@@ -1,13 +1,15 @@
 # Domain modules
 
-**Status:** Open — the module tree, the split of `vision/detect`, `vision/importers` and `vision/training` are built; the build of the training parity tests is pending. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
+**Status:** Open — built; the build of the training parity tests is pending. Plan and report: `docs/agent/2026_10_09_DOMAIN_MODULES/`
+
+## Problem
 
 How SushiAI keeps what belongs to one field of use (vision today; language, physics and
 reinforcement learning later) apart from the library every field shares, so that a field can be
 added, built and removed without an edit to another. The tree follows the `repository-layout`
 skill of SushiSkills, as SushiEngine does.
 
-## Rulings
+## Decision
 
 Each was made by the owner on 2026-10-09.
 
@@ -34,7 +36,9 @@ Decided by the engineer the owner delegated them to:
 | CMake target of a module | One target per module, declared by `sushiai_add_module`, as SushiEngine's `sushiengine_add_module` does. The modules are object libraries archived into two libraries, so the package exports two names |
 | Files of no module | `version`, the two umbrella headers and vision's registration are small modules of their own |
 
-## The tree
+## Design
+
+### The tree
 
 ```
 modules/<tier>/<module>/
@@ -47,7 +51,7 @@ tests/                       tests that cross module boundaries; common/, fixtur
 applications/                programs/ (train, inference), examples/
 ```
 
-## Tiers
+### Tiers
 
 A dependency points down the order or sideways inside its own tier, never up and never from one
 domain to another.
@@ -65,7 +69,7 @@ The next domain is a sibling folder of `modules/vision/` and one word in the tie
 Two places hold the tier table and must agree: `cmake/SushiAILayers.cmake`, which the build
 reads, and `tools/layering/check_layering.py`, which reads the includes.
 
-## The shape of a domain
+### The shape of a domain
 
 Every domain has the same modules, and a module that would be empty is not created. Siblings
 that do the same kind of thing are shaped the same, so the fourth domain is laid out by copying
@@ -86,7 +90,7 @@ Namespaces: `SushiAI::Vision::Detect`, `SushiAI::Vision::Imaging`, `SushiAI::Vis
 `SushiAI::Vision::Datasets`, `SushiAI::Vision::Importers`, `SushiAI::Vision::Training`. A second task (segmentation, pose) is a sibling of `detect`, not a
 growth of it.
 
-## Registration
+### Registration
 
 A tier that names what a higher tier owns cannot be built without it, so no table in `nn` or
 `data` lists a type of a domain.
@@ -104,7 +108,7 @@ A tier that names what a higher tier owns cannot be built without it, so no tabl
 - A model file that names a type no registered module has fails with a status that lists the
   names the registry holds.
 
-## Build
+### Build
 
 | Library | Alias | Tiers | Links | Umbrella |
 | --- | --- | --- | --- | --- |
@@ -124,7 +128,14 @@ SushiBLAS's `SB_BUILD_TESTS` does. Each module has its own test program,
 `sushiai_<tier>_<module>_tests`, built from `tests/<tier>/<module>/` and linked against the
 library of its tier.
 
-## Open
+## Phases
+
+| Id | Phase | State |
+| --- | --- | --- |
+| D1 | The module tree, the split of `vision/detect`, `vision/importers` and `vision/training` | built |
+| D2 | The build of the training parity tests | planned |
+
+## Open questions
 
 - What a domain may add to the core tier. An operation, a gradient rule or a lowering a domain
   needs is written in the core tier, in its operation's domain file, because the IR is one; a

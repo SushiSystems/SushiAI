@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-21 — docs: Gave the seven design documents the five design sections and a phase table, split the graph plan into a topic folder, and took the design format checker (`GRAPH_CAPABILITIES/`, `check_design_format.py`).
 - 2026-10-20 — docs: Moved 5 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).
 - 2026-10-20 — docs: Designed SushiAI's share of layered execution: its own graphs only, and training over five machines through SushiBLAS (`LAYERED_EXECUTION.md`).
 - 2026-10-19 — tests: Granted the Darknet parity suites the one exception to the outside-file rule; their references stay outside (`tests/README.md`).

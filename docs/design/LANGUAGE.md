@@ -1,11 +1,13 @@
 # Language
 
-**Status:** Open — phases 1 to 5 and 7 of 7 written, not yet built; phase 6 waits by the owner's ruling; ruled into 0.1.0 on 2026-10-11
+**Status:** Open — phases 1 to 5 and 7 of 7 written, not yet built; phase 6 waits by the owner's ruling
+
+## Problem
 
 How SushiAI trains and runs a decoder-only transformer on text, and an encoder that answers
 typed questions in one forward pass: the second domain after vision, laid out as [`DOMAIN_MODULES.md`](DOMAIN_MODULES.md) lays out a domain.
 
-## Rulings
+## Decision
 
 Made by the owner on 2026-10-11.
 
@@ -18,7 +20,9 @@ Made by the owner on 2026-10-11.
 | Mixture of experts | Asked about. Phase 7 below; possible on one machine with the operations phases 1 and 2 add |
 | Decision model | A non-autoregressive model that answers typed questions about a text, of the kind TypeSafe AI's Jev is; the owner will use it in his games. Phase 6 below |
 
-## The tier
+## Design
+
+### The tier
 
 `language` is a domain tier beside `vision`: one word in the tier table, a library
 `sushiai_language` (`SushiAI::language`), an umbrella `SushiAI/language.hpp`, a test
@@ -36,7 +40,7 @@ binary, and `SA_BUILD_LANGUAGE`. No module of it depends on `vision`, nor the re
 Layers that are not specific to language go to `nn`, as `Conv2d` did: `Embedding`, `LayerNorm` and
 `Dropout`, beside the `Linear` that exists.
 
-## What the core tier gains
+### What the core tier gains
 
 A domain adds layers and algorithms, not operations. Each of these is an operation, a lowering
 and a gradient rule in the core tier, in its operation's domain file.
@@ -54,34 +58,19 @@ Shared with the other stages and written once: gradient clipping by global norm,
 groups (no decay on biases, normalisation gains and embeddings), the cosine schedule with
 warm-up, and one weight bound to two places (the embedding table and the output head).
 
-## Phases
-
-| Phase | Work | Ends when |
-| --- | --- | --- |
-| 1 | Gather and scatter-add, the integer leaf, `Embedding` | A gradient check on an engine passes |
-| 2 | Layer normalisation, the causal mask, `LayerNorm`, the attention and transformer blocks | One block's forward pass equals the reference's |
-| 3 | The tokenizer, the vocabulary file, the windowed reader | A text encodes and decodes to itself; a window batch has the stated roles |
-| 4 | The objective, clipping, parameter groups, the schedule, weight tying | The model's loss and one update equal the reference's, then it overfits one batch |
-| 5 | Generation with the key and value cache | Greedy generation from imported weights equals the reference's tokens |
-| 6 | The decision model below: the encoder, the typed heads, calibration | A model trained on a labelled set answers each question type, and its expected calibration error on a held-out split is under a stated bound |
-| 7 | Mixture of experts: a top-k router, the dispatch and the gather of expert outputs, the balance term | A block with experts trains on one machine and its balance term keeps every expert in use |
-
-The first training run is a model of 10 to 30 million parameters on a small corpus, chosen so
-that an epoch takes hours on one RTX 3080 Ti with 12 GB.
-
-## What phase 2 left open
+### What phase 2 left open
 
 - **`Dropout` draws its mask on the host.** A lowering row registers a prelude that
   `CompiledStep::run` calls before each replay, and the prelude of `K_DROPOUT` fills a
   FLOAT32 scratch from SplitMix64 keyed by site seed, run and element: about 12.6 MB per
   site per step for a `[32, 256, 384]` activation. `record_keep_draw` is the one function
-  that changes when SushiBLAS carries a positioned Bernoulli fill (`GRAPH_CAPABILITIES.md`,
+  that changes when SushiBLAS carries a positioned Bernoulli fill (`GRAPH_CAPABILITIES/BLAS_RANDOM_AND_INDEX.md`,
   B1). The `seed` key of the training file seeds the sites, and a resumed run restores the
   run count, so it draws the masks the uninterrupted run would have drawn.
 - **GELU is the tanh approximation**, so the reference is run with the same one.
 - **The masked score is -1e9**, which is minus infinity in half precision.
 
-## What phase 3 decided and left open
+### What phase 3 decided and left open
 
 - **Merges do not cross a run of blank bytes**, and a chunk is cut at 256 bytes. It bounds the
   trainer and the encoder; the alternative is one unbroken byte sequence.
@@ -95,7 +84,7 @@ that an epoch takes hours on one RTX 3080 Ti with 12 GB.
   publishes int32 and `Trainer::fit` refuses a dataset whose input differs from the leaf.
 - **The trainer's time on tens of megabytes is not measured.**
 
-## What phase 4 decided and left open
+### What phase 4 decided and left open
 
 - **The loss reads integer labels through the row gather**, not a one-hot leaf, which would be
   256 MiB written from the host at each step for a batch of 32 windows of 256 over 8192
@@ -114,7 +103,7 @@ that an epoch takes hours on one RTX 3080 Ti with 12 GB.
 - **Every number the overfit test asserts is unverified**: 400 updates, a last loss under a
   tenth of the first.
 
-## What phase 5 decided and left open
+### What phase 5 decided and left open
 
 - **A decoder is reachable from files**: `input.dtype` in the model file, the `tie` of a
   `language_head` row, the block rows and the `tokens` dataset row of `language/registration`,
@@ -147,7 +136,7 @@ that an epoch takes hours on one RTX 3080 Ti with 12 GB.
 - **`sushiai inference` continues a prompt** for a model whose task is
   `next_token_generation`; the prompt is the data block of `eval.json`.
 
-## What phase 7 decided and left open
+### What phase 7 decided and left open
 
 - **Every expert runs on every token.** A graph is traced for fixed shapes, and the rows an
   expert would take, and their count, come from the data. `top_k` therefore masks the gate; it
@@ -169,7 +158,7 @@ that an epoch takes hours on one RTX 3080 Ti with 12 GB.
 - **Every number of the training test is unverified**: 200 updates, a last loss under half the
   first, a least usage above 0.10 with the balance at 0.5.
 
-## The decision model
+### The decision model
 
 Jev's weights, architecture paper and training method (named RLCD) are not published, so this
 is a model of the same kind and not a copy of it.
@@ -192,7 +181,22 @@ Ruled by the owner on 2026-10-11: the weights are exported to SushiEngine and ru
 model is small enough for inference on a phone; an academic counterpart is the reference. The
 phase is planned and waits until vision and the phases before it are finished.
 
-## Open
+## Phases
+
+| Id | Phase | State |
+| --- | --- | --- |
+| 1 | Gather and scatter-add, the integer leaf, `Embedding`. Ends when: A gradient check on an engine passes | building |
+| 2 | Layer normalisation, the causal mask, `LayerNorm`, the attention and transformer blocks. Ends when: One block's forward pass equals the reference's | building |
+| 3 | The tokenizer, the vocabulary file, the windowed reader. Ends when: A text encodes and decodes to itself; a window batch has the stated roles | building |
+| 4 | The objective, clipping, parameter groups, the schedule, weight tying. Ends when: The model's loss and one update equal the reference's, then it overfits one batch | building |
+| 5 | Generation with the key and value cache. Ends when: Greedy generation from imported weights equals the reference's tokens | building |
+| 6 | The decision model below: the encoder, the typed heads, calibration. Ends when: A model trained on a labelled set answers each question type, and its expected calibration error on a held-out split is under a stated bound | planned |
+| 7 | Mixture of experts: a top-k router, the dispatch and the gather of expert outputs, the balance term. Ends when: A block with experts trains on one machine and its balance term keeps every expert in use | building |
+
+The first training run is a model of 10 to 30 million parameters on a small corpus, chosen so
+that an epoch takes hours on one RTX 3080 Ti with 12 GB.
+
+## Open questions
 
 Each is the owner's decision unless it says otherwise.
 
@@ -202,5 +206,5 @@ Each is the owner's decision unless it says otherwise.
 - **The tokenizer's file format** and whether a vocabulary trained elsewhere is imported
   through the door of [`MODEL_IMPORT.md`](MODEL_IMPORT.md).
 - **The decision model's frame budget and its training data.** Not stated yet.
-- **The multi-machine run.** Its plan is section 7 of
+- **The multi-machine run.** Its plan is the Phases table of
   [`LAYERED_EXECUTION.md`](LAYERED_EXECUTION.md).

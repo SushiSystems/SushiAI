@@ -2,11 +2,13 @@
 
 **Status:** Open — phase 4 of 9
 
+## Problem
+
 How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the
 format engine below) enters SushiAI once, through one door, and is trained and run afterwards
 from SushiAI's own files with no file of the other framework in sight.
 
-## Rulings
+## Decision
 
 Made by the owner on 2026-10-11.
 
@@ -18,7 +20,9 @@ Made by the owner on 2026-10-11.
 | The extensions | The model file is `.json`. The weight file is `.sushi`, the official SushiAI weight file; it replaces `.ckpt` and `weights.sacp`. The bytes are the checkpoint format unchanged |
 | Darknet's `.cfg` | An input of the import step. Training a Darknet-era model does not need it afterwards |
 
-## The files a model is made of
+## Design
+
+### The files a model is made of
 
 | File | Holds | Written by |
 | --- | --- | --- |
@@ -29,7 +33,7 @@ Made by the owner on 2026-10-11.
 The three are separate because they change at different times: the architecture when the model
 is designed, the weights at every checkpoint, the training recipe at every run.
 
-## The import step
+### The import step
 
 ```
 sushiai import <format> <files...> --output <directory>
@@ -52,7 +56,7 @@ What is written once and shared by every importer: the writer of a `ModelSpec` t
 writer of the task section, the command. A new format adds an importer and one row of the
 importer table; it edits no other importer and no writer.
 
-## The task section
+### The task section
 
 A detection model is not usable from its rows alone. Decoding a head needs the anchors, the
 coding and the offset stretch; training it needs the thresholds and the weights of the delta.
@@ -83,19 +87,7 @@ value and a domain reads:
   `config` and `nn` name no detection type. YOLO26's anchor-free head is a second row,
   `anchor_free_detection`.
 
-## Phases
-
-| Phase | Work | Needs a build |
-| --- | --- | --- |
-| 1 | `ModelSpec` to JSON, and the round trip `parse(write(spec)) == spec` | To run its tests |
-| 2 | The task section: its reader and writer in `vision/detect`'s terms, the registry row, and `inference` decoding a model from it | To run its tests |
-| 3 | The `anchor` objective and the step schedule in the training file; `train` building `AnchorTrainingStep` from the files | To run its tests |
-| 4 | `sushiai import darknet`, and the six parity suites reading the imported files instead of the `.cfg` | Yes |
-
-The code of every phase can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
-verified before it.
-
-## What phase 3 decided and still lacks
+### What phase 3 decided and still lacks
 
 Decided, written and not yet built:
 
@@ -125,7 +117,7 @@ Still lacking:
   run-state section, the optimizer's step count and its own tensors, and `resume` restores
   it; the epoch index is not in it, so a shuffling dataset starts its order over.
 
-## What phase 4 decided
+### What phase 4 decided
 
 - **`ImportedModel` holds weights as records and bytes**, the pair the checkpoint writer takes,
   so an importer and the import program need no engine.
@@ -139,13 +131,13 @@ Still lacking:
   `eval.json` has no key for them, and boxes are printed in pixels of the network input.
 - **One image file cannot be given to `inference`**; it reads the split of `eval.json`.
 
-## The format engine
+### The format engine
 
 Ruled by the owner on 2026-10-12: SushiAI reads every foreign format with readers of its own
 and takes no external dependency for it, Caffe is among the formats, and the design is written
 before any of it is built. Nothing in this section exists yet.
 
-### Two kinds of format
+#### Two kinds of format
 
 | Kind | Formats | The file holds | The import needs |
 | --- | --- | --- | --- |
@@ -164,7 +156,7 @@ bytes, reads the tensors, renames them by the map and writes the `.sushi` file. 
 model file's state records first and refuses the import when a record has no tensor, a tensor
 has no record, or a shape differs, naming every such entry in one message.
 
-### The readers
+#### The readers
 
 Each reader turns bytes into a structure and knows no model. They live in `io`, one unit each.
 
@@ -188,7 +180,7 @@ Each reader turns bytes into a structure and knows no model. They live in `io`, 
 - **A tensor is read where it lies.** The readers return an offset and a length into the file
   for each tensor, and the bytes are copied once, into the `.sushi` writer.
 
-### The name map
+#### The name map
 
 A JSON file beside the model file. It holds prefix rules in the shape of `RenameRule`, a list
 of names to drop (`num_batches_tracked` of every PyTorch normalisation), and the key of the
@@ -196,7 +188,7 @@ state dictionary inside the file (`model` for the ByteTrack checkpoints). The la
 weight follows from the record it lands in: a convolution weight stored `OIHW` is permuted to
 the layout the record states, and the map says nothing about it.
 
-### The graph importers
+#### The graph importers
 
 ONNX and Caffe each get an importer in the shape of the Darknet one, and each holds an
 operator table: one row per foreign operator, naming the function that writes its rows of the
@@ -217,7 +209,7 @@ Shared by the two, written once:
 Caffe reads the layers from the `.prototxt` and the weights from the `.caffemodel`, joined by
 layer name. Its `BatchNorm` and `Scale` pair becomes one normalisation row.
 
-### The first model: YOLOX-X
+#### The first model: YOLOX-X
 
 The first use of the weight command is YOLOX-X with a ByteTrack checkpoint of SushiTrack
 (`mot17x.pth.tar`, a zip container of 793 MB).
@@ -235,17 +227,24 @@ The model file is written by hand from the paper and from the shapes of the chec
 tensors. A PyTorch run outside the repository dumps the three head outputs for one input, and
 a parity suite compares them, as the Darknet suites do. No YOLOX source enters the repository.
 
-### Phases 5 to 9
+## Phases
 
-| Phase | Work | Proven by |
+| Id | Phase | State |
 | --- | --- | --- |
-| 5 | `ZipArchive`, `PickleReader`, `SafetensorsReader`, the name map, `sushiai import weights` | A `.pth` and a `.safetensors` fixture of a small model give the `.sushi` file `train` wrote for it |
-| 6 | YOLOX-X: the focus row, the decoupled head, the task type, the model file and its map | The three head outputs against the dumped ones; detections on a MOT17 frame |
-| 7 | `ProtobufWire`, axis translation, constant folding, the ONNX importer | The ONNX export of YOLOX-X imports to the outputs of phase 6 |
-| 8 | `ProtobufText`, the Caffe importer | A Caffe model's outputs against a dump of a Caffe run |
-| 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names | The YOLO26 fixture read from its `.pt` |
+| 1 | `ModelSpec` to JSON, and the round trip `parse(write(spec)) == spec`. Needs a build: To run its tests | built |
+| 2 | The task section: its reader and writer in `vision/detect`'s terms, the registry row, and `inference` decoding a model from it. Needs a build: To run its tests | built |
+| 3 | The `anchor` objective and the step schedule in the training file; `train` building `AnchorTrainingStep` from the files. Needs a build: To run its tests | built |
+| 4 | `sushiai import darknet`, and the six parity suites reading the imported files instead of the `.cfg`. Needs a build: Yes | building |
+| 5 | `ZipArchive`, `PickleReader`, `SafetensorsReader`, the name map, `sushiai import weights`. Proven by: A `.pth` and a `.safetensors` fixture of a small model give the `.sushi` file `train` wrote for it | planned |
+| 6 | YOLOX-X: the focus row, the decoupled head, the task type, the model file and its map. Proven by: The three head outputs against the dumped ones; detections on a MOT17 frame | planned |
+| 7 | `ProtobufWire`, axis translation, constant folding, the ONNX importer. Proven by: The ONNX export of YOLOX-X imports to the outputs of phase 6 | planned |
+| 8 | `ProtobufText`, the Caffe importer. Proven by: A Caffe model's outputs against a dump of a Caffe run | planned |
+| 9 | `NpyReader` and `.npz`; Ultralytics `.pt`, which pickles module objects and widens the accepted names. Proven by: The YOLO26 fixture read from its `.pt` | planned |
 
-## Open
+The code of every phase can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
+verified before it.
+
+## Open questions
 
 Each is the owner's decision.
 

@@ -597,7 +597,7 @@ repository's current work is done.
 ### RW-120 Carry out the SushiAI items of the graph capabilities plan
 - State: open
 - Done when: the G and A items of section 5 are closed
-- Source: `docs/design/GRAPH_CAPABILITIES.md`
+- Source: `docs/design/GRAPH_CAPABILITIES/README.md`
 
 R1 is `sushiruntime RW-62`; R2 is `docs/design/LAYERED_EXECUTION.md`, `RW-130`. The B items belong to
 SushiBLAS, and their entry there waits until that repository's current work is done.

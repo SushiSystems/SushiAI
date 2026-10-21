@@ -1,30 +1,15 @@
 # Layered execution
-**Status:** Open — designed and ruled on 2026-10-19; nothing built
+
+**Status:** Open — designed and ruled; nothing built
+
+## Problem
 
 SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and
 it trains one model over the owner's five machines through SushiRuntime's distributed layer,
 with SushiBLAS carrying the tensor side. This document also holds the programme's backlog entry,
 since SushiAI is the repository whose run needs every other share.
 
-Each repository of the stack holds its own share in a document of this name:
-
-| Repository | Its share |
-| --- | --- |
-| SushiRuntime | Placement class and key, scopes, topology, placement rules, the distributed layer's needs (R1 to R14) |
-| SushiBLAS | An engine without its own graph, the per-index seam, two general operations, the cluster module (B1 to B13) |
-| SushiAI | This document (A0 to A7) |
-| SushiEngine | Two lanes behind one contract: SushiRuntime and SushiBLAS, or the engine's native runtime and BLAS; placement scopes; physics islands on several machines in the runtime lane (E1 to E17) |
-
-## 1. Roles
-
-| Layer | Role in a training run |
-| --- | --- |
-| SushiRuntime | Holds the graphs and the memory, decides where each node runs by the rules it was given, moves the bytes between machines |
-| SushiBLAS | Computes every operation of the step, packs tensors into flat buffers and adds the replicas' gradients in a fixed order |
-| SushiAI | Owns the compiled step, splits the batch into replicas, records the exchange around the optimizer, and turns its training spec into placement rules |
-| The person running it | Writes the training spec: which machine runs which replica, and any rule of their own |
-
-## 2. The owner's rulings
+## Decision
 
 Made on 2026-10-19.
 
@@ -44,7 +29,29 @@ Made on 2026-10-19.
 | First run | YOLOv3-tiny on the five machines |
 | Order | SushiRuntime's share first, SushiBLAS's second, SushiAI's third |
 
-## 3. What the distributed layer is today
+## Design
+
+### The shares of the stack
+
+Each repository of the stack holds its own share in a document of this name:
+
+| Repository | Its share |
+| --- | --- |
+| SushiRuntime | Placement class and key, scopes, topology, placement rules, the distributed layer's needs (R1 to R14) |
+| SushiBLAS | An engine without its own graph, the per-index seam, two general operations, the cluster module (B1 to B13) |
+| SushiAI | This document (A0 to A7) |
+| SushiEngine | Two lanes behind one contract: SushiRuntime and SushiBLAS, or the engine's native runtime and BLAS; placement scopes; physics islands on several machines in the runtime lane (E1 to E17) |
+
+### Roles
+
+| Layer | Role in a training run |
+| --- | --- |
+| SushiRuntime | Holds the graphs and the memory, decides where each node runs by the rules it was given, moves the bytes between machines |
+| SushiBLAS | Computes every operation of the step, packs tensors into flat buffers and adds the replicas' gradients in a fixed order |
+| SushiAI | Owns the compiled step, splits the batch into replicas, records the exchange around the optimizer, and turns its training spec into placement rules |
+| The person running it | Writes the training spec: which machine runs which replica, and any rule of their own |
+
+### What the distributed layer is today
 
 Every fact below was read from SushiRuntime's source on 2026-10-19.
 
@@ -75,7 +82,7 @@ Every fact below was read from SushiRuntime's source on 2026-10-19.
 What the runtime adds for this run (placement rules that pin a class and key to a named worker,
 worker labels, a per-rule deadline, the two probes) is SushiRuntime's `LAYERED_EXECUTION.md`.
 
-## 4. One step on five machines
+### One step on five machines
 
 ```
                          master (replica 0)
@@ -119,7 +126,7 @@ functions of the seed, the epoch and the index
 (`modules/core/data/include/SushiAI/data/epoch_permutation.hpp`, `docs/design/DATASETS.md`), so
 every machine finds its own rows.
 
-### Devices of different sizes
+#### Devices of different sizes
 
 The five devices hold 6 to 12 GB and run at different speeds. The cluster section of the training
 spec gives each replica two numbers: its rows per step `r_k` and its micro-batch `m_k`, with `m_k`
@@ -128,7 +135,7 @@ more rows. The global batch is `B = Σ r_k`, and the sum weights replica `k` by 
 update is the one a single machine would make over all `B` rows, whatever the split. A7 measures
 each machine's rows per second and sets `r_k` from it.
 
-### What the link carries
+#### What the link carries
 
 With 4 workers and `P` bytes of gradients, the master sends `4P` and receives `4P` per step over
 its one 1 Gbps link. The table is arithmetic at line rate (117 MB/s of payload), not a
@@ -154,7 +161,7 @@ Whether five machines beat the fastest one alone is not known until A7. A YOLOv3
 device has not been timed on the GPU; if it takes well under the 1.2 s above, the exchange
 dominates and only the three items above can change the answer.
 
-### Data types
+#### Data types
 
 A pack holds tensors of any of SushiBLAS's seven types (`Half`, `Float32`, `Float64`,
 `Complex32`, `Complex64`, `Int32`, `Int64`). It groups them into one contiguous segment per
@@ -162,7 +169,7 @@ type, and a gradient crosses the network in its tensor's own type. `ordered_sum(
 `Half` in `Float32` and rounds once after the last input; the other floating and complex types
 accumulate in their own type; integers add exactly, wrap, and refuse a weight other than 1.
 
-### Faults
+#### Faults
 
 A worker lost mid-step has its replica task returned to the master, which runs it, unless the
 spec's rule says `wait` or `fail`. A worker whose model differs from the master's cannot take a
@@ -170,7 +177,7 @@ replica task: the replica kernel's operation name carries the fingerprint of the
 pack layouts (`sushiai.replica:<fingerprint>`), so its `OperationID` differs and the master never
 sees it advertised.
 
-### Repeatability
+#### Repeatability
 
 A run repeats bit for bit on the same hardware when replica `k` runs on the same machine every
 run and the sum's order is fixed:
@@ -185,7 +192,7 @@ hardware, so from that step the run is not repeatable and the master logs one WA
 replica and the step. A spec that must repeat writes `wait` or `fail`. Against a single-machine
 run over the whole batch the result is equal within a tolerance, never bitwise.
 
-### Machines on two operating systems
+#### Machines on two operating systems
 
 The frames of the layer are little-endian with fixed-width fields
 (`sushiruntime/modules/extension/distributed/README.md`, "Protocol versions"), and every device
@@ -193,14 +200,14 @@ of the five is little-endian. A layout's fingerprint includes the size of each t
 builds that disagreed on one would refuse each other instead of exchanging wrong bytes.
 `sushiai_worker` builds on both systems.
 
-## 5. SushiBLAS
+### SushiBLAS
 
 SushiBLAS's share is its own `LAYERED_EXECUTION.md`. What this run takes from it: `TensorPack`,
 `ClusterBinding`, `record_remote()` and `bind_views()` in `modules/engine/cluster/`, and
 `ElementwiseOps::ordered_sum()` (its B11 and B12); and an `Engine` without a graph (its B5), which
 this document's A0 prepares.
 
-## 6. SushiAI
+### SushiAI
 
 ```
 sushiai/
@@ -236,7 +243,7 @@ unchanged. The `train` program builds the bricks when the spec has a cluster sec
 `sushiai_worker` loads the same model file and spec, builds `ReplicaStep` and `ReplicaKernel`,
 and serves through `WorkerAgent`. `sa build --distributed` sets the three options.
 
-### SOLID
+#### SOLID
 
 | Principle | How the design holds it | Where it is weakest |
 | --- | --- | --- |
@@ -247,26 +254,7 @@ and serves through `WorkerAgent`. `sa build --distributed` sets the three option
 | Depend on abstractions | SushiAI depends on SushiBLAS's module and the runtime's public rule model; no layer reaches `Internal::` | |
 | Dependencies | The three options keep the distributed layer out of every build that does not ask for it | |
 
-## 7. Plan
-
-Hierarchy first. Each task has one acceptance criterion and one build; the manual pages a task
-makes false change in its own commit.
-
-| Task | Does | Files, mainly | Waits on | Done when |
-| --- | --- | --- | --- | --- |
-| A0 | SushiAI records only on graphs it owns: `run_recorded()` and `discard_recorded()` of `modules/core/execution` replaced, the checkpoint savers and four tests moved | `modules/core/execution`, `modules/layers/io`, `tests/` | | No SushiAI file calls `Engine::execute()`, `discard_recorded()` or `Engine::recorder()`, and the suites pass |
-| A1 | `ReplicaPlan` and `ClusterSection`, the spec's cluster section turned into placement rules | `modules/core/distribution/` | `sushiruntime` R4 | A test turns a five-replica section into rows, micro-batches, weights and rules, and refuses a micro-batch that does not divide its rows |
-| A2 | `ReplicaStep` and `ReplicaKernel` | `modules/core/distribution/` | A1, `sushiblas` B12, `sushiruntime` R11 | One replica on `InProcessFabric` returns the gradients of a single-machine step over the same rows, bit for bit |
-| A3 | `GradientExchange` and `ParameterPublish` in `TrainingStep`'s recorder list | `modules/core/distribution/`, `modules/layers/train/` | A2, `sushiblas` B11, `sushiruntime` R10, R12 | Two replicas on `InProcessFabric` give summed gradients equal to one step over the whole batch within the test's tolerance, two pinned runs equal each other bit for bit, and a pack of every type crosses |
-| A4 | `sushiai_worker` and the `train` program's cluster section; `sa build --distributed` | `applications/programs/`, `cli/` | A3 | Both programs build and a two-process run on one machine trains one step from a spec |
-| A5 | Two machines, one Linux and one Windows | `docs/guides/` | A4 | A YOLOv3-tiny step runs across the two and the guide page shows how |
-| A6 | Five machines, YOLOv3-tiny | `docs/guides/`, this document | A5, `sushiruntime` R13 | The step time on five machines and on the fastest one alone are measured, with the link's time separated out, and `r_k` set from each machine's rows per second |
-| A7 | Decide on worker-to-worker links | this document | A6 | The measurements of A6 are written here, and the runtime's R14 is either opened or withdrawn |
-
-A0 has no dependency and can land first; SushiBLAS's B5 waits on it. The owner chooses inline or
-waves.
-
-## 8. Out of this document
+### Out of this document
 
 - **Per-operation offload.** Ruled out by the owner on 2026-10-19.
 - **Expert parallelism.** Mixture of experts in `LANGUAGE.md` phase 7 runs every expert on every
@@ -274,3 +262,26 @@ waves.
 - **Model and pipeline parallelism.** A model whose replica does not fit the smallest device,
   6 GB, at a micro-batch of one row is not covered.
 - **A dataset that lives on one machine.** Every machine holds a copy for now.
+
+## Phases
+
+Hierarchy first. Each task has one acceptance criterion and one build; the manual pages a task
+makes false change in its own commit.
+
+| Id | Phase | State |
+| --- | --- | --- |
+| A0 | SushiAI records only on graphs it owns: `run_recorded()` and `discard_recorded()` of `modules/core/execution` replaced, the checkpoint savers and four tests moved. Files: `modules/core/execution`, `modules/layers/io`, `tests/`. Waits on: nothing. Done when: No SushiAI file calls `Engine::execute()`, `discard_recorded()` or `Engine::recorder()`, and the suites pass | planned |
+| A1 | `ReplicaPlan` and `ClusterSection`, the spec's cluster section turned into placement rules. Files: `modules/core/distribution/`. Waits on: `sushiruntime` R4. Done when: A test turns a five-replica section into rows, micro-batches, weights and rules, and refuses a micro-batch that does not divide its rows | planned |
+| A2 | `ReplicaStep` and `ReplicaKernel`. Files: `modules/core/distribution/`. Waits on: A1, `sushiblas` B12, `sushiruntime` R11. Done when: One replica on `InProcessFabric` returns the gradients of a single-machine step over the same rows, bit for bit | planned |
+| A3 | `GradientExchange` and `ParameterPublish` in `TrainingStep`'s recorder list. Files: `modules/core/distribution/`, `modules/layers/train/`. Waits on: A2, `sushiblas` B11, `sushiruntime` R10, R12. Done when: Two replicas on `InProcessFabric` give summed gradients equal to one step over the whole batch within the test's tolerance, two pinned runs equal each other bit for bit, and a pack of every type crosses | planned |
+| A4 | `sushiai_worker` and the `train` program's cluster section; `sa build --distributed`. Files: `applications/programs/`, `cli/`. Waits on: A3. Done when: Both programs build and a two-process run on one machine trains one step from a spec | planned |
+| A5 | Two machines, one Linux and one Windows. Files: `docs/guides/`. Waits on: A4. Done when: A YOLOv3-tiny step runs across the two and the guide page shows how | planned |
+| A6 | Five machines, YOLOv3-tiny. Files: `docs/guides/`, this document. Waits on: A5, `sushiruntime` R13. Done when: The step time on five machines and on the fastest one alone are measured, with the link's time separated out, and `r_k` set from each machine's rows per second | planned |
+| A7 | Decide on worker-to-worker links. Files: this document. Waits on: A6. Done when: The measurements of A6 are written here, and the runtime's R14 is either opened or withdrawn | planned |
+
+A0 has no dependency and can land first; SushiBLAS's B5 waits on it. The owner chooses inline or
+waves.
+
+## Open questions
+
+None.

@@ -1,11 +1,13 @@
 # Datasets
 
-**Status:** Open — phase 1, the decoders of phase 2, all seven phases written, not yet built
+**Status:** Open — all seven phases written, not yet built
+
+## Problem
 
 How SushiAI reads training data for more than one kind of task, from the layouts data is
 commonly kept in, without a class per named dataset.
 
-## Rulings
+## Decision
 
 Made by the owner on 2026-10-11.
 
@@ -25,7 +27,9 @@ Decided by the engineer, open to the owner's objection:
 | Instance segmentation | Outside 0.1.0. The polygon labels are already read and kept, so it adds a task and a head later, not a reader |
 | Where decoding runs | Once, into the raw cache of `vision/imaging`, as ruled for YOLO26. A training epoch reads raw pixels, never a JPEG |
 
-## A batch carries roles
+## Design
+
+### A batch carries roles
 
 Today a batch is an input tensor, a one-hot target matrix and a class index per sample, which
 fits classification alone. A batch becomes an input and a list of named targets:
@@ -59,7 +63,7 @@ caller's tensors in place, so a loop that keeps one `Batch` allocates on the fir
 Several threads may read at once, each into its own `Batch`. An index outside the epoch is a
 broken precondition and stops the process.
 
-## The parts of a dataset
+### The parts of a dataset
 
 | Part | Tier | Does |
 | --- | --- | --- |
@@ -94,7 +98,7 @@ The training file names them:
 Readers, collators and presets are rows of `Data::DatasetRegistry`, added by the functions each
 module registers, as nodes are.
 
-## What the readers and collators decided
+### What the readers and collators decided
 
 - **COCO**: crowd annotations and boxes without area are dropped; a multi-part outline keeps
   its largest part, since a label holds one polygon; images are not checked to exist.
@@ -113,7 +117,7 @@ module registers, as nodes are.
   document: about 230 MB for train2017 with boxes alone and under 1 GB with polygons, by
   estimate, where the whole-document parser needed about 8 GB.
 
-## Image decoding
+### Image decoding
 
 A module `vision/codecs` holds `decode_image(bytes) -> Result<Image>`, choosing the decoder from
 the leading bytes: JPEG through libjpeg-turbo, PNG through libpng, and the raw cache's own
@@ -121,7 +125,7 @@ format. The two libraries are private dependencies of that module, through vcpkg
 module includes their headers. The first pass over a dataset writes the raw cache; a build
 without the module still trains from a cache written elsewhere.
 
-## Segmentation
+### Segmentation
 
 A sibling of `detect`, `vision/segment`, with namespace `SushiAI::Vision::Segment`:
 
@@ -135,13 +139,13 @@ A sibling of `detect`, `vision/segment`, with namespace `SushiAI::Vision::Segmen
 Whether the upsample and the per-pixel cross entropy need a new operation in the core tier is
 not checked yet; if they do, it is written there, in its operation's domain file.
 
-## The binary task
+### The binary task
 
 A model with one output and `{ "type": "binary_cross_entropy" }` as its objective, computed from
 logits. The metric is accuracy at a threshold the training file states, with precision and
 recall beside it.
 
-## What phase 5 decided
+### What phase 5 decided
 
 - **An objective owns its feed and its metrics** (`Objective::feed`, `Objective::measure`).
   `Trainer` names no role and no task; an objective whose targets a host pass computes between
@@ -151,7 +155,7 @@ recall beside it.
   operations the graph already had. The threshold of their metrics is a key of the objective
   section, 0.5 unless stated.
 
-## What phase 7 decided and left open
+### What phase 7 decided and left open
 
 - **The per-pixel loss reads integer labels through the row gather**, as the next-token loss
   does. One weight leaf carries both the mask of ignored pixels and the divisor: `1 / kept` on
@@ -169,7 +173,7 @@ recall beside it.
 - **The overfit test's numbers are unverified**: 80 steps, a last loss under half the first,
   a mean IoU above 0.8.
 
-## What the loader, the cache and the pipelines decided
+### What the loader, the cache and the pipelines decided
 
 - **A worker thread may allocate and fill a tensor.** Tensor storage is shared memory from an
   allocator SushiRuntime states as callable from any thread; only recording on the engine is
@@ -190,20 +194,20 @@ recall beside it.
 
 ## Phases
 
-| Phase | Work |
-| --- | --- |
-| 1 | `Batch` with roles, `Dataset::targets()`, the role match in the steps; MNIST and the synthetic sets carried over; classification's one-hot built by its objective |
-| 2 | `vision/codecs` with the two libraries, and the raw cache written from a folder of images |
-| 3 | The loader on threads, and the readers `yolo_txt`, `image_folder`, `idx`, `cifar`, `csv` |
-| 4 | The detection collator, and `train` driving `AnchorTrainingStep` from a training file. A YOLOv7-tiny trains from `model.json`, a `.sushi` file and a folder here |
-| 5 | The binary and multi-label objectives and their metrics |
-| 6 | `coco_json`, `voc_xml`, `mask_png` |
-| 7 | `vision/segment`, its objectives, its head, and a model that overfits one batch |
+| Id | Phase | State |
+| --- | --- | --- |
+| 1 | `Batch` with roles, `Dataset::targets()`, the role match in the steps; MNIST and the synthetic sets carried over; classification's one-hot built by its objective | building |
+| 2 | `vision/codecs` with the two libraries, and the raw cache written from a folder of images | building |
+| 3 | The loader on threads, and the readers `yolo_txt`, `image_folder`, `idx`, `cifar`, `csv` | building |
+| 4 | The detection collator, and `train` driving `AnchorTrainingStep` from a training file. A YOLOv7-tiny trains from `model.json`, a `.sushi` file and a folder here | building |
+| 5 | The binary and multi-label objectives and their metrics | building |
+| 6 | `coco_json`, `voc_xml`, `mask_png` | building |
+| 7 | `vision/segment`, its objectives, its head, and a model that overfits one batch | building |
 
 Each phase's code can be written before SushiBLAS follows SushiRuntime v0.4.0; none can be
 verified before it.
 
-## Open
+## Open questions
 
 - Which segmentation model 0.1.0 states as its example: a head over the YOLOv7-tiny body, or a
   small encoder and decoder written for it.

@@ -9,7 +9,7 @@ sushiai_[a-z_]+_tests  # test program names sushiai_add_test_program generates
 ^(g_[0-9xywh]|b_[0-9])$  # mathematical symbols in formulas
 ^(byte_token_count|special_count|merge_count|name_length|source_width|floored_mod|first_use)$  # field and formula names of a file format or algorithm the page defines
 ^(Ops::K_SOFTSIGN|GraphBuilder::softsign|lower_softsign|sushi_apply_build_policy|pool_backward)$  # hypothetical names in a worked example or a counterfactual
-^PositionedRandomOps::bernoulli$  # planned SushiBLAS operation named by GRAPH_CAPABILITIES.md
+^PositionedRandomOps::bernoulli$  # planned SushiBLAS operation named by GRAPH_CAPABILITIES/GRAPH.md
 (U|ultralytics)/.*|(utils|engine|models|cfg|nn)/.*\.(py|yaml)|data/(augment|utils|base|dataset|build)\.py  # Ultralytics source files the reference comparisons cite; U/ abbreviates ultralytics/
 (images|labels|masks|JPEGImages|Annotations|annotations|ImageSets|gtFine|leftImg8bit|train|val|sub|root|cat|dog|dir|pictures|runs)/.*|data/(train|images|labels|tiny_decoder)/.*|data/(set\.csv|images\.txt)  # dataset and run folder layouts a reader builds; the pages show them as examples
 .*\.(sushi|savb|satk)  # files a training or tokenizer run writes

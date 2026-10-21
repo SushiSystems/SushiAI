@@ -200,7 +200,7 @@ comparison and one store per element; at an estimated 1.5 to 2.5 ns per element 
 
 `record_keep_draw` in `source/lowering/random.cpp` is the one function that knows where the
 ones and zeros come from. When SushiBLAS gains the positioned Bernoulli fill
-(`docs/design/GRAPH_CAPABILITIES.md`, B1), its body becomes an INT64 `[2]` position scratch, a
+(`docs/design/GRAPH_CAPABILITIES/BLAS_RANDOM_AND_INDEX.md`, B1), its body becomes an INT64 `[2]` position scratch, a
 prelude that writes the position, and one `PositionedRandomOps::bernoulli` into the mask. Its
 signature, the row, the operation, the emitter and the backward rule stay as they are; the
 masks themselves change, because Philox replaces SplitMix64.

@@ -24,6 +24,7 @@ K_CHECKERS = (
     "documentation/check_docs_layout.py",
     "documentation/check_changelog.py",
     "documentation/check_backlog.py",
+    "documentation/check_design_format.py",
     "documentation/check_docs_truth.py",
     "layering/check_layering.py",
     "testing/check_test_mirror.py",
