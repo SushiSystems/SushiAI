@@ -8,7 +8,9 @@ shape-checked nodes into one. The module also owns the passes over a graph (cast
 static subtree fusion, the dynamic fusion selector, precision policies and im2col
 rematerialisation), the memory plan with its `ArenaSet`, and the `TensorPool` that holds the
 tensors behind the values. Lowering turns a graph into SushiBLAS tasks through the tables under
-`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph`, compiles it in `compile()` and replays it, so `compile_count()` is 1 before the first run. `StateID` names model state
+`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph`, compiles it in `compile()` and replays it, so `compile_count()` is 1 before the first run. A `StepRecorder` adds work to a compiled step and follows its replays. It records through one
+`StepRecording`, which hands out the SushiBLAS task recorder and the SushiRuntime recorder of the
+graph. `StateID` names model state
 across graphs, and `Traced` carries a traced value or the failure that stopped the trace.
 
 ## Depends on
@@ -38,6 +40,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/replay_prelude.hpp` | `ReplayPrelude` |
 | `SushiAI/graph/state_id.hpp` | `StateID`, `K_NO_STATE`, `StateIdentity` |
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
+| `SushiAI/graph/step_recording.hpp` | `StepRecording` |
 | `SushiAI/graph/tensor_pool.hpp` | `TensorPool` |
 | `SushiAI/graph/traced.hpp` | `Traced` |
 | `SushiAI/graph/lowering/activation.hpp` | `K_ACTIVATION_LOWERINGS` |

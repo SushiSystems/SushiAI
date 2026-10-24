@@ -19,7 +19,8 @@ SYCL header, so the machines that only need the split do not compile against the
 
 `ReplicaStep` and `ReplicaKernel` add `graph` as a public dependency, since their headers name
 `Graph::Graph`, `TensorPool` and `CompiledStep`, and `execution` as a private one, for
-`create_runtime()`. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
+`create_runtime()`. `GradientExchange` adds `allocation` as a private dependency, for the packs it
+allocates. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
 `SushiRuntime::distributed` as external public dependencies, since their headers name
 `PackLayout`, `BoundPack`, `KernelRegistry` and `BufferView`. The module stays in the core tier: it reads a model only through `ReplicaModel`, so
 it includes nothing of `layers/train`.
@@ -33,6 +34,9 @@ Each header is named by its include path under `include/`.
 | `SushiAI/distribution/replica_plan.hpp` | `K_REPLICA_PLACEMENT_CLASS`, `ReplicaShare`, `RowRange`, `ReplicaPlan` |
 | `SushiAI/distribution/cluster_section.hpp` | `K_CLUSTER_KEY`, `ClusterSection` |
 | `SushiAI/distribution/replica_draws.hpp` | `ReplicaDraws`, `replica_seed()` |
+| `SushiAI/distribution/replica_position.hpp` | `K_REPLICA_POSITION_BYTES`, `ReplicaPosition` |
+| `SushiAI/distribution/gradient_exchange.hpp` | `ExchangeRun`, `GradientExchange` |
+| `SushiAI/distribution/parameter_publish.hpp` | `ParameterPublish` |
 | `SushiAI/distribution/replica_task.hpp` | `K_REPLICA_TASK_WORDS`, `ReplicaTask` |
 | `SushiAI/distribution/replica_model.hpp` | `ReplicaRows`, `ReplicaModel`, `ReplicaModelFactory` |
 | `SushiAI/distribution/replica_step.hpp` | `replica_runtime_config()`, `ReplicaStep` |
@@ -168,6 +172,47 @@ little-endian: the model's own `ReplicaModel::fingerprint()`, which the layer ab
 parameter layout's fingerprint and the result layout's. A worker whose model or packs differ
 advertises another operation, and the master never sends it the task.
 
+## GradientExchange
+
+`GradientExchange` is a `Graph::StepRecorder` that `TrainingStep` runs before the optimizer. It
+records through one `Graph::StepRecording`, which gives it the task recorder and the runtime
+recorder of the graph. `make()` allocates and shares the position pack and one result pack per
+replica, and takes an `ExchangeRun` that names the operation, the seed, the run index and the
+batches of an epoch. One recording holds, in this order:
+
+1. the gather of the position tensor into the position pack;
+2. one replica task per replica, recorded in the `sushiai.replica` scope with key `k`, over the
+   parameter pack and the position pack;
+3. one `ordered_sum()` per type segment of the result layout that holds an element, over the
+   result packs' segment views in replica order;
+4. the scatter of the sum pack into the target tensors.
+
+The weight of replica `k` in a sum is `r_k / B` for `Float16`, `Float32`, `Float64` and complex
+types, and 1 for integers, the only weight `ordered_sum()` takes for them, so integer totals are
+exact. `make()` refuses a target of type `UInt32` as `Unsupported`, since `ordered_sum()` does not
+sum it, and a target unlike its layout entry, an unshared parameter pack, a plan of no batch or
+too many replicas for `ordered_sum()` as `InvalidDescription`.
+
+`before_replay()` writes the position of the coming replay and counts it; `next_step()` and
+`set_next_step()` read and set the counter. `record_into_step()` returns `2 + replica_count()`
+plus the number of filled segments.
+
+## ParameterPublish
+
+`ParameterPublish` is a `Graph::StepRecorder` that `TrainingStep` runs after the optimizer. It
+owns the parameter pack the replica tasks read. `make()` allocates the pack of a layout, shares
+it through the binding and copies the parameters into it on the host. `record_into_step()`
+records one task that gathers every parameter into the pack. The gather runs on the master, so
+it raises the pack's version and the replica tasks of the next replay pull the new parameters.
+`pack()` returns the pack.
+
+## ReplicaPosition
+
+`ReplicaPosition` holds the epoch and the batch index of a replay. `at_step()` maps a step count
+and the batches per epoch to a position, and `read()` reads one from the first
+`K_REPLICA_POSITION_BYTES` of a `BufferView`, refusing a view with no memory or a smaller one
+as `InvalidDescription`.
+
 ## ReplicaStep
 
 `ReplicaStep::make()` creates a `SushiRuntime::Runtime` with `replica_runtime_config()`: one
@@ -192,7 +237,7 @@ host-addressable.
 | --- | --- |
 | 0 | zeros; a replica of 0 rows weighs 0 in the sum |
 | 1 | the step's results, byte for byte |
-| more | the sum in micro-batch order, divided by the count, in each tensor's own type; `Half` sums in `float` and rounds once; an integer result is refused as `Unsupported` |
+| more | the sum in micro-batch order, divided by the count, in each tensor's own type; `Half` sums in `float` and rounds once; a result of `Int32`, `Int64` or `UInt32` is refused as `Unsupported` |
 
 The objective of a micro-batch is a mean over its rows, so the mean of `r_k / m_k` micro-batches
 is the mean over the replica's `r_k` rows, which the gradient sum weights by `r_k / B`.
