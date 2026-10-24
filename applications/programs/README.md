@@ -43,18 +43,21 @@ on each worker machine; the other flags go to SushiRuntime's worker. The trainin
 first: `-h`, `--help`, `-V` or `--version` there prints and exits 0, and any other flag there is
 refused with the usage line.
 
-Before the first step the master waits for its workers up to the largest `wait_ms` of the
-section's `wait` replicas, and does not wait when no replica waits. When every worker's
-`if_absent` is `fail` and a worker has not joined by then, the run ends with `DeviceFailed`,
-naming the section's workers and how many joined.
+Before the first step the master waits until every worker the section names has attached, or
+until the attach bound passes, whichever comes first. The bound is the section's
+`attach_timeout_ms`, 60000 when absent, raised to the largest `wait_ms` of the section's `wait`
+replicas. The master tells the workers apart by the name each sends when it attaches. When the
+bound passes with a worker missing whose `if_absent` is `fail`, the run ends with `DeviceFailed`
+naming every missing worker; a missing worker under `local` or `wait` lets the run go on, and
+its replica goes as its rule says.
 
 `ReplicaSource::fingerprint`, which the master and every worker must agree on, hashes what a
 replica's result depends on: the architecture file's bytes, the objective's `type` and its keys,
 the data block's `type` and its keys, the run's `seed`, the run index (`K_RUN_INDEX`, 0 for
 every run), and the `rows` and `micro_batch` of every replica. It leaves out the optimizer, the
 schedule, `epochs`, `weights`, `resume`, `checkpoint`, and the section's `listen`,
-`secret_file`, `worker`, `priority`, `if_absent` and `wait_ms`, which only the master reads or
-which name where output goes.
+`secret_file`, `attach_timeout_ms`, `worker`, `priority`, `if_absent` and `wait_ms`, which only
+the master reads or which name where output goes.
 
 `train.cpp` builds the `TrainingSetup` of a run with `SetupScope::Step` and the master of a
 cluster run with `SetupScope::Results`. A `Results` setup binds the state, a gradient per

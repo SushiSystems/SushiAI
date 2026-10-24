@@ -47,14 +47,15 @@ Each header is named by its include path under `include/`.
 ## The cluster section
 
 The section is the object under the `cluster` key of a training file. A file without the key
-trains on one machine. A file with the key states every key of the first table, and every entry
-of `replicas` states the required keys of the second. An unknown key is refused, as everywhere
+trains on one machine. A file with the key states every required key of the first table, and
+every entry of `replicas` states the required keys of the second. An unknown key is refused, as everywhere
 in a training file.
 
 | Key | Required | Holds |
 | --- | --- | --- |
 | `listen` | yes | The address the master listens on, as text. The module checks that it is not empty; the runtime's cluster reads its grammar |
 | `secret_file` | yes | The file that holds the cluster's secret. A relative path resolves against the training file's directory, as `model` does. The module does not open it |
+| `attach_timeout_ms` | no | How long the master waits for every worker to attach, in milliseconds, above 0; 60000 (`K_DEFAULT_ATTACH_TIMEOUT`) when absent. A larger `wait_ms` of a replica raises it |
 | `replicas` | yes | A list with at least one entry. Entry `k` is replica `k` |
 
 | Key of a replica | Required | Holds |
@@ -71,7 +72,8 @@ run that loses a worker under `local` stops being repeatable; the choice is writ
 file rather than made by omission.
 
 The training file states version 2 to carry this section (`K_TRAIN_CLUSTER_VERSION` in
-`train_config.hpp`); a version 1 file with a `cluster` key is refused.
+`train_config.hpp`); a version 1 file with a `cluster` key is refused. `attach_timeout_ms` joined
+the section before any release carried it, so the file stays at version 2.
 
 ```json
 "cluster": {
@@ -278,7 +280,9 @@ split the sum over rows inside the matrix product, so that case compares within 
 
 `ReplicaStep::begin`, the replica's micro-batch sum and `ParameterPublish::make` copy between the
 packs and the model's tensors with host `memcpy`. Every side is host memory: SushiAI's pool
-allocates `Residency::Shared`, a `TensorPack` allocates `Residency::Shared`, and SushiRuntime
+allocates `Residency::Shared`, a `TensorPack` allocates `Residency::Shared` on the device its
+tensors live on (the publish's parameters, the exchange's parameter pack, the position tensor),
+and SushiRuntime
 borrows every view a worker's dispatch hands a kernel as `Residency::Shared`.
 `require_host_visible()` stops the process at the copy, naming the tensor, if a model tensor
 ever lives in device memory.

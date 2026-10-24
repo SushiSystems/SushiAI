@@ -32,6 +32,7 @@
 #include <vector>
 
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
@@ -69,7 +70,10 @@ namespace SushiAI
 
                 /**
                  * @brief Records every node of the program on @p recorder, in node order.
-                 * @pre The pool holds the tensor of every import and export of the program.
+                 *
+                 * The late counts of the previous emit() are released first.
+                 * @pre The pool holds the tensor of every import and export of the program, and
+                 *      no recorder a previous emit() filled will run again.
                  * @return Success, or the first refusal of the lowering or of the recorder.
                  */
                 [[nodiscard]] Status emit(SushiRuntime::Recorder& recorder);
@@ -114,6 +118,9 @@ namespace SushiAI
 
                 /// @brief The caller's selector, or null to select by device.
                 const Graph::FusionSelector* selector_;
+
+                /// @brief Keeps the late-count tasks of the last emit() while the emitter lives.
+                SushiBLAS::LateCountHold late_counts_;
 
                 /// @brief The replay preludes of the last emit(), in node order.
                 std::vector<Graph::ReplayPrelude> preludes_;

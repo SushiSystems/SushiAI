@@ -76,6 +76,9 @@ namespace
     /** @brief Holds how long a case waits for the worker and for the run. */
     constexpr std::chrono::seconds K_WAIT{10};
 
+    /** @brief Names the device the packs live on: the engine's default, which its tensors use. */
+    constexpr std::size_t K_DEVICE = 0;
+
     /** @brief Bounds the absolute difference of a float32 result over two micro-batches. */
     constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
 
@@ -145,8 +148,9 @@ namespace
         EXPECT_TRUE(cluster.wait_for_workers(1, K_WAIT));
 
         SushiBLAS::ClusterBinding binding(cluster, refusing_kernels(kernel->operation()));
-        SushiBLAS::TensorPack parameters(master_runtime, kernel->parameter_layout());
-        SushiBLAS::TensorPack results(master_runtime, kernel->result_layout());
+        SushiBLAS::TensorPack parameters(master_runtime, kernel->parameter_layout(),
+                                         K_DEVICE);
+        SushiBLAS::TensorPack results(master_runtime, kernel->result_layout(), K_DEVICE);
         binding.share(parameters);
         binding.share(results);
 
@@ -156,7 +160,8 @@ namespace
         SushiBLAS::TensorPack position(
             master_runtime,
             SushiBLAS::PackLayout::of(
-                SushiRuntime::span<const SushiBLAS::Tensor>(&position_words, 1)));
+                SushiRuntime::span<const SushiBLAS::Tensor>(&position_words, 1)),
+            position_words.storage->device_index());
         binding.share(position);
         const std::uint64_t named[2] = {0, batch_index};
         std::memcpy(position.data(), named, K_REPLICA_POSITION_BYTES);

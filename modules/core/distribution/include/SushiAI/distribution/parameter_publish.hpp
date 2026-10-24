@@ -57,9 +57,10 @@ namespace SushiAI
                 /**
                  * @brief Allocates the pack of @p layout, shares it through @p binding, which
                  *        outlives the publish, and copies @p parameters into it on the host.
-                 * @param parameters One contiguous, host-addressable tensor per entry, in order.
-                 * @return The publish; InvalidDescription for a tensor count or a tensor that
-                 *         differs from the layout; or the failure of the allocation or share.
+                 * @param parameters One contiguous, host-addressable tensor per entry, in order,
+                 *        all on the device the pack is allocated on.
+                 * @return The publish; InvalidDescription for a tensor count, or a tensor unlike
+                 *         the layout or off the first's device; or a failed allocation or share.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ParameterPublish>> make(
                     SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,

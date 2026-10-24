@@ -32,6 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
@@ -109,13 +110,17 @@ namespace
         protected:
             /** @brief Builds the graph, its scratch pool and the recorder the tests use. */
             Medium_StepRecorder()
-                : graph_(SushiAI::Test::TestEnvironment::runtime().graph()),
+                : late_counts_(SushiAI::Test::TestEnvironment::runtime()),
+                  graph_(SushiAI::Test::TestEnvironment::runtime().graph()),
                   scratch_(SushiAI::Test::TestEnvironment::runtime()),
-                  recorder_(graph_.recorder(), scratch_),
+                  recorder_(graph_.recorder(), scratch_, late_counts_),
                   recording_(recorder_, graph_.recorder())
             {
 
             }
+
+            /// @brief Keeps the late-count tasks of graph_; declared first so it dies last.
+            SushiBLAS::LateCountHold late_counts_;
 
             /// @brief Graph the recorder writes to; no test runs it.
             SushiRuntime::Graph graph_;

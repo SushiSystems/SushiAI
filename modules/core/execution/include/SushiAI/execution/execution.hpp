@@ -31,6 +31,7 @@
 
 #include <utility>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -80,6 +81,8 @@ namespace SushiAI
         template<typename Record>
         Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept
         {
+            // Declared before the graph, so the late counts outlive every task that reads them.
+            SushiBLAS::LateCountHold late_counts(engine.runtime());
             Result<SushiRuntime::Graph> created = create_graph(engine);
             if (!created.has_value())
                 return created.status();
@@ -88,7 +91,7 @@ namespace SushiAI
             const Status recorded = guard(SeamPhase::Record, [&]() -> Status
             {
                 SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
-                                                 engine.mode());
+                                                 late_counts, engine.mode());
                 return std::forward<Record>(record)(recorder);
             });
             if (!recorded.is_ok())

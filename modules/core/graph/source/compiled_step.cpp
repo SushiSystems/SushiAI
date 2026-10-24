@@ -40,8 +40,8 @@ namespace SushiAI
     namespace Graph
     {
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
-            : trailing_(trailing), graph_(engine.runtime().graph()),
-              recorder_(graph_.recorder(), engine.scratch_pool(), engine.mode())
+            : trailing_(trailing), late_counts_(engine.runtime()), graph_(engine.runtime().graph()),
+              recorder_(graph_.recorder(), engine.scratch_pool(), late_counts_, engine.mode())
         {
 
         }

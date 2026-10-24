@@ -58,25 +58,18 @@ namespace SushiAI
             SushiRuntime::Runtime& runtime, const Distribution::ClusterSection& section);
 
         /**
-         * @struct WorkerWait
-         * @brief States how long the master waits for its workers before the first step.
+         * @brief Returns how long the master waits for its workers before the first step.
+         * @return The section's attach_timeout(), raised to the largest "wait_ms" of the rules
+         *         of replicas 1 and above.
          */
-        struct WorkerWait
-        {
-            /** @brief The largest "wait_ms" of the workers' rules; zero when none waits. */
-            std::chrono::milliseconds bound{0};
-
-            /** @brief Whether every worker's rule is "fail", so a short count ends the run. */
-            bool fails_when_short = false;
-        };
-
-        /** @brief Returns the wait the rules of replicas 1 and above call for. */
-        [[nodiscard]] WorkerWait worker_wait(const Distribution::ClusterSection& section);
+        [[nodiscard]] std::chrono::milliseconds attach_bound(
+            const Distribution::ClusterSection& section);
 
         /**
-         * @brief Waits for the section's workers as worker_wait() says.
-         * @return Success, or DeviceFailed naming every worker of the section and how many
-         *         joined, when every rule is "fail" and a worker is absent.
+         * @brief Waits until every worker replicas 1 and above name has attached, or until
+         *        attach_bound() passes, whichever comes first.
+         * @return Success, also when a worker whose rule is "local" or "wait" is missing; or
+         *         DeviceFailed naming every missing worker when the rule of one is "fail".
          */
         [[nodiscard]] Status wait_for_workers(SushiRuntime::Distributed::Cluster& cluster,
                                               const Distribution::ClusterSection& section);

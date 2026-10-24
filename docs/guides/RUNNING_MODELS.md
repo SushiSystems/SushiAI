@@ -137,6 +137,11 @@ sushiai_worker train.json --master <host>:<port> --name <machine>
 `sushiai_train train.json`. Replica 0 stays on the master. A restored `resume` checkpoint
 also restores the replay counter of the cluster run.
 
+The master waits until every worker the section names has attached, or until the section's
+`attach_timeout_ms` passes (60000 by default, raised to the largest `wait_ms` of its `wait`
+rules). A worker still missing then ends the run with `DeviceFailed` naming it when a replica on
+it is `fail`; a `local` or `wait` replica goes as its rule says.
+
 ### Resuming a run
 
 `sushiai train` writes run state into every checkpoint, so the file `checkpoint` names is

@@ -36,6 +36,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -158,8 +159,10 @@ TEST_F(Medium_ExecutionEngine, RunOnceSucceedsOnAGraphWithNothingRecorded)
 TEST_F(Medium_ExecutionEngine, RunOnceRunsWhatWasRecordedOnTheGraph)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
+    SushiBLAS::LateCountHold late_counts(engine->runtime());
     SA_ASSERT_OK_AND_ASSIGN(SushiRuntime::Graph graph, create_graph(*engine));
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine->scratch_pool(), engine->mode());
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine->scratch_pool(), late_counts,
+                                     engine->mode());
 
     SushiBLAS::RandomOps random(recorder, engine->rng());
     random.constant(target, 3.0);

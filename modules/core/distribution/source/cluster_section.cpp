@@ -56,6 +56,9 @@ namespace SushiAI
             /** @brief Names the key that lists the replicas. */
             constexpr std::string_view K_REPLICAS_KEY = "replicas";
 
+            /** @brief Names the key that bounds the master's wait for its workers. */
+            constexpr std::string_view K_ATTACH_TIMEOUT_MS_KEY = "attach_timeout_ms";
+
             /** @brief Names the key of a replica that states the machine it runs on. */
             constexpr std::string_view K_WORKER_KEY = "worker";
 
@@ -85,6 +88,7 @@ namespace SushiAI
 
             /** @brief Lists the keys a cluster section has. */
             constexpr std::string_view K_SECTION_KEYS[] = {K_LISTEN_KEY, K_SECRET_FILE_KEY,
+                                                           K_ATTACH_TIMEOUT_MS_KEY,
                                                            K_REPLICAS_KEY};
 
             /** @brief Lists the keys a replica has. */
@@ -241,6 +245,17 @@ namespace SushiAI
             std::string secret;
             SA_TRY(read_text(reader, K_SECRET_FILE_KEY, secret));
 
+            std::chrono::milliseconds attach_timeout = K_DEFAULT_ATTACH_TIMEOUT;
+            if (reader.has(K_ATTACH_TIMEOUT_MS_KEY))
+            {
+                std::int64_t bound = 0;
+                SA_TRY(read_number(reader, K_ATTACH_TIMEOUT_MS_KEY, bound));
+                SA_FAIL_IF(bound <= 0, StatusCode::InvalidDescription,
+                           "{} is {}; the wait for the workers is bounded by a positive time",
+                           reader.member(K_ATTACH_TIMEOUT_MS_KEY), bound);
+                attach_timeout = std::chrono::milliseconds(bound);
+            }
+
             const std::string replicas_name = reader.member(K_REPLICAS_KEY);
             SA_TRY_ASSIGN(const Value* const listed, reader.find(K_REPLICAS_KEY));
             SA_TRY_ASSIGN(const std::vector<Value>* const entries,
@@ -287,16 +302,18 @@ namespace SushiAI
                     kept.push_back(std::move(one));
                 }
 
-                return ClusterSection(std::move(listen), resolve(base, secret), std::move(plan),
-                                      std::move(kept));
+                return ClusterSection(std::move(listen), resolve(base, secret), attach_timeout,
+                                      std::move(plan), std::move(kept));
             });
         }
 
         ClusterSection::ClusterSection(std::string listen_address,
-                                       std::filesystem::path secret_file, ReplicaPlan plan,
+                                       std::filesystem::path secret_file,
+                                       std::chrono::milliseconds attach_timeout, ReplicaPlan plan,
                                        std::vector<Replica> replicas)
             : listen_address_(std::move(listen_address)), secret_file_(std::move(secret_file)),
-              plan_(std::move(plan)), replicas_(std::move(replicas))
+              attach_timeout_(attach_timeout), plan_(std::move(plan)),
+              replicas_(std::move(replicas))
         {
 
         }
@@ -309,6 +326,11 @@ namespace SushiAI
         const std::filesystem::path& ClusterSection::secret_file() const noexcept
         {
             return secret_file_;
+        }
+
+        std::chrono::milliseconds ClusterSection::attach_timeout() const noexcept
+        {
+            return attach_timeout_;
         }
 
         const ReplicaPlan& ClusterSection::plan() const noexcept

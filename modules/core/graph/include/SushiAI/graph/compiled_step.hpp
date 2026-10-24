@@ -31,6 +31,7 @@
 #include <memory>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -161,6 +162,9 @@ namespace SushiAI
 
                 /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
+
+                /// @brief Keeps the late-count tasks of graph_; declared first so it dies last.
+                SushiBLAS::LateCountHold late_counts_;
 
                 /// @brief The graph the step records into, compiles once and replays.
                 SushiRuntime::Graph graph_;

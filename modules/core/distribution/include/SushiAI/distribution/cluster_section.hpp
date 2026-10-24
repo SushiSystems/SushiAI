@@ -28,6 +28,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <filesystem>
 #include <string>
@@ -45,6 +46,9 @@ namespace SushiAI
     {
         /** @brief Names the key of a training file that holds the cluster section. */
         inline constexpr std::string_view K_CLUSTER_KEY = "cluster";
+
+        /** @brief Holds the master's wait for its workers when "attach_timeout_ms" is absent. */
+        inline constexpr std::chrono::milliseconds K_DEFAULT_ATTACH_TIMEOUT{60000};
 
         /**
          * @brief Holds a checked cluster section: where the master listens, the secret, and what
@@ -71,6 +75,9 @@ namespace SushiAI
 
                 /** @brief Returns the secret file, resolved against the base of read(). */
                 [[nodiscard]] const std::filesystem::path& secret_file() const noexcept;
+
+                /** @brief Returns how long the master waits for every worker to attach. */
+                [[nodiscard]] std::chrono::milliseconds attach_timeout() const noexcept;
 
                 /** @brief Returns the split of a batch over the replicas. */
                 [[nodiscard]] const ReplicaPlan& plan() const noexcept;
@@ -114,13 +121,17 @@ namespace SushiAI
 
                 /** @brief Takes the checked parts of a section. */
                 ClusterSection(std::string listen_address, std::filesystem::path secret_file,
-                               ReplicaPlan plan, std::vector<Replica> replicas);
+                               std::chrono::milliseconds attach_timeout, ReplicaPlan plan,
+                               std::vector<Replica> replicas);
 
                 /// @brief The address the master listens on.
                 std::string listen_address_;
 
                 /// @brief The secret file.
                 std::filesystem::path secret_file_;
+
+                /// @brief How long the master waits for every worker to attach; positive.
+                std::chrono::milliseconds attach_timeout_;
 
                 /// @brief The split of a batch.
                 ReplicaPlan plan_;

@@ -48,6 +48,13 @@ The update subtracts the region's result from a zeroed tensor, so that tensor ho
 result only if the update ran after the region. The second step hands over the same recorder
 under the same key: it is replayed and not recorded again.
 
+## ALateTrailingTaskReplaysAfterItsRecorderIsGone
+
+The trailing work records one late-count task, which adds one to as many elements of a tensor as
+a host count holds. The executor records it once, through a `TaskRecorder` that lives only inside
+`record_trailing`, and runs it on two steps. Both runs add, so the hold the executor owns kept the
+task's storages after the recorder was gone.
+
 ## DiscardDropsEveryRegionAndAKeptRegionIsThenRefused
 
 After `discard()` the executor holds no region. The harness's table was not told, so it plans a

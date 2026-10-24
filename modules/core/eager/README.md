@@ -345,7 +345,9 @@ settled loop allocates nothing.
 
 `emit` builds a `SushiBLAS::TaskRecorder` over the recorder it is handed and lowers the program
 into it. The task recorder lives for the call: a recorded task holds its operands' storage and
-its body, and nothing of the recorder. The emitter keeps the replay preludes and the fusion
+its body, and nothing of the recorder. A late-count task, whose width a count tensor gives at
+run time, keeps its storages in the emitter's `SushiBLAS::LateCountHold` instead, which lives as
+long as the emitter, so as long as its region; `emit` releases it before it records again. The emitter keeps the replay preludes and the fusion
 selections of the last call, and counts its calls, which is how a test shows that a region was
 recorded once.
 
@@ -383,7 +385,10 @@ of steps the session has finished. They are not added to the dynamic graph with
 `before_each_step`, because a hook stays for the life of the graph and a region does not.
 
 The trailing recorder's `before_replay` runs after the preludes and its `after_replay` after the
-run, the order `Graph::CompiledStep` gives them.
+run, the order `Graph::CompiledStep` gives them. The trailing work is recorded through a
+`SushiBLAS::TaskRecorder` that lives for the call, and the executor's own `LateCountHold` keeps
+its late-count tasks. The hold is released when the trailing region is dropped, by a step or by
+`discard`, and before the trailing work is recorded again; never between two runs.
 
 ### session.hpp
 

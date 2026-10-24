@@ -28,10 +28,13 @@
 #include "master_cluster.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
+#include <SushiRuntime/cluster_load/cluster_statistics.hpp>
 #include <SushiRuntime/cluster_load/offload_policy.hpp>
 #include <SushiRuntime/distributed/shared_secret.hpp>
 #include <SushiRuntime/distributed/tcp_transport.hpp>
@@ -45,6 +48,43 @@ namespace SushiAI
 {
     namespace Apps
     {
+        namespace
+        {
+            /** @brief Holds which replicas have no attached worker, read from one snapshot. */
+            struct Attendance
+            {
+                /// @brief The workers alive when the snapshot was taken.
+                std::size_t alive = 0;
+
+                /// @brief Each replica above 0 whose worker was not among them, in order.
+                std::vector<std::size_t> absent;
+            };
+
+            /** @brief Compares the workers @p cluster lists by name with replicas 1 and above. */
+            [[nodiscard]] Attendance attendance(const SushiRuntime::Distributed::Cluster& cluster,
+                                                const Distribution::ClusterSection& section)
+            {
+                const std::vector<SushiRuntime::Distributed::WorkerSnapshot> workers =
+                    cluster.statistics().workers;
+
+                Attendance seen;
+                seen.alive = workers.size();
+                for (std::size_t replica = 1; replica < section.plan().replica_count(); ++replica)
+                {
+                    const std::string& name = section.worker_of(replica);
+                    const bool attached = std::any_of(
+                        workers.begin(), workers.end(),
+                        [&](const SushiRuntime::Distributed::WorkerSnapshot& worker)
+                        {
+                            return worker.name == name;
+                        });
+                    if (!attached)
+                        seen.absent.push_back(replica);
+                }
+                return seen;
+            }
+        } // namespace
+
         SushiRuntime::RuntimeConfig master_runtime_config(
             const Distribution::ClusterSection& section)
         {
@@ -98,36 +138,53 @@ namespace SushiAI
             }
         }
 
-        WorkerWait worker_wait(const Distribution::ClusterSection& section)
+        std::chrono::milliseconds attach_bound(const Distribution::ClusterSection& section)
         {
-            WorkerWait wait;
-            const std::size_t replicas = section.plan().replica_count();
-            wait.fails_when_short = replicas > 1;
-            for (std::size_t replica = 1; replica < replicas; ++replica)
+            std::chrono::milliseconds bound = section.attach_timeout();
+            for (std::size_t replica = 1; replica < section.plan().replica_count(); ++replica)
             {
                 const SushiRuntime::AbsentPolicy& policy = section.absent_policy_of(replica);
                 if (policy.action == SushiRuntime::AbsentAction::Wait)
-                    wait.bound = std::max(wait.bound, policy.bound);
-                if (policy.action != SushiRuntime::AbsentAction::Fail)
-                    wait.fails_when_short = false;
+                    bound = std::max(bound, policy.bound);
             }
-            return wait;
+            return bound;
         }
 
         Status wait_for_workers(SushiRuntime::Distributed::Cluster& cluster,
                                 const Distribution::ClusterSection& section)
         {
-            const std::size_t workers = section.plan().replica_count() - 1;
-            const WorkerWait wait = worker_wait(section);
-            const bool joined = cluster.wait_for_workers(workers, wait.bound);
+            using Clock = std::chrono::steady_clock;
+            const std::chrono::milliseconds bound = attach_bound(section);
+            const Clock::time_point deadline = Clock::now() + bound;
 
-            std::string names;
-            for (std::size_t replica = 1; replica <= workers; ++replica)
-                names += (replica == 1 ? "'" : ", '") + section.worker_of(replica) + "'";
-            SA_FAIL_IF(!joined && wait.fails_when_short, StatusCode::DeviceFailed,
-                       "{} of the {} workers {} joined, and every replica's 'if_absent' is "
-                       "'fail'",
-                       cluster.alive_workers(), workers, names);
+            Attendance seen = attendance(cluster, section);
+            while (!seen.absent.empty())
+            {
+                const Clock::time_point now = Clock::now();
+                if (now >= deadline)
+                    break;
+
+                // One worker more than the snapshot held returns at the next attach.
+                const bool attached = cluster.wait_for_workers(
+                    seen.alive + 1,
+                    std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now));
+                seen = attendance(cluster, section);
+                if (!attached)
+                    break;
+            }
+
+            std::string missing;
+            bool fails = false;
+            for (std::size_t replica : seen.absent)
+            {
+                missing += (missing.empty() ? "'" : ", '") + section.worker_of(replica) + "'";
+                if (section.absent_policy_of(replica).action == SushiRuntime::AbsentAction::Fail)
+                    fails = true;
+            }
+            SA_FAIL_IF(fails, StatusCode::DeviceFailed,
+                       "The workers {} did not attach within {} ms, and the 'if_absent' of a "
+                       "replica on them is 'fail'",
+                       missing, bound.count());
             return Status();
         }
 

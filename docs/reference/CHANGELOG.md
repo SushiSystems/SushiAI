@@ -2,12 +2,14 @@
 
 ## Unreleased
 
+- 2026-10-24 — programs: Made the cluster master wait until every worker its section names attaches or `attach_timeout_ms` passes, and fail naming a missing `fail` worker (`master_cluster.hpp`).
+- 2026-10-24 — eager: Gave each SushiAI recording its own SushiBLAS late-count hold, so a replayed late task outlives its recorder, and placed each pack on its tensors' device (`region_emitter.hpp`, `compiled_step.hpp`).
 - 2026-10-24 — distribution: Fixed a worker whose training file differs from the master's diverging silently; the replica fingerprint folds every part of the file a replica's result depends on (`training_replica_model.hpp`).
 - 2026-10-24 — distribution: Made `SA_DISTRIBUTED` a public definition of the distribution module, so an installed consumer sees the distribution headers (`SushiAI.hpp`).
 - 2026-10-24 — distribution: Renamed the replica plan's `RowRange` to `RowPositions` (`replica_plan.hpp`).
 - 2026-10-24 — distribution: Summed `UInt32` as an exact count on both the exchange and the accumulator, and asserted host access at every host copy of a pack (`exact_sum.hpp`, `host_access.hpp`).
 - 2026-10-24 — data: Made `check_rows()` return `InvalidDescription` instead of stopping the process (`dataset.hpp`).
-- 2026-10-24 — programs: Made `sushiai_worker` answer `--help` and `--version` and refuse a flag before the training file, and the cluster master wait for its workers by its rules (`worker_arguments.hpp`, `master_cluster.hpp`).
+- 2026-10-24 — programs: Made `sushiai_worker` answer `--help` and `--version` and refuse a flag before the training file, (`worker_arguments.hpp`).
 - 2026-10-24 — programs: Ran the trainer and the cluster run through one epoch loop (`epoch_loop.hpp`).
 - 2026-10-24 — build: Stopped configure when SushiRuntime's or SushiBLAS's distributed option is set off by hand while SushiAI's is on (`SushiAIDistributedOptions.cmake`).
 - 2026-10-24 — data: Added `Dataset::read_rows()`, a read of a row range of one batch that every dataset kind implements without reading the rows outside it (`dataset.hpp`).

@@ -27,6 +27,7 @@
 #pragma once
 
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/execution/execution.hpp>
@@ -51,8 +52,9 @@ namespace SushiAI
                  *               this object.
                  */
                 explicit TestGraph(SushiBLAS::Engine& engine)
-                    : graph_(Detail::create_graph(engine).value()),
-                      recorder_(graph_.recorder(), engine.scratch_pool(), engine.mode())
+                    : late_counts_(engine.runtime()), graph_(Detail::create_graph(engine).value()),
+                      recorder_(graph_.recorder(), engine.scratch_pool(), late_counts_,
+                                engine.mode())
                 {
 
                 }
@@ -82,6 +84,9 @@ namespace SushiAI
                 }
 
             private:
+                /// @brief Keeps the late-count tasks of graph_; declared first so it dies last.
+                SushiBLAS::LateCountHold late_counts_;
+
                 /// @brief The graph the test records on.
                 SushiRuntime::Graph graph_;
 

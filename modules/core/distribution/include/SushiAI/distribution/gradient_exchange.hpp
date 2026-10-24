@@ -79,11 +79,11 @@ namespace SushiAI
             public:
                 /**
                  * @brief Allocates and shares the position pack and the result packs.
-                 * @param targets One contiguous tensor per entry of @p result_layout, in order;
-                 *        @p binding, which holds the kernel, and @p parameters outlive it.
+                 * @param targets One contiguous tensor per entry of @p result_layout, in order, on
+                 *        the device of @p parameters; @p binding and @p parameters outlive it.
                  * @return The exchange; InvalidDescription for an unshared parameter pack, no
-                 *         batch, too many replicas for ordered_sum() or a target unlike its entry;
-                 *         Unsupported for a uint32 target, which ordered_sum() does not sum.
+                 *         batch, too many replicas for ordered_sum(), a target unlike its entry
+                 *         or on another device; Unsupported for a uint32 target.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientExchange>> make(
                     SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,

@@ -131,6 +131,11 @@ namespace SushiAI
                     SA_FAIL_IF(!targets[index].storage || !targets[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Target {} has no storage or is not contiguous", index);
+                    SA_FAIL_IF(targets[index].storage->device_index() != parameters.device_index(),
+                               StatusCode::InvalidDescription,
+                               "Target {} lives on device {} and the parameter pack on device {}",
+                               index, targets[index].storage->device_index(),
+                               parameters.device_index());
                     SA_FAIL_IF(targets[index].dtype == SushiBLAS::Core::DataType::UInt32,
                                StatusCode::Unsupported,
                                "Target {} is uint32, which ordered_sum() does not sum", index);
@@ -165,10 +170,12 @@ namespace SushiAI
                 SA_FATAL_IF(position_layout.entries().front().offset_bytes != 0,
                             "GradientExchange: the position pack starts its words at byte {}",
                             position_layout.entries().front().offset_bytes);
-                parts.position_pack.emplace(engine.runtime(), position_layout);
+                parts.position_pack.emplace(engine.runtime(), position_layout,
+                                            parts.position.storage->device_index());
                 binding.share(*parts.position_pack);
 
-                parts.sum_pack.emplace(engine.runtime(), result_layout);
+                parts.sum_pack.emplace(engine.runtime(), result_layout,
+                                       parameters.device_index());
                 parts.segments = filled_segments(result_layout);
                 parts.result_packs.reserve(replicas);
                 parts.words.reserve(replicas);
@@ -176,7 +183,8 @@ namespace SushiAI
                 parts.weights.reserve(replicas);
                 for (std::size_t replica = 0; replica < replicas; ++replica)
                 {
-                    parts.result_packs.emplace_back(engine.runtime(), result_layout);
+                    parts.result_packs.emplace_back(engine.runtime(), result_layout,
+                                                    parameters.device_index());
                     binding.share(parts.result_packs.back());
 
                     ReplicaTask task;

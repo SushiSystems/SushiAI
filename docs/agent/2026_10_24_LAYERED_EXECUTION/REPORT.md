@@ -142,8 +142,12 @@ build tree whose cache holds that option at its default off stops too, until it 
 is configured afresh.
 
 The orchestrator's ruling on the master's wait was wrong: an all-`fail` section that waits not at
-all fails before any worker can attach. A9b waits until every named worker attaches or an attach
-bound passes.
+all fails before any worker can attach. A9b waits until every named worker attaches, matched by the HELLO
+name the rules target, or until `attach_timeout_ms` passes (60000 by default, raised to the largest
+`wait_ms`), with no polling: one snapshot, then a wait for the next attach. A missing worker under
+`fail` ends the run naming it. Each SushiAI recording owner (a region emitter, the trailing
+region, a compiled step, `record_and_run`) owns one SushiBLAS late-count hold for its recording's
+life, and each pack takes its tensors' device.
 
 ## A8, SushiBLAS's `UInt32`
 
@@ -169,4 +173,5 @@ dispatch: A4 — opus low, 170 turns, passed, rung 1
 dispatch: A4b — opus low, 131 turns, passed, rung 1
 dispatch: A4c — sonnet low, 32 turns, passed, rung 1
 dispatch: A9 — opus low, two rounds, passed, rung 1
+dispatch: A9b — opus low, 107 turns, passed, rung 1
 ```

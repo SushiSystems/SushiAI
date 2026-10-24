@@ -35,6 +35,7 @@
 #include <vector>
 
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
@@ -188,6 +189,9 @@ namespace SushiAI
 
                 /// @brief The key the trailing work is recorded under, or K_NO_REGION.
                 RegionKey trailing_key_ = K_NO_REGION;
+
+                /// @brief Keeps the late-count tasks of the trailing work while it is recorded.
+                SushiBLAS::LateCountHold trailing_counts_;
 
                 /// @brief The tasks the trailing work recorded.
                 std::size_t trailing_operations_ = 0;

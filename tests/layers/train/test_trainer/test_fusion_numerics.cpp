@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/elementwise/elementwise.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/SushiAI.hpp>
@@ -530,9 +531,10 @@ TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
     TensorPool pool(engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
+    SushiBLAS::LateCountHold late_counts(SaTest::TestEnvironment::runtime());
     SushiRuntime::Graph tasks = SaTest::TestEnvironment::runtime().graph();
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
-    SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, engine.mode());
+    SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, late_counts, engine.mode());
 
     // Recorded first: the edge can only run to the GEMM; see tests/layers/train/README.md.
     SushiBLAS::Tensor& bias = pool.tensor(b);
@@ -585,9 +587,10 @@ TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
     TensorPool pool(engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
 
+    SushiBLAS::LateCountHold late_counts(SaTest::TestEnvironment::runtime());
     SushiRuntime::Graph tasks = SaTest::TestEnvironment::runtime().graph();
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
-    SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, engine.mode());
+    SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, late_counts, engine.mode());
 
     const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
     Graph::Lowering lowering(recorder, engine.rng(), pool, selector);

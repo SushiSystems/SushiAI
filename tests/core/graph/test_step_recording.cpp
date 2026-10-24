@@ -27,6 +27,7 @@
 
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/scratch_pool.hpp>
+#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
@@ -35,9 +36,10 @@
 /** @brief Tests that tasks() and graph() return the recorders given, by address. */
 TEST(Medium_StepRecording, HandsBackTheRecordersItWasBuiltWith)
 {
+    SushiBLAS::LateCountHold late_counts(SushiAI::Test::TestEnvironment::runtime());
     SushiRuntime::Graph graph = SushiAI::Test::TestEnvironment::runtime().graph();
     SushiBLAS::ScratchPool scratch(SushiAI::Test::TestEnvironment::runtime());
-    SushiBLAS::TaskRecorder tasks(graph.recorder(), scratch);
+    SushiBLAS::TaskRecorder tasks(graph.recorder(), scratch, late_counts);
 
     const SushiAI::Graph::StepRecording recording(tasks, graph.recorder());
 

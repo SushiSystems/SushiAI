@@ -5,8 +5,10 @@
 The calls that run work and return a `Status`: `create_runtime` creates the runtime an engine is
 built on, `create_graph` creates an empty graph on the engine's runtime, `run_step` runs one step
 of a graph, `run_once` runs every task recorded on a graph, and `record_and_run` creates a graph
-of its own, calls the caller's recording with a `SushiBLAS::TaskRecorder` over it, and runs it. A
-failed recording leaves nothing behind, because the graph dies with its tasks. The module never
+of its own, calls the caller's recording with a `SushiBLAS::TaskRecorder` over it, and runs it.
+The recorder keeps late-count tasks in a `SushiBLAS::LateCountHold` that the call declares before
+the graph, so it outlives every task that reads it. A failed recording leaves nothing behind,
+because the graph dies with its tasks. The module never
 touches the graph of an engine. Each call maps what SushiRuntime reports through `seam`.
 
 ## Depends on

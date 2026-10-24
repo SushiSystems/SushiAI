@@ -40,7 +40,8 @@ namespace SushiAI
         RegionEmitter::RegionEmitter(SushiBLAS::Engine& engine, const RegionProgram& program,
                                      Graph::TensorPool& pool,
                                      const Graph::FusionSelector* selector) noexcept
-            : engine_(&engine), program_(&program), pool_(&pool), selector_(selector)
+            : engine_(&engine), program_(&program), pool_(&pool), selector_(selector),
+              late_counts_(engine.runtime())
         {
 
         }
@@ -48,8 +49,10 @@ namespace SushiAI
         Status RegionEmitter::emit(SushiRuntime::Recorder& recorder)
         {
             ++emits_;
+            late_counts_.release();
 
-            SushiBLAS::TaskRecorder tasks(recorder, engine_->scratch_pool(), engine_->mode());
+            SushiBLAS::TaskRecorder tasks(recorder, engine_->scratch_pool(), late_counts_,
+                                          engine_->mode());
             const Graph::DeviceFusionSelector device =
                 Graph::DeviceFusionSelector::for_engine(*engine_);
             Graph::Lowering lowering(tasks, engine_->rng(), *pool_,

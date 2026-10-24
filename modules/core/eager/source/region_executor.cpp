@@ -105,7 +105,8 @@ namespace SushiAI
 
         RegionExecutor::RegionExecutor(SushiBLAS::Engine& engine,
                                        const Graph::FusionSelector* selector)
-            : engine_(&engine), selector_(selector), graph_(engine.runtime().dynamic_graph())
+            : engine_(&engine), selector_(selector), trailing_counts_(engine.runtime()),
+              graph_(engine.runtime().dynamic_graph())
         {
 
         }
@@ -175,6 +176,7 @@ namespace SushiAI
             if (trailing_key_ != K_NO_REGION && trailing_moved)
             {
                 graph_.drop(trailing_key_);
+                trailing_counts_.release();
                 trailing_ = nullptr;
                 trailing_key_ = K_NO_REGION;
                 trailing_operations_ = 0;
@@ -231,8 +233,10 @@ namespace SushiAI
             trailing_key_ = work.trailing_key;
             ++trailing_records_;
 
+            // A recording reached here replaces the trailing one retire() dropped, or the first.
+            trailing_counts_.release();
             SushiBLAS::TaskRecorder tasks(target->recorder(), engine_->scratch_pool(),
-                                          engine_->mode());
+                                          trailing_counts_, engine_->mode());
             const Graph::StepRecording recording(tasks, target->recorder());
             SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(recording));
             SA_TRY(refusal_of(target->recorder()));
@@ -333,6 +337,7 @@ namespace SushiAI
 
                 if (trailing_key_ != K_NO_REGION)
                     graph_.drop(trailing_key_);
+                trailing_counts_.release();
                 trailing_ = nullptr;
                 trailing_key_ = K_NO_REGION;
                 trailing_operations_ = 0;

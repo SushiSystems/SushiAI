@@ -6,7 +6,8 @@ An internal module: only the test programs link it, its headers are never instal
 
 The one `SushiRuntime::Runtime` a test program shares, the `main()` of every test program,
 `EngineTest`, the fixture that gives each test a fresh `SushiBLAS::Engine` on that runtime, and
-`TestGraph`, a graph a test owns with a `SushiBLAS::TaskRecorder` over it. A test never records on
+`TestGraph`, a graph a test owns with a `SushiBLAS::TaskRecorder` over it and the
+`SushiBLAS::LateCountHold` the recorder keeps late-count tasks in. A test never records on
 the engine's own graph: it builds a `TestGraph`, records through its `recorder()` and calls
 `run()`. `EngineTest::flush()` only waits for the device.
 

@@ -63,8 +63,25 @@ namespace SushiAI
                     SA_FAIL_IF(!tensors[index].storage || !tensors[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Parameter {} has no storage or is not contiguous", index);
+                    SA_FAIL_IF(tensors[index].storage->device_index()
+                                   != tensors.front().storage->device_index(),
+                               StatusCode::InvalidDescription,
+                               "Parameter {} lives on device {} and parameter 0 on device {}",
+                               index, tensors[index].storage->device_index(),
+                               tensors.front().storage->device_index());
                 }
                 return Status();
+            }
+
+            /**
+             * @brief Returns the device the tensors of a checked layout live on.
+             * @return The device of the first tensor, or 0, the engine's default, for none.
+             * @pre require_layout() accepted @p tensors.
+             */
+            [[nodiscard]] std::size_t device_of(const std::vector<SushiBLAS::Tensor>& tensors)
+                noexcept
+            {
+                return tensors.empty() ? 0 : tensors.front().storage->device_index();
             }
         } // namespace
 
@@ -83,7 +100,7 @@ namespace SushiAI
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                SushiBLAS::TensorPack pack(engine.runtime(), layout);
+                SushiBLAS::TensorPack pack(engine.runtime(), layout, device_of(parameters));
                 binding.share(pack);
 
                 // A replay reads the pack before a gather; its Shared storage takes the host copy.
