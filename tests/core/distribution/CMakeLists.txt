@@ -9,6 +9,14 @@
 sushiai_add_test_program(OWNER distribution
     SOURCES
         test_cluster_section.cpp
+        test_replica_draws.cpp
+        test_replica_kernel.cpp
+        test_replica_model.cpp
         test_replica_plan.cpp
+        test_replica_step.cpp
+        test_replica_task.cpp
     DEPENDS
-        failure_expectations)
+        autograd
+        execution
+        failure_expectations
+        graph)

@@ -162,6 +162,11 @@
 #if defined(SA_DISTRIBUTED)
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
+#include <SushiAI/distribution/replica_draws.hpp>
+#include <SushiAI/distribution/replica_kernel.hpp>
+#include <SushiAI/distribution/replica_model.hpp>
+#include <SushiAI/distribution/replica_step.hpp>
+#include <SushiAI/distribution/replica_task.hpp>
 #endif
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/slot_ledger.hpp>

@@ -1,6 +1,6 @@
 # Layered execution in SushiAI: report
 
-**Status:** Open — A0 and A1 landed on 2026-10-24; not built yet.
+**Status:** Open — A0, A1 and A2 landed on 2026-10-24; not built yet.
 
 ## A0
 
@@ -50,10 +50,25 @@ Owed at A4: the `cluster` row in `docs/guides/RUNNING_MODELS.md`'s table of opti
 Once SushiBLAS's `IO` took no engine (its B3), the checkpoint savers lost the `Engine&` they kept
 unread; each states as a precondition that the tasks which wrote its state have run.
 
+## A2
+
+The settled shape is in the design's "What A2 settled". The bit-for-bit test runs one micro-batch
+(r = m = 4) against a single-machine replay of the same graph on a runtime of the same
+configuration. Two micro-batches against one step over four rows split the sum inside the matrix
+product, so that case compares within an absolute 1e-6 and a relative 1e-5; a third case matches
+`(a + b) / 2` of two single-machine replays bit for bit. The kernel keeps one step per replica it
+serves, so the master can serve a lost worker's replica, and rebuilds it on a new seed or run.
+`SA_ENABLE_DISTRIBUTED` now turns on SushiRuntime's and SushiBLAS's distributed options too.
+
+Seen and kept: `ReplicaModel` holds the traced model and the feed of its rows, which share the
+pool's life; the module reaches `Detail::create_runtime()` of `execution`, another module's
+internal surface; the micro-batch mean assumes an objective that is a mean over its rows.
+
 ## Dispatches
 
 ```
 dispatch: A0 — sonnet medium, 93 turns, passed, rung 1
 dispatch: A1 — sonnet medium, 73 turns, passed, rung 1
 dispatch: A0 follow-up — haiku high, 62 turns, passed, rung 1
+dispatch: A2 — opus low, 108 turns, passed, rung 1
 ```

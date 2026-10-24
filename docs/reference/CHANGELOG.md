@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-24 — distribution: Added `ReplicaStep`, a forward and backward step on a runtime of its own, and `ReplicaKernel`, the kernel that runs a replica's micro-batches (`replica_step.hpp`, `replica_kernel.hpp`).
 - 2026-10-24 — io: Removed the unread `Engine&` of `save_checkpoint()` and `save_run_checkpoint()`, which save what the caller's graph already wrote (`checkpoint.hpp`, `run_checkpoint.hpp`).
 - 2026-10-24 — distribution: Added the distribution module, built under `SA_ENABLE_DISTRIBUTED`, which turns a spec's cluster section into placement rules and gives each replica its rows (`cluster_section.hpp`, `replica_plan.hpp`).
 - 2026-10-24 — execution: Removed `run_recorded()` and `discard_recorded()`, added `create_graph()` and `run_once()`, and made record_and_run() record on a graph it owns (`execution.hpp`).

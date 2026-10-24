@@ -10,7 +10,12 @@
 sushiai_add_module(NAME distribution TIER core
     SOURCES
         source/cluster_section.cpp
+        source/replica_accumulator.cpp
+        source/replica_draws.cpp
+        source/replica_kernel.cpp
         source/replica_plan.cpp
-    PUBLIC_DEPENDS config failure
-    PRIVATE_DEPENDS seam
-    EXTERNAL_PUBLIC SushiRuntime::placement)
+        source/replica_step.cpp
+        source/replica_task.cpp
+    PUBLIC_DEPENDS config failure graph
+    PRIVATE_DEPENDS seam execution
+    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::placement SushiRuntime::distributed)

@@ -5,7 +5,9 @@
 The cluster section of a training file and the split of a batch over the replicas it names.
 `ClusterSection` reads and checks the section and turns it into SushiRuntime `PlacementRules`.
 `ReplicaPlan` says which rows of a batch each replica takes, in which micro-batches and with
-which weight. The module is built only when `SA_ENABLE_DISTRIBUTED` is on. The design is
+which weight. `ReplicaStep` runs one replica's compiled forward and backward step on a runtime of
+its own, and `ReplicaKernel` is the registered kernel that serves a replica task with it. The
+module is built only when `SA_ENABLE_DISTRIBUTED` is on. The design is
 [`docs/design/LAYERED_EXECUTION/README.md`](../../../docs/design/LAYERED_EXECUTION/README.md).
 
 ## Depends on
@@ -15,6 +17,13 @@ It takes `SushiRuntime::placement` as an external public dependency, since `Clus
 returns `SushiRuntime::PlacementRules`. `ReplicaPlan` includes nothing of SushiRuntime and no
 SYCL header, so the machines that only need the split do not compile against the runtime.
 
+`ReplicaStep` and `ReplicaKernel` add `graph` as a public dependency, since their headers name
+`Graph::Graph`, `TensorPool` and `CompiledStep`, and `execution` as a private one, for
+`create_runtime()`. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
+`SushiRuntime::distributed` as external public dependencies, since their headers name
+`PackLayout`, `BoundPack`, `KernelRegistry` and `BufferView`. The module stays in the core tier: it reads a model only through `ReplicaModel`, so
+it includes nothing of `layers/train`.
+
 ## Public entry points
 
 Each header is named by its include path under `include/`.
@@ -23,6 +32,11 @@ Each header is named by its include path under `include/`.
 | --- | --- |
 | `SushiAI/distribution/replica_plan.hpp` | `K_REPLICA_PLACEMENT_CLASS`, `ReplicaShare`, `RowRange`, `ReplicaPlan` |
 | `SushiAI/distribution/cluster_section.hpp` | `K_CLUSTER_KEY`, `ClusterSection` |
+| `SushiAI/distribution/replica_draws.hpp` | `ReplicaDraws`, `replica_seed()` |
+| `SushiAI/distribution/replica_task.hpp` | `K_REPLICA_TASK_WORDS`, `ReplicaTask` |
+| `SushiAI/distribution/replica_model.hpp` | `ReplicaRows`, `ReplicaModel`, `ReplicaModelFactory` |
+| `SushiAI/distribution/replica_step.hpp` | `replica_runtime_config()`, `ReplicaStep` |
+| `SushiAI/distribution/replica_kernel.hpp` | `ReplicaKernel` |
 
 ## The cluster section
 
@@ -119,3 +133,92 @@ Every refusal is `InvalidDescription`. `ClusterSection` prefixes it with `cluste
 
 `ReplicaPlan`'s accessors and `rows()` stop the process on a replica or a micro-batch outside the
 plan, as a precondition broken by the caller, and on a batch whose end passes 64 bits.
+
+## The replica node
+
+A replica task is a registered node with one input, the parameter pack, and one output, the
+result pack. Its `NodeOptions::parameters` hold six words, which `ReplicaTask` encodes and
+decodes:
+
+| Word | Holds |
+| --- | --- |
+| 0 | the epoch, from 0 |
+| 1 | the batch index of the epoch, from 0 |
+| 2 | the replica index `k` |
+| 3 | the replica count; it must equal the kernel's plan |
+| 4 | the run index |
+| 5 | the seed |
+
+`decode()` refuses another word count, a replica count of 0 and a replica index at or above the
+count, each as `InvalidDescription`.
+
+## The packs
+
+The parameter pack is `PackLayout::of(ReplicaModel::parameters())`. The result pack is
+`PackLayout::of(ReplicaModel::results())`: the gradients in the order of the parameters, then the
+loss, then the batch statistics. A pack groups its tensors by type, so the order holds inside each
+type's segment.
+
+The kernel registers under `sushiai.replica:<fingerprint>`, through SushiBLAS's
+`remote_operation_name()`. The fingerprint is the FNV-1a hash of three 64-bit words, each
+little-endian: the model's own `ReplicaModel::fingerprint()`, which the layer above defines, the
+parameter layout's fingerprint and the result layout's. A worker whose model or packs differ
+advertises another operation, and the master never sends it the task.
+
+## ReplicaStep
+
+`ReplicaStep::make()` creates a `SushiRuntime::Runtime` with `replica_runtime_config()`: one
+pool thread, not pinned, the default device filter. It owns the runtime through a
+`unique_ptr`, so the address the `SushiBLAS::Engine` over it holds does not move, and destroys,
+in order, the compiled step, the accumulator, the model, the engine and the runtime.
+
+A registered kernel runs inside a graph run of the runtime that serves it, and SushiRuntime
+refuses a nested run of that runtime (its `LAYERED_EXECUTION.md`, "What a training run over
+several machines needs"). The second runtime costs a second device context, a second scheduler
+pool of one thread, and one pool thread of the serving runtime held for the length of each task.
+
+`begin()` copies the parameter pack into the model's parameters on the host. `run_micro_batch()`
+feeds the rows, replays the step and adds its results. `finish()` writes the mean over the
+micro-batches into the result pack. Every copy goes through the host: the pack lives in memory of
+the serving runtime's context and the model in memory of the replica's, and both are
+host-addressable.
+
+### The mean over micro-batches
+
+| Micro-batches | What `finish()` writes |
+| --- | --- |
+| 0 | zeros; a replica of 0 rows weighs 0 in the sum |
+| 1 | the step's results, byte for byte |
+| more | the sum in micro-batch order, divided by the count, in each tensor's own type; `Half` sums in `float` and rounds once; an integer result is refused as `Unsupported` |
+
+The objective of a micro-batch is a mean over its rows, so the mean of `r_k / m_k` micro-batches
+is the mean over the replica's `r_k` rows, which the gradient sum weights by `r_k / B`.
+
+## ReplicaKernel
+
+`ReplicaKernel::make()` builds the step of the replica its `ReplicaDraws` names, which fixes the
+fingerprint and the operation. A task runs on the calling thread: it decodes the words, checks
+the replica count against the plan, binds both views through `bind_views()`, runs the replica's
+micro-batches in order through `ReplicaPlan::micro_batch()`, and writes the mean. A failure is
+thrown as `std::runtime_error`, which the kernel registry's contract reports as a failed task.
+
+The kernel keeps one step per replica index, built the first time a task names that replica or
+a new seed or run index, and refuses one whose fingerprint differs as `Incompatible`. A worker
+pinned to one replica builds one step. A master that runs a lost worker's replica builds one more
+step, with its own runtime. Tasks are served one at a time.
+
+## Seeded draws
+
+Every draw of a replica takes the seed, the replica index and the run index: the factory is
+called with them and seeds the model's random sites with `replica_seed()`, and each
+`ReplicaRows` the feed receives carries them for the augmentation.
+
+## Bit for bit against one machine
+
+A replica of one micro-batch returns the bytes the same graph returns on one machine over the
+same rows when three things agree: the device, the reduction order inside each kernel, and the
+order of the micro-batch sum. `tests/core/distribution/test_replica_kernel.cpp` runs both on a
+runtime made by `replica_runtime_config()`, compiles the same graph with the same selector, and
+compares one micro-batch byte for byte. Two micro-batches of two rows against one step of four
+split the sum over rows inside the matrix product, so that case compares within an absolute
+1e-6 plus a relative 1e-5.

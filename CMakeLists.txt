@@ -26,6 +26,13 @@ project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 # TARGET-guards onto the same target instead of re-adding it (see
 # cmake/Runtime.cmake's header comment).
 include(Log)      # SUSHILOG_DIR from the CLI -> SushiLog::SushiLog
+# Training over several machines needs the distributed layers of the runtime and of SushiBLAS too.
+option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
+if(SA_ENABLE_DISTRIBUTED)
+    set(SR_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiRuntime's distributed layer" FORCE)
+    set(SB_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiBLAS's cluster module" FORCE)
+    add_compile_definitions(SA_DISTRIBUTED)
+endif()
 include(Runtime)  # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime
 include(BLAS)     # add_subdirectory(sushiblas)    -> SushiBLAS::sushiblas
 include(SushiAISyclTarget)  # sushiai_apply_sycl() helper
@@ -65,10 +72,6 @@ endif()
 
 option(SA_BUILD_VISION "Build the vision domain, SushiAI::vision" ${SA_IS_TOP_LEVEL})
 option(SA_BUILD_LANGUAGE "Build the language domain, SushiAI::language" ${SA_IS_TOP_LEVEL})
-option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
-if(SA_ENABLE_DISTRIBUTED)
-    add_compile_definitions(SA_DISTRIBUTED)
-endif()
 
 # --- Configuration ---
 # C++17, matching SushiBLAS and SushiRuntime. The whole stack has to agree on
