@@ -53,12 +53,22 @@ namespace SushiAI
     namespace Apps
     {
         /**
+         * @enum SetupScope
+         * @brief Names how much of the training graph a setup holds memory for.
+         */
+        enum class SetupScope : std::uint8_t
+        {
+            Step,    /**< Every value of the graph, planned, so the setup can run its step. */
+            Results, /**< The state, a gradient per parameter, the loss and the update sources. */
+        };
+
+        /**
          * @class TrainingSetup
          * @brief Holds what a training file builds on one engine before a run: the data, the
          *        model, the objective, the training graph, the state and the bound pool.
          *
-         * `sushiai train` builds one over the data's batch; each replica of a cluster run
-         * builds one over its micro-batch. The optimizer is not part of it.
+         * `sushiai train` builds one over the data's batch, a replica over its micro-batch,
+         * the master of a cluster run one of SetupScope::Results. It holds no optimizer.
          */
         class TrainingSetup final
         {
@@ -68,13 +78,14 @@ namespace SushiAI
                  * @param engine Outlives the setup.
                  * @param seed Seeds the random sites of the training trace.
                  * @param rows The rows of the traced batch; nothing takes the data's batch.
+                 * @param scope What the pool holds memory for.
                  * @return The setup, or the first refusal of a factory, a trace or a bind.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<TrainingSetup>> make(
                     const Registries& registries, const Config::TrainSpec& spec,
                     const Config::ModelSpec& model_spec, SushiBLAS::Engine& engine,
-                    std::uint64_t seed,
-                    std::optional<std::int64_t> rows = std::nullopt);
+                    std::uint64_t seed, std::optional<std::int64_t> rows = std::nullopt,
+                    SetupScope scope = SetupScope::Step);
 
                 TrainingSetup(const TrainingSetup&) = delete;
                 TrainingSetup& operator=(const TrainingSetup&) = delete;
@@ -82,38 +93,73 @@ namespace SushiAI
                 TrainingSetup& operator=(TrainingSetup&&) = delete;
                 ~TrainingSetup() = default;
 
-                /// @brief The batches of one epoch, read on the setup's engine.
-                std::unique_ptr<Data::Dataset> dataset;
+                /** @brief Returns the batches of one epoch, read on the setup's engine. */
+                [[nodiscard]] const Data::Dataset& dataset() const noexcept;
 
-                /// @brief The model the architecture file describes.
-                NN::ModelGraph model;
+                /** @brief Returns the model the architecture file describes. */
+                [[nodiscard]] const NN::ModelGraph& model() const noexcept;
 
-                /// @brief What the objective was built from.
-                Train::ObjectiveContext given;
+                /** @brief Returns what the objective was built from. */
+                [[nodiscard]] const Train::ObjectiveContext& given() const noexcept;
 
-                /// @brief The objective the training graph was built with.
-                std::unique_ptr<Train::Objective> objective;
+                /** @brief Returns the objective the training graph was built with. */
+                [[nodiscard]] const Train::Objective& objective() const noexcept;
 
-                /// @brief The training graph over the traced batch.
-                Train::TrainingGraph built;
+                /** @brief Returns the training graph over the traced batch. */
+                [[nodiscard]] const Train::TrainingGraph& built() const noexcept;
 
-                /// @brief The parameters and buffers of the model, as the initialisers left them.
-                std::unique_ptr<NN::ModelState> state;
+                /** @brief Returns the parameters and buffers of the model. */
+                [[nodiscard]] NN::ModelState& state() noexcept;
 
-                /// @brief The pool that holds the tensors of the training graph.
-                std::unique_ptr<Graph::TensorPool> pool;
+                /** @brief Returns the pool that holds the tensors of the training graph. */
+                [[nodiscard]] Graph::TensorPool& pool() noexcept;
 
-                /// @brief Each parameter with its gradient, in the order of the training graph.
-                std::vector<Optim::ParameterSlot> parameters;
+                /** @brief Returns each parameter with its gradient, in the order of the graph. */
+                [[nodiscard]] const std::vector<Optim::ParameterSlot>& parameters()
+                    const noexcept;
 
-                /// @brief The running-statistic updates of the training trace.
-                std::vector<Train::BufferUpdateSlot> updates;
+                /** @brief Returns the running-statistic updates of the training trace. */
+                [[nodiscard]] const std::vector<Train::BufferUpdateSlot>& updates()
+                    const noexcept;
+
+                /**
+                 * @brief Moves the running-statistic updates out, for a step to own.
+                 * @return The updates; updates() is empty after the call.
+                 */
+                [[nodiscard]] std::vector<Train::BufferUpdateSlot> take_updates() noexcept;
 
             private:
                 /** @brief Holds the parts read first; make() fills every other member. */
                 TrainingSetup(std::unique_ptr<Data::Dataset> read_dataset,
                               NN::ModelGraph built_model, Train::ObjectiveContext context,
                               SushiBLAS::Engine& engine) noexcept;
+
+                /// @brief The batches of one epoch, read on the setup's engine.
+                std::unique_ptr<Data::Dataset> dataset_;
+
+                /// @brief The model the architecture file describes.
+                NN::ModelGraph model_;
+
+                /// @brief What the objective was built from.
+                Train::ObjectiveContext given_;
+
+                /// @brief The objective the training graph was built with.
+                std::unique_ptr<Train::Objective> objective_;
+
+                /// @brief The training graph over the traced batch.
+                Train::TrainingGraph built_;
+
+                /// @brief The parameters and buffers of the model, as the initialisers left them.
+                std::unique_ptr<NN::ModelState> state_;
+
+                /// @brief The pool that holds the tensors of the training graph.
+                std::unique_ptr<Graph::TensorPool> pool_;
+
+                /// @brief Each parameter with its gradient, in the order of the training graph.
+                std::vector<Optim::ParameterSlot> parameters_;
+
+                /// @brief The running-statistic updates of the training trace.
+                std::vector<Train::BufferUpdateSlot> updates_;
         };
 
     } // namespace Apps

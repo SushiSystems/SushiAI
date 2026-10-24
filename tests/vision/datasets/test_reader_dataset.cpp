@@ -461,3 +461,47 @@ TEST_F(Medium_DatasetsReaderDataset, MakeRefusesANullPipeline)
                                           nullptr, gray_options()),
                       StatusCode::InvalidDescription, "ReaderDataset", "tiny", "no pipeline");
 }
+
+/** @brief Tests that a range read of a shuffled epoch holds the rows the whole read holds. */
+TEST_F(Medium_DatasetsReaderDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_rows");
+
+    ReaderDatasetOptions options = gray_options();
+    options.batch_size = 4;
+    options.shuffle = true;
+    options.seed = K_ORDER_SEED;
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<ReaderDataset> dataset,
+        ReaderDataset::make(*engine, stored_list(scratch, 8), classification(), options));
+    dataset->begin_epoch(1);
+
+    const Data::RowRange rows{1, 2};
+    Data::Batch whole;
+    Data::Batch part;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, whole)));
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(1, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(Support::holds_rows_of(whole, options.batch_size, rows, part));
+}
+
+/** @brief Tests that a range read opens no file of a sample outside the range. */
+TEST_F(Medium_DatasetsReaderDataset, ARangeReadOpensNoSampleOutsideIt)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_reader_rows_absent");
+
+    SampleList list = stored_list(scratch, 2);
+    list.files.push_back(scratch.path() / "gone.bin");
+    list.samples[0].file = 1;
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<ReaderDataset> dataset,
+        ReaderDataset::make(*engine, std::move(list), classification(), gray_options()));
+
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(0, Data::RowRange{1, 1}, batch)));
+    EXPECT_EQ(batch.inputs.shape[0], 1);
+    SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidFile, "gone.bin");
+}

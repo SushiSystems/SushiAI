@@ -352,6 +352,12 @@ namespace SushiAI
             });
         }
 
+        Status ThreadedLoader::read_rows(std::size_t index, RowRange rows, Batch& batch) const
+        {
+            check_rows(*this, index, rows);
+            return state_->inner->read_rows(index, rows, batch);
+        }
+
         void ThreadedLoader::begin_epoch(std::int64_t epoch) const noexcept
         {
             SA_FATAL_IF(epoch < 0, "{}: '{}' was given the epoch {}; epochs count from 0",

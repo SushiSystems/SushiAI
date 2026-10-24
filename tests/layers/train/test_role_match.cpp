@@ -75,6 +75,13 @@ namespace
                 return Status();
             }
 
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange,
+                                           Data::Batch&) const override
+            {
+                SA_FATAL_IF(true, "Batch {} is out of range; the dataset has 0", index);
+                return Status();
+            }
+
         private:
             /** @brief Holds the roles the dataset publishes. */
             std::vector<TargetDescription> targets_;

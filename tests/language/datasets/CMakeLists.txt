@@ -17,4 +17,5 @@ sushiai_add_test_program(OWNER language/datasets
         test_window_layout.cpp
     DEPENDS
         failure_expectations
-        layer_rows)
+        layer_rows
+        tensor_values)

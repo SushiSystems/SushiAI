@@ -171,6 +171,12 @@ namespace
                 return inner_->read(index, batch);
             }
 
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
+                                           Data::Batch& batch) const override
+            {
+                return inner_->read_rows(index, rows, batch);
+            }
+
             void begin_epoch(std::int64_t epoch) const noexcept override
             {
                 epochs_.push_back(epoch);

@@ -35,12 +35,16 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+
+#include "batch_rows.hpp"
 
 using namespace SushiAI;
 
@@ -108,6 +112,12 @@ namespace
                 batch.targets.assign(1, Data::BatchTarget{name_of(probe_->epoch.load(), index),
                                                           SushiBLAS::Tensor()});
                 return Status();
+            }
+
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange,
+                                           Data::Batch& batch) const override
+            {
+                return read(index, batch);
             }
 
             void begin_epoch(std::int64_t epoch) const noexcept override
@@ -318,6 +328,12 @@ TEST(Small_Epoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
                 return Status();
             }
 
+            [[nodiscard]] Status read_rows(std::size_t, Data::RowRange,
+                                           Data::Batch&) const override
+            {
+                return Status();
+            }
+
         private:
             /** @brief Holds no description. */
             std::vector<Data::TargetDescription> targets_;
@@ -326,4 +342,34 @@ TEST(Small_Epoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
     const Plain plain;
     Data::begin_epoch(plain, 4);
     EXPECT_EQ(plain.batch_count(), 1u);
+}
+
+namespace
+{
+    /** @brief Provides the engine the inner dataset of a range read is generated on. */
+    class Medium_ThreadedLoaderRows : public SushiAI::Test::EngineTest
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that a range read reaches the inner dataset and gives the rows of its batch. */
+TEST_F(Medium_ThreadedLoaderRows, ARangeReadGivesTheRowsOfTheInnerBatch)
+{
+    Data::RingsOptions options;
+    options.batch_size = 4;
+    options.batches = 3;
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::Rings> rings,
+                            Data::Rings::make(*engine, options));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::ThreadedLoader> loader,
+                            Data::ThreadedLoader::make(std::move(rings), Data::LoaderOptions{}));
+    const Data::RowRange rows{1, 2};
+    Data::Batch whole;
+    Data::Batch part;
+
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(loader->read(2, whole)));
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(loader->read_rows(2, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(DataTest::holds_rows_of(whole, loader->batch_size(), rows, part));
 }

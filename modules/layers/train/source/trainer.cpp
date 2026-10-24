@@ -163,7 +163,24 @@ namespace SushiAI
             return pair_with_gradients(built, pool);
         }
 
-        std::string RunReport::to_string() const
+        Result<std::vector<Optim::ParameterSlot>> bind_step_results(const TrainingGraph& built,
+                                                                    const NN::ModelState& state,
+                                                                    Graph::TensorPool& pool)
+        {
+            SA_FATAL_IF(pool.has_plan(),
+                        "bind_step_results: the pool holds a plan; use bind_parameters()");
+            SA_FAIL_IF(built.spec.loss == Graph::K_NO_VALUE, StatusCode::InvalidDescription,
+                       "The training graph names no loss to bind.");
+
+            SA_TRY(state.attach(built.graph, pool));
+            SA_TRY(pool.materialise(built.spec.loss, built.graph.value(built.spec.loss)));
+            for (const Graph::ValueID source : built.updates.sources())
+                SA_TRY(pool.materialise(source, built.graph.value(source)));
+
+            return pair_with_gradients(built, pool);
+        }
+
+                std::string RunReport::to_string() const
         {
             std::string text = SushiLog::format_text(
                 "compiles       : {}\n"

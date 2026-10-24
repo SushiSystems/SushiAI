@@ -49,4 +49,5 @@ sushiai_add_test_program(OWNER vision/datasets
         test_yolo_txt.cpp
     DEPENDS
         failure_expectations
-        model_text)
+        model_text
+        tensor_values)

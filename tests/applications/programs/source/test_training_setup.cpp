@@ -26,11 +26,14 @@
  */
 
 #include <memory>
+#include <optional>
 #include <gtest/gtest.h>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 #include "cluster_test_files.hpp"
 #include "registries.hpp"
@@ -58,10 +61,10 @@ TEST_F(Medium_TrainingSetup, TracesTheDataBatchWhenNoRowsAreGiven)
         Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
             .value();
 
-    EXPECT_EQ(setup->given.batch, 4);
-    EXPECT_FALSE(setup->parameters.empty());
-    EXPECT_NE(setup->state, nullptr);
-    EXPECT_EQ(setup->dataset->batch_size(), 4);
+    EXPECT_EQ(setup->given().batch, 4);
+    EXPECT_FALSE(setup->parameters().empty());
+    EXPECT_FALSE(setup->state().entries().empty());
+    EXPECT_EQ(setup->dataset().batch_size(), 4);
 }
 
 /** @brief Tests that a setup traces the rows it is given, while the data keeps its batch. */
@@ -74,8 +77,37 @@ TEST_F(Medium_TrainingSetup, TracesTheRowsItIsGiven)
         Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED, 2)
             .value();
 
-    EXPECT_EQ(setup->given.batch, 2);
-    EXPECT_EQ(setup->dataset->batch_size(), 4);
+    EXPECT_EQ(setup->given().batch, 2);
+    EXPECT_EQ(setup->dataset().batch_size(), 4);
+}
+
+/**
+ * @brief Tests that a setup of the results scope binds the parameters, the gradients and the
+ *        loss, plans no memory and allocates fewer bytes than a setup of the step scope.
+ */
+TEST_F(Medium_TrainingSetup, HoldsOnlyTheResultsOfTheStepInTheResultsScope)
+{
+    const ClusterTestFiles files("sushiai_training_setup_results.json");
+    const Apps::Registries registries = Apps::compose_registries().value();
+
+    const std::unique_ptr<Apps::TrainingSetup> whole =
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
+            .value();
+    const std::unique_ptr<Apps::TrainingSetup> results =
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED,
+                                  std::nullopt, Apps::SetupScope::Results)
+            .value();
+
+    const Train::TrainingGraph& built = results->built();
+    EXPECT_FALSE(results->pool().has_plan());
+    EXPECT_TRUE(results->pool().is_bound(built.spec.loss));
+    EXPECT_FALSE(results->pool().is_bound(built.spec.inputs));
+    ASSERT_EQ(results->parameters().size(), whole->parameters().size());
+    for (const Optim::ParameterSlot& slot : results->parameters())
+        EXPECT_NE(slot.gradient.data(), nullptr) << slot.name;
+
+    EXPECT_TRUE(whole->pool().has_plan());
+    EXPECT_LT(results->pool().allocated_bytes(), whole->pool().allocated_bytes());
 }
 
 /** @brief Tests that an architecture of another input shape than the data's is refused. */

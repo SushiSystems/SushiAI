@@ -71,6 +71,8 @@ namespace SushiAI
                 }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
+                [[nodiscard]] Status read_rows(std::size_t index, RowRange rows,
+                                               Batch& batch) const override;
                 std::string_view name() const noexcept override { return name_; }
 
             private:
@@ -108,6 +110,16 @@ namespace SushiAI
          * @return Success, or OutOfMemory when the role list of @p batch cannot grow.
          */
         [[nodiscard]] Status share_batch(const Batch& held, Batch& batch) noexcept;
+
+        /**
+         * @brief Makes @p batch view rows @p rows of every tensor of @p held; no element is
+         *        copied.
+         * @param held Its inputs and every target hold one row per sample on axis 0.
+         * @param batch Overwritten; its role list is reused when it is long enough.
+         * @return Success, or OutOfMemory when the role list of @p batch cannot grow.
+         * @pre @p rows lies inside axis 0 of every tensor of @p held.
+         */
+        [[nodiscard]] Status share_rows(const Batch& held, RowRange rows, Batch& batch) noexcept;
 
         /**
          * @brief Leaves @p batch with tensors of one layout that nothing else references.

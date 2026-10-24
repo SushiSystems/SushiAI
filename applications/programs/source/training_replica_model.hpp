@@ -80,8 +80,8 @@ namespace SushiAI
          * @class TrainingReplicaModel
          * @brief Holds a training setup over one micro-batch and feeds it a replica's rows.
          *
-         * A replica reads the whole batch its rows lie in once, from its own copy of the data,
-         * and feeds each micro-batch as rows of that batch.
+         * Each feed reads the rows of its micro-batch from the replica's own copy of the data,
+         * and no other row of the batch.
          */
         class TrainingReplicaModel final : public Distribution::ReplicaModel
         {
@@ -138,11 +138,8 @@ namespace SushiAI
                                      std::unique_ptr<TrainingSetup> setup,
                                      ReplicaTensors tensors) noexcept;
 
-                /**
-                 * @brief Reads batch @p batch_index of @p epoch unless it is the one held.
-                 * @return Success, or the refusal of the dataset's read.
-                 */
-                [[nodiscard]] Status hold_batch(std::uint64_t epoch, std::uint64_t batch_index);
+                /** @brief Makes the reads that follow return batches of @p epoch. */
+                void enter_epoch(std::uint64_t epoch) noexcept;
 
                 /// @brief The files the model was built from; shared by every replica.
                 std::shared_ptr<const ReplicaSource> source_;
@@ -156,17 +153,14 @@ namespace SushiAI
                 /// @brief The tensors of the two packs, in pack order.
                 ReplicaTensors tensors_;
 
-                /// @brief The batch the last feed read, whole.
-                Data::Batch held_;
+                /// @brief The rows the last feed read; reused by the next one.
+                Data::Batch part_;
 
-                /// @brief Whether held_ holds a batch.
-                bool holds_batch_ = false;
+                /// @brief Whether the dataset has entered an epoch.
+                bool entered_ = false;
 
-                /// @brief The epoch of held_.
-                std::uint64_t held_epoch_ = 0;
-
-                /// @brief The batch index of held_.
-                std::uint64_t held_index_ = 0;
+                /// @brief The epoch the dataset entered last.
+                std::uint64_t entered_epoch_ = 0;
         };
 
     } // namespace Apps

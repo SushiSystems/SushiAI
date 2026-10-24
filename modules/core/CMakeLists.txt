@@ -10,6 +10,7 @@
 add_subdirectory(log)
 add_subdirectory(failure)
 add_subdirectory(dtype)
+add_subdirectory(hash)
 add_subdirectory(shape)
 add_subdirectory(ops)
 add_subdirectory(seam)

@@ -132,11 +132,15 @@ namespace
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 
         SA_TRY_ASSIGN(const std::uint64_t seed, sa::Config::read_run_seed(spec, argv[1]));
+        // A cluster's master runs no graph, so its pool holds the results the exchange writes.
+        const sa::Apps::SetupScope scope =
+            spec.cluster.is_null() ? sa::Apps::SetupScope::Step : sa::Apps::SetupScope::Results;
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Apps::TrainingSetup> setup,
-                      sa::Apps::TrainingSetup::make(registries, spec, model_spec, engine, seed));
-        const sa::Data::Dataset& dataset = *setup->dataset;
-        const sa::NN::ModelGraph& model = setup->model;
-        const sa::Train::TrainingGraph& built = setup->built;
+                      sa::Apps::TrainingSetup::make(registries, spec, model_spec, engine, seed,
+                                                    std::nullopt, scope));
+        const sa::Data::Dataset& dataset = setup->dataset();
+        const sa::NN::ModelGraph& model = setup->model();
+        const sa::Train::TrainingGraph& built = setup->built();
 
         SA_TRY_ASSIGN(const std::optional<sa::Optim::RateSchedule> read_schedule,
                       sa::Optim::read_rate_schedule(spec.schedule, spec.optimizer_attributes));
@@ -144,11 +148,11 @@ namespace
             read_schedule ? &*read_schedule : nullptr;
 
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
-                      sa::Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters,
+                      sa::Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters(),
                                                 spec.optimizer_attributes, "the optimizer block"));
 
         sa::IO::RunProgress start;
-        SA_TRY(sa::Apps::start_state(spec, engine, *setup->state, *optimizer, &start));
+        SA_TRY(sa::Apps::start_state(spec, engine, setup->state(), *optimizer, &start));
 
         std::cout << "sushiai train\n"
                   << "----------------------------------------------------------------\n"
@@ -160,7 +164,7 @@ namespace
                                              sa::NN::parameter_elements(model))
                   << SushiLog::format_text("Weights    : {}\n",
                                              sa::Apps::describe_start(spec))
-                  << SushiLog::format_text("Objective  : {}\n", setup->objective->name())
+                  << SushiLog::format_text("Objective  : {}\n", setup->objective().name())
                   << SushiLog::format_text("Data       : {} ({} x {})\n",
                                              dataset.name(), dataset.batch_count(),
                                              dataset.batch_size())
@@ -173,12 +177,12 @@ namespace
 
         // The run is a row or the fallback run; see applications/programs/README.md.
         sa::Apps::PreparedRun prepared{
-            engine, spec, dataset, setup->given, *setup->objective, built, *setup->state,
-            *setup->pool, *optimizer, std::move(setup->updates), schedule, start,
+            engine, spec, dataset, setup->given(), setup->objective(), built, setup->state(),
+            setup->pool(), *optimizer, setup->take_updates(), schedule, start,
         };
         // A file with a cluster section trains over its replicas; see cluster_training.hpp.
-        const sr::span<const sa::Optim::ParameterSlot> slots(setup->parameters.data(),
-                                                             setup->parameters.size());
+        const sr::span<const sa::Optim::ParameterSlot> slots(setup->parameters().data(),
+                                                             setup->parameters().size());
         SA_TRY_ASSIGN(const sa::Apps::RunSummary summary,
                       spec.cluster.is_null()
                           ? sa::Apps::run_training(registries.runs, spec.objective_type, prepared)
@@ -194,7 +198,7 @@ namespace
 
         if (!spec.checkpoint.empty())
         {
-            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, *setup->state, *optimizer,
+            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, setup->state(), *optimizer,
                                                summary.progress));
             std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),

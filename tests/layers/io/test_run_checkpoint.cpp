@@ -346,6 +346,13 @@ namespace
                 return inner_->read(static_cast<std::size_t>(order.at(index)), batch);
             }
 
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
+                                           Data::Batch& batch) const override
+            {
+                const Data::EpochPermutation order(K_ORDER_SEED, epoch_, inner_->batch_count());
+                return inner_->read_rows(static_cast<std::size_t>(order.at(index)), rows, batch);
+            }
+
             void begin_epoch(std::int64_t epoch) const noexcept override
             {
                 epoch_ = epoch;

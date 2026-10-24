@@ -127,6 +127,13 @@ namespace SushiAI
             return share_batch(batches_[index], batch);
         }
 
+        Status MaterialisedDataset::read_rows(std::size_t index, RowRange rows,
+                                              Batch& batch) const
+        {
+            check_rows(*this, index, rows);
+            return share_rows(batches_[index], rows, batch);
+        }
+
         Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
                                      const InputDescription& input,
                                      const std::vector<TargetDescription>& targets)
@@ -159,6 +166,22 @@ namespace SushiAI
             return Detail::guard(Detail::SeamPhase::Allocate, [&]()
             {
                 batch = held;
+                return Status();
+            });
+        }
+
+        Status share_rows(const Batch& held, RowRange rows, Batch& batch) noexcept
+        {
+            const int64_t end = rows.first + rows.count;
+            return Detail::guard(Detail::SeamPhase::Allocate, [&]()
+            {
+                batch.inputs = held.inputs.slice(0, rows.first, end);
+                batch.targets.resize(held.targets.size());
+                for (std::size_t t = 0; t < held.targets.size(); ++t)
+                {
+                    batch.targets[t].role = held.targets[t].role;
+                    batch.targets[t].values = held.targets[t].values.slice(0, rows.first, end);
+                }
                 return Status();
             });
         }

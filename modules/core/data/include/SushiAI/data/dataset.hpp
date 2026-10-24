@@ -59,6 +59,19 @@ namespace SushiAI
         };
 
         /**
+         * @struct RowRange
+         * @brief Names the rows [first, first + count) of one batch.
+         */
+        struct RowRange
+        {
+            /** @brief The first row, counted from the start of the batch. */
+            int64_t first = 0;
+
+            /** @brief How many rows. */
+            int64_t count = 0;
+        };
+
+        /**
          * @class Dataset
          * @brief The seam every training loop reads through.
          *
@@ -95,6 +108,17 @@ namespace SushiAI
                  */
                 [[nodiscard]] virtual Status read(std::size_t index, Batch& batch) const = 0;
 
+                /**
+                 * @brief Makes @p batch hold rows @p rows of batch @p index, and no other row.
+                 * @param batch As for read(); its tensors are [rows.count, sample...].
+                 * @return As for read(); each row holds the bytes read() gives at its position.
+                 * @pre check_rows() holds for @p index and @p rows; a range that breaks it
+                 *      stops the process.
+                 * @see modules/core/data/README.md, section "Reading a batch".
+                 */
+                [[nodiscard]] virtual Status read_rows(std::size_t index, RowRange rows,
+                                                       Batch& batch) const = 0;
+
                 /** @brief A short name for a run report. */
                 virtual std::string_view name() const noexcept = 0;
         };
@@ -104,6 +128,12 @@ namespace SushiAI
         {
             return InputDescription{dataset.sample_shape(), dataset.sample_dtype()};
         }
+
+        /**
+         * @brief Stops the process unless @p index is a batch of @p dataset and @p rows a
+         *        non-empty range inside it.
+         */
+        void check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept;
 
         /**
          * @struct SyntheticOptions
@@ -165,6 +195,8 @@ namespace SushiAI
                 }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
+                [[nodiscard]] Status read_rows(std::size_t index, RowRange rows,
+                                               Batch& batch) const override;
                 std::string_view name() const noexcept override
                 {
                     return "synthetic-classification";
@@ -246,6 +278,8 @@ namespace SushiAI
                 }
                 std::size_t batch_count() const noexcept override { return batches_.size(); }
                 [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
+                [[nodiscard]] Status read_rows(std::size_t index, RowRange rows,
+                                               Batch& batch) const override;
                 std::string_view name() const noexcept override { return "rings"; }
 
             private:

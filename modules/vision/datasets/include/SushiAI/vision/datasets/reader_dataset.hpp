@@ -139,6 +139,14 @@ namespace SushiAI::Vision::Datasets
             [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override;
 
             /**
+             * @brief Makes and collates the samples of rows @p rows of one batch, and no other.
+             * @return As for read().
+             * @pre What Data::Dataset::read_rows() states.
+             */
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
+                                           Data::Batch& batch) const override;
+
+            /**
              * @brief Sets the epoch whose order and whose draws the next reads take.
              * @pre What Data::EpochAware::begin_epoch() states; the epoch is 0 until a call.
              */

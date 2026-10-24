@@ -70,6 +70,12 @@ namespace
                 return Status();
             }
 
+            [[nodiscard]] Status read_rows(std::size_t, Data::RowRange,
+                                           Data::Batch&) const override
+            {
+                return Status();
+            }
+
             std::string_view name() const noexcept override
             {
                 return "epoch-recorder";

@@ -110,6 +110,18 @@ namespace SushiAI
             }
         }
 
+        void check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept
+        {
+            SA_FATAL_IF(index >= dataset.batch_count(),
+                        "Batch {} is out of range; '{}' has {}", index, dataset.name(),
+                        dataset.batch_count());
+            SA_FATAL_IF(rows.first < 0 || rows.count <= 0
+                            || rows.count > dataset.batch_size() - rows.first,
+                        "Rows {} to {} are no non-empty range of a batch of {} in '{}'",
+                        rows.first, rows.first + rows.count, dataset.batch_size(),
+                        dataset.name());
+        }
+
         SyntheticClassification::SyntheticClassification(SyntheticOptions options,
                                                          std::vector<TargetDescription> targets,
                                                          std::vector<Batch> batches) noexcept
@@ -205,6 +217,13 @@ namespace SushiAI
             return share_batch(batches_[index], batch);
         }
 
+        Status SyntheticClassification::read_rows(std::size_t index, RowRange rows,
+                                                   Batch& batch) const
+        {
+            check_rows(*this, index, rows);
+            return share_rows(batches_[index], rows, batch);
+        }
+
         Rings::Rings(RingsOptions options, std::vector<TargetDescription> targets,
                      std::vector<Batch> batches) noexcept
             : options_(options), targets_(std::move(targets)), batches_(std::move(batches))
@@ -290,6 +309,12 @@ namespace SushiAI
             SA_FATAL_IF(index >= batches_.size(),
                         "Batch {} is out of range; the dataset has {}", index, batches_.size());
             return share_batch(batches_[index], batch);
+        }
+
+        Status Rings::read_rows(std::size_t index, RowRange rows, Batch& batch) const
+        {
+            check_rows(*this, index, rows);
+            return share_rows(batches_[index], rows, batch);
         }
 
         Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,

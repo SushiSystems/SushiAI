@@ -32,6 +32,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include "datasets_test_support.hpp"
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -182,4 +183,23 @@ TEST_F(Medium_DatasetsTableDataset, TheFailureOfTheCollatorIsReturned)
     Data::Batch batch;
     SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidDescription, "rows.csv",
                       "RegressionCollator", "2 features and 1 targets");
+}
+
+/** @brief Tests that a range read holds the rows the whole read holds at those positions. */
+TEST_F(Medium_DatasetsTableDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
+{
+    TableDatasetOptions made = options();
+    made.batch_size = 3;
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TableDataset> dataset,
+        TableDataset::make(*engine, table_list(6), regression(), made));
+
+    const Data::RowRange rows{2, 1};
+    Data::Batch whole;
+    Data::Batch part;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, whole)));
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(1, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(Support::holds_rows_of(whole, made.batch_size, rows, part));
 }

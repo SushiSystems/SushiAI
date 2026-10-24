@@ -59,24 +59,24 @@ TEST_F(Medium_ReplicaTensors, ListsTheGradientsThenTheLossThenTheStatistics)
 
     const Apps::ReplicaTensors tensors =
         Apps::ReplicaTensors::list(
-            SushiRuntime::span<const Optim::ParameterSlot>(setup->parameters.data(),
-                                                           setup->parameters.size()),
-            setup->built, *setup->pool,
-            SushiRuntime::span<const Train::BufferUpdateSlot>(setup->updates.data(),
-                                                              setup->updates.size()))
+            SushiRuntime::span<const Optim::ParameterSlot>(setup->parameters().data(),
+                                                           setup->parameters().size()),
+            setup->built(), setup->pool(),
+            SushiRuntime::span<const Train::BufferUpdateSlot>(setup->updates().data(),
+                                                              setup->updates().size()))
             .value();
 
-    const std::size_t parameters = setup->parameters.size();
+    const std::size_t parameters = setup->parameters().size();
     ASSERT_EQ(tensors.parameters.size(), parameters);
-    ASSERT_EQ(tensors.results.size(), parameters + 1 + setup->updates.size());
+    ASSERT_EQ(tensors.results.size(), parameters + 1 + setup->updates().size());
     for (std::size_t index = 0; index < parameters; ++index)
     {
-        EXPECT_EQ(tensors.parameters[index].data(), setup->parameters[index].parameter.data());
-        EXPECT_EQ(tensors.results[index].data(), setup->parameters[index].gradient.data());
+        EXPECT_EQ(tensors.parameters[index].data(), setup->parameters()[index].parameter.data());
+        EXPECT_EQ(tensors.results[index].data(), setup->parameters()[index].gradient.data());
     }
     EXPECT_EQ(tensors.results[parameters].data(),
-              setup->pool->tensor(setup->built.spec.loss).data());
-    for (std::size_t index = 0; index < setup->updates.size(); ++index)
+              setup->pool().tensor(setup->built().spec.loss).data());
+    for (std::size_t index = 0; index < setup->updates().size(); ++index)
         EXPECT_EQ(tensors.results[parameters + 1 + index].data(),
-                  setup->updates[index].source.data());
+                  setup->updates()[index].source.data());
 }

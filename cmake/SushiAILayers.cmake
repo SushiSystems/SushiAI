@@ -30,6 +30,7 @@ set(SUSHIAI_MODULE_TIERS
     log                  core
     failure              core
     dtype                core
+    hash                 core
     shape                core
     ops                  core
     seam                 core

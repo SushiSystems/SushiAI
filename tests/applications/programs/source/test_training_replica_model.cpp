@@ -25,13 +25,16 @@
  * @author Mustafa Garip
  */
 
+#include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <gtest/gtest.h>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
 
 #include "cluster_test_files.hpp"
 #include "registries.hpp"
@@ -96,6 +99,30 @@ TEST_F(Medium_TrainingReplicaModel, TheSameFilesGiveOneFingerprint)
 
     EXPECT_EQ(first->fingerprint, second->fingerprint);
     EXPECT_EQ(model_of(first)->fingerprint(), first->fingerprint);
+}
+
+/**
+ * @brief Tests that the fingerprint is the FNV-1a hash of the architecture file's bytes, then
+ *        of the objective type, pinned to the value it has held since A4.
+ */
+TEST_F(Medium_TrainingReplicaModel, TheFingerprintKeepsItsValue)
+{
+    const ClusterTestFiles files("sushiai_replica_model_pinned.json");
+    const SushiAI::Test::ScratchFile bytes("sushiai_replica_model_pinned_bytes.json");
+    {
+        std::ofstream written(bytes.path(), std::ios::binary);
+        written << R"({"sushiai_model": 1})";
+    }
+    Config::TrainSpec spec = files.spec;
+    spec.model_path = bytes.path();
+
+    // Computed apart from SushiAI, over the bytes above and then "cross_entropy".
+    constexpr std::uint64_t K_PINNED = 0xd043c6822d22eedeull;
+    EXPECT_EQ(Apps::ReplicaSource::make(Apps::compose_registries().value(), spec,
+                                        files.model_spec)
+                  .value()
+                  ->fingerprint,
+              K_PINNED);
 }
 
 /** @brief Tests that rows inside their batch, of the traced count, are fed. */

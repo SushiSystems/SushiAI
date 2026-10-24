@@ -99,6 +99,15 @@ namespace SushiAI
                 [[nodiscard]] Status read(std::size_t index, Batch& batch) const override;
 
                 /**
+                 * @brief Reads rows @p rows of batch @p index from the inner dataset, on the
+                 *        caller's thread; what was read ahead is kept and not used.
+                 * @return What the inner dataset's read_rows() returns.
+                 * @pre What Dataset::read_rows() states.
+                 */
+                [[nodiscard]] Status read_rows(std::size_t index, RowRange rows,
+                                               Batch& batch) const override;
+
+                /**
                  * @brief Drops what was read ahead, forwards the epoch and reads on from 0.
                  * @pre What EpochAware::begin_epoch() states.
                  */

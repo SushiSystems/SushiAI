@@ -107,6 +107,14 @@ namespace SushiAI::Vision::Datasets
              */
             [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override;
 
+            /**
+             * @brief Collates rows @p rows of one batch into @p batch, and no other row.
+             * @return As for read().
+             * @pre What Data::Dataset::read_rows() states.
+             */
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
+                                           Data::Batch& batch) const override;
+
         private:
             /** @brief Takes the parts make() checked. */
             TableDataset(SushiBLAS::Engine& engine, SampleList list,

@@ -16,6 +16,7 @@ if(SA_ENABLE_DISTRIBUTED)
             data
             dtype
             eager
+            hash
             execution
             failure
             graph
@@ -38,6 +39,7 @@ else()
             data
             dtype
             eager
+            hash
             execution
             failure
             graph

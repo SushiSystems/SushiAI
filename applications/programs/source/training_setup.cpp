@@ -70,8 +70,8 @@ namespace SushiAI
         TrainingSetup::TrainingSetup(std::unique_ptr<Data::Dataset> read_dataset,
                                      NN::ModelGraph built_model, Train::ObjectiveContext context,
                                      SushiBLAS::Engine& engine) noexcept
-            : dataset(std::move(read_dataset)), model(std::move(built_model)),
-              given(std::move(context)), pool(std::make_unique<Graph::TensorPool>(engine))
+            : dataset_(std::move(read_dataset)), model_(std::move(built_model)),
+              given_(std::move(context)), pool_(std::make_unique<Graph::TensorPool>(engine))
         {
 
         }
@@ -79,7 +79,7 @@ namespace SushiAI
         Result<std::unique_ptr<TrainingSetup>> TrainingSetup::make(
             const Registries& registries, const Config::TrainSpec& spec,
             const Config::ModelSpec& model_spec, SushiBLAS::Engine& engine,
-            std::uint64_t seed, std::optional<std::int64_t> rows)
+            std::uint64_t seed, std::optional<std::int64_t> rows, SetupScope scope)
         {
             SA_TRY_ASSIGN(std::unique_ptr<Data::Dataset> dataset,
                           Data::make_dataset(registries.datasets, engine, spec.data.type,
@@ -113,27 +113,88 @@ namespace SushiAI
             std::unique_ptr<TrainingSetup> setup(new TrainingSetup(
                 std::move(dataset), std::move(model), std::move(given), engine));
 
-            SA_TRY_ASSIGN(setup->objective,
+            SA_TRY_ASSIGN(setup->objective_,
                           Train::make_objective(registries.objectives, spec.objective_type,
-                                                setup->given, spec.objective_attributes,
+                                                setup->given_, spec.objective_attributes,
                                                 "the objective block"));
 
-            SA_TRY_ASSIGN(setup->built,
-                          Train::build_training_graph(setup->model, *setup->objective,
+            SA_TRY_ASSIGN(setup->built_,
+                          Train::build_training_graph(setup->model_, *setup->objective_,
                                                       batch_shape, graph_options));
-            SA_TRY(Train::match_roles(setup->built.leaves.required(), *setup->dataset));
+            SA_TRY(Train::match_roles(setup->built_.leaves.required(), *setup->dataset_));
 
             // The trace above declared every parameter and buffer the state lists.
-            SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, setup->model));
-            setup->state = std::make_unique<NN::ModelState>(std::move(state));
+            SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, setup->model_));
+            setup->state_ = std::make_unique<NN::ModelState>(std::move(state));
 
-            SA_TRY_ASSIGN(setup->parameters,
-                          Train::bind_parameters(setup->built, *setup->state, *setup->pool));
-            SA_TRY_ASSIGN(setup->updates,
-                          Train::bind_buffer_updates(setup->built.updates, *setup->state,
-                                                     *setup->pool));
+            if (scope == SetupScope::Step)
+            {
+                SA_TRY_ASSIGN(setup->parameters_,
+                              Train::bind_parameters(setup->built_, *setup->state_,
+                                                     *setup->pool_));
+            }
+            else
+            {
+                SA_TRY_ASSIGN(setup->parameters_,
+                              Train::bind_step_results(setup->built_, *setup->state_,
+                                                       *setup->pool_));
+            }
+
+            SA_TRY_ASSIGN(setup->updates_,
+                          Train::bind_buffer_updates(setup->built_.updates, *setup->state_,
+                                                     *setup->pool_));
 
             return Result<std::unique_ptr<TrainingSetup>>(std::move(setup));
+        }
+
+        const Data::Dataset& TrainingSetup::dataset() const noexcept
+        {
+            return *dataset_;
+        }
+
+        const NN::ModelGraph& TrainingSetup::model() const noexcept
+        {
+            return model_;
+        }
+
+        const Train::ObjectiveContext& TrainingSetup::given() const noexcept
+        {
+            return given_;
+        }
+
+        const Train::Objective& TrainingSetup::objective() const noexcept
+        {
+            return *objective_;
+        }
+
+        const Train::TrainingGraph& TrainingSetup::built() const noexcept
+        {
+            return built_;
+        }
+
+        NN::ModelState& TrainingSetup::state() noexcept
+        {
+            return *state_;
+        }
+
+        Graph::TensorPool& TrainingSetup::pool() noexcept
+        {
+            return *pool_;
+        }
+
+        const std::vector<Optim::ParameterSlot>& TrainingSetup::parameters() const noexcept
+        {
+            return parameters_;
+        }
+
+        const std::vector<Train::BufferUpdateSlot>& TrainingSetup::updates() const noexcept
+        {
+            return updates_;
+        }
+
+        std::vector<Train::BufferUpdateSlot> TrainingSetup::take_updates() noexcept
+        {
+            return std::move(updates_);
         }
 
     } // namespace Apps

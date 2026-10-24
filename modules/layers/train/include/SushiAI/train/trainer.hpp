@@ -77,6 +77,16 @@ namespace SushiAI
             Graph::PlanOptions options = {});
 
         /**
+         * @brief Binds the state's storage, a zeroed gradient per parameter, the loss and the
+         *        sources of the buffer updates, and allocates no other value of the graph.
+         * @param pool Holds no plan and no leaf of the graph; each value gets its own tensor.
+         * @return Slots as bind_parameters() returns them, or the same failures.
+         * @see modules/layers/train/README.md
+         */
+        [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_step_results(
+            const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool);
+
+        /**
          * @struct TrainerOptions
          * @brief How the loop behaves.
          */

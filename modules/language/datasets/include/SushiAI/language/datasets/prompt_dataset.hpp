@@ -95,6 +95,14 @@ namespace SushiAI::Language::Datasets
              */
             [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override;
 
+            /**
+             * @brief Does what read() does; the one batch holds one row, so @p rows names it.
+             * @return As for read().
+             * @pre What Data::Dataset::read_rows() states.
+             */
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange rows,
+                                           Data::Batch& batch) const override;
+
         private:
             /** @brief Takes the parts make() checked. */
             PromptDataset(SushiBLAS::Engine& engine, std::vector<Text::TokenID> kept,

@@ -43,6 +43,8 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
+#include "batch_rows.hpp"
+
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
 
@@ -147,4 +149,20 @@ TEST_F(Medium_MaterialisedDataset, PrepareBatchReplacesTensorsTheDatasetShares)
     EXPECT_NE(batch.inputs.data(), shared);
     EXPECT_EQ(batch.inputs.shape[0], K_ROWS);
     EXPECT_EQ(batch.inputs.shape[1], 4);
+}
+
+/** @brief Tests that a range read views the held rows of its index and copies no element. */
+TEST_F(Medium_MaterialisedDataset, ARangeReadViewsTheRowsOfItsIndex)
+{
+    const Data::MaterialisedDataset dataset = two_batches();
+    const Data::RowRange rows{1, 2};
+    Data::Batch whole;
+    Data::Batch part;
+
+    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(1, whole)));
+    ASSERT_TRUE(SaTest::status_is_ok(dataset.read_rows(1, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_EQ(part.inputs.storage.get(), whole.inputs.storage.get());
+    EXPECT_TRUE(DataTest::holds_rows_of(whole, K_ROWS, rows, part));
 }

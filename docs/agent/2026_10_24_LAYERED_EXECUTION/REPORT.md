@@ -107,6 +107,24 @@ first round left: each replica reads the whole batch instead of its rows, the ma
 activation memory for rows it never runs, the FNV-1a constants exist twice, and `TrainingSetup`
 exposes its members.
 
+## A4b
+
+`Dataset::read_rows(index, rows, batch)` is pure virtual: a default would read the whole batch
+again, the cost this removes. The kinds that hold their batches slice views; the reader, table and
+token datasets build only the rows asked for, and their `read()` is `read_rows` over the whole
+batch, so the two reads are one code path. A replica reads its micro-batch's rows at each feed, so
+over a step it reads exactly `[offset_k, offset_k + r_k)` and holds `m` rows, not `B`. The master
+of a cluster run builds its setup in the `Results` scope, through `Train::bind_step_results`: the
+state, a gradient per parameter and the loss, with no memory plan, no leaves and no host tables.
+The FNV-1a is one header-only `hash` module with the values unchanged, pinned by published vectors
+and by the model fingerprint computed outside SushiAI. `TrainingSetup` has an invariant, its pool
+bound to its graph and state, so it hides its members behind accessors.
+
+Seen and kept: `Dataset` grew a second pure virtual, which all seven kinds and eight test fakes
+implement; `holds_rows_of` exists in three test programs that share no support header; three more
+private FNV-1a copies (`region_signature.cpp`, `sample_cache.cpp`, `Shape::hash()`) move to `hash`
+in A4c.
+
 ## A8, SushiBLAS's `UInt32`
 
 SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no
@@ -128,4 +146,5 @@ dispatch: A3 — opus low, 168 turns over two rounds, passed, rung 1
 dispatch: A8 — sonnet medium, passed, rung 1
 dispatch: A3 in-place sum — opus low, passed, rung 1
 dispatch: A4 — opus low, 170 turns, passed, rung 1
+dispatch: A4b — opus low, 131 turns, passed, rung 1
 ```

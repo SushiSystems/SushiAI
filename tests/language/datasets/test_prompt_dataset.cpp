@@ -154,3 +154,18 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
     SA_EXPECT_FAILURE(make_prompt_dataset(*engine, with_unknown, "the data block"),
                       StatusCode::InvalidDescription, "'tokens'");
 }
+
+/** @brief Tests that a range read of the one row holds what the whole read holds. */
+TEST_F(Medium_LanguageDatasetsPromptDataset, ARangeReadHoldsTheRowOfTheWholeBatch)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
+                            PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
+
+    const Data::RowRange rows{0, 1};
+    Data::Batch whole;
+    Data::Batch part;
+    SA_EXPECT_OK(dataset->read(0, whole));
+    SA_EXPECT_OK(dataset->read_rows(0, rows, part));
+
+    EXPECT_TRUE(Support::holds_rows_of(whole, dataset->batch_size(), rows, part));
+}

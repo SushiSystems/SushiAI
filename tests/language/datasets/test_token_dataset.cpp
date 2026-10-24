@@ -326,3 +326,41 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, ItIsADatasetATrainerCanRead)
     EXPECT_EQ(batch.targets[0].role, dataset.targets()[0].role);
     EXPECT_EQ(batch.inputs.shape[0], dataset.batch_size());
 }
+
+/** @brief Tests that a range read holds the windows the whole read holds at those rows. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_rows");
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
+
+    const Data::RowRange rows{1, 1};
+    Data::Batch whole;
+    Data::Batch part;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, whole)));
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(1, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(Support::holds_rows_of(whole, dataset->batch_size(), rows, part));
+}
+
+/** @brief Tests that a range read reads no window outside it, so a cut past it is not seen. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, ARangeReadReadsNoWindowOutsideIt)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_rows_cut");
+    const std::filesystem::path file = rising_file(scratch);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, file, next_token(), tiny_options()));
+
+    // 76 bytes keep ids 0 to 12: window 2 ends there and window 3, ids 12 to 16, does not.
+    std::filesystem::resize_file(file, 76);
+
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(1, Data::RowRange{0, 1}, batch)));
+    EXPECT_EQ(batch.inputs.shape[0], 1);
+    SA_EXPECT_FAILURE(dataset->read(1, batch), StatusCode::InvalidFile, "rising.satk");
+}

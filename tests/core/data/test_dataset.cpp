@@ -37,6 +37,8 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
+#include "batch_rows.hpp"
+
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
 
@@ -144,4 +146,39 @@ TEST_F(Medium_Dataset, RingsRefusesAnOptionOutOfRange)
                       "ring width");
     SA_EXPECT_FAILURE(Data::Rings::make(*engine, noise), StatusCode::InvalidDescription,
                       "position noise");
+}
+
+/** @brief Tests that a range read of a synthetic set views the rows the whole read holds. */
+TEST_F(Medium_Dataset, SyntheticClassificationReadsTheRowsOfARange)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, small_synthetic()));
+    const Data::RowRange rows{1, 2};
+    Data::Batch whole;
+    Data::Batch part;
+
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(dataset->read(1, whole)));
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(dataset->read_rows(1, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(DataTest::holds_rows_of(whole, dataset->batch_size(), rows, part));
+}
+
+/** @brief Tests that a range read of the rings set views the rows the whole read holds. */
+TEST_F(Medium_Dataset, RingsReadsTheRowsOfARange)
+{
+    Data::RingsOptions options;
+    options.batch_size = 4;
+    options.batches = 2;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
+    const Data::RowRange rows{3, 1};
+    Data::Batch whole;
+    Data::Batch part;
+
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(dataset->read(0, whole)));
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(dataset->read_rows(0, rows, part)));
+
+    EXPECT_EQ(part.inputs.shape[0], rows.count);
+    EXPECT_TRUE(DataTest::holds_rows_of(whole, dataset->batch_size(), rows, part));
 }

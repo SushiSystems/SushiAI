@@ -141,16 +141,26 @@ namespace SushiAI::Vision::Datasets
                     "{}: '{}' has {} batches; batch {} is outside them", K_DATASET,
                     options_.name, batch_count(), index);
 
+        return read_rows(index, Data::RowRange{0, options_.batch_size}, batch);
+    }
+
+    Status ReaderDataset::read_rows(std::size_t index, Data::RowRange range,
+                                    Data::Batch& batch) const
+    {
+        Data::check_rows(*this, index, range);
+
         return Detail::at_boundary(K_DATASET, [&]() -> Status
         {
-            const std::size_t rows = static_cast<std::size_t>(options_.batch_size);
+            const std::size_t rows = static_cast<std::size_t>(range.count);
+            const std::size_t first = index * static_cast<std::size_t>(options_.batch_size)
+                                      + static_cast<std::size_t>(range.first);
             const std::int64_t epoch = epoch_.load(std::memory_order_relaxed);
             const Data::EpochPermutation order(options_.seed, epoch, list_.samples.size());
 
             std::vector<std::size_t> samples(rows);
             for (std::size_t row = 0; row < rows; ++row)
             {
-                const std::size_t position = index * rows + row;
+                const std::size_t position = first + row;
                 samples[row] = options_.shuffle ? static_cast<std::size_t>(order.at(position))
                                                 : position;
             }
@@ -170,9 +180,8 @@ namespace SushiAI::Vision::Datasets
                            options_.channels);
             }
 
-            SA_TRY(Data::prepare_batch(*engine_, options_.batch_size,
-                                       Data::describe_input(*this), collator_->targets(),
-                                       batch));
+            SA_TRY(Data::prepare_batch(*engine_, range.count, Data::describe_input(*this),
+                                       collator_->targets(), batch));
             return collator_->collate(
                 list_, SushiRuntime::span<const FittedSample>(fitted.data(), fitted.size()),
                 batch);

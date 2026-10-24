@@ -146,6 +146,13 @@ namespace
                 return Status();
             }
 
+            [[nodiscard]] Status read_rows(std::size_t index, Data::RowRange,
+                                           Data::Batch&) const override
+            {
+                SA_FATAL_IF(true, "Batch {} is out of range; the dataset has 0", index);
+                return Status();
+            }
+
         private:
             int64_t batch_ = 0;
             int64_t features_ = 0;

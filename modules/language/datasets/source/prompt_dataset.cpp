@@ -143,6 +143,13 @@ namespace SushiAI::Language::Datasets
         });
     }
 
+    Status PromptDataset::read_rows(std::size_t index, Data::RowRange rows,
+                                    Data::Batch& batch) const
+    {
+        Data::check_rows(*this, index, rows);
+        return read(index, batch);
+    }
+
     Result<std::unique_ptr<Data::Dataset>> make_prompt_dataset(SushiBLAS::Engine& engine,
                                                                const Config::Value& section,
                                                                std::string_view context)

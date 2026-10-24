@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -81,6 +82,22 @@ namespace SushiAI
                                     * dtype_size(tensor.dtype);
             const auto* data = static_cast<const unsigned char*>(tensor.data());
             return std::vector<unsigned char>(data, data + bytes);
+        }
+
+        /**
+         * @brief Returns the bytes of rows [first, first + count) of a tensor whose elements
+         *        hold @p rows equal rows one after another.
+         * @pre @p rows divides the element count, and the range lies inside the rows.
+         */
+        inline std::vector<unsigned char> read_row_bytes(const SushiBLAS::Tensor& tensor,
+                                                         std::int64_t rows, std::int64_t first,
+                                                         std::int64_t count)
+        {
+            const std::vector<unsigned char> all = read_tensor_bytes(tensor);
+            const std::size_t per_row = all.size() / static_cast<std::size_t>(rows);
+            const std::size_t start = per_row * static_cast<std::size_t>(first);
+            const std::size_t length = per_row * static_cast<std::size_t>(count);
+            return std::vector<unsigned char>(all.data() + start, all.data() + start + length);
         }
 
         /**

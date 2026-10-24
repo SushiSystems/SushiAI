@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/seam/seam.hpp>
 
 #include "replica_accumulator.hpp"
@@ -45,24 +46,13 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds the FNV-1a 64-bit offset basis. */
-            constexpr std::uint64_t K_FNV_OFFSET = 0xcbf29ce484222325ull;
-
-            /** @brief Holds the FNV-1a 64-bit prime. */
-            constexpr std::uint64_t K_FNV_PRIME = 0x100000001b3ull;
-
             /** @brief Returns the FNV-1a hash of the words, each read little-endian. */
             [[nodiscard]] std::uint64_t hash_words(const std::array<std::uint64_t, 3>& words)
             {
-                std::uint64_t hash = K_FNV_OFFSET;
+                std::uint64_t hash = Hash::K_FNV1A_OFFSET_BASIS;
                 for (const std::uint64_t word : words)
-                {
-                    for (std::size_t byte = 0; byte < sizeof(word); ++byte)
-                    {
-                        hash ^= (word >> (8 * byte)) & 0xffu;
-                        hash *= K_FNV_PRIME;
-                    }
-                }
+                    hash = Hash::fnv1a_word(hash, word);
+
                 return hash;
             }
 

@@ -35,6 +35,9 @@
 #include <string_view>
 #include <system_error>
 #include <vector>
+#include <gtest/gtest.h>
+#include <SushiAI/data/dataset.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
@@ -175,5 +178,36 @@ namespace SushiAI::Vision::Datasets::Support
                                       image.channels() == 1 ? Imaging::ChannelOrder::Gray
                                                             : Imaging::ChannelOrder::RGB);
         return file;
+    }
+
+    /**
+     * @brief Returns whether @p part holds, byte for byte, rows @p rows of @p whole.
+     * @param batch_rows The rows of @p whole.
+     */
+    inline ::testing::AssertionResult holds_rows_of(const Data::Batch& whole,
+                                                    std::int64_t batch_rows,
+                                                    Data::RowRange rows,
+                                                    const Data::Batch& part)
+    {
+        if (SushiAI::Test::read_tensor_bytes(part.inputs)
+            != SushiAI::Test::read_row_bytes(whole.inputs, batch_rows, rows.first,
+                                             rows.count))
+            return ::testing::AssertionFailure() << "the inputs differ";
+
+        if (part.targets.size() != whole.targets.size())
+            return ::testing::AssertionFailure()
+                   << part.targets.size() << " roles against " << whole.targets.size();
+
+        for (std::size_t t = 0; t < whole.targets.size(); ++t)
+        {
+            if (part.targets[t].role != whole.targets[t].role
+                || SushiAI::Test::read_tensor_bytes(part.targets[t].values)
+                       != SushiAI::Test::read_row_bytes(whole.targets[t].values, batch_rows,
+                                                        rows.first, rows.count))
+                return ::testing::AssertionFailure()
+                       << "the role '" << whole.targets[t].role << "' differs";
+        }
+
+        return ::testing::AssertionSuccess();
     }
 } // namespace SushiAI::Vision::Datasets::Support

@@ -142,9 +142,20 @@ namespace SushiAI::Language::Datasets
         SA_FATAL_IF(index >= batch_count(), "{}: '{}' has {} batches; batch {} is outside them",
                     K_DATASET, options_.name, batch_count(), index);
 
+        return read_rows(index, Data::RowRange{0, options_.batch_size}, batch);
+    }
+
+    Status TokenDataset::read_rows(std::size_t index, Data::RowRange range,
+                                   Data::Batch& batch) const
+    {
+        Data::check_rows(*this, index, range);
+
         return Detail::at_boundary(K_DATASET, [&]() -> Status
         {
-            const std::size_t rows = static_cast<std::size_t>(options_.batch_size);
+            const std::size_t rows = static_cast<std::size_t>(range.count);
+            const std::uint64_t first =
+                static_cast<std::uint64_t>(index) * static_cast<std::uint64_t>(options_.batch_size)
+                + static_cast<std::uint64_t>(range.first);
             const std::size_t per_window = static_cast<std::size_t>(layout_.tokens);
             std::vector<Text::TokenID> tokens(rows * per_window);
 
@@ -155,7 +166,7 @@ namespace SushiAI::Language::Datasets
 
             for (std::size_t row = 0; row < rows; ++row)
             {
-                const std::uint64_t window = static_cast<std::uint64_t>(index) * rows + row;
+                const std::uint64_t window = first + row;
                 const SushiRuntime::span<Text::TokenID> ids(tokens.data() + row * per_window,
                                                             per_window);
 
@@ -164,9 +175,8 @@ namespace SushiAI::Language::Datasets
                     Detail::display_of(file_)));
             }
 
-            SA_TRY(Data::prepare_batch(*engine_, options_.batch_size,
-                                       Data::describe_input(*this), collator_->targets(),
-                                       batch));
+            SA_TRY(Data::prepare_batch(*engine_, range.count, Data::describe_input(*this),
+                                       collator_->targets(), batch));
             return collator_->collate(
                 SushiRuntime::span<const Text::TokenID>(tokens.data(), tokens.size()), batch);
         }, file_);

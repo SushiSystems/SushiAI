@@ -43,6 +43,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>

@@ -28,6 +28,7 @@
 #include <chrono>
 #include <cstddef>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -145,22 +146,24 @@ TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
     SushiBLAS::Engine engine(master_runtime);
     const Apps::Registries registries = Apps::compose_registries().value();
     std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, spec, files.model_spec, engine, K_SEED).value();
+        Apps::TrainingSetup::make(registries, spec, files.model_spec, engine, K_SEED,
+                                  std::nullopt, Apps::SetupScope::Results)
+            .value();
     std::unique_ptr<Optim::Optimizer> optimizer =
-        Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters,
+        Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters(),
                               spec.optimizer_attributes, "the optimizer block")
             .value();
     IO::RunProgress start;
-    SA_EXPECT_OK(Apps::start_state(spec, engine, *setup->state, *optimizer, &start));
-    const std::vector<std::vector<unsigned char>> before = bytes_of(setup->parameters);
+    SA_EXPECT_OK(Apps::start_state(spec, engine, setup->state(), *optimizer, &start));
+    const std::vector<std::vector<unsigned char>> before = bytes_of(setup->parameters());
 
     Apps::PreparedRun prepared{
-        engine, spec, *setup->dataset, setup->given, *setup->objective, setup->built,
-        *setup->state, *setup->pool, *optimizer, std::move(setup->updates), nullptr, start,
+        engine, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
+        setup->state(), setup->pool(), *optimizer, setup->take_updates(), nullptr, start,
     };
     Apps::ClusterRun run{prepared,
                          SushiRuntime::span<const Optim::ParameterSlot>(
-                             setup->parameters.data(), setup->parameters.size()),
+                             setup->parameters().data(), setup->parameters().size()),
                          section, binding, *master_kernel, 0};
     const Result<Apps::RunSummary> summary = Apps::run_on_cluster(run);
 
@@ -168,7 +171,7 @@ TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
     EXPECT_EQ(summary.value().compile_count, 1u);
     EXPECT_EQ(summary.value().progress.step_runs, 1u);
     EXPECT_EQ(cluster.offloaded(), 1u) << "replica 1 ran somewhere other than the worker";
-    EXPECT_NE(bytes_of(setup->parameters), before) << "the step did not update a parameter";
+    EXPECT_NE(bytes_of(setup->parameters()), before) << "the step did not update a parameter";
 
     agent.stop();
 }
