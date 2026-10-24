@@ -1,6 +1,6 @@
 # Layered execution
 
-**Status:** Open — designed and ruled; nothing built
+**Status:** Open — A0 to A4 built and not yet compiled or run; A5 to A7 wait on the owner's machines
 **About:** SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed...
 **Modules:** applications/programs, modules/core/execution
 
