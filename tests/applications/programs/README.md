@@ -35,3 +35,24 @@ A run is trained and saved with its run state to a file in the temporary directo
 without files `describe_start` returns "initialised" and the optimizer stays at step 0. With
 `weights` set it returns the path, and the step count stays 0. With `resume` set it returns "resumed
 from " and the path, and the step count equals the trained run's 16.
+
+
+## source/test_training_setup.cpp
+
+Suites: `Medium_TrainingSetup`.
+
+### HoldsOnlyTheResultsOfTheStepInTheResultsScope
+
+A setup of `SetupScope::Results` over the cluster test files has no plan in its pool, binds the
+loss and not the inputs, and holds a gradient with data for every parameter slot, as many slots as
+a setup of `SetupScope::Step`. The pool of the `Results` setup allocates fewer bytes than the pool
+of the `Step` setup, which has a plan.
+
+## source/test_training_replica_model.cpp
+
+Suites: `Medium_TrainingReplicaModel`.
+
+### TheFingerprintKeepsItsValue
+
+For an architecture file holding `{"sushiai_model": 1}` and the objective `cross_entropy`, the
+fingerprint of `ReplicaSource::make` is 0xd043c6822d22eede, a value computed apart from SushiAI.

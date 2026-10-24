@@ -28,6 +28,16 @@ The inputs of batch 1 are equal for two sets seeded 5 and differ for a set seede
 A feature count of 0 fails with `InvalidDescription`, naming "positive extents" and
 "features=0".
 
+## SyntheticClassificationReadsTheRowsOfARange
+
+`read_rows(1, {1, 2})` gives inputs of 2 rows, and those rows and the `labels` role hold, byte for
+byte, rows 1 and 2 of what `read(1)` gives.
+
+## RingsReadsTheRowsOfARange
+
+`read_rows(0, {3, 1})` of a rings set of 2 batches of 4 gives inputs of 1 row, equal to row 3 of
+`read(0)`, and the same for its `labels`.
+
 ## RingsRefusesAnOptionOutOfRange
 
 `Data::Rings::make` fails with `InvalidDescription` for a distractor count of -1, a ring width

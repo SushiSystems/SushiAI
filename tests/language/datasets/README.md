@@ -54,6 +54,11 @@ sample shape [8], the type `Int32`, the name `K_PROMPT_DATA_TYPE` and one target
 
 A dataset of the ids 0 to 9 over a window of 4 has the row 6, 7, 8, 9 and the stated length 4.
 
+### ARangeReadHoldsTheRowOfTheWholeBatch
+
+Over the ids 3, 1, 4, 1, 5 and a window of 8, `read_rows(0, {0, 1})` holds the row and the
+stated length that `read(0)` holds.
+
 ### MakeRefusesAPromptOrAWindowThatDoesNotFit
 
 `PromptDataset::make` fails with `InvalidDescription` for no id ("no id"), for the ids 1 and
@@ -93,6 +98,16 @@ The inputs are the ids 8 to 15 and each label is its input plus 1.
 With a stride of 3 the dataset has three batches. In every batch, row `r` of batch `b` starts
 at the id `(2b + r) * 3`: input `t` is that id plus `t`, label `t` is that id plus `t + 1`, and
 each label but the last equals the next input of its row.
+
+### ARangeReadHoldsTheRowsOfTheWholeBatch
+
+`read_rows(1, {1, 1})` gives inputs of 1 row, and that row and the labels equal row 1 of
+`read(1)`.
+
+### ARangeReadReadsNoWindowOutsideIt
+
+After the file is cut to 76 bytes, which keep the ids 0 to 12, `read_rows(1, {0, 1})` succeeds with
+inputs of 1 row, and `read(1)` fails with `InvalidFile` naming "rising.satk".
 
 ### MakeRefusesOptionsOutsideTheirBounds
 

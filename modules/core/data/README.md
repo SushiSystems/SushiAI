@@ -28,12 +28,12 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/data/dataset.hpp` | `Batch`, `Dataset`, `describe_input`, `SyntheticOptions`, `SyntheticClassification`, `RingsOptions`, `Rings`, `make_rings` |
+| `SushiAI/data/dataset.hpp` | `Batch`, `Dataset`, `RowRange`, `check_rows`, `describe_input`, `SyntheticOptions`, `SyntheticClassification`, `RingsOptions`, `Rings`, `make_rings` |
 | `SushiAI/data/dataset_registry.hpp` | `DatasetFactory`, `DatasetEntry`, `DatasetRegistry`, `register_datasets`, `make_dataset` |
 | `SushiAI/data/epoch.hpp` | `EpochAware`, `begin_epoch` |
 | `SushiAI/data/epoch_permutation.hpp` | `EpochPermutation` |
 | `SushiAI/data/input.hpp` | `InputDescription` |
-| `SushiAI/data/materialised_dataset.hpp` | `MaterialisedDataset`, `allocate_batch`, `share_batch`, `prepare_batch` |
+| `SushiAI/data/materialised_dataset.hpp` | `MaterialisedDataset`, `allocate_batch`, `share_batch`, `share_rows`, `prepare_batch` |
 | `SushiAI/data/roles.hpp` | `K_ROLE_LABELS` |
 | `SushiAI/data/target.hpp` | `BatchTarget`, `TargetDescription`, `find_target` |
 | `SushiAI/data/threaded_loader.hpp` | `LoaderOptions`, `ThreadedLoader` |
@@ -61,6 +61,20 @@ caller owns `batch` and passes the same one on every call of a loop.
 | Holds its batches: `SyntheticClassification`, `Rings`, `MaterialisedDataset` | `share_batch` copies the tensor handles of the held batch into `batch` | One reference count per tensor and one role name per target; no element is copied, and nothing is allocated once `batch` has held a batch of the dataset |
 | Builds its batches: `Vision::Datasets::ReaderDataset`, `Language::Datasets::TokenDataset` | `prepare_batch` keeps or allocates the tensors, then the dataset writes them | The tensors are allocated on the first call and written in place after it |
 | Reads another dataset ahead: `ThreadedLoader` | Exchanges `batch` with a batch one of its threads filled | No element is copied; the wait for a batch that is not ready yet |
+
+`Status Dataset::read_rows(std::size_t index, RowRange rows, Batch& batch) const` reads rows
+`[rows.first, rows.first + rows.count)` of batch `index`; `batch` then holds those rows and no
+other, with inputs and targets of `rows.count` rows on axis 0. Each row holds the bytes `read`
+gives at its position, and `read` is `read_rows` over the whole batch. `check_rows(dataset, index,
+rows)` stops the process unless `index` is a batch of the dataset and `rows` a non-empty range
+inside its batch size; every implementer calls it first.
+
+| Dataset | What `read_rows` does | Cost per call |
+| --- | --- | --- |
+| Holds its batches: `SyntheticClassification`, `Rings`, `MaterialisedDataset` | `share_rows` slices every tensor of the held batch on axis 0 | A view per tensor; no element is copied |
+| Builds its batches: `Vision::Datasets::ReaderDataset`, `Vision::Datasets::TableDataset`, `Language::Datasets::TokenDataset` | `prepare_batch` for `rows.count` rows, then the dataset writes only those rows | Opens and decodes `rows.count` samples; a sample outside the range is not touched |
+| `Language::Datasets::PromptDataset` | Checks the range, then reads its one row | The cost of `read` |
+| `ThreadedLoader` | Reads the range from the inner dataset on the caller's thread | The inner dataset's cost; what was read ahead is kept and not used |
 
 A `SushiBLAS::Tensor` is a shape and a counted pointer to its `Storage`, so copying one shares
 the elements. After a read from a dataset that holds its batches, `batch` and the dataset
@@ -132,6 +146,9 @@ The loader owns `prefetch` slots, each a `Batch` with a state: idle, queued, run
 A worker sleeps on a condition variable until a slot is queued, takes the queued slot of the
 lowest index, reads that index into the slot's batch with the mutex released, marks the slot
 ready and wakes the caller. No thread polls.
+
+`read_rows(index, rows, batch)` does not use the slots: it calls `inner.read_rows` on the
+caller's thread and leaves what was read ahead as it is.
 
 `read(index, batch)` waits for the slot of `index`, exchanges the slot's batch with `batch` and
 queues the next index that no slot holds into that slot. The exchange copies no element. The

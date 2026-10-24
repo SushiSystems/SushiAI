@@ -25,6 +25,11 @@ input and target data pointers.
 
 `Data::share_batch` leaves the batch with the data pointers of the held batch and its role.
 
+## ARangeReadViewsTheRowsOfItsIndex
+
+`read_rows(1, {1, 2})` gives inputs of 2 rows that share the storage of what `read(1)` gives,
+and the rows of the inputs and of `labels` equal rows 1 and 2 of that read.
+
 ## PrepareBatchReplacesTensorsTheDatasetShares
 
 After a read, the batch's inputs are also held by the dataset. `Data::prepare_batch` with the

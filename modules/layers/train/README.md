@@ -98,7 +98,7 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | `one_hot.hpp` | `fill_one_hot` |
 | `parameter_groups.hpp` | `takes_weight_decay` |
 | `role_match.hpp` | `match_roles` |
-| `trainer.hpp` | `bind_parameters`, `TrainerOptions`, `StepMetrics`, `RunReport`, `Trainer` |
+| `trainer.hpp` | `bind_parameters`, `bind_step_results`, `TrainerOptions`, `StepMetrics`, `RunReport`, `Trainer` |
 
 ## Where a dataset meets a step
 
@@ -163,6 +163,12 @@ float32 or float64 or that holds another count of elements.
 each parameter's role into its `ParameterBinding`, and `bind_parameters` sets
 `Optim::ParameterSlot::decays` from it. A binding built by hand has the role `Weight`. The
 optimizer option `decay_all` decays every slot whatever the flag says.
+
+`bind_step_results(built, state, pool)` binds what a step produces and plans no memory: the
+state's storage, a zeroed gradient per parameter, the loss and the sources of the buffer
+updates, each as its own tensor. It returns the slots as `bind_parameters` does, and stops the
+process for a pool that holds a plan. A caller that reads those results and never runs the step,
+such as the master of a cluster run, holds no leaf and no intermediate value.
 `tests/layers/train/test_steps.cpp` covers the rule and the roles of a traced model.
 
 ## The objective owns its feed and its metrics

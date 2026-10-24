@@ -39,7 +39,13 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 
 A distributed build links the first set into every program. `sushiai_train` then trains a
 `cluster` section on the master, and `sushiai_worker` serves the replica named by its `--name`
-on each worker machine; the other flags go to SushiRuntime's worker. The run is described in
+on each worker machine; the other flags go to SushiRuntime's worker.
+
+`train.cpp` builds the `TrainingSetup` of a run with `SetupScope::Step` and the master of a
+cluster run with `SetupScope::Results`. A `Results` setup binds the state, a gradient per
+parameter, the loss and the sources of the buffer updates through `Train::bind_step_results`,
+plans no memory and holds no optimizer; the replicas run the step, and the master only reads
+what comes back. The run is described in
 [`docs/guides/RUNNING_MODELS.md`](../../docs/guides/RUNNING_MODELS.md).
 
 The sections below hold the reasoning that the source files cite.

@@ -11,7 +11,9 @@ queueing work into the graph it is inspecting.
 
 `read_tensor_bytes` exists because `read_tensor` widens everything to double, which cannot tell
 -0.0 from 0.0 or two NaN payloads apart. A determinism claim is about bits, so the check that
-guards it reads bits. `first_difference` gives the first byte where two such reads differ.
+guards it reads bits. `read_row_bytes(tensor, rows, first, count)` returns the bytes of rows
+`[first, first + count)` of a tensor that holds `rows` equal rows, so a test compares a range
+read with the same rows of the whole. `first_difference` gives the first byte where two such reads differ.
 
 ## Depends on
 
@@ -23,4 +25,4 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/tensor_values/tensor_values.hpp` | `write_tensor`, `read_tensor`, `read_tensor_bytes`, `first_difference` |
+| `SushiAI/tensor_values/tensor_values.hpp` | `write_tensor`, `read_tensor`, `read_tensor_bytes`, `read_row_bytes`, `first_difference` |

@@ -12,7 +12,7 @@ module is built only when `SA_ENABLE_DISTRIBUTED` is on. The design is
 
 ## Depends on
 
-The module declares `config` and `failure` as public dependencies and `seam` as a private one.
+The module declares `config` and `failure` as public dependencies and `seam` and `hash` as private ones.
 It takes `SushiRuntime::placement` as an external public dependency, since `ClusterSection`
 returns `SushiRuntime::PlacementRules`. `ReplicaPlan` includes nothing of SushiRuntime and no
 SYCL header, so the machines that only need the split do not compile against the runtime.

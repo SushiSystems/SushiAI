@@ -26,6 +26,11 @@ Through a `Data::Dataset` reference, batch 1 holds the inputs 20, 21, 30, 31 and
 number short ("4 samples and 11 numbers", "a row holds 3"), a batch size of 0
 ("a batch size of 0") and one row for batches of two ("1 samples", "one batch of 2").
 
+## ARangeReadHoldsTheRowsOfTheWholeBatch
+
+Over six rows in batches of 3, `read_rows(1, {2, 1})` gives inputs of 1 row, and that row and
+the targets equal row 2 of `read(1)`.
+
 ## ABatchOutsideTheEpochStopsTheProcess
 
 Over two rows, `read(1, batch)` is fatal with "TableDataset", "1 batches" and "batch 1".

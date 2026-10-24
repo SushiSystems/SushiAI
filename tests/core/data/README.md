@@ -141,6 +141,13 @@ Reading the indices 7, 8, 2, 3, 11, 0 in that order returns the batch of each in
 After reads of indices 0 and 1, `Data::begin_epoch(*loader, 3)` sets the dataset's epoch to 3.
 Reading indices 0 to 11 then returns the batches named "3:<index>".
 
+### ARangeReadGivesTheRowsOfTheInnerBatch
+
+Over a loader of three batches of 4 rings samples, `read_rows(2, {1, 2})` gives inputs of 2 rows,
+and those rows and the `labels` role equal rows 1 and 2 of `read(2)`. This case uses the
+engine fixture and `batch_rows.hpp`, whose `holds_rows_of` compares a part with the rows of a
+whole.
+
 ### TheDestructorJoinsWithBatchesReadAhead
 
 A loader of 3 workers and a prefetch of 4 is destroyed after `begin_epoch` and before any read

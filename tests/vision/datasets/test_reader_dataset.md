@@ -80,6 +80,16 @@ After `Data::begin_epoch(dataset, 3)` the samples are read in the order of
 Without `shuffle`, six samples are read as 0, 1, 2, 3, 4, 5, and again in that order after
 `begin_epoch(dataset, 5)`.
 
+## ARangeReadHoldsTheRowsOfTheWholeBatch
+
+With `shuffle` on and epoch 1 begun over eight samples in batches of 4, `read_rows(1, {1, 2})`
+gives inputs of 2 rows, and those rows and the targets equal rows 1 and 2 of `read(1)`.
+
+## ARangeReadOpensNoSampleOutsideIt
+
+Over a list whose second file is absent, `read_rows(0, {1, 1})` succeeds with inputs of 1 row,
+and `read(0)` fails with `InvalidFile` naming "gone.bin".
+
 ## MakeRefusesANullPipeline
 
 The form of `make` that takes a pipeline fails for a null one with `InvalidDescription`,
