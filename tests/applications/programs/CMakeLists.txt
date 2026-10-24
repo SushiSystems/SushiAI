@@ -34,6 +34,7 @@ set(SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS)
 if(SA_ENABLE_DISTRIBUTED)
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER
         source/test_cluster_run.cpp
+        source/test_replica_fallback_warning.cpp
         source/test_cluster_training.cpp
         source/test_master_cluster.cpp
         source/test_replica_tensors.cpp
@@ -46,6 +47,7 @@ if(SA_ENABLE_DISTRIBUTED)
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/served_kernel.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_replica_model.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_fallback_warning.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/worker_arguments.cpp")
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS distribution)
 else()
@@ -56,6 +58,7 @@ endif()
 sushiai_add_test_program(APPLICATION programs
     SOURCES
         source/test_domains.cpp
+        source/test_programs_log_category.cpp
         source/test_epoch_loop.cpp
         source/test_inference_run.cpp
         source/test_registries.cpp

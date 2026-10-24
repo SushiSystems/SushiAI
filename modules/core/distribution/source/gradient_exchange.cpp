@@ -155,7 +155,7 @@ namespace SushiAI
             const std::size_t replicas = plan.replica_count();
             Parts parts;
             parts.run = run;
-            const std::int64_t position_extent[1] = {2};
+            const std::int64_t position_extent[1] = {3};
             SA_TRY_ASSIGN(parts.position,
                           allocate_tensor(engine,
                                           SushiRuntime::span<const std::int64_t>(position_extent,
@@ -166,7 +166,7 @@ namespace SushiAI
             {
                 const SushiBLAS::PackLayout position_layout = SushiBLAS::PackLayout::of(
                     SushiRuntime::span<const SushiBLAS::Tensor>(&parts.position, 1));
-                // ReplicaPosition::read() takes the two words from the pack's first bytes.
+                // ReplicaPosition::read() takes the three words from the pack's first bytes.
                 SA_FATAL_IF(position_layout.entries().front().offset_bytes != 0,
                             "GradientExchange: the position pack starts its words at byte {}",
                             position_layout.entries().front().offset_bytes);
@@ -248,6 +248,7 @@ namespace SushiAI
             std::int64_t* const words = position_.data_as<std::int64_t>();
             words[0] = static_cast<std::int64_t>(position.epoch);
             words[1] = static_cast<std::int64_t>(position.batch_index);
+            words[2] = static_cast<std::int64_t>(position.step);
             ++next_step_;
         }
 

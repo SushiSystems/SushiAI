@@ -156,10 +156,14 @@ and names each missing worker with the policy of each of its replicas.
 The cluster section's duplicate check and the served kernel compared worker names exactly, while
 placement compares them by their lower-case first label, so two names of one machine passed the
 check and a worker started under another case found no replica; both use SushiRuntime's
-`machine_names_match`. Confirmed and open: after a resume or a worker restart, a replica's dropout
-masks follow its own step's run count, which only the master restores, so they differ from an
-uninterrupted run; and the warning the design promises for a replica that falls back to the master
-is logged nowhere.
+`machine_names_match`. The audit also found a replica's draws following its own step's run count, which only the
+master restores, and the fallback warning logged nowhere. A10 adds a step, counted across epochs,
+to the position pack, and the replica runs under the draw index `step × m + i` through
+`CompiledStep::run_at()`, so a replica started at any step draws what an uninterrupted run draws
+there, and single-machine training draws as before. SushiRuntime exposes no node's placement
+outcome, so the master's own replica kernel tells an observer each task it serves; the master warns
+once per replica and cause, for a worker missing at attach and for a replica's first step run on
+the master.
 
 ## A8, SushiBLAS's `UInt32`
 
@@ -187,4 +191,5 @@ dispatch: A4c — sonnet low, 32 turns, passed, rung 1
 dispatch: A9 — opus low, two rounds, passed, rung 1
 dispatch: A9b — opus low, 107 turns, passed, rung 1
 dispatch: A9c — sonnet low, three rounds, passed, rung 1
+dispatch: A10 — opus low, passed, rung 1
 ```

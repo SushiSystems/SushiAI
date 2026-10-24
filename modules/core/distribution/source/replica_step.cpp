@@ -171,7 +171,7 @@ namespace SushiAI
         Status ReplicaStep::run_micro_batch(const ReplicaRows& rows)
         {
             SA_TRY(model_->feed(rows));
-            SA_TRY(step_->run());
+            SA_TRY(step_->run_at(rows.draw_index));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Execute, [this]()
             {
                 accumulator_->add(model_->results());

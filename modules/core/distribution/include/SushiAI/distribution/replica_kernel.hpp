@@ -44,6 +44,7 @@
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
+#include <SushiAI/distribution/replica_serve_observer.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -106,6 +107,15 @@ namespace SushiAI
                 void register_with(SushiRuntime::Distributed::KernelRegistry& registry);
 
                 /**
+                 * @brief Tells @p observer of every task served from now on; null tells none.
+                 * @pre @p observer outlives the kernel's use of it, and no task is being served.
+                 */
+                void observe(ReplicaServeObserver* observer) noexcept
+                {
+                    observer_ = observer;
+                }
+
+                /**
                  * @brief Runs the task a node carries over its views, on the calling thread.
                  * @return Success, or InvalidDescription for parameters ReplicaTask refuses, a
                  *         replica count other than the plan's, a pack count other than two in
@@ -160,6 +170,9 @@ namespace SushiAI
 
                 /// @brief The OperationID of operation_name_.
                 SushiRuntime::OperationID operation_;
+
+                /// @brief Hears of each task served, or null; not owned.
+                ReplicaServeObserver* observer_ = nullptr;
 
                 /// @brief Serialises tasks, which share the steps and the device.
                 std::mutex serving_;

@@ -18,6 +18,7 @@ sushiai_add_test_program(OWNER distribution
         test_replica_model.cpp
         test_replica_plan.cpp
         test_replica_position.cpp
+        test_replica_serve_observer.cpp
         test_replica_step.cpp
         test_replica_task.cpp
     DEPENDS

@@ -44,6 +44,7 @@
 
 #include "cluster_run.hpp"
 #include "master_cluster.hpp"
+#include "replica_fallback_warning.hpp"
 #include "served_kernel.hpp"
 #include "training_replica_model.hpp"
 
@@ -58,24 +59,6 @@ namespace SushiAI
                 const Config::TrainSpec& spec)
             {
                 return Distribution::ClusterSection::read(spec.cluster, spec.base);
-            }
-
-            /** @brief Returns what each replica on @p worker does while the worker is absent. */
-            [[nodiscard]] std::string describe_absent_replicas(
-                const Distribution::ClusterSection& section, const AwaitedWorker& worker)
-            {
-                std::string text;
-                for (std::size_t replica : worker.replicas)
-                {
-                    const SushiRuntime::AbsentPolicy& policy = section.absent_policy_of(replica);
-                    std::string action = "runs locally";
-                    if (policy.action == SushiRuntime::AbsentAction::Wait)
-                        action = SushiLog::format_text("waits up to {} ms for it",
-                                                       policy.bound.count());
-                    text += SushiLog::format_text("{}replica {} {}", text.empty() ? "" : "; ",
-                                                  replica, action);
-                }
-                return text;
             }
         } // namespace
 
@@ -94,8 +77,11 @@ namespace SushiAI
             SA_TRY_ASSIGN(const Distribution::ClusterSection section, read_section(run.spec));
             SA_TRY_ASSIGN(const std::shared_ptr<const ReplicaSource> source,
                           ReplicaSource::load(run.spec));
+            // Declared before the kernel, so it outlives the kernel's use of it.
+            ReplicaFallbackWarning fallbacks(section);
             SA_TRY_ASSIGN(const std::unique_ptr<Distribution::ReplicaKernel> local,
                           make_served_kernel(source, section, section.worker_of(0)));
+            local->observe(&fallbacks);
 
             SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry> kernels =
                 SushiRuntime::make_sushi<SushiRuntime::Distributed::KernelRegistry>();
@@ -116,9 +102,7 @@ namespace SushiAI
                 return waited.status();
             }
             for (const AwaitedWorker& missing : waited.value())
-                std::cerr << SushiLog::format_text(
-                    "Worker '{}' did not join; {}\n", missing.name,
-                    describe_absent_replicas(section, missing));
+                fallbacks.warn_absent_at_attach(missing);
 
             ClusterRun cluster_run{run, parameters, section, binding, *local,
                                    source->run_index};

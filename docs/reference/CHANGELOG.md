@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-24 — distribution: Breaking change: Made a replica's draws follow the step its position pack names, so a replica started at any step draws what an uninterrupted run draws there (`replica_position.hpp`).
+- 2026-10-24 — graph: Added `CompiledStep::run_at()`, which runs a step under a run index the caller names (`compiled_step.hpp`).
+- 2026-10-24 — programs: Made the cluster master warn once per replica and cause when a replica's work falls back to it (`replica_fallback_warning.hpp`).
 - 2026-10-24 — distribution: Fixed the cluster section's duplicate check and the served kernel comparing worker names exactly, while placement compares them by their first label (`cluster_section.cpp`).
 - 2026-10-24 — programs: Made the cluster master wait for distinct workers by SushiRuntime's name match, never for its own machine, and name each missing worker with its replicas' policy (`master_cluster.hpp`).
 - 2026-10-24 — programs: Breaking change: Made the cluster master wait until every worker its section names attaches or `attach_timeout_ms` passes, and fail naming a missing `fail` worker (`master_cluster.hpp`).

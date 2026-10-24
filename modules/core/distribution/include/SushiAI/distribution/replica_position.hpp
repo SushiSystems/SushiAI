@@ -21,7 +21,7 @@
 
 /**
  * @file replica_position.hpp
- * @brief Declares ReplicaPosition, the epoch and batch a replica node reads from a pack.
+ * @brief Declares ReplicaPosition, the step, epoch and batch a replica node reads from a pack.
  * @author Mustafa Garip
  * @see modules/core/distribution/README.md
  */
@@ -37,14 +37,16 @@ namespace SushiAI
 {
     namespace Distribution
     {
-        /** @brief Holds the bytes of a position pack: two 64-bit words, little-endian. */
-        inline constexpr std::size_t K_REPLICA_POSITION_BYTES = 2 * sizeof(std::uint64_t);
+        /** @brief Holds the bytes of a position pack: three 64-bit words, little-endian. */
+        inline constexpr std::size_t K_REPLICA_POSITION_BYTES = 3 * sizeof(std::uint64_t);
 
         /**
          * @brief Names the batch a replica node of a compiled step serves on one replay.
          *
          * A node's parameters are fixed when it is recorded, so a node replayed every step
-         * reads its epoch and batch from a position pack the master rewrites before each replay.
+         * reads its step, epoch and batch from a position pack the master rewrites before each
+         * replay. Every seeded draw of the replica follows from the position, so a replica
+         * started at any step draws what an uninterrupted run draws there.
          */
         struct ReplicaPosition
         {
@@ -53,6 +55,17 @@ namespace SushiAI
 
             /** @brief The batch of the epoch, counted from 0. */
             std::uint64_t batch_index = 0;
+
+            /** @brief The step of the run, counted from 0 across epochs. */
+            std::uint64_t step = 0;
+
+            /**
+             * @brief Returns the run index of micro-batch @p micro_batch of a replica that runs
+             *        @p micro_batches a step: step × micro_batches + micro_batch.
+             * @pre @p micro_batch is below @p micro_batches.
+             */
+            [[nodiscard]] std::uint64_t draw_index(std::uint64_t micro_batches,
+                                                   std::uint64_t micro_batch) const;
 
             /**
              * @brief Returns the position of the step counted @p step from the first.

@@ -62,6 +62,11 @@
 #include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 #include "replica_test_support.hpp"
@@ -156,14 +161,14 @@ namespace
 
         SushiBLAS::Engine engine(master_runtime);
         const SushiBLAS::Tensor position_words =
-            allocate_tensor(engine, Shape{2}, DType::Int64).value();
+            allocate_tensor(engine, Shape{3}, DType::Int64).value();
         SushiBLAS::TensorPack position(
             master_runtime,
             SushiBLAS::PackLayout::of(
                 SushiRuntime::span<const SushiBLAS::Tensor>(&position_words, 1)),
             position_words.storage->device_index());
         binding.share(position);
-        const std::uint64_t named[2] = {0, batch_index};
+        const std::uint64_t named[3] = {0, batch_index, batch_index};
         std::memcpy(position.data(), named, K_REPLICA_POSITION_BYTES);
 
         std::size_t element = 0;
@@ -218,6 +223,128 @@ namespace
         std::vector<float> values(bytes.size() / sizeof(float));
         std::memcpy(values.data(), bytes.data(), values.size() * sizeof(float));
         return values;
+    }
+
+    /** @brief Holds the elements of the masked parameter of DropoutModel. */
+    constexpr std::int64_t K_MASKED_ELEMENTS = 64;
+
+    /**
+     * @brief Holds a dropout over one parameter, so the one result is the mask of the replay.
+     *
+     * The feed writes nothing: every byte of the result follows from the replay's draw index.
+     */
+    class DropoutModel final : public ReplicaModel
+    {
+        public:
+            /** @brief Traces the dropout and binds the parameter and the result. */
+            static Result<std::unique_ptr<ReplicaModel>> make(SushiBLAS::Engine& engine)
+            {
+                std::unique_ptr<DropoutModel> model(new DropoutModel(engine));
+                const Graph::GraphBuilder builder(model->graph_);
+                const Graph::ValueID ones = builder.parameter(Shape{K_MASKED_ELEMENTS}, "ones");
+                SA_TRY_ASSIGN(const Graph::DropoutResult dropped,
+                              builder.dropout(ones, 0.5, K_SEED));
+
+                SA_TRY(model->pool_.materialise_leaves(model->graph_));
+                model->parameters_ = {model->pool_.tensor(ones)};
+                SA_TRY_ASSIGN(SushiBLAS::Tensor& masked,
+                              model->pool_.materialise(dropped.output,
+                                                       model->graph_.value(dropped.output)));
+                model->results_ = {masked};
+                return Result<std::unique_ptr<ReplicaModel>>(std::move(model));
+            }
+
+            const Graph::Graph& graph() const noexcept override
+            {
+                return graph_;
+            }
+
+            Graph::TensorPool& pool() noexcept override
+            {
+                return pool_;
+            }
+
+            SushiRuntime::span<const SushiBLAS::Tensor> parameters() const noexcept override
+            {
+                return SushiRuntime::span<const SushiBLAS::Tensor>(parameters_.data(),
+                                                                   parameters_.size());
+            }
+
+            SushiRuntime::span<const SushiBLAS::Tensor> results() const noexcept override
+            {
+                return SushiRuntime::span<const SushiBLAS::Tensor>(results_.data(),
+                                                                   results_.size());
+            }
+
+            std::uint64_t fingerprint() const noexcept override
+            {
+                return K_MODEL_FINGERPRINT;
+            }
+
+            Status feed(const ReplicaRows&) override
+            {
+                return Status();
+            }
+
+        private:
+            /** @brief Builds the pool on @p engine; make() traces the graph. */
+            explicit DropoutModel(SushiBLAS::Engine& engine) : pool_(engine)
+            {
+
+            }
+
+            /// @brief The dropout over the parameter.
+            Graph::Graph graph_;
+
+            /// @brief The values of graph_.
+            Graph::TensorPool pool_;
+
+            /// @brief The parameter of ones.
+            std::vector<SushiBLAS::Tensor> parameters_;
+
+            /// @brief The masked parameter.
+            std::vector<SushiBLAS::Tensor> results_;
+    };
+
+    /** @brief Returns a kernel of one replica of four rows in two micro-batches of DropoutModel. */
+    std::unique_ptr<ReplicaKernel> make_dropout_kernel()
+    {
+        ReplicaPlan plan = ReplicaPlan::make({ReplicaShare{4, 2}}).value();
+        ReplicaModelFactory factory = [](SushiBLAS::Engine& engine, const ReplicaDraws&,
+                                         std::int64_t)
+        {
+            return DropoutModel::make(engine);
+        };
+        return ReplicaKernel::make(std::move(plan), std::move(factory),
+                                   ReplicaDraws{K_SEED, 0, K_RUN}).value();
+    }
+
+    /** @brief Serves @p kernel the step @p step of epoch 0 directly and returns its results. */
+    std::vector<unsigned char> serve_step(ReplicaKernel& kernel, std::uint64_t step)
+    {
+        std::vector<float> parameters(kernel.parameter_layout().size_bytes() / sizeof(float),
+                                      1.0f);
+        std::vector<unsigned char> results(kernel.result_layout().size_bytes());
+        const ReplicaPosition position = ReplicaPosition::at_step(step, 1);
+        const std::uint64_t words[3] = {position.epoch, position.batch_index, position.step};
+        const Distributed::BufferView inputs[2] = {
+            {parameters.data(), parameters.size() * sizeof(float)},
+            {const_cast<std::uint64_t*>(words), sizeof(words)}};
+        const Distributed::BufferView outputs[1] = {{results.data(), results.size()}};
+
+        ReplicaTask task;
+        task.replica_count = 1;
+        task.run_index = K_RUN;
+        task.seed = K_SEED;
+        const auto encoded = task.encode();
+        SushiRuntime::NodeOptions options;
+        options.parameters =
+            SushiRuntime::span<const std::uint64_t>(encoded.data(), encoded.size());
+
+        SA_EXPECT_OK(kernel.serve(SushiRuntime::span<const Distributed::BufferView>(inputs, 2),
+                                  SushiRuntime::span<const Distributed::BufferView>(outputs, 1),
+                                  options));
+        return results;
     }
 } // namespace
 
@@ -297,4 +424,21 @@ TEST(Medium_ReplicaKernel, ANodeWithoutItsPositionPackIsRefused)
                                     SushiRuntime::span<const Distributed::BufferView>(outputs, 1),
                                     options),
                       StatusCode::InvalidDescription, "1 inputs");
+}
+
+/**
+ * @brief Tests that a replica started fresh at step k draws the masks an uninterrupted replica
+ *        drew at step k, as after a resume or a worker restart.
+ */
+TEST(Medium_ReplicaKernel, AReplicaStartedAtAStepDrawsWhatAnUninterruptedRunDrewThere)
+{
+    constexpr std::uint64_t K_STEP = 3;
+    const std::unique_ptr<ReplicaKernel> uninterrupted = make_dropout_kernel();
+    std::vector<std::vector<unsigned char>> drawn;
+    for (std::uint64_t step = 0; step <= K_STEP; ++step)
+        drawn.push_back(serve_step(*uninterrupted, step));
+
+    const std::unique_ptr<ReplicaKernel> restarted = make_dropout_kernel();
+    EXPECT_EQ(serve_step(*restarted, K_STEP), drawn[K_STEP]);
+    EXPECT_NE(drawn[K_STEP], drawn[0]) << "two steps drew the same masks";
 }

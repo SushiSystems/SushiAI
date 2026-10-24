@@ -3,7 +3,7 @@
 
 Suites: `Medium_CompiledStep`.
 
-Tests `CompiledStep::restore_run_count` and the node range of `CompiledStep::compile` in
+Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node range of `CompiledStep::compile` in
 `modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
 the step's output is the mask: 4/3 where `dropout_keeps` keeps an element and 0 elsewhere,
@@ -14,6 +14,16 @@ compared within 1e-6.
 One step runs three times. A second step, with a run count of 0, is restored to 2 and runs
 once. Its run count is then 3, its output equals the first step's third output, and that
 output is the mask `dropout_keeps` gives for run 2.
+
+## RunDrawsTheMaskOfItsRunCount
+
+A step runs three times; after run `r` its output is the mask `dropout_keeps` gives for run
+`r`, so a single-machine step draws what it drew before `run_at` existed.
+
+## RunAtDrawsTheMaskOfItsIndexAndCountsTheRun
+
+`run_at(7)` leaves the mask of run 7 and a run count of 1. The `run()` after it draws the mask
+of run 1.
 
 ## ARestoreAfterARunIsRefusedWithTheCount
 

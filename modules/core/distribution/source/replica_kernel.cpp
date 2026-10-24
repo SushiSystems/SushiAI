@@ -152,6 +152,8 @@ namespace SushiAI
                        inputs.size(), outputs.size());
             SA_TRY_ASSIGN(const ReplicaPosition position, ReplicaPosition::read(inputs[1]));
             SA_TRY_ASSIGN(ReplicaStep* const step, step_for(task.draws()));
+            if (observer_ != nullptr)
+                observer_->on_served(task.replica_index, position);
             SA_TRY_ASSIGN(const std::vector<SushiBLAS::BoundPack> parameters,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Execute,
                                                        [&]()
@@ -181,6 +183,7 @@ namespace SushiAI
                 rows.batch_index = position.batch_index;
                 rows.micro_batch_index = index;
                 rows.rows = plan_.micro_batch(replica, position.batch_index, index);
+                rows.draw_index = position.draw_index(micro_batches, index);
                 rows.draws = task.draws();
                 SA_TRY(SA_ANNOTATE(step->run_micro_batch(rows),
                                    "replica {}, batch {}, micro-batch {}: ", replica,

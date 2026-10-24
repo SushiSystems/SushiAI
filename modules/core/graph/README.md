@@ -157,7 +157,9 @@ step, and each prelude gets `run_count()`. `run_count()` is 0 before the first r
 finished. `restore_run_count(count)` sets it to what the step of a saved run had reached, so
 the preludes of a resumed run get the indices the saved run would have given next. It returns
 `InvalidDescription` with the count once the step has run or has been restored to a count
-above 0. `replay_prelude_count()` returns how many a step
+above 0. `run_at(index)` replays once with the preludes given `index` instead of `run_count()`,
+and still counts the run, for a caller whose run index follows from a position it is told.
+`replay_prelude_count()` returns how many a step
 holds. A step whose graph registers none and has no trailing recorder adds no hook.
 
 A prelude writes host-addressable memory that no task of the step writes, while no replay is in

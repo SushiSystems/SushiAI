@@ -50,14 +50,13 @@ namespace SushiAI
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                const std::size_t* finished_runs = &run_count_;
+                const std::uint64_t* run_index = &prelude_index_;
                 for (ReplayPrelude& prelude : preludes)
                 {
                     // A run() replays one step, so the hook's own count is always 0.
-                    graph_.before_each_step(
-                        [finished_runs, work = std::move(prelude)](std::size_t)
+                    graph_.before_each_step([run_index, work = std::move(prelude)](std::size_t)
                     {
-                        work(static_cast<std::uint64_t>(*finished_runs));
+                        work(*run_index);
                     });
                     ++prelude_count_;
                 }
@@ -155,9 +154,15 @@ namespace SushiAI
 
         Status CompiledStep::run()
         {
+            return run_at(static_cast<std::uint64_t>(run_count_));
+        }
+
+        Status CompiledStep::run_at(std::uint64_t run_index)
+        {
             if (empty_)
                 return Status();
 
+            prelude_index_ = run_index;
             SA_TRY(SushiAI::Detail::run_step(graph_, report_));
             ++run_count_;
 

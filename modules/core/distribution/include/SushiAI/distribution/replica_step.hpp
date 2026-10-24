@@ -114,7 +114,8 @@ namespace SushiAI
                 [[nodiscard]] Status begin(const SushiBLAS::BoundPack& parameters);
 
                 /**
-                 * @brief Feeds one micro-batch, replays the step and adds its results.
+                 * @brief Feeds one micro-batch, replays the step at its draw index and adds its
+                 *        results.
                  * @return Success, or the failure of the feed or of the replay.
                  */
                 [[nodiscard]] Status run_micro_batch(const ReplicaRows& rows);

@@ -22,7 +22,7 @@
 
 /**
  * @file test_compiled_step.cpp
- * @brief Tests that a compiled step restores its run count once, before its first run.
+ * @brief Tests a compiled step's run index: its run count, its restore and run_at().
  * @author Mustafa Garip
  */
 
@@ -148,6 +148,31 @@ TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
     EXPECT_EQ(resumed->step->run_count(), 3u);
     EXPECT_EQ(SaTest::read_tensor(resumed->pool.tensor(resumed->masked)), third);
     expect_mask_of_run(third, 2);
+}
+
+/** @brief Tests that run() draws the mask of its run count, so single-machine draws stay put. */
+TEST_F(Medium_CompiledStep, RunDrawsTheMaskOfItsRunCount)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+
+    for (std::uint64_t run = 0; run < 3; ++run)
+    {
+        SA_EXPECT_OK(made->step->run());
+        expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), run);
+    }
+}
+
+/** @brief Tests that run_at() draws the mask of the index it is given and counts the run. */
+TEST_F(Medium_CompiledStep, RunAtDrawsTheMaskOfItsIndexAndCountsTheRun)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+
+    SA_EXPECT_OK(made->step->run_at(7));
+    expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), 7);
+    EXPECT_EQ(made->step->run_count(), 1u);
+
+    SA_EXPECT_OK(made->step->run());
+    expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), 1);
 }
 
 /** @brief Tests that a step that has run refuses a restore and keeps its count. */

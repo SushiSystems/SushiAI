@@ -46,17 +46,29 @@ TEST(Small_ReplicaPosition, AStepSplitsIntoEpochAndBatch)
     const ReplicaPosition later = ReplicaPosition::at_step(12, 5);
     EXPECT_EQ(later.epoch, 2u);
     EXPECT_EQ(later.batch_index, 2u);
+    EXPECT_EQ(later.step, 12u);
 }
 
-/** @brief Tests that read() takes the epoch and the batch from the first two words. */
-TEST(Small_ReplicaPosition, ReadTakesTheFirstTwoWords)
+/** @brief Tests that the draw index counts every micro-batch of every step before it. */
+TEST(Small_ReplicaPosition, TheDrawIndexCountsTheMicroBatchesOfEveryEarlierStep)
 {
-    std::uint64_t words[3] = {7, 41, 99};
+    const ReplicaPosition position = ReplicaPosition::at_step(7, 5);
+
+    EXPECT_EQ(position.draw_index(3, 0), 21u);
+    EXPECT_EQ(position.draw_index(3, 2), 23u);
+    EXPECT_EQ(ReplicaPosition::at_step(0, 5).draw_index(1, 0), 0u);
+}
+
+/** @brief Tests that read() takes the epoch, the batch and the step from the first three words. */
+TEST(Small_ReplicaPosition, ReadTakesTheFirstThreeWords)
+{
+    std::uint64_t words[4] = {7, 41, 123, 99};
     const SushiRuntime::Distributed::BufferView view{words, sizeof(words)};
 
     SA_ASSERT_OK_AND_ASSIGN(const ReplicaPosition position, ReplicaPosition::read(view));
     EXPECT_EQ(position.epoch, 7u);
     EXPECT_EQ(position.batch_index, 41u);
+    EXPECT_EQ(position.step, 123u);
 }
 
 /** @brief Tests that read() refuses a view with no memory or too few bytes. */

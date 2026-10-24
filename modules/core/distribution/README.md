@@ -159,9 +159,12 @@ and one output, the result pack. The kernel refuses any other count as `InvalidD
 count, each as `InvalidDescription`.
 
 The runtime copies a node's words when the node is recorded, and a compiled step replays them
-unchanged, so the epoch and the batch travel in the position pack: 16 bytes, the epoch and then
-the batch index as two little-endian 64-bit words, which `ReplicaPosition::read()` reads. The
-master rewrites the pack before each replay.
+unchanged, so the epoch, the batch and the step travel in the position pack: 24 bytes, the
+epoch, the batch index and the step counted across epochs as three little-endian 64-bit words,
+which `ReplicaPosition::read()` reads. The master rewrites the pack before each replay. Micro-batch
+`i` of a replica that runs `m` a step replays at draw index `step × m + i`
+(`ReplicaPosition::draw_index()`, through `CompiledStep::run_at()`), so a replica started at any
+step, after a resume or a worker restart, draws the masks an uninterrupted run draws there.
 
 ## The packs
 
@@ -258,7 +261,9 @@ thrown as `std::runtime_error`, which the kernel registry's contract reports as 
 The kernel keeps one step per replica index, built the first time a task names that replica or
 a new seed or run index, and refuses one whose fingerprint differs as `Incompatible`. A worker
 pinned to one replica builds one step. A master that runs a lost worker's replica builds one more
-step, with its own runtime. Tasks are served one at a time.
+step, with its own runtime. Tasks are served one at a time. `observe()` hands the kernel a
+`ReplicaServeObserver`, told of each task before it runs; the master's kernel tells the program,
+which logs the fallback WARN of a replica placed on another machine.
 
 ## Seeded draws
 

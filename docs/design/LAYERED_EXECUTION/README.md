@@ -110,7 +110,7 @@ The master is one of the five machines and trains a part of the batch itself.
 2. **Dispatch.** The master's step records one replica task per replica inside the placement
    scope `sushiai.replica` with the replica's index as key. Its `NodeOptions` parameters are the
    replica index, the replica count, the run index and the seed, and its second input is the
-   position pack that holds the epoch and the batch index. The
+   position pack that holds the epoch, the batch index and the step counted across epochs. The
    rules the training spec produced send replica `k` to the worker named for it; one whose worker
    is lost runs on the master through the same kernel, or waits, as the spec says.
 3. **Replica work.** A replica pulls the parameter pack once per step (the cache holds it until

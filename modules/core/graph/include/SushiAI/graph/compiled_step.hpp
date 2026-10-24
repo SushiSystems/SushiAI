@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
@@ -81,6 +82,15 @@ namespace SushiAI
                  * @return Success, also for an empty step, or the failure of the run.
                  */
                 [[nodiscard]] Status run();
+
+                /**
+                 * @brief Replays the step once, as run() does, but calls each replay prelude
+                 *        with @p run_index instead of run_count().
+                 *
+                 * run_count() still counts the run.
+                 * @return What run() returns.
+                 */
+                [[nodiscard]] Status run_at(std::uint64_t run_index);
 
                 /** @brief Returns how many replay preludes the lowered nodes registered. */
                 [[nodiscard]] std::size_t replay_prelude_count() const noexcept
@@ -180,6 +190,9 @@ namespace SushiAI
 
                 /// @brief The number of replay preludes graph_ holds as hooks.
                 std::size_t prelude_count_ = 0;
+
+                /// @brief The index the replay preludes of the coming replay are called with.
+                std::uint64_t prelude_index_ = 0;
 
                 /// @brief The runs finished, counted from what restore_run_count() set.
                 std::size_t run_count_ = 0;

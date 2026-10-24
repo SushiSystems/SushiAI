@@ -43,7 +43,18 @@ namespace SushiAI
             ReplicaPosition position;
             position.epoch = step / batches_per_epoch;
             position.batch_index = step % batches_per_epoch;
+            position.step = step;
             return position;
+        }
+
+        std::uint64_t ReplicaPosition::draw_index(std::uint64_t micro_batches,
+                                                  std::uint64_t micro_batch) const
+        {
+            SA_FATAL_IF(micro_batch >= micro_batches,
+                        "ReplicaPosition::draw_index: micro-batch {} of a step of {}",
+                        micro_batch, micro_batches);
+
+            return step * micro_batches + micro_batch;
         }
 
         Result<ReplicaPosition> ReplicaPosition::read(
@@ -56,12 +67,13 @@ namespace SushiAI
                        view.size_bytes, K_REPLICA_POSITION_BYTES);
 
             // Every machine of a cluster is little-endian; pack_layout.cpp refuses any other.
-            std::uint64_t words[2] = {0, 0};
+            std::uint64_t words[3] = {0, 0, 0};
             std::memcpy(words, view.data, K_REPLICA_POSITION_BYTES);
 
             ReplicaPosition position;
             position.epoch = words[0];
             position.batch_index = words[1];
+            position.step = words[2];
             return position;
         }
 
