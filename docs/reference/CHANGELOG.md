@@ -3,17 +3,18 @@
 ## Unreleased
 
 - 2026-10-24 — programs: Made the cluster master wait for distinct workers by SushiRuntime's name match, never for its own machine, and name each missing worker with its replicas' policy (`master_cluster.hpp`).
-- 2026-10-24 — programs: Made the cluster master wait until every worker its section names attaches or `attach_timeout_ms` passes, and fail naming a missing `fail` worker (`master_cluster.hpp`).
+- 2026-10-24 — programs: Breaking change: Made the cluster master wait until every worker its section names attaches or `attach_timeout_ms` passes, and fail naming a missing `fail` worker (`master_cluster.hpp`).
 - 2026-10-24 — eager: Gave each SushiAI recording its own SushiBLAS late-count hold, so a replayed late task outlives its recorder, and placed each pack on its tensors' device (`region_emitter.hpp`, `compiled_step.hpp`).
 - 2026-10-24 — distribution: Fixed a worker whose training file differs from the master's diverging silently; the replica fingerprint folds every part of the file a replica's result depends on (`training_replica_model.hpp`).
 - 2026-10-24 — distribution: Made `SA_DISTRIBUTED` a public definition of the distribution module, so an installed consumer sees the distribution headers (`SushiAI.hpp`).
-- 2026-10-24 — distribution: Renamed the replica plan's `RowRange` to `RowPositions` (`replica_plan.hpp`).
+- 2026-10-24 — distribution: Breaking change: Renamed the replica plan's `RowRange` to `RowPositions` (`replica_plan.hpp`).
 - 2026-10-24 — distribution: Summed `UInt32` as an exact count on both the exchange and the accumulator, and asserted host access at every host copy of a pack (`exact_sum.hpp`, `host_access.hpp`).
-- 2026-10-24 — data: Made `check_rows()` return `InvalidDescription` instead of stopping the process (`dataset.hpp`).
+- 2026-10-24 — data: Breaking change: Made `check_rows()` return `InvalidDescription` instead of stopping the process (`dataset.hpp`).
 - 2026-10-24 — programs: Made `sushiai_worker` answer `--help` and `--version` and refuse a flag before the training file, (`worker_arguments.hpp`).
 - 2026-10-24 — programs: Ran the trainer and the cluster run through one epoch loop (`epoch_loop.hpp`).
 - 2026-10-24 — build: Stopped configure when SushiRuntime's or SushiBLAS's distributed option is set off by hand while SushiAI's is on (`SushiAIDistributedOptions.cmake`).
-- 2026-10-24 — data: Added `Dataset::read_rows()`, a read of a row range of one batch that every dataset kind implements without reading the rows outside it (`dataset.hpp`).
+- 2026-10-24 — data: Breaking change: Added the pure virtual `Dataset::read_rows()`, a read of a row range of one batch, which every dataset kind implements without reading the rows outside it (`dataset.hpp`).
+- 2026-10-24 — distribution: Breaking change: Removed the run index from `make_served_kernel()` (`replica_task.hpp`).
 - 2026-10-24 — programs: Made each replica read only its own rows and the master hold only the step's results, not the whole batch's activations (`training_setup.hpp`).
 - 2026-10-24 — hash: Made `Shape::hash`, `signature_of` and the sample cache file names call it, with every value unchanged (`shape.hpp`, `region_signature.cpp`, `sample_cache.cpp`).
 - 2026-10-24 — hash: Added the one FNV-1a that the replica fingerprints fold through (`fnv1a.hpp`).
@@ -23,16 +24,16 @@
 - 2026-10-24 — cli: Added `sa build --distributed`, which builds SushiAI with its distribution module (`cli.py`, `distributed.py`).
 - 2026-10-24 — distribution: Summed the replicas' result packs segment by segment in place with `ordered_sum()`, with no master copies, and refused a `UInt32` result (`gradient_exchange.cpp`).
 - 2026-10-24 — dtype: Sized and named SushiBLAS's `UInt32`, and made the checkpoint reader and writer refuse it in words, since the `.sushi` format does not carry it (`dtype.hpp`, `checkpoint_format.cpp`).
-- 2026-10-24 — graph: Changed `StepRecorder::record_into_step()` to take a `StepRecording`, which hands out both the task recorder and the runtime recorder of the graph (`step_recording.hpp`, `step_recorder.hpp`).
+- 2026-10-24 — graph: Breaking change: Changed `StepRecorder::record_into_step()` to take a `StepRecording`, which hands out both the task recorder and the runtime recorder of the graph (`step_recording.hpp`, `step_recorder.hpp`).
 - 2026-10-24 — distribution: Added `GradientExchange` and `ParameterPublish`, which record the replica tasks, their ordered sum and the parameter pack around the optimizer (`gradient_exchange.hpp`, `parameter_publish.hpp`).
-- 2026-10-24 — distribution: Cut a replica node to four parameters and moved its epoch and batch into a required position pack, its second input (`replica_task.hpp`, `replica_position.hpp`).
+- 2026-10-24 — distribution: Breaking change: Cut a replica node to four parameters and moved its epoch and batch into a required position pack, its second input (`replica_task.hpp`, `replica_position.hpp`).
 - 2026-10-24 — train: Added `TrainingStepOptions::before_update` and `after_update`, step recorders around the optimizer (`training_step.hpp`).
 - 2026-10-24 — execution: Included the task recorder's header where `record_and_run()` names it (`execution.hpp`).
 - 2026-10-24 — distribution: Added `ReplicaStep`, a forward and backward step on a runtime of its own, and `ReplicaKernel`, the kernel that runs a replica's micro-batches (`replica_step.hpp`, `replica_kernel.hpp`).
-- 2026-10-24 — io: Removed the unread `Engine&` of `save_checkpoint()` and `save_run_checkpoint()`, which save what the caller's graph already wrote (`checkpoint.hpp`, `run_checkpoint.hpp`).
+- 2026-10-24 — io: Breaking change: Removed the unread `Engine&` of `save_checkpoint()` and `save_run_checkpoint()`, which save what the caller's graph already wrote (`checkpoint.hpp`, `run_checkpoint.hpp`).
 - 2026-10-24 — distribution: Added the distribution module, built under `SA_ENABLE_DISTRIBUTED`, which turns a spec's cluster section into placement rules and gives each replica its rows (`cluster_section.hpp`, `replica_plan.hpp`).
-- 2026-10-24 — execution: Removed `run_recorded()` and `discard_recorded()`, added `create_graph()` and `run_once()`, and made record_and_run() record on a graph it owns (`execution.hpp`).
-- 2026-10-24 — nn: Changed every initializer except `initialize()` to take a `RandomOps&` over the caller's recorder instead of an engine (`init.hpp`).
+- 2026-10-24 — execution: Breaking change: Removed `run_recorded()` and `discard_recorded()`, added `create_graph()` and `run_once()`, and made record_and_run() record on a graph it owns (`execution.hpp`).
+- 2026-10-24 — nn: Breaking change: Changed every initializer except `initialize()` to take a `RandomOps&` over the caller's recorder instead of an engine (`init.hpp`).
 - 2026-10-24 — io: Stopped the checkpoint savers running the engine's graph; they save what the caller's graph already wrote (`checkpoint.cpp`, `run_checkpoint.cpp`).
 - 2026-10-21 — docs: Gave the seven design documents the five design sections and a phase table, split the graph plan into a topic folder, and took the design format checker (`GRAPH_CAPABILITIES/`, `check_design_format.py`).
 - 2026-10-20 — docs: Moved 5 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).
