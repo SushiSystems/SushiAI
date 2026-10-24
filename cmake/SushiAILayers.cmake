@@ -42,6 +42,7 @@ set(SUSHIAI_MODULE_TIERS
     optim                core
     data                 core
     eager                core
+    distribution         core
     engine_fixture       core
     failure_expectations core
     tensor_values        core

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-24 — distribution: Added the distribution module, built under `SA_ENABLE_DISTRIBUTED`, which turns a spec's cluster section into placement rules and gives each replica its rows (`cluster_section.hpp`, `replica_plan.hpp`).
 - 2026-10-24 — execution: Removed `run_recorded()` and `discard_recorded()`, added `create_graph()` and `run_once()`, and made record_and_run() record on a graph it owns (`execution.hpp`).
 - 2026-10-24 — nn: Changed every initializer except `initialize()` to take a `RandomOps&` over the caller's recorder instead of an engine (`init.hpp`).
 - 2026-10-24 — io: Stopped the checkpoint savers running the engine's graph; they save what the caller's graph already wrote (`checkpoint.cpp`, `run_checkpoint.cpp`).

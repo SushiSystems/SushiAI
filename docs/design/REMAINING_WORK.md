@@ -219,7 +219,7 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 
 ### RW-45 Follow SushiRuntime v0.4.0 and the first SushiBLAS tag
 - State: blocked
-- Blocked by: sushiruntime RW-3, sushiblas RW-8
+- Blocked by: sushiblas RW-8, external: the SushiRuntime tag that carries LAYERED_EXECUTION R1 to R10
 - Done when: the spellings this tree uses build against SushiRuntime v0.4.0, and CI pins
   `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` to tags
 - Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`

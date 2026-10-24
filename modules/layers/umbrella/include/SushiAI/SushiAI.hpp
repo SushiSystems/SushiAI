@@ -158,6 +158,11 @@
 #include <SushiAI/eager/region_signature.hpp>
 #include <SushiAI/eager/storage_id.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
+
+#if defined(SA_DISTRIBUTED)
+#include <SushiAI/distribution/replica_plan.hpp>
+#include <SushiAI/distribution/cluster_section.hpp>
+#endif
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/slot_ledger.hpp>
 #include <SushiAI/eager/region_table.hpp>

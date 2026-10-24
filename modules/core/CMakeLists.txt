@@ -22,6 +22,9 @@ add_subdirectory(autograd)
 add_subdirectory(optim)
 add_subdirectory(data)
 add_subdirectory(eager)
+if(SA_ENABLE_DISTRIBUTED)
+    add_subdirectory(distribution)
+endif()
 
 # The modules only the tests use; see cmake/SushiAITestProgram.cmake.
 if(SA_BUILD_TESTS)

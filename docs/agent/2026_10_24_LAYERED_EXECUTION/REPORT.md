@@ -1,6 +1,6 @@
 # Layered execution in SushiAI: report
 
-**Status:** Open — A0 landed on 2026-10-24; not built yet.
+**Status:** Open — A0 and A1 landed on 2026-10-24; not built yet.
 
 ## A0
 
@@ -25,8 +25,29 @@ hand because `build/compile_commands.json` predates the module layout; the check
 `tools/` pass. `checkpoint.hpp`, `run_checkpoint.hpp` and the other users of `init.hpp` were
 not checked. Not built.
 
+## A1
+
+`modules/core/distribution/` builds under `SA_ENABLE_DISTRIBUTED`, which also defines
+`SA_DISTRIBUTED`; `SushiAI.hpp` includes its two headers under that macro, and the umbrella names
+the module only when it is built (the owner's ruling of 2026-10-24). The spec's `cluster` section
+holds `listen`, `secret_file` and `replicas`, each replica a `worker`, `rows`, `micro_batch`,
+`if_absent`, an optional `wait_ms` and `priority`. `if_absent` has no default, so a run cannot
+lose its repeatability by omission; the owner ruled it required, and ruled that the `cluster` key
+raises `K_TRAIN_VERSION` when `parse_train` accepts it (A4). Replica 0 is the master and its
+`worker` names the master's own machine, so no replica is a special case. In batch `b`, replica
+`k` takes `r_k` positions of the epoch's order from `b·B + Σ_{j<k} r_j`, micro-batch `i` from
+`i·m_k` past that, with weight `r_k / B`. `ReplicaPlan` includes nothing of SushiRuntime, so it
+runs on every machine; `ClusterSection` builds one rule per replica, `sushiai.replica` exact with
+key `k`, named `replica k`.
+
+Seen and kept: a three-line path resolver duplicates a private helper of `train_config.cpp`;
+`secret_file` is resolved but not opened when the section is read.
+
+Owed at A4: the `cluster` row in `docs/guides/RUNNING_MODELS.md`'s table of optional keys.
+
 ## Dispatches
 
 ```
 dispatch: A0 — sonnet medium, 93 turns, passed, rung 1
+dispatch: A1 — sonnet medium, 73 turns, passed, rung 1
 ```

@@ -6,23 +6,48 @@
 
 # umbrella: the header that includes every public header of core and layers.
 
-sushiai_add_module(NAME umbrella TIER layers
-    PUBLIC_DEPENDS
-        allocation
-        autograd
-        config
-        data
-        dtype
-        eager
-        execution
-        failure
-        graph
-        io
-        log
-        nn
-        ops
-        optim
-        seam
-        shape
-        train
-        version)
+# SushiAI.hpp includes the distribution headers under SA_DISTRIBUTED, which SA_ENABLE_DISTRIBUTED sets.
+if(SA_ENABLE_DISTRIBUTED)
+    sushiai_add_module(NAME umbrella TIER layers
+        PUBLIC_DEPENDS
+            allocation
+            autograd
+            config
+            data
+            dtype
+            eager
+            execution
+            failure
+            graph
+            io
+            log
+            nn
+            ops
+            optim
+            seam
+            shape
+            train
+            version
+            distribution)
+else()
+    sushiai_add_module(NAME umbrella TIER layers
+        PUBLIC_DEPENDS
+            allocation
+            autograd
+            config
+            data
+            dtype
+            eager
+            execution
+            failure
+            graph
+            io
+            log
+            nn
+            ops
+            optim
+            seam
+            shape
+            train
+            version)
+endif()
