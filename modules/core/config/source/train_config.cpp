@@ -28,6 +28,8 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/failure/error.hpp>
 
+#include <cstdint>
+#include <string>
 #include <utility>
 #include <SushiRuntime/core/span.hpp>
 
@@ -39,6 +41,12 @@ namespace SushiAI
         {
             /** @brief Every key a train document may carry at the top level. */
             constexpr std::string_view K_TRAIN_KEYS[] = {
+                "sushiai_train", "model", "objective", "data", "optimizer",
+                "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
+            };
+
+            /** @brief Every key a train document before K_TRAIN_CLUSTER_VERSION may carry. */
+            constexpr std::string_view K_TRAIN_KEYS_BEFORE_CLUSTER[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
                 "schedule", "epochs", "seed", "weights", "resume", "checkpoint",
             };
@@ -65,6 +73,32 @@ namespace SushiAI
                 const std::filesystem::path spelled(text);
                 if (spelled.is_absolute()) return spelled;
                 return base / spelled;
+            }
+
+            /**
+             * @brief Reads the version of a train document: this build's or an older one.
+             * @param root The document root.
+             * @param origin What to call the document in a diagnostic.
+             * @return The version, from 1 to K_TRAIN_VERSION.
+             * @throws Error If the version is absent, no integer, or outside that range.
+             */
+            std::int64_t read_train_version(const Value& root, std::string_view origin)
+            {
+                // A version this build reads is checked as itself; any other as the current.
+                std::int64_t expected = K_TRAIN_VERSION;
+                if (root.kind() == Kind::Object && root.has("sushiai_train"))
+                {
+                    const Value& stated = root.at("sushiai_train", origin);
+                    if (stated.kind() == Kind::Int)
+                    {
+                        const std::int64_t version = stated.as_int("'sushiai_train'");
+                        if (version >= 1 && version <= K_TRAIN_VERSION)
+                            expected = version;
+                    }
+                }
+
+                require_version(root, "sushiai_train", expected, origin);
+                return expected;
             }
 
             /**
@@ -119,10 +153,15 @@ namespace SushiAI
         TrainSpec parse_train(const Value& root, std::string_view origin,
                               const std::filesystem::path& base)
         {
-            require_version(root, "sushiai_train", K_TRAIN_VERSION, origin);
-            root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS));
+            // A version before K_TRAIN_CLUSTER_VERSION refuses "cluster" as an unknown key.
+            const std::int64_t version = read_train_version(root, origin);
+            if (version < K_TRAIN_CLUSTER_VERSION)
+                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_CLUSTER));
+            else
+                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS));
 
             TrainSpec spec;
+            spec.base = base;
             const std::string origin_text(origin);
 
             spec.model_path = resolve(
@@ -163,6 +202,9 @@ namespace SushiAI
                 spec.checkpoint = resolve(
                     base, root.at("checkpoint", origin)
                               .as_string("'" + origin_text + "'s 'checkpoint'"));
+
+            // The section stays opaque here, as "schedule" does; an absent key leaves null.
+            spec.cluster = root.at_or("cluster", Value());
 
             return spec;
         }

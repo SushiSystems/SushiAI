@@ -27,6 +27,30 @@ else()
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_language_none.cpp")
 endif()
 
+# The cluster units and their tests exist in a distributed build; any other
+# build compiles the refusal in their place.
+set(SUSHIAI_PROGRAM_TEST_CLUSTER)
+set(SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS)
+if(SA_ENABLE_DISTRIBUTED)
+    list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER
+        source/test_cluster_run.cpp
+        source/test_cluster_training.cpp
+        source/test_master_cluster.cpp
+        source/test_replica_tensors.cpp
+        source/test_served_kernel.cpp
+        source/test_training_replica_model.cpp
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/master_cluster.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/served_kernel.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_replica_model.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp")
+    list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS distribution)
+else()
+    list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training_none.cpp")
+endif()
+
 sushiai_add_test_program(APPLICATION programs
     SOURCES
         source/test_domains.cpp
@@ -35,16 +59,20 @@ sushiai_add_test_program(APPLICATION programs
         source/test_run_start.cpp
         source/test_trainer_run.cpp
         source/test_training_run.cpp
+        source/test_training_setup.cpp
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/registries.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_setup.cpp"
+        ${SUSHIAI_PROGRAM_TEST_CLUSTER}
         ${SUSHIAI_PROGRAM_TEST_DOMAINS}
     DEPENDS
         classifier_objective
         failure_expectations
         scratch_files
+        ${SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS}
     LINKS
         ${SUSHIAI_PROGRAM_TEST_LINKS}
     INCLUDES

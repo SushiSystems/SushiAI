@@ -40,8 +40,11 @@ namespace SushiAI
 {
     namespace Config
     {
-        /** @brief The train-file version this build reads. */
-        inline constexpr std::int64_t K_TRAIN_VERSION = 1;
+        /** @brief The train-file version this build writes; it reads this one and every older. */
+        inline constexpr std::int64_t K_TRAIN_VERSION = 2;
+
+        /** @brief The first train-file version that may carry the "cluster" key. */
+        inline constexpr std::int64_t K_TRAIN_CLUSTER_VERSION = 2;
 
         /** @brief The standalone data-file version this build reads. */
         inline constexpr std::int64_t K_DATA_VERSION = 1;
@@ -111,6 +114,16 @@ namespace SushiAI
 
             /** @brief Where to write the checkpoint; empty means do not write one. */
             std::filesystem::path checkpoint;
+
+            /**
+             * @brief Holds the "cluster" object of the file, null when the file has none.
+             *
+             * This module reads none of it; @c Distribution::ClusterSection::read does.
+             */
+            Value cluster;
+
+            /** @brief The directory the file's relative paths resolve against. */
+            std::filesystem::path base;
         };
 
         /**

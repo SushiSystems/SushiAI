@@ -1,6 +1,6 @@
 # Layered execution in SushiAI: report
 
-**Status:** Open — A0 to A3 landed on 2026-10-24; not built yet.
+**Status:** Open — A0 to A4 landed on 2026-10-24; not built yet.
 
 ## A0
 
@@ -87,6 +87,26 @@ into the gradients once; the master copies and their N scatters are gone. Each e
 the sum of the same N inputs in the same order with the same weight and accumulation type, since
 `ordered_sum()` never reduces across elements, so the bytes are those of the previous path.
 
+## A4
+
+`parse_train` keeps the cluster section as an opaque value, as it keeps `schedule`, and the
+program hands it to `ClusterSection::read`: `core/config` cannot depend on `distribution`, which
+a build without the flag does not have. The training file is version 2; version 1 still reads and
+refuses a `cluster` key as an unknown one. `ReplicaModel` is implemented in the programs, since
+putting distribution into `layers/train` would make that module conditional. The cluster run
+links in through `cluster_training.cpp` or `cluster_training_none.cpp`, which names the flag,
+so no source holds an `#if`. `sushiai_worker <train.json> [SushiRuntime worker flags]` hands the
+flags to SushiRuntime's own parser; `--name` picks the replica. The master's runtime takes the
+name of replica 0's machine, so replica 0 stays on the master; the master waits 60 s for its
+workers and then lets each rule's absent policy decide.
+
+The acceptance test runs the master's step and a worker's served kernel over SushiRuntime's
+`InProcessFabric`: one compile, one step, one offload, the parameters changed. It does not reach
+the TCP attach or `run_worker`; the repository has no child-process helper. A4b fixes what the
+first round left: each replica reads the whole batch instead of its rows, the master plans
+activation memory for rows it never runs, the FNV-1a constants exist twice, and `TrainingSetup`
+exposes its members.
+
 ## A8, SushiBLAS's `UInt32`
 
 SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no
@@ -107,4 +127,5 @@ dispatch: A2 — opus low, 108 turns, passed, rung 1
 dispatch: A3 — opus low, 168 turns over two rounds, passed, rung 1
 dispatch: A8 — sonnet medium, passed, rung 1
 dispatch: A3 in-place sum — opus low, passed, rung 1
+dispatch: A4 — opus low, 170 turns, passed, rung 1
 ```

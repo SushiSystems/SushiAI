@@ -404,11 +404,41 @@ TEST(Medium_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 TEST(Medium_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
-        "sushiai_train": 2, "model": "m.json",
+        "sushiai_train": 3, "model": "m.json",
         "objective": {"type": "cross_entropy"},
         "data": {"type": "rings"},
         "optimizer": {"type": "adamw"}
-    })"), "version 2", "version 1");
+    })"), "version 3", "version 2");
+}
+
+/** @brief Tests that a version 1 file without a cluster section still reads. */
+TEST(Medium_TrainConfig, AVersionOneFileStillReads)
+{
+    const TrainSpec spec = parse_with("");
+
+    EXPECT_EQ(spec.optimizer_type, "sgd");
+    EXPECT_TRUE(spec.cluster.is_null());
+}
+
+/** @brief Tests that a version 1 file that states "cluster" is refused, naming the key. */
+TEST(Medium_TrainConfig, AClusterInAVersionOneFileIsRefused)
+{
+    SA_EXPECT_ERROR((void)parse_with(R"(, "cluster": {})"), "'cluster'");
+}
+
+/** @brief Tests that a version 2 file carries its cluster section as the file states it. */
+TEST(Medium_TrainConfig, AVersionTwoFileCarriesTheClusterUnread)
+{
+    const TrainSpec spec = train_from(R"({
+        "sushiai_train": 2, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "cluster": {"listen": "0.0.0.0:7700", "unread_here": 1}
+    })");
+
+    ASSERT_EQ(spec.cluster.kind(), Kind::Object);
+    EXPECT_TRUE(spec.cluster.has("unread_here"));
 }
 
 TEST(Medium_TrainConfig, ParsesAnEvalDocument)

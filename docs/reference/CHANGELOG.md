@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-24 — config: Raised the training file to version 2, which may hold a `cluster` section, and kept reading version 1 (`train_config.hpp`).
+- 2026-10-24 — programs: Added `sushiai_worker` and made `sushiai_train` train a file's cluster section over its replicas in a distributed build (`sushiai_worker.cpp`, `cluster_training.hpp`).
+- 2026-10-24 — cli: Added `sa build --distributed`, which builds SushiAI with its distribution module (`cli.py`, `distributed.py`).
 - 2026-10-24 — distribution: Summed the replicas' result packs segment by segment in place with `ordered_sum()`, with no master copies, and refused a `UInt32` result (`gradient_exchange.cpp`).
 - 2026-10-24 — dtype: Sized and named SushiBLAS's `UInt32`, and made the checkpoint reader and writer refuse it in words, since the `.sushi` format does not carry it (`dtype.hpp`, `checkpoint_format.cpp`).
 - 2026-10-24 — graph: Changed `StepRecorder::record_into_step()` to take a `StepRecording`, which hands out both the task recorder and the runtime recorder of the graph (`step_recording.hpp`, `step_recorder.hpp`).

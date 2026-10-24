@@ -39,22 +39,19 @@
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
-#include <SushiAI/data/roles.hpp>
-#include <SushiAI/data/target.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/optim/cosine_schedule.hpp>
 #include <SushiAI/optim/rate_schedule.hpp>
 #include <SushiAI/optim/run_schedule.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
-#include <SushiAI/train/objective_context.hpp>
-#include <SushiAI/train/objective_registry.hpp>
-#include <SushiAI/train/role_match.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
+#include "cluster_training.hpp"
 #include "registries.hpp"
 #include "run_start.hpp"
 #include "training_run.hpp"
+#include "training_setup.hpp"
 
 namespace sb = SushiBLAS;
 
@@ -69,25 +66,11 @@ namespace
         "  train.json names the architecture file, the objective, the data, the\n"
         "  optimizer, the epoch count, the seed, the weights to start from or the\n"
         "  checkpoint to resume, and where to write the checkpoint. The model, weights,\n"
-        "  resume and checkpoint paths resolve against its own directory.\n";
-
-    /** @brief Lists the roles whose description states the class count of a dataset. */
-    constexpr std::string_view K_CLASS_ROLES[] = {sa::Data::K_ROLE_LABELS,
-                                                  sa::Data::K_ROLE_CLASSES};
-
-    /** @brief Returns the class count the first class role of @p dataset states, else 0. */
-    [[nodiscard]] int64_t class_count_of(const sa::Data::Dataset& dataset) noexcept
-    {
-        for (const std::string_view role : K_CLASS_ROLES)
-        {
-            const sa::Data::TargetDescription* const described =
-                sa::Data::find_target(dataset.targets(), role);
-            if (described != nullptr)
-                return described->classes;
-        }
-
-        return 0;
-    }
+        "  resume and checkpoint paths resolve against its own directory.\n"
+        "\n"
+        "  A file with a 'cluster' section makes this program the master: it trains over\n"
+        "  the replicas the section names, each served by `sushiai_worker` on its machine.\n"
+        "  A build without `sa build --distributed` refuses such a file.\n";
 
     /** @brief Returns what the header prints for a step schedule. */
     [[nodiscard]] std::string describe_schedule(const sa::Optim::StepSchedule& schedule)
@@ -139,75 +122,33 @@ namespace
         SA_TRY(sa::Config::check_start(spec, argv[1]));
         const sa::Config::ModelSpec model_spec = sa::Config::load_model(spec.model_path);
 
-        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
+        SA_TRY_ASSIGN(const sr::RuntimeConfig runtime_config,
+                      sa::Apps::training_runtime_config(spec));
+        SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime(runtime_config));
         sb::Engine engine(runtime);
 
         // Everything below is picked by string, not by type; see applications/programs/README.md.
 
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 
-        SA_TRY_ASSIGN(const std::unique_ptr<sa::Data::Dataset> dataset,
-                      sa::Data::make_dataset(registries.datasets, engine, spec.data.type,
-                                             spec.data.attributes, "the data block"));
-
-        const sa::Shape sample_shape = dataset->sample_shape();
-        SA_FAIL_IF(sample_shape != model_spec.input_shape,
-                   sa::StatusCode::InvalidDescription,
-                   "'{}' declares the input shape {}, but the '{}' data supplies {}",
-                   spec.model_path.string(), model_spec.input_shape.to_string(),
-                   dataset->name(), sample_shape.to_string());
-
-        SA_TRY_ASSIGN(sa::NN::ModelGraph model, sa::NN::build_model(registries.nodes, model_spec));
-
-        SA_TRY_ASSIGN(const sa::Shape batch_shape,
-                      sa::Train::batch_shape(dataset->batch_size(), sample_shape));
-
-        // The probe trace states the published shapes an objective factory may read.
-        sa::Train::GraphOptions graph_options;
-        graph_options.dtype = model_spec.input_dtype;
-        SA_TRY_ASSIGN(graph_options.seed, sa::Config::read_run_seed(spec, argv[1]));
-        SA_TRY_ASSIGN(const sa::Train::TracedStep probe,
-                      sa::Train::build_probe_graph(model, batch_shape, graph_options));
-
-        sa::Train::ObjectiveContext given;
-        given.batch = dataset->batch_size();
-        given.classes = class_count_of(*dataset);
-        given.input_sample = sample_shape;
-        given.task = model_spec.task;
-        SA_TRY_ASSIGN(given.outputs,
-                      sa::Train::list_output_shapes(probe.graph, probe.outputs));
-
-        SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Objective> objective,
-                      sa::Train::make_objective(registries.objectives, spec.objective_type, given,
-                                                spec.objective_attributes,
-                                                "the objective block"));
+        SA_TRY_ASSIGN(const std::uint64_t seed, sa::Config::read_run_seed(spec, argv[1]));
+        SA_TRY_ASSIGN(const std::unique_ptr<sa::Apps::TrainingSetup> setup,
+                      sa::Apps::TrainingSetup::make(registries, spec, model_spec, engine, seed));
+        const sa::Data::Dataset& dataset = *setup->dataset;
+        const sa::NN::ModelGraph& model = setup->model;
+        const sa::Train::TrainingGraph& built = setup->built;
 
         SA_TRY_ASSIGN(const std::optional<sa::Optim::RateSchedule> read_schedule,
                       sa::Optim::read_rate_schedule(spec.schedule, spec.optimizer_attributes));
         const sa::Optim::RateSchedule* const schedule =
             read_schedule ? &*read_schedule : nullptr;
 
-        SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
-                      sa::Train::build_training_graph(model, *objective, batch_shape,
-                                                      graph_options));
-        SA_TRY(sa::Train::match_roles(built.leaves.required(), *dataset));
-
-        // The trace above declared every parameter and buffer the state lists.
-        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
-
-        sa::Graph::TensorPool pool(engine);
-        SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, state, pool));
-
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
-                      sa::Optim::make_optimizer(engine, spec.optimizer_type, parameters,
+                      sa::Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters,
                                                 spec.optimizer_attributes, "the optimizer block"));
 
         sa::IO::RunProgress start;
-        SA_TRY(sa::Apps::start_state(spec, engine, state, *optimizer, &start));
-
-        SA_TRY_ASSIGN(std::vector<sa::Train::BufferUpdateSlot> updates,
-                      sa::Train::bind_buffer_updates(built.updates, state, pool));
+        SA_TRY(sa::Apps::start_state(spec, engine, *setup->state, *optimizer, &start));
 
         std::cout << "sushiai train\n"
                   << "----------------------------------------------------------------\n"
@@ -219,10 +160,10 @@ namespace
                                              sa::NN::parameter_elements(model))
                   << SushiLog::format_text("Weights    : {}\n",
                                              sa::Apps::describe_start(spec))
-                  << SushiLog::format_text("Objective  : {}\n", objective->name())
+                  << SushiLog::format_text("Objective  : {}\n", setup->objective->name())
                   << SushiLog::format_text("Data       : {} ({} x {})\n",
-                                             dataset->name(), dataset->batch_count(),
-                                             dataset->batch_size())
+                                             dataset.name(), dataset.batch_count(),
+                                             dataset.batch_size())
                   << SushiLog::format_text("Optimizer  : {}\n", spec.optimizer_type)
                   << SushiLog::format_text("Rate       : {}\n", describe_rate(schedule))
                   << SushiLog::format_text("Graph      : {} IR nodes over {} values\n",
@@ -232,11 +173,16 @@ namespace
 
         // The run is a row or the fallback run; see applications/programs/README.md.
         sa::Apps::PreparedRun prepared{
-            engine, spec, *dataset, given, *objective, built, state, pool, *optimizer,
-            std::move(updates), schedule, start,
+            engine, spec, dataset, setup->given, *setup->objective, built, *setup->state,
+            *setup->pool, *optimizer, std::move(setup->updates), schedule, start,
         };
+        // A file with a cluster section trains over its replicas; see cluster_training.hpp.
+        const sr::span<const sa::Optim::ParameterSlot> slots(setup->parameters.data(),
+                                                             setup->parameters.size());
         SA_TRY_ASSIGN(const sa::Apps::RunSummary summary,
-                      sa::Apps::run_training(registries.runs, spec.objective_type, prepared));
+                      spec.cluster.is_null()
+                          ? sa::Apps::run_training(registries.runs, spec.objective_type, prepared)
+                          : sa::Apps::run_cluster_training(prepared, slots));
 
         // CTest pins this line's shape, as in `sa demo mlp`; see applications/programs/README.md.
         std::cout << SushiLog::format_text("\ncompiles: {}\n", summary.compile_count);
@@ -248,7 +194,7 @@ namespace
 
         if (!spec.checkpoint.empty())
         {
-            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, state, *optimizer,
+            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, *setup->state, *optimizer,
                                                summary.progress));
             std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),

@@ -29,6 +29,7 @@ from .. import memory_limit
 from ..config import Config, PROFILE, find_project_root, load_config
 from ..env import load_build_env
 from . import discovery
+from .distributed import distributed_define
 from .sanitizer import Sanitizer, sanitize_define
 
 
@@ -220,14 +221,17 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
 
 def build(build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None,
-          sanitizer: Sanitizer | None = None) -> int:
+          sanitizer: Sanitizer | None = None,
+          distributed: bool | None = None) -> int:
     """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched.
 
-    *sanitizer* sets the sanitizers of host code; None keeps the cached value.
+    *sanitizer* sets the sanitizers of host code and *distributed* the distributed layer;
+    None keeps the cached value of each.
     """
     console.header("Project Build")
     try:
-        define_args = _define_args([*(defines or ()), *sanitize_define(sanitizer)])
+        define_args = _define_args([*(defines or ()), *sanitize_define(sanitizer),
+                                    *distributed_define(distributed)])
     except DefineError as error:
         console.error(str(error))
         return 2
