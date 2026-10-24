@@ -225,8 +225,8 @@ pool thread, not pinned, the default device filter. It owns the runtime through 
 in order, the compiled step, the accumulator, the model, the engine and the runtime.
 
 A registered kernel runs inside a graph run of the runtime that serves it, and SushiRuntime
-refuses a nested run of that runtime (its `LAYERED_EXECUTION.md`, "What a training run over
-several machines needs"). The second runtime costs a second device context, a second scheduler
+refuses a nested run of that runtime (`docs/design/LAYERED_EXECUTION/README.md` in SushiRuntime,
+"What a training run over several machines needs"). The second runtime costs a second device context, a second scheduler
 pool of one thread, and one pool thread of the serving runtime held for the length of each task.
 
 `begin()` copies the parameter pack into the model's parameters on the host. `run_micro_batch()`

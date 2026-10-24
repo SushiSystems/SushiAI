@@ -64,7 +64,9 @@ namespace SushiAI
                     return *tasks_;
                 }
 
-                /** @brief Returns the runtime recorder of the graph, for scopes and remote nodes. */
+                /**
+                 * @brief Returns the runtime recorder of the graph, for scopes and remote nodes.
+                 */
                 [[nodiscard]] SushiRuntime::Recorder& graph() const noexcept
                 {
                     return *graph_;

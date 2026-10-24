@@ -153,8 +153,8 @@ namespace SushiAI
                 std::uint64_t hash = Hash::fnv1a_word(Hash::K_FNV1A_OFFSET_BASIS,
                                                       static_cast<std::uint64_t>(rank_));
                 for (int32_t i = 0; i < rank_; ++i)
-                    hash = Hash::fnv1a_word(hash,
-                                            static_cast<std::uint64_t>(dims_[static_cast<std::size_t>(i)]));
+                    hash = Hash::fnv1a_word(
+                        hash, static_cast<std::uint64_t>(dims_[static_cast<std::size_t>(i)]));
                 return hash;
             }
 

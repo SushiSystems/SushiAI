@@ -124,7 +124,8 @@ namespace SushiAI::Language::Datasets
             [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override;
 
             /**
-             * @brief Reads the windows of rows @p rows of one batch, and no other, and collates them.
+             * @brief Reads the windows of rows @p rows of one batch, and no other, and collates
+             *        them.
              * @return As for read().
              * @pre What Data::Dataset::read_rows() states.
              */

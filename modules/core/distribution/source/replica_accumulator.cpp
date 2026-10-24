@@ -218,7 +218,7 @@ namespace SushiAI
                     add_elements<std::complex<double>>(sum, source, entry.element_count);
                     break;
                 case DataType::Int32:
-                    // Unsigned addition wraps, as the design asks of integer sums.
+                    // Unsigned addition wraps.
                     add_elements<std::uint32_t>(sum, source, entry.element_count);
                     break;
                 case DataType::Int64:

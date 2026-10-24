@@ -93,8 +93,9 @@ namespace SushiAI
          * @return Success, InvalidDescription for a fan-in that is not positive, or the seam's
          *         failure of the recording.
          */
-        [[nodiscard]] Status kaiming_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                             int64_t fan_in, double gain);
+        [[nodiscard]] Status kaiming_uniform(SushiBLAS::RandomOps& random,
+                                             SushiBLAS::Tensor& tensor, int64_t fan_in,
+                                             double gain);
 
         /**
          * @brief Records a fill of @p tensor from N(0, (gain * sqrt(2 / (fan_in + fan_out)))^2).
