@@ -26,6 +26,7 @@
  */
 
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <optional>
@@ -45,10 +46,13 @@
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/epoch.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/optim/optimizer_registry.hpp>
+#include <SushiAI/train/trainer.hpp>
 
 #include "cluster_run.hpp"
 #include "cluster_test_files.hpp"
@@ -85,6 +89,81 @@ namespace
         return bytes;
     }
 
+    /** @brief Holds the absolute tolerance of a parameter against the single-machine step. */
+    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+
+    /** @brief Holds the relative tolerance of a parameter against the single-machine step. */
+    constexpr double K_RELATIVE_TOLERANCE = 1e-5;
+
+    /** @brief Stops a started worker agent when the test leaves its scope, however it leaves. */
+    class AgentStop final
+    {
+        public:
+            /** @brief Takes the agent start() was called on; it outlives the guard. */
+            explicit AgentStop(Distributed::WorkerAgent& agent) noexcept : agent_(agent)
+            {
+
+            }
+
+            AgentStop(const AgentStop&) = delete;
+            AgentStop& operator=(const AgentStop&) = delete;
+            AgentStop(AgentStop&&) = delete;
+            AgentStop& operator=(AgentStop&&) = delete;
+
+            /** @brief Stops the agent. */
+            ~AgentStop()
+            {
+                agent_.stop();
+            }
+
+        private:
+            /// @brief The agent to stop.
+            Distributed::WorkerAgent& agent_;
+    };
+
+    /** @brief Returns every float32 element of the parameters of @p slots, in order. */
+    std::vector<float> values_of(const std::vector<Optim::ParameterSlot>& slots)
+    {
+        std::vector<float> values;
+        for (const Optim::ParameterSlot& slot : slots)
+        {
+            const float* const first = slot.parameter.data_as<float>();
+            values.insert(values.end(), first, first + slot.parameter.num_elements);
+        }
+        return values;
+    }
+
+    /**
+     * @brief Returns the parameters after one step of @p spec over its whole batch on one
+     *        machine, from the parameters the seed gives.
+     */
+    std::vector<float> single_machine_step(const ClusterTestFiles& files)
+    {
+        SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
+        SushiBLAS::Engine engine(runtime);
+        const Apps::Registries registries = Apps::compose_registries().value();
+        std::unique_ptr<Apps::TrainingSetup> setup =
+            Apps::TrainingSetup::make(registries, files.spec, files.model_spec, engine, K_SEED)
+                .value();
+        std::unique_ptr<Optim::Optimizer> optimizer =
+            Optim::make_optimizer(engine, files.spec.optimizer_type, setup->parameters(),
+                                  files.spec.optimizer_attributes, "the optimizer block")
+                .value();
+        IO::RunProgress start;
+        SA_EXPECT_OK(Apps::start_state(files.spec, engine, setup->state(), *optimizer, &start));
+
+        std::unique_ptr<Train::Trainer> trainer =
+            Train::Trainer::make(engine, setup->built(), setup->pool(), setup->objective(),
+                                 *optimizer, Train::TrainerOptions{}, setup->take_updates())
+                .value();
+        Data::begin_epoch(setup->dataset(), 0);
+        Data::Batch batch;
+        SA_EXPECT_OK(setup->dataset().read(0, batch));
+        SA_EXPECT_OK(trainer->run_step(batch).status());
+        runtime.wait().value();
+        return values_of(setup->parameters());
+    }
+
     /** @brief Returns the options of a worker whose machine reports K_WORKER_NAME. */
     Distributed::WorkerAgentOptions worker_options()
     {
@@ -98,19 +177,18 @@ namespace
  * @brief Tests that the master's cluster run trains one step from a training file, with
  *        replica 1 served by the worker's kernel over an InProcessFabric.
  */
-TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
+TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
 {
     const ClusterTestFiles files("sushiai_cluster_run_model.json");
     const Config::TrainSpec& spec = files.spec;
     const Distribution::ClusterSection section = files.section();
 
     const std::shared_ptr<const Apps::ReplicaSource> source =
-        Apps::ReplicaSource::make(Apps::compose_registries().value(), spec, files.model_spec)
-            .value();
+        Apps::ReplicaSource::load(spec).value();
     std::unique_ptr<Distribution::ReplicaKernel> worker_kernel =
-        Apps::make_served_kernel(source, section, K_WORKER_NAME, 0).value();
+        Apps::make_served_kernel(source, section, K_WORKER_NAME).value();
     std::unique_ptr<Distribution::ReplicaKernel> master_kernel =
-        Apps::make_served_kernel(source, section, section.worker_of(0), 0).value();
+        Apps::make_served_kernel(source, section, section.worker_of(0)).value();
 
     // The fabric outlives both ends; the worker stops before it goes.
     Distributed::InProcessFabric fabric;
@@ -141,6 +219,7 @@ TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
     SushiBLAS::ClusterBinding binding(cluster, master_kernels);
 
     ASSERT_TRUE(agent.start().is_ok());
+    const AgentStop stop_agent(agent);
     ASSERT_TRUE(cluster.wait_for_workers(1, K_WAIT));
 
     SushiBLAS::Engine engine(master_runtime);
@@ -164,7 +243,7 @@ TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
     Apps::ClusterRun run{prepared,
                          SushiRuntime::span<const Optim::ParameterSlot>(
                              setup->parameters().data(), setup->parameters().size()),
-                         section, binding, *master_kernel, 0};
+                         section, binding, *master_kernel, source->run_index};
     const Result<Apps::RunSummary> summary = Apps::run_on_cluster(run);
 
     ASSERT_TRUE(summary.has_value()) << summary.status().message();
@@ -173,5 +252,15 @@ TEST(Medium_ClusterRun, OneStepFromAFileRunsReplicaOneOnTheWorker)
     EXPECT_EQ(cluster.offloaded(), 1u) << "replica 1 ran somewhere other than the worker";
     EXPECT_NE(bytes_of(setup->parameters()), before) << "the step did not update a parameter";
 
-    agent.stop();
+    // Two replicas of two rows equal one step over the four rows within the tolerances.
+    const std::vector<float> expected = single_machine_step(files);
+    const std::vector<float> trained = values_of(setup->parameters());
+    ASSERT_EQ(trained.size(), expected.size());
+    for (std::size_t index = 0; index < trained.size(); ++index)
+    {
+        const double difference = std::fabs(static_cast<double>(trained[index]) - expected[index]);
+        EXPECT_LE(difference,
+                  K_ABSOLUTE_TOLERANCE + K_RELATIVE_TOLERANCE * std::fabs(expected[index]))
+            << "parameter element " << index;
+    }
 }

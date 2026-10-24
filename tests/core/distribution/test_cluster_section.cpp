@@ -50,7 +50,7 @@ namespace
     using SushiAI::Distribution::ClusterSection;
     using SushiAI::Distribution::K_REPLICA_PLACEMENT_CLASS;
     using SushiAI::Distribution::ReplicaPlan;
-    using SushiAI::Distribution::RowRange;
+    using SushiAI::Distribution::RowPositions;
 
     /** @brief Holds the replicas of the main case: five machines, the first one the master. */
     constexpr std::string_view K_FIVE_REPLICAS = R"([
@@ -105,7 +105,7 @@ TEST(Small_ClusterSection, FiveReplicasBecomeRowsMicroBatchesAndWeights)
         EXPECT_EQ(plan.micro_batch_of(replica), micro_batches[replica]) << "replica " << replica;
         EXPECT_NEAR(plan.weight_of(replica), weights[replica], 1e-15) << "replica " << replica;
 
-        const RowRange range = plan.rows(replica, 2);
+        const RowPositions range = plan.rows(replica, 2);
         EXPECT_EQ(range.first, firsts[replica]) << "replica " << replica;
         EXPECT_EQ(range.count, static_cast<std::uint64_t>(rows[replica]))
             << "replica " << replica;

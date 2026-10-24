@@ -126,6 +126,25 @@ private FNV-1a copies (`region_signature.cpp`, `sample_cache.cpp`, `Shape::hash(
 `hash` in A4c, each the same algorithm, so every value stays; the sample cache's hash names its
 files on disk, so existing caches stay found. Each site pins a value computed outside SushiAI.
 
+## A9, the branch review
+
+Two reviews found nineteen points. The one a user would meet first: a worker whose training file
+differed from the master's trained other rows than the master weighed, since the replica
+fingerprint held only the architecture and the objective type. It now folds the architecture's
+bytes, the objective and data settings, the seed, the run index, the replica count and each
+replica's rows and micro-batch, and leaves out what only names where output goes. Every host copy
+of a pack asserts the tensor is host-visible, which holds because SushiAI's storage, the pack and
+the worker's borrowed views are all shared memory. `SA_DISTRIBUTED` is a public definition of the
+distribution module, so an installed consumer sees it. `check_rows` returns a status. The trainer
+and the cluster run share one epoch loop; the vision domain keeps its own, which validates. The
+configure stops when a sibling's distributed option is set off by hand while SushiAI's is on; a
+build tree whose cache holds that option at its default off stops too, until it is set or the tree
+is configured afresh.
+
+The orchestrator's ruling on the master's wait was wrong: an all-`fail` section that waits not at
+all fails before any worker can attach. A9b waits until every named worker attaches or an attach
+bound passes.
+
 ## A8, SushiBLAS's `UInt32`
 
 SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no
@@ -149,4 +168,5 @@ dispatch: A3 in-place sum — opus low, passed, rung 1
 dispatch: A4 — opus low, 170 turns, passed, rung 1
 dispatch: A4b — opus low, 131 turns, passed, rung 1
 dispatch: A4c — sonnet low, 32 turns, passed, rung 1
+dispatch: A9 — opus low, two rounds, passed, rung 1
 ```

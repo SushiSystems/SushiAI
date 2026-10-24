@@ -29,7 +29,12 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/config/train_config.hpp>
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -101,28 +106,86 @@ TEST_F(Medium_TrainingReplicaModel, TheSameFilesGiveOneFingerprint)
     EXPECT_EQ(model_of(first)->fingerprint(), first->fingerprint);
 }
 
-/**
- * @brief Tests that the fingerprint is the FNV-1a hash of the architecture file's bytes, then
- *        of the objective type, pinned to the value it has held since A4.
- */
-TEST_F(Medium_TrainingReplicaModel, TheFingerprintKeepsItsValue)
+namespace
 {
-    const ClusterTestFiles files("sushiai_replica_model_pinned.json");
-    const SushiAI::Test::ScratchFile bytes("sushiai_replica_model_pinned_bytes.json");
+    /** @brief Parses @p text as a training file beside the architecture file of @p files. */
+    Config::TrainSpec read_spec(const ClusterTestFiles& files, const std::string& text)
     {
-        std::ofstream written(bytes.path(), std::ios::binary);
-        written << R"({"sushiai_model": 1})";
+        return Config::parse_train(Config::parse_json(text, "<test>"), "<test>",
+                                   files.model_file.path().parent_path());
     }
-    Config::TrainSpec spec = files.spec;
-    spec.model_path = bytes.path();
 
-    // Computed apart from SushiAI, over the bytes above and then "cross_entropy".
-    constexpr std::uint64_t K_PINNED = 0xd043c6822d22eedeull;
-    EXPECT_EQ(Apps::ReplicaSource::make(Apps::compose_registries().value(), spec,
-                                        files.model_spec)
-                  .value()
-                  ->fingerprint,
-              K_PINNED);
+    /** @brief Returns @p text with its one @p from replaced by @p to. */
+    std::string replaced(std::string text, const std::string& from, const std::string& to)
+    {
+        const std::size_t at = text.find(from);
+        EXPECT_NE(at, std::string::npos) << from;
+        if (at != std::string::npos)
+            text.replace(at, from.size(), to);
+        return text;
+    }
+
+    /** @brief Returns the fingerprint of the source load() builds from @p spec. */
+    std::uint64_t fingerprint_of(const Config::TrainSpec& spec)
+    {
+        return Apps::ReplicaSource::load(spec).value()->fingerprint;
+    }
+} // namespace
+
+/** @brief Tests that the master's and a worker's reads of the same files agree. */
+TEST_F(Medium_TrainingReplicaModel, RegressionTwoReadsOfTheSameFilesGiveOneFingerprint)
+{
+    const ClusterTestFiles files("sushiai_replica_model_two_reads.json");
+    const std::string text = training_file(files.model_file.path());
+
+    EXPECT_EQ(fingerprint_of(read_spec(files, text)), fingerprint_of(read_spec(files, text)));
+}
+
+/** @brief Tests that each part a replica's result depends on changes the fingerprint. */
+TEST_F(Medium_TrainingReplicaModel, RegressionAChangedTrainingFileChangesTheFingerprint)
+{
+    const ClusterTestFiles files("sushiai_replica_model_changed.json");
+    const std::string text = training_file(files.model_file.path());
+    const std::uint64_t master = fingerprint_of(read_spec(files, text));
+
+    const std::vector<std::pair<std::string, std::string>> changes = {
+        {R"("seed": 7,)", R"("seed": 8,)"},
+        {R"("seed": 3735928559)", R"("seed": 3735928558)"},
+        {R"("batches": 1,)", R"("batches": 2,)"},
+        {R"({"type": "cross_entropy"})", R"({"type": "cross_entropy", "smoothing": 0.1})"},
+        {R"("worker": "worker", "rows": 2, "micro_batch": 2)",
+         R"("worker": "worker", "rows": 2, "micro_batch": 1)"},
+    };
+    for (const std::pair<std::string, std::string>& change : changes)
+    {
+        const Config::TrainSpec worker =
+            read_spec(files, replaced(text, change.first, change.second));
+        EXPECT_NE(fingerprint_of(worker), master) << change.second;
+    }
+
+    std::ofstream(files.model_file.path(), std::ios::app) << " ";
+    EXPECT_NE(fingerprint_of(read_spec(files, text)), master) << "the architecture file";
+}
+
+/** @brief Tests that what only the master reads, or where output goes, is left out. */
+TEST_F(Medium_TrainingReplicaModel, TheOptimizerAndTheOutputPathsLeaveTheFingerprintAlone)
+{
+    const ClusterTestFiles files("sushiai_replica_model_unchanged.json");
+    const std::string text = training_file(files.model_file.path());
+    const std::uint64_t master = fingerprint_of(read_spec(files, text));
+
+    const std::vector<std::pair<std::string, std::string>> changes = {
+        {R"("learning_rate": 0.003)", R"("learning_rate": 0.004)"},
+        {R"("epochs": 1,)", R"("epochs": 3, "checkpoint": "elsewhere.sushi",)"},
+        {R"("worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail")",
+         R"("worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "local")"},
+    };
+    for (const std::pair<std::string, std::string>& change : changes)
+    {
+        const Config::TrainSpec worker =
+            read_spec(files, replaced(text, change.first, change.second));
+        EXPECT_EQ(fingerprint_of(worker), master) << change.second;
+    }
 }
 
 /** @brief Tests that rows inside their batch, of the traced count, are fed. */

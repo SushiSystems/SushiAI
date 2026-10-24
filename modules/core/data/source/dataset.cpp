@@ -110,16 +110,19 @@ namespace SushiAI
             }
         }
 
-        void check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept
+        Status check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept
         {
-            SA_FATAL_IF(index >= dataset.batch_count(),
-                        "Batch {} is out of range; '{}' has {}", index, dataset.name(),
-                        dataset.batch_count());
-            SA_FATAL_IF(rows.first < 0 || rows.count <= 0
-                            || rows.count > dataset.batch_size() - rows.first,
-                        "Rows {} to {} are no non-empty range of a batch of {} in '{}'",
-                        rows.first, rows.first + rows.count, dataset.batch_size(),
-                        dataset.name());
+            SA_FAIL_IF(index >= dataset.batch_count(), StatusCode::InvalidDescription,
+                       "Batch {} is out of range; '{}' has {}", index, dataset.name(),
+                       dataset.batch_count());
+            SA_FAIL_IF(rows.first < 0 || rows.count <= 0
+                           || rows.count > dataset.batch_size() - rows.first,
+                       StatusCode::InvalidDescription,
+                       "Rows {} to {} of batch {} are no non-empty range of a batch of {} in "
+                       "'{}'",
+                       rows.first, rows.first + rows.count, index, dataset.batch_size(),
+                       dataset.name());
+            return Status();
         }
 
         SyntheticClassification::SyntheticClassification(SyntheticOptions options,
@@ -220,7 +223,7 @@ namespace SushiAI
         Status SyntheticClassification::read_rows(std::size_t index, RowRange rows,
                                                    Batch& batch) const
         {
-            check_rows(*this, index, rows);
+            SA_TRY(check_rows(*this, index, rows));
             return share_rows(batches_[index], rows, batch);
         }
 
@@ -313,7 +316,7 @@ namespace SushiAI
 
         Status Rings::read_rows(std::size_t index, RowRange rows, Batch& batch) const
         {
-            check_rows(*this, index, rows);
+            SA_TRY(check_rows(*this, index, rows));
             return share_rows(batches_[index], rows, batch);
         }
 

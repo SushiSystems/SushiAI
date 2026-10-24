@@ -512,6 +512,36 @@ TEST_F(Medium_RunCheckpoint, AResumedAdamWRunMatchesTheUninterruptedOneBitForBit
     expect_resume_is_bit_identical(*engine, Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi");
 }
 
+/** @brief Tests that both savers, called right after a step, write that step's weights. */
+TEST_F(Medium_RunCheckpoint, RegressionASaveRightAfterAStepWritesThatStepsWeights)
+{
+    const SaTest::ScratchFile weights_file("sushiai_save_after_step.sushi");
+    const SaTest::ScratchFile run_file("sushiai_run_save_after_step.sushi");
+    SA_ASSERT_OK_AND_ASSIGN(const auto dataset, make_dataset(*engine));
+
+    // A twin run settled on the host before it is read gives the step's weights.
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer twin, make_run(*engine, Kind::SGD, 11));
+    const std::vector<std::uint32_t> before = bits_of(*twin);
+    SA_EXPECT_OK(advance(*twin, *dataset, 1, 1));
+    flush();
+    const std::vector<std::uint32_t> stepped = bits_of(*twin);
+    ASSERT_NE(stepped, before);
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_EXPECT_OK(advance(*saved, *dataset, 1, 1));
+    SA_EXPECT_OK(IO::save_checkpoint(weights_file.path(), *saved->state));
+    SA_EXPECT_OK(IO::save_run_checkpoint(run_file.path(), *saved->state, *saved->optimizer));
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_weights, make_run(*engine, Kind::SGD, 22));
+    SA_EXPECT_OK(IO::load_checkpoint(weights_file.path(), *from_weights->state));
+    EXPECT_EQ(bits_of(*from_weights), stepped);
+
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_run, make_run(*engine, Kind::SGD, 22));
+    SA_EXPECT_OK(IO::load_run_checkpoint(run_file.path(), *from_run->state,
+                                         *from_run->optimizer));
+    EXPECT_EQ(bits_of(*from_run), stepped);
+}
+
 /** @brief Tests that a file with model state alone loads as weights and refuses a resume. */
 TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
 {

@@ -36,6 +36,7 @@
 #include <SushiRuntime/api/graph/node_options.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/distribution/exact_sum.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -79,12 +80,6 @@ namespace SushiAI
 
         namespace
         {
-            /** @brief Returns whether a sum of @p dtype refuses every weight other than 1. */
-            [[nodiscard]] constexpr bool sums_exactly(SushiBLAS::Core::DataType dtype) noexcept
-            {
-                return SushiBLAS::Core::is_integer_dtype(dtype);
-            }
-
             /** @brief Returns the types whose segment of @p layout holds an element, in order. */
             [[nodiscard]] std::vector<SushiBLAS::Core::DataType> filled_segments(
                 const SushiBLAS::PackLayout& layout)

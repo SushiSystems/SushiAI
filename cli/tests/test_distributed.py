@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import pytest
 from typer.testing import CliRunner
 
@@ -16,7 +18,7 @@ from sushiai.services import distributed, project
 pytestmark = pytest.mark.small
 
 
-def test_distributed_define_switches_the_distributed_layer():
+def test_distributed_define_switches_the_distributed_layer() -> None:
     """distributed_define gives the SA_ENABLE_DISTRIBUTED entry, or nothing for None."""
     assert distributed.distributed_define(True) == ["SA_ENABLE_DISTRIBUTED=ON"]
     assert distributed.distributed_define(False) == ["SA_ENABLE_DISTRIBUTED=OFF"]
@@ -31,11 +33,19 @@ def test_distributed_define_switches_the_distributed_layer():
         (["build"], None),
     ],
 )
-def test_build_command_forwards_the_distributed_option(monkeypatch, args, expected):
+def test_build_command_forwards_the_distributed_option(
+    monkeypatch: pytest.MonkeyPatch, args: list[str], expected: bool | None
+) -> None:
     """The build command hands the tri-state --distributed option to the service unchanged."""
-    received = []
+    received: list[bool | None] = []
 
-    def build(build_type, clean, define, sanitize, distributed_option):
+    def build(
+        build_type: project.BuildType,
+        clean: bool,
+        define: Sequence[str] | None,
+        sanitize: project.Sanitizer | None,
+        distributed_option: bool | None,
+    ) -> int:
         """Records the option and reports success."""
         received.append(distributed_option)
         return 0
@@ -44,4 +54,3 @@ def test_build_command_forwards_the_distributed_option(monkeypatch, args, expect
     result = CliRunner().invoke(cli.app, args)
     assert result.exit_code == 0
     assert received == [expected]
-

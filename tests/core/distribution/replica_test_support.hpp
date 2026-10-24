@@ -263,7 +263,7 @@ namespace SushiAI::Distribution::Support
             std::unique_ptr<Graph::CompiledStep> step =
                 Graph::CompiledStep::compile(engine, model.graph(), model.pool()).value();
             ReplicaRows fed;
-            fed.rows = RowRange{first, static_cast<std::uint64_t>(rows)};
+            fed.rows = RowPositions{first, static_cast<std::uint64_t>(rows)};
             SA_EXPECT_OK(model.feed(fed));
             SA_EXPECT_OK(step->run());
 

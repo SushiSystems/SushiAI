@@ -203,3 +203,19 @@ TEST_F(Medium_DatasetsTableDataset, ARangeReadHoldsTheRowsOfTheWholeBatch)
     EXPECT_EQ(part.inputs.shape[0], rows.count);
     EXPECT_TRUE(Support::holds_rows_of(whole, made.batch_size, rows, part));
 }
+
+/** @brief Tests that a range outside the table dataset is refused with a Status, not a stop. */
+TEST_F(Medium_DatasetsTableDataset, RegressionABadRangeIsRefusedWithAStatus)
+{
+    TableDatasetOptions made = options();
+    made.batch_size = 3;
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TableDataset> dataset,
+        TableDataset::make(*engine, table_list(6), regression(), made));
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{2, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Rows 2 to 4",
+                      "of batch 1", "a batch of 3");
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}

@@ -33,6 +33,7 @@
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
@@ -156,8 +157,10 @@ namespace SushiAI
                 if (entry.size_bytes == 0)
                     continue;
 
+                // A bound pack is host memory: SushiRuntime borrows every view as Shared.
                 const SushiBLAS::PackSpan source = parameters.tensor(index);
                 SushiBLAS::Tensor target = targets[index];
+                require_host_visible(target, "Replica parameter", index);
                 std::memcpy(target.data(), source.data, entry.size_bytes);
             }
 

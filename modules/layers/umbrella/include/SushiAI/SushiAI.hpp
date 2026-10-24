@@ -163,6 +163,11 @@
 #if defined(SA_DISTRIBUTED)
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
+#include <SushiAI/distribution/exact_sum.hpp>
+#include <SushiAI/distribution/gradient_exchange.hpp>
+#include <SushiAI/distribution/host_access.hpp>
+#include <SushiAI/distribution/parameter_publish.hpp>
+#include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/distribution/replica_model.hpp>

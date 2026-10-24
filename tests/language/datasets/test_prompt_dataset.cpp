@@ -169,3 +169,16 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, ARangeReadHoldsTheRowOfTheWholeBatc
 
     EXPECT_TRUE(Support::holds_rows_of(whole, dataset->batch_size(), rows, part));
 }
+
+/** @brief Tests that a range outside the prompt dataset is refused with a Status, not a stop. */
+TEST_F(Medium_LanguageDatasetsPromptDataset, RegressionABadRangeIsRefusedWithAStatus)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<PromptDataset> dataset,
+                            PromptDataset::make(*engine, {3, 1, 4, 1, 5}, 8));
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(0, Data::RowRange{0, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Rows 0 to 2",
+                      "of batch 0", "a batch of 1");
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}

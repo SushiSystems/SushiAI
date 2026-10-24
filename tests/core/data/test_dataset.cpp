@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -181,4 +182,36 @@ TEST_F(Medium_Dataset, RingsReadsTheRowsOfARange)
 
     EXPECT_EQ(part.inputs.shape[0], rows.count);
     EXPECT_TRUE(DataTest::holds_rows_of(whole, dataset->batch_size(), rows, part));
+}
+
+/** @brief Tests that a range outside the synthetic set is refused with a Status, not a stop. */
+TEST_F(Medium_Dataset, RegressionSyntheticClassificationRefusesABadRangeWithAStatus)
+{
+    Data::SyntheticOptions options = small_synthetic();
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
+                            Data::SyntheticClassification::make(*engine, options));
+    const std::int64_t size = dataset->batch_size();
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{size - 1, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription,
+                      "Rows " + std::to_string(size - 1) + " to " + std::to_string(size + 1),
+                      "of batch 1", "a batch of " + std::to_string(size));
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}
+
+/** @brief Tests that a range outside the rings set is refused with a Status, not a stop. */
+TEST_F(Medium_Dataset, RegressionRingsRefusesABadRangeWithAStatus)
+{
+    Data::RingsOptions options;
+    options.batch_size = 4;
+    options.batches = 2;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
+                            Data::Rings::make(*engine, options));
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{3, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Rows 3 to 5",
+                      "of batch 1", "a batch of 4");
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
 }

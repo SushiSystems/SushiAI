@@ -25,8 +25,11 @@
  * @author Mustafa Garip
  */
 
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiAI/config/value.hpp>
+#include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
@@ -56,4 +59,51 @@ TEST(Medium_MasterCluster, RefusesAListenAddressThatDoesNotParse)
 
     SA_EXPECT_FAILURE(Apps::attach_master_cluster(runtime, files.section()).status(),
                       StatusCode::InvalidDescription);
+}
+
+namespace
+{
+    /** @brief Returns the section of a master and two workers with absent policies @p a, @p b. */
+    Distribution::ClusterSection two_workers(const std::string& a, const std::string& b)
+    {
+        const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
+            "replicas": [
+                {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
+                {"worker": "left", "rows": 1, "micro_batch": 1, )" + a + R"(},
+                {"worker": "right", "rows": 1, "micro_batch": 1, )" + b + R"(}
+            ]})";
+        return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
+            .value();
+    }
+} // namespace
+
+/** @brief Tests that the master waits up to the largest bound of the workers' wait rules. */
+TEST(Medium_MasterCluster, RegressionTheWaitIsTheLargestBoundOfTheWaitRules)
+{
+    const Apps::WorkerWait wait = Apps::worker_wait(
+        two_workers(R"("if_absent": "wait", "wait_ms": 250)",
+                    R"("if_absent": "wait", "wait_ms": 4000)"));
+
+    EXPECT_EQ(wait.bound.count(), 4000);
+    EXPECT_FALSE(wait.fails_when_short);
+}
+
+/** @brief Tests that a section of fail rules waits for nothing and fails when short. */
+TEST(Medium_MasterCluster, RegressionEveryFailRuleWaitsForNothingAndFailsWhenShort)
+{
+    const Apps::WorkerWait wait =
+        Apps::worker_wait(two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")"));
+
+    EXPECT_EQ(wait.bound.count(), 0);
+    EXPECT_TRUE(wait.fails_when_short);
+}
+
+/** @brief Tests that one local rule among fail rules lets a short count go on. */
+TEST(Medium_MasterCluster, ALocalRuleLetsAShortCountGoOn)
+{
+    const Apps::WorkerWait wait =
+        Apps::worker_wait(two_workers(R"("if_absent": "fail")", R"("if_absent": "local")"));
+
+    EXPECT_EQ(wait.bound.count(), 0);
+    EXPECT_FALSE(wait.fails_when_short);
 }

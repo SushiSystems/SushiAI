@@ -22,10 +22,12 @@
 
 /**
  * @file test_SushiAI.cpp
- * @brief Tests that an axpy runs through SushiBLAS when linked through the SushiAI umbrella header.
+ * @brief Tests that an axpy runs through SushiBLAS when linked through the umbrella header,
+ *        and that a distributed build names every distribution header through it.
  * @author Mustafa Garip
  */
 
+#include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/SushiBLAS.hpp>
@@ -61,3 +63,17 @@ TEST(Medium_EngineSmoke, AXPYThroughSushiBLAS)
     for (float v : result)
         EXPECT_FLOAT_EQ(v, 3.0f); // y = 2*x + y = 2*1 + 1
 }
+
+// tests/layers/umbrella/CMakeLists.txt defines SA_TEST_DISTRIBUTED_BUILD in a distributed build.
+#if defined(SA_TEST_DISTRIBUTED_BUILD)
+// Compiles only when the library carries SA_DISTRIBUTED and the umbrella includes the headers.
+TEST(Small_UmbrellaDistribution, RegressionNamesEveryDistributionHeader)
+{
+    EXPECT_TRUE(std::is_class<SushiAI::Distribution::ClusterSection>::value);
+    EXPECT_TRUE(std::is_class<SushiAI::Distribution::GradientExchange>::value);
+    EXPECT_TRUE(std::is_class<SushiAI::Distribution::ParameterPublish>::value);
+    EXPECT_TRUE(std::is_class<SushiAI::Distribution::ReplicaPosition>::value);
+    EXPECT_TRUE(std::is_class<SushiAI::Distribution::RowPositions>::value);
+    EXPECT_TRUE(SushiAI::Distribution::sums_exactly(SushiBLAS::Core::DataType::UInt32));
+}
+#endif

@@ -39,16 +39,15 @@
 #include <SushiRuntime/distributed/worker_main.hpp>
 #include <SushiRuntime/distributed/worker_options_parser.hpp>
 #include <SushiRuntime/process_environment/environment.hpp>
-#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 
-#include "registries.hpp"
 #include "served_kernel.hpp"
 #include "training_replica_model.hpp"
+#include "worker_arguments.hpp"
 
 namespace
 {
@@ -61,8 +60,8 @@ namespace
         "Usage: sushiai_worker <train.json> --master host:port --name <worker> [flags]\n"
         "\n"
         "  train.json is the master's training file; the worker builds the model it names\n"
-        "  and serves the replica whose 'worker' is --name. The flags below are\n"
-        "  SushiRuntime's worker flags, read by SushiRuntime.\n"
+        "  and serves the replica whose 'worker' is --name. SushiRuntime reads the\n"
+        "  flags below.\n"
         "\n";
 
     /** @brief Holds the value the worker returns when its own arguments or files are wrong. */
@@ -74,14 +73,12 @@ namespace
      *         of the section or of the replica's step.
      */
     [[nodiscard]] SushiAI::Result<std::unique_ptr<SushiAI::Distribution::ReplicaKernel>>
-    build_kernel(const char* spec_path, const std::string& name)
+    build_kernel(const std::string& spec_path, const std::string& name)
     {
         SushiAI::Config::TrainSpec spec;
-        SushiAI::Config::ModelSpec model_spec;
         try
         {
             spec = SushiAI::Config::load_train(spec_path);
-            model_spec = SushiAI::Config::load_model(spec.model_path);
         }
         catch (const std::exception& error)
         {
@@ -94,13 +91,9 @@ namespace
         SA_TRY_ASSIGN(const SushiAI::Distribution::ClusterSection section,
                       SushiAI::Distribution::ClusterSection::read(spec.cluster, spec.base));
 
-        SA_TRY_ASSIGN(SushiAI::Apps::Registries registries, SushiAI::Apps::compose_registries());
         SA_TRY_ASSIGN(const std::shared_ptr<const SushiAI::Apps::ReplicaSource> source,
-                      SushiAI::Apps::ReplicaSource::make(std::move(registries), std::move(spec),
-                                                         std::move(model_spec)));
-
-        // Every run of a file is run 0; the master's exchange names the same index.
-        return SushiAI::Apps::make_served_kernel(source, section, name, 0);
+                      SushiAI::Apps::ReplicaSource::load(spec));
+        return SushiAI::Apps::make_served_kernel(source, section, name);
     }
 
     /**
@@ -109,28 +102,27 @@ namespace
      */
     [[nodiscard]] int serve(int argc, char** argv)
     {
-        const bool asks_help =
-            argc >= 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help");
-        const std::size_t forwarded =
-            argc > 2 ? static_cast<std::size_t>(argc - 2) : 0;
-        const Distributed::WorkerOptionsResult parsed = Distributed::parse_worker_options(
-            SushiRuntime::span<const char* const>(forwarded != 0 ? argv + 2 : nullptr,
-                                                  forwarded),
-            Distributed::read_environment);
-
-        if (asks_help || parsed.status == Distributed::WorkerOptionsStatus::Help)
+        const SushiAI::Apps::WorkerArguments arguments = SushiAI::Apps::read_worker_arguments(
+            SushiRuntime::span<const char* const>(argc > 1 ? argv + 1 : nullptr,
+                                                  argc > 1 ? static_cast<std::size_t>(argc - 1)
+                                                           : 0));
+        if (arguments.call == SushiAI::Apps::WorkerCall::Refused)
         {
-            std::cout << K_USAGE;
-            if (parsed.status == Distributed::WorkerOptionsStatus::Help)
-                std::cout << parsed.message;
-            return EXIT_SUCCESS;
+            std::cerr << "sushiai_worker: the training file comes first\n"
+                      << SushiAI::Apps::K_WORKER_USAGE_LINE << "\n";
+            return K_BAD_ARGUMENTS;
         }
 
-        if (argc < 2)
+        const Distributed::WorkerOptionsResult parsed = Distributed::parse_worker_options(
+            SushiRuntime::span<const char* const>(arguments.forwarded.data(),
+                                                  arguments.forwarded.size()),
+            Distributed::read_environment);
+
+        if (arguments.call == SushiAI::Apps::WorkerCall::Help
+            || parsed.status == Distributed::WorkerOptionsStatus::Help)
         {
-            std::cerr << "usage: sushiai_worker <train.json> --master host:port --name <worker> "
-                         "[flags]\n";
-            return K_BAD_ARGUMENTS;
+            std::cout << K_USAGE << parsed.message;
+            return EXIT_SUCCESS;
         }
 
         if (parsed.status == Distributed::WorkerOptionsStatus::Version)
@@ -154,7 +146,7 @@ namespace
         }
 
         SushiAI::Result<std::unique_ptr<SushiAI::Distribution::ReplicaKernel>> built =
-            build_kernel(argv[1], parsed.options.name);
+            build_kernel(arguments.spec_path, parsed.options.name);
         if (!built.has_value())
         {
             std::cerr << "sushiai_worker failed: " << built.status().message() << "\n";

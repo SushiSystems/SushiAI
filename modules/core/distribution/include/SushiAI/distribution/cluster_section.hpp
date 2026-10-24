@@ -82,6 +82,13 @@ namespace SushiAI
                 [[nodiscard]] const std::string& worker_of(std::size_t replica) const;
 
                 /**
+                 * @brief Returns what happens when the machine of replica @p replica is absent.
+                 * @pre @p replica is below plan().replica_count().
+                 */
+                [[nodiscard]] const SushiRuntime::AbsentPolicy& absent_policy_of(
+                    std::size_t replica) const;
+
+                /**
                  * @brief Turns the replicas into placement rules, one per replica in order.
                  *
                  * Rule k matches K_REPLICA_PLACEMENT_CLASS and key k, targets worker_of(k), and

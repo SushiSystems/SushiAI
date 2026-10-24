@@ -56,23 +56,8 @@ TEST(Medium_ServedKernel, RefusesAMachineNoReplicaNames)
     const ClusterTestFiles files("sushiai_served_kernel_unnamed.json");
 
     const Result<std::unique_ptr<Distribution::ReplicaKernel>> kernel =
-        Apps::make_served_kernel(source_of(files), files.section(), "nobody", 0);
+        Apps::make_served_kernel(source_of(files), files.section(), "nobody");
 
     SA_EXPECT_FAILURE(kernel.status(), StatusCode::InvalidDescription);
     EXPECT_NE(std::string(kernel.status().message()).find("'nobody'"), std::string::npos);
-}
-
-/** @brief Tests that the master's and the worker's kernels register under one operation. */
-TEST(Medium_ServedKernel, TheMasterAndTheWorkerServeOneOperation)
-{
-    const ClusterTestFiles files("sushiai_served_kernel_named.json");
-    const std::shared_ptr<const Apps::ReplicaSource> source = source_of(files);
-
-    const std::unique_ptr<Distribution::ReplicaKernel> master =
-        Apps::make_served_kernel(source, files.section(), "master", 0).value();
-    const std::unique_ptr<Distribution::ReplicaKernel> worker =
-        Apps::make_served_kernel(source, files.section(), K_WORKER_NAME, 0).value();
-
-    EXPECT_EQ(master->operation_name().rfind("sushiai.replica:", 0), 0u);
-    EXPECT_EQ(master->operation_name(), worker->operation_name());
 }

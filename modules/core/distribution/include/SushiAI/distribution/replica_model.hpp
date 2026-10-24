@@ -58,7 +58,7 @@ namespace SushiAI
             std::uint64_t micro_batch_index = 0;
 
             /** @brief The positions of the epoch's sample order the micro-batch holds. */
-            RowRange rows{};
+            RowPositions rows{};
 
             /** @brief The seed, replica and run every draw of the feed takes. */
             ReplicaDraws draws{};

@@ -146,7 +146,7 @@ namespace SushiAI::Language::Datasets
     Status PromptDataset::read_rows(std::size_t index, Data::RowRange rows,
                                     Data::Batch& batch) const
     {
-        Data::check_rows(*this, index, rows);
+        SA_TRY(Data::check_rows(*this, index, rows));
         return read(index, batch);
     }
 

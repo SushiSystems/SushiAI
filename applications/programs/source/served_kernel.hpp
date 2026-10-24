@@ -43,15 +43,13 @@ namespace SushiAI
         /**
          * @brief Builds the kernel of the replica the section places on @p machine: the
          *        master's local replica 0, or the replica a worker's name picks.
-         * @param source Not null; the files of the run.
-         * @param run_index The run index of the replica's draws.
+         * @param source Not null; the files of the run, whose run index the draws take.
          * @return The kernel, InvalidDescription when no replica names @p machine, or the
          *         refusal of the seed or of the replica's step.
          */
         [[nodiscard]] Result<std::unique_ptr<Distribution::ReplicaKernel>> make_served_kernel(
             const std::shared_ptr<const ReplicaSource>& source,
-            const Distribution::ClusterSection& section, std::string_view machine,
-            std::uint64_t run_index);
+            const Distribution::ClusterSection& section, std::string_view machine);
 
     } // namespace Apps
 } // namespace SushiAI

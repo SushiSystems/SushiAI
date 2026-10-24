@@ -147,7 +147,7 @@ namespace SushiAI::Vision::Datasets
     Status ReaderDataset::read_rows(std::size_t index, Data::RowRange range,
                                     Data::Batch& batch) const
     {
-        Data::check_rows(*this, index, range);
+        SA_TRY(Data::check_rows(*this, index, range));
 
         return Detail::at_boundary(K_DATASET, [&]() -> Status
         {

@@ -111,9 +111,8 @@ namespace SushiAI
                 /**
                  * @brief Makes @p batch hold rows @p rows of batch @p index, and no other row.
                  * @param batch As for read(); its tensors are [rows.count, sample...].
-                 * @return As for read(); each row holds the bytes read() gives at its position.
-                 * @pre check_rows() holds for @p index and @p rows; a range that breaks it
-                 *      stops the process.
+                 * @return As for read(), or InvalidDescription when check_rows() refuses
+                 *         @p index or @p rows; each row holds the bytes read() gives there.
                  * @see modules/core/data/README.md, section "Reading a batch".
                  */
                 [[nodiscard]] virtual Status read_rows(std::size_t index, RowRange rows,
@@ -130,10 +129,12 @@ namespace SushiAI
         }
 
         /**
-         * @brief Stops the process unless @p index is a batch of @p dataset and @p rows a
-         *        non-empty range inside it.
+         * @brief Checks that @p index is a batch of @p dataset and @p rows a non-empty range
+         *        inside it.
+         * @return Success, or InvalidDescription naming the index, the range and the batch size.
          */
-        void check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept;
+        [[nodiscard]] Status check_rows(const Dataset& dataset, std::size_t index,
+                                        RowRange rows) noexcept;
 
         /**
          * @struct SyntheticOptions

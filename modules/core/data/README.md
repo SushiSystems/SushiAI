@@ -66,8 +66,9 @@ caller owns `batch` and passes the same one on every call of a loop.
 `[rows.first, rows.first + rows.count)` of batch `index`; `batch` then holds those rows and no
 other, with inputs and targets of `rows.count` rows on axis 0. Each row holds the bytes `read`
 gives at its position, and `read` is `read_rows` over the whole batch. `check_rows(dataset, index,
-rows)` stops the process unless `index` is a batch of the dataset and `rows` a non-empty range
-inside its batch size; every implementer calls it first.
+rows)` returns `InvalidDescription`, naming the index, the range and the batch size, unless
+`index` is a batch of the dataset and `rows` a non-empty range inside its batch size; every
+implementer returns its refusal first.
 
 | Dataset | What `read_rows` does | Cost per call |
 | --- | --- | --- |

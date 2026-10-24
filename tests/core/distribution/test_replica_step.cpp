@@ -89,7 +89,7 @@ namespace
     {
         ReplicaRows rows;
         rows.micro_batch_index = micro_batch;
-        rows.rows = RowRange{first, count};
+        rows.rows = RowPositions{first, count};
         rows.draws = ReplicaDraws{K_SEED, 0, K_RUN};
         return rows;
     }

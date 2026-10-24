@@ -39,12 +39,14 @@ if(SA_ENABLE_DISTRIBUTED)
         source/test_replica_tensors.cpp
         source/test_served_kernel.cpp
         source/test_training_replica_model.cpp
+        source/test_worker_arguments.cpp
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/master_cluster.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/served_kernel.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_replica_model.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp")
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/worker_arguments.cpp")
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS distribution)
 else()
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER
@@ -54,6 +56,7 @@ endif()
 sushiai_add_test_program(APPLICATION programs
     SOURCES
         source/test_domains.cpp
+        source/test_epoch_loop.cpp
         source/test_inference_run.cpp
         source/test_registries.cpp
         source/test_run_start.cpp
@@ -61,6 +64,7 @@ sushiai_add_test_program(APPLICATION programs
         source/test_training_run.cpp
         source/test_training_setup.cpp
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/epoch_loop.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/registries.cpp"

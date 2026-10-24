@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 2026-10-24 — distribution: Fixed a worker whose training file differs from the master's diverging silently; the replica fingerprint folds every part of the file a replica's result depends on (`training_replica_model.hpp`).
+- 2026-10-24 — distribution: Made `SA_DISTRIBUTED` a public definition of the distribution module, so an installed consumer sees the distribution headers (`SushiAI.hpp`).
+- 2026-10-24 — distribution: Renamed the replica plan's `RowRange` to `RowPositions` (`replica_plan.hpp`).
+- 2026-10-24 — distribution: Summed `UInt32` as an exact count on both the exchange and the accumulator, and asserted host access at every host copy of a pack (`exact_sum.hpp`, `host_access.hpp`).
+- 2026-10-24 — data: Made `check_rows()` return `InvalidDescription` instead of stopping the process (`dataset.hpp`).
+- 2026-10-24 — programs: Made `sushiai_worker` answer `--help` and `--version` and refuse a flag before the training file, and the cluster master wait for its workers by its rules (`worker_arguments.hpp`, `master_cluster.hpp`).
+- 2026-10-24 — programs: Ran the trainer and the cluster run through one epoch loop (`epoch_loop.hpp`).
+- 2026-10-24 — build: Stopped configure when SushiRuntime's or SushiBLAS's distributed option is set off by hand while SushiAI's is on (`SushiAIDistributedOptions.cmake`).
 - 2026-10-24 — data: Added `Dataset::read_rows()`, a read of a row range of one batch that every dataset kind implements without reading the rows outside it (`dataset.hpp`).
 - 2026-10-24 — programs: Made each replica read only its own rows and the master hold only the step's results, not the whole batch's activations (`training_setup.hpp`).
 - 2026-10-24 — hash: Made `Shape::hash`, `signature_of` and the sample cache file names call it, with every value unchanged (`shape.hpp`, `region_signature.cpp`, `sample_cache.cpp`).

@@ -120,7 +120,7 @@ namespace SushiAI
             return static_cast<double>(rows_of(replica)) / static_cast<double>(batch_rows_);
         }
 
-        RowRange ReplicaPlan::rows(std::size_t replica, std::uint64_t batch_index) const
+        RowPositions ReplicaPlan::rows(std::size_t replica, std::uint64_t batch_index) const
         {
             const std::uint64_t count = static_cast<std::uint64_t>(rows_of(replica));
             const std::uint64_t batch = static_cast<std::uint64_t>(batch_rows_);
@@ -128,14 +128,14 @@ namespace SushiAI
                         "Batch {} of {} rows ends past the 64-bit row positions", batch_index,
                         batch);
 
-            RowRange range;
+            RowPositions range;
             range.first = batch_index * batch + static_cast<std::uint64_t>(offsets_[replica]);
             range.count = count;
             return range;
         }
 
-        RowRange ReplicaPlan::micro_batch(std::size_t replica, std::uint64_t batch_index,
-                                          std::uint64_t micro_batch_index) const
+        RowPositions ReplicaPlan::micro_batch(std::size_t replica, std::uint64_t batch_index,
+                                              std::uint64_t micro_batch_index) const
         {
             const std::uint64_t cuts = static_cast<std::uint64_t>(micro_batch_count_of(replica));
             SA_FATAL_IF(micro_batch_index >= cuts,
@@ -143,7 +143,7 @@ namespace SushiAI
                         micro_batch_index, replica, cuts);
 
             const std::uint64_t size = static_cast<std::uint64_t>(micro_batch_of(replica));
-            RowRange range = rows(replica, batch_index);
+            RowPositions range = rows(replica, batch_index);
             range.first += micro_batch_index * size;
             range.count = size;
             return range;

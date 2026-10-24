@@ -52,7 +52,7 @@ namespace SushiAI
         };
 
         /** @brief A run of consecutive positions in the epoch's sample order. */
-        struct RowRange
+        struct RowPositions
         {
             /** @brief The position of the first row. */
             std::uint64_t first = 0;
@@ -118,15 +118,17 @@ namespace SushiAI
                  * @pre @p replica is below replica_count(), and the end of the batch,
                  *      (batch_index + 1) * B, fits in 64 bits.
                  */
-                [[nodiscard]] RowRange rows(std::size_t replica, std::uint64_t batch_index) const;
+                [[nodiscard]] RowPositions rows(std::size_t replica,
+                                                std::uint64_t batch_index) const;
 
                 /**
                  * @brief Returns micro-batch @p micro_batch_index of the rows of a replica.
                  * @pre The preconditions of rows(), and @p micro_batch_index is below
                  *      micro_batch_count_of(@p replica).
                  */
-                [[nodiscard]] RowRange micro_batch(std::size_t replica, std::uint64_t batch_index,
-                                                   std::uint64_t micro_batch_index) const;
+                [[nodiscard]] RowPositions micro_batch(std::size_t replica,
+                                                       std::uint64_t batch_index,
+                                                       std::uint64_t micro_batch_index) const;
 
             private:
                 /** @brief Takes checked @p shares whose rows sum to @p batch_rows. */

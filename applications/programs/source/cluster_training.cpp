@@ -27,9 +27,7 @@
 
 #include "cluster_training.hpp"
 
-#include <chrono>
 #include <cstddef>
-#include <exception>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -38,14 +36,12 @@
 #include <SushiRuntime/core/sushi_ptr.hpp>
 #include <SushiRuntime/distributed/cluster.hpp>
 #include <SushiRuntime/distributed/kernel_registry.hpp>
-#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/failure/status.hpp>
 
 #include "cluster_run.hpp"
 #include "master_cluster.hpp"
-#include "registries.hpp"
 #include "served_kernel.hpp"
 #include "training_replica_model.hpp"
 
@@ -55,38 +51,11 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds how long the master waits for its workers before the first step. */
-            constexpr std::chrono::seconds K_WORKER_WAIT{60};
-
-            /** @brief Holds the run index of every run of a training file. */
-            constexpr std::uint64_t K_RUN_INDEX = 0;
-
             /** @brief Returns the checked cluster section of @p spec. */
             [[nodiscard]] Result<Distribution::ClusterSection> read_section(
                 const Config::TrainSpec& spec)
             {
                 return Distribution::ClusterSection::read(spec.cluster, spec.base);
-            }
-
-            /**
-             * @brief Builds the files every replica is built from.
-             * @return The source, or InvalidDescription for a file that does not read.
-             */
-            [[nodiscard]] Result<std::shared_ptr<const ReplicaSource>> read_source(
-                const Config::TrainSpec& spec)
-            {
-                Config::ModelSpec model_spec;
-                try
-                {
-                    model_spec = Config::load_model(spec.model_path);
-                }
-                catch (const std::exception& error)
-                {
-                    SA_FAIL_IF(true, StatusCode::InvalidDescription, "{}", error.what());
-                }
-
-                SA_TRY_ASSIGN(Registries registries, compose_registries());
-                return ReplicaSource::make(std::move(registries), spec, std::move(model_spec));
             }
 
         } // namespace
@@ -105,10 +74,9 @@ namespace SushiAI
         {
             SA_TRY_ASSIGN(const Distribution::ClusterSection section, read_section(run.spec));
             SA_TRY_ASSIGN(const std::shared_ptr<const ReplicaSource> source,
-                          read_source(run.spec));
+                          ReplicaSource::load(run.spec));
             SA_TRY_ASSIGN(const std::unique_ptr<Distribution::ReplicaKernel> local,
-                          make_served_kernel(source, section, section.worker_of(0),
-                                             K_RUN_INDEX));
+                          make_served_kernel(source, section, section.worker_of(0)));
 
             SushiRuntime::sushi_ptr<SushiRuntime::Distributed::KernelRegistry> kernels =
                 SushiRuntime::make_sushi<SushiRuntime::Distributed::KernelRegistry>();
@@ -122,13 +90,20 @@ namespace SushiAI
             std::cout << SushiLog::format_text(
                 "Cluster    : {} replicas, listening on {}, waiting for {} workers\n",
                 section.plan().replica_count(), section.listen_address(), workers);
-            if (!cluster.wait_for_workers(workers, K_WORKER_WAIT))
+            const Status waited = wait_for_workers(cluster, section);
+            if (!waited.is_ok())
+            {
+                cluster.detach();
+                return waited;
+            }
+            if (cluster.alive_workers() < workers)
                 std::cerr << SushiLog::format_text(
-                    "{} of {} workers joined within {} s; each absent worker's replica goes "
-                    "as its 'if_absent' says\n",
-                    cluster.alive_workers(), workers, K_WORKER_WAIT.count());
+                    "{} of {} workers joined; each absent worker's replica goes as its "
+                    "'if_absent' says\n",
+                    cluster.alive_workers(), workers);
 
-            ClusterRun cluster_run{run, parameters, section, binding, *local, K_RUN_INDEX};
+            ClusterRun cluster_run{run, parameters, section, binding, *local,
+                                   source->run_index};
             Result<RunSummary> summary = run_on_cluster(cluster_run);
             cluster.detach();
             return summary;

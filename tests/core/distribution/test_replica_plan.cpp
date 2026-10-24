@@ -40,7 +40,7 @@ namespace
     using SushiAI::StatusCode;
     using SushiAI::Distribution::ReplicaPlan;
     using SushiAI::Distribution::ReplicaShare;
-    using SushiAI::Distribution::RowRange;
+    using SushiAI::Distribution::RowPositions;
 
     /** @brief Holds the rows of the five replicas of the main case; they sum to 40. */
     const std::vector<std::int64_t> K_ROWS = {12, 8, 8, 6, 6};
@@ -69,7 +69,7 @@ TEST(Small_ReplicaPlan, FiveReplicasTakeContiguousRowsInReplicaOrder)
     const std::uint64_t firsts[] = {0, 12, 20, 28, 34};
     for (std::size_t replica = 0; replica < 5; ++replica)
     {
-        const RowRange range = plan.rows(replica, 0);
+        const RowPositions range = plan.rows(replica, 0);
         EXPECT_EQ(range.first, firsts[replica]) << "replica " << replica;
         EXPECT_EQ(range.count, static_cast<std::uint64_t>(K_ROWS[replica]))
             << "replica " << replica;
@@ -83,8 +83,8 @@ TEST(Small_ReplicaPlan, ALaterBatchShiftsEveryReplicaByWholeBatches)
 
     for (std::size_t replica = 0; replica < 5; ++replica)
     {
-        const RowRange first_batch = plan.rows(replica, 0);
-        const RowRange third_batch = plan.rows(replica, 2);
+        const RowPositions first_batch = plan.rows(replica, 0);
+        const RowPositions third_batch = plan.rows(replica, 2);
         EXPECT_EQ(third_batch.first, first_batch.first + 2 * 40u) << "replica " << replica;
         EXPECT_EQ(third_batch.count, first_batch.count) << "replica " << replica;
     }
@@ -99,7 +99,7 @@ TEST(Small_ReplicaPlan, TheRangesOfOneBatchTileIt)
     std::uint64_t next = K_BATCH * 40;
     for (std::size_t replica = 0; replica < 5; ++replica)
     {
-        const RowRange range = plan.rows(replica, K_BATCH);
+        const RowPositions range = plan.rows(replica, K_BATCH);
         EXPECT_EQ(range.first, next) << "replica " << replica;
         next = range.first + range.count;
     }
@@ -115,10 +115,10 @@ TEST(Small_ReplicaPlan, MicroBatchesCutTheRowsOfAReplica)
     EXPECT_EQ(plan.micro_batch_of(0), 4);
     ASSERT_EQ(plan.micro_batch_count_of(0), 3);
 
-    const RowRange rows = plan.rows(0, 1);
+    const RowPositions rows = plan.rows(0, 1);
     for (std::uint64_t cut = 0; cut < 3; ++cut)
     {
-        const RowRange micro = plan.micro_batch(0, 1, cut);
+        const RowPositions micro = plan.micro_batch(0, 1, cut);
         EXPECT_EQ(micro.first, rows.first + cut * 4) << "micro-batch " << cut;
         EXPECT_EQ(micro.count, 4u) << "micro-batch " << cut;
     }

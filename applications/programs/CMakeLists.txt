@@ -27,14 +27,14 @@ if(SA_ENABLE_DISTRIBUTED)
     set(SUSHIAI_PROGRAM_CLUSTER
         source/cluster_training.cpp source/cluster_run.cpp source/master_cluster.cpp
         source/served_kernel.cpp source/training_replica_model.cpp
-        source/replica_tensors.cpp)
+        source/replica_tensors.cpp source/worker_arguments.cpp)
 else()
     set(SUSHIAI_PROGRAM_CLUSTER source/cluster_training_none.cpp)
 endif()
 
 # What the programs share: the registries and the runs and reports they name.
 set(SUSHIAI_PROGRAM_SHARED
-    source/registries.cpp source/trainer_run.cpp source/training_run.cpp
+    source/registries.cpp source/epoch_loop.cpp source/trainer_run.cpp source/training_run.cpp
     source/inference_run.cpp source/run_start.cpp source/training_setup.cpp
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 

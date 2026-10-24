@@ -39,8 +39,7 @@ namespace SushiAI
     {
         Result<std::unique_ptr<Distribution::ReplicaKernel>> make_served_kernel(
             const std::shared_ptr<const ReplicaSource>& source,
-            const Distribution::ClusterSection& section, std::string_view machine,
-            std::uint64_t run_index)
+            const Distribution::ClusterSection& section, std::string_view machine)
         {
             SA_FAIL_IF(source == nullptr, StatusCode::InvalidDescription,
                        "a served kernel needs the files of its run");
@@ -61,7 +60,7 @@ namespace SushiAI
             Distribution::ReplicaDraws draws;
             draws.seed = seed;
             draws.replica_index = static_cast<std::uint64_t>(replica);
-            draws.run_index = run_index;
+            draws.run_index = source->run_index;
             return Distribution::ReplicaKernel::make(section.plan(),
                                                      TrainingReplicaModel::factory(source),
                                                      draws);

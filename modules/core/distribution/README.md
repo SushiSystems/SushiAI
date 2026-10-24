@@ -31,10 +31,12 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/distribution/replica_plan.hpp` | `K_REPLICA_PLACEMENT_CLASS`, `ReplicaShare`, `RowRange`, `ReplicaPlan` |
+| `SushiAI/distribution/replica_plan.hpp` | `K_REPLICA_PLACEMENT_CLASS`, `ReplicaShare`, `RowPositions`, `ReplicaPlan` |
 | `SushiAI/distribution/cluster_section.hpp` | `K_CLUSTER_KEY`, `ClusterSection` |
 | `SushiAI/distribution/replica_draws.hpp` | `ReplicaDraws`, `replica_seed()` |
 | `SushiAI/distribution/replica_position.hpp` | `K_REPLICA_POSITION_BYTES`, `ReplicaPosition` |
+| `SushiAI/distribution/exact_sum.hpp` | `sums_exactly()`: Int32, Int64 and UInt32 results add as counts with weight 1 |
+| `SushiAI/distribution/host_access.hpp` | `is_host_visible()`, `require_host_visible()`: the check before a host copy of a replica's tensors |
 | `SushiAI/distribution/gradient_exchange.hpp` | `ExchangeRun`, `GradientExchange` |
 | `SushiAI/distribution/parameter_publish.hpp` | `ParameterPublish` |
 | `SushiAI/distribution/replica_task.hpp` | `K_REPLICA_TASK_WORDS`, `ReplicaTask` |
@@ -188,8 +190,8 @@ batches of an epoch. One recording holds, in this order:
 4. the scatter of the sum pack into the target tensors.
 
 The weight of replica `k` in a sum is `r_k / B` for `Float16`, `Float32`, `Float64` and complex
-types, and 1 for integers, the only weight `ordered_sum()` takes for them, so integer totals are
-exact. `make()` refuses a target of type `UInt32` as `Unsupported`, since `ordered_sum()` does not
+types, and 1 for `Int32`, `Int64` and `UInt32`, which `sums_exactly()` names and the replica's
+own micro-batch sum agrees with, so integer totals are exact. `make()` refuses a target of type `UInt32` as `Unsupported`, since `ordered_sum()` does not
 sum it, and a target unlike its layout entry, an unshared parameter pack, a plan of no batch or
 too many replicas for `ordered_sum()` as `InvalidDescription`.
 
@@ -271,3 +273,12 @@ runtime made by `replica_runtime_config()`, compiles the same graph with the sam
 compares one micro-batch byte for byte. Two micro-batches of two rows against one step of four
 split the sum over rows inside the matrix product, so that case compares within an absolute
 1e-6 plus a relative 1e-5.
+
+## Host copies
+
+`ReplicaStep::begin`, the replica's micro-batch sum and `ParameterPublish::make` copy between the
+packs and the model's tensors with host `memcpy`. Every side is host memory: SushiAI's pool
+allocates `Residency::Shared`, a `TensorPack` allocates `Residency::Shared`, and SushiRuntime
+borrows every view a worker's dispatch hands a kernel as `Residency::Shared`.
+`require_host_visible()` stops the process at the copy, naming the tensor, if a model tensor
+ever lives in device memory.

@@ -31,6 +31,7 @@
 #include <utility>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 
@@ -85,14 +86,16 @@ namespace SushiAI
                 SushiBLAS::TensorPack pack(engine.runtime(), layout);
                 binding.share(pack);
 
-                // The first replay's tasks read the pack before any gather has run.
+                // A replay reads the pack before a gather; its Shared storage takes the host copy.
                 unsigned char* const base = static_cast<unsigned char*>(pack.data());
                 const std::vector<SushiBLAS::PackEntry>& entries = layout.entries();
                 for (std::size_t index = 0; index < entries.size(); ++index)
                 {
-                    if (entries[index].size_bytes != 0)
-                        std::memcpy(base + entries[index].offset_bytes, parameters[index].data(),
-                                    entries[index].size_bytes);
+                    if (entries[index].size_bytes == 0)
+                        continue;
+                    require_host_visible(parameters[index], "Published parameter", index);
+                    std::memcpy(base + entries[index].offset_bytes, parameters[index].data(),
+                                entries[index].size_bytes);
                 }
 
                 return std::unique_ptr<ParameterPublish>(

@@ -23,8 +23,11 @@ add_subdirectory(autograd)
 add_subdirectory(optim)
 add_subdirectory(data)
 add_subdirectory(eager)
+# A module an option leaves out is named unbuilt, and a module that lists it links nothing for it.
 if(SA_ENABLE_DISTRIBUTED)
     add_subdirectory(distribution)
+else()
+    set_property(GLOBAL APPEND PROPERTY SUSHIAI_UNBUILT_MODULES distribution)
 endif()
 
 # The modules only the tests use; see cmake/SushiAITestProgram.cmake.

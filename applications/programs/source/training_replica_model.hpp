@@ -50,9 +50,14 @@ namespace SushiAI
 {
     namespace Apps
     {
+        /** @brief Holds the run index of every run of a training file, master and workers. */
+        inline constexpr std::uint64_t K_RUN_INDEX = 0;
+
         /**
          * @struct ReplicaSource
          * @brief Holds the files every replica of one run is built from, and their fingerprint.
+         *
+         * applications/programs/README.md lists the parts the fingerprint hashes.
          */
         struct ReplicaSource
         {
@@ -65,12 +70,25 @@ namespace SushiAI
             /** @brief The architecture file the training file names. */
             Config::ModelSpec model_spec;
 
-            /** @brief The FNV-1a hash of the architecture file's bytes and the objective type. */
+            /** @brief The run index every replica's draws take. */
+            std::uint64_t run_index = K_RUN_INDEX;
+
+            /** @brief The FNV-1a hash of what a replica's result depends on. */
             std::uint64_t fingerprint = 0;
 
             /**
-             * @brief Reads the architecture file @p spec names and hashes it.
-             * @return The source, or FileNotFound naming the architecture file it cannot open.
+             * @brief Reads the architecture file @p spec names, composes the registries and
+             *        makes the source.
+             * @return The source, InvalidDescription for a file that does not read, or what
+             *         make() refuses.
+             */
+            [[nodiscard]] static Result<std::shared_ptr<const ReplicaSource>> load(
+                const Config::TrainSpec& spec);
+
+            /**
+             * @brief Hashes the files of @p spec, whose cluster section must read.
+             * @return The source, FileNotFound naming the architecture file it cannot open,
+             *         or the refusal of the cluster section, of the seed or of a key's text.
              */
             [[nodiscard]] static Result<std::shared_ptr<const ReplicaSource>> make(
                 Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec);

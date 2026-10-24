@@ -373,3 +373,21 @@ TEST_F(Medium_ThreadedLoaderRows, ARangeReadGivesTheRowsOfTheInnerBatch)
     EXPECT_EQ(part.inputs.shape[0], rows.count);
     EXPECT_TRUE(DataTest::holds_rows_of(whole, loader->batch_size(), rows, part));
 }
+
+/** @brief Tests that a range outside the loader is refused with a Status, not a stop. */
+TEST_F(Medium_ThreadedLoaderRows, RegressionABadRangeIsRefusedWithAStatus)
+{
+    Data::RingsOptions options;
+    options.batch_size = 4;
+    options.batches = 3;
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::Rings> rings,
+                            Data::Rings::make(*engine, options));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::ThreadedLoader> loader,
+                            Data::ThreadedLoader::make(std::move(rings), Data::LoaderOptions{}));
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((loader->read_rows(1, Data::RowRange{3, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Rows 3 to 5",
+                      "of batch 1", "a batch of 4");
+    SA_EXPECT_FAILURE((loader->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}

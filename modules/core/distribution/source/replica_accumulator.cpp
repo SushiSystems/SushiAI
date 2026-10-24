@@ -33,6 +33,8 @@
 #include <utility>
 #include <sycl/sycl.hpp>
 #include <SushiBLAS/core/common.hpp>
+#include <SushiAI/distribution/exact_sum.hpp>
+#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
@@ -60,13 +62,6 @@ namespace SushiAI
                 Element* elements = static_cast<Element*>(values);
                 for (std::size_t index = 0; index < count; ++index)
                     elements[index] /= divisor;
-            }
-
-            /** @brief Returns whether a type is an integer, whose mean the pack cannot hold. */
-            [[nodiscard]] bool is_integer(DataType dtype) noexcept
-            {
-                return dtype == DataType::Int32 || dtype == DataType::Int64
-                       || dtype == DataType::UInt32;
             }
         } // namespace
 
@@ -99,6 +94,7 @@ namespace SushiAI
                 if (layout_.entries()[index].size_bytes == 0)
                     continue;
 
+                require_host_visible(result, "Replica result", index);
                 if (count_ == 0)
                     copy_entry(index, result.data());
                 else
@@ -113,7 +109,7 @@ namespace SushiAI
             if (count_ > 1)
             {
                 for (const SushiBLAS::PackEntry& entry : layout_.entries())
-                    SA_FAIL_IF(is_integer(entry.dtype), StatusCode::Unsupported,
+                    SA_FAIL_IF(sums_exactly(entry.dtype), StatusCode::Unsupported,
                                "A replica of {} micro-batches holds an integer result, whose "
                                "mean is not an integer",
                                count_);
@@ -126,6 +122,7 @@ namespace SushiAI
                 if (entry.size_bytes == 0)
                     continue;
 
+                // A bound pack is host memory: SushiRuntime borrows every view as Shared.
                 void* const values = target.tensor(index).data;
                 if (count_ == 0)
                 {

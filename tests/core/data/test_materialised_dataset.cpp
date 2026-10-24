@@ -166,3 +166,17 @@ TEST_F(Medium_MaterialisedDataset, ARangeReadViewsTheRowsOfItsIndex)
     EXPECT_EQ(part.inputs.storage.get(), whole.inputs.storage.get());
     EXPECT_TRUE(DataTest::holds_rows_of(whole, K_ROWS, rows, part));
 }
+
+/** @brief Tests that a range outside the materialised set is refused with a Status, not a stop. */
+TEST_F(Medium_MaterialisedDataset, RegressionABadRangeIsRefusedWithAStatus)
+{
+    const Data::MaterialisedDataset dataset = two_batches();
+    const std::int64_t size = dataset.batch_size();
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset.read_rows(1, Data::RowRange{size - 1, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription,
+                      "Rows " + std::to_string(size - 1) + " to " + std::to_string(size + 1),
+                      "of batch 1", "a batch of " + std::to_string(size));
+    SA_EXPECT_FAILURE((dataset.read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}

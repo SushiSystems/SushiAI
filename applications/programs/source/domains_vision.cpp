@@ -57,6 +57,7 @@
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
 
+#include "epoch_loop.hpp"
 #include "inference_run.hpp"
 #include "training_run.hpp"
 
@@ -66,9 +67,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds how many epochs pass between two progress lines. */
-            constexpr std::int64_t K_REPORT_INTERVAL = 5;
-
             /** @brief Prints the cost and the rate of the last update of an epoch. */
             void print_epoch(const Vision::Training::AnchorProgress& progress,
                              std::int64_t epochs)
@@ -114,9 +112,8 @@ namespace SushiAI
                 options.on_update = [epochs, batches](
                                         const Vision::Training::AnchorProgress& progress)
                 {
-                    const bool reported = progress.epoch == 1 || progress.epoch == epochs
-                                       || progress.epoch % K_REPORT_INTERVAL == 0;
-                    if (reported && progress.batch + 1 == batches)
+                    if (is_reported_epoch(progress.epoch, epochs)
+                        && progress.batch + 1 == batches)
                         print_epoch(progress, epochs);
                 };
 

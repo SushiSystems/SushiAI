@@ -324,6 +324,15 @@ namespace SushiAI
             return replicas_[replica].worker;
         }
 
+        const SushiRuntime::AbsentPolicy& ClusterSection::absent_policy_of(
+            std::size_t replica) const
+        {
+            SA_FATAL_IF(replica >= replicas_.size(),
+                        "Replica {} was asked of a cluster section that has {}", replica,
+                        replicas_.size());
+            return replicas_[replica].if_absent;
+        }
+
         Result<SushiRuntime::PlacementRules> ClusterSection::placement_rules() const
         {
             SushiRuntime::PlacementRules rules;

@@ -505,3 +505,20 @@ TEST_F(Medium_DatasetsReaderDataset, ARangeReadOpensNoSampleOutsideIt)
     EXPECT_EQ(batch.inputs.shape[0], 1);
     SA_EXPECT_FAILURE(dataset->read(0, batch), StatusCode::InvalidFile, "gone.bin");
 }
+
+/** @brief Tests that a range outside the reader dataset is refused with a Status, not a stop. */
+TEST_F(Medium_DatasetsReaderDataset, RegressionABadRangeIsRefusedWithAStatus)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_reader_dataset_bad_rows");
+    ReaderDatasetOptions options = gray_options();
+    options.batch_size = 4;
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<ReaderDataset> dataset,
+        ReaderDataset::make(*engine, stored_list(scratch, 8), classification(), options));
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{3, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Rows 3 to 5",
+                      "of batch 1", "a batch of 4");
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+}

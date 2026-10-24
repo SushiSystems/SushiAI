@@ -6,6 +6,9 @@
 
 # The test program of the module umbrella; see cmake/SushiAITestProgram.cmake.
 
-sushiai_add_test_program(OWNER umbrella
-    SOURCES
-        test_SushiAI.cpp)
+sushiai_add_test_program(OWNER umbrella SOURCES test_SushiAI.cpp)
+
+# The distribution case compiles only where the library carries SA_DISTRIBUTED to its consumers.
+if(SA_ENABLE_DISTRIBUTED)
+    target_compile_definitions(sushiai_layers_umbrella_tests PRIVATE SA_TEST_DISTRIBUTED_BUILD)
+endif()

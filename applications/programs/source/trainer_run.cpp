@@ -38,9 +38,10 @@
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
-#include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/trainer.hpp>
+
+#include "epoch_loop.hpp"
 
 namespace SushiAI
 {
@@ -48,9 +49,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds how many epochs pass between two progress lines. */
-            constexpr std::int64_t K_REPORT_INTERVAL = 5;
-
             /** @brief Prints the loss of an epoch and every metric the objective measured. */
             void print_epoch(std::int64_t epoch, std::int64_t epochs,
                              const Train::StepMetrics& last)
@@ -86,29 +84,24 @@ namespace SushiAI
                 SA_TRY(trainer->restore_run_count(
                     static_cast<std::size_t>(run.start.step_runs)));
 
-                const std::int64_t epochs = run.spec.epochs;
-                const std::int64_t first_epoch = static_cast<std::int64_t>(run.start.epoch);
                 Data::Batch batch;
-                for (std::int64_t epoch = 1; epoch <= epochs; ++epoch)
+                Train::StepMetrics last;
+                EpochSteps steps;
+                steps.enter_epoch = [&run](std::int64_t epoch_index)
                 {
-                    Data::begin_epoch(run.dataset, first_epoch + epoch - 1);
-                    Train::StepMetrics last;
-
-                    const std::size_t first =
-                        epoch == 1 ? static_cast<std::size_t>(run.start.batch) : 0;
-                    for (std::size_t index = first; index < run.dataset.batch_count(); ++index)
-                    {
-                        SA_TRY(run.dataset.read(index, batch));
-
-                        if (run.schedule != nullptr)
-                            Optim::apply_step_schedule(*run.schedule, run.optimizer);
-
-                        SA_TRY_ASSIGN(last, trainer->run_step(batch));
-                    }
-
-                    if (epoch == 1 || epoch % K_REPORT_INTERVAL == 0 || epoch == epochs)
-                        print_epoch(epoch, epochs, last);
-                }
+                    Data::begin_epoch(run.dataset, epoch_index);
+                };
+                steps.run_step = [&](std::size_t index) -> Status
+                {
+                    SA_TRY(run.dataset.read(index, batch));
+                    SA_TRY_ASSIGN(last, trainer->run_step(batch));
+                    return Status();
+                };
+                steps.report = [&last](std::int64_t epoch, std::int64_t epochs)
+                {
+                    print_epoch(epoch, epochs, last);
+                };
+                SA_TRY(run_epochs(run, steps));
 
                 RunSummary summary;
                 summary.compile_count = trainer->compile_count();

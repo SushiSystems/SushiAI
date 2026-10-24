@@ -68,12 +68,12 @@ TEST(Small_ReplicaTask, EncodesInTheDesignOrderAndDecodesBack)
     EXPECT_EQ(decoded.draws().run_index, 4u);
 }
 
-/** @brief Tests that decode() refuses a count of words other than four. */
-TEST(Small_ReplicaTask, DecodeRefusesAnotherWordCount)
+/** @brief Tests that decode() refuses a count of words other than four, naming the count given. */
+TEST(Small_ReplicaTask, RegressionDecodeRefusesAnotherWordCountNamingIt)
 {
     const std::vector<std::uint64_t> six = {0, 0, 0, 1, 0, 0};
     SA_EXPECT_FAILURE(ReplicaTask::decode(view(six)), StatusCode::InvalidDescription,
-                      "carries 4 parameters, not 6");
+                      "carries 6 parameters, not 4");
 }
 
 /** @brief Tests that decode() refuses a replica outside its step and a step of no replica. */

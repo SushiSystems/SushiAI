@@ -137,7 +137,7 @@ endfunction()
 #     [SOURCES source/<file>.cpp ...]
 #     [PUBLIC_DEPENDS <module key> ...] [PRIVATE_DEPENDS <module key> ...]
 #     [EXTERNAL_PUBLIC <target> ...] [EXTERNAL_PRIVATE_INCLUDES <target> ...]
-#     [EXTERNAL_PRIVATE_LINKS <target> ...]
+#     [EXTERNAL_PRIVATE_LINKS <target> ...] [PUBLIC_DEFINITIONS <name> ...]
 #     [TESTS tests/<file>.cpp ...] [INTERNAL])
 #
 # INTERNAL declares a module only the tests use; see sushiai_add_internal_module.
@@ -152,19 +152,25 @@ endfunction()
 # the module's sources alone see its headers, and a consumer of the static
 # library inherits the link and nothing else. The objects, the include root
 # and the test files are handed to the library of the module's tier.
+# PUBLIC_DEFINITIONS are compile definitions of the module and of everything that links it,
+# its tier library and that library's installed consumers included. A dependency named in the
+# global property SUSHIAI_UNBUILT_MODULES, a module an option leaves out, is checked and not
+# linked.
 function(sushiai_add_module)
-    cmake_parse_arguments(ARG "INTERNAL" "NAME;TIER"
-        "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC;EXTERNAL_PRIVATE_INCLUDES;EXTERNAL_PRIVATE_LINKS;TESTS"
-        ${ARGN})
+    set(multi_value_keywords SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS EXTERNAL_PUBLIC
+        EXTERNAL_PRIVATE_INCLUDES EXTERNAL_PRIVATE_LINKS PUBLIC_DEFINITIONS TESTS)
+    cmake_parse_arguments(ARG "INTERNAL" "NAME;TIER" "${multi_value_keywords}" ${ARGN})
 
     if(NOT ARG_NAME OR NOT ARG_TIER)
         message(FATAL_ERROR "sushiai_add_module: NAME and TIER are required.")
     endif()
 
     if(ARG_INTERNAL)
-        if(ARG_EXTERNAL_PRIVATE_INCLUDES OR ARG_EXTERNAL_PRIVATE_LINKS OR ARG_TESTS)
+        if(ARG_EXTERNAL_PRIVATE_INCLUDES OR ARG_EXTERNAL_PRIVATE_LINKS OR ARG_TESTS
+                OR ARG_PUBLIC_DEFINITIONS)
             message(FATAL_ERROR "sushiai_add_module(${ARG_NAME}): an INTERNAL module takes "
-                "no EXTERNAL_PRIVATE_INCLUDES, EXTERNAL_PRIVATE_LINKS or TESTS.")
+                "no EXTERNAL_PRIVATE_INCLUDES, EXTERNAL_PRIVATE_LINKS, PUBLIC_DEFINITIONS or "
+                "TESTS.")
         endif()
         sushiai_add_internal_module(NAME ${ARG_NAME} TIER ${ARG_TIER}
             SOURCES ${ARG_SOURCES}
@@ -200,9 +206,21 @@ function(sushiai_add_module)
             INTERFACE "$<BUILD_INTERFACE:${include_root}>")
     endif()
 
+    if(ARG_PUBLIC_DEFINITIONS)
+        target_compile_definitions(${target} ${public_scope} ${ARG_PUBLIC_DEFINITIONS})
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_PUBLIC_DEFINITIONS_${library}
+            ${ARG_PUBLIC_DEFINITIONS})
+    endif()
+
     foreach(dependency IN LISTS ARG_PUBLIC_DEPENDS ARG_PRIVATE_DEPENDS)
         sushiai_check_module_edge("${key}" "${dependency}")
     endforeach()
+
+    get_property(unbuilt_modules GLOBAL PROPERTY SUSHIAI_UNBUILT_MODULES)
+    if(unbuilt_modules)
+        list(REMOVE_ITEM ARG_PUBLIC_DEPENDS ${unbuilt_modules})
+        list(REMOVE_ITEM ARG_PRIVATE_DEPENDS ${unbuilt_modules})
+    endif()
 
     foreach(dependency IN LISTS ARG_PUBLIC_DEPENDS)
         sushiai_module_target("${dependency}" dependency_target)
@@ -389,6 +407,13 @@ function(sushiai_add_library)
     get_property(public_links GLOBAL PROPERTY SUSHIAI_PUBLIC_LINKS_${ARG_NAME})
     list(REMOVE_DUPLICATES public_links)
     target_link_libraries(${ARG_NAME} PUBLIC ${public_links} ${ARG_DEPENDS})
+
+    # PUBLIC: the definitions its modules declare, so they reach an installed consumer too.
+    get_property(public_definitions GLOBAL PROPERTY SUSHIAI_PUBLIC_DEFINITIONS_${ARG_NAME})
+    if(public_definitions)
+        list(REMOVE_DUPLICATES public_definitions)
+        target_compile_definitions(${ARG_NAME} PUBLIC ${public_definitions})
+    endif()
 
     if(private_links)
         list(REMOVE_DUPLICATES private_links)

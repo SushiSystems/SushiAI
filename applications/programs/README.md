@@ -26,6 +26,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report and importer rows a program looks up, and `compose_registries`, which fills them |
 | `inference_run.hpp`, `inference_run.cpp` | `PreparedInference`, `InferenceRegistry`, `report_inference` and `print_inference_header`: the report table |
 | `training_run.hpp`, `training_run.cpp` | `PreparedRun`, `RunSummary`, `RunRegistry` and `run_training`: the run table; `finished_progress` and `check_start_batch`, which both runs call |
+| `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epochs`: the epoch, schedule and report loop the trainer run and the cluster run share, and `is_reported_epoch`, the cadence the vision run prints at |
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
@@ -33,13 +34,27 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `domains_vision_none.cpp` | No row; compiled when it is off |
 | `domains_language.cpp` | The language rows and the `next_token_generation` report; compiled when `SA_BUILD_LANGUAGE` is on |
 | `domains_language_none.cpp` | No row; compiled when it is off |
-
-| `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
+| `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp`, `worker_arguments.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
 
 A distributed build links the first set into every program. `sushiai_train` then trains a
 `cluster` section on the master, and `sushiai_worker` serves the replica named by its `--name`
-on each worker machine; the other flags go to SushiRuntime's worker.
+on each worker machine; the other flags go to SushiRuntime's worker. The training file comes
+first: `-h`, `--help`, `-V` or `--version` there prints and exits 0, and any other flag there is
+refused with the usage line.
+
+Before the first step the master waits for its workers up to the largest `wait_ms` of the
+section's `wait` replicas, and does not wait when no replica waits. When every worker's
+`if_absent` is `fail` and a worker has not joined by then, the run ends with `DeviceFailed`,
+naming the section's workers and how many joined.
+
+`ReplicaSource::fingerprint`, which the master and every worker must agree on, hashes what a
+replica's result depends on: the architecture file's bytes, the objective's `type` and its keys,
+the data block's `type` and its keys, the run's `seed`, the run index (`K_RUN_INDEX`, 0 for
+every run), and the `rows` and `micro_batch` of every replica. It leaves out the optimizer, the
+schedule, `epochs`, `weights`, `resume`, `checkpoint`, and the section's `listen`,
+`secret_file`, `worker`, `priority`, `if_absent` and `wait_ms`, which only the master reads or
+which name where output goes.
 
 `train.cpp` builds the `TrainingSetup` of a run with `SetupScope::Step` and the master of a
 cluster run with `SetupScope::Results`. A `Results` setup binds the state, a gradient per

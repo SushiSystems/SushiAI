@@ -38,7 +38,7 @@ namespace SushiAI::IO::Detail
 {
     /**
      * @brief Writes one record per entry of @p state, in the order the state lists them.
-     * @pre The tasks recorded on the state's engine have run.
+     * @pre Every graph that writes the state has run; the records wait for its queues.
      * @return Success, or the failure of CheckpointWriter::write.
      */
     [[nodiscard]] Status write_model_records(CheckpointWriter& writer, NN::ModelState& state);

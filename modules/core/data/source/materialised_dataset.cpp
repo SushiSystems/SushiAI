@@ -130,7 +130,7 @@ namespace SushiAI
         Status MaterialisedDataset::read_rows(std::size_t index, RowRange rows,
                                               Batch& batch) const
         {
-            check_rows(*this, index, rows);
+            SA_TRY(check_rows(*this, index, rows));
             return share_rows(batches_[index], rows, batch);
         }
 

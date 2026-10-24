@@ -28,12 +28,18 @@
 #include "training_replica_model.hpp"
 
 #include <cstddef>
+#include <exception>
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiAI/config/json_writer.hpp>
+#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/data/epoch.hpp>
+#include <SushiAI/distribution/cluster_section.hpp>
+#include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
@@ -43,6 +49,74 @@ namespace SushiAI
 {
     namespace Apps
     {
+        namespace
+        {
+            /** @brief Folds @p text and then its length into @p hash, so two parts never merge. */
+            [[nodiscard]] std::uint64_t fold_text(std::uint64_t hash, std::string_view text)
+            {
+                return Hash::fnv1a_word(Hash::fnv1a_text(hash, text), text.size());
+            }
+
+            /** @brief Folds the JSON text of @p value into @p hash. */
+            [[nodiscard]] Result<std::uint64_t> fold_value(std::uint64_t hash,
+                                                           const Config::Value& value)
+            {
+                SA_TRY_ASSIGN(const std::string text, Config::write_json(value));
+                return fold_text(hash, text);
+            }
+
+            /**
+             * @brief Returns the fingerprint of a replica built from @p bytes and @p spec.
+             * @return The hash, or the refusal of the cluster section, of the seed or of a
+             *         key's JSON text.
+             */
+            [[nodiscard]] Result<std::uint64_t> fingerprint_of(const std::string& bytes,
+                                                               const Config::TrainSpec& spec,
+                                                               std::uint64_t run_index)
+            {
+                SA_TRY_ASSIGN(const Distribution::ClusterSection section,
+                              Distribution::ClusterSection::read(spec.cluster, spec.base));
+                SA_TRY_ASSIGN(const std::uint64_t seed,
+                              Config::read_run_seed(spec, "the training file"));
+
+                std::uint64_t hash = fold_text(Hash::K_FNV1A_OFFSET_BASIS, bytes);
+                hash = fold_text(hash, spec.objective_type);
+                SA_TRY_ASSIGN(hash, fold_value(hash, spec.objective_attributes));
+                hash = fold_text(hash, spec.data.type);
+                SA_TRY_ASSIGN(hash, fold_value(hash, spec.data.attributes));
+                hash = Hash::fnv1a_word(hash, seed);
+                hash = Hash::fnv1a_word(hash, run_index);
+
+                const Distribution::ReplicaPlan& plan = section.plan();
+                hash = Hash::fnv1a_word(hash, plan.replica_count());
+                for (std::size_t replica = 0; replica < plan.replica_count(); ++replica)
+                {
+                    hash = Hash::fnv1a_word(hash,
+                                            static_cast<std::uint64_t>(plan.rows_of(replica)));
+                    hash = Hash::fnv1a_word(
+                        hash, static_cast<std::uint64_t>(plan.micro_batch_of(replica)));
+                }
+                return hash;
+            }
+        } // namespace
+
+        Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::load(
+            const Config::TrainSpec& spec)
+        {
+            Config::ModelSpec model_spec;
+            try
+            {
+                model_spec = Config::load_model(spec.model_path);
+            }
+            catch (const std::exception& error)
+            {
+                SA_FAIL_IF(true, StatusCode::InvalidDescription, "{}", error.what());
+            }
+
+            SA_TRY_ASSIGN(Registries registries, compose_registries());
+            return make(std::move(registries), spec, std::move(model_spec));
+        }
+
         Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::make(
             Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec)
         {
@@ -51,14 +125,20 @@ namespace SushiAI
                        "the architecture file '{}' could not be opened to fingerprint it",
                        spec.model_path.string());
 
+            SA_TRY_ASSIGN(const std::string bytes,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
+                                                       [&file]()
+            {
+                return std::string((std::istreambuf_iterator<char>(file)),
+                                   std::istreambuf_iterator<char>());
+            }));
+            SA_TRY_ASSIGN(const std::uint64_t fingerprint,
+                          fingerprint_of(bytes, spec, K_RUN_INDEX));
+
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                const std::string bytes((std::istreambuf_iterator<char>(file)),
-                                        std::istreambuf_iterator<char>());
                 auto source = std::make_shared<ReplicaSource>();
-                source->fingerprint =
-                    Hash::fnv1a_text(Hash::fnv1a_text(Hash::K_FNV1A_OFFSET_BASIS, bytes),
-                                     spec.objective_type);
+                source->fingerprint = fingerprint;
                 source->registries = std::move(registries);
                 source->spec = std::move(spec);
                 source->model_spec = std::move(model_spec);

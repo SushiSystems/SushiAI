@@ -27,11 +27,15 @@
 
 #include "master_cluster.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <memory>
+#include <string>
 #include <utility>
 #include <SushiRuntime/cluster_load/offload_policy.hpp>
 #include <SushiRuntime/distributed/shared_secret.hpp>
 #include <SushiRuntime/distributed/tcp_transport.hpp>
+#include <SushiRuntime/placement/placement_rule.hpp>
 #include <SushiRuntime/placement/placement_rules.hpp>
 #include <SushiRuntime/transport/endpoint.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -92,6 +96,39 @@ namespace SushiAI
             {
                 return Detail::status_of_current_exception(SeamPhase::Allocate);
             }
+        }
+
+        WorkerWait worker_wait(const Distribution::ClusterSection& section)
+        {
+            WorkerWait wait;
+            const std::size_t replicas = section.plan().replica_count();
+            wait.fails_when_short = replicas > 1;
+            for (std::size_t replica = 1; replica < replicas; ++replica)
+            {
+                const SushiRuntime::AbsentPolicy& policy = section.absent_policy_of(replica);
+                if (policy.action == SushiRuntime::AbsentAction::Wait)
+                    wait.bound = std::max(wait.bound, policy.bound);
+                if (policy.action != SushiRuntime::AbsentAction::Fail)
+                    wait.fails_when_short = false;
+            }
+            return wait;
+        }
+
+        Status wait_for_workers(SushiRuntime::Distributed::Cluster& cluster,
+                                const Distribution::ClusterSection& section)
+        {
+            const std::size_t workers = section.plan().replica_count() - 1;
+            const WorkerWait wait = worker_wait(section);
+            const bool joined = cluster.wait_for_workers(workers, wait.bound);
+
+            std::string names;
+            for (std::size_t replica = 1; replica <= workers; ++replica)
+                names += (replica == 1 ? "'" : ", '") + section.worker_of(replica) + "'";
+            SA_FAIL_IF(!joined && wait.fails_when_short, StatusCode::DeviceFailed,
+                       "{} of the {} workers {} joined, and every replica's 'if_absent' is "
+                       "'fail'",
+                       cluster.alive_workers(), workers, names);
+            return Status();
         }
 
     } // namespace Apps

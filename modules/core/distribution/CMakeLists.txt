@@ -5,7 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 
 # distribution: the cluster section of a training file, and the split of a batch over replicas.
-# Built only when SA_ENABLE_DISTRIBUTED is on; see the root CMakeLists.txt.
+# Built only when SA_ENABLE_DISTRIBUTED is on; see the root CMakeLists.txt. SA_DISTRIBUTED
+# reaches every target that links the module, so <SushiAI/SushiAI.hpp> includes its headers there.
 
 sushiai_add_module(NAME distribution TIER core
     SOURCES
@@ -21,4 +22,5 @@ sushiai_add_module(NAME distribution TIER core
         source/replica_task.cpp
     PUBLIC_DEPENDS config failure graph
     PRIVATE_DEPENDS seam execution allocation hash
-    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::placement SushiRuntime::distributed)
+    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::placement SushiRuntime::distributed
+    PUBLIC_DEFINITIONS SA_DISTRIBUTED)

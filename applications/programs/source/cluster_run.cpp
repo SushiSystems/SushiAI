@@ -36,13 +36,14 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiAI/distribution/gradient_exchange.hpp>
+#include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/train/training_step.hpp>
 
+#include "epoch_loop.hpp"
 #include "replica_tensors.hpp"
 
 namespace SushiAI
@@ -51,9 +52,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds how many epochs pass between two progress lines. */
-            constexpr std::int64_t K_REPORT_INTERVAL = 5;
-
             /** @brief Returns the one element of the summed loss, read on the host. */
             [[nodiscard]] double read_loss(const SushiBLAS::Tensor& loss) noexcept
             {
@@ -147,26 +145,24 @@ namespace SushiAI
                 static_cast<std::size_t>(prepared.start.step_runs)));
             built.exchange->set_next_step(prepared.start.epoch * batches + prepared.start.batch);
 
+            // The master's pool allocates Residency::Shared, so the host reads the loss.
             const SushiBLAS::Tensor& loss = tensors.results[tensors.parameters.size()];
-            const std::int64_t epochs = prepared.spec.epochs;
-            for (std::int64_t epoch = 1; epoch <= epochs; ++epoch)
+            Distribution::require_host_visible(loss, "Cluster loss", 0);
+
+            // The replicas read their own rows, so the master's data enters no epoch.
+            EpochSteps steps;
+            steps.run_step = [&built](std::size_t)
             {
-                const std::size_t first =
-                    epoch == 1 ? static_cast<std::size_t>(prepared.start.batch) : 0;
-                for (std::size_t index = first; index < batches; ++index)
-                {
-                    if (prepared.schedule != nullptr)
-                        Optim::apply_step_schedule(*prepared.schedule, prepared.optimizer);
-
-                    SA_TRY(built.step->run());
-                }
-
-                if (epoch == 1 || epoch % K_REPORT_INTERVAL == 0 || epoch == epochs)
-                    std::cout << SushiLog::format_text("  epoch {}/{} loss {}\n",
-                                                       SushiLog::right(epoch, 3),
-                                                       SushiLog::left(epochs, 3),
-                                                       SushiLog::fixed(read_loss(loss), 6));
-            }
+                return built.step->run();
+            };
+            steps.report = [&loss](std::int64_t epoch, std::int64_t epochs)
+            {
+                std::cout << SushiLog::format_text("  epoch {}/{} loss {}\n",
+                                                   SushiLog::right(epoch, 3),
+                                                   SushiLog::left(epochs, 3),
+                                                   SushiLog::fixed(read_loss(loss), 6));
+            };
+            SA_TRY(run_epochs(prepared, steps));
 
             RunSummary summary;
             summary.compile_count = built.step->step().compile_count();

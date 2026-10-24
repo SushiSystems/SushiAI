@@ -32,6 +32,7 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -363,4 +364,21 @@ TEST_F(Medium_LanguageDatasetsTokenDataset, ARangeReadReadsNoWindowOutsideIt)
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read_rows(1, Data::RowRange{0, 1}, batch)));
     EXPECT_EQ(batch.inputs.shape[0], 1);
     SA_EXPECT_FAILURE(dataset->read(1, batch), StatusCode::InvalidFile, "rising.satk");
+}
+
+/** @brief Tests that a range outside the token dataset is refused with a Status, not a stop. */
+TEST_F(Medium_LanguageDatasetsTokenDataset, RegressionABadRangeIsRefusedWithAStatus)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_language_token_dataset_bad_rows");
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<TokenDataset> dataset,
+        TokenDataset::make(*engine, rising_file(scratch), next_token(), tiny_options()));
+    const std::int64_t size = dataset->batch_size();
+    Data::Batch batch;
+    SA_EXPECT_FAILURE((dataset->read_rows(1, Data::RowRange{size - 1, 2}, batch)),
+                      SushiAI::StatusCode::InvalidDescription,
+                      "Rows " + std::to_string(size - 1) + " to " + std::to_string(size + 1),
+                      "of batch 1", "a batch of " + std::to_string(size));
+    SA_EXPECT_FAILURE((dataset->read_rows(99, Data::RowRange{0, 1}, batch)),
+                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
 }

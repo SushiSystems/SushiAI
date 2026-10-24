@@ -27,12 +27,11 @@ project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 # cmake/Runtime.cmake's header comment).
 include(Log)      # SUSHILOG_DIR from the CLI -> SushiLog::SushiLog
 # Training over several machines needs the distributed layers of the runtime and of SushiBLAS too.
+# The distribution module's target carries SA_DISTRIBUTED to whatever links it.
 option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
-if(SA_ENABLE_DISTRIBUTED)
-    set(SR_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiRuntime's distributed layer" FORCE)
-    set(SB_ENABLE_DISTRIBUTED ON CACHE BOOL "Build SushiBLAS's cluster module" FORCE)
-    add_compile_definitions(SA_DISTRIBUTED)
-endif()
+include(SushiAIDistributedOptions)
+sushiai_follow_distributed_option(SR_ENABLE_DISTRIBUTED "Build SushiRuntime's distributed layer")
+sushiai_follow_distributed_option(SB_ENABLE_DISTRIBUTED "Build SushiBLAS's cluster module")
 include(Runtime)  # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime
 include(BLAS)     # add_subdirectory(sushiblas)    -> SushiBLAS::sushiblas
 include(SushiAISyclTarget)  # sushiai_apply_sycl() helper

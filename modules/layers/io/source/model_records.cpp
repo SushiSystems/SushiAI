@@ -29,6 +29,7 @@
 
 #include <string>
 #include <unordered_set>
+#include <SushiBLAS/tensor/storage.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -44,6 +45,9 @@ namespace SushiAI::IO::Detail
         for (const NN::StateEntry& entry : state.entries())
         {
             SA_TRY_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entry.state));
+            // Work submitted to the tensor's queue ends before its bytes are read.
+            if (tensor->storage)
+                tensor->storage->queue().wait();
             SA_TRY(writer.write(record_for(entry.name, *tensor), tensor->data()));
         }
 
