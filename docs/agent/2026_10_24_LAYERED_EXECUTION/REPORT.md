@@ -151,6 +151,16 @@ life, and each pack takes its tensors' device. A9c counts and awaits distinct wo
 SushiRuntime's placement compares machine names, leaves out a replica on the master's own machine,
 and names each missing worker with the policy of each of its replicas.
 
+## The audit
+
+The cluster section's duplicate check and the served kernel compared worker names exactly, while
+placement compares them by their lower-case first label, so two names of one machine passed the
+check and a worker started under another case found no replica; both use SushiRuntime's
+`machine_names_match`. Confirmed and open: after a resume or a worker restart, a replica's dropout
+masks follow its own step's run count, which only the master restores, so they differ from an
+uninterrupted run; and the warning the design promises for a replica that falls back to the master
+is logged nowhere.
+
 ## A8, SushiBLAS's `UInt32`
 
 SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no

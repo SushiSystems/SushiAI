@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-24 — distribution: Fixed the cluster section's duplicate check and the served kernel comparing worker names exactly, while placement compares them by their first label (`cluster_section.cpp`).
 - 2026-10-24 — programs: Made the cluster master wait for distinct workers by SushiRuntime's name match, never for its own machine, and name each missing worker with its replicas' policy (`master_cluster.hpp`).
 - 2026-10-24 — programs: Breaking change: Made the cluster master wait until every worker its section names attaches or `attach_timeout_ms` passes, and fail naming a missing `fail` worker (`master_cluster.hpp`).
 - 2026-10-24 — eager: Gave each SushiAI recording its own SushiBLAS late-count hold, so a replayed late task outlives its recorder, and placed each pack on its tensors' device (`region_emitter.hpp`, `compiled_step.hpp`).

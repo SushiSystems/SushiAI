@@ -35,6 +35,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <SushiRuntime/placement/placement_target_matching.hpp>
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -272,7 +273,8 @@ namespace SushiAI
 
                 for (std::size_t before = 0; before < index; ++before)
                 {
-                    SA_FAIL_IF(read[before].worker == read[index].worker,
+                    SA_FAIL_IF(SushiRuntime::machine_names_match(read[before].worker,
+                                                                 read[index].worker),
                                StatusCode::InvalidDescription,
                                "{} is '{}', which entry {} already names; a machine runs one "
                                "replica",

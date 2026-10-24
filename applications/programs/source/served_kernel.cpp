@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <string>
+#include <SushiRuntime/placement/placement_target_matching.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -46,7 +47,8 @@ namespace SushiAI
 
             const std::size_t replicas = section.plan().replica_count();
             std::size_t replica = 0;
-            while (replica < replicas && section.worker_of(replica) != machine)
+            while (replica < replicas &&
+                   !SushiRuntime::machine_names_match(section.worker_of(replica), machine))
                 ++replica;
 
             SA_FAIL_IF(replica == replicas, StatusCode::InvalidDescription,

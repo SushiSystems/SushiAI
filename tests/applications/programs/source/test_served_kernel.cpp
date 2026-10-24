@@ -61,3 +61,14 @@ TEST(Medium_ServedKernel, RefusesAMachineNoReplicaNames)
     SA_EXPECT_FAILURE(kernel.status(), StatusCode::InvalidDescription);
     EXPECT_NE(std::string(kernel.status().message()).find("'nobody'"), std::string::npos);
 }
+
+/** @brief Tests that a machine is found by the name placement matches it with, not the exact text. */
+TEST(Medium_ServedKernel, Regression_FindsTheReplicaOfAMachineNamedInAnotherCase)
+{
+    const ClusterTestFiles files("sushiai_served_kernel_case.json");
+
+    const Result<std::unique_ptr<Distribution::ReplicaKernel>> kernel =
+        Apps::make_served_kernel(source_of(files), files.section(), "WORKER.lab");
+
+    EXPECT_TRUE(kernel.has_value()) << kernel.status().message();
+}

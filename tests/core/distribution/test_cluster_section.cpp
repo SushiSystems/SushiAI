@@ -210,6 +210,15 @@ TEST(Small_ClusterSection, AWorkerNamedTwiceIsRefused)
                       StatusCode::InvalidDescription, "entry 2", "'worker'", "'a'", "entry 0");
 }
 
+/** @brief Tests that two names placement takes for one machine are refused as one worker. */
+TEST(Small_ClusterSection, Regression_TwoNamesOfOneMachineAreRefused)
+{
+    SA_EXPECT_FAILURE(read_replicas(R"([
+        {"worker": "Rack-7", "rows": 4, "micro_batch": 2, "if_absent": "local"},
+        {"worker": "rack-7.lab", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
+                      StatusCode::InvalidDescription, "entry 1", "'worker'", "entry 0");
+}
+
 /** @brief Tests that a section without a listen address is refused. */
 TEST(Small_ClusterSection, AMissingListenAddressIsRefused)
 {

@@ -60,7 +60,7 @@ in a training file.
 
 | Key of a replica | Required | Holds |
 | --- | --- | --- |
-| `worker` | yes | The name of the machine the replica runs on, the name that machine reports for itself. Two replicas cannot name the same machine |
+| `worker` | yes | The name of the machine the replica runs on, the name that machine reports for itself. Two replicas cannot name the same machine, compared as placement compares machine names (`machine_names_match`: the lower-case first DNS label) |
 | `rows` | yes | `r_k`, the rows the replica takes of each batch. Zero lets the replica sit out |
 | `micro_batch` | yes | `m_k`, the rows of one micro-batch. At least 1, and it divides `rows` |
 | `if_absent` | yes | `local`, `wait` or `fail`: what happens to the replica's task when its worker is absent |
