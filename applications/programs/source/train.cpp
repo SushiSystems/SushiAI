@@ -248,7 +248,7 @@ namespace
 
         if (!spec.checkpoint.empty())
         {
-            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, state, *optimizer, engine,
+            SA_TRY(sa::IO::save_run_checkpoint(spec.checkpoint, state, *optimizer,
                                                summary.progress));
             std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                  spec.checkpoint.string(),

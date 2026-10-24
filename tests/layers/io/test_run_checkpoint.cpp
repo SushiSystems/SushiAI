@@ -264,8 +264,7 @@ namespace
 
         SA_ASSERT_OK_AND_ASSIGN(const RunPointer first, make_run(engine, kind, 11));
         SA_EXPECT_OK(advance(*first, *dataset, 1, K_HALF_UPDATES));
-        SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *first->state, *first->optimizer,
-                                             engine));
+        SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *first->state, *first->optimizer));
 
         // Another seed, so a restore that did nothing would be visible.
         SA_ASSERT_OK_AND_ASSIGN(const RunPointer resumed, make_run(engine, kind, 22));
@@ -479,7 +478,7 @@ namespace
         SA_TRY_ASSIGN(const DropoutRunPointer first, make_dropout_run(engine, K_INIT_SEED));
         IO::RunProgress first_progress = start_of_run();
         SA_TRY(advance_from(*first, dataset, first_progress, K_HALF_UPDATES));
-        SA_TRY(IO::save_run_checkpoint(path, *first->state, *first->optimizer, engine,
+        SA_TRY(IO::save_run_checkpoint(path, *first->state, *first->optimizer,
                                        first_progress));
 
         return bits_of(*whole->state);
@@ -512,7 +511,7 @@ TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_weights.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state, *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state));
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(*engine, Kind::SGD, 22));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
@@ -528,7 +527,7 @@ TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_version_one.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state, *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state));
 
     // Version 1 had no run-state count: the header was magic, version and tensor count.
     std::string bytes = read_bytes(file.path());
@@ -550,7 +549,7 @@ TEST_F(Medium_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_future.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer, *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
 
     std::string bytes = read_bytes(file.path());
     ASSERT_GT(bytes.size(), 8u);
@@ -569,8 +568,7 @@ TEST_F(Medium_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_other_type.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer,
-                                         *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer other,
                             make_run(*engine, Kind::AdamW, 11));
@@ -589,10 +587,9 @@ TEST_F(Medium_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
                             make_run(*engine, Kind::SGD, 11, 0.0));
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer with_momentum,
                             make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(plain_file.path(), *plain->state, *plain->optimizer,
-                                         *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(plain_file.path(), *plain->state, *plain->optimizer));
     SA_EXPECT_OK(IO::save_run_checkpoint(momentum_file.path(), *with_momentum->state,
-                                         *with_momentum->optimizer, *engine));
+                                         *with_momentum->optimizer));
 
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(plain_file.path(), *with_momentum->state,
                                               *with_momentum->optimizer),
@@ -614,7 +611,7 @@ TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
     saved.step_runs = 6;
     saved.epoch = 2;
     saved.batch = 3;
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer, *engine,
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer,
                                          saved));
 
     IO::RunProgress loaded;
@@ -630,7 +627,7 @@ TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
                       "seed 9", "seed 10");
 
     // A save that states no progress writes the start of a run under the seed 0.
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer, *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
     SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *run->state, *run->optimizer, &loaded));
     EXPECT_EQ(loaded.seed, 0u);
     EXPECT_EQ(loaded.step_runs, 0u);
@@ -711,8 +708,7 @@ TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_no_progress.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer,
-                                         *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer));
 
     // The progress records close the file, so a file without them is a prefix and a count.
     std::string bytes = read_bytes(file.path());
@@ -736,7 +732,7 @@ TEST_F(Medium_RunCheckpoint, AProgressRecordOfAnotherTypeOrRangeIsRefused)
     const SaTest::ScratchFile file("sushiai_run_checkpoint_bad_progress.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer, *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
     const std::string written = read_bytes(file.path());
     ASSERT_GT(written.size(), progress_bytes());
 

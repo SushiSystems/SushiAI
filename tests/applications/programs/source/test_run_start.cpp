@@ -178,8 +178,7 @@ TEST_F(Medium_RunStart, ARunStartsFromWhatItsFileStates)
         Apps::run_training(registry, "cross_entropy", prepared);
     (void)testing::internal::GetCapturedStdout();
     SA_EXPECT_OK(summary);
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *trained->state, *trained->optimizer,
-                                         *engine));
+    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *trained->state, *trained->optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
     EXPECT_EQ(Apps::describe_start(fresh->spec), "initialised");

@@ -31,7 +31,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
-#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
@@ -67,11 +67,11 @@ namespace SushiAI
          * @brief Writes every entry of a model state to disk, with no run-state section.
          * @param path Target filesystem path for the checkpoint.
          * @param state The tensors to write, in the order the state lists them.
-         * @param engine Not read; the caller has run the graph that wrote @p state before this call.
+         * @pre The tasks that wrote @p state have run.
          * @return Success, or InvalidFile when the file cannot be written.
          */
         [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path,
-                                             NN::ModelState& state, SushiBLAS::Engine& engine);
+                                             NN::ModelState& state);
 
         /**
          * @brief Loads the model state of a checkpoint, strictly in both directions.

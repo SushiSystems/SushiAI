@@ -30,7 +30,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
@@ -42,8 +41,7 @@ namespace SushiAI
 {
     namespace IO
     {
-        Status save_checkpoint(const std::filesystem::path& path, NN::ModelState& state,
-                               [[maybe_unused]] SushiBLAS::Engine& engine)
+        Status save_checkpoint(const std::filesystem::path& path, NN::ModelState& state)
         {
             std::ofstream out(path, std::ios::binary);
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",

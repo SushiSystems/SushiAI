@@ -185,7 +185,7 @@ TEST_F(Medium_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
     Materialised<MLP> trained(*engine, make_sequential(), 11);
     const std::vector<std::uint32_t> expected = trained.bits();
 
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.state()));
 
     // A different seed, so a load that did nothing at all would be visible.
     Materialised<MLP> fresh(*engine, make_sequential(), 22);
@@ -213,7 +213,7 @@ TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAn
     ASSERT_NE(run_time.bits(), sequential_bits);
 
     // Sequential -> LayerStack
-    SA_EXPECT_OK(IO::save_checkpoint(from_sequential.path(), compile_time.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(from_sequential.path(), compile_time.state()));
     SA_EXPECT_OK(IO::load_checkpoint(from_sequential.path(), run_time.state()));
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
@@ -221,7 +221,7 @@ TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAn
     Materialised<MLP> third(*engine, make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
-    SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.state()));
     SA_EXPECT_OK(IO::load_checkpoint(from_stack.path(), third.state()));
     EXPECT_EQ(third.bits(), sequential_bits);
 }
@@ -233,7 +233,7 @@ TEST_F(Medium_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
     // A different architecture, so the file lacks 2.weight and 2.bias.
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.state()));
 
     Materialised<MLP> deep(*engine, make_sequential(), 6);
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.state()),
@@ -245,7 +245,7 @@ TEST_F(Medium_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
     const ScratchFile file("sushiai_extra.sushi");
 
     Materialised<MLP> deep(*engine, make_sequential(), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.state()));
 
     using Shallow = NN::Sequential<NN::Linear>;
     Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 6);
@@ -260,7 +260,7 @@ TEST_F(Medium_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
     // Shapes are compared, not element counts; see tests/layers/io/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
     Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state(), *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state()));
 
     Materialised<OneLayer> narrow(*engine, OneLayer(NN::Linear{6, 4}), 6);
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.state()),
@@ -405,7 +405,7 @@ TEST_F(Medium_StateCheckpoint, SavesAndLoadsParametersAndBuffersBitForBit)
     std::vector<std::uint32_t> expected;
     collect_bits(saved, expected);
 
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), saved, *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), saved));
 
     NormModel loaded_model;
     trace_norm(loaded_model);
@@ -434,7 +434,7 @@ TEST_F(Medium_StateCheckpoint, TheFileListsEveryEntryInWalkOrder)
     trace_norm(norm);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, norm.model));
     fill_state(state, 1.0f);
-    SA_EXPECT_OK(IO::save_checkpoint(file.path(), state, *engine));
+    SA_EXPECT_OK(IO::save_checkpoint(file.path(), state));
 
     std::vector<std::string> expected_names;
     for (const NN::StateEntry& entry : state.entries())
@@ -487,6 +487,6 @@ TEST_F(Medium_StateCheckpoint, AnUnwritablePathIsInvalidFile)
     trace_norm(norm);
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, norm.model));
 
-    SA_EXPECT_FAILURE(IO::save_checkpoint(directory / "state.sushi", state, *engine),
+    SA_EXPECT_FAILURE(IO::save_checkpoint(directory / "state.sushi", state),
                       StatusCode::InvalidFile);
 }

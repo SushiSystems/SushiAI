@@ -45,9 +45,15 @@ Seen and kept: a three-line path resolver duplicates a private helper of `train_
 
 Owed at A4: the `cluster` row in `docs/guides/RUNNING_MODELS.md`'s table of optional keys.
 
+## A0, follow-up
+
+Once SushiBLAS's `IO` took no engine (its B3), the checkpoint savers lost the `Engine&` they kept
+unread; each states as a precondition that the tasks which wrote its state have run.
+
 ## Dispatches
 
 ```
 dispatch: A0 — sonnet medium, 93 turns, passed, rung 1
 dispatch: A1 — sonnet medium, 73 turns, passed, rung 1
+dispatch: A0 follow-up — haiku high, 62 turns, passed, rung 1
 ```

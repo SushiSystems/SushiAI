@@ -347,7 +347,6 @@ namespace SushiAI
 
         Status save_run_checkpoint(const std::filesystem::path& path, NN::ModelState& state,
                                    Optim::Optimizer& optimizer,
-                                   [[maybe_unused]] SushiBLAS::Engine& engine,
                                    const RunProgress& progress)
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status

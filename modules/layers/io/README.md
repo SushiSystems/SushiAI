@@ -148,11 +148,10 @@ program that resumes calls it.
   `run_progress.hpp` includes `failure/status.hpp` alone.
 
 Two third-party libraries appear in the module without being named in the list. `checkpoint.hpp`
-includes `SushiBLAS/engine/engine.hpp`, and `checkpoint.hpp` and `import_weights.hpp` include
+includes `SushiBLAS/tensor/tensor.hpp`, and `checkpoint.hpp` and `import_weights.hpp` include
 `SushiRuntime/core/span.hpp`. `source/import_weights.cpp` includes `SushiBLAS/tensor/tensor.hpp`.
-`failure`, `dtype`, `shape`, `seam`
-links SushiBLAS and SushiRuntime as external public dependencies, so both reach the module
-through `failure`, `dtype`, `shape`, `seam`.
+The module's dependencies link SushiBLAS and SushiRuntime as external public dependencies, so
+both reach the module through them.
 
 ## Public entry points
 
