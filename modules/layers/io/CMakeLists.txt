@@ -17,6 +17,6 @@ sushiai_add_module(NAME io TIER layers
         source/run_checkpoint.cpp
         source/run_progress.cpp
     PUBLIC_DEPENDS config dtype failure nn optim shape
-    PRIVATE_DEPENDS execution seam
+    PRIVATE_DEPENDS seam
     EXTERNAL_PUBLIC SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS SushiLog::text)

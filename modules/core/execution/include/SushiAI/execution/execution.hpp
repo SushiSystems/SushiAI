@@ -22,13 +22,14 @@
 
 /**
  * @file execution.hpp
- * @brief Declares the calls that create a runtime, run what an engine recorded and run a graph
- *        step, each returning a Status.
+ * @brief Declares the calls that create a runtime and a graph, record on a graph the caller owns
+ *        and run it, each returning a Status.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <utility>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -46,8 +47,11 @@ namespace SushiAI
         [[nodiscard]] Result<SushiRuntime::Runtime> create_runtime(
             const SushiRuntime::RuntimeConfig& config = {}) noexcept;
 
-        /** @brief Runs the tasks recorded on @p engine and returns when they have finished. */
-        [[nodiscard]] Status run_recorded(SushiBLAS::Engine& engine) noexcept;
+        /**
+         * @brief Creates an empty graph on the runtime of @p engine.
+         * @return The graph, or the Status of the failure that kept it from being created.
+         */
+        [[nodiscard]] Result<SushiRuntime::Graph> create_graph(SushiBLAS::Engine& engine) noexcept;
 
         /**
          * @brief Runs one step of @p graph and returns when it has finished.
@@ -57,25 +61,17 @@ namespace SushiAI
                                       SushiRuntime::RunReport& report) noexcept;
 
         /**
-         * @brief Destroys every task recorded on @p engine that has not run.
-         * @pre No thread is recording on @p engine or running its tasks.
+         * @brief Runs every task recorded on @p graph once and returns when they have finished.
+         * @return Success also when nothing was recorded, or the Status of the failure.
          */
-        [[nodiscard]] Status discard_recorded(SushiBLAS::Engine& engine) noexcept;
+        [[nodiscard]] Status run_once(SushiRuntime::Graph& graph) noexcept;
 
         /**
-         * @brief Discards what a failed recording left on @p engine.
-         * @param failure The failure of the recording; never a success.
-         * @return @p failure, prefixed with the failure of the discard when that fails too.
-         */
-        [[nodiscard]] Status abandon_recording(SushiBLAS::Engine& engine,
-                                               const Status& failure) noexcept;
-
-        /**
-         * @brief Runs @p record, then runs the tasks it recorded on @p engine and waits.
-         * @param record Called once with no argument; records on @p engine and returns Status.
-         * @pre @p engine holds no recorded task that must outlive a failure of @p record.
-         * @return Success, the failure of @p record with every task recorded on @p engine
-         *         discarded, or the failure of the run.
+         * @brief Records on a graph of its own with @p record, runs that graph and waits.
+         * @param record Called once with a SushiBLAS::TaskRecorder over the graph, the scratch
+         *               pool and the mode of @p engine; it returns Status.
+         * @return Success, the failure of @p record with the graph and every task recorded on it
+         *         destroyed, or the failure of the run.
          */
         template<typename Record>
         [[nodiscard]] Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept;
@@ -83,11 +79,21 @@ namespace SushiAI
         template<typename Record>
         Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept
         {
-            const Status recorded = guard(SeamPhase::Record, std::forward<Record>(record));
-            if (!recorded.is_ok())
-                return abandon_recording(engine, recorded);
+            Result<SushiRuntime::Graph> created = create_graph(engine);
+            if (!created.has_value())
+                return created.status();
 
-            return run_recorded(engine);
+            SushiRuntime::Graph& graph = created.value();
+            const Status recorded = guard(SeamPhase::Record, [&]() -> Status
+            {
+                SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
+                                                 engine.mode());
+                return std::forward<Record>(record)(recorder);
+            });
+            if (!recorded.is_ok())
+                return recorded;
+
+            return run_once(graph);
         }
 
     } // namespace Detail

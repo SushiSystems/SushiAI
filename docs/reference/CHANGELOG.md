@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-24 — execution: Removed `run_recorded()` and `discard_recorded()`, added `create_graph()` and `run_once()`, and made record_and_run() record on a graph it owns (`execution.hpp`).
+- 2026-10-24 — nn: Changed every initializer except `initialize()` to take a `RandomOps&` over the caller's recorder instead of an engine (`init.hpp`).
+- 2026-10-24 — io: Stopped the checkpoint savers running the engine's graph; they save what the caller's graph already wrote (`checkpoint.cpp`, `run_checkpoint.cpp`).
 - 2026-10-21 — docs: Gave the seven design documents the five design sections and a phase table, split the graph plan into a topic folder, and took the design format checker (`GRAPH_CAPABILITIES/`, `check_design_format.py`).
 - 2026-10-20 — docs: Moved 5 known issues with a scheduled fix and no workaround into the backlog entries that fix them (`KNOWN_ISSUES.md`, `REMAINING_WORK.md`).
 - 2026-10-20 — docs: Designed SushiAI's share of layered execution: its own graphs only, and training over five machines through SushiBLAS (`LAYERED_EXECUTION.md`).

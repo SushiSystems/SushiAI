@@ -14,7 +14,7 @@ The fixture's `engine` is not null inside the case.
 
 ## FlushReturnsWithNothingRecorded
 
-`flush` returns when the engine holds no recorded work. A failed execute or wait would stop the
+`flush` returns when the device has nothing to finish. A failed wait would stop the
 process, so reaching `SUCCEED` is the check.
 
 ## TheEngineAllocatesATensorAndFlushes

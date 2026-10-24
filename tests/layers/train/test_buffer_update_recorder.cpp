@@ -116,10 +116,10 @@ TEST_F(Medium_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
     std::size_t recorded = 0;
-    const Status run = record_and_run(*engine, [&]() -> Status
+    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->recorder()));
+                      recorder.record_into_step(tasks));
         recorded = count;
         return Status();
     });
@@ -145,10 +145,10 @@ TEST_F(Medium_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
     slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    const Status run = record_and_run(*engine, [&]() -> Status
+    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->recorder()));
+                      recorder.record_into_step(tasks));
         static_cast<void>(count);
         return Status();
     });
@@ -170,10 +170,10 @@ TEST_F(Medium_BufferUpdateRecorder, NoSlotRecordsNothing)
     Train::BufferUpdateRecorder recorder(std::vector<Train::BufferUpdateSlot>{});
 
     std::size_t recorded = 1;
-    const Status run = record_and_run(*engine, [&]() -> Status
+    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
     {
         SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(engine->recorder()));
+                      recorder.record_into_step(tasks));
         recorded = count;
         return Status();
     });

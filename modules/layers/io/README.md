@@ -138,7 +138,7 @@ program that resumes calls it.
   `shape/tensor_shape.hpp`.
 - `nn`: `NN::ModelState`, the state the checkpoint functions write and fill, through
   `nn/model_state.hpp`. `checkpoint.hpp` and `import_weights.hpp` include it;
-  `checkpoint_format.hpp` includes only `failure`, `dtype`, `shape`, `seam`, `execution` headers. Of
+  `checkpoint_format.hpp` includes only `failure`, `dtype`, `shape` and `seam` headers. Of
   the core modules, `seam` is private (`PRIVATE_DEPENDS`).
 - `config`: `Config::ModelSpec` and `Config::Value`, which `imported_model.hpp` holds, and
   `write_model`, `write_json` and `K_TRAIN_VERSION`, which `source/imported_model_writer.cpp`

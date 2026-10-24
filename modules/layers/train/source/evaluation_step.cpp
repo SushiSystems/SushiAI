@@ -231,9 +231,10 @@ namespace SushiAI
                 SA_TRY(check_feed(*feeds[at], *input_leaves_[at], input_names_[at]));
             }
 
-            SA_TRY(::SushiAI::Detail::record_and_run(*engine_, [&]() -> Status
+            SA_TRY(::SushiAI::Detail::record_and_run(
+                *engine_, [&](SushiBLAS::TaskRecorder& recorder) -> Status
             {
-                SushiBLAS::BLASOps blas(*engine_);
+                SushiBLAS::BLASOps blas(recorder);
                 for (std::size_t at = 0; at < feeds.size(); ++at)
                     blas.copy(*feeds[at], *input_leaves_[at]);
 

@@ -49,8 +49,10 @@ TEST(Medium_EngineSmoke, AXPYThroughSushiBLAS)
     q.memcpy(x.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
     q.memcpy(y.data_as<float>(), ones.data(), ones.size() * sizeof(float)).wait();
 
-    sb::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute().value();
+    sr::Graph graph = runtime.graph();
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    sb::BLASOps(recorder).axpy(2.0f, x, y);
+    graph.run().value();
     runtime.wait().value();
 
     std::vector<float> result(static_cast<size_t>(n));

@@ -176,9 +176,10 @@ through the tensor's host pointer. Both are safe from any thread:
 So the loader keeps no host staging buffer and adds no copy. This was read in the sources of
 the two sibling checkouts, not run: no test here calls `allocate_tensor` from two threads.
 
-`Engine::execute` and `Engine::discard_recorded` carry the precondition "No thread is recording
-on this engine". A dataset whose `read` records operations on the engine is therefore not safe
-behind a loader; no dataset of this repository records in `read`.
+`record_and_run` records on a graph of its own, but it leases scratch from the engine's pool and
+draws from the engine's random stream, and this section did not check either for concurrent use.
+A dataset whose `read` calls `record_and_run` is therefore not claimed safe behind a loader; no
+dataset of this repository records in `read`.
 
 A batch of 16 float32 images of 640 by 640 by 3 is 79 MB of shared USM, so `prefetch` 4 holds
 about 315 MB beside the caller's batch.

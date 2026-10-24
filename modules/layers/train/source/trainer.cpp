@@ -351,9 +351,10 @@ namespace SushiAI
             SA_TRY(objective_->feed(batch, binding_.leaves, *pool_));
 
             // The minibatch inputs are copied into the fixed address buffer the plan reads.
-            SA_TRY(SushiAI::Detail::record_and_run(*engine_, [&]()
+            SA_TRY(SushiAI::Detail::record_and_run(*engine_,
+                                                    [&](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::BLASOps blas(*engine_);
+                SushiBLAS::BLASOps blas(recorder);
                 blas.copy(batch.inputs, inputs);
                 return Status();
             }));

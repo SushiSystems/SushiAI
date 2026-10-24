@@ -36,6 +36,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/fusion.hpp>
@@ -94,11 +95,13 @@ namespace
                 node = graph.value(y).producer;
                 pool = std::make_unique<TensorPool>(*engine);
                 SA_EXPECT_OK(pool->materialise_leaves(graph));
+                recording = std::make_unique<SaTest::TestGraph>(*engine);
             }
 
-            /** @brief Releases the pool before the Engine it draws from. */
+            /** @brief Releases the graph and the pool before the Engine they draw from. */
             void TearDown() override
             {
+                recording.reset();
                 pool.reset();
                 SaTest::EngineTest::TearDown();
             }
@@ -106,9 +109,9 @@ namespace
             /** @brief Builds a context over the ReLU node with no list of preludes. */
             std::unique_ptr<LoweringContext> context_over(const Graph::FusionSelector& chooser)
             {
-                return std::make_unique<LoweringContext>(engine->recorder(), engine->rng(), *pool,
-                                                         graph, node, chooser, selections,
-                                                         emitted);
+                return std::make_unique<LoweringContext>(recording->recorder(), engine->rng(),
+                                                         *pool, graph, node, chooser,
+                                                         selections, emitted);
             }
 
             /** @brief Holds the traced graph. */
@@ -125,6 +128,9 @@ namespace
 
             /** @brief Holds the pool the context hands tensors out of. */
             std::unique_ptr<TensorPool> pool;
+
+            /** @brief Holds the graph whose recorder the context records through. */
+            std::unique_ptr<SaTest::TestGraph> recording;
 
             /** @brief Holds the selector a context consults; it takes a GEMM, bias and ReLU. */
             FixedSelector selector{FusedForm::GEMMBiasReLU};
@@ -251,8 +257,8 @@ TEST_F(Medium_LoweringContext, APreludeNeedsAListToGoInto)
                       "CompiledStep");
 
     std::vector<ReplayPrelude> preludes;
-    const LoweringContext with(engine->recorder(), engine->rng(), *pool, graph, node, selector,
-                               selections, emitted, preludes);
+    const LoweringContext with(recording->recorder(), engine->rng(), *pool, graph, node,
+                               selector, selections, emitted, preludes);
     SA_EXPECT_OK(with.before_each_replay(prelude));
 
     ASSERT_EQ(preludes.size(), 1u);

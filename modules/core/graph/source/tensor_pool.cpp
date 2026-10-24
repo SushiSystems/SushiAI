@@ -291,9 +291,10 @@ namespace SushiAI
         {
             if (pending_constants_.empty()) return Status();
 
-            return ::SushiAI::Detail::record_and_run(*engine_, [this]()
+            return ::SushiAI::Detail::record_and_run(
+                *engine_, [this](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::RandomOps filler(*engine_);
+                SushiBLAS::RandomOps filler(recorder, engine_->rng());
                 for (const auto& [tensor, value] : pending_constants_)
                     filler.constant(*tensor, value);
 

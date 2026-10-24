@@ -263,9 +263,10 @@ namespace SushiAI::Vision::Training
         SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
         SA_TRY(check_truth(truth));
 
-        SA_TRY(::SushiAI::Detail::record_and_run(*engine_, [this, &inputs]() -> Status
+        SA_TRY(::SushiAI::Detail::record_and_run(
+            *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
         {
-            SushiBLAS::BLASOps blas(*engine_);
+            SushiBLAS::BLASOps blas(recorder);
             blas.copy(inputs, *input_);
             return Status();
         }));

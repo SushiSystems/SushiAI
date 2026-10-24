@@ -43,7 +43,6 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
-#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/io/checkpoint.hpp>
@@ -347,11 +346,10 @@ namespace SushiAI
         } // namespace
 
         Status save_run_checkpoint(const std::filesystem::path& path, NN::ModelState& state,
-                                   Optim::Optimizer& optimizer, SushiBLAS::Engine& engine,
+                                   Optim::Optimizer& optimizer,
+                                   [[maybe_unused]] SushiBLAS::Engine& engine,
                                    const RunProgress& progress)
         {
-            SA_TRY(SushiAI::Detail::run_recorded(engine));
-
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
                 SA_TRY_ASSIGN(Optim::RunState run, optimizer.run_state());

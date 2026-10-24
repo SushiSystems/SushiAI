@@ -41,7 +41,7 @@ namespace SushiAI
         /**
          * @brief Writes a model state and, in the run-state section, what @p optimizer keeps.
          * @param optimizer Its type names the section; its scalars and tensors fill it.
-         * @param engine Engine whose recorded tasks run before the tensor memory is read.
+         * @param engine Not read; the caller has run the graph that wrote @p state and the optimizer.
          * @param progress Fills the four records that close the section; the default is a
          *                 run at its start under the seed 0.
          * @return Success, or InvalidFile when the file cannot be written.

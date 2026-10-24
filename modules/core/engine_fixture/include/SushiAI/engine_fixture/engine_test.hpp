@@ -52,10 +52,9 @@ namespace SushiAI
                     engine.reset();
                 }
 
-                /** @brief Flushes anything recorded and waits for the device. */
+                /** @brief Waits for the device; a test runs the graph it records on itself. */
                 void flush()
                 {
-                    engine->execute().value();
                     TestEnvironment::runtime().wait().value();
                 }
 

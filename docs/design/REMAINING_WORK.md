@@ -64,9 +64,9 @@ labels, as ruled on 2026-10-20.
 Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridging eleven, and
 `Scope`'s destructor throwing through `ScopeTrace::close()`.
 
-### RW-12 Observe that a discarded recording releases storage and scratch
+### RW-12 Observe that a dropped recording releases storage and scratch
 - State: unmeasured
-- Done when: a test watches `Engine::discard_recorded()` release both
+- Done when: a test watches the graph of a failed `record_and_run()` release both when it is dropped
 
 ### RW-13 Decide whether fusion declines GEMM epilogues under `ForceReference`
 - State: unmeasured

@@ -43,8 +43,10 @@ int main()
     auto x = engine.create_tensor({K_N});
     auto y = engine.create_tensor({K_N});
 
-    sb::BLASOps(engine).axpy(2.0f, x, y);
-    engine.execute().value();
+    sr::Graph graph = runtime.graph();
+    sb::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(), engine.mode());
+    sb::BLASOps(recorder).axpy(2.0f, x, y);
+    graph.run().value();
     runtime.wait().value();
 
     std::printf("OK: SushiAI %s ran an op through SushiBLAS %s against an installed package\n",

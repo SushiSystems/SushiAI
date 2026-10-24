@@ -5,7 +5,10 @@ An internal module: only the test programs link it, its headers are never instal
 ## Owns
 
 The one `SushiRuntime::Runtime` a test program shares, the `main()` of every test program,
-and `EngineTest`, the fixture that gives each test a fresh `SushiBLAS::Engine` on that runtime.
+`EngineTest`, the fixture that gives each test a fresh `SushiBLAS::Engine` on that runtime, and
+`TestGraph`, a graph a test owns with a `SushiBLAS::TaskRecorder` over it. A test never records on
+the engine's own graph: it builds a `TestGraph`, records through its `recorder()` and calls
+`run()`. `EngineTest::flush()` only waits for the device.
 
 `Detail::create_runtime()` starts a worker pool, probes the topology and builds SYCL queues.
 Doing that per test would dominate the run and restart the thread pool while other work is
@@ -29,3 +32,4 @@ Each header is named by its include path under `include/`.
 | --- | --- |
 | `SushiAI/engine_fixture/test_environment.hpp` | `TestEnvironment` |
 | `SushiAI/engine_fixture/engine_test.hpp` | `EngineTest` |
+| `SushiAI/engine_fixture/test_graph.hpp` | `TestGraph` |

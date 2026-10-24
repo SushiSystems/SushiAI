@@ -340,9 +340,10 @@ namespace SushiAI
 
             // Execute three-phase update sequence matching compiled plan replay order.
             before_replay();
-            SA_TRY(Detail::record_and_run(*engine_, [this]() -> Status
+            SA_TRY(Detail::record_and_run(*engine_,
+                                       [this](SushiBLAS::TaskRecorder& recorder) -> Status
             {
-                SA_TRY(record_all(engine_->recorder()));
+                SA_TRY(record_all(recorder));
                 return Status();
             }));
             after_replay();

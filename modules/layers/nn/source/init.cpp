@@ -53,17 +53,16 @@ namespace SushiAI
             return 1.0;
         }
 
-        Status constant(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor, double value)
+        Status constant(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double value)
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.constant(tensor, value);
                 return Status();
             });
         }
 
-        Status normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor, double deviation)
+        Status normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double deviation)
         {
             // The comparison is false for a NaN, which is refused with the other values.
             SA_FAIL_IF(!(deviation > 0.0) || !std::isfinite(deviation),
@@ -73,13 +72,12 @@ namespace SushiAI
 
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.normal(tensor, 0.0, deviation);
                 return Status();
             });
         }
 
-        Status kaiming_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        Status kaiming_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                               int64_t fan_in, double gain)
         {
             SA_FAIL_IF(fan_in <= 0, StatusCode::InvalidDescription,
@@ -88,13 +86,12 @@ namespace SushiAI
             const double deviation = gain / std::sqrt(static_cast<double>(fan_in));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.normal(tensor, 0.0, deviation);
                 return Status();
             });
         }
 
-        Status kaiming_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        Status kaiming_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                int64_t fan_in, double gain)
         {
             SA_FAIL_IF(fan_in <= 0, StatusCode::InvalidDescription,
@@ -104,13 +101,12 @@ namespace SushiAI
             const double bound = gain * std::sqrt(3.0 / static_cast<double>(fan_in));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.uniform(tensor, -bound, bound);
                 return Status();
             });
         }
 
-        Status xavier_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        Status xavier_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                              int64_t fan_in, int64_t fan_out, double gain)
         {
             SA_FAIL_IF(fan_in + fan_out <= 0, StatusCode::InvalidDescription,
@@ -120,13 +116,12 @@ namespace SushiAI
                 gain * std::sqrt(2.0 / static_cast<double>(fan_in + fan_out));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.normal(tensor, 0.0, deviation);
                 return Status();
             });
         }
 
-        Status xavier_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        Status xavier_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                               int64_t fan_in, int64_t fan_out, double gain)
         {
             SA_FAIL_IF(fan_in + fan_out <= 0, StatusCode::InvalidDescription,
@@ -135,20 +130,19 @@ namespace SushiAI
             const double bound = gain * std::sqrt(6.0 / static_cast<double>(fan_in + fan_out));
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::RandomOps random(engine);
                 random.uniform(tensor, -bound, bound);
                 return Status();
             });
         }
 
-        Status zeros(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor)
+        Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor)
         {
-            return constant(engine, tensor, 0.0);
+            return constant(random, tensor, 0.0);
         }
 
         namespace Detail
         {
-            Status apply_initializer(SushiBLAS::Engine& engine,
+            Status apply_initializer(SushiBLAS::RandomOps& random,
                                      SushiBLAS::Tensor& tensor,
                                      ParameterInit init,
                                      int64_t fan_in,
@@ -158,24 +152,24 @@ namespace SushiAI
             {
                 // A fill that init states is tested before the final-layer zeroing.
                 if (init.kind == ParameterInit::Kind::Constant)
-                    return constant(engine, tensor, init.constant);
+                    return constant(random, tensor, init.constant);
 
                 if (init.kind == ParameterInit::Kind::Normal)
-                    return normal(engine, tensor, init.deviation);
+                    return normal(random, tensor, init.deviation);
 
                 if (is_final_layer)
-                    return zeros(engine, tensor);
+                    return zeros(random, tensor);
 
                 const double gain = calculate_gain(policy.nonlinearity, policy.negative_slope);
 
                 if (policy.family == InitFamily::Kaiming)
                 {
-                    if (policy.uniform) return kaiming_uniform(engine, tensor, fan_in, gain);
-                    return kaiming_normal(engine, tensor, fan_in, gain);
+                    if (policy.uniform) return kaiming_uniform(random, tensor, fan_in, gain);
+                    return kaiming_normal(random, tensor, fan_in, gain);
                 }
 
-                if (policy.uniform) return xavier_uniform(engine, tensor, fan_in, fan_out, gain);
-                return xavier_normal(engine, tensor, fan_in, fan_out, gain);
+                if (policy.uniform) return xavier_uniform(random, tensor, fan_in, fan_out, gain);
+                return xavier_normal(random, tensor, fan_in, fan_out, gain);
             }
         }
 
@@ -188,16 +182,17 @@ namespace SushiAI
             for (std::size_t i = 0; i < entries.size(); ++i)
                 if (entries[i].init.kind == ParameterInit::Kind::FanScaled) final_weight = i;
 
-            return SushiAI::Detail::record_and_run(engine, [&]() -> Status
+            return SushiAI::Detail::record_and_run(engine,
+                                                    [&](SushiBLAS::TaskRecorder& recorder) -> Status
             {
-                SushiBLAS::RandomOps random(engine);
+                SushiBLAS::RandomOps random(recorder, engine.rng());
                 random.set_seed(policy.seed);
 
                 for (std::size_t i = 0; i < entries.size(); ++i)
                 {
                     SA_TRY_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(entries[i].state));
                     const bool is_final = policy.zero_final_layer && i == final_weight;
-                    SA_TRY(Detail::apply_initializer(engine, *tensor, entries[i].init,
+                    SA_TRY(Detail::apply_initializer(random, *tensor, entries[i].init,
                                                      entries[i].fan_in, entries[i].fan_out,
                                                      policy, is_final));
                 }

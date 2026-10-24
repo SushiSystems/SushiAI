@@ -129,9 +129,6 @@ namespace SushiAI
                        "features={} classes={}",
                        options.batch_size, options.batches, options.features, options.classes);
 
-            SushiBLAS::RandomOps random(engine);
-            SushiBLAS::BLASOps blas(engine);
-
             const int64_t rows = options.batch_size;
             const int64_t features = options.features;
             const int64_t classes = options.classes;
@@ -144,8 +141,9 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor means,
                           allocate_tensor(engine, SushiRuntime::span<const int64_t>(mean_dims, 2)));
 
-            SA_TRY(Detail::record_and_run(engine, [&]()
+            SA_TRY(Detail::record_and_run(engine, [&](SushiBLAS::TaskRecorder& recorder)
             {
+                SushiBLAS::RandomOps random(recorder, engine.rng());
                 random.set_seed(options.seed);
                 random.normal(means, 0.0, 1.0);
                 return Status();
@@ -178,8 +176,11 @@ namespace SushiAI
                         std::copy_n(class_means + label * features, features, x + r * features);
                     }
 
-                    SA_TRY(Detail::record_and_run(engine, [&]()
+                    SA_TRY(Detail::record_and_run(engine,
+                                                  [&](SushiBLAS::TaskRecorder& recorder)
                     {
+                        SushiBLAS::RandomOps random(recorder, engine.rng());
+                        SushiBLAS::BLASOps blas(recorder);
                         random.normal(noise, 0.0, options.noise);
                         blas.axpy(1.0f, noise, batch.inputs);
                         return Status();

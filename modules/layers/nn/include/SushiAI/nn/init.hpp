@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/random/random.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
@@ -60,38 +61,39 @@ namespace SushiAI
 
         /**
          * @brief Records a fill of @p tensor with @p value.
+         * @param random The view that records the fill and draws the numbers from its stream.
          * @return Success, or the seam's failure of the recording.
          */
-        [[nodiscard]] Status constant(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status constant(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                       double value);
 
         /**
          * @brief Records a fill of @p tensor from N(0, deviation^2).
-         * @param engine The engine whose Philox stream supplies the numbers.
+         * @param random The view that records the fill and draws the numbers from its stream.
          * @return Success, InvalidDescription for a deviation that is not positive and
          *         finite, or the seam's failure of the recording.
          */
-        [[nodiscard]] Status normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                     double deviation);
 
         /**
          * @brief Records a fill of @p tensor from N(0, (gain / sqrt(fan_in))^2).
-         * @param engine The engine whose Philox stream supplies the numbers.
+         * @param random The view that records the fill and draws the numbers from its stream.
          * @param fan_in Inputs feeding one output unit; must be positive.
          * @return Success, InvalidDescription for a fan-in that is not positive, or the seam's
          *         failure of the recording.
          */
-        [[nodiscard]] Status kaiming_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status kaiming_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                             int64_t fan_in, double gain);
 
         /**
          * @brief Records a fill of @p tensor uniformly on [-b, b] with b = gain * sqrt(3 / fan_in).
-         * @param engine The engine whose Philox stream supplies the numbers.
+         * @param random The view that records the fill and draws the numbers from its stream.
          * @param fan_in Inputs feeding one output unit; must be positive.
          * @return Success, InvalidDescription for a fan-in that is not positive, or the seam's
          *         failure of the recording.
          */
-        [[nodiscard]] Status kaiming_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status kaiming_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                              int64_t fan_in, double gain);
 
         /**
@@ -101,7 +103,7 @@ namespace SushiAI
          * @return Success, InvalidDescription when the fans do not sum to a positive value, or
          *         the seam's failure of the recording.
          */
-        [[nodiscard]] Status xavier_normal(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status xavier_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                            int64_t fan_in, int64_t fan_out, double gain);
 
         /**
@@ -112,14 +114,15 @@ namespace SushiAI
          * @return Success, InvalidDescription when the fans do not sum to a positive value, or
          *         the seam's failure of the recording.
          */
-        [[nodiscard]] Status xavier_uniform(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor,
+        [[nodiscard]] Status xavier_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
                                             int64_t fan_in, int64_t fan_out, double gain);
 
         /**
          * @brief Records a fill of @p tensor with zeros.
+         * @param random The view that records the fill.
          * @return Success, or the seam's failure of the recording.
          */
-        [[nodiscard]] Status zeros(SushiBLAS::Engine& engine, SushiBLAS::Tensor& tensor);
+        [[nodiscard]] Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor);
 
         /**
          * @enum InitFamily
@@ -159,14 +162,14 @@ namespace SushiAI
         namespace Detail
         {
             /**
-             * @brief Records the initial fill of one tensor.
+             * @brief Records the initial fill of one tensor through @p random.
              * @param init The fill; a Constant or a Normal one is tested before the zeroing.
              * @param fan_in Inputs feeding one output unit, as the parameter declared them.
              * @param fan_out Outputs one input unit feeds, as the parameter declared them.
              * @param is_final_layer True if the tensor belongs to the final classifier layer.
              * @return Success, or the failure of the fill it records.
              */
-            [[nodiscard]] Status apply_initializer(SushiBLAS::Engine& engine,
+            [[nodiscard]] Status apply_initializer(SushiBLAS::RandomOps& random,
                                                    SushiBLAS::Tensor& tensor, ParameterInit init,
                                                    int64_t fan_in, int64_t fan_out,
                                                    const InitPolicy& policy,
@@ -174,11 +177,11 @@ namespace SushiAI
         }
 
         /**
-         * @brief Records the initial fill of every entry of @p state and runs the recording.
+         * @brief Records the initial fill of every entry of @p state on a graph of its own and
+         *        runs it.
          * @param state The state whose entries were listed by ModelState::create().
          * @param policy How the fills are drawn and which entry is zeroed.
          * @return Success, or the failure of a fill or of the run.
-         * @pre The engine's graph holds no other recorded task; the run executes all of it.
          */
         [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, ModelState& state,
                                         const InitPolicy& policy = {});

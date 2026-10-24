@@ -33,6 +33,7 @@
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
@@ -117,9 +118,11 @@ TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     SaTest::write_tensor(first, ones);
     SaTest::write_tensor(second, twos);
 
-    SushiBLAS::BLASOps blas(*engine);
+    SaTest::TestGraph recording(*engine);
+    SushiBLAS::BLASOps blas(recording.recorder());
     blas.scal(3.0f, first);
     blas.scal(5.0f, second);
+    SA_EXPECT_OK(recording.run());
     flush();
 
     for (double value : SaTest::read_tensor(first)) EXPECT_DOUBLE_EQ(value, 3.0);

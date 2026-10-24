@@ -67,7 +67,7 @@ namespace SushiAI
          * @brief Writes every entry of a model state to disk, with no run-state section.
          * @param path Target filesystem path for the checkpoint.
          * @param state The tensors to write, in the order the state lists them.
-         * @param engine Engine whose recorded tasks run before the tensor memory is read.
+         * @param engine Not read; the caller has run the graph that wrote @p state before this call.
          * @return Success, or InvalidFile when the file cannot be written.
          */
         [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path,

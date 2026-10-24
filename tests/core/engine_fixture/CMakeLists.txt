@@ -10,5 +10,6 @@ sushiai_add_test_program(OWNER engine_fixture
     SOURCES
         test_engine_test.cpp
         test_test_environment.cpp
+        test_test_graph.cpp
     DEPENDS
         failure_expectations)

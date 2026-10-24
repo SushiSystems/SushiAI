@@ -119,7 +119,8 @@ four for the denominator, and two for the step. Without decay it issues eleven, 
 the SushiBLAS seam's own documentation quotes.
 
 The counting lambda runs the phases step() would run and reads the count out of the middle one. The
-flush after it is required: the tasks are in the engine's builder and something has to drain them.
+lambda records on a `TestGraph` and runs it, because the tasks sit on that graph until
+something runs them.
 
 SGD's first step is its cheapest, because `b_1 = g_1` is one copy where later steps need a scal and
 an axpy. Four is therefore the floor for SGD and not its typical cost.

@@ -170,9 +170,9 @@ namespace SushiAI
             }));
 
             // Invariant: Moments and constant buffers are initialized eagerly before first step.
-            SA_TRY(Detail::record_and_run(engine, [&]()
+            SA_TRY(Detail::record_and_run(engine, [&](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::RandomOps random(engine);
+                SushiBLAS::RandomOps random(recorder, engine.rng());
                 for (State& entry : state)
                 {
                     random.constant(entry.first, 0.0);

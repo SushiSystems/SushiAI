@@ -22,8 +22,8 @@
 
 /**
  * @file execution.cpp
- * @brief Implements the calls of execution.hpp, each turning what SushiRuntime or SushiBLAS
- *        reports into a Status through the seam.
+ * @brief Implements the calls of execution.hpp, each turning what SushiRuntime reports into a
+ *        Status through the seam.
  * @author Mustafa Garip
  */
 
@@ -53,16 +53,16 @@ namespace SushiAI
             }
         }
 
-        Status run_recorded(SushiBLAS::Engine& engine) noexcept
+        Result<SushiRuntime::Graph> create_graph(SushiBLAS::Engine& engine) noexcept
         {
-            return guard(SeamPhase::Execute, [&]()
+            try
             {
-                const SushiRuntime::Result<void> ran = engine.execute();
-                if (!ran)
-                    return status_of_error(ran.error(), SeamPhase::Execute);
-
-                return Status();
-            });
+                return engine.runtime().graph();
+            }
+            catch (...)
+            {
+                return status_of_current_exception(SeamPhase::Allocate);
+            }
         }
 
         Status run_step(SushiRuntime::Graph& graph, SushiRuntime::RunReport& report) noexcept
@@ -77,24 +77,17 @@ namespace SushiAI
             });
         }
 
-        Status discard_recorded(SushiBLAS::Engine& engine) noexcept
+        Status run_once(SushiRuntime::Graph& graph) noexcept
         {
             return guard(SeamPhase::Execute, [&]()
             {
-                engine.discard_recorded();
-                return Status();
+                const SushiRuntime::Recorder& tasks = graph.recorder();
+                if (tasks.node_count() == 0 && tasks.refusal() == nullptr)
+                    return Status();
+
+                SushiRuntime::RunReport report;
+                return run_step(graph, report);
             });
-        }
-
-        Status abandon_recording(SushiBLAS::Engine& engine, const Status& failure) noexcept
-        {
-            const Status dropped = discard_recorded(engine);
-            if (dropped.is_ok())
-                return failure;
-
-            return SA_ANNOTATE(failure, "the tasks recorded before this failure stay on the "
-                                        "engine, because discarding them failed ({})",
-                               dropped.message());
         }
     } // namespace Detail
 } // namespace SushiAI

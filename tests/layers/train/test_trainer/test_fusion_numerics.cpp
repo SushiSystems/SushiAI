@@ -39,6 +39,7 @@
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
@@ -378,13 +379,14 @@ TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
                          SushiRuntime::span<const double>(b_values.data(), b_values.size()));
 
     const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
-    Graph::Lowering lowering(engine.recorder(), engine.rng(), pool, selector);
+    SaTest::TestGraph recording(engine);
+    Graph::Lowering lowering(recording.recorder(), engine.rng(), pool, selector);
     ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(1u, lowering.emitted_operations())
         << "this machine's device declined the fused form, so the epilogue never ran and "
            "this test is not exercising what it claims to";
 
-    engine.execute().value();
+    SA_EXPECT_OK(recording.run());
     SaTest::TestEnvironment::runtime().wait().value();
 
     const std::vector<double> spilled = SaTest::read_tensor(pool.tensor(pre));

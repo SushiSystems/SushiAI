@@ -43,6 +43,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/gradient_clip.hpp>
@@ -223,10 +224,12 @@ TEST_F(Medium_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
     const std::unique_ptr<Optim::SGD> clipped = make_sgd(make_slots({{3.0, 0.0}, {0.0, 4.0}}));
     SA_EXPECT_OK(clipped->enable_gradient_clip(1.0));
 
+    SaTest::TestGraph recording(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t without,
-                            plain->record_into_step(engine->recorder()));
+                            plain->record_into_step(recording.recorder()));
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t with,
-                            clipped->record_into_step(engine->recorder()));
+                            clipped->record_into_step(recording.recorder()));
+    SA_EXPECT_OK(recording.run());
     flush();
 
     EXPECT_EQ(plain->gradient_clip(), nullptr);

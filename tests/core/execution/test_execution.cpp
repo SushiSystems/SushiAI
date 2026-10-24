@@ -22,8 +22,8 @@
 
 /**
  * @file test_execution.cpp
- * @brief Tests that record_and_run runs what a recording recorded and discards what a failed
- *        one left.
+ * @brief Tests that record_and_run runs what a recording recorded on a graph of its own and
+ *        drops what a failed one left, and that run_once runs a graph the caller owns.
  * @author Mustafa Garip
  */
 
@@ -36,7 +36,9 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/random/random.hpp>
+#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -48,12 +50,14 @@
 using SushiAI::Result;
 using SushiAI::Status;
 using SushiAI::StatusCode;
+using SushiAI::Detail::create_graph;
 using SushiAI::Detail::record_and_run;
+using SushiAI::Detail::run_once;
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Provides the engine the record_and_run cases record on. */
+    /** @brief Provides the engine the record_and_run and run_once cases record on. */
     class Medium_ExecutionEngine : public SaTest::EngineTest
     {
 
@@ -91,9 +95,9 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
 
-    SA_EXPECT_OK(record_and_run(*engine, [&]()
+    SA_EXPECT_OK(record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(*engine);
+        SushiBLAS::RandomOps random(recorder, engine->rng());
         random.constant(target, 2.0);
         return Status();
     }));
@@ -106,17 +110,17 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor kept, filled_vector(*engine, 1.0));
 
-    const Status failed = record_and_run(*engine, [&]() -> Status
+    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder) -> Status
     {
-        SushiBLAS::RandomOps random(*engine);
+        SushiBLAS::RandomOps random(recorder, engine->rng());
         random.constant(discarded, 5.0);
         throw std::invalid_argument("axpy: shapes disagree");
     });
     SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "axpy: shapes disagree");
 
-    SA_EXPECT_OK(record_and_run(*engine, [&]()
+    SA_EXPECT_OK(record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(*engine);
+        SushiBLAS::RandomOps random(recorder, engine->rng());
         random.constant(kept, 2.0);
         return Status();
     }));
@@ -129,9 +133,9 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailu
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
 
-    const Status failed = record_and_run(*engine, [&]()
+    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(*engine);
+        SushiBLAS::RandomOps random(recorder, engine->rng());
         random.constant(discarded, 5.0);
         return Status::from_message(StatusCode::Unsupported, []()
         {
@@ -140,6 +144,26 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailu
     });
     SA_EXPECT_FAILURE(failed, StatusCode::Unsupported, "no host path");
 
-    SA_EXPECT_OK(SushiAI::Detail::run_recorded(*engine));
+    flush();
     expect_all(discarded, 1.0);
+}
+
+TEST_F(Medium_ExecutionEngine, RunOnceSucceedsOnAGraphWithNothingRecorded)
+{
+    SA_ASSERT_OK_AND_ASSIGN(SushiRuntime::Graph graph, create_graph(*engine));
+
+    SA_EXPECT_OK(run_once(graph));
+}
+
+TEST_F(Medium_ExecutionEngine, RunOnceRunsWhatWasRecordedOnTheGraph)
+{
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
+    SA_ASSERT_OK_AND_ASSIGN(SushiRuntime::Graph graph, create_graph(*engine));
+    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine->scratch_pool(), engine->mode());
+
+    SushiBLAS::RandomOps random(recorder, engine->rng());
+    random.constant(target, 3.0);
+    SA_EXPECT_OK(run_once(graph));
+
+    expect_all(target, 3.0);
 }

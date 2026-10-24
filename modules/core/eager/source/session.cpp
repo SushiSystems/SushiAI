@@ -125,9 +125,10 @@ namespace SushiAI
 
                 // An update may read the gradient of a parameter no step has traced yet.
                 SushiBLAS::Tensor& zeroed = bank_.tensor(bound.gradient);
-                SA_TRY(::SushiAI::Detail::record_and_run(*engine_, [&]()
+                SA_TRY(::SushiAI::Detail::record_and_run(
+                    *engine_, [&](SushiBLAS::TaskRecorder& recorder)
                 {
-                    SushiBLAS::RandomOps filler(*engine_);
+                    SushiBLAS::RandomOps filler(recorder, engine_->rng());
                     filler.constant(zeroed, 0.0);
                     return Status();
                 }));
@@ -296,14 +297,15 @@ namespace SushiAI
             if (trace.feeds.empty() && stale.empty())
                 return Status();
 
-            // The copies and the fills run on the engine's own graph, before any region does.
-            return ::SushiAI::Detail::record_and_run(*engine_, [&]()
+            // The copies and the fills run on a graph of their own, before any region does.
+            return ::SushiAI::Detail::record_and_run(
+                *engine_, [&](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::BLASOps blas(*engine_);
+                SushiBLAS::BLASOps blas(recorder);
                 for (const Feed& feed : trace.feeds)
                     blas.copy(feed.source, bank_.tensor(preset[feed.leaf]));
 
-                SushiBLAS::RandomOps filler(*engine_);
+                SushiBLAS::RandomOps filler(recorder, engine_->rng());
                 for (SushiBLAS::Tensor* gradient : stale)
                     filler.constant(*gradient, 0.0);
 
