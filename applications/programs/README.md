@@ -18,6 +18,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `train.cpp` | `sushiai train <train.json>` |
 | `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json>` |
 | `import.cpp` | `sushiai import <format> <files...> --output <directory> [--force]` |
+| `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
 
 | File | Holds |
@@ -32,6 +33,14 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `domains_vision_none.cpp` | No row; compiled when it is off |
 | `domains_language.cpp` | The language rows and the `next_token_generation` report; compiled when `SA_BUILD_LANGUAGE` is on |
 | `domains_language_none.cpp` | No row; compiled when it is off |
+
+| `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
+| `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
+
+A distributed build links the first set into every program. `sushiai_train` then trains a
+`cluster` section on the master, and `sushiai_worker` serves the replica named by its `--name`
+on each worker machine; the other flags go to SushiRuntime's worker. The run is described in
+[`docs/guides/RUNNING_MODELS.md`](../../docs/guides/RUNNING_MODELS.md).
 
 The sections below hold the reasoning that the source files cite.
 

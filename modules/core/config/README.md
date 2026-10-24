@@ -45,10 +45,18 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/json_writer.hpp` | `K_JSON_EXPANDED_DEPTH`, `write_json` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
-| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
+| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
+
+## Training file versions
+
+`parse_train` reads version 1 and version 2 (`K_TRAIN_VERSION`) and writes none itself; the
+importer writes `K_TRAIN_VERSION`, which is 2. The `cluster` key is allowed from
+`K_TRAIN_CLUSTER_VERSION`, 2, and is an error in a version 1 file. `TrainSpec::cluster` holds the
+section as a `Value`, null when the file has none. `TrainSpec::base` is the directory relative
+paths resolve against.
 
 ## Reading a document as events
 

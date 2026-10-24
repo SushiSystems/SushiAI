@@ -94,10 +94,16 @@ sa build                  # Release build (the default)
 sa build --type debug     # Debug build
 sa build --type relwithdebinfo
 sa build --clean          # delete the build tree first, then build from scratch
+sa build --distributed    # build the distributed layer and sushiai_worker
+sa build --no-distributed # stop building them
 sa build --sanitize address-undefined   # ASan and UBSan on host code; thread for TSan, none to clear
 ```
 
 The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
+
+`--distributed` sets `SA_ENABLE_DISTRIBUTED=ON` for SushiAI and forwards it to SushiRuntime and
+SushiBLAS, which builds `modules/core/distribution` and `sushiai_worker`. `--no-distributed` sets
+it to `OFF`. With neither flag, the setting of the last build stays.
 
 If either sibling can't be found, `sa build` fails fast with a clear message
 naming which one and where it looked, rather than letting CMake's own

@@ -68,8 +68,8 @@ in a training file.
 run that loses a worker under `local` stops being repeatable; the choice is written down in the
 file rather than made by omission.
 
-The training file's own `format_version` is not changed by this module. The key joins
-`train_config.hpp` in the stage that wires the `train` program (phase A4).
+The training file states version 2 to carry this section (`K_TRAIN_CLUSTER_VERSION` in
+`train_config.hpp`); a version 1 file with a `cluster` key is refused.
 
 ```json
 "cluster": {
