@@ -43,6 +43,14 @@ mask keep their paths and the image's path differs.
 file name is 23 characters long. With `longest_side` 320 the path differs. A source that does
 not exist fails with `FileNotFound` and "gone.jpg".
 
+## TheNameIsTheFNV1aHashOfTheKeyText
+
+The digits of the file name equal the 64-bit FNV-1a hash of `<path>|<bytes>|<time>|<side>|<layout>`.
+The case spells the hash out beside the module and checks that spelling against a value computed
+in Python for "images/a.jpg|1234|5678|320|0". The time depends on the platform clock, so the
+value itself cannot be fixed in the case. The name must not change, because a cache written under
+the old name would be written again.
+
 ## RefusesOptionsItCannotServe
 
 `write_sample_cache` fails with `InvalidDescription` for options without a directory

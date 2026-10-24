@@ -25,9 +25,9 @@ when a value is read, when an update is applied or when `finish` is called.
 ## Depends on
 
 The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation`, `graph`
-and `autograd` as public dependencies. It declares no
-private dependency. SushiBLAS and SushiRuntime reach it through `failure`, `dtype`, `shape`, `ops`,
-`seam`, `allocation`.
+and `autograd` as public dependencies, and `hash` as a private one, for the 64-bit FNV-1a that
+`signature_of` folds its words through. SushiBLAS and SushiRuntime reach it through `failure`,
+`dtype`, `shape`, `ops`, `seam`, `allocation`.
 
 ## Public entry points
 
@@ -178,7 +178,7 @@ equality compares both.
 
 #### signature_of
 
-The hash covers, for the region's nodes in order: the operation, the attributes, and for each
+The hash is the 64-bit FNV-1a of the `hash` module, fed one word at a time, low byte first. It covers, for the region's nodes in order: the operation, the attributes, and for each
 result its shape, element type and layout; then each operand's position.
 
 An operand's position is never its value id or its producer's node id. Those shift whenever an

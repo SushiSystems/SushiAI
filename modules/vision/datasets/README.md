@@ -38,7 +38,8 @@ table gives the pipeline.
 ## Depends on
 
 - `failure`, `shape`, `dtype`, `seam`, `config` and `data` (`PUBLIC_DEPENDS`). Of the core modules,
-  `dtype` and `seam` are private (`PRIVATE_DEPENDS`).
+  `dtype` and `seam` are private (`PRIVATE_DEPENDS`), and so is `hash`, which names the cache
+  files in `sample_cache.cpp` through its 64-bit FNV-1a.
 - `vision/imaging` (`PUBLIC_DEPENDS`), for the readers: `sample.hpp` names `Imaging::FileLabels`,
   `stored_pixels.hpp` names `Imaging::Image`, and `read_yolo_txt` calls `Imaging::parse_label_text`.
 

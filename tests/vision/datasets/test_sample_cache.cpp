@@ -249,6 +249,48 @@ TEST(Small_DatasetsSampleCache, ANameFollowsTheSourceAndTheOptions)
                       StatusCode::FileNotFound, "gone.jpg");
 }
 
+/**
+ * @brief Tests that the digits of a cache name are the 64-bit FNV-1a hash of the key text, so a
+ *        cache written before the hash moved into its own module is still found.
+ *
+ * The key holds a modification time that depends on the platform clock, so the case spells the
+ * hash out here from the offset basis and prime and checks that spelling against a value
+ * computed in Python over "images/a.jpg|1234|5678|320|0".
+ */
+TEST(Small_DatasetsSampleCache, TheNameIsTheFNV1aHashOfTheKeyText)
+{
+    const auto fnv1a_digits = [](const std::string& text)
+    {
+        std::uint64_t hash = 14695981039346656037ull;
+        for (const char character : text)
+        {
+            hash ^= static_cast<std::uint8_t>(character);
+            hash *= 1099511628211ull;
+        }
+
+        std::string digits(16, '0');
+        for (std::size_t i = digits.size(); i-- > 0; hash >>= 4)
+            digits[i] = "0123456789abcdef"[hash & 0xF];
+
+        return digits;
+    };
+    ASSERT_EQ(fnv1a_digits("images/a.jpg|1234|5678|320|0"), "a6ebcd0f306993fd");
+
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_cache_key");
+    const std::filesystem::path source = Support::write_raw_image(
+        scratch, "images/a.jpg", Support::uniform_image(ImageSize{2, 2}, 3, 1));
+
+    SampleCacheOptions options = options_of(scratch);
+    options.longest_side = 320;
+    SA_ASSERT_OK_AND_ASSIGN(const std::filesystem::path path, sample_cache_path(source, options));
+
+    const std::string key = source.generic_string() + "|" +
+        std::to_string(std::filesystem::file_size(source)) + "|" +
+        std::to_string(std::filesystem::last_write_time(source).time_since_epoch().count()) + "|" +
+        "320|" + std::to_string(static_cast<std::int32_t>(options.layout));
+    EXPECT_EQ(path.filename().string(), "a-" + fnv1a_digits(key) + ".saim");
+}
+
 /** @brief Tests each refusal: no directory, a side out of range, and a side over masks. */
 TEST(Small_DatasetsSampleCache, RefusesOptionsItCannotServe)
 {

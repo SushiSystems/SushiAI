@@ -34,6 +34,7 @@
 #include <unordered_map>
 
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
@@ -42,12 +43,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds the 64-bit FNV-1a offset basis. */
-            constexpr std::uint64_t K_FNV_OFFSET_BASIS = 0xcbf29ce484222325ull;
-
-            /** @brief Holds the 64-bit FNV-1a prime. */
-            constexpr std::uint64_t K_FNV_PRIME = 0x00000100000001b3ull;
-
             /** @brief Tags the kind of operand position that follows in the hashed stream. */
             enum class OperandKind : std::uint8_t
             {
@@ -62,8 +57,7 @@ namespace SushiAI
                     /** @brief Feeds the eight bytes of @p word, lowest byte first. */
                     void add_word(std::uint64_t word) noexcept
                     {
-                        for (int byte = 0; byte < 8; ++byte)
-                            add_byte(static_cast<std::uint8_t>(word >> (byte * 8)));
+                        state_ = Hash::fnv1a_word(state_, word);
                     }
 
                     /** @brief Feeds the bit pattern of @p real. */
@@ -81,15 +75,8 @@ namespace SushiAI
                     }
 
                 private:
-                    /** @brief Mixes one byte into the state. */
-                    void add_byte(std::uint8_t byte) noexcept
-                    {
-                        state_ ^= byte;
-                        state_ *= K_FNV_PRIME;
-                    }
-
                     /// @brief The running hash.
-                    std::uint64_t state_ = K_FNV_OFFSET_BASIS;
+                    std::uint64_t state_ = Hash::K_FNV1A_OFFSET_BASIS;
             };
 
             /** @brief Records the position of each node of one region among that region's nodes. */

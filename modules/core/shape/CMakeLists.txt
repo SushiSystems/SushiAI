@@ -5,5 +5,5 @@
 # Commercial use requires a licence from Sushi Systems.
 
 sushiai_add_module(NAME shape TIER core
-    PUBLIC_DEPENDS dtype failure
+    PUBLIC_DEPENDS dtype failure hash
     EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::core)

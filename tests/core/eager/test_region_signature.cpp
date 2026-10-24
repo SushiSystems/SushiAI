@@ -417,6 +417,28 @@ namespace
     };
 }
 
+/**
+ * @brief Tests that the hash of relu(x) over a [4, 3] FLOAT32 parameter of identity 0x2000 keeps
+ *        its value, computed apart from SushiAI as 64-bit FNV-1a over the words of the stream:
+ *        the operation id, ten zero attributes, one result of rank 2 with extents 4 and 3,
+ *        FLOAT32 and NHWC, one operand, and an external operand of identity 0x2000.
+ */
+TEST(Small_RegionSignature, TheHashOfOneNodeKeepsItsValue)
+{
+    Traced traced;
+    const GraphBuilder builder(traced.graph);
+    const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
+    (void)builder.relu(x);
+
+    traced.partition.region_of_node = {Eager::K_NO_REGION, K_BODY};
+    traced.partition.regions = {{K_BODY, "body#0", Eager::Direction::Forward}};
+    traced.partition.optimizer_key = K_BODY + 1;
+    traced.identity.assign(traced.graph.value_count(), 0);
+    traced.identity[x] = K_EXTERNAL_IDENTITY;
+
+    EXPECT_EQ(signature_of(traced, K_BODY).hash, 0x70ba711294da9f98ull);
+}
+
 /** @brief Tests that two graphs built by the same code give equal signatures. */
 TEST(Small_RegionSignature, TheSameTraceGivesTheSameSignature)
 {

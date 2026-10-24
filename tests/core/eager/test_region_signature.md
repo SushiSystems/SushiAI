@@ -102,6 +102,13 @@ partitions the graph with `ScopePartitioner`. Its argument is the number of line
 the key of a region by name and direction, and `stem_output` is the value "body" reads from
 "stem".
 
+## TheHashOfOneNodeKeepsItsValue
+
+The hash of one K_RELU over a [4, 3] FLOAT32 parameter of identity 0x2000 equals a value computed
+in Python from the words the hash folds: the operation id, ten zero attributes, the result's rank,
+extents, element type and layout, the operand count, and the external operand's kind and
+identity. It was taken before `signature_of` called the `hash` module.
+
 ## TheSameTraceGivesTheSameSignature
 
 Two graphs built from the default `Recipe` have equal hashes and compare equal. The operation

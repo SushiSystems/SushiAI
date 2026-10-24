@@ -2,11 +2,11 @@
 
 ## Owns
 
-The `Shape` value type, its hash, and `shape_of`, which reads the shape of a SushiBLAS tensor.
+The `Shape` value type, its hash (64-bit FNV-1a over the rank and each extent, through the `hash` module), and `shape_of`, which reads the shape of a SushiBLAS tensor.
 
 ## Depends on
 
-`dtype`, for `K_MAX_RANK`, and `failure`, for the checks of a constructor, both public. It links
+`dtype`, for `K_MAX_RANK`, `failure`, for the checks of a constructor, and `hash`, for `Shape::hash`, all public. It links
 `SushiBLAS::sushiblas` and `SushiRuntime::core` as public.
 
 ## Public entry points

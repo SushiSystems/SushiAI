@@ -37,6 +37,7 @@
 #include <SushiLog/text/text_format.hpp>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/vision/codecs/decode_image.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
@@ -52,12 +53,6 @@ namespace SushiAI::Vision::Datasets
         /** @brief Names this unit in a message. */
         constexpr std::string_view K_CACHE = "sample cache";
 
-        /** @brief Holds the offset basis of the 64-bit FNV-1a hash. */
-        constexpr std::uint64_t K_HASH_BASIS = 14695981039346656037ull;
-
-        /** @brief Holds the prime of the 64-bit FNV-1a hash. */
-        constexpr std::uint64_t K_HASH_PRIME = 1099511628211ull;
-
         /** @brief Holds what a cache file is called while it is being written. */
         constexpr std::string_view K_PARTIAL_EXTENSION = ".partial";
 
@@ -67,12 +62,7 @@ namespace SushiAI::Vision::Datasets
         /** @brief Returns the 64-bit FNV-1a hash of a text as sixteen hexadecimal digits. */
         [[nodiscard]] std::string hash_of(std::string_view text)
         {
-            std::uint64_t hash = K_HASH_BASIS;
-            for (const char character : text)
-            {
-                hash ^= static_cast<std::uint8_t>(character);
-                hash *= K_HASH_PRIME;
-            }
+            std::uint64_t hash = Hash::fnv1a_text(Hash::K_FNV1A_OFFSET_BASIS, text);
 
             std::string digits(16, '0');
             for (std::size_t i = digits.size(); i-- > 0; hash >>= 4)

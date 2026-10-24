@@ -122,8 +122,9 @@ bound to its graph and state, so it hides its members behind accessors.
 
 Seen and kept: `Dataset` grew a second pure virtual, which all seven kinds and eight test fakes
 implement; `holds_rows_of` exists in three test programs that share no support header; three more
-private FNV-1a copies (`region_signature.cpp`, `sample_cache.cpp`, `Shape::hash()`) move to `hash`
-in A4c.
+private FNV-1a copies (`region_signature.cpp`, `sample_cache.cpp`, `Shape::hash()`) moved to
+`hash` in A4c, each the same algorithm, so every value stays; the sample cache's hash names its
+files on disk, so existing caches stay found. Each site pins a value computed outside SushiAI.
 
 ## A8, SushiBLAS's `UInt32`
 
@@ -147,4 +148,5 @@ dispatch: A8 — sonnet medium, passed, rung 1
 dispatch: A3 in-place sum — opus low, passed, rung 1
 dispatch: A4 — opus low, 170 turns, passed, rung 1
 dispatch: A4b — opus low, 131 turns, passed, rung 1
+dispatch: A4c — sonnet low, 32 turns, passed, rung 1
 ```

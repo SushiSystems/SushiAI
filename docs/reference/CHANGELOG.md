@@ -4,6 +4,7 @@
 
 - 2026-10-24 — data: Added `Dataset::read_rows()`, a read of a row range of one batch that every dataset kind implements without reading the rows outside it (`dataset.hpp`).
 - 2026-10-24 — programs: Made each replica read only its own rows and the master hold only the step's results, not the whole batch's activations (`training_setup.hpp`).
+- 2026-10-24 — hash: Made `Shape::hash`, `signature_of` and the sample cache file names call it, with every value unchanged (`shape.hpp`, `region_signature.cpp`, `sample_cache.cpp`).
 - 2026-10-24 — hash: Added the one FNV-1a that the replica fingerprints fold through (`fnv1a.hpp`).
 - 2026-10-24 — train: Added `bind_step_results()`, which binds the state, the gradients and the loss without a memory plan (`trainer.hpp`).
 - 2026-10-24 — config: Raised the training file to version 2, which may hold a `cluster` section, and kept reading version 1 (`train_config.hpp`).

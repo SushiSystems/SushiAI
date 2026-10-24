@@ -34,6 +34,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/hash/fnv1a.hpp>
 
 namespace SushiAI
 {
@@ -149,19 +150,12 @@ namespace SushiAI
              */
             constexpr std::uint64_t hash() const noexcept
             {
-                std::uint64_t h = 14695981039346656037ull;
-                const auto mix = [&h](std::uint64_t v) constexpr
-                {
-                    for (int b = 0; b < 8; ++b)
-                    {
-                        h ^= (v >> (b * 8)) & 0xffull;
-                        h *= 1099511628211ull;
-                    }
-                };
-                mix(static_cast<std::uint64_t>(rank_));
+                std::uint64_t hash = Hash::fnv1a_word(Hash::K_FNV1A_OFFSET_BASIS,
+                                                      static_cast<std::uint64_t>(rank_));
                 for (int32_t i = 0; i < rank_; ++i)
-                    mix(static_cast<std::uint64_t>(dims_[static_cast<std::size_t>(i)]));
-                return h;
+                    hash = Hash::fnv1a_word(hash,
+                                            static_cast<std::uint64_t>(dims_[static_cast<std::size_t>(i)]));
+                return hash;
             }
 
         private:

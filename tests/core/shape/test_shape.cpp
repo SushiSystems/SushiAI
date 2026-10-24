@@ -136,6 +136,17 @@ TEST(Small_Shape, HashSeparatesShapesThatDifferOnlyByRank)
     EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
 }
 
+/**
+ * @brief Tests that the hash keeps the values it has always had, computed apart from SushiAI
+ *        as 64-bit FNV-1a over the rank and then each extent, each as eight bytes low first.
+ */
+TEST(Small_Shape, HashKeepsItsValues)
+{
+    EXPECT_EQ(Shape().hash(), 0xa8c7f832281a39c5ull);
+    EXPECT_EQ(Shape({4, 3}).hash(), 0x3638e6130dedb860ull);
+    EXPECT_EQ(Shape({2, 3, 4}).hash(), 0x359a961b832f81a3ull);
+}
+
 TEST(Small_Shape, WorksAsAnUnorderedMapKey)
 {
     std::unordered_map<Shape, int> counts;

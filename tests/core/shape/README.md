@@ -60,6 +60,11 @@ scalar.
 [4, 1] and [4] hold the same element count and the same leading extent. A hash that folded only
 the extents would collide them, and the tensor pool keys its constant operands on this hash.
 
+### HashKeepsItsValues
+
+The hashes of the scalar, [4, 3] and [2, 3, 4] equal values computed in Python over the rank and
+each extent as eight bytes low first, from before `Shape::hash` called the `hash` module.
+
 ### WorksAsAnUnorderedMapKey
 
 An `unordered_map` keyed by `Shape`, written twice under [2, 2] and once under [4], holds two
