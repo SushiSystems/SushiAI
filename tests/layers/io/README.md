@@ -303,6 +303,16 @@ With the first extent patched to 0 the read fails with `InvalidFile`, "0.weight"
 With the first element type patched to 99 the read fails with `InvalidFile`, "0.weight", "99"
 and "does not know".
 
+### RejectsACountTypeTheFormatDoesNotCarry
+
+With the first element type patched to the `UInt32` value the read fails with `InvalidFile`,
+"0.weight", "uint32" and "does not carry".
+
+### RefusesToWriteACountTypeTheFormatDoesNotCarry
+
+Writing a `UInt32` record fails with `InvalidDescription`, "counts", "uint32" and "does not
+carry".
+
 ### RejectsMoreRecordsThanDeclared
 
 A writer created for 2 records writes two. A third `write` is fatal with "declared 2" and

@@ -291,6 +291,10 @@ namespace SushiAI
             SA_FATAL_IF(record.shape.rank() > K_MAX_RANK,
                         "'{}' is rank {}; a checkpoint tensor may be at most rank {}",
                         record.name, record.shape.rank(), K_MAX_RANK);
+            SA_FAIL_IF(!is_known_dtype(static_cast<std::uint32_t>(record.dtype)),
+                       StatusCode::InvalidDescription,
+                       "'{}' is {}, a type this checkpoint format does not carry",
+                       record.name, dtype_name(record.dtype));
 
             put_u32(*out_, static_cast<std::uint32_t>(record.name.size()));
             out_->write(record.name.data(), static_cast<std::streamsize>(record.name.size()));
@@ -390,6 +394,10 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(const std::uint32_t encoded_dtype,
                           read_u32(*in_, "'" + record.name + "'s dtype"));
+            SA_FAIL_IF(encoded_dtype == static_cast<std::uint32_t>(DType::UInt32),
+                       StatusCode::InvalidFile,
+                       "'{}' declares dtype {}, a count type this checkpoint format does not "
+                       "carry", record.name, dtype_name(DType::UInt32));
             SA_FAIL_IF(!is_known_dtype(encoded_dtype), StatusCode::InvalidFile,
                        "'{}' declares dtype {}, which this build does not know",
                        record.name, encoded_dtype);

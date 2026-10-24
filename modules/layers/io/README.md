@@ -69,7 +69,7 @@ A record has one layout in both sections and in both versions:
 | --- | --- |
 | 4 | N, the length of the name, uint32, at most 256 |
 | N | The name, with no terminator |
-| 4 | The element type, uint32: the value of its `DType` enumerator |
+| 4 | The element type, uint32: the value of its `DType` enumerator, 0 to 6; the count type `UInt32` (7) is not carried, the writer refuses it and the reader refuses it as "does not carry" |
 | 4 | K, the rank, uint32, at most `K_MAX_RANK` |
 | 8 x K | The extents, int64 each, every one positive |
 | Elements x element size | The payload |

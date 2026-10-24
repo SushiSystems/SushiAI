@@ -280,6 +280,24 @@ TEST(Small_CheckpointFormat, RejectsAnUnknownDType)
                       "does not know");
 }
 
+TEST(Small_CheckpointFormat, RejectsACountTypeTheFormatDoesNotCarry)
+{
+    std::string bytes = sample_stream();
+    patch_u32(bytes, K_OFFSET_DTYPE, static_cast<std::uint32_t>(SushiAI::DType::UInt32));
+    SA_EXPECT_FAILURE(read_everything(bytes), StatusCode::InvalidFile, "0.weight", "uint32",
+                      "does not carry");
+}
+
+TEST(Small_CheckpointFormat, RefusesToWriteACountTypeTheFormatDoesNotCarry)
+{
+    std::ostringstream out;
+    SA_ASSERT_OK_AND_ASSIGN(CheckpointWriter writer, CheckpointWriter::create(out, 1));
+    SA_EXPECT_FAILURE(
+        writer.write(TensorRecord{"counts", SushiAI::DType::UInt32, SushiAI::Shape{2}},
+                     K_BIAS.data()),
+        StatusCode::InvalidDescription, "counts", "uint32", "does not carry");
+}
+
 TEST(Small_CheckpointFormatDeathTest, RejectsMoreRecordsThanDeclared)
 {
     std::ostringstream out;

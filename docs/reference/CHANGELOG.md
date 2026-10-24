@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-24 — dtype: Sized and named SushiBLAS's `UInt32`, and made the checkpoint reader and writer refuse it in words, since the `.sushi` format does not carry it (`dtype.hpp`, `checkpoint_format.cpp`).
 - 2026-10-24 — graph: Changed `StepRecorder::record_into_step()` to take a `StepRecording`, which hands out both the task recorder and the runtime recorder of the graph (`step_recording.hpp`, `step_recorder.hpp`).
 - 2026-10-24 — distribution: Added `GradientExchange` and `ParameterPublish`, which record the replica tasks, their ordered sum and the parameter pack around the optimizer (`gradient_exchange.hpp`, `parameter_publish.hpp`).
 - 2026-10-24 — distribution: Cut a replica node to four parameters and moved its epoch and batch into a required position pack, its second input (`replica_task.hpp`, `replica_position.hpp`).

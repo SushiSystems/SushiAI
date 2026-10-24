@@ -43,6 +43,7 @@ TEST(Small_DType, EveryElementTypeHasItsWidthAndItsName)
     EXPECT_EQ(SushiAI::dtype_size(DType::Complex64), 16u);
     EXPECT_EQ(SushiAI::dtype_size(DType::Int32), 4u);
     EXPECT_EQ(SushiAI::dtype_size(DType::Int64), 8u);
+    EXPECT_EQ(SushiAI::dtype_size(DType::UInt32), 4u);
 
     EXPECT_STREQ(SushiAI::dtype_name(DType::Half), "half");
     EXPECT_STREQ(SushiAI::dtype_name(DType::Float32), "float32");
@@ -51,6 +52,7 @@ TEST(Small_DType, EveryElementTypeHasItsWidthAndItsName)
     EXPECT_STREQ(SushiAI::dtype_name(DType::Complex64), "complex64");
     EXPECT_STREQ(SushiAI::dtype_name(DType::Int32), "int32");
     EXPECT_STREQ(SushiAI::dtype_name(DType::Int64), "int64");
+    EXPECT_STREQ(SushiAI::dtype_name(DType::UInt32), "uint32");
 }
 
 /** @brief Tests that only the three real floating-point types count as real floats. */
@@ -65,6 +67,7 @@ TEST(Small_DType, OnlyTheRealFloatingTypesAreRealFloats)
     EXPECT_FALSE(SushiAI::is_real_float(DType::Complex64));
     EXPECT_FALSE(SushiAI::is_real_float(DType::Int32));
     EXPECT_FALSE(SushiAI::is_real_float(DType::Int64));
+    EXPECT_FALSE(SushiAI::is_real_float(DType::UInt32));
 }
 
 /** @brief Tests that the maximum rank is the one SushiBLAS stores. */

@@ -38,8 +38,9 @@ namespace SushiAI
      * @brief The element type of a tensor.
      *
      * An alias, not a parallel enum: SushiAI performs no arithmetic of its
-     * own, so the set of types it can express is exactly the set SushiBLAS
-     * can compute on.
+     * own, so it has no element type SushiBLAS lacks. UInt32 is a count type
+     * SushiBLAS holds and moves but no operation computes on; a model file and
+     * a checkpoint refuse it.
      */
     using DType = SushiBLAS::Core::DataType;
 
@@ -65,6 +66,7 @@ namespace SushiAI
             case DType::Complex64: return 16;
             case DType::Int32:     return 4;
             case DType::Int64:     return 8;
+            case DType::UInt32:    return 4;
         }
         return 4;
     }
@@ -85,6 +87,7 @@ namespace SushiAI
             case DType::Complex64: return "complex64";
             case DType::Int32:     return "int32";
             case DType::Int64:     return "int64";
+            case DType::UInt32:    return "uint32";
         }
         return "unknown";
     }

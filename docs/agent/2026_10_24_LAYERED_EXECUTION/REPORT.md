@@ -79,6 +79,16 @@ A2's two micro-batches; two pinned runs equal each other bit for bit; every type
 exact dyadic values. `execution.hpp` named `TaskRecorder` without including it since A0, which
 broke `optimizer.cpp`; the include is added.
 
+## A8, SushiBLAS's `UInt32`
+
+SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no
+unsigned type of its own, so a tensor of it is sized truthfully and computes nothing. The `.sushi`
+format keeps codes 0 to 6 and its version: the reader refuses code 7 in words and the writer
+refuses to write it. A model's inputs already allow only float32 and int32.
+
+Seen and kept: `trainer.cpp`'s `current_loss` switches with a `default:` that fails fatally, so a
+next type would not warn there at compile time.
+
 ## Dispatches
 
 ```
@@ -87,4 +97,5 @@ dispatch: A1 — sonnet medium, 73 turns, passed, rung 1
 dispatch: A0 follow-up — haiku high, 62 turns, passed, rung 1
 dispatch: A2 — opus low, 108 turns, passed, rung 1
 dispatch: A3 — opus low, 168 turns over two rounds, passed, rung 1
+dispatch: A8 — sonnet medium, passed, rung 1
 ```
