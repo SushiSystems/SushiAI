@@ -69,6 +69,12 @@ namespace SushiAI
                     return recorder_;
                 }
 
+                /** @brief Returns the runtime recorder of the graph, which recorder() records on. */
+                [[nodiscard]] SushiRuntime::Recorder& graph_recorder() noexcept
+                {
+                    return graph_.recorder();
+                }
+
                 /** @brief Runs every task recorded on the graph and returns when they finish. */
                 [[nodiscard]] Status run() noexcept
                 {

@@ -21,7 +21,7 @@
 
 /**
  * @file training_step.cpp
- * @brief Implements TrainingStep: the placement check, the compilation of the trailing
+ * @brief Implements TrainingStep: the placement checks, the compilation of the trailing
  *        recorders and the run that steps a detached optimizer.
  * @author Mustafa Garip
  */
@@ -126,6 +126,11 @@ namespace SushiAI
             SA_TRY(require_replay_invariant(optimizer, options.optimizer_placement));
 
             const bool in_plan = options.optimizer_placement == OptimizerPlacement::InPlan;
+            SA_FAIL_IF(!in_plan && options.after_update != nullptr,
+                       StatusCode::InvalidDescription,
+                       "TrainingStepOptions::after_update records behind the optimizer, but "
+                       "OptimizerPlacement::PerStep steps the optimizer after the replay, so "
+                       "the recorder would run before it. Use OptimizerPlacement::InPlan.");
             const bool has_updates = !updates.empty();
 
             SA_TRY_ASSIGN(std::unique_ptr<TrainingStep> step,
@@ -136,12 +141,18 @@ namespace SushiAI
                     new TrainingStep(optimizer, std::move(updates), in_plan));
             }));
 
-            // The optimizer is added first, so its update runs before the statistics blend.
+            if (options.before_update != nullptr)
+                SA_TRY(step->recorders_.add(*options.before_update));
+
+            // The optimizer is added before the updates, so its update runs before the blend.
             if (in_plan)
                 SA_TRY(step->recorders_.add(optimizer));
 
             if (has_updates)
                 SA_TRY(step->recorders_.add(step->updates_));
+
+            if (options.after_update != nullptr)
+                SA_TRY(step->recorders_.add(*options.after_update));
 
             // An empty list means no trailing work, so the step compiles as a plain graph.
             Graph::StepRecorder* const trailing =

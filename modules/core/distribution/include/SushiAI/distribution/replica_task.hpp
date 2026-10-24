@@ -40,22 +40,16 @@ namespace SushiAI
     namespace Distribution
     {
         /** @brief Holds how many parameters a replica node carries. */
-        inline constexpr std::size_t K_REPLICA_TASK_WORDS = 6;
+        inline constexpr std::size_t K_REPLICA_TASK_WORDS = 4;
 
         /**
-         * @brief Names one replica's share of one step, as the node's parameters carry it.
+         * @brief Names the replica a node runs, as the node's parameters carry it.
          *
-         * The words are, in order: epoch, batch index, replica index, replica count, run
-         * index, seed.
+         * The words are, in order: replica index, replica count, run index, seed. The epoch
+         * and the batch come from the node's position pack, since a replay keeps the words.
          */
         struct ReplicaTask
         {
-            /** @brief The epoch, counted from 0. */
-            std::uint64_t epoch = 0;
-
-            /** @brief The batch of the epoch, counted from 0. */
-            std::uint64_t batch_index = 0;
-
             /** @brief The replica that runs the task, k. */
             std::uint64_t replica_index = 0;
 

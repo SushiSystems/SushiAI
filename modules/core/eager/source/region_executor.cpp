@@ -233,7 +233,8 @@ namespace SushiAI
 
             SushiBLAS::TaskRecorder tasks(target->recorder(), engine_->scratch_pool(),
                                           engine_->mode());
-            SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(tasks));
+            const Graph::StepRecording recording(tasks, target->recorder());
+            SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(recording));
             SA_TRY(refusal_of(target->recorder()));
 
             trailing_ = work.trailing;

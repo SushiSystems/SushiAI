@@ -38,6 +38,7 @@ sushiai_add_test_program(OWNER graph
         test_replay_prelude.cpp
         test_state_id.cpp
         test_step_recorder.cpp
+        test_step_recording.cpp
         test_tensor_pool.cpp
         test_traced.cpp
     DEPENDS

@@ -33,6 +33,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 
 namespace SushiAI
 {
@@ -96,7 +97,7 @@ namespace SushiAI
                  * @return Twice slot_count(), or the failure of a recorded call.
                  */
                 [[nodiscard]] Result<std::size_t> record_into_step(
-                    SushiBLAS::TaskRecorder& recorder) override;
+                    const Graph::StepRecording& recording) override;
 
                 /** @brief Returns how many slots this recorder blends. */
                 [[nodiscard]] std::size_t slot_count() const noexcept;

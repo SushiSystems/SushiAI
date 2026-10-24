@@ -1,6 +1,6 @@
 # Layered execution in SushiAI: report
 
-**Status:** Open — A0, A1 and A2 landed on 2026-10-24; not built yet.
+**Status:** Open — A0 to A3 landed on 2026-10-24; not built yet.
 
 ## A0
 
@@ -64,6 +64,21 @@ Seen and kept: `ReplicaModel` holds the traced model and the feed of its rows, w
 pool's life; the module reaches `Detail::create_runtime()` of `execution`, another module's
 internal surface; the micro-batch mean assumes an objective that is a mean over its rows.
 
+## A3
+
+The settled shape is in the design's "What A3 settled". A first round put the epoch and batch in
+both the node's parameters and a position pack, and gave `StepRecorder` a second hook that
+`GradientExchange` had to refuse; the orchestrator ruled one source for the position (the pack)
+and one recording context (`StepRecording`) for every recorder, and the second round did both.
+Every existing recorder reads only the task recorder it read before, so each behaves as it did.
+
+The sum scatters each result pack into master copies and runs one `ordered_sum()` per target:
+N×P extra copies per step, which SushiBLAS's B16 views remove in the follow-up. Two replicas
+equal one step over the whole batch within an absolute 1e-6 and a relative 1e-5 in float32, as
+A2's two micro-batches; two pinned runs equal each other bit for bit; every type crosses with
+exact dyadic values. `execution.hpp` named `TaskRecorder` without including it since A0, which
+broke `optimizer.cpp`; the include is added.
+
 ## Dispatches
 
 ```
@@ -71,4 +86,5 @@ dispatch: A0 — sonnet medium, 93 turns, passed, rung 1
 dispatch: A1 — sonnet medium, 73 turns, passed, rung 1
 dispatch: A0 follow-up — haiku high, 62 turns, passed, rung 1
 dispatch: A2 — opus low, 108 turns, passed, rung 1
+dispatch: A3 — opus low, 168 turns over two rounds, passed, rung 1
 ```

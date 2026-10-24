@@ -37,6 +37,7 @@
 #include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 
 using namespace SushiAI;
 using Graph::StepRecorder;
@@ -56,7 +57,7 @@ namespace
             }
 
             /** @brief Journals the call and returns the task count given at construction. */
-            [[nodiscard]] Result<std::size_t> record_into_step(SushiBLAS::TaskRecorder&) override
+            [[nodiscard]] Result<std::size_t> record_into_step(const Graph::StepRecording&) override
             {
                 journal_->push_back(name_ + ".record");
                 return tasks_;
@@ -90,7 +91,7 @@ namespace
     {
         public:
             /** @brief Returns a fixed count of three tasks. */
-            [[nodiscard]] Result<std::size_t> record_into_step(SushiBLAS::TaskRecorder&) override
+            [[nodiscard]] Result<std::size_t> record_into_step(const Graph::StepRecording&) override
             {
                 return 3;
             }
@@ -110,7 +111,8 @@ namespace
             Medium_StepRecorder()
                 : graph_(SushiAI::Test::TestEnvironment::runtime().graph()),
                   scratch_(SushiAI::Test::TestEnvironment::runtime()),
-                  recorder_(graph_.recorder(), scratch_)
+                  recorder_(graph_.recorder(), scratch_),
+                  recording_(recorder_, graph_.recorder())
             {
 
             }
@@ -121,8 +123,11 @@ namespace
             /// @brief Scratch pool the recorder leases from.
             SushiBLAS::ScratchPool scratch_;
 
-            /// @brief Recorder every test passes to record_into_step().
+            /// @brief Task recorder over graph_.
             SushiBLAS::TaskRecorder recorder_;
+
+            /// @brief Recording every test passes to record_into_step().
+            Graph::StepRecording recording_;
     };
 
     /** @brief Names the suite of the cases that expect the process to stop. */
@@ -136,7 +141,7 @@ TEST_F(Medium_StepRecorder, EmptyListRecordsNothing)
     StepRecorderList list;
 
     EXPECT_TRUE(list.empty());
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 0u);
     EXPECT_NO_THROW(list.before_replay());
     EXPECT_NO_THROW(list.after_replay());
@@ -167,7 +172,7 @@ TEST_F(Medium_StepRecorder, RecordSumsTheMemberCounts)
     SA_EXPECT_OK(list.add(b));
     SA_EXPECT_OK(list.add(c));
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 7u);
 }
 
@@ -183,7 +188,7 @@ TEST_F(Medium_StepRecorder, RecordCallsMembersInTheOrderAdded)
     SA_EXPECT_OK(list.add(b));
     SA_EXPECT_OK(list.add(c));
 
-    SA_EXPECT_OK(list.record_into_step(recorder_));
+    SA_EXPECT_OK(list.record_into_step(recording_));
 
     EXPECT_EQ(journal, in_order_added("record"));
 }
@@ -198,7 +203,7 @@ TEST_F(Medium_StepRecorder, OrderFollowsAddNotConstruction)
     SA_EXPECT_OK(list.add(b));
     SA_EXPECT_OK(list.add(a));
 
-    SA_EXPECT_OK(list.record_into_step(recorder_));
+    SA_EXPECT_OK(list.record_into_step(recording_));
 
     EXPECT_EQ(journal, (std::vector<std::string>{"b.record", "a.record"}));
 }
@@ -247,7 +252,7 @@ TEST_F(Medium_StepRecorder, MemberWithoutReplayHooksIsDriven)
     SA_EXPECT_OK(list.add(plain));
     SA_EXPECT_OK(list.add(a));
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 7u);
     list.before_replay();
     list.after_replay();
@@ -266,7 +271,7 @@ TEST_F(Medium_StepRecorder, ListIsDrivenThroughTheInterface)
     SA_EXPECT_OK(list.add(b));
     StepRecorder* trailing = &list;
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, trailing->record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, trailing->record_into_step(recording_));
     EXPECT_EQ(count, 5u);
     trailing->before_replay();
     trailing->after_replay();
@@ -289,7 +294,7 @@ TEST_F(Medium_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
     SA_EXPECT_OK(outer.add(inner));
     SA_EXPECT_OK(outer.add(c));
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, outer.record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, outer.record_into_step(recording_));
     EXPECT_EQ(count, 7u);
     EXPECT_EQ(journal, in_order_added("record"));
 }
@@ -304,7 +309,7 @@ TEST_F(Medium_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 
     SA_EXPECT_FATAL((void)list.add(a), "StepRecorderList::add", "already");
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recorder_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 2u);
     EXPECT_EQ(journal, (std::vector<std::string>{"a.record"}));
 }

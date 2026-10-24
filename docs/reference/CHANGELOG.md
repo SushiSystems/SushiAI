@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-10-24 — graph: Changed `StepRecorder::record_into_step()` to take a `StepRecording`, which hands out both the task recorder and the runtime recorder of the graph (`step_recording.hpp`, `step_recorder.hpp`).
+- 2026-10-24 — distribution: Added `GradientExchange` and `ParameterPublish`, which record the replica tasks, their ordered sum and the parameter pack around the optimizer (`gradient_exchange.hpp`, `parameter_publish.hpp`).
+- 2026-10-24 — distribution: Cut a replica node to four parameters and moved its epoch and batch into a required position pack, its second input (`replica_task.hpp`, `replica_position.hpp`).
+- 2026-10-24 — train: Added `TrainingStepOptions::before_update` and `after_update`, step recorders around the optimizer (`training_step.hpp`).
+- 2026-10-24 — execution: Included the task recorder's header where `record_and_run()` names it (`execution.hpp`).
 - 2026-10-24 — distribution: Added `ReplicaStep`, a forward and backward step on a runtime of its own, and `ReplicaKernel`, the kernel that runs a replica's micro-batches (`replica_step.hpp`, `replica_kernel.hpp`).
 - 2026-10-24 — io: Removed the unread `Engine&` of `save_checkpoint()` and `save_run_checkpoint()`, which save what the caller's graph already wrote (`checkpoint.hpp`, `run_checkpoint.hpp`).
 - 2026-10-24 — distribution: Added the distribution module, built under `SA_ENABLE_DISTRIBUTED`, which turns a spec's cluster section into placement rules and gives each replica its rows (`cluster_section.hpp`, `replica_plan.hpp`).

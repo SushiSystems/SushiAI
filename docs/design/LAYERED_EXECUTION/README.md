@@ -109,7 +109,8 @@ The master is one of the five machines and trains a part of the batch itself.
    The optimizer's last task writes it, which raises its version.
 2. **Dispatch.** The master's step records one replica task per replica inside the placement
    scope `sushiai.replica` with the replica's index as key. Its `NodeOptions` parameters are the
-   epoch, the batch index, the replica index, the replica count, the run index and the seed. The
+   replica index, the replica count, the run index and the seed, and its second input is the
+   position pack that holds the epoch and the batch index. The
    rules the training spec produced send replica `k` to the worker named for it; one whose worker
    is lost runs on the master through the same kernel, or waits, as the spec says.
 3. **Replica work.** A replica pulls the parameter pack once per step (the cache holds it until
@@ -219,7 +220,10 @@ sushiai/
         include/SushiAI/distribution/
             replica_plan.hpp                ReplicaPlan
             replica_draws.hpp               ReplicaDraws: the seed of a replica's draws
-            replica_task.hpp                ReplicaTask: the replica node's six parameters
+            replica_task.hpp                ReplicaTask: the replica node's four parameters
+            replica_position.hpp            ReplicaPosition: the epoch and batch a step serves
+            gradient_exchange.hpp           GradientExchange
+            parameter_publish.hpp           ParameterPublish
             replica_model.hpp               ReplicaModel: the model a step runs, behind an interface
             replica_step.hpp                ReplicaStep
             replica_kernel.hpp              ReplicaKernel
@@ -254,12 +258,23 @@ and serves through `WorkerAgent`. `sa build --distributed` sets the three option
 workers), because SushiRuntime refuses a graph run of the runtime a registered kernel runs in
 (its R11). It reads the model only through `ReplicaModel`, since `TrainingGraph` and `ModelState`
 live in the layers tier above `core`; the worker program implements it (A4). The replica node's
-parameters are, in order, the epoch, the batch index, the replica index, the replica count, the
-run index and the seed. The result pack holds the gradients in parameter order, the loss, then
+parameters are, in order, the replica index, the replica count, the run index and the seed; the
+epoch and the batch travel in a position pack, the node's second input, because a compiled step
+replays its nodes' parameters as they were recorded and the position changes every step. The result pack holds the gradients in parameter order, the loss, then
 the batch statistics. The kernel's fingerprint folds the model's own fingerprint with the
 parameter and result layouts. Gradients over several micro-batches are averaged on the host, in
 micro-batch order, since the pack and the gradients live in two runtimes' contexts; one
 micro-batch is copied byte for byte.
+
+#### What A3 settled
+
+`GradientExchange` and `ParameterPublish` are `StepRecorder`s that `TrainingStep` takes as
+`before_update` and `after_update`, around the optimizer. A step recorder records through one
+`Graph::StepRecording`, which hands out both the SushiBLAS `TaskRecorder` and the SushiRuntime
+`Recorder` of the graph, so the exchange opens placement scopes and records remote tasks without
+an interface any recorder refuses. Integer gradients and statistics sum with weight 1, the only
+weight `ordered_sum()` takes for integers, so their totals are exact; floating ones take
+`r_k / B`. The epoch and batch come from a replay counter that resume sets (A4).
 
 #### SOLID
 
@@ -291,7 +306,7 @@ makes false change in its own commit.
 | A0 | SushiAI records only on graphs it owns: `run_recorded()` and `discard_recorded()` of `modules/core/execution` replaced, the checkpoint savers and the tests that used the engine's graph moved. Files: `modules/core/execution`, `modules/layers/io`, `tests/`. Waits on: nothing. Done when: No SushiAI file calls `Engine::execute()`, `discard_recorded()` or `Engine::recorder()`, and the suites pass | building |
 | A1 | `ReplicaPlan` and `ClusterSection`, the spec's cluster section turned into placement rules. Files: `modules/core/distribution/`. Waits on: `sushiruntime` R4. Done when: A test turns a five-replica section into rows, micro-batches, weights and rules, and refuses a micro-batch that does not divide its rows | building |
 | A2 | `ReplicaStep` and `ReplicaKernel`. Files: `modules/core/distribution/`. Waits on: A1, `sushiblas` B12, `sushiruntime` R11. Done when: One replica on `InProcessFabric` returns the gradients of a single-machine step over the same rows, bit for bit | building |
-| A3 | `GradientExchange` and `ParameterPublish` in `TrainingStep`'s recorder list. Files: `modules/core/distribution/`, `modules/layers/train/`. Waits on: A2, `sushiblas` B11, `sushiruntime` R10, R12. Done when: Two replicas on `InProcessFabric` give summed gradients equal to one step over the whole batch within the test's tolerance, two pinned runs equal each other bit for bit, and a pack of every type crosses | planned |
+| A3 | `GradientExchange` and `ParameterPublish` in `TrainingStep`'s recorder list. Files: `modules/core/distribution/`, `modules/layers/train/`. Waits on: A2, `sushiblas` B11, `sushiruntime` R10, R12. Done when: Two replicas on `InProcessFabric` give summed gradients equal to one step over the whole batch within the test's tolerance, two pinned runs equal each other bit for bit, and a pack of every type crosses | building |
 | A4 | `sushiai_worker` and the `train` program's cluster section; `sa build --distributed`. Files: `applications/programs/`, `cli/`. Waits on: A3. Done when: Both programs build and a two-process run on one machine trains one step from a spec | planned |
 | A5 | Two machines, one Linux and one Windows. Files: `docs/guides/`. Waits on: A4. Done when: A YOLOv3-tiny step runs across the two and the guide page shows how | planned |
 | A6 | Five machines, YOLOv3-tiny. Files: `docs/guides/`, this document. Waits on: A5, `sushiruntime` R13. Done when: The step time on five machines and on the fastest one alone are measured, with the link's time separated out, and `r_k` set from each machine's rows per second | planned |

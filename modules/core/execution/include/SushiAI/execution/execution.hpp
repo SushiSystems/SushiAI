@@ -31,6 +31,7 @@
 
 #include <utility>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>

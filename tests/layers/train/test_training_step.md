@@ -3,7 +3,8 @@
 
 Suites: `Medium_TrainingStep`.
 
-Tests how `Train::TrainingStep` places the optimizer, splits at a host stage and counts runs.
+Tests how `Train::TrainingStep` places the optimizer, splits at a host stage, orders the
+recorders before and after the update, and counts runs.
 
 Every case compiles a step on the CPU SYCL device through `EngineTest`, so the file is medium.
 The refusals of a host stage the graph cannot be cut at, and the refusal of host work by a step
@@ -15,6 +16,12 @@ with no host stage, are pinned in `tests/vision/training/test_anchor_training_st
 classes over a batch of 4, its training graph from `build_classifier`, its state, the pool and
 the parameter slots. `prepare` traces, binds and initialises it and sets `ready`.
 `host_stage_options` returns options whose host stage reads the logits.
+
+## OrderProbe
+
+`OrderProbe` is a `StepRecorder` that records no task. When it records it notes whether the
+optimizer it watches is already in the compiled step, and it counts its `before_replay` and
+`after_replay` calls.
 
 Each case keeps the parts in its body and declares the optimizer and the step after them, so the
 step is destroyed first and the engine, which the fixture resets after the body, is destroyed
@@ -46,3 +53,14 @@ the rest has run once.
 
 On a fresh step with a host stage, `restore_run_count(5)` sets the run count of the lead part
 and of the rest to 5.
+
+## BeforeAndAfterUpdateRecordAroundTheOptimizer
+
+With a probe as `before_update` and another as `after_update`, each records once. The first sees
+the optimizer not yet recorded and the second sees it recorded. Two runs call each probe's two
+replay hooks twice.
+
+## AfterUpdateIsRefusedBesideAPerStepOptimizer
+
+`after_update` beside `PerStep` would run before the optimizer, so `make` returns
+InvalidDescription naming `after_update` and `InPlan`, and the probe never records.

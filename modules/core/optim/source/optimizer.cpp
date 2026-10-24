@@ -322,11 +322,11 @@ namespace SushiAI
             return recorded + updates;
         }
 
-        Result<std::size_t> Optimizer::record_into_step(SushiBLAS::TaskRecorder& recorder)
+        Result<std::size_t> Optimizer::record_into_step(const Graph::StepRecording& recording)
         {
             // Mark step recording as owned by compiled step execution graph.
             in_compiled_step_ = true;
-            return record_all(recorder);
+            return record_all(recording.tasks());
         }
 
         Status Optimizer::step()

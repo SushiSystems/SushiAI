@@ -53,6 +53,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -82,12 +83,12 @@ namespace SushiAI::Eager::Support
 
             /** @brief Records one axpy per pair and returns how many it recorded. */
             [[nodiscard]] Result<std::size_t> record_into_step(
-                SushiBLAS::TaskRecorder& recorder) override
+                const Graph::StepRecording& recording) override
             {
                 ++records_;
                 return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
                 {
-                    SushiBLAS::BLASOps blas(recorder);
+                    SushiBLAS::BLASOps blas(recording.tasks());
                     for (std::pair<SushiBLAS::Tensor, SushiBLAS::Tensor>& pair : pairs_)
                         blas.axpy(-rate_, pair.second, pair.first);
 

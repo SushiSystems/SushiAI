@@ -35,7 +35,7 @@ namespace SushiAI
     {
         std::array<std::uint64_t, K_REPLICA_TASK_WORDS> ReplicaTask::encode() const noexcept
         {
-            return {epoch, batch_index, replica_index, replica_count, run_index, seed};
+            return {replica_index, replica_count, run_index, seed};
         }
 
         Result<ReplicaTask> ReplicaTask::decode(SushiRuntime::span<const std::uint64_t> words)
@@ -45,12 +45,10 @@ namespace SushiAI
                        words.size());
 
             ReplicaTask task;
-            task.epoch = words[0];
-            task.batch_index = words[1];
-            task.replica_index = words[2];
-            task.replica_count = words[3];
-            task.run_index = words[4];
-            task.seed = words[5];
+            task.replica_index = words[0];
+            task.replica_count = words[1];
+            task.run_index = words[2];
+            task.seed = words[3];
 
             SA_FAIL_IF(task.replica_count == 0, StatusCode::InvalidDescription,
                        "A replica node names a step of 0 replicas");

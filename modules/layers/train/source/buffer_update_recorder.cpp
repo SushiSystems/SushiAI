@@ -107,11 +107,11 @@ namespace SushiAI
         }
 
         Result<std::size_t> BufferUpdateRecorder::record_into_step(
-            SushiBLAS::TaskRecorder& recorder)
+            const Graph::StepRecording& recording)
         {
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::BLASOps blas(recorder);
+                SushiBLAS::BLASOps blas(recording.tasks());
                 for (BufferUpdateSlot& slot : slots_)
                 {
                     blas.scal(1.0 - slot.momentum, slot.target);

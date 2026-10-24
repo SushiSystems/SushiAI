@@ -108,7 +108,8 @@ namespace SushiAI
 
             if (recorded.is_ok() && trailing)
             {
-                const Result<std::size_t> trailed = trailing->record_into_step(step->recorder_);
+                const StepRecording recording(step->recorder_, step->graph_.recorder());
+                const Result<std::size_t> trailed = trailing->record_into_step(recording);
                 if (trailed.has_value())
                     step->operations_ += trailed.value();
                 else

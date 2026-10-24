@@ -51,15 +51,13 @@ namespace
 TEST(Small_ReplicaTask, EncodesInTheDesignOrderAndDecodesBack)
 {
     ReplicaTask task;
-    task.epoch = 2;
-    task.batch_index = 17;
     task.replica_index = 3;
     task.replica_count = 5;
     task.run_index = 4;
     task.seed = 0xFEEDull;
 
     const std::array<std::uint64_t, K_REPLICA_TASK_WORDS> words = task.encode();
-    EXPECT_EQ(words, (std::array<std::uint64_t, K_REPLICA_TASK_WORDS>{2, 17, 3, 5, 4, 0xFEED}));
+    EXPECT_EQ(words, (std::array<std::uint64_t, K_REPLICA_TASK_WORDS>{3, 5, 4, 0xFEED}));
 
     SA_ASSERT_OK_AND_ASSIGN(const ReplicaTask decoded,
                             ReplicaTask::decode(SushiRuntime::span<const std::uint64_t>(
@@ -70,22 +68,22 @@ TEST(Small_ReplicaTask, EncodesInTheDesignOrderAndDecodesBack)
     EXPECT_EQ(decoded.draws().run_index, 4u);
 }
 
-/** @brief Tests that decode() refuses a count of words other than six. */
+/** @brief Tests that decode() refuses a count of words other than four. */
 TEST(Small_ReplicaTask, DecodeRefusesAnotherWordCount)
 {
-    const std::vector<std::uint64_t> words = {0, 0, 0, 1, 0};
-    SA_EXPECT_FAILURE(ReplicaTask::decode(view(words)), StatusCode::InvalidDescription,
-                      "carries 6 parameters, not 5");
+    const std::vector<std::uint64_t> six = {0, 0, 0, 1, 0, 0};
+    SA_EXPECT_FAILURE(ReplicaTask::decode(view(six)), StatusCode::InvalidDescription,
+                      "carries 4 parameters, not 6");
 }
 
 /** @brief Tests that decode() refuses a replica outside its step and a step of no replica. */
 TEST(Small_ReplicaTask, DecodeRefusesAReplicaOutsideItsStep)
 {
-    const std::vector<std::uint64_t> outside = {0, 0, 2, 2, 0, 0};
+    const std::vector<std::uint64_t> outside = {2, 2, 0, 0};
     SA_EXPECT_FAILURE(ReplicaTask::decode(view(outside)), StatusCode::InvalidDescription,
                       "replica 2 of a step of 2");
 
-    const std::vector<std::uint64_t> empty = {0, 0, 0, 0, 0, 0};
+    const std::vector<std::uint64_t> empty = {0, 0, 0, 0};
     SA_EXPECT_FAILURE(ReplicaTask::decode(view(empty)), StatusCode::InvalidDescription,
                       "0 replicas");
 }

@@ -31,6 +31,7 @@
 #include <utility>
 #include <SushiBLAS/cluster/bound_pack.hpp>
 #include <SushiBLAS/cluster/remote_task.hpp>
+#include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 
@@ -144,20 +145,20 @@ namespace SushiAI
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView> outputs,
             const ReplicaTask& task)
         {
-            SA_TRY_ASSIGN(ReplicaStep* const step, step_for(task.draws()));
-
-            SA_FAIL_IF(inputs.size() != 1 || outputs.size() != 1,
+            SA_FAIL_IF(inputs.size() != 2 || outputs.size() != 1,
                        StatusCode::InvalidDescription,
-                       "A replica node takes one parameter pack and writes one result pack; it "
-                       "names {} inputs and {} outputs",
+                       "A replica node reads a parameter pack and a position pack and writes one "
+                       "result pack; it names {} inputs and {} outputs",
                        inputs.size(), outputs.size());
+            SA_TRY_ASSIGN(const ReplicaPosition position, ReplicaPosition::read(inputs[1]));
+            SA_TRY_ASSIGN(ReplicaStep* const step, step_for(task.draws()));
             SA_TRY_ASSIGN(const std::vector<SushiBLAS::BoundPack> parameters,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Execute,
                                                        [&]()
             {
                 const SushiRuntime::span<const SushiBLAS::PackLayout> layouts(
                     &step->parameter_layout(), 1);
-                return SushiBLAS::bind_views(inputs, layouts);
+                return SushiBLAS::bind_views(inputs.subspan(0, 1), layouts);
             }));
             SA_TRY_ASSIGN(const std::vector<SushiBLAS::BoundPack> results,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Execute,
@@ -176,14 +177,14 @@ namespace SushiAI
             for (std::uint64_t index = 0; index < micro_batches; ++index)
             {
                 ReplicaRows rows;
-                rows.epoch = task.epoch;
-                rows.batch_index = task.batch_index;
+                rows.epoch = position.epoch;
+                rows.batch_index = position.batch_index;
                 rows.micro_batch_index = index;
-                rows.rows = plan_.micro_batch(replica, task.batch_index, index);
+                rows.rows = plan_.micro_batch(replica, position.batch_index, index);
                 rows.draws = task.draws();
                 SA_TRY(SA_ANNOTATE(step->run_micro_batch(rows),
                                    "replica {}, batch {}, micro-batch {}: ", replica,
-                                   task.batch_index, index));
+                                   position.batch_index, index));
             }
 
             return step->finish(results.front());

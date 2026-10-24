@@ -37,6 +37,7 @@
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/engine_fixture/test_graph.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
@@ -432,8 +433,8 @@ TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparat
         // The recorded tasks must be drained; see tests/layers/train/README.md.
         optimizer->before_replay();
         SaTest::TestGraph recording(engine);
-        SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded,
-                                optimizer->record_into_step(recording.recorder()));
+        const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+        SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, optimizer->record_into_step(step));
         SA_EXPECT_OK(recording.run());
         engine.runtime().wait().value();
 

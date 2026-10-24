@@ -57,9 +57,9 @@ namespace SushiAI
          * @brief Runs one replica task: unpacks the parameters, runs ReplicaStep over the rows
          *        ReplicaPlan names, and packs the mean of its results.
          *
-         * Its one input is the parameter pack, its one output the result pack. It keeps one
-         * ReplicaStep per replica index it has served, built through the factory the first
-         * time a task names that replica, and serves one task at a time.
+         * Its inputs are the parameter pack and the position pack; its output is the result
+         * pack. It keeps one ReplicaStep per replica served and serves one task at a
+         * time.
          */
         class ReplicaKernel final
         {
@@ -108,7 +108,8 @@ namespace SushiAI
                 /**
                  * @brief Runs the task a node carries over its views, on the calling thread.
                  * @return Success, or InvalidDescription for parameters ReplicaTask refuses, a
-                 *         replica count other than the plan's, or a view the layouts refuse;
+                 *         replica count other than the plan's, a pack count other than two in
+                 *         and one out, or a view the layouts or ReplicaPosition refuse;
                  *         Incompatible for a step whose fingerprint differs from the first;
                  *         or the failure of a step.
                  */

@@ -92,6 +92,20 @@ namespace SushiAI
 
             /** @brief Names what the host reads and writes inside the step, if anything. */
             HostStage host_stage{};
+
+            /**
+             * @brief Records ahead of the optimizer, such as the work that writes its
+             *        gradients; null records nothing. Not owned, and outlives the step.
+             */
+            Graph::StepRecorder* before_update = nullptr;
+
+            /**
+             * @brief Records behind the optimizer and the buffer updates, such as the work
+             *        that reads the new parameters; null records nothing. Not owned, and
+             *        outlives the step.
+             * @pre optimizer_placement is InPlan when it is not null.
+             */
+            Graph::StepRecorder* after_update = nullptr;
         };
 
         /**
@@ -105,9 +119,9 @@ namespace SushiAI
                  * @brief Compiles @p graph with the trailing work the options place behind it.
                  * @param engine Must outlive the step, as must @p pool and @p optimizer.
                  * @param updates The buffer updates to blend on every replay; may be empty.
-                 * @return The step; InvalidDescription for InPlan with an optimizer that is not
-                 *         replay invariant or for a host stage the graph cannot be cut at; or
-                 *         the first refusal of the compilation.
+                 * @return The step; InvalidDescription for an InPlan optimizer that is not
+                 *         replay invariant, an after_update beside PerStep, or a host stage the
+                 *         graph cannot be cut at; or the first refusal of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<TrainingStep>> make(
                     SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
@@ -215,7 +229,7 @@ namespace SushiAI
                 /// @brief Records the buffer updates behind the step's graph.
                 BufferUpdateRecorder updates_;
 
-                /// @brief The trailing work of the step, in order: optimizer, then updates.
+                /// @brief The trailing work: before_update, optimizer, updates, after_update.
                 Graph::StepRecorderList recorders_;
 
                 /// @brief The part before the host stage, or null; dies after step_.

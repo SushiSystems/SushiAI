@@ -34,11 +34,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/failure/status.hpp>
-
-namespace SushiBLAS
-{
-    class TaskRecorder;
-} // namespace SushiBLAS
+#include <SushiAI/graph/step_recording.hpp>
 
 namespace SushiAI
 {
@@ -54,10 +50,11 @@ namespace SushiAI
                 virtual ~StepRecorder() = default;
 
                 /**
-                 * @brief Records this recorder's work into @p recorder and returns the task count.
+                 * @brief Records this recorder's work through @p recording and returns the
+                 *        task count.
                  */
                 [[nodiscard]] virtual Result<std::size_t> record_into_step(
-                    SushiBLAS::TaskRecorder& recorder) = 0;
+                    const StepRecording& recording) = 0;
 
                 /**
                  * @brief Refreshes the host state that varies between replays.
@@ -114,12 +111,12 @@ namespace SushiAI
                  * @return Sum of the device tasks the members recorded.
                  */
                 [[nodiscard]] Result<std::size_t> record_into_step(
-                    SushiBLAS::TaskRecorder& recorder) override
+                    const StepRecording& recording) override
                 {
                     std::size_t recorded = 0;
                     for (StepRecorder* member : members_)
                     {
-                        SA_TRY_ASSIGN(const std::size_t count, member->record_into_step(recorder));
+                        SA_TRY_ASSIGN(const std::size_t count, member->record_into_step(recording));
                         recorded += count;
                     }
 

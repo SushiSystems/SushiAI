@@ -39,13 +39,14 @@
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -54,7 +55,6 @@
 #include <SushiAI/train/buffer_update_recorder.hpp>
 
 using namespace SushiAI;
-using SushiAI::Detail::record_and_run;
 namespace SaTest = SushiAI::Test;
 
 namespace
@@ -115,15 +115,10 @@ TEST_F(Medium_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
     slots.push_back(Train::BufferUpdateSlot{source, target, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    std::size_t recorded = 0;
-    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
-    {
-        SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(tasks));
-        recorded = count;
-        return Status();
-    });
-    SA_EXPECT_OK(run);
+    SaTest::TestGraph recording(*engine);
+    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
+    SA_EXPECT_OK(recording.run());
     EXPECT_EQ(recorder.slot_count(), 2u);
     EXPECT_EQ(recorded, 4u);
 }
@@ -145,14 +140,10 @@ TEST_F(Medium_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
     slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
-    {
-        SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(tasks));
-        static_cast<void>(count);
-        return Status();
-    });
-    SA_EXPECT_OK(run);
+    SaTest::TestGraph recording(*engine);
+    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+    SA_EXPECT_OK(recorder.record_into_step(step));
+    SA_EXPECT_OK(recording.run());
 
     const std::vector<double> blended = SaTest::read_tensor(target);
     ASSERT_EQ(blended.size(), running.size());
@@ -169,15 +160,10 @@ TEST_F(Medium_BufferUpdateRecorder, NoSlotRecordsNothing)
 {
     Train::BufferUpdateRecorder recorder(std::vector<Train::BufferUpdateSlot>{});
 
-    std::size_t recorded = 1;
-    const Status run = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& tasks) -> Status
-    {
-        SA_TRY_ASSIGN(const std::size_t count,
-                      recorder.record_into_step(tasks));
-        recorded = count;
-        return Status();
-    });
-    SA_EXPECT_OK(run);
+    SaTest::TestGraph recording(*engine);
+    const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
+    SA_EXPECT_OK(recording.run());
     EXPECT_EQ(recorder.slot_count(), 0u);
     EXPECT_EQ(recorded, 0u);
 }

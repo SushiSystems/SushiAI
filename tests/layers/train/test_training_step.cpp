@@ -32,9 +32,12 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/init.hpp>
 #include <SushiAI/nn/layers.hpp>
@@ -107,6 +110,56 @@ namespace
         std::unique_ptr<Graph::TensorPool> pool;    /**< @brief Holds the step's values. */
         std::vector<Optim::ParameterSlot> slots;    /**< @brief Pairs parameters and gradients. */
         bool ready = false;                         /**< @brief Holds whether prepare() ended. */
+    };
+
+    /**
+     * @brief Records nothing and notes whether the optimizer had recorded before it, and how
+     *        often each replay hook ran.
+     */
+    class OrderProbe final : public Graph::StepRecorder
+    {
+        public:
+            /** @brief Watches @p optimizer, which outlives the probe. */
+            explicit OrderProbe(const Optim::Optimizer& optimizer) noexcept
+                : optimizer_(optimizer)
+            {
+
+            }
+
+            OrderProbe(const OrderProbe&) = delete;
+            OrderProbe& operator=(const OrderProbe&) = delete;
+            OrderProbe(OrderProbe&&) = delete;
+            OrderProbe& operator=(OrderProbe&&) = delete;
+            ~OrderProbe() override = default;
+
+            /** @brief Notes whether the optimizer is already in the step; records no task. */
+            Result<std::size_t> record_into_step(const Graph::StepRecording&) override
+            {
+                after_optimizer = optimizer_.is_in_compiled_step();
+                ++records;
+                return std::size_t{0};
+            }
+
+            /** @brief Counts the replays about to run. */
+            void before_replay() override
+            {
+                ++replays_begun;
+            }
+
+            /** @brief Counts the replays that finished. */
+            void after_replay() override
+            {
+                ++replays_ended;
+            }
+
+            bool after_optimizer = false; /**< @brief Whether the optimizer recorded first. */
+            int records = 0;              /**< @brief The record_into_step() calls. */
+            int replays_begun = 0;        /**< @brief The before_replay() calls. */
+            int replays_ended = 0;        /**< @brief The after_replay() calls. */
+
+        private:
+            /// @brief The optimizer whose recording the probe looks at.
+            const Optim::Optimizer& optimizer_;
     };
 } // namespace
 
@@ -223,4 +276,58 @@ TEST_F(Medium_TrainingStep, RestoringTheRunCountSetsEveryPart)
     ASSERT_NE(step->lead(), nullptr);
     EXPECT_EQ(step->lead()->run_count(), 5u);
     EXPECT_EQ(step->step().run_count(), 5u);
+}
+
+/**
+ * @brief Tests that before_update records ahead of the optimizer and after_update behind it,
+ *        and that both follow every replay.
+ */
+TEST_F(Medium_TrainingStep, BeforeAndAfterUpdateRecordAroundTheOptimizer)
+{
+    ClassifierParts parts;
+    parts.prepare(*engine);
+    ASSERT_TRUE(parts.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+    OrderProbe before(*optimizer);
+    OrderProbe after(*optimizer);
+    TrainingStepOptions options;
+    options.before_update = &before;
+    options.after_update = &after;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TrainingStep> step,
+                            TrainingStep::make(*engine, parts.built.graph, *parts.pool,
+                                               *optimizer, {}, options));
+
+    EXPECT_EQ(before.records, 1);
+    EXPECT_EQ(after.records, 1);
+    EXPECT_FALSE(before.after_optimizer);
+    EXPECT_TRUE(after.after_optimizer);
+
+    SA_EXPECT_OK(step->run());
+    SA_EXPECT_OK(step->run());
+    EXPECT_EQ(before.replays_begun, 2);
+    EXPECT_EQ(before.replays_ended, 2);
+    EXPECT_EQ(after.replays_begun, 2);
+    EXPECT_EQ(after.replays_ended, 2);
+}
+
+/** @brief Tests that after_update is refused beside an optimizer stepped after the replay. */
+TEST_F(Medium_TrainingStep, AfterUpdateIsRefusedBesideAPerStepOptimizer)
+{
+    ClassifierParts parts;
+    parts.prepare(*engine);
+    ASSERT_TRUE(parts.ready);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+    OrderProbe after(*optimizer);
+    TrainingStepOptions options;
+    options.optimizer_placement = OptimizerPlacement::PerStep;
+    options.after_update = &after;
+
+    SA_EXPECT_FAILURE(TrainingStep::make(*engine, parts.built.graph, *parts.pool, *optimizer,
+                                         {}, options),
+                      StatusCode::InvalidDescription, "after_update", "InPlan");
+    EXPECT_EQ(after.records, 0);
 }

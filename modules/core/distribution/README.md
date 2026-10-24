@@ -136,21 +136,24 @@ plan, as a precondition broken by the caller, and on a batch whose end passes 64
 
 ## The replica node
 
-A replica task is a registered node with one input, the parameter pack, and one output, the
-result pack. Its `NodeOptions::parameters` hold six words, which `ReplicaTask` encodes and
-decodes:
+A replica task is a registered node with two inputs, the parameter pack and the position pack,
+and one output, the result pack. The kernel refuses any other count as `InvalidDescription`. Its
+`NodeOptions::parameters` hold four words, which `ReplicaTask` encodes and decodes:
 
 | Word | Holds |
 | --- | --- |
-| 0 | the epoch, from 0 |
-| 1 | the batch index of the epoch, from 0 |
-| 2 | the replica index `k` |
-| 3 | the replica count; it must equal the kernel's plan |
-| 4 | the run index |
-| 5 | the seed |
+| 0 | the replica index `k` |
+| 1 | the replica count; it must equal the kernel's plan |
+| 2 | the run index |
+| 3 | the seed |
 
 `decode()` refuses another word count, a replica count of 0 and a replica index at or above the
 count, each as `InvalidDescription`.
+
+The runtime copies a node's words when the node is recorded, and a compiled step replays them
+unchanged, so the epoch and the batch travel in the position pack: 16 bytes, the epoch and then
+the batch index as two little-endian 64-bit words, which `ReplicaPosition::read()` reads. The
+master rewrites the pack before each replay.
 
 ## The packs
 
@@ -198,8 +201,9 @@ is the mean over the replica's `r_k` rows, which the gradient sum weights by `r_
 
 `ReplicaKernel::make()` builds the step of the replica its `ReplicaDraws` names, which fixes the
 fingerprint and the operation. A task runs on the calling thread: it decodes the words, checks
-the replica count against the plan, binds both views through `bind_views()`, runs the replica's
-micro-batches in order through `ReplicaPlan::micro_batch()`, and writes the mean. A failure is
+the replica count against the plan, reads the position pack, binds the parameter and result
+views through `bind_views()`, runs the replica's micro-batches of that batch in order through
+`ReplicaPlan::micro_batch()`, and writes the mean. A failure is
 thrown as `std::runtime_error`, which the kernel registry's contract reports as a failed task.
 
 The kernel keeps one step per replica index, built the first time a task names that replica or

@@ -38,6 +38,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/optim/gradient_clip.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
 #include <SushiAI/optim/run_state.hpp>
@@ -216,11 +217,10 @@ namespace SushiAI
 
                 /**
                  * @brief Records parameter update operations into a compiled execution plan.
-                 * @param recorder The recorder the step's tasks are added to.
                  * @return Number of device tasks recorded, or the failure of the recording.
                  */
                 [[nodiscard]] Result<std::size_t> record_into_step(
-                    SushiBLAS::TaskRecorder& recorder) final;
+                    const Graph::StepRecording& recording) final;
 
                 /**
                  * @brief Whether a compiled step has taken ownership of this update.
