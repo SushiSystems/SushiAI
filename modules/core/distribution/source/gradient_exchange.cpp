@@ -58,8 +58,11 @@ namespace SushiAI
             /// @brief One result pack per replica.
             std::vector<SushiBLAS::TensorPack> result_packs;
 
-            /// @brief One copy of the results per replica.
-            std::vector<std::vector<SushiBLAS::Tensor>> copies;
+            /// @brief The pack the sums write before one scatter into the targets.
+            std::optional<SushiBLAS::TensorPack> sum_pack;
+
+            /// @brief The types whose segment of the result layout holds an element.
+            std::vector<SushiBLAS::Core::DataType> segments;
 
             /// @brief One node's parameters per replica.
             std::vector<std::array<std::uint64_t, K_REPLICA_TASK_WORDS>> words;
@@ -79,8 +82,21 @@ namespace SushiAI
             /** @brief Returns whether a sum of @p dtype refuses every weight other than 1. */
             [[nodiscard]] constexpr bool sums_exactly(SushiBLAS::Core::DataType dtype) noexcept
             {
-                return dtype == SushiBLAS::Core::DataType::Int32
-                       || dtype == SushiBLAS::Core::DataType::Int64;
+                return SushiBLAS::Core::is_integer_dtype(dtype);
+            }
+
+            /** @brief Returns the types whose segment of @p layout holds an element, in order. */
+            [[nodiscard]] std::vector<SushiBLAS::Core::DataType> filled_segments(
+                const SushiBLAS::PackLayout& layout)
+            {
+                std::vector<SushiBLAS::Core::DataType> segments;
+                for (std::size_t type = 0; type < SushiBLAS::Core::K_DATA_TYPE_COUNT; ++type)
+                {
+                    const auto dtype = static_cast<SushiBLAS::Core::DataType>(type);
+                    if (layout.segment(dtype).element_count != 0)
+                        segments.push_back(dtype);
+                }
+                return segments;
             }
 
             /**
@@ -120,29 +136,11 @@ namespace SushiAI
                     SA_FAIL_IF(!targets[index].storage || !targets[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Target {} has no storage or is not contiguous", index);
+                    SA_FAIL_IF(targets[index].dtype == SushiBLAS::Core::DataType::UInt32,
+                               StatusCode::Unsupported,
+                               "Target {} is uint32, which ordered_sum() does not sum", index);
                 }
                 return Status();
-            }
-
-            /**
-             * @brief Allocates one copy of every target per replica.
-             * @return The copies, replica-major, or the failure of an allocation.
-             */
-            [[nodiscard]] Result<std::vector<std::vector<SushiBLAS::Tensor>>> allocate_copies(
-                SushiBLAS::Engine& engine, std::size_t replicas,
-                const std::vector<SushiBLAS::Tensor>& targets)
-            {
-                std::vector<std::vector<SushiBLAS::Tensor>> copies(replicas);
-                for (std::vector<SushiBLAS::Tensor>& copy : copies)
-                {
-                    copy.reserve(targets.size());
-                    for (const SushiBLAS::Tensor& target : targets)
-                    {
-                        SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_like(engine, target));
-                        copy.push_back(std::move(tensor));
-                    }
-                }
-                return std::move(copies);
             }
         } // namespace
 
@@ -163,7 +161,6 @@ namespace SushiAI
                                           SushiRuntime::span<const std::int64_t>(position_extent,
                                                                                  1),
                                           SushiBLAS::Core::DataType::Int64));
-            SA_TRY_ASSIGN(parts.copies, allocate_copies(engine, replicas, targets));
 
             SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -176,6 +173,8 @@ namespace SushiAI
                 parts.position_pack.emplace(engine.runtime(), position_layout);
                 binding.share(*parts.position_pack);
 
+                parts.sum_pack.emplace(engine.runtime(), result_layout);
+                parts.segments = filled_segments(result_layout);
                 parts.result_packs.reserve(replicas);
                 parts.words.reserve(replicas);
                 parts.names.reserve(replicas);
@@ -212,7 +211,8 @@ namespace SushiAI
             : engine_(&engine), binding_(&binding), parameters_(&parameters), run_(parts.run),
               position_(std::move(parts.position)),
               position_pack_(std::move(*parts.position_pack)),
-              result_packs_(std::move(parts.result_packs)), copies_(std::move(parts.copies)),
+              sum_pack_(std::move(*parts.sum_pack)), result_packs_(std::move(parts.result_packs)),
+              segments_(std::move(parts.segments)),
               words_(std::move(parts.words)), names_(std::move(parts.names)),
               weights_(std::move(parts.weights)), targets_(std::move(parts.targets))
         {
@@ -228,18 +228,14 @@ namespace SushiAI
                 position_pack_.record_gather(
                     tasks, SushiRuntime::span<const SushiBLAS::Tensor>(&position_, 1));
                 record_replicas(recording.graph());
-                for (std::size_t replica = 0; replica < result_packs_.size(); ++replica)
-                {
-                    const std::vector<SushiBLAS::Tensor>& copy = copies_[replica];
-                    result_packs_[replica].record_scatter(
-                        tasks, SushiRuntime::span<const SushiBLAS::Tensor>(copy.data(),
-                                                                           copy.size()));
-                }
                 record_sums(tasks);
+                sum_pack_.record_scatter(
+                    tasks, SushiRuntime::span<const SushiBLAS::Tensor>(targets_.data(),
+                                                                       targets_.size()));
                 return Status();
             }));
 
-            return 1 + 2 * result_packs_.size() + targets_.size();
+            return 1 + result_packs_.size() + segments_.size() + 1;
         }
 
         void GradientExchange::before_replay()
@@ -281,18 +277,17 @@ namespace SushiAI
         {
             SushiBLAS::ElementwiseOps elementwise(tasks);
             const std::vector<double> ones(weights_.size(), 1.0);
-            std::vector<SushiBLAS::Tensor> inputs(copies_.size());
-            for (std::size_t entry = 0; entry < targets_.size(); ++entry)
+            std::vector<SushiBLAS::Tensor> inputs(result_packs_.size());
+            for (const SushiBLAS::Core::DataType dtype : segments_)
             {
-                for (std::size_t replica = 0; replica < copies_.size(); ++replica)
-                    inputs[replica] = copies_[replica][entry];
+                for (std::size_t replica = 0; replica < result_packs_.size(); ++replica)
+                    inputs[replica] = result_packs_[replica].segment_tensor(dtype);
 
-                const std::vector<double>& weights =
-                    sums_exactly(targets_[entry].dtype) ? ones : weights_;
+                SushiBLAS::Tensor sum = sum_pack_.segment_tensor(dtype);
+                const std::vector<double>& weights = sums_exactly(dtype) ? ones : weights_;
                 elementwise.ordered_sum(
                     SushiRuntime::span<const SushiBLAS::Tensor>(inputs.data(), inputs.size()),
-                    SushiRuntime::span<const double>(weights.data(), weights.size()),
-                    targets_[entry]);
+                    SushiRuntime::span<const double>(weights.data(), weights.size()), sum);
             }
         }
 

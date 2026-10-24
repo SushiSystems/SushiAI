@@ -79,11 +79,11 @@ namespace SushiAI
             public:
                 /**
                  * @brief Allocates and shares the position pack and the result packs.
-                 * @param binding Holds a kernel for @p run.operation; @p binding and the shared
-                 *        @p parameters outlive the exchange.
-                 * @param targets One contiguous tensor per entry of @p result_layout, in order.
+                 * @param targets One contiguous tensor per entry of @p result_layout, in order;
+                 *        @p binding, which holds the kernel, and @p parameters outlive it.
                  * @return The exchange; InvalidDescription for an unshared parameter pack, no
-                 *         batch, too many replicas for ordered_sum() or a target unlike its entry.
+                 *         batch, too many replicas for ordered_sum() or a target unlike its entry;
+                 *         Unsupported for a uint32 target, which ordered_sum() does not sum.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientExchange>> make(
                     SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
@@ -99,9 +99,9 @@ namespace SushiAI
                 ~GradientExchange() override = default;
 
                 /**
-                 * @brief Records the position gather, the replica tasks, the copies out of the
-                 *        result packs and one ordered sum per target.
-                 * @return 1 + 2 * replica_count() + the target count, or the failure of a
+                 * @brief Records the position gather, the replica tasks, one ordered sum per
+                 *        filled type segment and one scatter of the sums into the targets.
+                 * @return 2 + replica_count() + the filled segment count, or the failure of a
                  *         recording.
                  */
                 [[nodiscard]] Result<std::size_t> record_into_step(
@@ -139,7 +139,7 @@ namespace SushiAI
                 /** @brief Records the replica tasks, each inside its placement scope. */
                 void record_replicas(SushiRuntime::Recorder& graph) const;
 
-                /** @brief Records one ordered sum per target over the replicas' copies. */
+                /** @brief Records one ordered sum per filled segment over the result packs. */
                 void record_sums(SushiBLAS::TaskRecorder& tasks);
 
                 /// @brief The engine whose runtime gives the placement scopes.
@@ -160,11 +160,14 @@ namespace SushiAI
                 /// @brief The pack position_ is gathered into, input 1 of every replica node.
                 SushiBLAS::TensorPack position_pack_;
 
+                /// @brief The sums, laid out as a result pack; the master's alone, not shared.
+                SushiBLAS::TensorPack sum_pack_;
+
                 /// @brief Entry k is replica k's result pack.
                 std::vector<SushiBLAS::TensorPack> result_packs_;
 
-                /// @brief Entry k holds the master's copy of replica k's results, in pack order.
-                std::vector<std::vector<SushiBLAS::Tensor>> copies_;
+                /// @brief The types whose segment of the result layout holds an element.
+                std::vector<SushiBLAS::Core::DataType> segments_;
 
                 /// @brief Entry k holds the parameters of replica k's node.
                 std::vector<std::array<std::uint64_t, K_REPLICA_TASK_WORDS>> words_;

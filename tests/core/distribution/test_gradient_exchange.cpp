@@ -178,7 +178,8 @@ namespace
         const Graph::Graph empty;
         std::unique_ptr<Graph::CompiledStep> step =
             Graph::CompiledStep::compile(engine, empty, model.pool(), &trailing).value();
-        EXPECT_EQ(step->operation_count(), 1 + 2 * 2 + results.size() + 1);
+        // The position gather, two replicas, one float32 segment, the scatter, the publish.
+        EXPECT_EQ(step->operation_count(), 6u);
 
         std::vector<ResultBytes> seen;
         for (std::size_t replay = 0; replay < replays; ++replay)
@@ -242,6 +243,10 @@ namespace
                 case DType::Int64:
                     span.as<std::int64_t>()[index] = integer_value<std::int64_t>(replica, index);
                     break;
+                case DType::UInt32:
+                    span.as<std::uint32_t>()[index] =
+                        integer_value<std::uint32_t>(replica, index);
+                    break;
             }
         }
     }
@@ -304,6 +309,13 @@ namespace
                 {
                     const std::int64_t value = integer_value<std::int64_t>(0, index)
                                                + integer_value<std::int64_t>(1, index);
+                    std::memcpy(place, &value, sizeof(value));
+                    break;
+                }
+                case DType::UInt32:
+                {
+                    const std::uint32_t value = integer_value<std::uint32_t>(0, index)
+                                                + integer_value<std::uint32_t>(1, index);
                     std::memcpy(place, &value, sizeof(value));
                     break;
                 }
@@ -374,8 +386,9 @@ TEST(Medium_GradientExchange, TwoPinnedRunsEqualEachOtherBitForBit)
 }
 
 /**
- * @brief Tests that a result pack holding each of the seven types crosses the fabric and sums
- *        in replica order: weighted for the floating and complex types, exactly for integers.
+ * @brief Tests that a result pack holding each type ordered_sum() sums crosses the fabric and
+ *        sums in replica order: weighted for the floating and complex types, exactly for Int32
+ *        and Int64. UInt32, the eighth, is refused by make(); the next case pins it.
  */
 TEST(Medium_GradientExchange, EveryTypeCrossesAndSumsInReplicaOrder)
 {
@@ -455,4 +468,30 @@ TEST(Medium_GradientExchange, MakeRefusesTargetsThatDifferFromTheResultLayout)
                                              publish->pack(), kernel->result_layout(),
                                              listed),
                       StatusCode::InvalidDescription);
+}
+
+/** @brief Tests that make() refuses a uint32 result, which ordered_sum() does not sum. */
+TEST(Medium_GradientExchange, MakeRefusesAUInt32Result)
+{
+    const ClusterSection section = two_replica_section();
+    TwoMachines machines(section, [](Distributed::KernelRegistry&) {},
+                         [](Distributed::KernelRegistry&) {});
+    SushiBLAS::Engine engine(machines.master_runtime());
+
+    const std::vector<SushiBLAS::Tensor> targets = {
+        allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, DType::Float32).value(),
+        allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, DType::UInt32).value()};
+    const SushiBLAS::PackLayout layout = SushiBLAS::PackLayout::of(
+        SushiRuntime::span<const SushiBLAS::Tensor>(targets.data(), targets.size()));
+    const SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{1}, DType::Float32).value();
+    const SushiBLAS::PackLayout parameter_layout =
+        SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
+    std::unique_ptr<ParameterPublish> publish =
+        ParameterPublish::make(engine, machines.binding(), parameter_layout, {parameter}).value();
+
+    ExchangeRun run;
+    run.operation = SushiBLAS::remote_operation("sushiai.test.uint32", layout.fingerprint());
+    SA_EXPECT_FAILURE(GradientExchange::make(engine, machines.binding(), section.plan(), run,
+                                             publish->pack(), layout, targets),
+                      StatusCode::Unsupported, "Target 1 is uint32");
 }

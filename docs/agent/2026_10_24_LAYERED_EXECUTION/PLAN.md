@@ -19,7 +19,7 @@ AdaptiveCpp is checked then too. Work lands on `feature/layered_execution`.
 | A0 | nothing | built |
 | A1 | `sushiruntime` R4 | built |
 | A2 | A1, `sushiblas` B12, `sushiruntime` R11 | built |
-| A3 | A2, `sushiblas` B11, `sushiruntime` R10, R12 | built; the sum moves onto pack views next |
+| A3 | A2, `sushiblas` B11, `sushiruntime` R10, R12 | built |
 | A4 | A3 | planned |
 | A5 | A4, two machines | planned |
 | A6 | A5, `sushiruntime` R13, five machines | planned |

@@ -65,7 +65,8 @@ namespace SushiAI
             /** @brief Returns whether a type is an integer, whose mean the pack cannot hold. */
             [[nodiscard]] bool is_integer(DataType dtype) noexcept
             {
-                return dtype == DataType::Int32 || dtype == DataType::Int64;
+                return dtype == DataType::Int32 || dtype == DataType::Int64
+                       || dtype == DataType::UInt32;
             }
         } // namespace
 
@@ -168,6 +169,7 @@ namespace SushiAI
                         break;
                     case DataType::Int32:
                     case DataType::Int64:
+                    case DataType::UInt32:
                         break;
                 }
             }
@@ -224,6 +226,9 @@ namespace SushiAI
                     break;
                 case DataType::Int64:
                     add_elements<std::uint64_t>(sum, source, entry.element_count);
+                    break;
+                case DataType::UInt32:
+                    add_elements<std::uint32_t>(sum, source, entry.element_count);
                     break;
             }
         }

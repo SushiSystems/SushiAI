@@ -79,6 +79,14 @@ A2's two micro-batches; two pinned runs equal each other bit for bit; every type
 exact dyadic values. `execution.hpp` named `TaskRecorder` without including it since A0, which
 broke `optimizer.cpp`; the include is added.
 
+## A3, in-place sum
+
+The exchange sums each filled type segment of the replicas' result packs into a master sum pack
+through SushiBLAS's B16 segment views, one `ordered_sum()` per segment, and scatters the sum pack
+into the gradients once; the master copies and their N scatters are gone. Each element is still
+the sum of the same N inputs in the same order with the same weight and accumulation type, since
+`ordered_sum()` never reduces across elements, so the bytes are those of the previous path.
+
 ## A8, SushiBLAS's `UInt32`
 
 SushiBLAS's count type `UInt32` reaches SushiAI's `dtype_size` (4) and `dtype_name`; SushiAI has no
@@ -98,4 +106,5 @@ dispatch: A0 follow-up — haiku high, 62 turns, passed, rung 1
 dispatch: A2 — opus low, 108 turns, passed, rung 1
 dispatch: A3 — opus low, 168 turns over two rounds, passed, rung 1
 dispatch: A8 — sonnet medium, passed, rung 1
+dispatch: A3 in-place sum — opus low, passed, rung 1
 ```

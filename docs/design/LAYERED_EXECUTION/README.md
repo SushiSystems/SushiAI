@@ -166,8 +166,9 @@ dominates and only the three items above can change the answer.
 
 #### Data types
 
-A pack holds tensors of any of SushiBLAS's seven types (`Half`, `Float32`, `Float64`,
-`Complex32`, `Complex64`, `Int32`, `Int64`). It groups them into one contiguous segment per
+A pack holds tensors of any of SushiBLAS's eight types (`Half`, `Float32`, `Float64`,
+`Complex32`, `Complex64`, `Int32`, `Int64`, `UInt32`); the exchange sums the seven that
+`ordered_sum()` takes and refuses a `UInt32` result, a count type nothing computes on. It groups them into one contiguous segment per
 type, and a gradient crosses the network in its tensor's own type. `ordered_sum()` accumulates
 `Half` in `Float32` and rounds once after the last input; the other floating and complex types
 accumulate in their own type; integers add exactly, wrap, and refuse a weight other than 1.
