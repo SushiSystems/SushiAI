@@ -147,7 +147,9 @@ name the rules target, or until `attach_timeout_ms` passes (60000 by default, ra
 `wait_ms`), with no polling: one snapshot, then a wait for the next attach. A missing worker under
 `fail` ends the run naming it. Each SushiAI recording owner (a region emitter, the trailing
 region, a compiled step, `record_and_run`) owns one SushiBLAS late-count hold for its recording's
-life, and each pack takes its tensors' device.
+life, and each pack takes its tensors' device. A9c counts and awaits distinct workers, compared as
+SushiRuntime's placement compares machine names, leaves out a replica on the master's own machine,
+and names each missing worker with the policy of each of its replicas.
 
 ## A8, SushiBLAS's `UInt32`
 
@@ -174,4 +176,5 @@ dispatch: A4b — opus low, 131 turns, passed, rung 1
 dispatch: A4c — sonnet low, 32 turns, passed, rung 1
 dispatch: A9 — opus low, two rounds, passed, rung 1
 dispatch: A9b — opus low, 107 turns, passed, rung 1
+dispatch: A9c — sonnet low, three rounds, passed, rung 1
 ```

@@ -26,6 +26,7 @@
  */
 
 #include <chrono>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
@@ -92,6 +93,19 @@ namespace
                 {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
                 {"worker": "left", "rows": 1, "micro_batch": 1, )" + a + R"(},
                 {"worker": "right", "rows": 1, "micro_batch": 1, )" + b + R"(}
+            ]})";
+        return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
+            .value();
+    }
+
+    /** @brief Returns the section of a master and two replicas that both name the worker "left". */
+    Distribution::ClusterSection one_worker_two_replicas()
+    {
+        const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
+            "attach_timeout_ms": 200, "replicas": [
+                {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
+                {"worker": "left", "rows": 1, "micro_batch": 1, "if_absent": "local"},
+                {"worker": "left", "rows": 1, "micro_batch": 1, "if_absent": "local"}
             ]})";
         return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
             .value();
@@ -194,7 +208,7 @@ TEST(Medium_MasterCluster, RegressionEveryWorkerAttachedEndsTheWait)
     fabric.start_worker("right");
 
     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section));
+    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section).status());
 
     // Far below the 600 s bound: the wait ended at the attach, not at the bound.
     EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(60));
@@ -208,7 +222,7 @@ TEST(Medium_MasterCluster, RegressionAMissingWorkerUnderFailFailsNamingIt)
     Fabric fabric;
     fabric.start_worker("left");
 
-    SA_EXPECT_FAILURE(Apps::wait_for_workers(fabric.cluster(), section),
+    SA_EXPECT_FAILURE(Apps::wait_for_workers(fabric.cluster(), section).status(),
                       StatusCode::DeviceFailed, "'right'");
 }
 
@@ -220,5 +234,85 @@ TEST(Medium_MasterCluster, AMissingWorkerUnderLocalRuns)
     Fabric fabric;
     fabric.start_worker("left");
 
-    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section));
+    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section).status());
+}
+
+/** @brief Tests that two replicas on one worker are one awaited worker. */
+TEST(Medium_MasterCluster, TwoReplicasOnOneWorkerCountAsOneAwaitedWorker)
+{
+    const std::vector<Apps::AwaitedWorker> awaited =
+        Apps::awaited_workers(one_worker_two_replicas());
+
+    ASSERT_EQ(awaited.size(), 1u);
+    EXPECT_EQ(awaited.front().name, "left");
+    EXPECT_EQ(awaited.front().replicas, (std::vector<std::size_t>{1, 2}));
+}
+
+/** @brief Tests that the one worker serving two replicas, once attached, leaves nothing missing. */
+TEST(Medium_MasterCluster, AWorkerServingTwoReplicasAttachedLeavesNoneMissing)
+{
+    const Distribution::ClusterSection section = one_worker_two_replicas();
+    Fabric fabric;
+    fabric.start_worker("left");
+
+    const Result<std::vector<Apps::AwaitedWorker>> missing =
+        Apps::wait_for_workers(fabric.cluster(), section);
+
+    SA_EXPECT_OK(missing.status());
+    EXPECT_TRUE(missing.value().empty());
+}
+
+/** @brief Tests that a worker with an unexpected name does not hide the missing one. */
+TEST(Medium_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
+{
+    const Distribution::ClusterSection section =
+        two_workers(R"("if_absent": "local")", R"("if_absent": "local")", K_SHORT_ATTACH);
+    Fabric fabric;
+    fabric.start_worker("left");
+    fabric.start_worker("stranger");
+
+    const Result<std::vector<Apps::AwaitedWorker>> missing =
+        Apps::wait_for_workers(fabric.cluster(), section);
+
+    SA_EXPECT_OK(missing.status());
+    ASSERT_EQ(missing.value().size(), 1u);
+    EXPECT_EQ(missing.value().front().name, "right");
+    EXPECT_EQ(missing.value().front().replicas, (std::vector<std::size_t>{2}));
+}
+
+/** @brief Tests that a replica on the master's own machine is not awaited and fails nothing. */
+TEST(Medium_MasterCluster, AReplicaOnTheMasterIsNotAwaitedAndDoesNotFail)
+{
+    const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
+        "attach_timeout_ms": 200, "replicas": [
+            {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
+            {"worker": "Master.lab.example", "rows": 1, "micro_batch": 1, "if_absent": "fail"}
+        ]})";
+    const Distribution::ClusterSection section =
+        Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".").value();
+    Fabric fabric;
+
+    EXPECT_TRUE(Apps::awaited_workers(section).empty());
+
+    const Result<std::vector<Apps::AwaitedWorker>> missing =
+        Apps::wait_for_workers(fabric.cluster(), section);
+
+    SA_EXPECT_OK(missing.status());
+    EXPECT_TRUE(missing.value().empty());
+}
+
+/** @brief Tests that a worker announcing a qualified, upper-case name satisfies its first label. */
+TEST(Medium_MasterCluster, AWorkerAnnouncingAQualifiedNameSatisfiesTheSectionsFirstLabel)
+{
+    const Distribution::ClusterSection section =
+        two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_SHORT_ATTACH);
+    Fabric fabric;
+    fabric.start_worker("Left.lan");
+    fabric.start_worker("RIGHT.lab.example");
+
+    const Result<std::vector<Apps::AwaitedWorker>> missing =
+        Apps::wait_for_workers(fabric.cluster(), section);
+
+    SA_EXPECT_OK(missing.status());
+    EXPECT_TRUE(missing.value().empty());
 }

@@ -40,6 +40,7 @@
 #include <SushiRuntime/distributed/tcp_transport.hpp>
 #include <SushiRuntime/placement/placement_rule.hpp>
 #include <SushiRuntime/placement/placement_rules.hpp>
+#include <SushiRuntime/placement/placement_target_matching.hpp>
 #include <SushiRuntime/transport/endpoint.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -50,36 +51,35 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Holds which replicas have no attached worker, read from one snapshot. */
+            /** @brief Holds which awaited workers have not attached, read from one snapshot. */
             struct Attendance
             {
                 /// @brief The workers alive when the snapshot was taken.
                 std::size_t alive = 0;
 
-                /// @brief Each replica above 0 whose worker was not among them, in order.
-                std::vector<std::size_t> absent;
+                /// @brief Each awaited worker that was not among them, in order.
+                std::vector<AwaitedWorker> absent;
             };
 
-            /** @brief Compares the workers @p cluster lists by name with replicas 1 and above. */
+            /** @brief Compares the workers @p cluster lists by name with the awaited ones. */
             [[nodiscard]] Attendance attendance(const SushiRuntime::Distributed::Cluster& cluster,
-                                                const Distribution::ClusterSection& section)
+                                                const std::vector<AwaitedWorker>& awaited)
             {
                 const std::vector<SushiRuntime::Distributed::WorkerSnapshot> workers =
                     cluster.statistics().workers;
 
                 Attendance seen;
                 seen.alive = workers.size();
-                for (std::size_t replica = 1; replica < section.plan().replica_count(); ++replica)
+                for (const AwaitedWorker& expected : awaited)
                 {
-                    const std::string& name = section.worker_of(replica);
                     const bool attached = std::any_of(
                         workers.begin(), workers.end(),
                         [&](const SushiRuntime::Distributed::WorkerSnapshot& worker)
                         {
-                            return worker.name == name;
+                            return SushiRuntime::machine_names_match(worker.name, expected.name);
                         });
                     if (!attached)
-                        seen.absent.push_back(replica);
+                        seen.absent.push_back(expected);
                 }
                 return seen;
             }
@@ -150,14 +150,39 @@ namespace SushiAI
             return bound;
         }
 
-        Status wait_for_workers(SushiRuntime::Distributed::Cluster& cluster,
-                                const Distribution::ClusterSection& section)
+        std::vector<AwaitedWorker> awaited_workers(const Distribution::ClusterSection& section)
+        {
+            std::vector<AwaitedWorker> awaited;
+            for (std::size_t replica = 1; replica < section.plan().replica_count(); ++replica)
+            {
+                const std::string& name = section.worker_of(replica);
+                if (SushiRuntime::machine_names_match(name, section.worker_of(0)))
+                    continue;
+
+                const auto known = std::find_if(
+                    awaited.begin(), awaited.end(),
+                    [&](const AwaitedWorker& worker)
+                    {
+                        return SushiRuntime::machine_names_match(worker.name, name);
+                    });
+                if (known == awaited.end())
+                    awaited.push_back(AwaitedWorker{name, {replica}});
+                else
+                    known->replicas.push_back(replica);
+            }
+            return awaited;
+        }
+
+        Result<std::vector<AwaitedWorker>> wait_for_workers(
+            SushiRuntime::Distributed::Cluster& cluster,
+            const Distribution::ClusterSection& section)
         {
             using Clock = std::chrono::steady_clock;
             const std::chrono::milliseconds bound = attach_bound(section);
             const Clock::time_point deadline = Clock::now() + bound;
 
-            Attendance seen = attendance(cluster, section);
+            const std::vector<AwaitedWorker> awaited = awaited_workers(section);
+            Attendance seen = attendance(cluster, awaited);
             while (!seen.absent.empty())
             {
                 const Clock::time_point now = Clock::now();
@@ -168,24 +193,28 @@ namespace SushiAI
                 const bool attached = cluster.wait_for_workers(
                     seen.alive + 1,
                     std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now));
-                seen = attendance(cluster, section);
+                seen = attendance(cluster, awaited);
                 if (!attached)
                     break;
             }
 
             std::string missing;
             bool fails = false;
-            for (std::size_t replica : seen.absent)
+            for (const AwaitedWorker& worker : seen.absent)
             {
-                missing += (missing.empty() ? "'" : ", '") + section.worker_of(replica) + "'";
-                if (section.absent_policy_of(replica).action == SushiRuntime::AbsentAction::Fail)
-                    fails = true;
+                missing += (missing.empty() ? "'" : ", '") + worker.name + "'";
+                for (std::size_t replica : worker.replicas)
+                {
+                    if (section.absent_policy_of(replica).action
+                        == SushiRuntime::AbsentAction::Fail)
+                        fails = true;
+                }
             }
             SA_FAIL_IF(fails, StatusCode::DeviceFailed,
                        "The workers {} did not attach within {} ms, and the 'if_absent' of a "
                        "replica on them is 'fail'",
                        missing, bound.count());
-            return Status();
+            return std::move(seen.absent);
         }
 
     } // namespace Apps

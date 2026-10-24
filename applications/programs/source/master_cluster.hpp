@@ -28,6 +28,9 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
+#include <string>
+#include <vector>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/distributed/cluster.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
@@ -65,14 +68,35 @@ namespace SushiAI
         [[nodiscard]] std::chrono::milliseconds attach_bound(
             const Distribution::ClusterSection& section);
 
+        /** @brief Names one worker the master expects and the replicas that run on it. */
+        struct AwaitedWorker
+        {
+            /// @brief The name the worker's HELLO carries.
+            std::string name;
+
+            /// @brief The replicas above 0 the section places on it, in order.
+            std::vector<std::size_t> replicas;
+        };
+
         /**
-         * @brief Waits until every worker replicas 1 and above name has attached, or until
-         *        attach_bound() passes, whichever comes first.
-         * @return Success, also when a worker whose rule is "local" or "wait" is missing; or
-         *         DeviceFailed naming every missing worker when the rule of one is "fail".
+         * @brief Returns the distinct workers replicas 1 and above name, in the order they first
+         *        appear, leaving out the master's own machine.
+         *
+         * Names are compared as SushiRuntime places them: the first DNS label, in lower case.
          */
-        [[nodiscard]] Status wait_for_workers(SushiRuntime::Distributed::Cluster& cluster,
-                                              const Distribution::ClusterSection& section);
+        [[nodiscard]] std::vector<AwaitedWorker> awaited_workers(
+            const Distribution::ClusterSection& section);
+
+        /**
+         * @brief Waits until every worker awaited_workers() lists has attached, or until
+         *        attach_bound() passes, whichever comes first.
+         * @return The awaited workers that did not attach, empty when all did, also when the
+         *         rule of a missing one is "local" or "wait"; or DeviceFailed naming every
+         *         missing worker when a replica on one has the rule "fail".
+         */
+        [[nodiscard]] Result<std::vector<AwaitedWorker>> wait_for_workers(
+            SushiRuntime::Distributed::Cluster& cluster,
+            const Distribution::ClusterSection& section);
 
     } // namespace Apps
 } // namespace SushiAI

@@ -30,7 +30,9 @@
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <utility>
+#include <vector>
 #include <SushiBLAS/cluster/cluster_binding.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiRuntime/core/sushi_ptr.hpp>
@@ -58,6 +60,23 @@ namespace SushiAI
                 return Distribution::ClusterSection::read(spec.cluster, spec.base);
             }
 
+            /** @brief Returns what each replica on @p worker does while the worker is absent. */
+            [[nodiscard]] std::string describe_absent_replicas(
+                const Distribution::ClusterSection& section, const AwaitedWorker& worker)
+            {
+                std::string text;
+                for (std::size_t replica : worker.replicas)
+                {
+                    const SushiRuntime::AbsentPolicy& policy = section.absent_policy_of(replica);
+                    std::string action = "runs locally";
+                    if (policy.action == SushiRuntime::AbsentAction::Wait)
+                        action = SushiLog::format_text("waits up to {} ms for it",
+                                                       policy.bound.count());
+                    text += SushiLog::format_text("{}replica {} {}", text.empty() ? "" : "; ",
+                                                  replica, action);
+                }
+                return text;
+            }
         } // namespace
 
         Result<SushiRuntime::RuntimeConfig> training_runtime_config(const Config::TrainSpec& spec)
@@ -86,21 +105,20 @@ namespace SushiAI
                           attach_master_cluster(run.engine.runtime(), section));
             SushiBLAS::ClusterBinding binding(cluster, kernels);
 
-            const std::size_t workers = section.plan().replica_count() - 1;
+            const std::size_t workers = awaited_workers(section).size();
             std::cout << SushiLog::format_text(
                 "Cluster    : {} replicas, listening on {}, waiting for {} workers\n",
                 section.plan().replica_count(), section.listen_address(), workers);
-            const Status waited = wait_for_workers(cluster, section);
-            if (!waited.is_ok())
+            Result<std::vector<AwaitedWorker>> waited = wait_for_workers(cluster, section);
+            if (!waited.has_value())
             {
                 cluster.detach();
-                return waited;
+                return waited.status();
             }
-            if (cluster.alive_workers() < workers)
+            for (const AwaitedWorker& missing : waited.value())
                 std::cerr << SushiLog::format_text(
-                    "{} of {} workers joined; each absent worker's replica goes as its "
-                    "'if_absent' says\n",
-                    cluster.alive_workers(), workers);
+                    "Worker '{}' did not join; {}\n", missing.name,
+                    describe_absent_replicas(section, missing));
 
             ClusterRun cluster_run{run, parameters, section, binding, *local,
                                    source->run_index};
