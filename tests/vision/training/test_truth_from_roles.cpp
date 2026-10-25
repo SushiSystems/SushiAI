@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/data/input.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>

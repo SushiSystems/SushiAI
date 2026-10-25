@@ -35,7 +35,8 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include "datasets_test_support.hpp"
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/vision/datasets/collator.hpp>
+#include <SushiAI/vision/datasets/stored_pixels.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>

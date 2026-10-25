@@ -35,7 +35,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>

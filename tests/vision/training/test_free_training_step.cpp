@@ -38,8 +38,15 @@
 #include <gtest/gtest.h>
 
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>

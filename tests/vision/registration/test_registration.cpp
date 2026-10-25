@@ -46,7 +46,8 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/train/objective.hpp>
+#include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>

@@ -32,7 +32,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>

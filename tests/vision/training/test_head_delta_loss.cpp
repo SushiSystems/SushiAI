@@ -35,7 +35,9 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>

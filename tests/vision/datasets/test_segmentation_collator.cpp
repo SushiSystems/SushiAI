@@ -35,7 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/vision/imaging/polygon.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>

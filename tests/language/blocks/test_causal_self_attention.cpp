@@ -36,7 +36,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/config/value.hpp>

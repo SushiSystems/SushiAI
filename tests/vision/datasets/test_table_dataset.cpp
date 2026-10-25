@@ -33,7 +33,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include "datasets_test_support.hpp"
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>

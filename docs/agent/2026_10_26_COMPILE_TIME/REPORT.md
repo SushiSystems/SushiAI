@@ -12,7 +12,7 @@ dispatch: C5 span-only headers — haiku high, 56 tool calls, passed, rung 1
 dispatch: C8a umbrella out of tests/core — haiku high, passed, rung 1
 dispatch: C3 device sources checker — sonnet medium, 21 tool calls, passed, rung 1
 dispatch: C8b umbrella out of tests/layers — haiku high, passed, rung 1; left poll loops running, stopped by the orchestrator
-dispatch: C8c umbrella out of tests/vision and tests/language — haiku high, running
+dispatch: C8c umbrella out of tests/vision and tests/language — haiku high, 77 tool calls, passed, rung 1; left a poll loop running until told
 
 ## 1. Findings
 

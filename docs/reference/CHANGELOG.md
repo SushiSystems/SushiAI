@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — tests: Made the vision and language tests include the SushiAI headers they use in place of the umbrellas, which only their own tests keep (`tests/vision/umbrella/test_vision.cpp`).
 - 2026-10-26 — tests: Made the layers tests include the SushiAI headers they use in place of the `SushiAI.hpp` umbrella, which only its own test keeps (`tests/layers/umbrella/test_SushiAI.cpp`).
 - 2026-10-26 — tests: Made the core tests include the SushiAI headers they use in place of the `SushiAI.hpp` umbrella (`tests/core/eager/eager_run_support.hpp`).
 - 2026-10-26 — tools: Added a checker that refuses a unit reaching a kernel-launching header outside its module's `DEVICE_SOURCES` (`tools/layering/check_device_sources.py`).

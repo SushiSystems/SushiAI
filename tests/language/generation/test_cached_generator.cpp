@@ -40,7 +40,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/graph/ir.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>

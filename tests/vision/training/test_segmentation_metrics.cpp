@@ -34,7 +34,6 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>

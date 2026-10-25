@@ -40,7 +40,6 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/config/model_config.hpp>

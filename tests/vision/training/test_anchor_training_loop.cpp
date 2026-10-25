@@ -38,7 +38,10 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiAI/data/input.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/train/training_graph.hpp>
+#include <SushiAI/vision/training/anchor_head.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
