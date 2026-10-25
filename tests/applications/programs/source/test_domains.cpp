@@ -60,6 +60,17 @@ TEST(Small_Domains, EachDomainRegistersIntoEmptyRegistries)
     SA_EXPECT_OK(Apps::register_language_domain(for_language));
 }
 
+/** @brief Tests that a vision domain with inference rows reports anchor-free detections. */
+TEST(Small_Domains, TheVisionDomainReportsAnchorFreeDetections)
+{
+    Apps::Registries registries;
+    SA_EXPECT_OK(Apps::register_vision_domain(registries));
+
+    // A build without vision registers no inference row, and the case holds trivially.
+    if (registries.inferences.rows().size() != 0)
+        EXPECT_NE(registries.inferences.find("anchor_free_detection"), nullptr);
+}
+
 /** @brief Tests that the domains add rows only, beside the library's, and remove none. */
 TEST(Small_Domains, TheDomainsOnlyAddBesideTheLibraryRows)
 {

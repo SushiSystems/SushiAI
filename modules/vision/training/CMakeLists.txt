@@ -25,6 +25,10 @@ sushiai_add_module(NAME training TIER vision
         source/free_detection_loss_host.cpp
         source/free_loss_gains.cpp
         source/free_model_facts.cpp
+        source/free_objective.cpp
+        source/free_objective_factory.cpp
+        source/free_training_loop.cpp
+        source/free_training_step.cpp
         source/head_delta_loss.cpp
         source/head_delta_rule_choice.cpp
         source/pixel_cross_entropy_objective.cpp

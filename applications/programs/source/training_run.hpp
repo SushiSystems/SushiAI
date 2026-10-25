@@ -77,7 +77,7 @@ namespace SushiAI
             const Train::TrainingGraph& built;
 
             /** @brief The parameters and buffers of the model, initialised or loaded. */
-            const NN::ModelState& state;
+            NN::ModelState& state;
 
             /** @brief The pool that holds the tensors of the training graph. */
             Graph::TensorPool& pool;

@@ -15,6 +15,11 @@ needs a device.
 
 Each domain registers into a fresh `Registries` without a failure.
 
+## TheVisionDomainReportsAnchorFreeDetections
+
+When the vision domain registers inference rows, one of them is the task type
+`anchor_free_detection`. A build without vision registers none, and the case holds.
+
 ## TheDomainsOnlyAddBesideTheLibraryRows
 
 A `Registries` is filled with the library's rows through `NN::register_layers`,

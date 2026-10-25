@@ -49,6 +49,7 @@
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/dice_objective.hpp>
+#include <SushiAI/vision/training/free_objective_factory.hpp>
 #include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
 
 namespace SushiAI::Vision
@@ -82,6 +83,8 @@ namespace SushiAI::Vision
     {
         SA_TRY(registry.add(Train::ObjectiveEntry{Detect::Anchor::K_ANCHOR_OBJECTIVE_TYPE,
                                                   &Training::make_anchor_objective}));
+        SA_TRY(registry.add(Train::ObjectiveEntry{Training::K_FREE_OBJECTIVE_TYPE,
+                                                  &Training::make_free_objective}));
         SA_TRY(registry.add(
             Train::ObjectiveEntry{Training::K_PIXEL_CROSS_ENTROPY_TYPE,
                                   &Training::make_pixel_cross_entropy_objective}));

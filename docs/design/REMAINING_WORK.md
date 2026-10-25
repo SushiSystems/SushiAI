@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-143
+Next id: RW-145
 
 ## Next
 
@@ -708,3 +708,18 @@ The owner ruled on 2026-10-25 that a key asking for an unordered path is refused
 `deterministic: true`. The fallback runs a replica on other hardware, so its bits differ.
 `read_training_cluster()` refuses it for the three programs that read the section; it has not been
 built or run.
+
+### RW-143 Read the anchor-free loss terms from the step
+- State: open
+- Done when: the anchor-free step reports its box, class, distribution and L1 terms from the
+  graph's own values, and the host evaluation runs only in tests
+- Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
+
+The host stage evaluates the loss a second time in double for the metrics.
+
+### RW-144 Share the training loop and step checks of the two detection engines
+- State: open
+- Done when: the anchor and anchor-free loops share one run check and progress report, and the
+  two steps one truth check
+- Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
+

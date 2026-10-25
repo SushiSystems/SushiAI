@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-26 — training: Added the anchor-free objective, its training step split at the ports and its loop (`free_objective.hpp`, `free_training_step.hpp`).
+- 2026-10-26 — programs: Added the `anchor_free` run row and the `anchor_free_detection` inference report with mAP at IoU 0.5 (`domains_vision.cpp`).
 - 2026-10-26 — training: Renamed the delta rule of the best-shape assignment `BestShapeHeadDeltaRule`, after what it does (`best_shape_head_delta_rule.hpp`).
 - 2026-10-26 — training: Added the decoder that turns a batch's one-to-many ports into boxes in input pixels and class probabilities (`free_batch_decoder.hpp`).
 - 2026-10-26 — examples: Added training and evaluation files over coco128 for YOLOv3-tiny and YOLOv4-tiny, whose models the Darknet import writes, and for YOLOv5n, trained from scratch (`applications/examples/yolov3_tiny/train.json`).

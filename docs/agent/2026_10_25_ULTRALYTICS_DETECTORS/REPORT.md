@@ -28,6 +28,7 @@ dispatch: review of 81b1f5f..HEAD — opus low, scan depth, passed, rung 1
 dispatch: rename the best-shape rule — sonnet low, 13 turns, passed, rung 1
 dispatch: determinism audit — haiku high, 21 turns, passed, rung 1
 dispatch: share registration test helpers — sonnet low, 17 turns, passed, rung 1
+dispatch: U8 anchor-free objective, step and run row — opus low, 79 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -201,3 +202,20 @@ not read the assignment and loss code line by line for tie order.
 The anchor-free inference report suppresses with the best class of each anchor, as Ultralytics'
 prediction does; its validator suppresses with every class above the confidence, so the mAP here
 can differ from Ultralytics' on the same weights.
+
+## 16. U8 and U9, written and not built
+
+The objective type is `anchor_free`; its section takes `box_gain`, `class_gain`,
+`distribution_gain` and `l1_gain`. `FreeTrainingStep` reads the one-to-many ports in its host
+stage, runs the assignment and writes the leaves the loss reads, and the bin values on every run,
+since nothing promises a leaf keeps its storage between runs. `measure` is not overridden: a step
+view cannot see the term values, so the host stage evaluates the terms again in double, one level
+at a time, for the metrics. That doubles the loss work on the host each step (RW-143). The loop is
+a sibling of the anchor loop, which is typed to the anchor step; the two repeat their run checks
+and progress reporting, and the two steps their truth checks (RW-144). A fresh run without
+`weights` or `resume` starts the head's biases; the head is found by its `cv2.0.2.bias` entry.
+`PreparedRun::state` is no longer const, so a run row can write the biases.
+
+The inference report decodes the one-to-many ports with `FreeBatchDecoder`, suppresses class-aware
+with the best class per anchor and prints mAP at IoU 0.5 over the labelled split; the one-to-one
+ports are not read.

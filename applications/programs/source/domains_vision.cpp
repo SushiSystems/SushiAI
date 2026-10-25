@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include <SushiLog/text/text_format.hpp>
@@ -46,6 +47,7 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
@@ -54,13 +56,23 @@
 #include <SushiAI/vision/detect/batch_average_precision.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
+#include <SushiAI/vision/detect/free/free_task.hpp>
+#include <SushiAI/vision/detect/free/head_contract.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
+#include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
+#include <SushiAI/vision/training/free_batch_decoder.hpp>
+#include <SushiAI/vision/training/free_bias_init.hpp>
+#include <SushiAI/vision/training/free_objective.hpp>
+#include <SushiAI/vision/training/free_objective_factory.hpp>
+#include <SushiAI/vision/training/free_training_loop.hpp>
+#include <SushiAI/vision/training/free_training_step.hpp>
+#include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/truth_from_roles.hpp>
 
 #include "epoch_loop.hpp"
@@ -130,6 +142,112 @@ namespace SushiAI
                 const std::size_t forward_compiles = step->training().lead()->compile_count();
                 SA_FAIL_IF(forward_compiles != 1, StatusCode::InvalidDescription,
                            "the part of the step before its heads was compiled {} times",
+                           forward_compiles);
+
+                RunSummary summary;
+                summary.compile_count = step->training().step().compile_count();
+                summary.progress = finished_progress(run, step->run_count());
+                return summary;
+            }
+
+            /** @brief Prints the loss and the terms of the last update of an anchor-free epoch. */
+            void print_free_epoch(const Vision::Training::FreeProgress& progress,
+                                  std::int64_t epochs)
+            {
+                std::cout << SushiLog::format_text(
+                    "  epoch {}/{} loss {}   box {}   class {}   dfl {}   rate {}\n",
+                    SushiLog::right(progress.epoch, 3), SushiLog::left(epochs, 3),
+                    SushiLog::fixed(progress.terms.total, 6),
+                    SushiLog::fixed(progress.terms.box, 6),
+                    SushiLog::fixed(progress.terms.classes, 6),
+                    SushiLog::fixed(progress.terms.distribution, 6),
+                    SushiLog::general(progress.rate, 6));
+            }
+
+            /**
+             * @brief Returns the dotted name the detect row's state hangs under, found as the
+             *        one entry that ends in the first one-to-many box bias.
+             * @return The prefix, empty for a detect row at the root, or InvalidDescription
+             *         when no entry or more than one ends so.
+             */
+            [[nodiscard]] Result<std::string> find_free_head_prefix(const NN::ModelState& state)
+            {
+                const std::string suffix =
+                    std::string(Vision::Detect::Free::K_DETECT_BOX_BRANCH) + ".0."
+                    + std::to_string(Vision::Detect::Free::K_DETECT_LAST_CONV_INDEX) + ".bias";
+
+                std::vector<std::string> found;
+                for (const NN::StateEntry& entry : state.entries())
+                {
+                    const std::string& name = entry.name;
+                    if (name == suffix)
+                        found.emplace_back();
+                    else if (name.size() > suffix.size() + 1
+                             && name.compare(name.size() - suffix.size(), suffix.size(), suffix)
+                                    == 0
+                             && name[name.size() - suffix.size() - 1] == '.')
+                        found.push_back(name.substr(0, name.size() - suffix.size() - 1));
+                }
+
+                SA_FAIL_IF(found.size() != 1, StatusCode::InvalidDescription,
+                           "the model state holds {} entries ending in '{}'; an anchor-free "
+                           "model holds one detect row",
+                           found.size(), suffix);
+                return found.front();
+            }
+
+            /**
+             * @brief Trains an anchor-free detector through FreeTrainingStep, first starting
+             *        the last biases from the strides when no checkpoint or weights are read.
+             * @return The compile count and where the run stands; InvalidDescription when the
+             *         part before the ports was not compiled once; or the first failure of the
+             *         objective, the bias start, the step or run_free_training.
+             */
+            [[nodiscard]] Result<RunSummary> run_anchor_free(PreparedRun& run)
+            {
+                // The registry returns the interface; the step takes the type behind it.
+                SA_TRY_ASSIGN(const Vision::Training::FreeObjective objective,
+                              Vision::Training::build_free_objective(
+                                  run.given, run.spec.objective_attributes));
+
+                if (run.spec.resume.empty() && run.spec.weights.empty())
+                {
+                    SA_TRY_ASSIGN(const std::string prefix, find_free_head_prefix(run.state));
+                    SA_TRY(Vision::Training::initialize_free_biases(objective.facts(), prefix,
+                                                                    run.state));
+                }
+
+                SA_TRY_ASSIGN(
+                    const std::unique_ptr<Vision::Training::FreeTrainingStep> step,
+                    Vision::Training::FreeTrainingStep::make(
+                        run.engine, objective, run.built, run.pool, run.optimizer,
+                        std::move(run.updates)));
+
+                SA_TRY(check_start_batch(run));
+                SA_TRY(step->restore_run_count(static_cast<std::size_t>(run.start.step_runs)));
+
+                const std::int64_t epochs = run.spec.epochs;
+                const std::size_t batches = run.dataset.batch_count();
+
+                Vision::Training::FreeLoopOptions options;
+                options.epochs = epochs;
+                options.schedule = run.schedule;
+                options.first_epoch = static_cast<std::int64_t>(run.start.epoch);
+                options.first_batch = static_cast<std::size_t>(run.start.batch);
+                options.on_update = [epochs, batches](
+                                        const Vision::Training::FreeProgress& progress)
+                {
+                    if (is_reported_epoch(progress.epoch, epochs)
+                        && progress.batch + 1 == batches)
+                        print_free_epoch(progress, epochs);
+                };
+
+                // The progress lines carry what the report holds, so only its status is read.
+                SA_TRY(Vision::Training::run_free_training(*step, run.dataset, options).status());
+
+                const std::size_t forward_compiles = step->training().lead()->compile_count();
+                SA_FAIL_IF(forward_compiles != 1, StatusCode::InvalidDescription,
+                           "the part of the step before its ports was compiled {} times",
                            forward_compiles);
 
                 RunSummary summary;
@@ -246,17 +364,18 @@ namespace SushiAI
             }
 
             /**
-             * @brief Returns how many leading rows of @p detections score above the threshold.
+             * @brief Returns how many leading rows of @p detections score above @p threshold.
              * @pre The rows are in descending score, as select_nms_detections writes them.
              */
-            [[nodiscard]] std::size_t count_confident(const std::vector<float>& detections)
+            [[nodiscard]] std::size_t count_confident(const std::vector<float>& detections,
+                                                      float threshold)
             {
                 const std::size_t rows = detections.size() / Vision::Detect::K_DETECTION_VALUES;
                 std::size_t count = 0;
                 while (count < rows
                        && detections[count * Vision::Detect::K_DETECTION_VALUES
                                      + Vision::Detect::K_DETECTION_SCORE]
-                              > K_SCORE_THRESHOLD)
+                              > threshold)
                     ++count;
                 return count;
             }
@@ -357,7 +476,7 @@ namespace SushiAI
                         config, detections);
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
-                        const std::size_t count = count_confident(detections[image]);
+                        const std::size_t count = count_confident(detections[image], K_SCORE_THRESHOLD);
                         print_detections(b * batch_size + image, detections[image], count);
                         found += count;
                     }
@@ -380,6 +499,161 @@ namespace SushiAI
                 return Status();
             }
 
+            /**
+             * @brief Lists the shape of every output @p run publishes, as the step holds it.
+             * @return The shapes in publishing order, or the failure of an output lookup.
+             */
+            [[nodiscard]] Result<std::vector<Train::OutputShape>> list_published_shapes(
+                const PreparedInference& run)
+            {
+                std::vector<Train::OutputShape> shapes;
+                shapes.reserve(run.outputs.size());
+                for (const NN::ModelOutputs::Entry& output : run.outputs)
+                {
+                    SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor,
+                                  run.step.output(output.first));
+                    shapes.push_back(Train::OutputShape{
+                        output.first,
+                        Shape(SushiRuntime::span<const std::int64_t>(
+                            tensor->shape.data(), static_cast<std::size_t>(tensor->rank)))});
+                }
+
+                return shapes;
+            }
+
+            /** @brief Returns the values of the tensor @p run publishes under @p name. */
+            [[nodiscard]] Result<SushiRuntime::span<const float>> published_values(
+                const PreparedInference& run, const std::string& name)
+            {
+                SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, run.step.output(name));
+                return SushiRuntime::span<const float>(
+                    tensor->data_as<float>(), static_cast<std::size_t>(tensor->num_elements));
+            }
+
+            /**
+             * @brief Binds the one-to-many box and class outputs of every level of @p facts.
+             * @return One entry per level, finest first, or the failure of an output lookup.
+             */
+            [[nodiscard]] Result<std::vector<Vision::Training::FreeLevelLogits>>
+            bind_free_levels(const Vision::Training::FreeModelFacts& facts,
+                             const PreparedInference& run)
+            {
+                std::vector<Vision::Training::FreeLevelLogits> levels;
+                levels.reserve(facts.levels.size());
+                for (const Vision::Training::FreeLevelFacts& level : facts.levels)
+                {
+                    Vision::Training::FreeLevelLogits bound;
+                    SA_TRY_ASSIGN(bound.boxes, published_values(run, level.one_to_many.boxes));
+                    SA_TRY_ASSIGN(bound.scores,
+                                  published_values(run, level.one_to_many.scores));
+                    levels.push_back(bound);
+                }
+
+                return levels;
+            }
+
+            /**
+             * @brief Decodes the one-to-many outputs of an anchor-free model over every batch
+             *        and prints the detections past the task's score and suppression, then
+             *        the mean average precision against the labels of the split.
+             * @return Success; the failure of the task section, of the facts, of a lookup, of
+             *         a read, of a step or of the truth roles; InvalidDescription for an input
+             *         that is not height, width, depth, or a batch the data does not read.
+             */
+            [[nodiscard]] Status report_free_detections(PreparedInference& run)
+            {
+                SA_TRY_ASSIGN(const Vision::Detect::Free::FreeTask task,
+                              Vision::Detect::Free::read_free_task(run.model.task));
+                const Shape& input = run.model.input_shape;
+                SA_FAIL_IF(input.rank() != 3, StatusCode::InvalidDescription,
+                           "'{}' declares the input shape {}, but an anchor-free model reads "
+                           "[height, width, channels]",
+                           run.model_path.string(), input.to_string());
+
+                SA_TRY_ASSIGN(const std::vector<Train::OutputShape> shapes,
+                              list_published_shapes(run));
+                SA_TRY_ASSIGN(const Vision::Training::FreeModelFacts facts,
+                              Vision::Training::derive_free_model_facts(input, shapes));
+                SA_TRY_ASSIGN(const std::vector<Vision::Training::FreeLevelLogits> levels,
+                              bind_free_levels(facts, run));
+
+                const std::int64_t batch_size = run.dataset.batch_size();
+                const std::size_t level_values = static_cast<std::size_t>(
+                    facts.levels.front().height * facts.levels.front().width * facts.classes);
+                const std::size_t published_batch = levels.front().scores.size() / level_values;
+                SA_FAIL_IF(published_batch != static_cast<std::size_t>(batch_size),
+                           StatusCode::InvalidDescription,
+                           "'{}' publishes batches of {} images, but the data reads {}",
+                           run.model_path.string(), published_batch, batch_size);
+
+                Vision::Training::FreeBatchDecoder decoder(facts, batch_size);
+                const auto anchors = static_cast<std::size_t>(decoder.anchors());
+                const auto images = static_cast<std::size_t>(batch_size);
+
+                print_inference_header(
+                    run, SushiLog::format_text("{} levels, {} classes, reg_max {}",
+                                               facts.levels.size(), facts.classes,
+                                               facts.reg_max));
+                std::cout << SushiLog::format_text(
+                    "Detections : score above {}, suppression above {}; boxes are x1 y1 x2 y2 "
+                    "in pixels of the {} by {} input\n\n",
+                    task.score_threshold, task.suppression_threshold, input[1], input[0]);
+
+                // Suppression runs at the validation confidence; the printout cuts at the score.
+                Vision::Detect::NMSConfig config;
+                config.iou_threshold = task.suppression_threshold;
+                config.label_mode = Vision::Detect::LabelMode::BestClass;
+                config.criterion = task.criterion;
+                config.distance_exponent = task.distance_exponent;
+
+                std::vector<float> boxes(images * anchors * K_BOX_ENTRIES);
+                std::vector<float> scores(images * anchors
+                                          * static_cast<std::size_t>(facts.classes));
+                std::vector<std::vector<float>> detections;
+                std::size_t found = 0;
+
+                const bool labelled =
+                    Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
+                Vision::Detect::AveragePrecision metric;
+                Vision::Detect::GroundTruthBatch truth;
+
+                Data::Batch batch;
+                for (std::size_t b = 0; b < run.dataset.batch_count(); ++b)
+                {
+                    SA_TRY(run.dataset.read(b, batch));
+                    SA_TRY(run.step.run(batch.inputs));
+                    decoder.decode(levels, boxes, scores);
+
+                    Vision::Detect::select_nms_detections(
+                        boxes, scores,
+                        Vision::Detect::PredictionShape{
+                            batch_size, static_cast<std::int64_t>(anchors), facts.classes},
+                        config, detections);
+                    for (std::size_t image = 0; image < detections.size(); ++image)
+                    {
+                        const std::size_t count =
+                            count_confident(detections[image], task.score_threshold);
+                        print_detections(b * images + image, detections[image], count);
+                        found += count;
+                    }
+
+                    if (labelled)
+                    {
+                        SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        Vision::Detect::add_batch(metric, detections, truth);
+                    }
+                }
+
+                std::cout << SushiLog::format_text("\n{} detections over {} images.\n", found,
+                                                   run.dataset.batch_count() * images);
+                if (labelled)
+                    print_mean_average_precision(metric);
+                else
+                    std::cout << "Mean average precision : not computed, the data carries no "
+                                 "boxes role\n";
+                return Status();
+            }
+
         } // namespace
 
         Status register_vision_domain(Registries& registries)
@@ -389,8 +663,12 @@ namespace SushiAI
             SA_TRY(Vision::register_objectives(registries.objectives));
             SA_TRY(registries.runs.add(
                 RunEntry{Vision::Detect::Anchor::K_ANCHOR_OBJECTIVE_TYPE, &run_anchor}));
+            SA_TRY(registries.runs.add(
+                RunEntry{Vision::Training::K_FREE_OBJECTIVE_TYPE, &run_anchor_free}));
             SA_TRY(registries.inferences.add(InferenceEntry{
                 Vision::Detect::Anchor::K_ANCHOR_TASK_TYPE, &report_anchor_detections}));
+            SA_TRY(registries.inferences.add(InferenceEntry{
+                Vision::Detect::Free::K_FREE_TASK_TYPE, &report_free_detections}));
             SA_TRY(Vision::register_importers(registries.importers));
 
             return Status();

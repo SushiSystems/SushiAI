@@ -40,6 +40,10 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/free_detection_loss.hpp>` | `FreeLossValues`, `FreeLossTermIDs`, `emit_free_detection_loss` |
 | `<SushiAI/vision/training/free_detection_loss_host.hpp>` | `evaluate_free_detection_loss` |
 | `<SushiAI/vision/training/free_loss_gains.hpp>` | `FreeLossGains`, `K_FREE_LOSS_GAIN_KEYS`, `validate_free_loss_gains`, `read_free_loss_gains` |
+| `<SushiAI/vision/training/free_objective.hpp>` | `K_FREE_OBJECTIVE_TYPE`, `K_FREE_PROJECTION_ROLE`, `FreeObjective`, `add_free_loss_metrics` |
+| `<SushiAI/vision/training/free_objective_factory.hpp>` | `build_free_objective`, `make_free_objective` |
+| `<SushiAI/vision/training/free_training_step.hpp>` | `FreeTrainingStep` |
+| `<SushiAI/vision/training/free_training_loop.hpp>` | `FreeProgress`, `FreeLoopOptions`, `FreeRunReport`, `run_free_training` |
 | `<SushiAI/vision/training/free_model_facts.hpp>` | `FreeLevelPorts`, `FreeLevelFacts`, `FreeModelFacts`, `derive_free_model_facts` |
 | `<SushiAI/vision/training/free_bias_init.hpp>` | `free_class_bias`, `initialize_free_biases` |
 | `<SushiAI/vision/training/anchor_head.hpp>` | `AnchorHead` |
@@ -61,6 +65,14 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/pixel_cross_entropy_objective.hpp>` | `K_PIXEL_CROSS_ENTROPY_TYPE`, `K_PIXEL_TARGETS_LEAF`, `K_PIXEL_WEIGHTS_LEAF`, `PixelCrossEntropyObjective`, `make_pixel_cross_entropy_objective` |
 | `<SushiAI/vision/training/dice_objective.hpp>` | `K_DICE_TYPE`, the five `K_DICE_*_LEAF` names, `DiceObjective`, `make_dice_objective` |
 
+
+`FreeObjective`, objective type `anchor_free`, trains the one-to-many ports of an anchor-free
+head. Its section holds the four gains; strides, ports, `reg_max` and classes come from the traced
+model. `FreeTrainingStep` splits the step at the ports: the host stage runs
+`FreeAssignmentStage` over the batch's truth and writes the loss leaves and the bin values, then
+the loss graph, its backward and the optimiser run. The host stage also evaluates the loss terms
+in double for the metrics, since the graph keeps no term values. `run_free_training` drives the
+step over the epochs, and a fresh run without weights starts the head's last biases.
 
 `AnchorObjective` computes each batch's deltas and cost through a `HeadDeltaRule` chosen once from
 the task's `assignment`: `best_shape` gives `BestShapeHeadDeltaRule`, which runs `compute_head_delta`

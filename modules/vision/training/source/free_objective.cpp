@@ -1,0 +1,214 @@
+/**************************************************************************/
+/* free_objective.cpp                                                     */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file free_objective.cpp
+ * @brief Implements FreeObjective over the assignment stage's leaves and the loss graph.
+ * @author Mustafa Garip
+ */
+
+#include <SushiAI/vision/training/free_objective.hpp>
+
+#include <cstddef>
+#include <string>
+#include <utility>
+
+#include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/error.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/vision/training/free_detection_loss.hpp>
+
+namespace SushiAI::Vision::Training
+{
+    namespace
+    {
+        /** @brief Returns the id of output @p name, or throws Error naming it. */
+        [[nodiscard]] Graph::ValueID port_of(const NN::ModelOutputs& outputs,
+                                             const std::string& name)
+        {
+            const Result<Graph::ValueID> found = outputs.at(name);
+            SA_THROW_IF(!found.has_value(), "{}", found.status().message());
+            return found.value();
+        }
+
+        /** @brief Returns the field of @p level a leaf of @p kind fills, or null for none. */
+        [[nodiscard]] Graph::ValueID* level_field(FreeLevelLossValues& level,
+                                                  FreeLeafKind kind) noexcept
+        {
+            switch (kind)
+            {
+                case FreeLeafKind::TargetScores:
+                    return &level.target_scores;
+                case FreeLeafKind::BoxMask:
+                    return &level.box_mask;
+                case FreeLeafKind::NormalizedWeight:
+                    return &level.normalized_weight;
+                case FreeLeafKind::TargetBoxes:
+                    return &level.target_boxes;
+                case FreeLeafKind::TargetDistances:
+                    return &level.target_distances;
+                case FreeLeafKind::L1Scale:
+                    return &level.l1_scale;
+                case FreeLeafKind::SafeBoxes:
+                    return &level.safe_boxes;
+                case FreeLeafKind::DistributionWeights:
+                    return &level.distribution_weights;
+                case FreeLeafKind::AnchorPoints:
+                    return &level.anchor_points;
+                case FreeLeafKind::AnchorStrides:
+                case FreeLeafKind::TargetScoresSum:
+                    break;
+            }
+            return nullptr;
+        }
+    } // namespace
+
+    Result<FreeObjective> FreeObjective::make(FreeModelFacts facts, Detect::Free::FreeTask task,
+                                              std::int64_t batch, FreeLossGains gains)
+    {
+        SA_TRY(validate_free_loss_gains(gains));
+        SA_TRY_ASSIGN(const FreeAssignmentStage stage,
+                      FreeAssignmentStage::make(facts, task, batch));
+
+        std::vector<FreeLeaf> leaves = stage.leaves();
+        return Result<FreeObjective>(FreeObjective(std::move(facts), std::move(task), batch,
+                                                   gains, std::move(leaves)));
+    }
+
+    FreeObjective::FreeObjective(FreeModelFacts facts, Detect::Free::FreeTask task,
+                                 std::int64_t batch, FreeLossGains gains,
+                                 std::vector<FreeLeaf> stage_leaves) noexcept
+        : facts_(std::move(facts)),
+          task_(std::move(task)),
+          batch_(batch),
+          gains_(gains),
+          stage_leaves_(std::move(stage_leaves))
+    {
+
+    }
+
+    void FreeObjective::declare(const Graph::GraphBuilder& builder,
+                                Train::ObjectiveLeaves& leaves) const
+    {
+        for (const FreeLeaf& leaf : stage_leaves_)
+        {
+            if (reads_leaf(leaf.kind))
+                leaves.add(leaf.role, builder.input(leaf.shape, leaf.role, DType::Float32));
+        }
+
+        if (facts_.reg_max > 1)
+        {
+            leaves.add(K_FREE_PROJECTION_ROLE,
+                       builder.input(Shape{facts_.reg_max, 1}, std::string(K_FREE_PROJECTION_ROLE),
+                                     DType::Float32));
+        }
+    }
+
+    Graph::ValueID FreeObjective::loss(const Graph::GraphBuilder& builder,
+                                       const Graph::Graph& graph,
+                                       const NN::ModelOutputs& outputs,
+                                       const Train::ObjectiveLeaves& leaves) const
+    {
+        FreeLossValues values;
+        values.levels.resize(facts_.levels.size());
+        for (std::size_t level = 0; level < facts_.levels.size(); ++level)
+        {
+            values.levels[level].boxes = port_of(outputs, facts_.levels[level].one_to_many.boxes);
+            values.levels[level].scores =
+                port_of(outputs, facts_.levels[level].one_to_many.scores);
+        }
+
+        for (const FreeLeaf& leaf : stage_leaves_)
+        {
+            if (!reads_leaf(leaf.kind))
+                continue;
+
+            if (leaf.kind == FreeLeafKind::TargetScoresSum)
+            {
+                values.target_scores_sum = leaves.at(leaf.role);
+                continue;
+            }
+            Graph::ValueID* const field =
+                level_field(values.levels[static_cast<std::size_t>(leaf.level)], leaf.kind);
+            SA_FATAL_IF(field == nullptr, "the leaf '{}' has no place in the loss", leaf.role);
+            *field = leaves.at(leaf.role);
+        }
+
+        if (facts_.reg_max > 1)
+            values.projection = leaves.at(K_FREE_PROJECTION_ROLE);
+
+        return emit_free_detection_loss(builder, graph, facts_, values, gains_).total;
+    }
+
+    std::string_view FreeObjective::name() const noexcept
+    {
+        return K_FREE_OBJECTIVE_TYPE;
+    }
+
+    bool FreeObjective::reads_leaf(FreeLeafKind kind) const noexcept
+    {
+        switch (kind)
+        {
+            case FreeLeafKind::AnchorStrides:
+                return false;
+            case FreeLeafKind::TargetDistances:
+            case FreeLeafKind::L1Scale:
+                return gains_.l1_gain > 0.0f;
+            default:
+                return true;
+        }
+    }
+
+    const std::vector<FreeLeaf>& FreeObjective::stage_leaves() const noexcept
+    {
+        return stage_leaves_;
+    }
+
+    const FreeModelFacts& FreeObjective::facts() const noexcept
+    {
+        return facts_;
+    }
+
+    const Detect::Free::FreeTask& FreeObjective::task() const noexcept
+    {
+        return task_;
+    }
+
+    std::int64_t FreeObjective::batch() const noexcept
+    {
+        return batch_;
+    }
+
+    const FreeLossGains& FreeObjective::gains() const noexcept
+    {
+        return gains_;
+    }
+
+    Status add_free_loss_metrics(const FreeLossTerms& terms, Train::Metrics& metrics)
+    {
+        SA_TRY(metrics.add(Train::Metric{"box", terms.box, false}));
+        SA_TRY(metrics.add(Train::Metric{"class", terms.classes, false}));
+        SA_TRY(metrics.add(Train::Metric{"distribution", terms.distribution, false}));
+        return metrics.add(Train::Metric{"l1", terms.l1, false});
+    }
+
+} // namespace SushiAI::Vision::Training

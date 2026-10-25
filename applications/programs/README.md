@@ -30,11 +30,12 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
-| `domains_vision.cpp` | The vision rows, the `anchor` run and the `anchor_detection` report; compiled when `SA_BUILD_VISION` is on |
+| `domains_vision.cpp` | The vision rows, the `anchor` run and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
 | `domains_vision_none.cpp` | No row; compiled when it is off |
 | `domains_language.cpp` | The language rows and the `next_token_generation` report; compiled when `SA_BUILD_LANGUAGE` is on |
 | `domains_language_none.cpp` | No row; compiled when it is off |
 | `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp`, `worker_arguments.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
+| `training_cluster_section.hpp`, `training_cluster_section.cpp` | `read_training_cluster`: reads the cluster section of a training file and refuses a replica with `if_absent: "local"` while `deterministic` is true; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
 
 A distributed build links the first set into every program. `sushiai_train` then trains a
@@ -244,6 +245,7 @@ existed. A model file with a `task` section is reported by the row of `task.type
 | --- | --- | --- |
 | none | Predicted-class counts and top-1 agreement | `inference.cpp` |
 | `anchor_detection` | The detections of every image | `register_vision_domain`, `domains_vision.cpp` |
+| `anchor_free_detection` | The detections of every image | `register_vision_domain`, `domains_vision.cpp` |
 | `next_token_generation` | A prompt and its continuation | `register_language_domain`, `domains_language.cpp` |
 
 The `anchor_detection` row reads the section with `read_anchor_task`, binds each head to the
@@ -262,6 +264,15 @@ above 0.25: the suppression runs once at 0.001 and the printout keeps the rows a
 is the same set because a box is suppressed only by a box of higher score. Truth and detections
 are both in pixels of the network input, so the number does not depend on the size of the file on
 disk. Data without a `boxes` role prints a line saying the mean was not computed.
+
+The `anchor_free_detection` row reads the section with `read_free_task` and takes the levels,
+strides, reg_max, class count and one-to-many port names from `derive_free_model_facts` over
+the shapes the step publishes; the section states none of them. `FreeBatchDecoder` turns the
+ports of a batch into centre-size boxes in input pixels and the sigmoid of each class logit.
+`select_nms_detections` keeps the best class of each anchor, class-aware, at the section's
+`suppression_threshold`, and the printout keeps the rows above its `score_threshold`. The
+printing and the mean average precision are those of the `anchor_detection` row. The one-to-one
+ports are not read.
 
 The command still takes a data file, so it reports a dataset split. It does not take one
 image file.
