@@ -38,7 +38,6 @@
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiRuntime/distributed/worker_main.hpp>
 #include <SushiRuntime/distributed/worker_options_parser.hpp>
-#include <SushiRuntime/process_environment/environment.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
@@ -115,8 +114,7 @@ namespace
 
         const Distributed::WorkerOptionsResult parsed = Distributed::parse_worker_options(
             SushiRuntime::span<const char* const>(arguments.forwarded.data(),
-                                                  arguments.forwarded.size()),
-            Distributed::read_environment);
+                                                  arguments.forwarded.size()));
 
         if (arguments.call == SushiAI::Apps::WorkerCall::Help
             || parsed.status == Distributed::WorkerOptionsStatus::Help)
