@@ -65,6 +65,10 @@
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/free/target_leaves.hpp>
+#include <SushiAI/vision/detect/free/distribution_expectation.hpp>
+#include <SushiAI/vision/detect/free/distribution_targets.hpp>
+#include <SushiAI/vision/detect/free/free_task.hpp>
+#include <SushiAI/vision/detect/free/head_contract.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
 #include <SushiAI/vision/blocks/attention.hpp>
@@ -154,10 +158,18 @@
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
 #include <SushiAI/vision/training/head_delta_loss.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
+#include <SushiAI/vision/detect/batch_average_precision.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_plan.hpp>
 #include <SushiAI/vision/detect/anchor/head_truth.hpp>
+#include <SushiAI/vision/detect/anchor/assignment_section.hpp>
+#include <SushiAI/vision/detect/anchor/shape_ratio_assignment.hpp>
+#include <SushiAI/vision/detect/anchor/shape_ratio_delta.hpp>
+#include <SushiAI/vision/detect/anchor/target_assignment.hpp>
 
 #include <SushiAI/vision/blocks/segment_head.hpp>
+#include <SushiAI/vision/blocks/c2f.hpp>
+#include <SushiAI/vision/blocks/c3.hpp>
 #include <SushiAI/vision/segment/argmax_classes.hpp>
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/fill_outline.hpp>
@@ -173,6 +185,28 @@
 #include <SushiAI/vision/training/pixel_losses.hpp>
 #include <SushiAI/vision/training/pixel_targets.hpp>
 #include <SushiAI/vision/training/segmentation_metrics.hpp>
+#include <SushiAI/vision/training/anchor_bias_init.hpp>
+#include <SushiAI/vision/training/anchor_head.hpp>
+#include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
+#include <SushiAI/vision/training/detection_run_check.hpp>
+#include <SushiAI/vision/training/detection_truth_check.hpp>
+#include <SushiAI/vision/training/distribution_expectation_graph.hpp>
+#include <SushiAI/vision/training/distribution_focal_loss.hpp>
+#include <SushiAI/vision/training/free_assignment_stage.hpp>
+#include <SushiAI/vision/training/free_batch_decoder.hpp>
+#include <SushiAI/vision/training/free_bias_init.hpp>
+#include <SushiAI/vision/training/free_detection_loss.hpp>
+#include <SushiAI/vision/training/free_detection_loss_host.hpp>
+#include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <SushiAI/vision/training/free_model_facts.hpp>
+#include <SushiAI/vision/training/free_objective.hpp>
+#include <SushiAI/vision/training/free_objective_factory.hpp>
+#include <SushiAI/vision/training/free_training_loop.hpp>
+#include <SushiAI/vision/training/free_training_step.hpp>
+#include <SushiAI/vision/training/head_delta_rule.hpp>
+#include <SushiAI/vision/training/head_delta_rule_choice.hpp>
+#include <SushiAI/vision/training/run_progress.hpp>
+#include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 #include <SushiAI/vision/datasets/augment_pipeline.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>

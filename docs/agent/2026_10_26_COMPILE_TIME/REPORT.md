@@ -69,3 +69,13 @@ umbrellas) and 7 application files. `SushiAI/vision.hpp` reaches 144 headers and
 The workers left poll loops and three whole-disk `find /` scans running on 2026-10-26, which loaded
 the owner's machine; the orchestrator stopped them, and every later dispatch forbids background
 commands.
+
+## 5. The owner's build, 2026-10-26
+
+`sa build` with five jobs after the commits above: the configure first stopped because 34 new
+public headers of the vision tier were missing from `SushiAI/vision.hpp`; with them added, 956
+steps built in 1312 seconds with no error. The step was incremental, not clean, so it gives no
+before-and-after time. `build/compile_commands.json` lists `-fsycl` on 123 units: the five
+SushiAI device units and 118 units of the SushiRuntime checkout the build adds, which its own
+directory-scope options compile for the device (the SushiRuntime plan of the same day). 3650
+warnings, all `-Woverride-module`, come from the device link. Tests have not run.
