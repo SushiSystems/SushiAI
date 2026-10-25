@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-140
+Next id: RW-141
 
 ## Next
 
@@ -689,3 +689,11 @@ scenarios, the decode cases and the import cases passed on 2026-10-25.
 - Done when: each topic has an `**About:**` line of one sentence written for a cold reader
 
 Four of the seven end in the generator's cut.
+
+### RW-140 Route Darknet's assignment through `AssignmentRule`
+- State: open
+- Done when: `head_delta.cpp`'s assignment is a `best_shape` type behind `AssignmentRule`, the
+  delta writing reads its records, and the Darknet parity suites pass unchanged
+- Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
+
+The seam has one implementation, the shape-ratio rule, until this split.

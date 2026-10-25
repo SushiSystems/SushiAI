@@ -36,6 +36,7 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
+#include <SushiAI/vision/detect/anchor/assignment_section.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
 
@@ -70,6 +71,9 @@ namespace SushiAI
 
             /** @brief Holds the exponent of the distance term, read by DistanceIoU only. */
             float distance_exponent = K_DEFAULT_DISTANCE_EXPONENT;
+
+            /** @brief Selects the rule that assigns truths to slots in training. */
+            AssignmentChoice assignment;
         };
 
         /**

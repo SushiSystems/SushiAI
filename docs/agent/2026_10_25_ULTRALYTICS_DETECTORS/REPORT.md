@@ -10,6 +10,7 @@ dispatch: map the training and inference rows — haiku medium, 53 turns, passed
 dispatch: check that the YOLO26 model file builds — haiku medium, 26 turns, passed, rung 1
 dispatch: U1 c2f and c3 — sonnet medium, 49 turns, passed, rung 1
 dispatch: U2 detect options — sonnet medium, 71 turns, passed, rung 1
+dispatch: U10 shape-ratio assignment — opus low, 43 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -36,3 +37,20 @@ row therefore takes no `strides` key, and U4 derives the strides from the built 
 applies the bias initialisation on a fresh run. Ultralytics' `dfl.conv.weight`, a fixed ramp, has
 no state record; a later `.pt` mapping skips it. The state names follow Ultralytics' as
 remembered, not checked against a checkpoint.
+
+## 5. U10, written and not built
+
+`AssignmentRule` (`target_assignment.hpp`) turns the truths of a batch into `TargetAssignment`
+records: image, anchor slot, cell, the box relative to the cell, label and truth row.
+`ShapeRatioAssignment` keeps an anchor whose width and height ratios to the truth stay under
+`ratio_limit` (4 by default) and adds the neighbour cells within `neighbour_offset` (0.5) of the
+centre. The anchor task's `assignment` member chooses `best_shape`, the default and Darknet's
+rule, or `shape_ratio`; a section without it reads and writes as before.
+
+Two deviations from Ultralytics, both for determinism: when two truths claim one cell and anchor,
+the higher shape IoU wins and the lower truth row breaks a tie, where Ultralytics leaves it to
+scatter order; and `neighbour_offset` is limited to [0, 0.5].
+
+Darknet's `head_delta.cpp` assigns and writes deltas in one pass and does not go through the new
+seam, so `best_shape` has no `AssignmentRule` type yet. Splitting it waits for a build that runs
+the Darknet parity suites (RW-140).

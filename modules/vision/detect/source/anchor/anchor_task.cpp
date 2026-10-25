@@ -32,7 +32,9 @@
 #include <cmath>
 #include <cstddef>
 #include <iterator>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -51,7 +53,7 @@ namespace SushiAI
 
             /** @brief Lists every key a task section of this type may carry. */
             constexpr std::string_view K_TASK_KEYS[] = {"type", "classes", "anchors", "heads",
-                                                      "suppression"};
+                                                      "suppression", "assignment"};
 
             /** @brief Lists every key an entry of "heads" may carry. */
             constexpr std::string_view K_HEAD_KEYS[] = {"output", "anchors", "coding",
@@ -429,6 +431,13 @@ namespace SushiAI
             SA_TRY(read_anchors(task, result.layout.anchors));
             SA_TRY(read_heads(task, result));
             SA_TRY(read_suppression(task, result));
+            const Value* assignment = nullptr;
+            if (reader.has("assignment"))
+            {
+                SA_TRY_ASSIGN(assignment, reader.find("assignment"));
+            }
+            SA_TRY_ASSIGN(result.assignment,
+                          read_assignment_section(assignment, member_of(K_TASK, "assignment")));
             SA_TRY(validate_anchor_task(result));
             return Result<AnchorTask>(std::move(result));
         }
@@ -440,11 +449,23 @@ namespace SushiAI
             SA_TRY_ASSIGN(Value heads, heads_value(task));
             SA_TRY_ASSIGN(Value suppression, suppression_value(task));
 
-            return Value::object(
-                {"type", "classes", "anchors", "heads", "suppression"},
-                {Value::string(std::string(K_ANCHOR_TASK_TYPE)),
-                 Value::integer(task.num_classes), anchors_value(task.layout.anchors),
-                 std::move(heads), std::move(suppression)});
+            std::vector<std::string> keys = {"type", "classes", "anchors", "heads",
+                                             "suppression"};
+            std::vector<Value> values;
+            values.push_back(Value::string(std::string(K_ANCHOR_TASK_TYPE)));
+            values.push_back(Value::integer(task.num_classes));
+            values.push_back(anchors_value(task.layout.anchors));
+            values.push_back(std::move(heads));
+            values.push_back(std::move(suppression));
+            if (writes_assignment_section(task.assignment))
+            {
+                SA_TRY_ASSIGN(Value assignment,
+                              write_assignment_section(task.assignment,
+                                                       member_of(K_TASK, "assignment")));
+                keys.emplace_back("assignment");
+                values.push_back(std::move(assignment));
+            }
+            return Value::object(std::move(keys), std::move(values));
         }
 
     } // namespace Vision::Detect::Anchor

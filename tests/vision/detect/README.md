@@ -15,6 +15,8 @@ Each test file has a page beside it that says what its cases pin.
 | `anchor/test_anchor_plan.cpp` | [`anchor/test_anchor_plan.md`](anchor/test_anchor_plan.md) |
 | `anchor/test_anchor_review.cpp` | [`anchor/test_anchor_review.md`](anchor/test_anchor_review.md) |
 | `anchor/test_anchor_task.cpp` | [`anchor/test_anchor_task.md`](anchor/test_anchor_task.md) |
+| `anchor/test_assignment_section.cpp` | [`anchor/test_assignment_section.md`](anchor/test_assignment_section.md) |
+| `anchor/test_shape_ratio_assignment.cpp` | [`anchor/test_shape_ratio_assignment.md`](anchor/test_shape_ratio_assignment.md) |
 | `anchor/test_head_assignment.cpp` | [`anchor/test_head_assignment.md`](anchor/test_head_assignment.md) |
 | `anchor/test_head_truth.cpp` | [`anchor/test_head_truth.md`](anchor/test_head_truth.md) |
 | `free/test_anchors.cpp` | [`free/test_anchors.md`](free/test_anchors.md) |

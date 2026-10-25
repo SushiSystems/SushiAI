@@ -16,6 +16,7 @@ sushiai_add_test_program(OWNER vision/detect
         anchor/test_anchor_review.cpp
         anchor/test_anchor_size.cpp
         anchor/test_anchor_task.cpp
+        anchor/test_assignment_section.cpp
         anchor/test_assignment_thresholds.cpp
         anchor/test_head_assignment.cpp
         anchor/test_head_cost.cpp
@@ -26,6 +27,7 @@ sushiai_add_test_program(OWNER vision/detect
         anchor/test_head_training_section.cpp
         anchor/test_head_truth.cpp
         anchor/test_seeded_sequence.cpp
+        anchor/test_shape_ratio_assignment.cpp
         free/test_anchor_leaves.cpp
         free/test_anchors.cpp
         free/test_assigner.cpp

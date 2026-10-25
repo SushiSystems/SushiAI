@@ -17,6 +17,7 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/anchor_size.cpp
         source/anchor/anchor_task.cpp
         source/anchor/head_training_section.cpp
+        source/anchor/assignment_section.cpp
         source/anchor/assignment_thresholds.cpp
         source/anchor/box_delta_iou.cpp
         source/anchor/box_delta_squared.cpp
@@ -28,6 +29,7 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/head_training_options.cpp
         source/anchor/head_truth.cpp
         source/anchor/seeded_sequence.cpp
+        source/anchor/shape_ratio_assignment.cpp
         source/average_precision.cpp
         source/batch_average_precision.cpp
         source/box_format.cpp

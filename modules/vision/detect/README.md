@@ -61,8 +61,41 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `anchor/anchor_review.hpp` | `AnchorVerdict`, `ReviewOptions`, `AnchorReview`, `review_anchors` |
 | `anchor/anchor_plan.hpp` | `AnchorPlanOptions`, `AnchorPlan`, `plan_anchors` |
 | `anchor/anchor_task.hpp` | `K_ANCHOR_TASK_TYPE`, `AnchorTaskHead`, `AnchorTask`, `read_anchor_task`, `write_anchor_task` |
+| `anchor/target_assignment.hpp` | `TargetAssignment`, `AssignmentInput`, `AssignmentRule` |
+| `anchor/shape_ratio_assignment.hpp` | `K_DEFAULT_RATIO_LIMIT`, `K_DEFAULT_NEIGHBOUR_OFFSET`, `ShapeRatioOptions`, `validate_shape_ratio_options`, `ShapeRatioAssignment` |
+| `anchor/assignment_section.hpp` | `AssignmentRuleKind`, `AssignmentChoice`, `read_assignment_section`, `writes_assignment_section`, `write_assignment_section` |
 | `anchor/head_training_section.hpp` | `K_ANCHOR_OBJECTIVE_TYPE`, `read_head_training_section`, `write_head_training_section` |
 | `anchor/seeded_sequence.hpp` | `Detail::SeededSequence` |
+
+## anchor/shape_ratio_assignment.hpp
+
+`ShapeRatioAssignment` implements `AssignmentRule`: it writes, per head, the list of
+`(image, slot, row, col, box target, class)` a loss reads. Every value is in grid units: a
+truth's centre `g = (x * W, y * H)`, its size `(w * W, h * H)`, an anchor's size the same.
+
+A slot's anchor takes a truth when `max(r, 1 / r) < ratio_limit` for `r` the ratio of truth
+to anchor on both sides; `ratio_limit` defaults to 4. Each taken anchor is assigned in the
+truth's cell and in each neighbour its centre lies near, with `o = neighbour_offset`, 0.5 by
+default:
+
+| Cell | Taken when | Column, row |
+| --- | --- | --- |
+| Own | always | `int(gx)`, `int(gy)` |
+| Left | fraction of `gx` below `o`, `gx > 1` | `int(gx - o)`, `int(gy)` |
+| Top | fraction of `gy` below `o`, `gy > 1` | `int(gx)`, `int(gy - o)` |
+| Right | fraction of `W - gx` below `o`, `W - gx > 1` | `int(gx + o)`, `int(gy)` |
+| Bottom | fraction of `H - gy` below `o`, `H - gy > 1` | `int(gx)`, `int(gy + o)` |
+
+Each index is clamped to the grid. The box target is `g` minus the cell's column and row, and
+the truth's size. When two truths take the same slot of the same cell, the one whose
+`shape_iou` with the slot's anchor is higher keeps it, the lower truth row on a tie. The list
+is ordered by image, slot, row and column.
+
+A task section selects the rule under `"assignment"`:
+`{"rule": "shape_ratio", "ratio_limit": 4.0, "neighbour_offset": 0.5}`. Without the member the
+rule is `best_shape`, the assignment `compute_head_delta` makes, and the writer leaves the
+member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite and in
+[0, 0.5]. `compute_head_delta` does not read the choice yet.
 
 ## free/anchors.hpp
 
