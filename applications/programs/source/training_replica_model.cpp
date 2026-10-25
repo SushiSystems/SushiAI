@@ -35,6 +35,7 @@
 #include <string_view>
 #include <utility>
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/data/epoch.hpp>

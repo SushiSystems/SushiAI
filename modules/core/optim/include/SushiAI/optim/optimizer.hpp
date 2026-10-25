@@ -34,6 +34,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>

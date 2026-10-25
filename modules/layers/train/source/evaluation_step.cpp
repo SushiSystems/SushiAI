@@ -37,6 +37,7 @@
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>

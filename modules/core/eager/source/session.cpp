@@ -33,6 +33,7 @@
 
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/random/random.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/allocation/allocation.hpp>

@@ -35,6 +35,7 @@
 #include <utility>
 
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>

@@ -32,6 +32,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/step_scalars.hpp>

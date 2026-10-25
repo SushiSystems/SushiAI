@@ -36,6 +36,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/random/random.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>

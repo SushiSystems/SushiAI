@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <utility>
 #include <SushiBLAS/random/random.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/seam/seam.hpp>

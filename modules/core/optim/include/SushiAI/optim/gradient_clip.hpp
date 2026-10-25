@@ -31,6 +31,7 @@
 #include <memory>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/step_scalars.hpp>

@@ -38,6 +38,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiBLAS/blas/blas.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/seam/seam.hpp>

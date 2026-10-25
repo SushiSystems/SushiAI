@@ -39,6 +39,7 @@
 #include <SushiBLAS/cluster/tensor_pack.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
