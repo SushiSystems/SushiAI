@@ -50,7 +50,7 @@ a factory function in the library.
 
 ```json
 {
-  "sushiai_train": 2,
+  "sushiai_train": 3,
   "model": "model.json",
   "objective": { "type": "cross_entropy" },
   "data":      { "type": "rings", "batch_size": 64, "batches": 64,
@@ -65,9 +65,10 @@ Four things about the schema are worth knowing before you write one, and each
 closes a way of being silently wrong:
 
 - **Each document leads with a version key.** A format change is then an error
-  rather than a misread. The training file states version 2, which may carry a
-  `cluster` section; a file that states version 1 still reads, and a `cluster`
-  section in it is an error.
+  rather than a misread. The training file states version 3, which may carry a
+  `cluster` section and the `deterministic` key; a file that states version 2
+  or 1 still reads, a `deterministic` key in it is an error, and a `cluster`
+  section in a version 1 file is an error.
 - **`units` is an output width only.** The input width is chained from
   `input.features`, so a dimension mismatch between adjacent layers is not
   expressible.
@@ -85,7 +86,7 @@ closes a way of being silently wrong:
 
 ### Starting weights, a schedule and data from files
 
-Six optional parts of `train.json`:
+Seven optional parts of `train.json`:
 
 | Key | Holds |
 | --- | --- |
@@ -94,7 +95,8 @@ Six optional parts of `train.json`:
 | `seed` | An integer of 0 or above, 0 when absent. It seeds the random sites of the training graph, which today are the dropout layers. The `seed` of a `data` block is a different key: it seeds the data |
 | `schedule` | `{ "type": "step", "base_rate": ..., "warmup_iterations": ..., "warmup_power": ..., "steps": [...], "scales": [...] }`. A file with a schedule states its rate there: `learning_rate` in `optimizer` is then an error |
 | `data` with `reader` | A dataset read from files, in place of `type` |
-| `cluster` | Version 2 only. The replicas that train the model on several machines. Its fields are in `modules/core/distribution/README.md` |
+| `deterministic` | Version 3 only. A boolean, `true` when absent. While it is `true`, the same files, seed and device give the same weights after every step, bit for bit, and a key that asks for an unordered path is refused when the file is read, naming the key. `false` opens such paths. No key asks for one yet: the data loader hands batches over in index order whatever `workers` and `prefetch` say |
+| `cluster` | Version 2 and later. The replicas that train the model on several machines. Its fields are in `modules/core/distribution/README.md` |
 
 A `data` block with `reader`:
 

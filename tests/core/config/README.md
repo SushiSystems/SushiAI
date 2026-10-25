@@ -376,6 +376,24 @@ The seeds "seven" and 0.5 each raise an error naming `'seed'`.
 A file with `"seed": -3` parses, and `read_run_seed` fails with `InvalidDescription` and a
 message containing `'train.json'`, `'seed'` and "-3".
 
+### ARunIsDeterministicUnlessTheFileSaysOtherwise
+
+A version 3 file without the `deterministic` key parses with `spec.deterministic` true.
+
+### TheDeterministicKeyReadsBackAsStated
+
+A version 3 file with `"deterministic": false` parses with `spec.deterministic` false, and one
+with `true` parses with it true.
+
+### ADeterministicKeyThatIsNoBooleanNamesTheKey
+
+`"deterministic": 1` raises an error naming `'deterministic'`.
+
+### ADeterministicKeyInAVersionTwoFileIsRefused
+
+A version 2 file that states `deterministic` is refused as an unknown key, naming
+`'deterministic'`.
+
 ### ADataBlockWithAReaderTakesTheReaderType
 
 A `data` block with `reader`, `task` and `root` and no `type` gets the type

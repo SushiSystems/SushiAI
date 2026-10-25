@@ -262,6 +262,36 @@ TEST(Medium_ThreadedLoader, BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead)
                   RecordingDataset::name_of(3, index));
 }
 
+/** @brief Tests that two loaders of different thread and read-ahead counts deliver alike. */
+TEST(Medium_ThreadedLoader, TwoLoadersOfDifferentWidthDeliverTheSameEpochsInTheSameOrder)
+{
+    constexpr std::int64_t K_EPOCHS = 2;
+
+    Probe narrow_probe;
+    Probe wide_probe;
+    const std::unique_ptr<Data::ThreadedLoader> narrow = make_loader(narrow_probe, 1, 1);
+    const std::unique_ptr<Data::ThreadedLoader> wide = make_loader(wide_probe, 4, 6);
+    ASSERT_NE(narrow, nullptr);
+    ASSERT_NE(wide, nullptr);
+
+    Data::Batch narrow_batch;
+    Data::Batch wide_batch;
+    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
+    {
+        narrow_probe.asked.store(-1);
+        wide_probe.asked.store(-1);
+        Data::begin_epoch(*narrow, epoch);
+        Data::begin_epoch(*wide, epoch);
+
+        for (std::size_t index = 0; index < K_BATCHES; ++index)
+        {
+            const std::string expected = RecordingDataset::name_of(epoch, index);
+            EXPECT_EQ(read_name(*narrow, narrow_probe, index, narrow_batch), expected);
+            EXPECT_EQ(read_name(*wide, wide_probe, index, wide_batch), expected);
+        }
+    }
+}
+
 /** @brief Tests that a loader with reads queued and running is destroyed without a read. */
 TEST(Medium_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
 {

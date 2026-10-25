@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-141
+Next id: RW-142
 
 ## Next
 
@@ -697,3 +697,13 @@ Four of the seven end in the generator's cut.
 - Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
 
 The seam has one implementation, the shape-ratio rule, until this split.
+
+### RW-141 Refuse `if_absent: "local"` under `deterministic: true`
+- State: open
+- Done when: a training file whose cluster section lets a replica fall back to the master is
+  refused while `deterministic` is true, naming both keys, and the tests and examples that use the
+  fallback state `deterministic: false`
+- Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
+
+The owner ruled on 2026-10-25 that a key asking for an unordered path is refused under
+`deterministic: true`. The fallback runs a replica on other hardware, so its bits differ.

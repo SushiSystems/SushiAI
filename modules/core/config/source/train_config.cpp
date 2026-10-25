@@ -43,6 +43,13 @@ namespace SushiAI
             constexpr std::string_view K_TRAIN_KEYS[] = {
                 "sushiai_train", "model", "objective", "data", "optimizer",
                 "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
+                "deterministic",
+            };
+
+            /** @brief Every key a train document before K_TRAIN_DETERMINISTIC_VERSION may carry. */
+            constexpr std::string_view K_TRAIN_KEYS_BEFORE_DETERMINISTIC[] = {
+                "sushiai_train", "model", "objective", "data", "optimizer",
+                "schedule", "epochs", "seed", "weights", "resume", "checkpoint", "cluster",
             };
 
             /** @brief Every key a train document before K_TRAIN_CLUSTER_VERSION may carry. */
@@ -153,10 +160,12 @@ namespace SushiAI
         TrainSpec parse_train(const Value& root, std::string_view origin,
                               const std::filesystem::path& base)
         {
-            // A version before K_TRAIN_CLUSTER_VERSION refuses "cluster" as an unknown key.
+            // An older version refuses the keys it predates as unknown keys.
             const std::int64_t version = read_train_version(root, origin);
             if (version < K_TRAIN_CLUSTER_VERSION)
                 root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_CLUSTER));
+            else if (version < K_TRAIN_DETERMINISTIC_VERSION)
+                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_DETERMINISTIC));
             else
                 root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS));
 
@@ -205,6 +214,11 @@ namespace SushiAI
 
             // The section stays opaque here, as "schedule" does; an absent key leaves null.
             spec.cluster = root.at_or("cluster", Value());
+
+            // No key asks for an unordered path yet, so a true value refuses none.
+            const Value ordered = Value::boolean(true);
+            spec.deterministic = root.at_or("deterministic", ordered)
+                                     .as_bool("'" + origin_text + "'s 'deterministic'");
 
             return spec;
         }

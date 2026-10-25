@@ -11,6 +11,7 @@ dispatch: check that the YOLO26 model file builds — haiku medium, 26 turns, pa
 dispatch: U1 c2f and c3 — sonnet medium, 49 turns, passed, rung 1
 dispatch: U2 detect options — sonnet medium, 71 turns, passed, rung 1
 dispatch: U10 shape-ratio assignment — opus low, 43 turns, passed, rung 1
+dispatch: U15 deterministic key — sonnet medium, 44 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -54,3 +55,19 @@ scatter order; and `neighbour_offset` is limited to [0, 0.5].
 Darknet's `head_delta.cpp` assigns and writes deltas in one pass and does not go through the new
 seam, so `best_shape` has no `AssignmentRule` type yet. Splitting it waits for a build that runs
 the Darknet parity suites (RW-140).
+
+## 6. U15, written and not built
+
+`TrainSpec::deterministic` is read from training file version 3, true when absent; versions 1 and
+2 refuse the key as unknown, and the import writes version 3. A new loader case checks that one
+worker and four workers with another prefetch deliver the same two epochs.
+
+The order audit found every path ordered: the loader hands batch `index` by slot whatever its
+workers; sample order is `EpochPermutation(seed, epoch, count)`; augmentation, dropout, replica
+draws and initialisation are counter-based or seeded once; the `unordered_map` loops in
+`eager/session.cpp` only set flags or collect tensors to zero; clocks only time. The region
+executors were searched for the patterns, not read line by line.
+
+One unordered path sits behind a key: a cluster replica's `if_absent: "local"` runs a lost
+worker's replica on the master's device. Under `deterministic: true` it is to be refused
+(RW-141).

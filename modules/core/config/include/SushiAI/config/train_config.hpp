@@ -41,10 +41,13 @@ namespace SushiAI
     namespace Config
     {
         /** @brief The train-file version this build writes; it reads this one and every older. */
-        inline constexpr std::int64_t K_TRAIN_VERSION = 2;
+        inline constexpr std::int64_t K_TRAIN_VERSION = 3;
 
         /** @brief The first train-file version that may carry the "cluster" key. */
         inline constexpr std::int64_t K_TRAIN_CLUSTER_VERSION = 2;
+
+        /** @brief The first train-file version that may carry the "deterministic" key. */
+        inline constexpr std::int64_t K_TRAIN_DETERMINISTIC_VERSION = 3;
 
         /** @brief The standalone data-file version this build reads. */
         inline constexpr std::int64_t K_DATA_VERSION = 1;
@@ -121,6 +124,15 @@ namespace SushiAI
              * This module reads none of it; @c Distribution::ClusterSection::read does.
              */
             Value cluster;
+
+            /**
+             * @brief The "deterministic" key; true gives the same weights from the same
+             *        files, seed and device, bit for bit.
+             *
+             * While it is true, a key that asks for an unordered path is refused when the file
+             * is read, naming the key. No key asks for one today.
+             */
+            bool deterministic = true;
 
             /** @brief The directory the file's relative paths resolve against. */
             std::filesystem::path base;

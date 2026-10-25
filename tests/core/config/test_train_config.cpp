@@ -404,11 +404,11 @@ TEST(Medium_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 TEST(Medium_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_ERROR((void)train_from(R"({
-        "sushiai_train": 3, "model": "m.json",
+        "sushiai_train": 4, "model": "m.json",
         "objective": {"type": "cross_entropy"},
         "data": {"type": "rings"},
         "optimizer": {"type": "adamw"}
-    })"), "version 3", "version 2");
+    })"), "version 4", "version 3");
 }
 
 /** @brief Tests that a version 1 file without a cluster section still reads. */
@@ -439,6 +439,57 @@ TEST(Medium_TrainConfig, AVersionTwoFileCarriesTheClusterUnread)
 
     ASSERT_EQ(spec.cluster.kind(), Kind::Object);
     EXPECT_TRUE(spec.cluster.has("unread_here"));
+}
+
+/** @brief Tests that a file that does not state "deterministic" asks for a deterministic run. */
+TEST(Medium_TrainConfig, ARunIsDeterministicUnlessTheFileSaysOtherwise)
+{
+    const TrainSpec spec = train_from(R"({
+        "sushiai_train": 3, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"}
+    })");
+
+    EXPECT_TRUE(spec.deterministic);
+}
+
+/** @brief Tests that "deterministic" reads back as the file states it, true or false. */
+TEST(Medium_TrainConfig, TheDeterministicKeyReadsBackAsStated)
+{
+    const std::string head = R"({
+        "sushiai_train": 3, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "deterministic": )";
+
+    EXPECT_FALSE(train_from(head + "false}").deterministic);
+    EXPECT_TRUE(train_from(head + "true}").deterministic);
+}
+
+/** @brief Tests that "deterministic" must be a boolean and names the key when it is not. */
+TEST(Medium_TrainConfig, ADeterministicKeyThatIsNoBooleanNamesTheKey)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 3, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "deterministic": 1
+    })"), "'deterministic'");
+}
+
+/** @brief Tests that a version 2 file that states "deterministic" is refused, naming the key. */
+TEST(Medium_TrainConfig, ADeterministicKeyInAVersionTwoFileIsRefused)
+{
+    SA_EXPECT_ERROR((void)train_from(R"({
+        "sushiai_train": 2, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"type": "rings"},
+        "optimizer": {"type": "adamw"},
+        "deterministic": false
+    })"), "'deterministic'");
 }
 
 TEST(Medium_TrainConfig, ParsesAnEvalDocument)

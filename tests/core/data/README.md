@@ -122,6 +122,11 @@ With 3 workers and a prefetch of 4, reading indices 0 to 11 returns the batch na
 each time. At least one and at most three threads called `read`, and the test's own thread is
 not among them.
 
+### TwoLoadersOfDifferentWidthDeliverTheSameEpochsInTheSameOrder
+
+A loader of 1 worker and a prefetch of 1 and a loader of 4 workers and a prefetch of 6 read
+epochs 0 and 1 over indices 0 to 11. Both return "<epoch>:<index>" for every batch.
+
 ### ReadsNoFurtherAheadThanThePrefetchCount
 
 With 4 workers and a prefetch of 3, no read started more than 3 indices ahead of the index the

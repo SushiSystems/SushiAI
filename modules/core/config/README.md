@@ -50,17 +50,21 @@ Each header is named by its include path under `include/`.
 | `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
-| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
+| `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_TRAIN_DETERMINISTIC_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events` |
 | `SushiAI/config/registry.hpp` | `find_entry` |
 | `SushiAI/config/section_reader.hpp` | `KeySpan`, `member_of`, `entry_of`, `list_quoted`, `read_real`, `read_whole`, `read_float32`, `read_string`, `read_array`, `SectionReader` |
 
 ## Training file versions
 
-`parse_train` reads version 1 and version 2 (`K_TRAIN_VERSION`) and writes none itself; the
-importer writes `K_TRAIN_VERSION`, which is 2. The `cluster` key is allowed from
-`K_TRAIN_CLUSTER_VERSION`, 2, and is an error in a version 1 file. `TrainSpec::cluster` holds the
-section as a `Value`, null when the file has none. `TrainSpec::base` is the directory relative
+`parse_train` reads versions 1 to 3 (`K_TRAIN_VERSION`) and writes none itself; the
+importer writes `K_TRAIN_VERSION`, which is 3. The `cluster` key is allowed from
+`K_TRAIN_CLUSTER_VERSION`, 2, and is an error in a version 1 file. The `deterministic` key is
+allowed from `K_TRAIN_DETERMINISTIC_VERSION`, 3, and is an error in an older file.
+`TrainSpec::cluster` holds the section as a `Value`, null when the file has none.
+`TrainSpec::deterministic` is `true` when the file does not state the key, and the importer
+writes none. A key that asks for an unordered path is refused while it is `true`, naming the
+key; no such key exists today, so nothing is refused yet. `TrainSpec::base` is the directory relative
 paths resolve against.
 
 ## Reading a document as events
