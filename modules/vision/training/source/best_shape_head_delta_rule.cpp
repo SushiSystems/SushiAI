@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* darknet_head_delta_rule.cpp                                            */
+/* best_shape_head_delta_rule.cpp                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,12 +20,12 @@
 /**************************************************************************/
 
 /**
- * @file darknet_head_delta_rule.cpp
- * @brief Implements DarknetHeadDeltaRule over compute_head_delta and measure_head_cost.
+ * @file best_shape_head_delta_rule.cpp
+ * @brief Implements BestShapeHeadDeltaRule over compute_head_delta and measure_head_cost.
  * @author Mustafa Garip
  */
 
-#include <SushiAI/vision/training/darknet_head_delta_rule.hpp>
+#include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
 
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +34,7 @@
 
 namespace SushiAI::Vision::Training
 {
-    Status DarknetHeadDeltaRule::check(const Detect::Anchor::AnchorLayout&,
+    Status BestShapeHeadDeltaRule::check(const Detect::Anchor::AnchorLayout&,
                                        SushiRuntime::span<const AnchorHead> heads) const
     {
         for (const AnchorHead& head : heads)
@@ -49,12 +49,12 @@ namespace SushiAI::Vision::Training
         return Status();
     }
 
-    Result<Detect::Anchor::HeadCost> DarknetHeadDeltaRule::compute(
+    Result<Detect::Anchor::HeadCost> BestShapeHeadDeltaRule::compute(
         const HeadDeltaBatch& batch, SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const
     {
         SA_FATAL_IF(batch.outputs.size() != batch.heads.size()
                         || deltas.size() != batch.heads.size(),
-                    "the Darknet rule was given {} outputs and {} deltas for {} heads",
+                    "the best-shape rule was given {} outputs and {} deltas for {} heads",
                     batch.outputs.size(), deltas.size(), batch.heads.size());
 
         for (std::size_t head = 0; head < batch.heads.size(); ++head)

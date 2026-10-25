@@ -30,7 +30,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/detect/anchor/shape_ratio_assignment.hpp>
-#include <SushiAI/vision/training/darknet_head_delta_rule.hpp>
+#include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 namespace SushiAI::Vision::Training
@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Training
                     ::SushiAI::Detail::SeamPhase::Allocate, []()
                 {
                     return std::shared_ptr<const HeadDeltaRule>(
-                        std::make_shared<DarknetHeadDeltaRule>());
+                        std::make_shared<BestShapeHeadDeltaRule>());
                 });
             case Detect::Anchor::AssignmentRuleKind::ShapeRatio:
                 SA_TRY(Detect::Anchor::validate_shape_ratio_options(choice.shape_ratio));

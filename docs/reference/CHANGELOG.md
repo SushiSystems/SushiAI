@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-26 — training: Renamed the delta rule of the best-shape assignment `BestShapeHeadDeltaRule`, after what it does (`best_shape_head_delta_rule.hpp`).
+- 2026-10-26 — training: Added the decoder that turns a batch's one-to-many ports into boxes in input pixels and class probabilities (`free_batch_decoder.hpp`).
 - 2026-10-26 — examples: Added training and evaluation files over coco128 for YOLOv3-tiny and YOLOv4-tiny, whose models the Darknet import writes, and for YOLOv5n, trained from scratch (`applications/examples/yolov3_tiny/train.json`).
 - 2026-10-26 — programs: Added a test that trains an anchor model two steps through the `anchor` run row and reports its checkpoint (`test_anchor_run.cpp`).
 - 2026-10-26 — programs: Made a training file whose cluster replica falls back to the master refused while `deterministic` is true, naming both keys (`training_cluster_section.hpp`).

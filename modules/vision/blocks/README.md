@@ -66,11 +66,12 @@ that comment.
 
 ## Notes on the blocks
 
-The first five headers are the composite blocks of YOLO26; `c3.hpp` and `c2f.hpp` add two rows
-over the same blocks. Each of their blocks is an
-`NN::TraceModule`, and each has a factory with the `NodeFactory` signature. Source for those five:
-MG 2.10, with the state names of MG 2.11. PLAN unit U11. The other four hold the attention blocks
-and the head; their source is `docs/agent/2026_10_07_YOLO26/PLAN.md`, units U6 to U9.
+Each header holds a composite block built from convolutions, batch normalisation and
+activations: `conv_norm.hpp` the convolution unit, `bottleneck.hpp`, `c3k.hpp`, `c3.hpp`,
+`c3k2.hpp` and `c2f.hpp` the residual and split-and-merge stacks, `sppf.hpp` the pooled pyramid
+of one input. Each block is an `NN::TraceModule`, and each has a factory with the `NodeFactory`
+signature. The attention blocks and the heads come after them in the table. Their source is
+`docs/agent/2026_10_07_YOLO26/PLAN.md`, units U6 to U11.
 
 ### conv_norm.hpp
 

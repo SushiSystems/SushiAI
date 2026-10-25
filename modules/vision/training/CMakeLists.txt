@@ -13,12 +13,13 @@ sushiai_add_module(NAME training TIER vision
         source/anchor_objective_factory.cpp
         source/anchor_training_loop.cpp
         source/anchor_training_step.cpp
-        source/darknet_head_delta_rule.cpp
+        source/best_shape_head_delta_rule.cpp
         source/dice_objective.cpp
         source/dice_targets.cpp
         source/distribution_expectation_graph.cpp
         source/distribution_focal_loss.cpp
         source/free_assignment_stage.cpp
+        source/free_batch_decoder.cpp
         source/free_bias_init.cpp
         source/free_detection_loss.cpp
         source/free_detection_loss_host.cpp

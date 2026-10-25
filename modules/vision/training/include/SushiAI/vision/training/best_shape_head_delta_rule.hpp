@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* darknet_head_delta_rule.hpp                                            */
+/* best_shape_head_delta_rule.hpp                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,8 +20,8 @@
 /**************************************************************************/
 
 /**
- * @file darknet_head_delta_rule.hpp
- * @brief Declares the head delta rule of Darknet: compute_head_delta and measure_head_cost.
+ * @file best_shape_head_delta_rule.hpp
+ * @brief Declares the head delta rule of the best-shape assignment.
  * @author Mustafa Garip
  * @see modules/vision/training/README.md
  */
@@ -36,8 +36,8 @@
 
 namespace SushiAI::Vision::Training
 {
-    /** @brief Computes each head's delta and cost as Darknet's YOLO layer does. */
-    class DarknetHeadDeltaRule final : public HeadDeltaRule
+    /** @brief Computes each head's delta and cost with compute_head_delta and measure_head_cost. */
+    class BestShapeHeadDeltaRule final : public HeadDeltaRule
     {
         public:
             /**

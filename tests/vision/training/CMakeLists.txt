@@ -18,6 +18,7 @@ sushiai_add_test_program(OWNER vision/training
         test_distribution_expectation_graph.cpp
         test_distribution_focal_loss.cpp
         test_free_assignment_stage.cpp
+        test_free_batch_decoder.cpp
         test_free_bias_init.cpp
         test_free_detection_loss.cpp
         test_free_loss_gains.cpp

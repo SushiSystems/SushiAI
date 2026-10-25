@@ -36,7 +36,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
-#include <SushiAI/vision/training/darknet_head_delta_rule.hpp>
+#include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
 #include <SushiAI/vision/training/head_delta_loss.hpp>
 
 namespace SushiAI::Vision::Training
@@ -91,7 +91,7 @@ namespace SushiAI::Vision::Training
                                                      []()
         {
             return std::shared_ptr<const HeadDeltaRule>(
-                std::make_shared<DarknetHeadDeltaRule>());
+                std::make_shared<BestShapeHeadDeltaRule>());
         }));
 
         return make(network, std::move(layout), std::move(heads), std::move(rule));

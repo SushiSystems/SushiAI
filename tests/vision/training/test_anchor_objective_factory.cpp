@@ -42,7 +42,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
-#include <SushiAI/vision/training/darknet_head_delta_rule.hpp>
+#include <SushiAI/vision/training/best_shape_head_delta_rule.hpp>
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 using namespace SushiAI;
@@ -107,7 +107,7 @@ TEST(Small_AnchorObjectiveFactory, TheDefaultAssignmentPicksTheDarknetRule)
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             build_anchor_objective(make_context(), section_from("{}")));
 
-    EXPECT_NE(dynamic_cast<const Vision::Training::DarknetHeadDeltaRule*>(&objective.rule()),
+    EXPECT_NE(dynamic_cast<const Vision::Training::BestShapeHeadDeltaRule*>(&objective.rule()),
               nullptr);
 }
 

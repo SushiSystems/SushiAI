@@ -22,6 +22,10 @@ dispatch: wire the shape-ratio rule — opus low, 112 turns, passed, rung 1
 dispatch: U5 model files — sonnet medium, 44 turns, passed, rung 1
 dispatch: U7 anchor-free loss graph — opus low, 76 turns, passed, rung 1
 dispatch: RW-141 local fallback refusal — sonnet low, 45 turns, passed, rung 1
+dispatch: U9 anchor-free inference row — opus low, 64 turns, passed, rung 1
+dispatch: U13a YOLOv4-tiny and YOLOv5n example files — sonnet low, 22 turns, passed, rung 1
+dispatch: review of 81b1f5f..HEAD — opus low, scan depth, passed, rung 1
+dispatch: rename the best-shape rule — sonnet low, 13 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -181,3 +185,17 @@ the objective must declare the `[reg_max, 1]` bin-value leaf the expectation mul
 
 The gradcheck covers box, class and L1 together where the predicted and target boxes share an
 aspect ratio, since a central difference cannot see a weight held constant elsewhere.
+
+## 15. Review of the commits so far
+
+A scan-depth review of `81b1f5f..HEAD` found no `vision/blocks` dependency in `vision/training`, no
+unordered container added to a module, no `throw` added, and no generation name in a key or
+value. It found the Darknet-named delta rule, now named after its assignment kind, and a blocks
+page that described its rows by a generation. The switch over `AssignmentRuleKind` sits in two
+files, `assignment_section.cpp` and `head_delta_rule_choice.cpp`; with two kinds the set is
+closed enough to keep it, and a third kind moves the choice to one type per kind. The review did
+not read the assignment and loss code line by line for tie order.
+
+The anchor-free inference report suppresses with the best class of each anchor, as Ultralytics'
+prediction does; its validator suppresses with every class above the confidence, so the mAP here
+can differ from Ultralytics' on the same weights.
