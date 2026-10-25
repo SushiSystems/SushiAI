@@ -37,6 +37,7 @@ endif()
 set(SUSHIAI_PROGRAM_SHARED
     source/registries.cpp source/epoch_loop.cpp source/trainer_run.cpp source/training_run.cpp
     source/inference_run.cpp source/run_start.cpp source/training_setup.cpp
+    source/training_program.cpp source/inference_program.cpp
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 
 add_executable(sushiai_train

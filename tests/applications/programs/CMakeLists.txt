@@ -76,6 +76,8 @@ sushiai_add_test_program(APPLICATION programs
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/registries.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_setup.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_program.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_program.cpp"
         ${SUSHIAI_PROGRAM_TEST_CLUSTER}
         ${SUSHIAI_PROGRAM_TEST_DOMAINS}
     DEPENDS
