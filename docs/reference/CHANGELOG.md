@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — build: Fixed a sibling's option default written by its own `option()` counting as the user's value; only a `-D` value is (`SushiAIDistributedOptions.cmake`).
 - 2026-10-24 — distribution: Breaking change: Made a replica's draws follow the step its position pack names, so a replica started at any step draws what an uninterrupted run draws there (`replica_position.hpp`).
 - 2026-10-24 — graph: Added `CompiledStep::run_at()`, which runs a step under a run index the caller names (`compiled_step.hpp`).
 - 2026-10-24 — programs: Made the cluster master warn once per replica and cause when a replica's work falls back to it (`replica_fallback_warning.hpp`).

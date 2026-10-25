@@ -9,10 +9,10 @@
 
 # sushiai_follow_distributed_option(<option> <help>)
 #
-# SushiAI owns <option> when the cache has no entry for it, or holds the value SushiAI wrote
-# there last, kept in the internal entry SA_WROTE_<option>. An owned option follows
-# SA_ENABLE_DISTRIBUTED. Any other value was set by the user, with -D or by editing the cache,
-# and is kept; if it is OFF while SA_ENABLE_DISTRIBUTED is ON, the configure stops, since the
+# SushiAI owns <option> when the cache has no entry for it, holds the value SushiAI wrote there
+# last (kept in the internal entry SA_WROTE_<option>), or holds a default the sibling's option()
+# wrote, as an older build tree does. An owned option follows SA_ENABLE_DISTRIBUTED. A value
+# given with -D, which carries CMake's command-line help text, is the user's and is kept; if it is OFF while SA_ENABLE_DISTRIBUTED is ON, the configure stops, since the
 # distribution module links the sibling's distributed layer and cannot build without it.
 function(sushiai_follow_distributed_option option help)
     set(owned OFF)
@@ -24,6 +24,13 @@ function(sushiai_follow_distributed_option option help)
             set(current ON)
         endif()
         if("${current}" STREQUAL "$CACHE{SA_WROTE_${option}}")
+            set(owned ON)
+        endif()
+    else()
+        # A value given with -D carries CMake's own help text; any other was written by the
+        # sibling's option() call as its default, which an older build tree keeps, and is ours.
+        get_property(set_by_hand CACHE ${option} PROPERTY HELPSTRING)
+        if(NOT set_by_hand STREQUAL "No help, variable specified on the command line.")
             set(owned ON)
         endif()
     endif()
