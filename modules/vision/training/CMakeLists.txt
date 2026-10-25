@@ -8,6 +8,7 @@
 
 sushiai_add_module(NAME training TIER vision
     SOURCES
+        source/anchor_bias_init.cpp
         source/anchor_objective.cpp
         source/anchor_objective_factory.cpp
         source/anchor_training_loop.cpp
@@ -16,6 +17,7 @@ sushiai_add_module(NAME training TIER vision
         source/dice_targets.cpp
         source/distribution_expectation_graph.cpp
         source/distribution_focal_loss.cpp
+        source/free_assignment_stage.cpp
         source/free_bias_init.cpp
         source/free_model_facts.cpp
         source/head_delta_loss.cpp

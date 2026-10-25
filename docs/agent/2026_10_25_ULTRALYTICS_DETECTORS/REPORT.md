@@ -15,6 +15,8 @@ dispatch: U15 deterministic key — sonnet medium, 44 turns, passed, rung 1
 dispatch: U3 distribution focal loss — opus low, 58 turns, passed, rung 1
 dispatch: U4 task section and facts — opus low, 76 turns, passed, rung 1
 dispatch: U11 shape-ratio loss — opus low, 42 turns, passed, rung 1
+dispatch: U12 yolov5n file and anchor biases — sonnet medium, 77 turns, passed, rung 1
+dispatch: U6 anchor-free assignment stage — opus low, 41 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -114,3 +116,14 @@ pass the comment checker and the syntax check.
 Left for the next dispatch: the training step does not call the unit yet, since the anchor
 objective carries no assignment choice and its cost is Darknet's; and the box gradient
 differentiates CIoU's `alpha`, which Ultralytics holds constant.
+
+## 10. U6, written and not built
+
+`FreeAssignmentStage` joins the one-to-many ports of every level, decodes the distances (the
+distribution expectation when `reg_max` is above 1), takes the sigmoid of the scores, runs the
+TaskAlignedAssigner with the task's settings and fills ten leaves per level, roles
+`free.<kind>.level<l>`, plus `free.target_scores_sum`. Top-k ties go to the lower index and a
+contested anchor to the first truth of the largest overlap, as the assigner already does. One case
+is pinned on purpose: anchors inside a truth whose alignment metric is 0 can win the top-k by
+index and become foreground with a target score of 0, as Ultralytics' assigner allows. Three
+switches over the closed `FreeLeafKind` name, size and source the leaves.

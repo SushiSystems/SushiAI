@@ -8,6 +8,7 @@
 
 sushiai_add_test_program(OWNER vision/training
     SOURCES
+        test_anchor_bias_init.cpp
         test_anchor_objective.cpp
         test_anchor_objective_factory.cpp
         test_anchor_training_loop.cpp
@@ -16,6 +17,7 @@ sushiai_add_test_program(OWNER vision/training
         test_dice_targets.cpp
         test_distribution_expectation_graph.cpp
         test_distribution_focal_loss.cpp
+        test_free_assignment_stage.cpp
         test_free_bias_init.cpp
         test_free_model_facts.cpp
         test_head_delta_loss.cpp

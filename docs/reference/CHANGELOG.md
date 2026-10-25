@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-25 — training: Added the start of an anchor head's objectness and class biases from the strides derived from the model file and its trace (`anchor_bias_init.hpp`).
+- 2026-10-25 — training: Added the host side of an anchor-free step, which decodes the one-to-many ports, runs the TaskAlignedAssigner and fills the loss leaves of every level (`free_assignment_stage.hpp`).
 - 2026-10-25 — detect: Added the shape-ratio loss of an anchor head level and its delta, with the training section's `box_gain`, `class_gain` and `objectness_gain` (`shape_ratio_delta.hpp`).
 - 2026-10-25 — detect: Added the `anchor_free_detection` task section, which holds the thresholds and the assigner settings a model cannot state (`free_task.hpp`).
 - 2026-10-25 — training: Added the anchor-free facts derived from a traced model's detect ports, and the start of the head's last biases from the derived strides (`free_model_facts.hpp`, `free_bias_init.hpp`).
