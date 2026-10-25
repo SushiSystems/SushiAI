@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — umbrella: Added `step_recording.hpp`, and `replica_serve_observer.hpp` under `SA_DISTRIBUTED`, to the umbrella header (`SushiAI.hpp`).
 - 2026-10-25 — build: Fixed every file that names `SushiBLAS::TaskRecorder` relying on SushiBLAS's `engine.hpp` to include it (`task_recorder.hpp`).
 - 2026-10-25 — build: Fixed a sibling's option default written by its own `option()` counting as the user's value; only a `-D` value is (`SushiAIDistributedOptions.cmake`).
 - 2026-10-24 — distribution: Breaking change: Made a replica's draws follow the step its position pack names, so a replica started at any step draws what an uninterrupted run draws there (`replica_position.hpp`).

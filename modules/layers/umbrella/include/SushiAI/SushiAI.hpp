@@ -78,6 +78,7 @@
 #include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/graph/traced.hpp>
@@ -168,6 +169,7 @@
 #include <SushiAI/distribution/host_access.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
+#include <SushiAI/distribution/replica_serve_observer.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
