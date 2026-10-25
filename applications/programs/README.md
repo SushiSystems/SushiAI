@@ -37,6 +37,8 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp`, `worker_arguments.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `training_cluster_section.hpp`, `training_cluster_section.cpp` | `read_training_cluster`: reads the cluster section of a training file and refuses a replica with `if_absent: "local"` while `deterministic` is true; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
+| `training_program.hpp`, `training_program.cpp` | `run_training_file` and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
+| `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
 A distributed build links the first set into every program. `sushiai_train` then trains a
 `cluster` section on the master, and `sushiai_worker` serves the replica named by its `--name`
@@ -140,7 +142,7 @@ holds the same dropout sites under the same seed. No run traces a training graph
 The objective registry returns a `Train::Objective`, and `AnchorTrainingStep::make` takes a
 `Vision::Training::AnchorObjective`. The anchor run calls `build_anchor_objective` with the
 same context and section the registry row was given, so it holds the typed objective without a
-cast. The two are built from the same values and declare the same leaves.
+cast. The two are built from the same values and declare the same leaves. A fresh anchor run, with no `resume` and no `weights`, first adds the stride-derived objectness and class biases of `initialize_anchor_biases` to every head, whichever assignment rule its task states.
 
 ### The rate before each update
 

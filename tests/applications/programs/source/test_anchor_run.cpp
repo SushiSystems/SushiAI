@@ -26,29 +26,26 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <utility>
+#include <vector>
 #include <gtest/gtest.h>
-#include "inference_run.hpp"
+#include "inference_program.hpp"
 #include "registries.hpp"
-#include "training_run.hpp"
 #include "training_setup.hpp"
+#include "training_program.hpp"
 #include <SushiAI/SushiAI.hpp>
-#include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/checkpoint.hpp>
-#include <SushiAI/io/run_checkpoint.hpp>
-#include <SushiAI/nn/model_state.hpp>
-#include <SushiAI/optim/optimizer_registry.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
-#include <SushiAI/train/evaluation_step.hpp>
+#include <SushiAI/vision/training/anchor_bias_init.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/applications/programs/README.md.
@@ -103,40 +100,21 @@ namespace
     }
 
     /**
-     * @brief Runs `sushiai train` over the fixture as the program does, up to the checkpoint.
-     * @param summary Takes what the run reports.
-     * @param steps Takes the updates the optimizer has taken.
-     * @return The first failure of the setup, the run or the save.
+     * @brief Runs `sushiai train` over the fixture through the assembly the program runs.
+     * @return The outcome of the run, or the first failure of the setup, the run or the save.
      */
-    Status train_the_fixture(SushiBLAS::Engine& engine, const std::filesystem::path& checkpoint,
-                             Apps::RunSummary& summary, std::uint64_t& steps)
+    Result<Apps::TrainingOutcome> train_the_fixture(SushiBLAS::Engine& engine,
+                                                    const std::filesystem::path& checkpoint)
     {
         const Config::TrainSpec spec = Config::parse_train(
             Config::parse_json(training_text(checkpoint), "<test>"), "<test>",
             fixture_directory());
-        const Config::ModelSpec model_spec = Config::load_model(spec.model_path);
-
-        SA_TRY_ASSIGN(const Apps::Registries registries, Apps::compose_registries());
-        SA_TRY_ASSIGN(const std::unique_ptr<Apps::TrainingSetup> setup,
-                      Apps::TrainingSetup::make(registries, spec, model_spec, engine, K_SEED));
-        SA_TRY_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                      Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters(),
-                                            spec.optimizer_attributes, "the optimizer block"));
-
-        Apps::PreparedRun prepared{
-            engine, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
-            setup->state(), setup->pool(), *optimizer, setup->take_updates(), nullptr, {},
-        };
-        SA_TRY_ASSIGN(summary,
-                      Apps::run_training(registries.runs, spec.objective_type, prepared));
-        steps = optimizer->step_count();
-        return IO::save_run_checkpoint(spec.checkpoint, setup->state(), *optimizer,
-                                       summary.progress);
+        return Apps::run_training_file("<test>", spec, engine);
     }
 
     /**
-     * @brief Runs `sushiai inference` over the fixture as the program does, through the report
-     *        table, and prints the report of the task type of the model file.
+     * @brief Runs `sushiai inference` over the fixture through the assembly the program runs,
+     *        which prints the report of the task type of the model file.
      * @return The first failure of the build, the load or the report.
      */
     Status report_the_fixture(SushiBLAS::Engine& engine, const std::filesystem::path& checkpoint)
@@ -146,36 +124,7 @@ namespace
         const Config::DataSpec data_spec = Config::parse_data(
             Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}", "<test>"),
             "<test>");
-
-        SA_TRY_ASSIGN(const Apps::Registries registries, Apps::compose_registries());
-        SA_TRY_ASSIGN(const Config::Value fitted,
-                      Config::fit_data_to_model(data_spec.attributes, model_spec,
-                                                model_path.string()));
-        SA_TRY_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
-                      Data::make_dataset(registries.datasets, engine, data_spec.type, fitted,
-                                         "the data block"));
-
-        SA_TRY_ASSIGN(NN::ModelGraph model, NN::build_model(registries.nodes, model_spec));
-        SA_TRY_ASSIGN(const Shape batch_shape,
-                      Train::batch_shape(dataset->batch_size(), dataset->sample_shape()));
-        Train::GraphOptions options;
-        options.dtype = model_spec.input_dtype;
-        SA_TRY_ASSIGN(const Train::TracedStep traced,
-                      Train::build_evaluation_graph(model, batch_shape, options));
-
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        SA_TRY(IO::load_checkpoint(checkpoint, state));
-        Graph::TensorPool pool(engine);
-        SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                      Train::EvaluationStep::make(engine, traced, state, pool));
-
-        Apps::PreparedInference prepared{
-            model_path, checkpoint, model_spec, model.size(), *dataset, *step,
-            traced.outputs.all(), engine, &model, &state,
-        };
-        const std::string& task =
-            model_spec.task.at("type", "the task section").as_string("the task type");
-        return Apps::report_inference(registries.inferences, task, prepared);
+        return Apps::run_inference_file(model_path, checkpoint, model_spec, data_spec, engine);
     }
 
 } // namespace
@@ -184,16 +133,14 @@ namespace
 TEST_F(Medium_AnchorRun, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
 {
     const SaTest::ScratchFile checkpoint("sushiai_anchor_run_train.sushi");
-    Apps::RunSummary summary;
-    std::uint64_t steps = 0;
 
     testing::internal::CaptureStdout();
-    const Status trained = train_the_fixture(*engine, checkpoint.path(), summary, steps);
+    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
     const std::string printed = testing::internal::GetCapturedStdout();
 
-    SA_EXPECT_OK(trained);
-    EXPECT_EQ(steps, K_STEPS) << printed;
-    EXPECT_EQ(summary.compile_count, 1u) << printed;
+    ASSERT_TRUE(trained.has_value()) << trained.status().message() << printed;
+    EXPECT_EQ(trained.value().optimizer_steps, K_STEPS) << printed;
+    EXPECT_EQ(trained.value().summary.compile_count, 1u) << printed;
     EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
 }
 
@@ -201,13 +148,11 @@ TEST_F(Medium_AnchorRun, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
 TEST_F(Medium_AnchorRun, TheAnchorReportReadsTheCheckpointOfTheRun)
 {
     const SaTest::ScratchFile checkpoint("sushiai_anchor_run_report.sushi");
-    Apps::RunSummary summary;
-    std::uint64_t steps = 0;
 
     testing::internal::CaptureStdout();
-    const Status trained = train_the_fixture(*engine, checkpoint.path(), summary, steps);
+    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
     testing::internal::GetCapturedStdout();
-    ASSERT_TRUE(trained.is_ok()) << trained.message();
+    ASSERT_TRUE(trained.has_value()) << trained.status().message();
 
     testing::internal::CaptureStdout();
     const Status reported = report_the_fixture(*engine, checkpoint.path());
@@ -221,4 +166,49 @@ TEST_F(Medium_AnchorRun, TheAnchorReportReadsTheCheckpointOfTheRun)
     EXPECT_NE(printed.find("Mean average precision at IoU 0.5"), std::string::npos) << printed;
     EXPECT_NE(printed.find("of " + std::to_string(K_IMAGES) + " images"), std::string::npos)
         << printed;
+}
+
+/** @brief Tests that a fresh anchor run starts the head's biases from the stride of its level. */
+TEST_F(Medium_AnchorRun, AFreshAnchorRunStartsTheObjectnessAndClassBiasesFromTheStride)
+{
+    // The fixture's head is 8 by 8 over a 16 by 16 input: stride 2, two anchors, two classes.
+    constexpr std::int64_t K_SLOTS = 2;
+    constexpr std::int64_t K_CHANNELS = Vision::Detect::Anchor::K_FIRST_CLASS_ENTRY + 2;
+    // Two SGD updates at rate 0.001 move a bias by far less than this.
+    constexpr double K_TOLERANCE = 0.5;
+    const double objectness = std::log(8.0 / (320.0 * 320.0));
+    const double classes = std::log(0.6 / (2.0 - 0.99));
+
+    const SaTest::ScratchFile checkpoint("sushiai_anchor_run_bias.sushi");
+    testing::internal::CaptureStdout();
+    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
+    testing::internal::GetCapturedStdout();
+    ASSERT_TRUE(trained.has_value()) << trained.status().message();
+
+    const Config::ModelSpec model_spec = Config::load_model(fixture_directory() / "model.json");
+    const Config::TrainSpec spec = Config::parse_train(
+        Config::parse_json(training_text(checkpoint.path()), "<test>"), "<test>",
+        fixture_directory());
+    const Apps::Registries registries = Apps::compose_registries().value();
+    const std::unique_ptr<Apps::TrainingSetup> setup =
+        Apps::TrainingSetup::make(registries, spec, model_spec, *engine, K_SEED).value();
+    SA_EXPECT_OK(IO::load_checkpoint(checkpoint.path(), setup->state()));
+
+    const Vision::Detect::Anchor::AnchorTask task =
+        Vision::Detect::Anchor::read_anchor_task(setup->given().task).value();
+    const std::vector<Vision::Training::AnchorBiasHead> heads =
+        Vision::Training::derive_anchor_bias_heads(model_spec, setup->given().input_sample, task,
+                                                   setup->given().outputs)
+            .value();
+    ASSERT_EQ(heads.size(), 1u);
+    EXPECT_EQ(heads[0].stride, 2);
+
+    const SushiBLAS::Tensor* const bias = setup->state().tensor(heads[0].bias).value();
+    const float* const values = bias->data_as<float>();
+    for (std::int64_t slot = 0; slot < K_SLOTS; ++slot)
+    {
+        const float* const entries = values + slot * K_CHANNELS;
+        EXPECT_NEAR(entries[Vision::Detect::Anchor::K_OBJECTNESS_ENTRY], objectness, K_TOLERANCE);
+        EXPECT_NEAR(entries[Vision::Detect::Anchor::K_FIRST_CLASS_ENTRY], classes, K_TOLERANCE);
+    }
 }

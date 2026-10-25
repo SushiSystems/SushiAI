@@ -3,10 +3,10 @@
 Suites: `Medium_AnchorRun`, in `sushiai_programs_tests`.
 
 Runs the `anchor` row of the run table and the `anchor_detection` row of the report table over
-a fixture, each through the steps the program takes: `TrainingSetup::make`, `run_training`,
-`save_run_checkpoint`, then `load_checkpoint`, `EvaluationStep::make` and `report_inference`. The
-two helpers in the file repeat the assembly of `train.cpp` and `inference.cpp`, which hold it in
-their `main`.
+a fixture, each through the function the program calls: `run_training_file` of
+`training_program.hpp` and `run_inference_file` of `inference_program.hpp`. `train.cpp` and
+`inference.cpp` keep only their arguments and their exit code, so a change to the assembly
+reaches this test.
 
 The fixture is `tests/applications/programs/fixtures/tiny_yolo/`: a model file of two
 convolutions with one head of two anchors and two classes over a 16 by 16 input, and a

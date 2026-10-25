@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — programs: Made a fresh anchor run start each head's objectness and class biases from its stride, and the anchor run test call the shared assembly (`domains_vision.cpp`).
 - 2026-10-26 — programs: Moved the training and inference assembly out of the two mains into functions the program tests call (`training_program.hpp`, `inference_program.hpp`).
 - 2026-10-26 — detect: Made the host stages refuse non-finite predictions on entry and ordered every selection totally under NaN, ties by index (`float_order.hpp`).
 - 2026-10-26 — examples: Added training and evaluation files over coco128 for the yolov8n, yolo11n and yolo26 models, trained from scratch with the `anchor_free` objective (`applications/examples/yolov8n/train.json`).

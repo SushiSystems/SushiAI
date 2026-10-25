@@ -62,6 +62,7 @@
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/registration/registration.hpp>
+#include <SushiAI/vision/training/anchor_bias_init.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
@@ -97,11 +98,28 @@ namespace SushiAI
             }
 
             /**
-             * @brief Trains a model with anchor heads through AnchorTrainingStep.
+             * @brief Starts the objectness and class biases of every anchor head of @p run from
+             *        the stride of its level, as Ultralytics' YOLOv5 does.
+             * @return The failure of the model or task read, of the head lookup or of the write.
+             */
+            [[nodiscard]] Status start_anchor_biases(PreparedRun& run)
+            {
+                const Config::ModelSpec model = Config::load_model(run.spec.model_path);
+                SA_TRY_ASSIGN(const Vision::Detect::Anchor::AnchorTask task,
+                              Vision::Detect::Anchor::read_anchor_task(run.given.task));
+                SA_TRY_ASSIGN(const std::vector<Vision::Training::AnchorBiasHead> heads,
+                              Vision::Training::derive_anchor_bias_heads(
+                                  model, run.given.input_sample, task, run.given.outputs));
+                return Vision::Training::initialize_anchor_biases(task, heads, run.state);
+            }
+
+            /**
+             * @brief Trains a model with anchor heads through AnchorTrainingStep, first starting
+             *        the objectness and class biases when no checkpoint or weights are read.
              * @return The compile count of the training pass and where the run stands;
              *         InvalidDescription when the forward-only pass was not compiled exactly
-             *         once; or the first failure of the objective, of the step, of the start
-             *         or of run_anchor_training.
+             *         once; or the first failure of the objective, of the bias start, of the
+             *         step, of the start or of run_anchor_training.
              */
             [[nodiscard]] Result<RunSummary> run_anchor(PreparedRun& run)
             {
@@ -109,6 +127,11 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Vision::Training::AnchorObjective objective,
                               Vision::Training::build_anchor_objective(
                                   run.given, run.spec.objective_attributes));
+
+                if (run.spec.resume.empty() && run.spec.weights.empty())
+                {
+                    SA_TRY(start_anchor_biases(run));
+                }
 
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::AnchorTrainingStep> step,
