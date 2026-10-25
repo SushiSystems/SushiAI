@@ -63,3 +63,10 @@ as the anchors, the heads and the suppression criterion.
 
 A state filled from the imported tensors equals, byte for byte, the state `store_darknet_weights`
 fills. The imported tensors supply every entry exactly once.
+
+## TheWrittenFilesLoadAsTheImport
+
+`check_written_import` writes the import into a scratch directory: three files. The written
+`model.json`, read back and written again, is the text of the imported model; the written
+`train.json` is the text `compose_training_file` gives. `load_checkpoint` fills a state built
+from the read-back model with the bytes of the state `store_darknet_weights` fills.

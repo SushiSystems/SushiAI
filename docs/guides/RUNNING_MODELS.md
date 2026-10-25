@@ -107,6 +107,7 @@ A `data` block with `reader`:
 | `batch_size` | 16 | |
 | `input` | required | `[height, width]` of the network input |
 | `channels` | 3 | |
+| `fit` | The model file's, else `letterbox` for `detection` and `segmentation` and `resize` for the other tasks | `resize` scales each axis on its own; `letterbox` scales both by one ratio and pads. A `fit` other than the model file's is an error |
 | `classes` | The count the samples name | `yolo_txt` requires it |
 | `max_objects` | required for `detection` | The object slots of one image; an image with more is an error |
 | `cache`, `cache_side` | none, 0 | A directory of raw images written on the first pass and read afterwards; `cache_side` bounds the longest side |

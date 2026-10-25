@@ -29,12 +29,15 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <utility>
+
+#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
-#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 
@@ -56,8 +59,9 @@ namespace SushiAI
 
             /**
              * @brief Reads the input's size from the first section into @p progress.
-             * @return Unsupported naming the line of an unknown key or of `letter_box=1`;
-             *         InvalidDescription for a width, height or channel count below 1.
+             * @return Unsupported naming the line of an unknown key; InvalidDescription for a
+             *         `letter_box` other than 0 or 1, or a width, height or channel count
+             *         below 1.
              */
             [[nodiscard]] Status read_network(const DarknetSection& net,
                                               Detail::TranslationProgress& progress)
@@ -66,9 +70,8 @@ namespace SushiAI
 
                 SA_TRY_ASSIGN(const std::int64_t letter_box,
                               Detail::read_integer(net, "letter_box", 0));
-                SA_FAIL_IF(letter_box != 0, StatusCode::Unsupported,
-                           "line {}: letter_box={} is not translated; the model reads a tensor "
-                           "of the network's size",
+                SA_FAIL_IF(letter_box != 0 && letter_box != 1, StatusCode::InvalidDescription,
+                           "line {}: letter_box={}; Darknet reads 0 or 1",
                            Detail::find_option(net, "letter_box")->line, letter_box);
 
                 Detail::LayerValue& input = progress.input;
@@ -84,6 +87,8 @@ namespace SushiAI
                 progress.model.network.height = input.height;
                 progress.model.network.width = input.width;
                 progress.model.spec.input_shape = Shape{input.height, input.width, input.channels};
+                progress.model.spec.input_fit =
+                    std::string(letter_box == 1 ? Config::K_FIT_LETTERBOX : Config::K_FIT_RESIZE);
                 return Status();
             }
 

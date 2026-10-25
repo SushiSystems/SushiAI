@@ -44,6 +44,12 @@ namespace SushiAI
         /** @brief Holds the model-file version this build writes and the newest it reads. */
         inline constexpr std::int64_t K_MODEL_VERSION = 2;
 
+        /** @brief Names the fit that scales each axis of an image to the input on its own. */
+        inline constexpr std::string_view K_FIT_RESIZE = "resize";
+
+        /** @brief Names the fit that scales both axes by one ratio and pads the rest. */
+        inline constexpr std::string_view K_FIT_LETTERBOX = "letterbox";
+
         /** @brief Marks a resolved @ref SourceSpec that reads the model input, not a row. */
         inline constexpr std::int64_t K_MODEL_INPUT = -1;
 
@@ -97,6 +103,12 @@ namespace SushiAI
 
             /** @brief Names the element type of the input: float32, or int32 for indices. */
             DType input_dtype = DType::Float32;
+
+            /**
+             * @brief Names how an image is fitted to the input: @ref K_FIT_RESIZE,
+             *        @ref K_FIT_LETTERBOX, or empty when the file states none.
+             */
+            std::string input_fit;
 
             /** @brief The layers, in application order. */
             std::vector<LayerSpec> layers;

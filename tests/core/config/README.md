@@ -133,7 +133,7 @@ Tests `Config::write_model`. Three models are parsed from text in the file. The 
 three rows and states neither `from` nor `outputs`. The full model has a `defaults` block, an
 attribute of every JSON kind, every form of a `from` entry and every form of an `outputs`
 entry. The task model has a `task` with a value of every JSON kind. A round trip parses the
-written text and compares the input shape and type, each layer's type, attributes and sources,
+written text and compares the input shape, type and fit, each layer's type, attributes and sources,
 the outputs and the task, with a real compared bit for bit. The two example cases locate the
 repository through `SA_TEST_FIXTURE_DIR` and report themselves skipped when it is not defined.
 
@@ -142,6 +142,11 @@ repository through `SA_TEST_FIXTURE_DIR` and report themselves skipped when it i
 The text of a float32 model does not contain "dtype". With `input_dtype` set to int32 the text
 contains `"dtype": "int32"` and reads back as int32. With float64 the write fails with
 `InvalidDescription` and "float64".
+
+### WritesTheInputFitOnlyWhenOneIsStated
+
+The text of a model with no fit does not contain `"fit"`. With `input_fit` set to "resize" the
+text contains `"fit": "resize"` and reads back as "resize".
 
 ### RoundTripsTheMNISTExample
 

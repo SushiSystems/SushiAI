@@ -6,6 +6,7 @@ An internal module: only the test programs link it, its headers are never instal
 
 `ScratchFile`, a named file under the temporary directory. It removes a file a previous run
 left under that name when it is made, and removes the file again when it goes.
+`ScratchDirectory` does the same for a directory and everything in it.
 
 ## Depends on
 
@@ -17,4 +18,5 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
+| `SushiAI/scratch_files/scratch_directory.hpp` | `ScratchDirectory` |
 | `SushiAI/scratch_files/scratch_file.hpp` | `ScratchFile` |

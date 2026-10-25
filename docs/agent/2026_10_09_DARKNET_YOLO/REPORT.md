@@ -1612,3 +1612,17 @@ each (`000000000036`, `000000000042`) gave no detection above 0.25.
 
 The training file states `"ignore_threshold": 0.699999988079071`: the writer prints the float32
 value widened to double, where the `.cfg` says `.7`.
+
+### T2 and T3, written and not built
+
+T2: the model file's `input` block takes `fit` (`model_config.hpp`, `model_writer.cpp`), the
+import writes it from `letter_box` and accepts 1 (`darknet_model.cpp`),
+`Config::fit_data_to_model()` hands it to the data block (`data_fit.hpp`), and a data or section
+`fit` chooses the dataset's fit (`task_dataset.cpp`). T3: `check_written_import()` writes the
+import into a `SaTest::ScratchDirectory` and reads the three files back
+(`darknet_import.cpp`, `test_import.cpp`).
+
+The owner cancelled the B1 build on 2026-10-25 before it finished, and ruled that no build runs
+until the five models of the Ultralytics plan are written. Nothing of T2 or T3 has been compiled
+beyond single files. The build must confirm the `Small_DataFit`, `ModelConfig`, `ModelWriter`,
+`DatasetsReaderSection`, `DarknetModel` and `DarknetImport` cases, and the T0 filter again.

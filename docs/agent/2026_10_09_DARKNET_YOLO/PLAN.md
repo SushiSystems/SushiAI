@@ -56,16 +56,18 @@ boxes in source pixels; otherwise they stay in the backlog.
 | Point | After | What the owner runs |
 | --- | --- | --- |
 | B0 | nothing | `sa build`, then `sa test -l medium -f "DarknetYolov3Tiny\|DarknetDecode\|DarknetImportEndToEnd"` with `SA_REFERENCE_DATA_DIR` set (T0); T1 is a run of `sa import` and `sa inference` |
-| B1 | T2, T3 | `sa build`, the gating tests and the T0 filter again |
+| B1 | T2, T3 | `sa build`, the gating tests and the T0 filter again; the owner cancelled it on 2026-10-25 and builds once YOLO26, YOLO11, YOLOv8, YOLOv5 and YOLOv4-tiny are written |
 | B2 | T4, T5, T6 | `sa build`, the gating tests, then the runs of T7 |
 | B3 | T7 | the runs of T8 and T9; no build unless they find a defect |
 
 ## 5. Where the fit lives
 
-The owner ruled on 2026-10-25 that the fit lives in the task section of the model file. The import
-writes `letter_box`, and the vision driver reads it and hands the fit to the dataset. The fit
-travels with the weights that were trained under it, so an `eval.json` written by hand cannot
-disagree with it. A data block that names its own fit is refused when it differs from the model's.
+The owner ruled on 2026-10-25 that the fit lives in the `input` block of the model file, as
+`"fit": "resize"` or `"fit": "letterbox"`. The import writes it from the `.cfg`'s `letter_box`,
+and the train and inference programs hand it to the data block through `fit_data_to_model()`
+before the dataset is made. A data block may state `fit`; one that states another fit than the
+model's is refused. A section's `fit` replaces the task's default. Darknet's letterbox pads with
+0.5 and may scale up, while SushiAI's pads with 114 and never does (RW-138).
 
 ## 6. Not verified
 

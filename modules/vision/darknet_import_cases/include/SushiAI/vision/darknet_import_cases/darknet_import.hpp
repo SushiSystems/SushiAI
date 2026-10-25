@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
@@ -88,6 +89,15 @@ namespace SushiAI
          *        of the state store_darknet_weights fills from the translation, entry by entry.
          */
         void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run);
+
+        /**
+         * @brief Writes the import of @p run into @p directory and checks that the written
+         *        model and training files read back as the import, and that load_checkpoint
+         *        fills a state with the bytes of the state store_darknet_weights fills.
+         * @param directory Absent or empty; the three files are written into it.
+         */
+        void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
+                                  const std::filesystem::path& directory);
 
         /** @brief Imports the model its parameter names; skips when a file of it is missing. */
         class DarknetImportTest : public EngineTest,

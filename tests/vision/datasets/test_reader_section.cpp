@@ -405,6 +405,39 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
     EXPECT_EQ(read->values.data_as<std::int32_t>()[2], 2);
 }
 
+/** @brief Tests that a detection section stating "fit": "resize" stretches instead of padding. */
+TEST_F(Medium_DatasetsReaderSection, ADetectionSectionStatingResizeStretchesTheImages)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_resize");
+    write_yolo_split(scratch);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Data::Dataset> dataset,
+        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+            "split": "train", "batch_size": 2, "input": [4, 4], "max_objects": 2,
+            "classes": 3, "fit": "resize")")));
+
+    Data::Batch batch;
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
+
+    // A uniform 255 image stretched to 4 by 4 leaves no padding, so row 0 is 1 as well.
+    constexpr float K_SCALE_TOLERANCE = 1e-6f;
+    EXPECT_NEAR(batch.inputs.data_as<float>()[0], 1.0f, K_SCALE_TOLERANCE);
+}
+
+/** @brief Tests that a "fit" naming no fit is refused with the names of the fits. */
+TEST_F(Medium_DatasetsReaderSection, AFitOutsideTheListIsRefused)
+{
+    const Support::ScratchDirectory scratch("sushiai_test_datasets_section_fit");
+    write_yolo_split(scratch);
+
+    SA_EXPECT_FAILURE(
+        build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+            "split": "train", "input": [4, 4], "max_objects": 2, "classes": 3,
+            "fit": "crop")")),
+        StatusCode::InvalidDescription, "data 'fit' is 'crop'", "'resize', 'letterbox'");
+}
+
 /** @brief Tests that a classification section takes the class count of its folders. */
 TEST_F(Medium_DatasetsReaderSection, AClassificationSectionTakesTheClassesOfTheList)
 {

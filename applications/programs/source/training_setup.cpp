@@ -31,6 +31,7 @@
 #include <memory>
 #include <string_view>
 #include <utility>
+#include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
@@ -81,9 +82,12 @@ namespace SushiAI
             const Config::ModelSpec& model_spec, SushiBLAS::Engine& engine,
             std::uint64_t seed, std::optional<std::int64_t> rows, SetupScope scope)
         {
+            SA_TRY_ASSIGN(const Config::Value data_block,
+                          Config::fit_data_to_model(spec.data.attributes, model_spec,
+                                                    spec.model_path.string()));
             SA_TRY_ASSIGN(std::unique_ptr<Data::Dataset> dataset,
                           Data::make_dataset(registries.datasets, engine, spec.data.type,
-                                             spec.data.attributes, "the data block"));
+                                             data_block, "the data block"));
 
             const Shape sample_shape = dataset->sample_shape();
             SA_FAIL_IF(sample_shape != model_spec.input_shape, StatusCode::InvalidDescription,

@@ -270,6 +270,35 @@ TEST(Small_ModelConfig, TheInputElementTypeIsFloat32UnlessTheFileStatesInt32)
     EXPECT_EQ(indices.input_dtype, SushiAI::DType::Int32);
 }
 
+/** @brief Tests that a stated "fit" is kept as written and an absent one is the empty name. */
+TEST(Small_ModelConfig, TheInputFitIsKeptAsTheFileStatesIt)
+{
+    const SushiAI::Config::ModelSpec unstated = model_from(R"({
+        "format_version": 2, "input": {"shape": [8]}, "layers": [{"type": "relu"}]
+    })");
+    const SushiAI::Config::ModelSpec stated = model_from(R"({
+        "format_version": 2, "input": {"shape": [4, 4, 3], "fit": "resize"},
+        "layers": [{"type": "relu"}]
+    })");
+
+    EXPECT_TRUE(unstated.input_fit.empty());
+    EXPECT_EQ(stated.input_fit, "resize");
+}
+
+/** @brief Tests that a "fit" outside the two names, or no string, is refused. */
+TEST(Small_ModelConfig, AnInputFitOutsideTheListIsAnError)
+{
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "fit": "crop"},
+        "layers": [{"type": "relu"}]
+    })"), "'input' 'fit'", "'crop'", "'resize' or 'letterbox'");
+
+    SA_EXPECT_ERROR((void)model_from(R"({
+        "format_version": 2, "input": {"shape": [8], "fit": 1},
+        "layers": [{"type": "relu"}]
+    })"), "'input' 'fit'");
+}
+
 /** @brief Tests that an input element type the reader does not list, or no string, is refused. */
 TEST(Small_ModelConfig, AnInputElementTypeOutsideTheListIsAnError)
 {

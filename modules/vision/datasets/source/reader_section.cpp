@@ -51,7 +51,7 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_SHARED_KEYS[] = {
             Detail::K_READER_KEY, Detail::K_TASK_KEY, Detail::K_ROOT_KEY,
             Detail::K_SPLIT_KEY, Detail::K_BATCH_SIZE_KEY, Detail::K_INPUT_KEY,
-            Detail::K_CHANNELS_KEY, Detail::K_CLASSES_KEY, Detail::K_CACHE_KEY,
+            Detail::K_CHANNELS_KEY, Detail::K_CLASSES_KEY, Detail::K_FIT_KEY, Detail::K_CACHE_KEY,
             Detail::K_CACHE_SIDE_KEY, Detail::K_SHUFFLE_KEY, Detail::K_SEED_KEY,
             Detail::K_PIPELINE_KEY, Detail::K_WORKERS_KEY, Detail::K_PREFETCH_KEY,
         };

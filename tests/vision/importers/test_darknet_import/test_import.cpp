@@ -40,6 +40,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/imported_model.hpp>
+#include <SushiAI/scratch_files/scratch_directory.hpp>
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/darknet_import_cases/darknet_import.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
@@ -265,6 +266,16 @@ TEST_P(Medium_DarknetImportEndToEnd, TheImportedRowsAndTaskAreThoseOfTheTranslat
 TEST_P(Medium_DarknetImportEndToEnd, TheImportedWeightsAreThoseOfTheDirectStore)
 {
     SaTest::check_imported_weights(*engine, run);
+}
+
+/**
+ * @brief Tests that the three files the import writes read back as the import, and that the
+ *        written weights load into a state equal to the direct store's.
+ */
+TEST_P(Medium_DarknetImportEndToEnd, TheWrittenFilesLoadAsTheImport)
+{
+    const SaTest::ScratchDirectory directory("sushiai_test_darknet_written_import");
+    SaTest::check_written_import(*engine, run, directory.path());
 }
 
 INSTANTIATE_TEST_SUITE_P(ParityModels, Medium_DarknetImportEndToEnd,

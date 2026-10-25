@@ -7,7 +7,11 @@ into, and `parse_json` and `parse_json_file` build it. The model document parses
 `ModelSpec` and its `LayerSpec` rows, and the training and data documents parse into `TrainSpec`
 and `DataSpec`. `ModelSpec::input_dtype` holds the optional `dtype` of the `input` object:
 `float32` when the key is absent, or `int32` for a model whose first row reads indices; any
-other text is refused with the two names. `ModelSpec::task` holds the `task` object of a model file as a `Value`: the
+other text is refused with the two names. `ModelSpec::input_fit` holds the optional `fit` of the
+`input` object: `K_FIT_RESIZE` or `K_FIT_LETTERBOX`, empty when the key is absent, and any other
+text is refused with the two names. `fit_data_to_model` hands that fit to a data block that
+states none, keeps a block that states the same, and returns `InvalidDescription` naming both
+for a block that states another. `ModelSpec::task` holds the `task` object of a model file as a `Value`: the
 module checks that it is an object with a string `type` and reads nothing else in it, so it
 names no task type. `TrainSpec::schedule` holds the `schedule` object of a training file the same
 way, null when the file has none; this module checks nothing in it, and `Optim::read_rate_schedule`
@@ -43,7 +47,8 @@ Each header is named by its include path under `include/`.
 | --- | --- |
 | `SushiAI/config/value.hpp` | `Kind`, `kind_name`, `Value` with its static factories `boolean`, `integer`, `real`, `string`, `array` and `object`, and its accessors `as_bool`, `as_int`, `as_real`, `as_string`, `as_array`, `has`, `at`, `at_or`, `reject_unknown_keys`, `without`, `require_version`, `parse_json`, `parse_json_file` |
 | `SushiAI/config/json_writer.hpp` | `K_JSON_EXPANDED_DEPTH`, `write_json` |
-| `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
+| `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
+| `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
 | `SushiAI/config/model_writer.hpp` | `write_model` |
 | `SushiAI/config/train_config.hpp` | `K_TRAIN_VERSION`, `K_TRAIN_CLUSTER_VERSION`, `K_DATA_VERSION`, `K_READER_DATA_TYPE`, `TrainSpec`, `DataSpec`, `parse_train`, `load_train`, `check_start`, `parse_data`, `load_data` |
 | `SushiAI/config/json_events.hpp` | `K_JSON_EVENT_BUFFER_BYTES`, `JSONEvents`, `read_json_events` |

@@ -250,7 +250,7 @@ The `anchor_detection` row reads the section with `read_anchor_task`, binds each
 output it names, decodes every head of a batch with `decode_head` and passes the rows to
 `select_nms_detections` under the criterion of the section. It prints one line per detection:
 the class, the score and the box as `x1 y1 x2 y2` in pixels of the network input, which is
-the letterboxed image and not the file on disk. A detection is printed when its score is
+the image fitted as the model's `fit` says and not the file on disk. A detection is printed when its score is
 above 0.25, and a box is suppressed above a measure of 0.45. Both numbers are constants of
 `domains_vision.cpp`; no file states them.
 

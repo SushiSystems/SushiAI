@@ -61,8 +61,9 @@ namespace SushiAI
             /**
              * @brief Builds the "input" object from the sample shape @p shape.
              * @param dtype Float32, which is left out, or Int32, written as "dtype".
+             * @param fit The fit's name, written as "fit"; left out when empty.
              */
-            Result<Value> input_value(const Shape& shape, DType dtype)
+            Result<Value> input_value(const Shape& shape, DType dtype, const std::string& fit)
             {
                 SA_FAIL_IF(dtype != DType::Float32 && dtype != DType::Int32,
                            StatusCode::InvalidDescription,
@@ -88,12 +89,23 @@ namespace SushiAI
                     extents.push_back(Value::integer(extent));
                 }
 
-                if (dtype == DType::Float32)
-                    return Value::object({"shape"}, {Value::array(std::move(extents))});
+                std::vector<std::string> keys{"shape"};
+                std::vector<Value> values;
+                values.push_back(Value::array(std::move(extents)));
 
-                return Value::object({"shape", "dtype"},
-                                     {Value::array(std::move(extents)),
-                                      Value::string(dtype_name(dtype))});
+                if (dtype != DType::Float32)
+                {
+                    keys.emplace_back("dtype");
+                    values.push_back(Value::string(dtype_name(dtype)));
+                }
+
+                if (!fit.empty())
+                {
+                    keys.emplace_back("fit");
+                    values.push_back(Value::string(fit));
+                }
+
+                return Value::object(std::move(keys), std::move(values));
             }
 
             /** @brief Reports whether row @p row reads what a row without "from" reads. */
@@ -296,7 +308,8 @@ namespace SushiAI
                 keys.emplace_back("format_version");
                 values.push_back(Value::integer(K_MODEL_VERSION));
 
-                SA_TRY_ASSIGN(Value input, input_value(model.input_shape, model.input_dtype));
+                SA_TRY_ASSIGN(Value input, input_value(model.input_shape, model.input_dtype,
+                                                       model.input_fit));
                 keys.emplace_back("input");
                 values.push_back(std::move(input));
 

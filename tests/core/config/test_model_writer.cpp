@@ -192,6 +192,7 @@ namespace
     {
         EXPECT_TRUE(found.input_shape == wanted.input_shape) << "the input shapes differ";
         EXPECT_EQ(found.input_dtype, wanted.input_dtype) << "the input element types differ";
+        EXPECT_EQ(found.input_fit, wanted.input_fit) << "the input fits differ";
 
         ASSERT_EQ(found.layers.size(), wanted.layers.size());
         for (std::size_t i = 0; i < wanted.layers.size(); ++i)
@@ -261,6 +262,19 @@ TEST(Small_ModelWriter, WritesTheInputElementTypeOnlyWhenItIsInt32)
 
     model.input_dtype = DType::Float64;
     SA_EXPECT_FAILURE(write_model(model), StatusCode::InvalidDescription, "float64");
+}
+
+/** @brief Tests that a stated fit is written as "fit" and read back, and an empty one left out. */
+TEST(Small_ModelWriter, WritesTheInputFitOnlyWhenOneIsStated)
+{
+    ModelSpec model = model_from(K_CHAIN_MODEL);
+    SA_ASSERT_OK_AND_ASSIGN(const std::string unstated, write_model(model));
+    EXPECT_EQ(unstated.find("\"fit\""), std::string::npos);
+
+    model.input_fit = "resize";
+    SA_ASSERT_OK_AND_ASSIGN(const std::string stated, write_model(model));
+    EXPECT_NE(stated.find("\"fit\": \"resize\""), std::string::npos) << stated;
+    EXPECT_EQ(model_from(stated).input_fit, "resize");
 }
 
 TEST(Small_ModelWriter, RoundTripsTheMNISTExample)

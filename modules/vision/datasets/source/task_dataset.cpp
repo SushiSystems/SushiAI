@@ -31,12 +31,15 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include <SushiAI/config/model_config.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/fit_pipeline.hpp>
+#include <SushiAI/vision/datasets/fit_sample.hpp>
 #include <SushiAI/vision/datasets/pipeline_table.hpp>
 #include <SushiAI/vision/datasets/reader_dataset.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
@@ -120,12 +123,55 @@ namespace SushiAI::Vision::Datasets::Detail
                 .as_int(named(context, K_BATCH_SIZE_KEY));
         }
 
+        /** @brief Pairs the name a section gives a fit with that fit. */
+        struct FitName
+        {
+            std::string_view name; /**< Holds the name the section writes. */
+            SampleFit fit;         /**< Holds the fit the name selects. */
+        };
+
+        /** @brief Lists the fits a section may name. */
+        constexpr FitName K_FIT_NAMES[] = {
+            {Config::K_FIT_RESIZE, SampleFit::Resize},
+            {Config::K_FIT_LETTERBOX, SampleFit::Letterbox},
+        };
+
+        /**
+         * @brief Reads "fit"; @p fallback when the section states none.
+         * @return The fit; InvalidDescription, with the names of the fits, for a name the list
+         *         lacks.
+         */
+        [[nodiscard]] Result<SampleFit> read_fit(const Config::Value& section,
+                                                 std::string_view context, SampleFit fallback)
+        {
+            if (!section.has(K_FIT_KEY))
+                return fallback;
+
+            const std::string& name =
+                section.at(K_FIT_KEY, context).as_string(named(context, K_FIT_KEY));
+
+            const FitName* found = nullptr;
+            std::string listed;
+            for (const FitName& known : K_FIT_NAMES)
+            {
+                if (known.name == name)
+                    found = &known;
+
+                listed.append(listed.empty() ? "'" : ", '").append(known.name).append("'");
+            }
+
+            SA_FAIL_IF(found == nullptr, StatusCode::InvalidDescription,
+                       "{} is '{}', which is no fit; a fit is one of {}",
+                       named(context, K_FIT_KEY), name, listed);
+            return found->fit;
+        }
+
         /** @brief Reads the input size, the channels and the batch size; the task gives the fit. */
         [[nodiscard]] Result<ReaderDatasetOptions> read_image_options(
             const Config::Value& section, std::string_view context, const TaskEntry& task)
         {
             ReaderDatasetOptions options;
-            options.fit.fit = task.fit;
+            SA_TRY_ASSIGN(options.fit.fit, read_fit(section, context, task.fit));
             SA_TRY_ASSIGN(options.fit.size, read_input_size(section, context));
 
             const Config::Value channels = Config::Value::integer(options.channels);

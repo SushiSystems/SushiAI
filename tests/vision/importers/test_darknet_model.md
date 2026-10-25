@@ -11,11 +11,12 @@ refusal cases use a small 32x32 network. `Medium_DarknetModelState` is an engine
 
 ## SeparateFormHasTheCountedRowsAndSources
 
-The Separate form has 43 rows, the input shape [416, 416, 3] and the `row_of_layer` list the
-case states. Rows 0 to 2 are `conv2d`, `batchnorm2d` and `leaky_relu`, with a slope of 0.1, a
-`bn_epsilon` of 1e-5 and no convolution bias; row 33 has a bias. Row 34 is a `conv2d` that reads
-row 29, and row 38 is a `concat` of rows 37 and 18. Row 23 is a `maxpool2d` of kernel 2, stride 1
-and padding 0 with a trailing padding of 1 and 1, and row 3 has a trailing padding of 0 and 0.
+The Separate form has 43 rows, the input shape [416, 416, 3], the input fit "resize" and the
+`row_of_layer` list the case states. Rows 0 to 2 are `conv2d`, `batchnorm2d` and `leaky_relu`,
+with a slope of 0.1, a `bn_epsilon` of 1e-5 and no convolution bias; row 33 has a bias. Row 34 is
+a `conv2d` that reads row 29, and row 38 is a `concat` of rows 37 and 18. Row 23 is a `maxpool2d`
+of kernel 2, stride 1 and padding 0 with a trailing padding of 1 and 1, and row 3 has a trailing
+padding of 0 and 0.
 
 ## FoldedFormHasNoNormalisationRow
 
@@ -75,10 +76,16 @@ Three unknown keys fail with `Unsupported`: `groups` in a convolution ("line 7",
 "[convolutional]", "'groups'"), `label_smooth_eps` in a head ("line 16", "[yolo]",
 "'label_smooth_eps'") and `crop` in the first section ("line 5", "'crop'").
 
+## LetterBoxSelectsTheFitOfTheInput
+
+The small network with `letter_box=1` in its `[net]` section translates to an input fit of
+"letterbox". With `letter_box=2` the translation fails with `InvalidDescription`, "line 5" and
+"letter_box=2".
+
 ## UntranslatedValuesAreRefusedNamingTheirLine
 
-Three values fail with `Unsupported`: `letter_box=1` ("line 5"), an upsample `scale=2`
-("line 11", "scale 2") and `activation=relu` ("line 6", "'relu'").
+Two values fail with `Unsupported`: an upsample `scale=2` ("line 11", "scale 2") and
+`activation=relu` ("line 6", "'relu'").
 
 ## ValuesThatDoNotFitAreRefusedNamingTheirLine
 

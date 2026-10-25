@@ -7,7 +7,8 @@ Tests `fill_imported_state` and `import_darknet_stem` in
 `modules/vision/darknet_import_cases/include/SushiAI/vision/darknet_import_cases/darknet_import.hpp`.
 The medium cases build a `NN::ModelState` from two entries on the shared runtime and fill it
 from tensors made in memory, so no Darknet file is read. `check_imported_rows` and
-`check_imported_weights` compare a real import against its translation; the suite
+`check_imported_weights` compare a real import against its translation, and
+`check_written_import` compares the files a real import writes against it; the suite
 `DarknetImport` in `tests/vision/importers/test_darknet_import/test_import.cpp` runs them and
 skips when the files of `SA_REFERENCE_DATA_DIR` are absent.
 

@@ -33,7 +33,7 @@ ahead. `TableDataset` collates a list of rows of numbers, which has no image to 
 `make_reader_dataset` builds one of the two datasets from the data section of a training file.
 The section names a reader and a task; the reader table gives the function that lists the
 samples, the task table gives the collator, the fit and the dataset class, and the pipeline
-table gives the pipeline.
+table gives the pipeline. A section's `fit`, `resize` or `letterbox`, replaces the task's.
 
 ## Depends on
 

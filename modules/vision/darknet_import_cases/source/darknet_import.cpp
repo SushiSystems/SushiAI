@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -38,6 +39,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/model_writer.hpp>
 #include <SushiAI/config/value.hpp>
@@ -46,7 +48,9 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
+#include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/imported_model.hpp>
+#include <SushiAI/io/imported_model_writer.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -230,6 +234,44 @@ namespace SushiAI
             ASSERT_TRUE(status_is_ok(fill_imported_state(run.imported.weights, imported)));
 
             expect_same_state(imported, direct);
+        }
+
+        void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
+                                  const std::filesystem::path& directory)
+        {
+            SA_ASSERT_OK_AND_ASSIGN(const IO::WrittenImport written,
+                                    IO::write_imported_model(run.imported, directory,
+                                                             IO::ExistingFiles::Refuse));
+            EXPECT_EQ(written.files.size(), 3u);
+
+            const Config::ModelSpec model =
+                Config::load_model(directory / IO::K_IMPORTED_MODEL_FILE);
+            SA_ASSERT_OK_AND_ASSIGN(const std::string found, Config::write_model(model));
+            SA_ASSERT_OK_AND_ASSIGN(const std::string wanted,
+                                    Config::write_model(run.imported.model));
+            EXPECT_EQ(found, wanted);
+
+            const Config::Value training =
+                Config::parse_json_file(directory / IO::K_IMPORTED_TRAINING_FILE);
+            SA_ASSERT_OK_AND_ASSIGN(const Config::Value composed,
+                                    IO::compose_training_file(run.imported));
+            SA_ASSERT_OK_AND_ASSIGN(const std::string read_back, Config::write_json(training));
+            SA_ASSERT_OK_AND_ASSIGN(const std::string stated, Config::write_json(composed));
+            EXPECT_EQ(read_back, stated);
+
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph direct_graph, build_graph(run.model.spec));
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelState direct,
+                                    NN::ModelState::create(engine, direct_graph));
+            ASSERT_TRUE(status_is_ok(Vision::Importers::store_darknet_weights(
+                run.weights, run.model.convolutions, run.model.targets, direct)));
+
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph loaded_graph, build_graph(model));
+            SA_ASSERT_OK_AND_ASSIGN(NN::ModelState loaded,
+                                    NN::ModelState::create(engine, loaded_graph));
+            ASSERT_TRUE(status_is_ok(
+                IO::load_checkpoint(directory / IO::K_IMPORTED_WEIGHTS_FILE, loaded)));
+
+            expect_same_state(loaded, direct);
         }
 
         void DarknetImportTest::SetUp()

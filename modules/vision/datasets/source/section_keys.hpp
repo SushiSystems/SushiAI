@@ -56,6 +56,9 @@ namespace SushiAI::Vision::Datasets::Detail
     /** @brief Names the key of the class count. */
     inline constexpr std::string_view K_CLASSES_KEY = "classes";
 
+    /** @brief Names the key of how an image is fitted to the input. */
+    inline constexpr std::string_view K_FIT_KEY = "fit";
+
     /** @brief Names the key of the directory of the raw cache. */
     inline constexpr std::string_view K_CACHE_KEY = "cache";
 
@@ -79,7 +82,7 @@ namespace SushiAI::Vision::Datasets::Detail
 
     /** @brief Lists the keys a dataset of images reads and a dataset of rows refuses. */
     inline constexpr std::string_view K_IMAGE_KEYS[] = {
-        K_CACHE_KEY, K_CACHE_SIDE_KEY, K_SHUFFLE_KEY, K_SEED_KEY, K_PIPELINE_KEY,
+        K_FIT_KEY, K_CACHE_KEY, K_CACHE_SIDE_KEY, K_SHUFFLE_KEY, K_SEED_KEY, K_PIPELINE_KEY,
     };
 
     /** @brief Returns "<prefix> '<key>'", what a diagnostic calls one value of a section. */

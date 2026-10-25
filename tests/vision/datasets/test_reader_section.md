@@ -84,6 +84,16 @@ gives a dataset named "yolo_txt" with a batch size of 2, one batch and the sampl
 batch 0 the first input value is 114 / 255, the valid flags of the slots 0 and 2 are 0 and 1,
 and the class of slot 2 is 2.
 
+## ADetectionSectionStatingResizeStretchesTheImages
+
+The same section with `fit` "resize" stretches each uniform 255 image to 4 by 4, so the first
+input value of batch 0 is 1 and no padding is left.
+
+## AFitOutsideTheListIsRefused
+
+A detection section whose `fit` is "crop" fails with `InvalidDescription`, "data 'fit' is
+'crop'" and the names "'resize', 'letterbox'".
+
 ## AClassificationSectionTakesTheClassesOfTheList
 
 A classification section over the folder split with `input` [2, 3] and `channels` 1 gives the

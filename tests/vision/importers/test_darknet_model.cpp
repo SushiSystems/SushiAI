@@ -209,6 +209,7 @@ TEST(Small_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
 
     EXPECT_EQ(model.spec.layers.size(), 43u);
     EXPECT_EQ(model.spec.input_shape, (Shape{416, 416, 3}));
+    EXPECT_EQ(model.spec.input_fit, Config::K_FIT_RESIZE);
     EXPECT_EQ(model.network.height, 416);
     EXPECT_EQ(model.network.width, 416);
     EXPECT_EQ(model.row_of_layer,
@@ -458,13 +459,28 @@ TEST(Small_DarknetModel, AnUnknownKeyIsRefusedNamingItsLine)
                       StatusCode::Unsupported, "line 5", "'crop'");
 }
 
+/** @brief Tests that letter_box=1 gives the letterbox fit and a value past 1 is refused. */
+TEST(Small_DarknetModel, LetterBoxSelectsTheFitOfTheInput)
+{
+    const std::string network = "[net]\nwidth=32\nheight=32\nchannels=3\nletter_box=";
+    const std::string_view small = K_SMALL_NETWORK;
+    const std::string rest = std::string("\n")
+                                 .append(small.substr(small.find("[convolutional]")))
+                                 .append(K_SMALL_HEAD);
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetModel boxed,
+        translate_darknet_text(network + "1" + rest, DarknetNormalisation::Separate));
+    EXPECT_EQ(boxed.spec.input_fit, Config::K_FIT_LETTERBOX);
+
+    SA_EXPECT_FAILURE(
+        translate_darknet_text(network + "2" + rest, DarknetNormalisation::Separate),
+        StatusCode::InvalidDescription, "line 5", "letter_box=2");
+}
+
 /** @brief Tests the values this importer refuses although the key is known. */
 TEST(Small_DarknetModel, UntranslatedValuesAreRefusedNamingTheirLine)
 {
-    const std::string boxed = "[net]\nwidth=32\nheight=32\nchannels=3\nletter_box=1\n";
-    SA_EXPECT_FAILURE(translate_darknet_text(boxed, DarknetNormalisation::Separate),
-                      StatusCode::Unsupported, "line 5", "letter_box=1");
-
     const std::string scaled = std::string(K_SMALL_NETWORK).append("[upsample]\nscale=2\n");
     SA_EXPECT_FAILURE(translate_darknet_text(scaled, DarknetNormalisation::Separate),
                       StatusCode::Unsupported, "line 11", "scale 2");

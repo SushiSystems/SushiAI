@@ -33,6 +33,7 @@
 #include <SushiAI/config/registry.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/config/json_writer.hpp>
 #include <SushiAI/config/model_writer.hpp>
 

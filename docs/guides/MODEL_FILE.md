@@ -106,6 +106,11 @@ without `outputs` publishes every port of its last row.
 first row is an `embedding`. A `language_head` row may state `"tie"` with a row reference in
 the forms above; it then shares the table of that `embedding` row and needs no `vocabulary`.
 
+`input` may state `"fit"`: `"resize"`, which scales each axis of an image to the input on its
+own, or `"letterbox"`, which scales both by one ratio and pads the rest. `sushiai train` and
+`sushiai inference` hand it to a data block that states no `fit`, and refuse one that states
+another. `sushiai import darknet` writes it from the `.cfg`'s `letter_box`.
+
 `task` says what the published outputs mean, for a model whose rows alone do not: a detector's
 anchors, the coding of its heads and its suppression. It is an object, and `type` names the
 task as a string. A `task` that is not an object, has no `type`, or has a `type` of another

@@ -69,11 +69,14 @@ for `greedynms`, and `DistanceIoU` with `beta_nms` for `diounms`.
 
 ## Refusals
 
-A section type or a key outside SPEC 4.1 is `Unsupported`, with its line. So are `letter_box=1`,
-an `[upsample]` `scale` other than 1, an activation outside the list above, an `nms_kind` other
+A section type or a key outside SPEC 4.1 is `Unsupported`, with its line. So are an
+`[upsample]` `scale` other than 1, an activation outside the list above, an `nms_kind` other
 than `greedynms` and `diounms`, and a `[shortcut]` with `weights_type` or an activation other
-than `linear`. A value that is malformed,
-out of range or does not fit the layer it reads is `InvalidDescription`, with its line.
+than `linear`. A value that is malformed, out of range or does not fit the layer it reads is
+`InvalidDescription`, with its line.
+
+The `letter_box` of `[net]` becomes the `fit` of the model's input: 0, the default, is `resize`
+and 1 is `letterbox`; another value is `InvalidDescription`.
 
 The keys `jitter`, `random` and `resize` of a `[yolo]` section are accepted and not read, with the
 training keys.

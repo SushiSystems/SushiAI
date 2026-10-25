@@ -61,7 +61,7 @@ namespace SushiAI
                                                        "layers", "outputs", "task"};
 
             /** @brief Every key the "input" object may carry. */
-            constexpr std::string_view K_INPUT_KEYS[] = {"shape", "dtype"};
+            constexpr std::string_view K_INPUT_KEYS[] = {"shape", "dtype", "fit"};
 
             /** @brief Holds one element type the "input" object may name. */
             struct InputTypeEntry
@@ -250,6 +250,20 @@ namespace SushiAI
                 const std::string dtype_context = context + " 'dtype'";
                 const std::string& stated = input.at("dtype", context).as_string(dtype_context);
                 return find_entry(K_INPUT_TYPES, stated, dtype_context).dtype;
+            }
+
+            /** @brief Reads "fit" of the "input" object; an absent key gives the empty name. */
+            std::string parse_input_fit(const Value& input, const std::string& context)
+            {
+                if (!input.has("fit"))
+                    return std::string();
+
+                const std::string fit_context = context + " 'fit'";
+                const std::string& stated = input.at("fit", context).as_string(fit_context);
+                SA_THROW_IF(stated != K_FIT_RESIZE && stated != K_FIT_LETTERBOX,
+                            "{} is '{}'; a fit is '{}' or '{}'", fit_context, stated,
+                            K_FIT_RESIZE, K_FIT_LETTERBOX);
+                return stated;
             }
 
             /** @brief Returns the text that names the "defaults" block of @p origin. */
@@ -524,6 +538,8 @@ namespace SushiAI
                                                       "'" + std::string(origin) + "'s 'input'");
                 model.input_dtype = parse_input_dtype(root.at("input", origin),
                                                       "'" + std::string(origin) + "'s 'input'");
+                model.input_fit = parse_input_fit(root.at("input", origin),
+                                                  "'" + std::string(origin) + "'s 'input'");
 
                 const Value no_defaults = Value::object({}, {});
                 const Value& defaults = root.at_or("defaults", no_defaults);

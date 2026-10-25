@@ -35,6 +35,7 @@ sushiai_add_test_program(OWNER vision/importers
         darknet_reference
         failure_expectations
         layer_traces
+        scratch_files
         vision/darknet_forward_cases
         vision/darknet_import_cases
         vision/darknet_training_cases)

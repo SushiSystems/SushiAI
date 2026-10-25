@@ -1,11 +1,10 @@
 # Remaining work
 
-Next id: RW-138
+Next id: RW-140
 
 ## Next
 
-- RW-134 The owner ruled that a model fits its images as its `.cfg` says; T2 of the YOLOv3-tiny plan
-- RW-56 The import's written files are what a user trains from, and no test loads them
+- RW-56 The test that loads the import's written files waits for the owner's build
 - RW-132 Neither end of the anchor path has a program-level test
 - RW-133 YOLOv3-tiny has no training file a run can start from
 - RW-48 The milestone: YOLOv3-tiny imported, trained and run from the command line
@@ -298,6 +297,8 @@ smaller `batch_size` stands in for subdivisions.
   text, and `load_checkpoint` accepts each written `weights.sushi`
 
 `ParityModels/Medium_DarknetImportEndToEnd` compares the translation in memory, not the files.
+`TheWrittenFilesLoadAsTheImport` writes the three files, reads them back and compares them with
+the import; it has not been built or run.
 
 ### RW-57 Set detection thresholds in `eval.json` and infer on one image file
 - State: open
@@ -324,14 +325,21 @@ The score threshold 0.25 and the suppression threshold 0.45 are constants in
 
 The import writes `"data": null`, since no `.cfg` names a dataset.
 
-### RW-134 Fit images as the imported `.cfg` says
-- State: open
-- Done when: the import writes the `.cfg`'s `letter_box` into the task section, and the
-  detection task stretches an image under 0 and letterboxes it under 1
 
-The owner ruled on 2026-10-25 that the model follows its `.cfg`. Today the detection task always
-letterboxes (`modules/vision/datasets/source/task_table.cpp`) and the import refuses
-`letter_box=1`, while Darknet stretches under the stock `letter_box=0`.
+### RW-138 Letterbox an imported `letter_box=1` model as Darknet does
+- State: open
+- Done when: an image fitted to a model imported with `letter_box=1` is padded with 0.5 and may be
+  scaled up, as Darknet's `letterbox_image` does, and a test pins one such image
+
+`Imaging::LetterboxSettings` pads with 114 and never scales up, the Ultralytics validation
+settings. A stretch differs too: Darknet maps with `(in - 1) / (out - 1)` per axis
+(`docs/agent/2026_10_09_DARKNET_YOLO/REPORT.md` §3).
+
+### RW-139 Give the tests one scratch directory
+- State: open
+- Done when: the private `ScratchDirectory` classes of `test_imported_model_writer.cpp`,
+  `language/datasets/datasets_test_support.hpp` and `language/text/text_test_support.hpp` are
+  gone and their tests use `SushiAI/scratch_files/scratch_directory.hpp`
 
 ### RW-137 Write a float32 setting as the shortest decimal that reads back
 - State: open

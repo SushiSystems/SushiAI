@@ -38,6 +38,7 @@
 #include <string_view>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
+#include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
@@ -183,9 +184,12 @@ namespace
 
         SA_TRY_ASSIGN(const sa::Apps::Registries registries, sa::Apps::compose_registries());
 
+        SA_TRY_ASSIGN(const sa::Config::Value data_block,
+                      sa::Config::fit_data_to_model(data_spec.attributes, model_spec,
+                                                    model_path.string()));
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Data::Dataset> dataset,
                       sa::Data::make_dataset(registries.datasets, engine, data_spec.type,
-                                             data_spec.attributes, "the data block"));
+                                             data_block, "the data block"));
 
         const sa::Shape sample_shape = dataset->sample_shape();
         SA_FAIL_IF(sample_shape != model_spec.input_shape,

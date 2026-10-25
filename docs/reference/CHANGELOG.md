@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- 2026-10-25 — config: Added `fit` to the model file's `input` block and `Config::fit_data_to_model()`, which hands it to the data block and refuses a block stating another (`model_config.hpp`, `data_fit.hpp`).
+- 2026-10-25 — datasets: Made a data block or section's `fit` choose between stretching and letterboxing an image (`task_dataset.cpp`).
+- 2026-10-25 — importers: Made the Darknet import accept `letter_box=1` and write the `.cfg`'s `letter_box` as the input's fit (`darknet_model.cpp`).
+- 2026-10-25 — programs: Made `sushiai train` and `sushiai inference` fit images as the model file states (`training_setup.cpp`, `inference.cpp`).
+- 2026-10-25 — scratch_files: Added `SaTest::ScratchDirectory`, a test folder removed when it is made and when it ends (`scratch_directory.hpp`).
+- 2026-10-25 — darknet_import_cases: Added `check_written_import()`, which writes an import to disk and reads the three files back (`darknet_import.hpp`).
 - 2026-10-25 — docs: Synced the backlog with the code, closing seventeen entries the code satisfies or another entry holds, and KI-2, and opening the YOLOv3-tiny path's gaps as RW-132 to RW-136 (`REMAINING_WORK.md`, `KNOWN_ISSUES.md`).
 - 2026-10-25 — programs: Made the worker program read its options through SushiRuntime's public `parse_worker_options()` overload instead of an internal header (`sushiai_worker.cpp`).
 - 2026-10-25 — train: Fixed `bind_parameters` leaving the loss without a tensor until the step was compiled, so a replica could not list its loss among its results (`trainer.hpp`).
