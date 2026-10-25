@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — build: Compiled only the units a module names in `DEVICE_SOURCES` for the device, and every other unit for the host with the SYCL headers (`cmake/SushiAISyclTarget.cmake`).
 - 2026-10-26 — engine_fixture: Made the test environment header stop including SushiBLAS's engine, which it does not use, and the trainer tests include the SushiBLAS headers they name (`test_environment.hpp`).
 - 2026-10-26 — graph: Made the fusion selector keep the one device fact it reads, so its header no longer includes SushiBLAS's launch policy (`fusion_selector.hpp`).
 - 2026-10-26 — training: Made the anchor and anchor-free engines share one truth check, one run check and one progress report (`detection_run_check.hpp`).

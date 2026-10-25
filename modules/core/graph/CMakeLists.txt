@@ -30,6 +30,9 @@ sushiai_add_module(NAME graph TIER core
         source/precision.cpp
         source/rematerialise.cpp
         source/tensor_pool.cpp
+    DEVICE_SOURCES
+        source/lowering/elementwise.cpp
+        source/lowering/fused.cpp
     PUBLIC_DEPENDS allocation dtype failure ops seam shape
     PRIVATE_DEPENDS execution
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core SushiLog::text)

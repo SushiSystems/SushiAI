@@ -23,6 +23,10 @@ sushiai_add_module(NAME optim TIER core
         source/step_scalars.cpp
         source/step_schedule.cpp
         source/step_schedule_section.cpp
+    DEVICE_SOURCES
+        source/adamw.cpp
+        source/gradient_clip.cpp
+        source/sgd.cpp
     PUBLIC_DEPENDS config dtype failure graph
     PRIVATE_DEPENDS allocation execution ops seam shape
     EXTERNAL_PUBLIC SushiRuntime::core

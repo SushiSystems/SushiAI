@@ -8,4 +8,4 @@ sushiai_add_module(NAME execution TIER core
     SOURCES
         source/execution.cpp
     PUBLIC_DEPENDS failure seam
-    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::api)
+    EXTERNAL_PUBLIC SushiAI::blas SushiRuntime::api)

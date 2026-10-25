@@ -22,5 +22,5 @@ sushiai_add_module(NAME distribution TIER core
         source/replica_task.cpp
     PUBLIC_DEPENDS config failure graph
     PRIVATE_DEPENDS seam execution allocation hash
-    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::placement SushiRuntime::distributed
+    EXTERNAL_PUBLIC SushiAI::blas SushiRuntime::placement SushiRuntime::distributed
     PUBLIC_DEFINITIONS SA_DISTRIBUTED)

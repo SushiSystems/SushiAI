@@ -133,8 +133,22 @@ function(sushiai_promote_imported)
     endforeach()
 endfunction()
 
+# sushiai_check_device_sources(<target> <sources> <device sources>)
+#
+# Stops the configure when a device source of <target> is not one of its sources, so a
+# misspelt name cannot leave a kernel unit compiled for the host alone.
+function(sushiai_check_device_sources target sources device_sources)
+    foreach(device_source IN LISTS device_sources)
+        list(FIND sources "${device_source}" found)
+        if(found EQUAL -1)
+            message(FATAL_ERROR "sushiai_add_module(${target}): the device source "
+                "${device_source} is not in SOURCES.")
+        endif()
+    endforeach()
+endfunction()
+
 # sushiai_add_module(NAME <module> TIER <tier>
-#     [SOURCES source/<file>.cpp ...]
+#     [SOURCES source/<file>.cpp ...] [DEVICE_SOURCES source/<file>.cpp ...]
 #     [PUBLIC_DEPENDS <module key> ...] [PRIVATE_DEPENDS <module key> ...]
 #     [EXTERNAL_PUBLIC <target> ...] [EXTERNAL_PRIVATE_INCLUDES <target> ...]
 #     [EXTERNAL_PRIVATE_LINKS <target> ...] [PUBLIC_DEFINITIONS <name> ...]
@@ -142,7 +156,9 @@ endfunction()
 #
 # INTERNAL declares a module only the tests use; see sushiai_add_internal_module.
 # Called from modules/<tier>/<module>/CMakeLists.txt. With SOURCES the module
-# is an OBJECT library, without them an INTERFACE one. Its public headers are
+# is an OBJECT library, without them an INTERFACE one. DEVICE_SOURCES names the
+# SOURCES that instantiate a device kernel; only those compile for the device
+# (cmake/SushiAISyclTarget.cmake). Its public headers are
 # include/ and its private ones source/. A dependency is a key of
 # SUSHIAI_MODULE_TIERS, and an edge the tier order refuses stops the configure.
 # EXTERNAL_PRIVATE_INCLUDES takes the include directories and definitions of a
@@ -157,7 +173,7 @@ endfunction()
 # global property SUSHIAI_UNBUILT_MODULES, a module an option leaves out, is checked and not
 # linked.
 function(sushiai_add_module)
-    set(multi_value_keywords SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS EXTERNAL_PUBLIC
+    set(multi_value_keywords SOURCES DEVICE_SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS EXTERNAL_PUBLIC
         EXTERNAL_PRIVATE_INCLUDES EXTERNAL_PRIVATE_LINKS PUBLIC_DEFINITIONS TESTS)
     cmake_parse_arguments(ARG "INTERNAL" "NAME;TIER" "${multi_value_keywords}" ${ARGN})
 
@@ -174,6 +190,7 @@ function(sushiai_add_module)
         endif()
         sushiai_add_internal_module(NAME ${ARG_NAME} TIER ${ARG_TIER}
             SOURCES ${ARG_SOURCES}
+            DEVICE_SOURCES ${ARG_DEVICE_SOURCES}
             PUBLIC_DEPENDS ${ARG_PUBLIC_DEPENDS}
             PRIVATE_DEPENDS ${ARG_PRIVATE_DEPENDS}
             EXTERNAL_PUBLIC ${ARG_EXTERNAL_PUBLIC})
@@ -196,7 +213,8 @@ function(sushiai_add_module)
             CXX_STANDARD 17
             CXX_STANDARD_REQUIRED ON)
         sushiai_apply_build_policy(${target})
-        sushiai_apply_sycl(${target} SOURCES ${ARG_SOURCES})
+        sushiai_check_device_sources(${target} "${ARG_SOURCES}" "${ARG_DEVICE_SOURCES}")
+        sushiai_apply_sycl(${target} DEVICE_SOURCES ${ARG_DEVICE_SOURCES})
         set_property(GLOBAL APPEND PROPERTY SUSHIAI_OBJECTS_${library}
             "$<TARGET_OBJECTS:${target}>")
     else()
@@ -298,7 +316,7 @@ endfunction()
 # include roots of its dependencies alone.
 function(sushiai_add_internal_module)
     cmake_parse_arguments(ARG "" "NAME;TIER"
-        "SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC" ${ARGN})
+        "SOURCES;DEVICE_SOURCES;PUBLIC_DEPENDS;PRIVATE_DEPENDS;EXTERNAL_PUBLIC" ${ARGN})
 
     sushiai_module_key("${ARG_NAME}" "${ARG_TIER}" key)
     sushiai_module_target("${key}" target)
@@ -314,7 +332,8 @@ function(sushiai_add_internal_module)
             CXX_STANDARD 17
             CXX_STANDARD_REQUIRED ON)
         sushiai_apply_build_policy(${target})
-        sushiai_apply_sycl(${target} SOURCES ${ARG_SOURCES})
+        sushiai_check_device_sources(${target} "${ARG_SOURCES}" "${ARG_DEVICE_SOURCES}")
+        sushiai_apply_sycl(${target} DEVICE_SOURCES ${ARG_DEVICE_SOURCES})
     else()
         add_library(${target} INTERFACE)
         set(public_scope INTERFACE)
@@ -428,7 +447,7 @@ function(sushiai_add_library)
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON)
 
-    sushiai_apply_sycl(${ARG_NAME})
+    sushiai_apply_sycl_link(${ARG_NAME})
 
     sushiai_check_umbrella(${ARG_NAME} "${ARG_UMBRELLA}")
 

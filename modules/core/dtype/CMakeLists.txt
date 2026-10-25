@@ -5,4 +5,4 @@
 # Commercial use requires a licence from Sushi Systems.
 
 sushiai_add_module(NAME dtype TIER core
-    EXTERNAL_PUBLIC SushiBLAS::sushiblas)
+    EXTERNAL_PUBLIC SushiAI::blas)

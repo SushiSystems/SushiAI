@@ -6,4 +6,4 @@
 
 sushiai_add_module(NAME shape TIER core
     PUBLIC_DEPENDS dtype failure hash
-    EXTERNAL_PUBLIC SushiBLAS::sushiblas SushiRuntime::core)
+    EXTERNAL_PUBLIC SushiAI::blas SushiRuntime::core)
