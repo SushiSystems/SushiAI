@@ -22,7 +22,7 @@
 
 /**
  * @file test_iou_gradient.cpp
- * @brief Tests both gradients of complete IoU: a finite difference and the dumped deltas.
+ * @brief Tests the gradients of complete IoU: finite differences and the dumped deltas.
  * @author Mustafa Garip
  */
 
@@ -127,8 +127,15 @@ namespace
                 box[1] + box[3] / 2.0};
     }
 
-    /** @brief Returns the complete IoU of section 4.6 of SPEC.md, in double. */
-    double measure_complete_iou(const Quad& box, const Quad& target) noexcept
+    /** @brief Holds the trade-off a measure computes from its own boxes, not a fixed one. */
+    constexpr double K_OWN_TRADE_OFF = -1.0;
+
+    /**
+     * @brief Returns the complete IoU of section 4.6 of SPEC.md, in double.
+     * @param fixed The trade-off to use, or K_OWN_TRADE_OFF to compute it from the boxes.
+     */
+    double measure_complete_iou(const Quad& box, const Quad& target,
+                                double fixed = K_OWN_TRADE_OFF) noexcept
     {
         const Quad own = measure_edges(box);
         const Quad truth = measure_edges(target);
@@ -149,8 +156,48 @@ namespace
 
         const double angle_gap = std::atan(target[2] / target[3]) - std::atan(box[2] / box[3]);
         const double aspect = 4.0 * angle_gap * angle_gap / (K_PI * K_PI);
-        const double trade_off = aspect / (1.0 - iou + aspect + Detect::K_ASPECT_TRADE_OFF_EPS);
+        const double computed = aspect / (1.0 - iou + aspect + Detect::K_ASPECT_TRADE_OFF_EPS);
+        const double trade_off = fixed == K_OWN_TRADE_OFF ? computed : fixed;
         return iou - distance - trade_off * aspect;
+    }
+
+    /** @brief Returns the trade-off of the aspect penalty of a pair, in double. */
+    double measure_trade_off(const Quad& box, const Quad& target) noexcept
+    {
+        const double full = measure_complete_iou(box, target, 0.0);
+        const double angle_gap = std::atan(target[2] / target[3]) - std::atan(box[2] / box[3]);
+        const double aspect = 4.0 * angle_gap * angle_gap / (K_PI * K_PI);
+        const Quad own = measure_edges(box);
+        const Quad truth = measure_edges(target);
+        const double hull_width = std::max(own[1], truth[1]) - std::min(own[0], truth[0]);
+        const double hull_height = std::max(own[3], truth[3]) - std::min(own[2], truth[2]);
+        const double shift_x = box[0] - target[0];
+        const double shift_y = box[1] - target[1];
+        const double iou = full + (shift_x * shift_x + shift_y * shift_y) /
+                                      (hull_width * hull_width + hull_height * hull_height);
+        return aspect / (1.0 - iou + aspect + Detect::K_ASPECT_TRADE_OFF_EPS);
+    }
+
+    /**
+     * @brief Returns the central difference of the complete IoU by each value of @p box, with
+     *        the trade-off frozen at its value for @p box itself.
+     */
+    Quad measure_fixed_difference(const Box& box, const Box& target) noexcept
+    {
+        const Quad truth = widen(target);
+        const double fixed = measure_trade_off(widen(box), truth);
+        Quad slope{};
+        for (std::size_t entry = 0; entry < slope.size(); ++entry)
+        {
+            Quad ahead = widen(box);
+            Quad behind = ahead;
+            ahead[entry] += K_DIFFERENCE_STEP;
+            behind[entry] -= K_DIFFERENCE_STEP;
+            const double rise = measure_complete_iou(ahead, truth, fixed) -
+                                measure_complete_iou(behind, truth, fixed);
+            slope[entry] = rise / (2.0 * K_DIFFERENCE_STEP);
+        }
+        return slope;
     }
 
     /** @brief Returns the central difference of the complete IoU by each value of @p box. */
@@ -208,6 +255,20 @@ namespace
         }
     }
 
+    /** @brief Expects the fixed trade-off form to equal the difference with a frozen one. */
+    void expect_fixed_matches_difference(const Box& box, const Box& target)
+    {
+        ASSERT_TRUE(is_away_from_kinks(box, target));
+        const Box gradient = measure_gradient(box, target, Detect::BoxGradient::FixedTradeOff);
+        const Quad slope = measure_fixed_difference(box, target);
+        for (std::size_t entry = 0; entry < slope.size(); ++entry)
+        {
+            EXPECT_NEAR(static_cast<double>(gradient[entry]), slope[entry],
+                        K_ANALYTIC_ABSOLUTE + K_ANALYTIC_RELATIVE * std::abs(slope[entry]))
+                << "entry " << entry;
+        }
+    }
+
     /** @brief Expects @p value to equal @p expected within the hand tolerance. */
     void expect_hand_value(float value, double expected)
     {
@@ -257,6 +318,25 @@ TEST(Small_DetectIouGradient, AnalyticMatchesTheDifferenceOnSeededPairs)
         expect_analytic_matches_difference(pair[0], pair[1]);
         ++checked;
     }
+}
+
+/** @brief Tests the fixed trade-off form on overlapping, disjoint and nested pairs. */
+TEST(Small_DetectIouGradient, FixedTradeOffMatchesTheDifferenceWithAFrozenTradeOff)
+{
+    expect_fixed_matches_difference({0.45f, 0.55f, 0.3f, 0.2f}, {0.55f, 0.52f, 0.42f, 0.6f});
+    expect_fixed_matches_difference({0.2f, 0.2f, 0.15f, 0.25f}, {0.7f, 0.75f, 0.3f, 0.2f});
+    expect_fixed_matches_difference({0.52f, 0.47f, 0.2f, 0.1f}, {0.5f, 0.5f, 0.4f, 0.45f});
+}
+
+/** @brief Tests that the fixed form differs from the analytic one when the aspects differ. */
+TEST(Small_DetectIouGradient, FixedTradeOffDropsTheSlopeOfTheTradeOff)
+{
+    const Box box{0.45f, 0.55f, 0.3f, 0.2f};
+    const Box target{0.55f, 0.52f, 0.42f, 0.6f};
+    const Box fixed = measure_gradient(box, target, Detect::BoxGradient::FixedTradeOff);
+    const Box analytic = measure_gradient(box, target, Detect::BoxGradient::Analytic);
+    EXPECT_GT(std::abs(static_cast<double>(fixed[2]) - static_cast<double>(analytic[2])),
+              K_HAND_TOLERANCE);
 }
 
 /** @brief Tests the compatible form against the twelve dumped deltas of the report. */
@@ -331,12 +411,13 @@ TEST(Small_DetectIouGradient, DarknetCompatibleSimplifiesTheAspectTerm)
     expect_hand_value(analytic[3], kept * 1.25 - full * 0.2);
 }
 
-/** @brief Tests that both forms write zeros for two boxes that are one point. */
-TEST(Small_DetectIouGradient, BothFormsAreZeroForTwoBoxesAtOnePoint)
+/** @brief Tests that every form writes zeros for two boxes that are one point. */
+TEST(Small_DetectIouGradient, EveryFormIsZeroForTwoBoxesAtOnePoint)
 {
     const Box point{0.5f, 0.5f, 0.0f, 0.0f};
     for (const Detect::BoxGradient form :
-         {Detect::BoxGradient::Analytic, Detect::BoxGradient::DarknetCompatible})
+         {Detect::BoxGradient::Analytic, Detect::BoxGradient::DarknetCompatible,
+          Detect::BoxGradient::FixedTradeOff})
     {
         const Box gradient = measure_gradient(point, point, form);
         for (const float component : gradient)

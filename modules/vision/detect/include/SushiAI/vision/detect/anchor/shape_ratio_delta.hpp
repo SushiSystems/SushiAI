@@ -96,9 +96,10 @@ namespace SushiAI
         /**
          * @brief Checks that @p input describes a head and assignments the loss can read.
          * @return Success, the failure of validate_head or validate_head_training, or
-         *         InvalidDescription for a null pointer, a coding other than Logit, a head
-         *         span of the wrong size, a level count above K_MAX_BALANCED_LEVELS, or an
-         *         assignment outside the head's images, slots, grid or classes.
+         *         InvalidDescription for a null pointer, a coding other than Logit, a
+         *         size form other than SquaredSigmoid, a head span of the wrong size, a
+         *         level count above K_MAX_BALANCED_LEVELS, or an assignment outside the
+         *         head's images, slots, grid or classes.
          */
         [[nodiscard]] Status validate_shape_ratio_delta(const ShapeRatioDeltaInput& input);
 

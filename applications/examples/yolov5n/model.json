@@ -1,0 +1,65 @@
+{
+    "format_version": 2,
+    "input": { "shape": [640, 640, 3], "fit": "letterbox" },
+    "defaults": {
+        "batchnorm2d": { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "conv":        { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "c3":          { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "sppf":        { "bn_epsilon": 0.001, "bn_momentum": 0.03 }
+    },
+    "layers": [
+        { "type": "conv2d", "filters": 16, "kernel": 6, "stride": 2, "padding": 2, "use_bias": false },
+        { "type": "batchnorm2d" },
+        { "type": "silu" },
+        { "type": "conv", "filters": 32, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 32, "hidden": 16, "repeats": 1, "shortcut": true },
+        { "type": "conv", "filters": 64, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 64, "hidden": 32, "repeats": 2, "shortcut": true },
+        { "type": "conv", "filters": 128, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 128, "hidden": 64, "repeats": 3, "shortcut": true },
+        { "type": "conv", "filters": 256, "kernel": 3, "stride": 2 },
+        { "type": "c3", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": true },
+        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3 },
+        { "type": "conv", "filters": 128, "kernel": 1, "stride": 1 },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 8] },
+        { "type": "c3", "filters": 128, "hidden": 64, "repeats": 1, "shortcut": false },
+        { "type": "conv", "filters": 64, "kernel": 1, "stride": 1 },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 6] },
+        { "type": "c3", "filters": 64, "hidden": 32, "repeats": 1, "shortcut": false },
+        { "type": "conv", "filters": 64, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 16] },
+        { "type": "c3", "filters": 128, "hidden": 64, "repeats": 1, "shortcut": false },
+        { "type": "conv", "filters": 128, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 12] },
+        { "type": "c3", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": false },
+        { "type": "conv2d", "from": 19, "filters": 255, "kernel": 1, "use_bias": true },
+        { "type": "conv2d", "from": 22, "filters": 255, "kernel": 1, "use_bias": true },
+        { "type": "conv2d", "from": 25, "filters": 255, "kernel": 1, "use_bias": true }
+    ],
+    "outputs": [
+        { "node": 26, "port": "output", "name": "head_0" },
+        { "node": 27, "port": "output", "name": "head_1" },
+        { "node": 28, "port": "output", "name": "head_2" }
+    ],
+    "task": {
+        "type": "anchor_detection",
+        "classes": 80,
+        "anchors": [
+            [0.015625, 0.0203125], [0.025, 0.046875], [0.0515625, 0.0359375],
+            [0.046875, 0.0953125], [0.096875, 0.0703125], [0.0921875, 0.1859375],
+            [0.18125, 0.140625], [0.24375, 0.309375], [0.5828125, 0.509375]
+        ],
+        "heads": [
+            { "output": "head_0", "anchors": [0, 1, 2], "coding": "logit", "scale_xy": 2.0,
+              "size": "squared_sigmoid" },
+            { "output": "head_1", "anchors": [3, 4, 5], "coding": "logit", "scale_xy": 2.0,
+              "size": "squared_sigmoid" },
+            { "output": "head_2", "anchors": [6, 7, 8], "coding": "logit", "scale_xy": 2.0,
+              "size": "squared_sigmoid" }
+        ],
+        "suppression": { "criterion": "iou" },
+        "assignment": { "rule": "shape_ratio" }
+    }
+}

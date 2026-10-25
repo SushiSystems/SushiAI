@@ -4,9 +4,9 @@
 Suites: `Small_DetectIouGradient`.
 
 Tests the box gradient declared in
-`modules/vision/detect/include/SushiAI/vision/detect/iou_gradient.hpp` in its two forms,
-`BoxGradient::Analytic` and `BoxGradient::DarknetCompatible`. A box is a centre and a size.
-The analytic form is compared with a central difference of step 1e-6, within 1e-6 relative
+`modules/vision/detect/include/SushiAI/vision/detect/iou_gradient.hpp` in its three forms,
+`BoxGradient::Analytic`, `BoxGradient::DarknetCompatible` and `BoxGradient::FixedTradeOff`.
+A box is a centre and a size. The analytic form is compared with a central difference of step 1e-6, within 1e-6 relative
 plus 1e-7 absolute. Hand values are compared to 1e-5.
 
 ## AnalyticMatchesTheDifferenceOnOverlappingBoxes
@@ -26,6 +26,18 @@ The same holds for a box inside its target and for a box around its target.
 
 The same holds for 100 pairs drawn from a seeded sequence, with centres in [0.2, 0.8] and sides
 in [0.1, 0.5]. A pair that lies near a kink of the measure is drawn again and not counted.
+
+## FixedTradeOffMatchesTheDifferenceWithAFrozenTradeOff
+
+The fixed form equals a central difference of a host measure whose trade-off is computed once,
+at the box under test, and passed as a constant to every shifted evaluation. Pairs: one
+overlapping, one disjoint along both axes, one nested. Tolerances are those of the analytic
+form.
+
+## FixedTradeOffDropsTheSlopeOfTheTradeOff
+
+For an overlapping pair of different aspects, the width component of the fixed form differs
+from the analytic one by more than 1e-5.
 
 ## DarknetCompatibleMatchesTheDumpedDeltas
 
@@ -49,6 +61,6 @@ For a 0.2 by 0.1 box centred in a 0.4 square, the case computes the aspect term 
 trade-off in double, with `K_ASPECT_TRADE_OFF_EPS`, and expects the width and height components
 of each form from them.
 
-## BothFormsAreZeroForTwoBoxesAtOnePoint
+## EveryFormIsZeroForTwoBoxesAtOnePoint
 
-For two boxes of zero size at one point, every component of both forms is exactly 0.
+For two boxes of zero size at one point, every component of every form is exactly 0.

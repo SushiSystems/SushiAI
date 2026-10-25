@@ -62,6 +62,7 @@
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
+#include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
@@ -227,15 +228,27 @@ namespace
         /**
          * @brief Builds everything the step is made from and sets @c ready on success.
          * @param heads The heads the objective describes.
+         * @param rule The objective's rule; null builds it with Darknet's.
          */
-        void prepare(SushiBLAS::Engine& engine, std::vector<AnchorHead> heads)
+        void prepare(SushiBLAS::Engine& engine, std::vector<AnchorHead> heads,
+                     std::shared_ptr<const Vision::Training::HeadDeltaRule> rule = nullptr)
         {
             const Shape batch_shape{K_BATCH, K_NETWORK_SIDE, K_NETWORK_SIDE, 3};
 
             SA_ASSERT_OK_AND_ASSIGN(model, build_two_head_model());
-            SA_ASSERT_OK_AND_ASSIGN(
-                objective, AnchorObjective::make(NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE},
-                                                 two_head_layout(), std::move(heads)));
+            if (rule == nullptr)
+            {
+                SA_ASSERT_OK_AND_ASSIGN(
+                    objective, AnchorObjective::make(NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE},
+                                                     two_head_layout(), std::move(heads)));
+            }
+            else
+            {
+                SA_ASSERT_OK_AND_ASSIGN(
+                    objective,
+                    AnchorObjective::make(NetworkSize{K_NETWORK_SIDE, K_NETWORK_SIDE},
+                                          two_head_layout(), std::move(heads), std::move(rule)));
+            }
 
             // The graph is built with the names the model publishes, whatever @p heads says.
             SA_ASSERT_OK_AND_ASSIGN(
@@ -349,6 +362,66 @@ TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
     EXPECT_GT(squares, 0.0);
     EXPECT_NEAR(cost.stored, squares, K_COST_TOLERANCE * squares);
     EXPECT_NEAR(cost.total, squares / static_cast<double>(K_BATCH), K_COST_TOLERANCE * squares);
+}
+
+/** @brief Tests that a step under the shape-ratio rule feeds that rule's deltas and cost. */
+TEST_F(Medium_AnchorTrainingStep, TheShapeRatioRuleFeedsItsDeltasAndItsLoss)
+{
+    std::vector<AnchorHead> heads = two_heads("head.0", "head.1");
+    for (AnchorHead& head : heads)
+    {
+        head.options.scale_xy = 2.0f;
+        head.options.size = Vision::Detect::Anchor::SizeForm::SquaredSigmoid;
+    }
+    const auto rule = std::make_shared<const Vision::Training::ShapeRatioHeadDeltaRule>(
+        Vision::Detect::Anchor::ShapeRatioOptions{});
+
+    TwoHeadCase model;
+    model.prepare(*engine, heads, rule);
+    ASSERT_TRUE(model.ready);
+    model.make_step(*engine);
+    ASSERT_NE(model.step, nullptr);
+
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+    const GroundTruthBatch truth = make_truth();
+    SA_ASSERT_OK_AND_ASSIGN(const HeadCost cost, model.step->run(inputs, truth));
+
+    std::vector<std::vector<float>> forward;
+    std::vector<SushiRuntime::span<const float>> views;
+    for (const AnchorHead& head : model.objective->heads())
+        forward.push_back(model.forward_output(head.output));
+    for (const std::vector<float>& values : forward)
+        views.emplace_back(values.data(), values.size());
+
+    Vision::Training::HeadDeltaBatch batch;
+    batch.network = model.objective->network();
+    batch.layout = &model.objective->layout();
+    batch.heads = SushiRuntime::span<const AnchorHead>(model.objective->heads().data(),
+                                                       model.objective->heads().size());
+    batch.outputs =
+        SushiRuntime::span<const SushiRuntime::span<const float>>(views.data(), views.size());
+    batch.truth = &truth;
+    std::vector<HeadDelta> expected(2);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const HeadCost reported,
+        rule->compute(batch, SushiRuntime::span<HeadDelta>(expected.data(), expected.size())));
+
+    for (std::size_t head = 0; head < 2; ++head)
+    {
+        const std::vector<double> fed = SaTest::read_tensor(model.training_pool->tensor(
+            model.built.leaves.at(model.objective->leaf_role(head))));
+        EXPECT_GT(expected[head].assignments, 0) << "head " << head;
+        ASSERT_EQ(fed.size(), expected[head].delta.size()) << "head " << head;
+        for (std::size_t i = 0; i < fed.size(); ++i)
+        {
+            EXPECT_NEAR(fed[i], static_cast<double>(expected[head].delta[i]), K_FED_TOLERANCE)
+                << "head " << head << " element " << i;
+        }
+    }
+
+    EXPECT_GT(reported.total, 0.0);
+    EXPECT_NEAR(cost.total, reported.total, K_COST_TOLERANCE * reported.total);
+    EXPECT_NEAR(cost.box + cost.non_box, cost.total, K_COST_TOLERANCE * reported.total);
 }
 
 /** @brief Tests that one step moves a head's bias by rate / batch times the delta's sum. */

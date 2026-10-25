@@ -66,6 +66,11 @@ namespace SushiAI
                        StatusCode::InvalidDescription,
                        "scale_xy of an anchor head must be finite and above zero; got {}",
                        options.scale_xy);
+            SA_FAIL_IF(options.coding == HeadCoding::Activated &&
+                           options.size != SizeForm::Exponential,
+                       StatusCode::InvalidDescription,
+                       "an activated anchor head squares its size entries already; its 'size' "
+                       "takes no other form");
             return Status();
         }
 

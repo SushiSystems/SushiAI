@@ -38,6 +38,11 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/free_assignment_stage.hpp>` | `FreeLeafKind`, `FreeLeaf`, `FreeLevelViews`, `FreeAssignmentStage` |
 | `<SushiAI/vision/training/free_model_facts.hpp>` | `FreeLevelPorts`, `FreeLevelFacts`, `FreeModelFacts`, `derive_free_model_facts` |
 | `<SushiAI/vision/training/free_bias_init.hpp>` | `free_class_bias`, `initialize_free_biases` |
+| `<SushiAI/vision/training/anchor_head.hpp>` | `AnchorHead` |
+| `<SushiAI/vision/training/head_delta_rule.hpp>` | `HeadDeltaBatch`, `HeadDeltaRule` |
+| `<SushiAI/vision/training/head_delta_rule_choice.hpp>` | `choose_head_delta_rule` |
+| `<SushiAI/vision/training/darknet_head_delta_rule.hpp>` | `DarknetHeadDeltaRule` |
+| `<SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>` | `ShapeRatioHeadDeltaRule` |
 | `<SushiAI/vision/training/anchor_objective.hpp>` | `AnchorHead`, `AnchorObjective` |
 | `<SushiAI/vision/training/anchor_objective_factory.hpp>` | `build_anchor_objective`, `make_anchor_objective` |
 | `<SushiAI/vision/training/anchor_training_step.hpp>` | `AnchorTrainingStep` |
@@ -52,6 +57,13 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/pixel_cross_entropy_objective.hpp>` | `K_PIXEL_CROSS_ENTROPY_TYPE`, `K_PIXEL_TARGETS_LEAF`, `K_PIXEL_WEIGHTS_LEAF`, `PixelCrossEntropyObjective`, `make_pixel_cross_entropy_objective` |
 | `<SushiAI/vision/training/dice_objective.hpp>` | `K_DICE_TYPE`, the five `K_DICE_*_LEAF` names, `DiceObjective`, `make_dice_objective` |
 
+
+`AnchorObjective` computes each batch's deltas and cost through a `HeadDeltaRule` chosen once from
+the task's `assignment`: `best_shape` gives `DarknetHeadDeltaRule`, which runs `compute_head_delta`
+and `measure_head_cost` as before, and `shape_ratio` gives `ShapeRatioHeadDeltaRule`, which assigns
+every level with `ShapeRatioAssignment` and returns `compute_shape_ratio_delta`'s deltas with the
+shape-ratio loss as the cost. The shape-ratio rule takes logit heads whose `size` is
+`squared_sigmoid` and refuses others; the Darknet rule takes `exponential` sizes only.
 ## The delta loss
 
 `emit_head_delta_loss(builder, head, delta, scale)` emits `-scale * sum(delta * head)` as `MUL`,

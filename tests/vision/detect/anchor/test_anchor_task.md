@@ -43,6 +43,13 @@ order, the type `K_ANCHOR_TASK_TYPE` and 3 classes. A head has the keys `output`
 `coding`, `scale_xy`. The second head's scale equals `double(1.05f)` and the third anchor's
 sides equal `double(0.09f)` and `double(0.14f)`.
 
+## ReadsAndWritesTheSizeFormOfALogitHead
+
+"size": "squared_sigmoid" on a logit head reads as `SizeForm::SquaredSigmoid` and is written
+back. A head without "size" reads as `SizeForm::Exponential` and is written without the key.
+"size" on an activated head fails naming "'size'" and "logit head"; an unknown form "cubic"
+fails naming it and the known forms.
+
 ## ReadsAndWritesEachCodingString
 
 "logit" reads as `HeadCoding::Logit` and "activated" as `HeadCoding::Activated`, and each is

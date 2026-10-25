@@ -11,8 +11,11 @@ are written by hand, ordered as `AssignmentRule::assign` orders them.
 One image, two levels of two anchors each (4 by 4 and 2 by 2 cells, 3 classes, a 64-pixel
 input), two truths: the first takes two neighbour cells of slot 0 on level 0, the second slot 1
 of level 0 and slot 0 of level 1. Head logits follow `0.8 sin(0.37 i + 0.1)`. Every delta equals
-minus the central difference of the level's loss by that logit, step 1e-3, with the objectness
-targets held at their base values, within 1e-4 absolute.
+minus the central difference of the level's loss by that logit, step 1e-3, within 1e-4
+absolute. The objectness targets stay at their base values, and so does the trade-off of each
+complete IoU, which Ultralytics computes without a gradient. The test measures each
+assignment's trade-off once on the unshifted head, then replaces the box mean of every shifted
+loss with a mean in double that uses those trade-offs as constants.
 
 ## ObjectnessTargetAndBalanceOnAHandWorkedCase
 
@@ -30,7 +33,10 @@ Three levels give 4, 1, 0.4; two, four and five levels read 4, 1, 0.25, 0.06, 0.
 Level 1 of two, 40 classes, a 320-pixel input: box 0.05 x 1.5, class 0.5 x 0.5 x 1.5,
 objectness 1 x 0.25 x 1.5 x 1.
 
-## RefusesAnActivatedHeadAndAnAssignmentOutsideIt
+## RefusesAHeadOrAnAssignmentItCannotRead
 
-An activated head fails with `InvalidDescription` and "logits"; an assignment to row 2 of a
-2-row head fails with "outside head 1".
+An activated head fails with `InvalidDescription` and "logits"; a logit head whose size form is
+`Exponential` fails with "squared_sigmoid"; an assignment to row 2 of a 2-row head fails with
+"outside head 1".
+
+Every other case gives its heads the size form `SquaredSigmoid`.

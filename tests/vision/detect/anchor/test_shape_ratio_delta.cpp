@@ -26,6 +26,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/detect/iou_gradient.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
@@ -58,6 +61,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::ShapeRatioDeltaInput;
     using SushiAI::Vision::Detect::Anchor::ShapeRatioFactors;
     using SushiAI::Vision::Detect::Anchor::ShapeRatioLoss;
+    using SushiAI::Vision::Detect::Anchor::SizeForm;
     using SushiAI::Vision::Detect::Anchor::TargetAssignment;
 
     /** @brief Holds the step of a logit in the central difference. */
@@ -106,6 +110,7 @@ namespace
         input.shape = HeadShape{1, side, side};
         input.options.num_classes = K_CLASSES;
         input.options.coding = HeadCoding::Logit;
+        input.options.size = SizeForm::SquaredSigmoid;
         input.options.scale_xy = 2.0f;
         input.layout = &layout;
         input.head_index = level;
@@ -116,9 +121,120 @@ namespace
         return input;
     }
 
+    /** @brief Holds pi in double. */
+    constexpr double K_PI = 3.141592653589793;
+
+    /** @brief Holds the anchor slots of each level of the two-level fixture. */
+    constexpr std::size_t K_SLOTS = 2;
+
+    /** @brief Holds one box as centre and size in grid units, in double. */
+    using Quad = std::array<double, 4>;
+
+    /** @brief Returns the logistic of @p value in double. */
+    double logistic(double value)
+    {
+        return 1.0 / (1.0 + std::exp(-value));
+    }
+
+    /** @brief Decodes the slot @p record names, as the shape-ratio delta decodes it. */
+    Quad decode_slot(const ShapeRatioDeltaInput& input, const TargetAssignment& record)
+    {
+        const std::size_t side = static_cast<std::size_t>(input.shape.width);
+        const std::size_t cell =
+            static_cast<std::size_t>(record.row) * side + static_cast<std::size_t>(record.col);
+        const std::size_t slot = cell * K_SLOTS + static_cast<std::size_t>(record.slot);
+        const float* entries =
+            input.head.data() + slot * static_cast<std::size_t>(5 + K_CLASSES);
+        const std::int64_t anchor =
+            input.layout->head_anchors[static_cast<std::size_t>(input.head_index)]
+                                      [static_cast<std::size_t>(record.slot)];
+        const SushiAI::Vision::Detect::Anchor::AnchorSize size =
+            input.layout->anchors[static_cast<std::size_t>(anchor)];
+        const double scale = static_cast<double>(input.options.scale_xy);
+        const double shift = (scale - 1.0) / 2.0;
+        const double width = 2.0 * logistic(entries[2]);
+        const double height = 2.0 * logistic(entries[3]);
+        return {logistic(entries[0]) * scale - shift, logistic(entries[1]) * scale - shift,
+                width * width * static_cast<double>(size.width) * static_cast<double>(side),
+                height * height * static_cast<double>(size.height) * static_cast<double>(side)};
+    }
+
+    /** @brief Returns the IoU, the distance term and the aspect term of a pair, in double. */
+    std::array<double, 3> measure_terms(const Quad& box, const Quad& truth)
+    {
+        const double left = std::max(box[0] - box[2] / 2.0, truth[0] - truth[2] / 2.0);
+        const double right = std::min(box[0] + box[2] / 2.0, truth[0] + truth[2] / 2.0);
+        const double top = std::max(box[1] - box[3] / 2.0, truth[1] - truth[3] / 2.0);
+        const double bottom = std::min(box[1] + box[3] / 2.0, truth[1] + truth[3] / 2.0);
+        const double shared = std::max(right - left, 0.0) * std::max(bottom - top, 0.0);
+        const double iou = shared / (box[2] * box[3] + truth[2] * truth[3] - shared);
+
+        const double hull_width = std::max(box[0] + box[2] / 2.0, truth[0] + truth[2] / 2.0) -
+                                  std::min(box[0] - box[2] / 2.0, truth[0] - truth[2] / 2.0);
+        const double hull_height = std::max(box[1] + box[3] / 2.0, truth[1] + truth[3] / 2.0) -
+                                   std::min(box[1] - box[3] / 2.0, truth[1] - truth[3] / 2.0);
+        const double shift_x = box[0] - truth[0];
+        const double shift_y = box[1] - truth[1];
+        const double distance = (shift_x * shift_x + shift_y * shift_y) /
+                                (hull_width * hull_width + hull_height * hull_height);
+
+        const double gap = std::atan(truth[2] / truth[3]) - std::atan(box[2] / box[3]);
+        return {iou, distance, 4.0 * gap * gap / (K_PI * K_PI)};
+    }
+
+    /** @brief Returns the trade-off of the aspect term of a pair at its current boxes. */
+    double measure_trade_off(const Quad& box, const Quad& truth)
+    {
+        const std::array<double, 3> terms = measure_terms(box, truth);
+        return terms[2] /
+               (1.0 - terms[0] + terms[2] + SushiAI::Vision::Detect::K_ASPECT_TRADE_OFF_EPS);
+    }
+
+    /** @brief Returns the truth of @p record as centre and size, in double. */
+    Quad truth_of(const TargetAssignment& record)
+    {
+        return {static_cast<double>(record.box_x), static_cast<double>(record.box_y),
+                static_cast<double>(record.box_width), static_cast<double>(record.box_height)};
+    }
+
+    /**
+     * @brief Returns the mean of 1 - complete IoU over the level's assignments, the trade-off
+     *        of assignment k taken from @p frozen[k] instead of its own boxes.
+     */
+    double measure_frozen_box(const ShapeRatioDeltaInput& input,
+                              const std::vector<double>& frozen)
+    {
+        if (input.assignments.empty())
+            return 0.0;
+
+        double sum = 0.0;
+        for (std::size_t index = 0; index < input.assignments.size(); ++index)
+        {
+            const TargetAssignment& record = input.assignments[index];
+            const std::array<double, 3> terms =
+                measure_terms(decode_slot(input, record), truth_of(record));
+            sum += 1.0 - (terms[0] - terms[1] - frozen[index] * terms[2]);
+        }
+        return sum / static_cast<double>(input.assignments.size());
+    }
+
+    /**
+     * @brief Returns the level's total loss with its box mean replaced by measure_frozen_box.
+     * @param measured What measure_shape_ratio_loss returned for @p input.
+     */
+    double replace_box_term(const ShapeRatioDeltaInput& input, const ShapeRatioLoss& measured,
+                            const std::vector<double>& frozen)
+    {
+        const double box_factor =
+            derive_shape_ratio_factors(input).box * static_cast<double>(input.shape.batch);
+        return measured.total - box_factor * measured.box +
+               box_factor * measure_frozen_box(input, frozen);
+    }
+
     /**
      * @brief Expects every delta of @p input's level to equal -B times the central
-     *        difference of the loss by that logit, with the objectness targets held fixed.
+     *        difference of the loss by that logit, with the objectness targets and the
+     *        trade-off of each complete IoU held at their values on the unshifted head.
      */
     void expect_delta_matches_difference(const AnchorLayout& layout,
                                          const HeadTrainingOptions& training, std::int64_t level,
@@ -135,27 +251,34 @@ namespace
         ASSERT_EQ(delta.delta.size(), values);
         std::vector<float> targets;
         SA_EXPECT_OK(build_objectness_targets(base, targets));
+        std::vector<double> frozen;
+        for (const TargetAssignment& record : assignments)
+            frozen.push_back(measure_trade_off(decode_slot(base, record), truth_of(record)));
 
         for (std::size_t index = 0; index < values; ++index)
         {
             const float held = head[index];
             head[index] = held + K_STEP;
             const float raised = head[index];
+            const ShapeRatioDeltaInput up =
+                make_input(layout, training, level, side, head, assignments);
             SA_ASSERT_OK_AND_ASSIGN(
                 const ShapeRatioLoss above,
                 measure_shape_ratio_loss(
-                    make_input(layout, training, level, side, head, assignments),
-                    SushiRuntime::span<const float>(targets.data(), targets.size())));
+                    up, SushiRuntime::span<const float>(targets.data(), targets.size())));
+            const double above_total = replace_box_term(up, above, frozen);
             head[index] = held - K_STEP;
             const float lowered = head[index];
+            const ShapeRatioDeltaInput down =
+                make_input(layout, training, level, side, head, assignments);
             SA_ASSERT_OK_AND_ASSIGN(
                 const ShapeRatioLoss below,
                 measure_shape_ratio_loss(
-                    make_input(layout, training, level, side, head, assignments),
-                    SushiRuntime::span<const float>(targets.data(), targets.size())));
+                    down, SushiRuntime::span<const float>(targets.data(), targets.size())));
+            const double below_total = replace_box_term(down, below, frozen);
             head[index] = held;
 
-            const double slope = (above.total - below.total) /
+            const double slope = (above_total - below_total) /
                                  (static_cast<double>(raised) - static_cast<double>(lowered));
             EXPECT_NEAR(static_cast<double>(delta.delta[index]), -slope, K_DIFFERENCE_TOLERANCE)
                 << "level " << level << ", entry " << index;
@@ -201,6 +324,7 @@ TEST(Small_DetectAnchorShapeRatioDelta, ObjectnessTargetAndBalanceOnAHandWorkedC
     input.shape = HeadShape{1, 2, 2};
     input.options.num_classes = 1;
     input.options.scale_xy = 2.0f;
+    input.options.size = SizeForm::SquaredSigmoid;
     input.layout = &layout;
     input.head_index = 2;
     input.training = &training;
@@ -257,8 +381,8 @@ TEST(Small_DetectAnchorShapeRatioDelta, TheFactorsDeriveFromLevelsClassesAndInpu
     EXPECT_NEAR(factors.objectness, 1.0 * 0.25 * 1.5 * 1.0, K_HAND_TOLERANCE);
 }
 
-/** @brief Tests that a head of activated values and an assignment outside the head are refused. */
-TEST(Small_DetectAnchorShapeRatioDelta, RefusesAnActivatedHeadAndAnAssignmentOutsideIt)
+/** @brief Tests that an activated head, exponential sides and an outside assignment are refused. */
+TEST(Small_DetectAnchorShapeRatioDelta, RefusesAHeadOrAnAssignmentItCannotRead)
 {
     const AnchorLayout layout = make_two_level_layout();
     const HeadTrainingOptions training;
@@ -269,8 +393,14 @@ TEST(Small_DetectAnchorShapeRatioDelta, RefusesAnActivatedHeadAndAnAssignmentOut
 
     ShapeRatioDeltaInput activated = make_input(layout, training, 1, 2, head, none);
     activated.options.coding = HeadCoding::Activated;
+    activated.options.size = SizeForm::Exponential;
     SA_EXPECT_FAILURE(compute_shape_ratio_delta(activated, delta),
                       StatusCode::InvalidDescription, "logits");
+
+    ShapeRatioDeltaInput exponential = make_input(layout, training, 1, 2, head, none);
+    exponential.options.size = SizeForm::Exponential;
+    SA_EXPECT_FAILURE(compute_shape_ratio_delta(exponential, delta),
+                      StatusCode::InvalidDescription, "squared_sigmoid");
 
     SA_EXPECT_FAILURE(
         compute_shape_ratio_delta(make_input(layout, training, 1, 2, head, outside), delta),

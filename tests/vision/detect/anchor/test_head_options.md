@@ -14,6 +14,12 @@ saturated logit in this file is 100 or -100, and decoded values are compared to 
 A one-cell head of zero logits over a 0.25 x 0.5 anchor decodes to the centre (0.5, 0.5), the
 size (0.25, 0.5) and a score of 0.25 for each of two classes.
 
+## SquaredSigmoidSidesAreTwiceTheLogisticSquaredTimesTheAnchor
+
+Under the Logit coding with the size form `SquaredSigmoid`, `scale_xy` 2 and a 0.25 x 0.5
+anchor, a zero x logit stays at the cell centre, a saturated width logit decodes to 4 anchors
+(1.0), and a height logit of -1 to (2 x 0.2689414)^2 x 0.5.
+
 ## SaturatedLogitsReachTheCellEdgesAndTheScoreBounds
 
 With x at +100, y at -100 and width at -100, the box has x 1, y 0, width 0 and height 0.5. With
@@ -78,6 +84,11 @@ A class count of 0 fails with `InvalidDescription`.
 ## RefusesAScaleThatIsNotFiniteAndPositive
 
 A `scale_xy` of 0 and a NaN `scale_xy` each fail with `InvalidDescription`.
+
+## RefusesASizeFormOnAnActivatedHead
+
+`validate_head` accepts the size form `SquaredSigmoid` on a Logit head and refuses it on an
+Activated head with `InvalidDescription`.
 
 ## RefusesAHeadWhoseLayoutDoesNotValidate
 

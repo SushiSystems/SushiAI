@@ -62,12 +62,21 @@ namespace SushiAI
             Activated, /**< Every entry arrives in (0, 1); a size is its square times four. */
         };
 
+        /** @brief Names how a logit head turns its width and height entries into sides. */
+        enum class SizeForm : std::uint8_t
+        {
+            Exponential,    /**< The exponential of the entry times the anchor. */
+            SquaredSigmoid, /**< Twice the logistic of the entry, squared, times the anchor. */
+        };
+
         /** @brief Holds what a head's decode needs besides its anchors. */
         struct HeadOptions
         {
             std::int64_t num_classes = 0;           /**< Class entries per anchor slot. */
             HeadCoding coding = HeadCoding::Logit;  /**< Encoding of the published values. */
             float scale_xy = 1.0f;                  /**< Stretch of an offset about 0.5. */
+            /// @brief Holds the size form of a Logit head; an Activated head keeps the default.
+            SizeForm size = SizeForm::Exponential;
         };
 
         /** @brief Holds the extents of a head's `[B, H, W, A * (5 + C)]` output. */
@@ -88,8 +97,9 @@ namespace SushiAI
         /**
          * @brief Checks a head's options against the layout and the head they describe.
          * @return Success; the failure of validate_anchor_layout; or InvalidDescription for a
-         *         head index outside the layout, a class count below 1, or a scale that is not
-         *         finite and above zero.
+         *         head index outside the layout, a class count below 1, a scale that is not
+         *         finite and above zero, or an Activated head with a size form other than
+         *         Exponential.
          */
         [[nodiscard]] Status validate_head(const HeadOptions& options, const AnchorLayout& layout,
                                            std::int64_t head_index);

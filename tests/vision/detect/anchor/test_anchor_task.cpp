@@ -58,6 +58,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::HeadOptions;
     using SushiAI::Vision::Detect::Anchor::K_ANCHOR_TASK_TYPE;
     using SushiAI::Vision::Detect::Anchor::read_anchor_task;
+    using SushiAI::Vision::Detect::Anchor::SizeForm;
     using SushiAI::Vision::Detect::Anchor::write_anchor_task;
 
     /**
@@ -346,6 +347,38 @@ TEST(Small_DetectAnchorTask, ReadsAndWritesEachCodingString)
         const Value& head = written.at("heads", "task").as_array("heads")[0];
         EXPECT_EQ(head.at("coding", "head").as_string("coding"), entry.name);
     }
+}
+
+/** @brief Tests that "size" reads, writes only when not exponential, and binds to logits. */
+TEST(Small_DetectAnchorTask, ReadsAndWritesTheSizeFormOfALogitHead)
+{
+    SectionText squared;
+    squared.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "logit", "scale_xy": 2.0,
+                         "size": "squared_sigmoid"}])";
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(squared)));
+    EXPECT_EQ(read.heads[0].options.size, SizeForm::SquaredSigmoid);
+    SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
+    const Value& head = written.at("heads", "task").as_array("heads")[0];
+    EXPECT_EQ(head.at("size", "head").as_string("size"), "squared_sigmoid");
+
+    SectionText plain;
+    plain.heads = "[" + head_text("\"logit\"", "1.0") + "]";
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorTask exponential, read_anchor_task(section_from(plain)));
+    EXPECT_EQ(exponential.heads[0].options.size, SizeForm::Exponential);
+    SA_ASSERT_OK_AND_ASSIGN(const Value bare, write_anchor_task(exponential));
+    EXPECT_FALSE(bare.at("heads", "task").as_array("heads")[0].has("size"));
+
+    SectionText activated;
+    activated.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "activated",
+                           "scale_xy": 2.0, "size": "squared_sigmoid"}])";
+    SA_EXPECT_FAILURE(read_anchor_task(section_from(activated)),
+                      StatusCode::InvalidDescription, "'size'", "logit head");
+
+    SectionText unknown;
+    unknown.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "logit", "scale_xy": 2.0,
+                         "size": "cubic"}])";
+    SA_EXPECT_FAILURE(read_anchor_task(section_from(unknown)), StatusCode::InvalidDescription,
+                      "'cubic'", "squared_sigmoid");
 }
 
 /** @brief Tests that both strings of "criterion" are read and written as their enumerators. */

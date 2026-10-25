@@ -9,9 +9,11 @@
 sushiai_add_test_program(OWNER vision/registration
     SOURCES
         test_registration.cpp
+        test_yolov5n.cpp
     DEPENDS
         failure_expectations
         layer_rows
         layer_traces
         model_text
-        reference_files)
+        reference_files
+        tensor_values)

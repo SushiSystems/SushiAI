@@ -243,10 +243,42 @@ namespace SushiAI
                 gradient[3] = static_cast<float>(height);
             }
 
+            /**
+             * @brief Writes the derivative of the measure with the trade-off held at its value.
+             * @pre The diagonal of @p terms is positive.
+             */
+            void write_fixed_trade_off(const BoxTerms& terms, float* gradient) noexcept
+            {
+                const double square = terms.diagonal * terms.diagonal;
+                const double aspect = terms.trade_off * K_ASPECT_SLOPE * terms.angle_gap /
+                                      (terms.width * terms.width + terms.height * terms.height);
+
+                const double x = terms.slope_left + terms.slope_right +
+                                 (2.0 * terms.shift_x * terms.diagonal +
+                                  2.0 * terms.hull_width * terms.reach_x * terms.distance) /
+                                     square;
+                const double y = terms.slope_top + terms.slope_bottom +
+                                 (2.0 * terms.shift_y * terms.diagonal +
+                                  2.0 * terms.hull_height * terms.reach_y * terms.distance) /
+                                     square;
+                const double width = (terms.slope_right - terms.slope_left) / 2.0 +
+                                     terms.hull_width * terms.spread_x * terms.distance / square +
+                                     aspect * terms.height;
+                const double height = (terms.slope_bottom - terms.slope_top) / 2.0 +
+                                      terms.hull_height * terms.spread_y * terms.distance / square -
+                                      aspect * terms.width;
+
+                gradient[0] = static_cast<float>(x);
+                gradient[1] = static_cast<float>(y);
+                gradient[2] = static_cast<float>(width);
+                gradient[3] = static_cast<float>(height);
+            }
+
             /** @brief Holds the function of every form. */
             constexpr GradientRow K_GRADIENT_ROWS[] = {
                 {BoxGradient::Analytic, &write_analytic},
                 {BoxGradient::DarknetCompatible, &write_darknet_compatible},
+                {BoxGradient::FixedTradeOff, &write_fixed_trade_off},
             };
         } // namespace
 

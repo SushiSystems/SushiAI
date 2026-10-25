@@ -13,6 +13,7 @@ sushiai_add_module(NAME training TIER vision
         source/anchor_objective_factory.cpp
         source/anchor_training_loop.cpp
         source/anchor_training_step.cpp
+        source/darknet_head_delta_rule.cpp
         source/dice_objective.cpp
         source/dice_targets.cpp
         source/distribution_expectation_graph.cpp
@@ -21,12 +22,14 @@ sushiai_add_module(NAME training TIER vision
         source/free_bias_init.cpp
         source/free_model_facts.cpp
         source/head_delta_loss.cpp
+        source/head_delta_rule_choice.cpp
         source/pixel_cross_entropy_objective.cpp
         source/pixel_labels.cpp
         source/pixel_losses.cpp
         source/pixel_objective.cpp
         source/pixel_targets.cpp
         source/segmentation_metrics.cpp
+        source/shape_ratio_head_delta_rule.cpp
         source/truth_from_roles.cpp
     PUBLIC_DEPENDS config data dtype failure graph nn optim shape train vision/detect vision/segment
     PRIVATE_DEPENDS execution seam

@@ -50,6 +50,8 @@ namespace
 
     using SushiAI::Vision::Detect::Anchor::HeadOptions;
 
+    using SushiAI::Vision::Detect::Anchor::SizeForm;
+
     using SushiAI::Vision::Detect::Anchor::validate_head;
 
     /** @brief Returns a layout of one anchor that its one head uses. */
@@ -127,6 +129,19 @@ TEST(Small_DetectAnchorDecode, RefusesAScaleThatIsNotFiniteAndPositive)
               StatusCode::InvalidDescription);
     EXPECT_EQ(validate_head(make_options(1, HeadCoding::Logit, not_a_number), layout, 0).code(),
               StatusCode::InvalidDescription);
+}
+
+/** @brief Tests that validate_head refuses an activated head with a squared-sigmoid size. */
+TEST(Small_DetectAnchorDecode, RefusesASizeFormOnAnActivatedHead)
+{
+    const AnchorLayout layout = make_single_anchor_layout(0.3f, 0.45f);
+    HeadOptions logit = make_options(1, HeadCoding::Logit, 2.0f);
+    logit.size = SizeForm::SquaredSigmoid;
+    HeadOptions activated = make_options(1, HeadCoding::Activated, 2.0f);
+    activated.size = SizeForm::SquaredSigmoid;
+
+    EXPECT_TRUE(validate_head(logit, layout, 0).is_ok());
+    EXPECT_EQ(validate_head(activated, layout, 0).code(), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that validate_head returns the layout's own refusal. */

@@ -18,6 +18,7 @@ dispatch: U11 shape-ratio loss — opus low, 42 turns, passed, rung 1
 dispatch: U12 yolov5n file and anchor biases — sonnet medium, 77 turns, passed, rung 1
 dispatch: U6 anchor-free assignment stage — opus low, 41 turns, passed, rung 1
 dispatch: conv padding and RW-142 — sonnet medium, 45 turns, passed, rung 1
+dispatch: wire the shape-ratio rule — opus low, 112 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -139,3 +140,17 @@ contract between the head and the loss. The names and the class bias formula mov
 `vision/detect` (`free/head_contract.hpp`), which `blocks` now depends on and `training` already
 did; `detect_head.hpp` re-exports them with using-declarations, and the formula's two copies are
 one.
+
+## 12. The shape-ratio rule in the step, written and not built
+
+`HeadDeltaRule` computes a batch's deltas and its cost in one call, so the shape-ratio assignment
+runs once per batch. `choose_head_delta_rule` is the one switch over `AssignmentChoice`, run when
+the objective is built; both builds on the run path go through it. `AnchorObjective::measure_cost`
+now serves only the Darknet rule.
+
+The box gradient of the shape-ratio rule holds CIoU's trade-off weight constant, as Ultralytics
+computes it under `no_grad` (`BoxGradient::FixedTradeOff`); its difference test freezes the weight
+at the unshifted head. The epsilon is 1e-6 where Ultralytics uses 1e-7.
+
+`yolov5n`'s heads are the three convolutions' logits, with `"size": "squared_sigmoid"` decoding
+`(2 * sigmoid)^2` times the anchor. The Darknet forward parity code reads no `size`.

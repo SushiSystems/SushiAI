@@ -52,6 +52,23 @@ namespace SushiAI::Vision::Detect::Anchor::Detail
         }
     };
 
+    /** @brief Reads a slot of logits whose sides are twice their logistic, squared. */
+    struct SquaredSigmoidRule
+    {
+        /** @brief Returns the logistic of an offset, objectness or class entry. */
+        static float activate(float value) noexcept
+        {
+            return LogitRule::activate(value);
+        }
+
+        /** @brief Returns a box side: (2 * logistic(@p value))^2 times @p anchor. */
+        static float size(float value, float anchor) noexcept
+        {
+            const float doubled = 2.0f * LogitRule::activate(value);
+            return doubled * doubled * anchor;
+        }
+    };
+
     /** @brief Reads a slot whose entries all arrive in (0, 1). */
     struct ActivatedRule
     {

@@ -42,6 +42,8 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
+#include <SushiAI/vision/training/darknet_head_delta_rule.hpp>
+#include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 using namespace SushiAI;
 using Train::ObjectiveContext;
@@ -98,6 +100,62 @@ namespace
         return given;
     }
 } // namespace
+
+/** @brief Tests that a task without an assignment member trains with Darknet's rule. */
+TEST(Small_AnchorObjectiveFactory, TheDefaultAssignmentPicksTheDarknetRule)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
+                            build_anchor_objective(make_context(), section_from("{}")));
+
+    EXPECT_NE(dynamic_cast<const Vision::Training::DarknetHeadDeltaRule*>(&objective.rule()),
+              nullptr);
+}
+
+/** @brief Tests that a shape_ratio assignment over heads of logits picks the shape-ratio rule. */
+TEST(Small_AnchorObjectiveFactory, TheShapeRatioAssignmentPicksTheShapeRatioRule)
+{
+    ObjectiveContext given = make_context();
+    given.task = section_from(R"({
+        "type": "anchor_detection",
+        "classes": 2,
+        "anchors": [[0.25, 0.25], [0.5, 0.25], [0.5, 0.75], [0.75, 0.5]],
+        "heads": [
+            {"output": "head.0", "anchors": [0, 1], "coding": "logit", "scale_xy": 2.0,
+             "size": "squared_sigmoid"},
+            {"output": "head.1", "anchors": [2, 3], "coding": "logit", "scale_xy": 2.0,
+             "size": "squared_sigmoid"}
+        ],
+        "suppression": {"criterion": "iou"},
+        "assignment": {"rule": "shape_ratio"}
+    })");
+
+    SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
+                            build_anchor_objective(given, section_from("{}")));
+
+    EXPECT_NE(
+        dynamic_cast<const Vision::Training::ShapeRatioHeadDeltaRule*>(&objective.rule()),
+        nullptr);
+}
+
+/** @brief Tests that the shape-ratio rule refuses a head that is not of logits. */
+TEST(Small_AnchorObjectiveFactory, TheShapeRatioAssignmentRefusesAnActivatedHead)
+{
+    ObjectiveContext given = make_context();
+    given.task = section_from(R"({
+        "type": "anchor_detection",
+        "classes": 2,
+        "anchors": [[0.25, 0.25], [0.5, 0.25], [0.5, 0.75], [0.75, 0.5]],
+        "heads": [
+            {"output": "head.0", "anchors": [0, 1], "coding": "logit", "scale_xy": 1.0},
+            {"output": "head.1", "anchors": [2, 3], "coding": "activated", "scale_xy": 1.5}
+        ],
+        "suppression": {"criterion": "iou"},
+        "assignment": {"rule": "shape_ratio"}
+    })");
+
+    SA_EXPECT_FAILURE(build_anchor_objective(given, section_from("{}")),
+                      StatusCode::InvalidDescription, "head.1");
+}
 
 /** @brief Tests that each head takes its extents from the output the task names. */
 TEST(Small_AnchorObjectiveFactory, EachHeadTakesItsExtentsFromItsPublishedOutput)

@@ -85,9 +85,9 @@ namespace SushiAI::Vision::Training
              * @brief Runs the step up to its heads, feeds each delta, then runs the rest.
              * @param inputs A tensor with the rank, extents and dtype of the input leaf.
              * @pre The engine holds no recorded task; the copies run everything recorded.
-             * @return The summed cost of the deltas fed; Incompatible for a truth of another
-             *         batch or array size; InvalidDescription for a label that names no class;
-             *         or the failure of a feed or of a replay.
+             * @return The cost the objective's rule reported for the deltas fed; Incompatible
+             *         for a truth of another batch or array size; InvalidDescription for a
+             *         label that names no class; or the failure of a feed or of a replay.
              */
             [[nodiscard]] Result<Detect::Anchor::HeadCost> run(
                 const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth);
@@ -143,7 +143,10 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] Status resolve_head(std::size_t head, const Train::HostStage& stage);
 
-            /** @brief Computes the delta of every head and writes it into its leaf. */
+            /**
+             * @brief Computes every head's delta and the cost through the objective's rule,
+             *        then writes each delta into its leaf.
+             */
             [[nodiscard]] Status feed_deltas(const Detect::GroundTruthBatch& truth);
 
             /** @brief Returns Incompatible or InvalidDescription for a truth run() cannot use. */
@@ -176,6 +179,12 @@ namespace SushiAI::Vision::Training
 
             /// @brief Holds the delta of each head; run() overwrites it.
             std::vector<Detect::Anchor::HeadDelta> deltas_;
+
+            /// @brief Holds a view of each head's values as the host stage reads them.
+            std::vector<SushiRuntime::span<const float>> outputs_view_;
+
+            /// @brief Holds the cost the objective's rule reported for the last deltas fed.
+            Detect::Anchor::HeadCost cost_;
     };
 
 } // namespace SushiAI::Vision::Training

@@ -29,6 +29,7 @@
 #pragma once
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,18 +48,12 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
+#include <SushiAI/vision/detect/ground_truth.hpp>
+#include <SushiAI/vision/training/anchor_head.hpp>
+#include <SushiAI/vision/training/head_delta_rule.hpp>
 
 namespace SushiAI::Vision::Training
 {
-    /** @brief Holds what the objective needs of one anchor head of the model. */
-    struct AnchorHead
-    {
-        std::string output;                           /**< Name the model publishes it under. */
-        Detect::Anchor::HeadShape shape;              /**< Extents of the published output. */
-        Detect::Anchor::HeadOptions options;          /**< Classes, coding and offset scale. */
-        Detect::Anchor::HeadTrainingOptions training; /**< Weights and thresholds of the delta. */
-    };
-
     /**
      * @brief Trains anchor heads on a delta the host computes and feeds through one leaf a head.
      * @see docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md, section 4.6.
@@ -67,7 +62,7 @@ namespace SushiAI::Vision::Training
     {
         public:
             /**
-             * @brief Checks the description and builds the objective.
+             * @brief Checks the description and builds the objective with Darknet's rule.
              * @param heads One entry per head of @p layout, in the layout's head order.
              * @return The objective, or InvalidDescription for a network side or an extent
              *         below 1, a head count other than the layout's, batches that differ, an
@@ -77,6 +72,15 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] static Result<AnchorObjective> make(
                 Detect::Anchor::NetworkSize network, Detect::Anchor::AnchorLayout layout,
                 std::vector<AnchorHead> heads);
+
+            /**
+             * @brief Checks the description and builds the objective with @p rule.
+             * @param rule Computes the deltas and the cost; null is fatal.
+             * @return What the other make() returns, or the refusal of @p rule's check().
+             */
+            [[nodiscard]] static Result<AnchorObjective> make(
+                Detect::Anchor::NetworkSize network, Detect::Anchor::AnchorLayout layout,
+                std::vector<AnchorHead> heads, std::shared_ptr<const HeadDeltaRule> rule);
 
             /**
              * @brief Declares one float32 leaf per head, in the shape of the head's output.
@@ -98,7 +102,18 @@ namespace SushiAI::Vision::Training
             std::string_view name() const noexcept override;
 
             /**
-             * @brief Returns the cost of every head summed, field by field.
+             * @brief Writes the delta of every head through the objective's rule.
+             * @param outputs Each head's output, in head order; another count is fatal.
+             * @param deltas One per head, in head order; another count is fatal.
+             * @return The batch's cost, or the refusal of @p truth.
+             */
+            [[nodiscard]] Result<Detect::Anchor::HeadCost> compute_deltas(
+                SushiRuntime::span<const SushiRuntime::span<const float>> outputs,
+                const Detect::GroundTruthBatch& truth,
+                SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const;
+
+            /**
+             * @brief Returns measure_head_cost of every head summed, field by field.
              * @param deltas One delta per head, in head order; another count is fatal.
              */
             [[nodiscard]] Detect::Anchor::HeadCost measure_cost(
@@ -119,11 +134,15 @@ namespace SushiAI::Vision::Training
             /** @brief Returns the heads, in the layout's head order. */
             [[nodiscard]] const std::vector<AnchorHead>& heads() const noexcept;
 
+            /** @brief Returns the rule that computes the deltas and the cost. */
+            [[nodiscard]] const HeadDeltaRule& rule() const noexcept;
+
         private:
             /** @brief Stores a description make() has checked. */
             AnchorObjective(Detect::Anchor::NetworkSize network,
                             Detect::Anchor::AnchorLayout layout,
-                            std::vector<AnchorHead> heads) noexcept;
+                            std::vector<AnchorHead> heads,
+                            std::shared_ptr<const HeadDeltaRule> rule) noexcept;
 
             /// @brief Holds the size of the network input in pixels.
             Detect::Anchor::NetworkSize network_;
@@ -133,6 +152,9 @@ namespace SushiAI::Vision::Training
 
             /// @brief Holds one entry per head of layout_, in its order; never empty.
             std::vector<AnchorHead> heads_;
+
+            /// @brief Computes the deltas and the cost; shared by copies, never null.
+            std::shared_ptr<const HeadDeltaRule> rule_;
     };
 
 } // namespace SushiAI::Vision::Training

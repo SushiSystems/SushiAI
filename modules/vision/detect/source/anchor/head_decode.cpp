@@ -45,6 +45,7 @@ namespace SushiAI
         {
             using Detail::ActivatedRule;
             using Detail::LogitRule;
+            using Detail::SquaredSigmoidRule;
             using Detail::SlotBox;
 
             /** @brief Holds the extents and the settings one decode loop reads. */
@@ -143,7 +144,11 @@ namespace SushiAI
             switch (options.coding)
             {
                 case HeadCoding::Logit:
-                    decode_rows<LogitRule>(head.data(), plan, boxes.data(), scores.data());
+                    if (options.size == SizeForm::SquaredSigmoid)
+                        decode_rows<SquaredSigmoidRule>(head.data(), plan, boxes.data(),
+                                                        scores.data());
+                    else
+                        decode_rows<LogitRule>(head.data(), plan, boxes.data(), scores.data());
                     return;
                 case HeadCoding::Activated:
                     decode_rows<ActivatedRule>(head.data(), plan, boxes.data(), scores.data());

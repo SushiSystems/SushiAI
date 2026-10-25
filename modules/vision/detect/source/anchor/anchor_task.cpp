@@ -57,7 +57,7 @@ namespace SushiAI
 
             /** @brief Lists every key an entry of "heads" may carry. */
             constexpr std::string_view K_HEAD_KEYS[] = {"output", "anchors", "coding",
-                                                      "scale_xy"};
+                                                      "scale_xy", "size"};
 
             /** @brief Lists every key "suppression" may carry. */
             constexpr std::string_view K_SUPPRESSION_KEYS[] = {"criterion", "distance_exponent"};
@@ -67,6 +67,13 @@ namespace SushiAI
             {
                 HeadCoding value;      /**< The enumerator. */
                 std::string_view name; /**< Its string under "coding". */
+            };
+
+            /** @brief Pairs one size form with the string a task section states for it. */
+            struct SizeName
+            {
+                SizeForm value;        /**< The enumerator. */
+                std::string_view name; /**< Its string under "size". */
             };
 
             /** @brief Pairs one suppression criterion with its string and what it reads. */
@@ -80,6 +87,10 @@ namespace SushiAI
             /** @brief Lists every head coding; the reader and the writer both look it up. */
             constexpr CodingName K_CODING_NAMES[] = {{HeadCoding::Logit, "logit"},
                                                      {HeadCoding::Activated, "activated"}};
+
+            /** @brief Lists every size form; the reader and the writer both look it up. */
+            constexpr SizeName K_SIZE_NAMES[] = {{SizeForm::Exponential, "exponential"},
+                                                 {SizeForm::SquaredSigmoid, "squared_sigmoid"}};
 
             /** @brief Lists every criterion; the reader and the writer both look it up. */
             constexpr CriterionName K_CRITERION_NAMES[] = {
@@ -205,6 +216,20 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Value* const scale, reader.find("scale_xy"));
                 SA_TRY_ASSIGN(head.options.scale_xy,
                               read_float32(*scale, reader.member("scale_xy")));
+
+                if (reader.has("size"))
+                {
+                    SA_TRY_ASSIGN(const Value* const size, reader.find_of("size", Kind::String));
+                    const std::string& form = size->as_string(where);
+                    const SizeName* const named = find_by_name(K_SIZE_NAMES, form);
+                    SA_FAIL_IF(named == nullptr, StatusCode::InvalidDescription,
+                               "{} is '{}'; it is one of {}", member_of(where, "size"), form,
+                               list_names(K_SIZE_NAMES));
+                    SA_FAIL_IF(row->value != HeadCoding::Logit, StatusCode::InvalidDescription,
+                               "{} applies to a logit head; this head is '{}'",
+                               member_of(where, "size"), stated);
+                    head.options.size = named->value;
+                }
 
                 head.options.coding = row->value;
                 head.options.num_classes = num_classes;
@@ -361,11 +386,24 @@ namespace SushiAI
                 for (std::int64_t anchor : mask)
                     indices.push_back(Value::integer(anchor));
 
-                return Value::object(
-                    {"output", "anchors", "coding", "scale_xy"},
-                    {Value::string(head.output), Value::array(std::move(indices)),
-                     Value::string(std::string(coding->name)),
-                     Value::real(static_cast<double>(head.options.scale_xy))});
+                std::vector<std::string> keys = {"output", "anchors", "coding", "scale_xy"};
+                std::vector<Value> values;
+                values.push_back(Value::string(head.output));
+                values.push_back(Value::array(std::move(indices)));
+                values.push_back(Value::string(std::string(coding->name)));
+                values.push_back(Value::real(static_cast<double>(head.options.scale_xy)));
+                if (head.options.size != SizeForm::Exponential)
+                {
+                    const SizeName* const size = find_by_value(K_SIZE_NAMES, head.options.size);
+                    SA_FAIL_IF(size == nullptr, StatusCode::InvalidDescription,
+                               "{} holds the value {}, which is no size form; the forms are {}",
+                               member_of(entry_of(member_of(K_TASK, "heads"), index), "size"),
+                               static_cast<std::int64_t>(head.options.size),
+                               list_names(K_SIZE_NAMES));
+                    keys.emplace_back("size");
+                    values.push_back(Value::string(std::string(size->name)));
+                }
+                return Value::object(std::move(keys), std::move(values));
             }
 
             /** @brief Builds "heads" from the heads and the masks of @p task. */

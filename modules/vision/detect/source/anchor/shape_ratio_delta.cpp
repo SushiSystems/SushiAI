@@ -152,8 +152,10 @@ namespace SushiAI
 
                 decoded.box[K_X_ENTRY] = sx * plan.scale - plan.shift;
                 decoded.box[K_Y_ENTRY] = sy * plan.scale - plan.shift;
-                decoded.box[K_WIDTH_ENTRY] = Detail::ActivatedRule::size(sw, anchor.width);
-                decoded.box[K_HEIGHT_ENTRY] = Detail::ActivatedRule::size(sh, anchor.height);
+                decoded.box[K_WIDTH_ENTRY] =
+                    Detail::SquaredSigmoidRule::size(slot[K_WIDTH_ENTRY], anchor.width);
+                decoded.box[K_HEIGHT_ENTRY] =
+                    Detail::SquaredSigmoidRule::size(slot[K_HEIGHT_ENTRY], anchor.height);
 
                 decoded.slope[K_X_ENTRY] = plan.scale * sx * (1.0f - sx);
                 decoded.slope[K_Y_ENTRY] = plan.scale * sy * (1.0f - sy);
@@ -262,6 +264,11 @@ namespace SushiAI
             SA_TRY(validate_head_training(*input.training));
             SA_FAIL_IF(input.options.coding != HeadCoding::Logit, StatusCode::InvalidDescription,
                        "the shape-ratio delta reads a head of logits; head {} has another coding",
+                       input.head_index);
+            SA_FAIL_IF(input.options.size != SizeForm::SquaredSigmoid,
+                       StatusCode::InvalidDescription,
+                       "the shape-ratio delta decodes sides as squared sigmoids; head {} needs "
+                       "'size': 'squared_sigmoid'",
                        input.head_index);
             SA_FAIL_IF(input.shape.batch < 1 || input.shape.height < 1 || input.shape.width < 1,
                        StatusCode::InvalidDescription,
@@ -407,7 +414,7 @@ namespace SushiAI
                 complete_iou_gradient(
                     SushiRuntime::span<const float>(decoded.box.data(), decoded.box.size()),
                     SushiRuntime::span<const float>(truth.data(), truth.size()),
-                    BoxGradient::Analytic,
+                    BoxGradient::FixedTradeOff,
                     SushiRuntime::span<float>(gradient.data(), gradient.size()));
                 for (std::size_t entry = 0; entry < K_BOX_VALUES; ++entry)
                 {

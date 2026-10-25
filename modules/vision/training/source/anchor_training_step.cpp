@@ -106,6 +106,7 @@ namespace SushiAI::Vision::Training
             made->heads_.reserve(head_count);
             made->leaves_.reserve(head_count);
             made->deltas_.resize(head_count);
+            made->outputs_view_.resize(head_count);
             return made;
         }));
 
@@ -133,7 +134,9 @@ namespace SushiAI::Vision::Training
           input_(&input),
           heads_(),
           leaves_(),
-          deltas_()
+          deltas_(),
+          outputs_view_(),
+          cost_()
     {
 
     }
@@ -236,16 +239,24 @@ namespace SushiAI::Vision::Training
             const std::vector<AnchorHead>& heads = objective_.heads();
             for (std::size_t head = 0; head < heads.size(); ++head)
             {
-                const AnchorHead& described = heads[head];
                 const SushiBLAS::Tensor& output = *heads_[head];
-                const std::size_t elements = static_cast<std::size_t>(output.num_elements);
-                Detect::Anchor::HeadDelta& delta = deltas_[head];
+                outputs_view_[head] = SushiRuntime::span<const float>(
+                    output.data_as<float>(), static_cast<std::size_t>(output.num_elements));
+            }
 
-                SA_TRY(Detect::Anchor::compute_head_delta(
-                    SushiRuntime::span<const float>(output.data_as<float>(), elements),
-                    described.shape, described.options, objective_.layout(),
-                    static_cast<std::int64_t>(head), described.training, truth,
-                    objective_.network(), delta));
+            SA_TRY_ASSIGN(cost_,
+                          objective_.compute_deltas(
+                              SushiRuntime::span<const SushiRuntime::span<const float>>(
+                                  outputs_view_.data(), outputs_view_.size()),
+                              truth,
+                              SushiRuntime::span<Detect::Anchor::HeadDelta>(deltas_.data(),
+                                                                            deltas_.size())));
+
+            for (std::size_t head = 0; head < heads.size(); ++head)
+            {
+                const AnchorHead& described = heads[head];
+                const std::size_t elements = outputs_view_[head].size();
+                const Detect::Anchor::HeadDelta& delta = deltas_[head];
 
                 SA_FATAL_IF(delta.delta.size() != elements,
                             "the delta of head '{}' holds {} values for a head of {}",
@@ -275,8 +286,7 @@ namespace SushiAI::Vision::Training
         // The deltas come from the heads of the pass the rest of the step differentiates.
         SA_TRY(training_->run([this, &truth]() { return feed_deltas(truth); }));
 
-        return objective_.measure_cost(SushiRuntime::span<const Detect::Anchor::HeadDelta>(
-            deltas_.data(), deltas_.size()));
+        return cost_;
     }
 
     Result<const SushiBLAS::Tensor*> AnchorTrainingStep::output(std::string_view name) const

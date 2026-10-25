@@ -47,6 +47,7 @@ namespace
     using SushiAI::Vision::Detect::Anchor::HeadOptions;
 
     using SushiAI::Vision::Detect::Anchor::HeadShape;
+    using SushiAI::Vision::Detect::Anchor::SizeForm;
 
     /** @brief Holds the absolute tolerance of every decoded value, from the unit's acceptance. */
     constexpr float K_TOLERANCE = 1e-6f;
@@ -183,6 +184,24 @@ TEST(Small_DetectAnchorDecode, ZeroLogitsGiveTheCellCentreTheAnchorAndQuarterSco
     EXPECT_NEAR(head.box(0, 0)[3], 0.5f, K_TOLERANCE);
     EXPECT_NEAR(head.score(0, 0)[0], 0.25f, K_TOLERANCE);
     EXPECT_NEAR(head.score(0, 0)[1], 0.25f, K_TOLERANCE);
+}
+
+/** @brief Tests the squared-sigmoid size form at a zero, a saturated and a negative logit. */
+TEST(Small_DetectAnchorDecode, SquaredSigmoidSidesAreTwiceTheLogisticSquaredTimesTheAnchor)
+{
+    HeadOptions options = make_options(1, HeadCoding::Logit, 2.0f);
+    options.size = SizeForm::SquaredSigmoid;
+    HeadCase head = make_case({1, 1, 1}, options, make_single_anchor_layout(0.25f, 0.5f));
+    head.at(0, 0, 0, 0, K_WIDTH) = K_SATURATED;
+    head.at(0, 0, 0, 0, K_HEIGHT) = -1.0f;
+
+    head.decode();
+
+    // A saturated width is (2 * 1)^2 = 4 anchors; logistic(-1) is 0.2689414.
+    const float doubled = 2.0f * 0.26894142f;
+    EXPECT_NEAR(head.box(0, 0)[0], 0.5f, K_TOLERANCE);
+    EXPECT_NEAR(head.box(0, 0)[2], 1.0f, K_TOLERANCE);
+    EXPECT_NEAR(head.box(0, 0)[3], doubled * doubled * 0.5f, K_TOLERANCE);
 }
 
 /** @brief Tests that saturated logits reach the cell edges and the score bounds 0 and 1. */

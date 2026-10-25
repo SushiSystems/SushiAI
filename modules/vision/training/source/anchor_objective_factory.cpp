@@ -29,6 +29,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -41,6 +42,7 @@
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
+#include <SushiAI/vision/training/head_delta_rule_choice.hpp>
 
 namespace SushiAI::Vision::Training
 {
@@ -138,7 +140,11 @@ namespace SushiAI::Vision::Training
             return Status();
         }));
 
-        return AnchorObjective::make(network, std::move(task.layout), std::move(heads));
+        SA_TRY_ASSIGN(std::shared_ptr<const HeadDeltaRule> rule,
+                      choose_head_delta_rule(task.assignment));
+
+        return AnchorObjective::make(network, std::move(task.layout), std::move(heads),
+                                     std::move(rule));
     }
 
     Result<std::unique_ptr<Train::Objective>> make_anchor_objective(

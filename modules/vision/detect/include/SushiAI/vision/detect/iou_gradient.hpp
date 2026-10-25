@@ -47,6 +47,7 @@ namespace SushiAI
         {
             Analytic,          /**< The derivative of the measure. */
             DarknetCompatible, /**< The gradient section 11 of the report states. */
+            FixedTradeOff,     /**< The derivative with the aspect trade-off held constant. */
         };
 
         /**

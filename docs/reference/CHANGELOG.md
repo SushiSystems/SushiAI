@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-26 — training: Made the anchor objective compute deltas and cost through a head delta rule chosen from the task's `assignment` (`head_delta_rule.hpp`).
+- 2026-10-26 — detect: Added the squared-sigmoid size form of a logit anchor head, the task's `size` key (`head_options.hpp`).
+- 2026-10-26 — detect: Added the fixed trade-off form of the complete IoU gradient, which holds the aspect term's weight constant (`iou_gradient.hpp`).
 - 2026-10-26 — blocks: Added an optional `padding` to the conv row, half the kernel when absent (`conv_norm.hpp`).
 - 2026-10-26 — detect: Moved the anchor-free head's port, branch and bias names into a contract the head and its training both read (`head_contract.hpp`).
 - 2026-10-25 — training: Added the start of an anchor head's objectness and class biases from the strides derived from the model file and its trace (`anchor_bias_init.hpp`).
