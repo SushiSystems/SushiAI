@@ -2,8 +2,8 @@
 
 ## Owns
 
-The four functions that fill the registries with vision rows. `register_nodes` adds the eight block
-node types, conv, bottleneck, c3k, c3k2, sppf, c2psa, detect and segment_head, to an
+The four functions that fill the registries with vision rows. `register_nodes` adds the ten block
+node types, conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa, detect and segment_head, to an
 `NN::NodeRegistry`, in that order. `register_datasets`
 adds the mnist row and the reader row to a `Data::DatasetRegistry`; the reader row's factory is
 `Datasets::make_reader_dataset`, and its type is `Config::K_READER_DATA_TYPE`, which a data block

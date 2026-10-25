@@ -57,16 +57,20 @@ namespace SushiAI
 
         C3k::C3k(int64_t in_channels, int64_t out_channels, int64_t repeats, bool shortcut,
                  NN::NormOptions norm)
-            : cv1(in_channels, hidden_width(out_channels), Detail::K_POINTWISE,
-                  Detail::K_POINTWISE, norm),
-              cv2(in_channels, hidden_width(out_channels), Detail::K_POINTWISE,
-                  Detail::K_POINTWISE, norm),
-              cv3(2 * hidden_width(out_channels), out_channels, Detail::K_POINTWISE,
-                  Detail::K_POINTWISE, norm)
+            : C3k(in_channels, out_channels, hidden_width(out_channels), repeats, shortcut,
+                  Bottleneck::K_DEFAULT_KERNEL, Bottleneck::K_DEFAULT_KERNEL, norm)
         {
-            const int64_t hidden = hidden_width(out_channels);
+
+        }
+
+        C3k::C3k(int64_t in_channels, int64_t out_channels, int64_t hidden, int64_t repeats,
+                 bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm)
+            : cv1(in_channels, hidden, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
+              cv2(in_channels, hidden, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
+              cv3(2 * hidden, out_channels, Detail::K_POINTWISE, Detail::K_POINTWISE, norm)
+        {
             for (int64_t index = 0; index < repeats; ++index)
-                m.push_back(Bottleneck(hidden, hidden, hidden, shortcut, norm));
+                m.push_back(Bottleneck(hidden, hidden, hidden, shortcut, norm, kernel1, kernel2));
         }
 
         Graph::ValueID C3k::forward(const NN::Trace& trace, Graph::ValueID x)

@@ -4,8 +4,9 @@
 
 The model blocks of the YOLO family, each built from `nn` layers: `Conv`, a convolution with a
 batch normalisation and a SiLU; `ConvLinear`, the same without the activation; `Bottleneck`;
-`C3k`; `C3k2`, which takes a `Bottleneck`, a `C3k` or a `Bottleneck` with a `PSABlock` as its
-inner block; `SPPF`; `DWConv` and `DWConvLinear`, the depthwise forms of `Conv` and `ConvLinear`;
+`C3k`; `C3`, a `C3k` with a stated hidden width and a 1x1 then a 3x3 window in each
+bottleneck; `C3k2`, which takes a `Bottleneck`, a `C3k` or a `Bottleneck` with a `PSABlock` as
+its inner block; `C2f`, a `C3k2` over bottlenecks of the full hidden width; `SPPF`; `DWConv` and `DWConvLinear`, the depthwise forms of `Conv` and `ConvLinear`;
 `Attention`, a multi-head self-attention over the positions of a feature map; `PSABlock`, an
 attention with a feed-forward pair; `C2PSA`, which chains `PSABlock`s; `DetectHead`, the
 detection head; and `SegmentHead`, the semantic segmentation head. Every block but `DetectHead`
@@ -28,7 +29,9 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/vision/blocks/conv_norm.hpp>` | `ConvNorm`, `Conv`, `ConvLinear`, `DWConv`, `DWConvLinear`, `make_conv_node` |
 | `<SushiAI/vision/blocks/bottleneck.hpp>` | `Bottleneck`, `make_bottleneck_node` |
 | `<SushiAI/vision/blocks/c3k.hpp>` | `C3k`, `make_c3k_node` |
+| `<SushiAI/vision/blocks/c3.hpp>` | `C3`, `make_c3_node` |
 | `<SushiAI/vision/blocks/c3k2.hpp>` | `C3k2`, `C3k2InnerEntry`, `K_C3K2_INNER`, `make_c3k2_of_bottleneck`, `make_c3k2_of_c3k`, `make_c3k2_of_bottleneck_psa`, `make_c3k2_node` |
+| `<SushiAI/vision/blocks/c2f.hpp>` | `C2f`, `make_c2f_node` |
 | `<SushiAI/vision/blocks/sppf.hpp>` | `SPPF`, `make_sppf_node` |
 | `<SushiAI/vision/blocks/attention.hpp>` | `Attention` |
 | `<SushiAI/vision/blocks/psa_block.hpp>` | `PSABlock` |
@@ -51,17 +54,20 @@ that comment.
 | `make_bottleneck_node` | `filters`, `hidden` | `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c3k_node` | `filters` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c3k2_node` | `filters`, `hidden` | `inner`, `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
+| `make_c3_node` | `filters`, `hidden` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
+| `make_c2f_node` | `filters`, `hidden` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_sppf_node` | `filters` | `kernel`, `pools`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c2psa_node` | `filters`, `hidden` | `repeats`, `heads`, `bn_epsilon`, `bn_momentum` |
 | `make_detect_node` | `classes` | `bn_epsilon`, `bn_momentum` |
 | `make_segment_head_node` | `classes` | `hidden`, `scale`, `bn_epsilon`, `bn_momentum` |
 
-`registration` adds the factories of `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf`, `c2psa`,
-`detect` and `segment_head` to the node registry.
+`registration` adds the factories of `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`,
+`c2psa`, `detect` and `segment_head` to the node registry.
 
 ## Notes on the blocks
 
-The first five headers are the composite blocks of YOLO26. Each of their blocks is an
+The first five headers are the composite blocks of YOLO26; `c3.hpp` and `c2f.hpp` add two rows
+over the same blocks. Each of their blocks is an
 `NN::TraceModule`, and each has a factory with the `NodeFactory` signature. Source for those five:
 MG 2.10, with the state names of MG 2.11. PLAN unit U11. The other four hold the attention blocks
 and the head; their source is `docs/agent/2026_10_07_YOLO26/PLAN.md`, units U6 to U9.
@@ -96,6 +102,25 @@ result. `K_C3K2_INNER` lists the inner blocks a `c3k2` row may name: "bottleneck
 "bottleneck_psa", a `Bottleneck` followed by a `PSABlock` of `max(hidden / 64, 1)` heads.
 `make_c3k2_node` reads `filters` and `hidden`, and the optional `inner`, "bottleneck" when
 absent, `repeats`, 1 when absent, and `shortcut`, true when absent.
+
+### c3.hpp
+
+`C3` is `C3k`. It is built through the constructor that states the hidden width and the two
+windows of each bottleneck: `cv1` and `cv2` are 1x1 convolutions from the input width to `hidden`,
+each bottleneck keeps `hidden` channels with a 1x1 window then a 3x3 window, and `cv3` maps the
+chain and `cv2` joined, `2 * hidden` channels, to the output width. The state names are those of
+`C3k`: `cv1`, `cv2`, `cv3` and `m.<i>.cv1`, `m.<i>.cv2`. `make_c3_node` reads `filters` and
+`hidden`, and the optional `repeats`, 1 when absent, and `shortcut`, true when absent.
+
+### c2f.hpp
+
+`C2f` is `C3k2<Bottleneck>`. `cv1` is a 1x1 convolution to `2 * hidden` channels, cut into two
+halves; `repeats` bottlenecks of `hidden` channels with 3x3 windows are chained off the second
+half; `cv2` maps the two halves and every bottleneck result, `(2 + repeats) * hidden` channels, to
+the output width. The state names are `cv1`, `cv2` and `m.<i>.cv1`, `m.<i>.cv2`. The bottleneck
+of the "bottleneck" inner block of `c3k2` has a hidden width of `hidden / 2`; here it is `hidden`.
+`make_c2f_node` reads `filters` and `hidden`, and the optional `repeats`, 1 when absent, and
+`shortcut`, true when absent.
 
 ### sppf.hpp
 

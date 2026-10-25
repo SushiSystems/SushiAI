@@ -58,7 +58,7 @@ namespace SushiAI
             /** @brief Holds the 1x1 convolution over both branches joined. */
             Conv cv3;
 
-            /** @brief Holds the chain; each bottleneck keeps the hidden width with 3x3 windows. */
+            /** @brief Holds the chain; each bottleneck keeps the hidden width. */
             NN::ModuleList<Bottleneck> m;
 
             /**
@@ -68,6 +68,16 @@ namespace SushiAI
              */
             C3k(int64_t in_channels, int64_t out_channels, int64_t repeats, bool shortcut,
                 NN::NormOptions norm);
+
+            /**
+             * @brief Builds the three convolutions and @p repeats bottlenecks of stated windows.
+             * @param hidden The width of both branches and of every bottleneck.
+             * @param shortcut Asks every bottleneck of the chain to add its input.
+             * @param kernel1 The side of the first window of each bottleneck; odd.
+             * @param kernel2 The side of the second window of each bottleneck; odd.
+             */
+            C3k(int64_t in_channels, int64_t out_channels, int64_t hidden, int64_t repeats,
+                bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm);
 
             /** @brief Lists the four children, under "cv1", "cv2", "cv3" and "m". */
             static constexpr auto fields()

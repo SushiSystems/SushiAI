@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — blocks: Added the c2f row, which chains full-width bottlenecks off half of its stem, and the c3 row, whose bottlenecks of kernels 1 and 3 run beside a second stem (`c2f.hpp`, `c3.hpp`).
 - 2026-10-25 — programs: Added mean average precision at IoU 0.5 to the `anchor_detection` inference report, fed by `add_batch()` (`batch_average_precision.hpp`, `domains_vision.cpp`).
 - 2026-10-25 — config: Added `fit` to the model file's `input` block and `Config::fit_data_to_model()`, which hands it to the data block and refuses a block stating another (`model_config.hpp`, `data_fit.hpp`).
 - 2026-10-25 — datasets: Made a data block or section's `fit` choose between stretching and letterboxing an image (`task_dataset.cpp`).

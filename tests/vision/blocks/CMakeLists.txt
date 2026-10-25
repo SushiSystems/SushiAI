@@ -10,7 +10,9 @@ sushiai_add_test_program(OWNER vision/blocks
     SOURCES
         test_attention.cpp
         test_bottleneck.cpp
+        test_c2f.cpp
         test_c2psa.cpp
+        test_c3.cpp
         test_c3k.cpp
         test_c3k2.cpp
         test_conv_norm.cpp

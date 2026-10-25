@@ -159,7 +159,7 @@ has two rows.
 
 | Row | Types | A row reads |
 | --- | --- | --- |
-| Node | `batchnorm2d`, `concat`, `add`, `embedding`, `layernorm`, `dropout`; the vision rows `conv`, `bottleneck`, `c3k`, `c3k2`, `sppf`, `c2psa`, `detect`, `segment_head`; the language rows | One value; `concat` reads one or more |
+| Node | `batchnorm2d`, `concat`, `add`, `embedding`, `layernorm`, `dropout`; the vision rows `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`, `c2psa`, `detect`, `segment_head`; the language rows | One value; `concat` reads one or more |
 | Layer | `linear`, `gelu`, `relu`, `tanh`, `sigmoid`, `leaky_relu`, `unflatten`, `conv2d`, `maxpool2d`, `avgpool2d`, `global_avgpool`, `flatten`, `upsample`, `silu`, `mish`, `slice_channels` | One value |
 
 `build_model` reads both kinds of row. `build_layer_stack` reads the layer rows only, so a chain

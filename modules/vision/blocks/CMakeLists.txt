@@ -10,7 +10,9 @@ sushiai_add_module(NAME blocks TIER vision
     SOURCES
         source/attention.cpp
         source/bottleneck.cpp
+        source/c2f.cpp
         source/c2psa.cpp
+        source/c3.cpp
         source/c3k.cpp
         source/c3k2.cpp
         source/conv_norm.cpp

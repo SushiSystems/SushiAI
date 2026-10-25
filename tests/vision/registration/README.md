@@ -11,10 +11,10 @@ YOLO26n cases read `applications/examples/yolo26/model.json` and
 `tests/vision/registration/fixtures/yolo26/MANIFEST.json` and report themselves skipped when the
 repository root is not found. `Medium_VisionRegistrationData` is an engine fixture.
 
-### RegisterNodesAddsTheEightBlocks
+### RegisterNodesAddsTheTenBlocks
 
-`Vision::register_nodes` adds the node rows "conv", "bottleneck", "c3k", "c3k2", "sppf",
-"c2psa", "detect" and "segment_head", in that order, and no layer row.
+`Vision::register_nodes` adds the node rows "conv", "bottleneck", "c3k", "c3k2", "c2f", "c3",
+"sppf", "c2psa", "detect" and "segment_head", in that order, and no layer row.
 
 ### RegisterDatasetsAddsMNISTAndReader
 

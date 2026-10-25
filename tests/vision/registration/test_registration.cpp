@@ -137,6 +137,8 @@ namespace
         {"bottleneck", R"({"filters": 4, "hidden": 2})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c3k", R"({"filters": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c3k2", R"({"filters": 8, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 8}},
+        {"c2f", R"({"filters": 8, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 8}},
+        {"c3", R"({"filters": 8, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 8}},
         {"sppf", R"({"filters": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
         {"c2psa", R"({"filters": 4, "hidden": 4})", {Shape{8, 8, 4}}, Shape{8, 8, 4}},
     };
@@ -358,13 +360,14 @@ namespace
 } // namespace
 
 /**
- * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, sppf, c2psa, detect and
- *        segment_head, in that order.
+ * @brief Tests that register_nodes adds conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa,
+ *        detect and segment_head, in that order.
  */
-TEST(Medium_VisionRegistration, RegisterNodesAddsTheEightBlocks)
+TEST(Medium_VisionRegistration, RegisterNodesAddsTheTenBlocks)
 {
     const std::vector<std::string_view> expected = {
-        "conv", "bottleneck", "c3k", "c3k2", "sppf", "c2psa", "detect", "segment_head",
+        "conv", "bottleneck", "c3k", "c3k2", "c2f", "c3", "sppf", "c2psa", "detect",
+        "segment_head",
     };
 
     NN::NodeRegistry registry;
