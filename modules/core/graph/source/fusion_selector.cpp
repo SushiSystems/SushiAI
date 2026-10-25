@@ -26,11 +26,18 @@
  */
 
 #include <SushiAI/graph/fusion_selector.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
 
 namespace SushiAI
 {
     namespace Graph
     {
+        DeviceFusionSelector::DeviceFusionSelector(const SushiBLAS::Device::Profile& profile,
+                                                   SushiBLAS::ExecutionMode mode) noexcept
+            : supports_fp64_(profile.supports_fp64), mode_(mode)
+        {
+        }
+
         DeviceFusionSelector DeviceFusionSelector::for_engine(SushiBLAS::Engine& engine)
         {
             // Device profile queries are cached statically across engine bindings.
@@ -46,7 +53,7 @@ namespace SushiAI
                 return FusionChoice{FusedForm::None, "nothing was matched"};
 
             // Fall back to plain kernels when target device lacks native double precision.
-            if (query.dtype == DType::Float64 && !profile_.supports_fp64)
+            if (query.dtype == DType::Float64 && !supports_fp64_)
                 return FusionChoice{FusedForm::None,
                                     "the device has no native double precision, so the plain "
                                     "kernels report the problem rather than a fused form the "

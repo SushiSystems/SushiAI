@@ -33,9 +33,13 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/elementwise/elementwise.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiBLAS/engine/scratch_pool.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>

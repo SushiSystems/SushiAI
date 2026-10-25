@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — graph: Made the fusion selector keep the one device fact it reads, so its header no longer includes SushiBLAS's launch policy (`fusion_selector.hpp`).
 - 2026-10-26 — training: Made the anchor and anchor-free engines share one truth check, one run check and one progress report (`detection_run_check.hpp`).
 - 2026-10-26 — programs: Compiled the shared program sources once, into a library the four programs and the program tests link (`applications/programs/CMakeLists.txt`).
 - 2026-10-26 — guides: Described training a detector and the anchor task's assignment and size keys (`docs/guides/RUNNING_MODELS.md`).

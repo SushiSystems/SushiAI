@@ -116,7 +116,7 @@ TEST(Small_FusionSelector, TheSelectorKeepsTheDeviceItReasonsAbout)
 {
     const DeviceFusionSelector selector(fp64_device(), SushiBLAS::ExecutionMode::ForceSYCL);
 
-    EXPECT_TRUE(selector.profile().supports_fp64);
+    EXPECT_TRUE(selector.supports_fp64());
     EXPECT_EQ(selector.mode(), SushiBLAS::ExecutionMode::ForceSYCL);
     EXPECT_EQ(selector.choose(FusionQuery{}).form, FusedForm::None);
 }

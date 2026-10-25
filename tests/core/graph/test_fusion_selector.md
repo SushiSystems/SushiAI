@@ -30,5 +30,5 @@ contiguity.
 
 ## TheSelectorKeepsTheDeviceItReasonsAbout
 
-`profile()` and `mode()` return what the selector was built with, and a query that matched
+`supports_fp64()` and `mode()` return what the selector was built with, and a query that matched
 nothing is answered with no form.

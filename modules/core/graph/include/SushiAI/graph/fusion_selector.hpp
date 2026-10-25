@@ -30,9 +30,18 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/launch/device_policy.hpp>
+#include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/graph/fusion.hpp>
+
+namespace SushiBLAS
+{
+    namespace Device
+    {
+        /** @brief Declares the device profile, which the selector source reads. */
+        struct Profile;
+    } // namespace Device
+} // namespace SushiBLAS
 
 namespace SushiAI
 {
@@ -115,8 +124,7 @@ namespace SushiAI
                  * @param mode The engine execution mode.
                  */
                 DeviceFusionSelector(const SushiBLAS::Device::Profile& profile,
-                                     SushiBLAS::ExecutionMode mode) noexcept
-                    : profile_(profile), mode_(mode) {}
+                                     SushiBLAS::ExecutionMode mode) noexcept;
 
                 /**
                  * @brief Builds a selector describing @p engine's real device.
@@ -125,8 +133,8 @@ namespace SushiAI
                  */
                 static DeviceFusionSelector for_engine(SushiBLAS::Engine& engine);
 
-                /** @brief The device this selector is reasoning about. */
-                const SushiBLAS::Device::Profile& profile() const noexcept { return profile_; }
+                /** @brief Whether the device this selector reasons about has native double precision. */
+                bool supports_fp64() const noexcept { return supports_fp64_; }
 
                 /** @brief The execution mode this selector is reasoning about. */
                 SushiBLAS::ExecutionMode mode() const noexcept { return mode_; }
@@ -134,7 +142,9 @@ namespace SushiAI
                 FusionChoice choose(const FusionQuery& query) const override;
 
             private:
-                SushiBLAS::Device::Profile profile_;
+                /** @brief Whether the device has native double precision. */
+                bool supports_fp64_;
+                /** @brief The execution mode the selector reasons about. */
                 SushiBLAS::ExecutionMode mode_;
         };
 
