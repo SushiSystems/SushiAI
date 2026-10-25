@@ -31,11 +31,24 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/init.hpp>
+#include <SushiAI/nn/layers.hpp>
+#include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/optim/adamw.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/sgd.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
 

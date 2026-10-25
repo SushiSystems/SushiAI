@@ -35,12 +35,13 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>

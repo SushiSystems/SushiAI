@@ -33,11 +33,13 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/graph/state_id.hpp>
+#include <SushiAI/nn/buffer.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>

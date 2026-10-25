@@ -32,7 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>

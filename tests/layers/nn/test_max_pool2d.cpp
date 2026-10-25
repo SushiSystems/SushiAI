@@ -33,8 +33,8 @@
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>

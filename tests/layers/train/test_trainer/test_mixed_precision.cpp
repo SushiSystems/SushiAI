@@ -32,10 +32,27 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/data/dataset.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/precision.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/init.hpp>
+#include <SushiAI/nn/layers.hpp>
+#include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/ops/ops.hpp>
+#include <SushiAI/optim/adamw.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;

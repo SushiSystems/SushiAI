@@ -39,27 +39,39 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/nn/dropout.hpp>
+#include <SushiAI/nn/init.hpp>
+#include <SushiAI/nn/layers.hpp>
+#include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
+#include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/io/README.md.

@@ -30,7 +30,6 @@
 #include <memory>
 #include <string_view>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>

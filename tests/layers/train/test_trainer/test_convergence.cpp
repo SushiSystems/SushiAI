@@ -37,16 +37,32 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
+#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/nn/batch_norm2d.hpp>
+#include <SushiAI/nn/buffer.hpp>
+#include <SushiAI/nn/flatten.hpp>
+#include <SushiAI/nn/init.hpp>
+#include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/nn/unflatten.hpp>
+#include <SushiAI/optim/adamw.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
+#include <SushiAI/train/training_step.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
