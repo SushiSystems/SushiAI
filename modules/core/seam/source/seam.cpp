@@ -98,6 +98,7 @@ namespace SushiAI
                     return failure_of(StatusCode::Unsupported, text);
 
                 case ErrorCode::InvalidGraph:
+                case ErrorCode::InvalidArgument:
                     return failure_of(StatusCode::InvalidDescription, text);
 
                 case ErrorCode::ProtocolMismatch:
