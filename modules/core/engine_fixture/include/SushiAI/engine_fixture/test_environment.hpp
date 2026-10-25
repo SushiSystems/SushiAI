@@ -33,7 +33,6 @@
 #include <string_view>
 #include <utility>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/execution/execution.hpp>

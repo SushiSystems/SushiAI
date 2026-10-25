@@ -6,7 +6,9 @@
 
 dispatch: header include inventory — haiku high, 22 tool calls, passed, rung 1
 dispatch: C1 program shared library — haiku high, 27 tool calls, passed, rung 1
-dispatch: C2 and C7 device sources — opus low, running
+dispatch: C2 and C7 device sources — opus low, 3 tool calls, stopped on DISPATCH rule 3 (no build files); done inline
+dispatch: C4 fusion selector — sonnet low, 33 tool calls, sent back once for rules 1 and 2, passed
+dispatch: C5 span-only headers — haiku high, 56 tool calls, passed, rung 1
 
 ## 1. Findings
 
@@ -28,15 +30,15 @@ program tests in a distributed build.
 
 | Verdict | Headers |
 | --- | --- |
-| Needs the full header | 56, of which 17 name only `SushiRuntime::span` from it |
+| Needs the full header | 56 |
 | A forward declaration would do | 27 |
 | Includes it for nothing | `train/objective.hpp` and `engine_fixture/test_environment.hpp` include `engine.hpp` and use none of it |
 
-The 17 span-only headers: `lowering.hpp`, `cached_generator.hpp`, `position_feed.hpp`,
-`ring_position_feed.hpp`, `table_position_feed.hpp`, `window_generator.hpp`, `step_view.hpp`,
-`darknet_forward.hpp`, `darknet_import.hpp`, `darknet_training.hpp`, `batch_inputs.hpp`,
-`task_table.hpp`, `anchor_objective.hpp`, `anchor_training_step.hpp`, `evaluation_step.hpp`,
-`inference_run.hpp`, `training_run.hpp`.
+The inventory said 17 of these named only `SushiRuntime::span`. C5 read each one: 16 name
+`SushiBLAS::Engine` or `Tensor`, so the claim was wrong and the inventory's verdicts are not to be
+used without reading the header. The "forward declaration would do" count of 27 is unchecked for
+the same reason. `test_environment.hpp` was the one header that included `engine.hpp` for nothing;
+`objective.hpp` uses `Tensor`. `anchor_objective.hpp` includes `tensor.hpp` and names no `Tensor`.
 
 SushiBLAS ships no forward header; `Tensor` is a `struct`, `Engine` a `class`.
 
