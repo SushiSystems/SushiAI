@@ -157,7 +157,9 @@ namespace SushiAI
             SA_TRY(pool.materialise_leaves(built.graph));
             SA_TRY(fill_host_tables(built.tables, pool));
 
-            // bind_buffer_updates() reads each source's tensor before the step is compiled.
+            // The pinned loss and update sources get their tensors before the step is compiled.
+            if (built.spec.loss != Graph::K_NO_VALUE)
+                SA_TRY(pool.materialise(built.spec.loss, built.graph.value(built.spec.loss)));
             for (const Graph::ValueID source : built.updates.sources())
                 SA_TRY(pool.materialise(source, built.graph.value(source)));
 

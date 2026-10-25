@@ -65,7 +65,7 @@ namespace SushiAI
     namespace Train
     {
         /**
-         * @brief Plans memory, binds the state's storage, and pairs parameters with gradients.
+         * @brief Plans memory and binds the state, the loss, the update sources and gradients.
          * @param built The traced graph; its pinned values follow those of @p options.
          * @param state The state of the model @p built was traced from; it owns the parameters.
          * @param pool Holds no leaf of the graph yet; a plan it holds must leave them unpacked.

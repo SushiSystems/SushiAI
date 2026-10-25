@@ -164,6 +164,10 @@ each parameter's role into its `ParameterBinding`, and `bind_parameters` sets
 `Optim::ParameterSlot::decays` from it. A binding built by hand has the role `Weight`. The
 optimizer option `decay_all` decays every slot whatever the flag says.
 
+`bind_parameters` gives the loss and the sources of the buffer updates their tensors before the
+step is compiled. Both are pinned, so the plan leaves them unpacked and a caller may hand them
+out, as a replica hands out its results.
+
 `bind_step_results(built, state, pool)` binds what a step produces and plans no memory: the
 state's storage, a zeroed gradient per parameter, the loss and the sources of the buffer
 updates, each as its own tensor. It returns the slots as `bind_parameters` does, and stops the

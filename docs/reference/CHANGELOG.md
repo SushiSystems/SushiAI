@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — train: Fixed `bind_parameters` leaving the loss without a tensor until the step was compiled, so a replica could not list its loss among its results (`trainer.hpp`).
 - 2026-10-25 — programs: Made the cluster master await the worker of each replica above 0, one replica per machine as the cluster section requires (`master_cluster.hpp`).
 - 2026-10-25 — seam: Fixed SushiRuntime's `InvalidArgument` reaching no status; it maps to `InvalidDescription` (`seam.cpp`).
 - 2026-10-25 — umbrella: Added `step_recording.hpp`, and `replica_serve_observer.hpp` under `SA_DISTRIBUTED`, to the umbrella header (`SushiAI.hpp`).

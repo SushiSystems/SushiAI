@@ -163,6 +163,17 @@ namespace
     };
 } // namespace
 
+/** @brief Tests that binding gives the loss its own tensor before any step is compiled. */
+TEST_F(Medium_TrainingStep, Regression_BindingGivesTheLossATensorBeforeTheStepIsCompiled)
+{
+    ClassifierParts parts;
+    parts.prepare(*engine);
+    ASSERT_TRUE(parts.ready);
+
+    ASSERT_TRUE(parts.pool->is_bound(parts.built.spec.loss));
+    EXPECT_NE(parts.pool->tensor(parts.built.spec.loss).data(), nullptr);
+}
+
 /** @brief Tests that an InPlan step refuses an optimizer whose replay would repeat its scalars. */
 TEST_F(Medium_TrainingStep, InPlanRefusesAnOptimizerThatIsNotReplayInvariant)
 {
