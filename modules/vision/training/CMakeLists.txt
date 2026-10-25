@@ -14,6 +14,8 @@ sushiai_add_module(NAME training TIER vision
         source/anchor_training_step.cpp
         source/dice_objective.cpp
         source/dice_targets.cpp
+        source/distribution_expectation_graph.cpp
+        source/distribution_focal_loss.cpp
         source/head_delta_loss.cpp
         source/pixel_cross_entropy_objective.cpp
         source/pixel_labels.cpp

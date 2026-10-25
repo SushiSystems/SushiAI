@@ -32,6 +32,8 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | Header | Declares |
 | --- | --- |
 | `<SushiAI/vision/training/head_delta_loss.hpp>` | `emit_head_delta_loss` |
+| `<SushiAI/vision/training/distribution_expectation_graph.hpp>` | `emit_distribution_expectation` |
+| `<SushiAI/vision/training/distribution_focal_loss.hpp>` | `emit_distribution_focal_loss` |
 | `<SushiAI/vision/training/anchor_objective.hpp>` | `AnchorHead`, `AnchorObjective` |
 | `<SushiAI/vision/training/anchor_objective_factory.hpp>` | `build_anchor_objective`, `make_anchor_objective` |
 | `<SushiAI/vision/training/anchor_training_step.hpp>` | `AnchorTrainingStep` |

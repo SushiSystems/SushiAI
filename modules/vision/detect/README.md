@@ -37,6 +37,8 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `free/assigner_config.hpp` | `AssignerConfig` and the two branch presets |
 | `free/assignment.hpp` | `Assignment` |
 | `free/assigner.hpp` | `AssignerInputs`, `TaskAlignedAssigner` |
+| `free/distribution_expectation.hpp` | `expect_distances`, `fill_distribution_projection` |
+| `free/distribution_targets.hpp` | `K_DISTRIBUTION_MARGIN`, `fill_distribution_weights` |
 | `free/target_leaves.hpp` | `TargetLeafInputs`, `TargetLeaves`, `build_target_leaves`, `K_SAFE_BOX` |
 | `detection_row.hpp` | The six columns of a detection, `K_MAX_DETECTIONS`, `K_VALIDATION_CONFIDENCE` |
 | `prediction_shape.hpp` | `PredictionShape` |
@@ -144,6 +146,14 @@ member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite 
 ## free/assigner.hpp
 
 [`include/SushiAI/vision/detect/free/assigner.md`](include/SushiAI/vision/detect/free/assigner.md) describes it.
+
+## free/distribution_expectation.hpp
+
+[`include/SushiAI/vision/detect/free/distribution_expectation.md`](include/SushiAI/vision/detect/free/distribution_expectation.md) describes it.
+
+## free/distribution_targets.hpp
+
+[`include/SushiAI/vision/detect/free/distribution_targets.md`](include/SushiAI/vision/detect/free/distribution_targets.md) describes it.
 
 ## free/target_leaves.hpp
 

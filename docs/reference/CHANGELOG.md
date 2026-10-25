@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-25 — detect: Added the distribution expectation of a box output of `4 * reg_max` channels on the host, and the bin weights of the distribution focal loss (`distribution_expectation.hpp`, `distribution_targets.hpp`).
+- 2026-10-25 — training: Added the distribution expectation and the distribution focal loss as graph emitters (`distribution_expectation_graph.hpp`, `distribution_focal_loss.hpp`).
 - 2026-10-25 — config: Added the training file's `deterministic` key, true by default, in training file version 3 (`train_config.hpp`).
 - 2026-10-25 — detect: Added the shape-ratio anchor assignment with neighbour cells, chosen by the anchor task's `assignment` member (`shape_ratio_assignment.hpp`).
 - 2026-10-25 — blocks: Added `reg_max`, `end2end` and `class_branch` to the detect row, and a bias initialisation from strides to `DetectOptions` (`detect_head.hpp`).

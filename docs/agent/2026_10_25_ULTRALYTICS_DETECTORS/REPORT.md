@@ -12,6 +12,7 @@ dispatch: U1 c2f and c3 — sonnet medium, 49 turns, passed, rung 1
 dispatch: U2 detect options — sonnet medium, 71 turns, passed, rung 1
 dispatch: U10 shape-ratio assignment — opus low, 43 turns, passed, rung 1
 dispatch: U15 deterministic key — sonnet medium, 44 turns, passed, rung 1
+dispatch: U3 distribution focal loss — opus low, 58 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -71,3 +72,16 @@ executors were searched for the patterns, not read line by line.
 One unordered path sits behind a key: a cluster replica's `if_absent: "local"` runs a lost
 worker's replica on the master's device. Under `deterministic: true` it is to be refused
 (RW-141).
+
+## 7. U3, written and not built
+
+Bin `b` of side `s` sits at channel `s * reg_max + b`, sides left, top, right, bottom, as
+Ultralytics' `view(b, 4, reg_max, a)` reads it; taken from memory of Ultralytics, not its source.
+The host forms are in `detect/free`, the graph forms in `vision/training`, since `detect` does not
+depend on the graph module. The expectation reshapes to `[N * 4, reg_max]`, takes a softmax and
+multiplies by a `[reg_max, 1]` leaf of the bin values, because `K_CONSTANT` holds one value; at
+`reg_max` 1 it emits nothing. The loss is `-sum(log_softmax * weights)` over host-built weights:
+`wl` at the lower bin and `wr` at the upper, each times the score weight over the score sum and a
+quarter for the mean over sides, so the mask, the normalisation and the mean live in the weights.
+The worker did not load `cpp-code-style` or `testing`; the files pass the comment checker and the
+syntax check.
