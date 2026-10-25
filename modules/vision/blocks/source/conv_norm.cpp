@@ -37,13 +37,41 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Names the key that holds a row's zero padding on each side. */
+            constexpr std::string_view K_PADDING_KEY = "padding";
+
             /** @brief Lists every key a "conv" row accepts. */
             constexpr std::string_view K_CONV_KEYS[] = {
-                "filters", "kernel", "stride", Detail::K_NORM_EPSILON_KEY,
+                "filters", "kernel", "stride", K_PADDING_KEY, Detail::K_NORM_EPSILON_KEY,
                 Detail::K_NORM_MOMENTUM_KEY};
 
             /** @brief Holds the kernel and the stride of a row that states neither. */
             constexpr int64_t K_DEFAULT_WINDOW = 1;
+
+            /**
+             * @brief Reads the whole number under "padding", or kernel / 2 when it is absent.
+             * @return InvalidDescription when the key holds anything but a whole number of zero
+             *         or more.
+             */
+            [[nodiscard]] Result<int64_t> read_padding_or_same(const Config::Value& attributes,
+                                                               int64_t kernel,
+                                                               std::string_view context)
+            {
+                if (!attributes.has(K_PADDING_KEY))
+                    return kernel / 2;
+
+                const Config::Value& value = attributes.at(K_PADDING_KEY, context);
+                SA_FAIL_IF(value.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
+                           "{} '{}' must be a whole number, but it is {}", context, K_PADDING_KEY,
+                           Config::kind_name(value.kind()));
+
+                const int64_t padding = value.as_int(K_PADDING_KEY);
+                SA_FAIL_IF(padding < 0, StatusCode::InvalidDescription,
+                           "{} '{}' must be zero or more, but it is {}", context, K_PADDING_KEY,
+                           padding);
+
+                return padding;
+            }
 
         } // namespace
 
@@ -61,10 +89,13 @@ namespace SushiAI
             SA_TRY_ASSIGN(const int64_t stride,
                           Detail::read_positive_int_or(attributes, "stride", context,
                                                        K_DEFAULT_WINDOW));
+            SA_TRY_ASSIGN(const int64_t padding,
+                          read_padding_or_same(attributes, kernel, context));
             SA_TRY_ASSIGN(const NN::NormOptions norm,
                           Detail::read_norm_options(attributes, context));
 
-            return Detail::wrap_block(Conv(input[2], filters, kernel, stride, norm), input);
+            return Detail::wrap_block(Conv(input[2], filters, kernel, stride, padding, norm),
+                                      input);
         }
 
     } // namespace Vision::Blocks

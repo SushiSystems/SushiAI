@@ -20,5 +20,5 @@ sushiai_add_module(NAME blocks TIER vision
         source/psa_block.cpp
         source/segment_head.cpp
         source/sppf.cpp
-    PUBLIC_DEPENDS config failure graph nn shape
+    PUBLIC_DEPENDS config failure graph nn shape vision/detect
     EXTERNAL_PUBLIC SushiRuntime::core)

@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <variant>
@@ -47,6 +48,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
+#include <SushiAI/vision/detect/free/head_contract.hpp>
 
 namespace SushiAI
 {
@@ -71,6 +73,21 @@ namespace SushiAI
             Plain,     /**< Three layers: two 3x3 Conv, then a 1x1. */
         };
 
+        using Detect::Free::K_DETECT_ONE_TO_MANY;
+        using Detect::Free::K_DETECT_ONE_TO_ONE;
+        using Detect::Free::K_DETECT_BOXES;
+        using Detect::Free::K_DETECT_SCORES;
+        using Detect::Free::K_DETECT_BOX_BRANCH;
+        using Detect::Free::K_DETECT_CLASS_BRANCH;
+        using Detect::Free::K_DETECT_ONE_TO_ONE_BOX_BRANCH;
+        using Detect::Free::K_DETECT_ONE_TO_ONE_CLASS_BRANCH;
+        using Detect::Free::K_DETECT_LAST_CONV_INDEX;
+        using Detect::Free::K_DETECT_BOX_BIAS;
+        using Detect::Free::K_DETECT_OBJECTS_PER_IMAGE;
+        using Detect::Free::K_DETECT_REFERENCE_IMAGE_SIDE;
+        using Detect::Free::detect_port_name;
+        using Detect::Free::detect_class_bias;
+
         /**
          * @brief Holds the branches of both copies of a head under their checkpoint names.
          * @tparam ClassType The class branch form, ClassBranch or PlainClassBranch.
@@ -94,10 +111,10 @@ namespace SushiAI
             static constexpr auto fields()
             {
                 return std::tuple{
-                    NN::child("cv2", &DetectBranches::cv2),
-                    NN::child("cv3", &DetectBranches::cv3),
-                    NN::child("one2one_cv2", &DetectBranches::one2one_cv2),
-                    NN::child("one2one_cv3", &DetectBranches::one2one_cv3),
+                    NN::child(K_DETECT_BOX_BRANCH, &DetectBranches::cv2),
+                    NN::child(K_DETECT_CLASS_BRANCH, &DetectBranches::cv3),
+                    NN::child(K_DETECT_ONE_TO_ONE_BOX_BRANCH, &DetectBranches::one2one_cv2),
+                    NN::child(K_DETECT_ONE_TO_ONE_CLASS_BRANCH, &DetectBranches::one2one_cv3),
                 };
             }
         };

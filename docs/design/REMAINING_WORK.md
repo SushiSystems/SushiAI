@@ -707,10 +707,3 @@ The seam has one implementation, the shape-ratio rule, until this split.
 
 The owner ruled on 2026-10-25 that a key asking for an unordered path is refused under
 `deterministic: true`. The fallback runs a replica on other hardware, so its bits differ.
-
-### RW-142 Publish the detect head's port and branch names
-- State: open
-- Done when: `detect_head.hpp` declares the port name scheme, the branch names and the bias
-  constants, and `free_model_facts.cpp` and `free_bias_init.cpp` read them instead of their own
-  copies
-- Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`

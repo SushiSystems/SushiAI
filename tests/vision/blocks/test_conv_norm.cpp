@@ -419,10 +419,70 @@ TEST(Small_BlockConvNorm, TheFactoryDefaultsKernelAndStrideToOne)
 TEST(Small_BlockConvNorm, TheFactoryRefusesAnUnknownKey)
 {
     const Shape input{8, 8, 3};
-    const Config::Value attributes = attributes_of(R"({"filters": 8, "padding": 1})");
+    const Config::Value attributes = attributes_of(R"({"filters": 8, "groups": 1})");
 
     SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), attributes, K_CONTEXT),
-                      StatusCode::InvalidDescription, "layer 0 'conv'", "'padding'", "filters");
+                      StatusCode::InvalidDescription, "layer 0 'conv'", "'groups'", "padding");
+}
+
+/** @brief Tests that a row without padding pads by kernel / 2, so every older file is unchanged. */
+TEST(Small_BlockConvNorm, TheFactoryDefaultsPaddingToHalfTheKernel)
+{
+    const Shape input{640, 640, 3};
+    const Config::Value attributes = attributes_of(R"({"filters": 16, "kernel": 3, "stride": 2})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_conv_node(one_input(input), attributes,
+                                                           K_CONTEXT));
+    EXPECT_EQ(node->ports()[0].shape, (Shape{320, 320, 16}));
+}
+
+/** @brief Tests that a stated padding replaces kernel / 2: kernel 6, stride 2, padding 2. */
+TEST(Small_BlockConvNorm, TheFactoryHonoursAStatedPadding)
+{
+    const Shape input{640, 640, 3};
+    const Config::Value attributes =
+        attributes_of(R"({"filters": 16, "kernel": 6, "stride": 2, "padding": 2})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_conv_node(one_input(input), attributes,
+                                                           K_CONTEXT));
+    EXPECT_EQ(node->ports()[0].shape, (Shape{320, 320, 16}));
+
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{1, 640, 640, 3}, "x");
+    std::vector<Graph::ValueID> outputs;
+    SA_EXPECT_OK(node->forward(Trace::evaluation(builder), NN::ValueSpan(&x, 1), outputs));
+
+    ASSERT_EQ(outputs.size(), 1u);
+    EXPECT_EQ(graph.value(outputs[0]).shape, (Shape{1, 320, 320, 16}));
+}
+
+/** @brief Tests that a padding of zero is stated, not defaulted: kernel 3 shrinks 8 to 6. */
+TEST(Small_BlockConvNorm, TheFactoryAcceptsAPaddingOfZero)
+{
+    const Shape input{8, 8, 3};
+    const Config::Value attributes = attributes_of(R"({"filters": 4, "kernel": 3, "padding": 0})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_conv_node(one_input(input), attributes,
+                                                           K_CONTEXT));
+    EXPECT_EQ(node->ports()[0].shape, (Shape{6, 6, 4}));
+}
+
+/** @brief Tests that the factory refuses a negative padding and one that is not a number. */
+TEST(Small_BlockConvNorm, TheFactoryRefusesAPaddingThatIsNotAWholeNumberOfZeroOrMore)
+{
+    const Shape input{8, 8, 3};
+    const Config::Value negative = attributes_of(R"({"filters": 8, "padding": -1})");
+    const Config::Value text = attributes_of(R"({"filters": 8, "padding": "1"})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), negative, K_CONTEXT),
+                      StatusCode::InvalidDescription, "layer 0 'conv'", "'padding'", "zero or more",
+                      "-1");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_conv_node(one_input(input), text, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'padding'", "whole number");
 }
 
 /** @brief Tests that the factory refuses a row without filters. */

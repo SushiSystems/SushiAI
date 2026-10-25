@@ -360,6 +360,27 @@ namespace
 } // namespace
 
 /**
+ * @brief Tests that the published names and constants equal the literals the checkpoints and the
+ *        trained models use.
+ */
+TEST(Small_BlockDetectHead, ThePublishedNamesAndConstantsEqualTheSchemeLiterals)
+{
+    using namespace Vision::Blocks;
+
+    EXPECT_EQ(detect_port_name(K_DETECT_ONE_TO_MANY, 0, K_DETECT_BOXES), "one2many.level0.boxes");
+    EXPECT_EQ(detect_port_name(K_DETECT_ONE_TO_ONE, 12, K_DETECT_SCORES),
+              "one2one.level12.scores");
+    EXPECT_EQ(K_DETECT_BOX_BRANCH, "cv2");
+    EXPECT_EQ(K_DETECT_CLASS_BRANCH, "cv3");
+    EXPECT_EQ(K_DETECT_ONE_TO_ONE_BOX_BRANCH, "one2one_cv2");
+    EXPECT_EQ(K_DETECT_ONE_TO_ONE_CLASS_BRANCH, "one2one_cv3");
+    EXPECT_EQ(K_DETECT_LAST_CONV_INDEX, 2u);
+    EXPECT_EQ(K_DETECT_BOX_BIAS, 1.0);
+    EXPECT_EQ(K_DETECT_OBJECTS_PER_IMAGE, 5.0);
+    EXPECT_EQ(K_DETECT_REFERENCE_IMAGE_SIDE, 640.0);
+}
+
+/**
  * @brief Tests that row 23 publishes twelve ports under the names forward.sacp records: per
  *        copy the boxes of each level, then the scores, one-to-many first.
  */
@@ -372,7 +393,8 @@ TEST(Medium_BlockDetectHead, ThePortsCarryTheFixtureNamesAndShapes)
     ASSERT_EQ(head->ports().size(), 4 * K_LEVELS);
 
     // MANIFEST.json of the registration fixtures, forward.sacp tensors, from line 9856.
-    const std::array<std::string_view, 2> copies = {"one2many", "one2one"};
+    const std::array<std::string_view, 2> copies = {
+        Vision::Blocks::K_DETECT_ONE_TO_MANY, Vision::Blocks::K_DETECT_ONE_TO_ONE};
     const std::array<std::string_view, 2> roles = {"boxes", "scores"};
     const std::array<int64_t, 2> channels = {4, K_CLASSES};
 

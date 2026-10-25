@@ -33,11 +33,18 @@
 #include <utility>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/detect/free/head_contract.hpp>
 
 namespace SushiAI::Vision::Training
 {
     namespace
     {
+        using Detect::Free::detect_port_name;
+        using Detect::Free::K_DETECT_BOXES;
+        using Detect::Free::K_DETECT_ONE_TO_MANY;
+        using Detect::Free::K_DETECT_ONE_TO_ONE;
+        using Detect::Free::K_DETECT_SCORES;
+
         /** @brief Holds the rank of one input sample, [H, W, C]. */
         constexpr std::int32_t K_SAMPLE_RANK = 3;
 
@@ -46,20 +53,6 @@ namespace SushiAI::Vision::Training
 
         /** @brief Holds the box sides each position predicts a distribution for. */
         constexpr std::int64_t K_BOX_SIDES = 4;
-
-        /** @brief Names the copy DetectHead publishes first. */
-        constexpr std::string_view K_ONE_TO_MANY = "one2many";
-
-        /** @brief Names the copy DetectHead publishes second, when it has one. */
-        constexpr std::string_view K_ONE_TO_ONE = "one2one";
-
-        /** @brief Returns DetectHead's port name "<copy>.level<l>.<role>". */
-        std::string port_name(std::string_view copy, std::size_t level, std::string_view role)
-        {
-            std::string name(copy);
-            name.append(".level").append(std::to_string(level)).append(".").append(role);
-            return name;
-        }
 
         /** @brief Holds what derivation keeps while it walks the levels. */
         class FactsBuilder
@@ -76,15 +69,17 @@ namespace SushiAI::Vision::Training
                 /** @brief Reports whether the model publishes level 0 of @p copy. */
                 [[nodiscard]] bool publishes(std::string_view copy) const
                 {
-                    return Train::find_output_shape(outputs_, port_name(copy, 0, "boxes"))
+                    return Train::find_output_shape(
+                               outputs_, detect_port_name(copy, 0, K_DETECT_BOXES))
                            != nullptr;
                 }
 
                 /** @brief Reports whether the one-to-many copy publishes @p level. */
                 [[nodiscard]] bool has_level(std::size_t level) const
                 {
-                    return Train::find_output_shape(outputs_,
-                                                    port_name(K_ONE_TO_MANY, level, "boxes"))
+                    return Train::find_output_shape(
+                               outputs_,
+                               detect_port_name(K_DETECT_ONE_TO_MANY, level, K_DETECT_BOXES))
                            != nullptr;
                 }
 
@@ -92,8 +87,8 @@ namespace SushiAI::Vision::Training
                 [[nodiscard]] Status read_copy(std::string_view copy, std::size_t level,
                                                FreeLevelFacts& level_facts, FreeLevelPorts& ports)
                 {
-                    ports.boxes = port_name(copy, level, "boxes");
-                    ports.scores = port_name(copy, level, "scores");
+                    ports.boxes = detect_port_name(copy, level, K_DETECT_BOXES);
+                    ports.scores = detect_port_name(copy, level, K_DETECT_SCORES);
 
                     SA_TRY_ASSIGN(const Shape* const boxes, find(ports.boxes));
                     SA_TRY_ASSIGN(const Shape* const scores, find(ports.scores));
@@ -203,20 +198,21 @@ namespace SushiAI::Vision::Training
                    input_sample.to_string());
 
         FactsBuilder builder(input_sample, outputs);
-        SA_FAIL_IF(!builder.publishes(K_ONE_TO_MANY), StatusCode::InvalidDescription,
+        SA_FAIL_IF(!builder.publishes(K_DETECT_ONE_TO_MANY), StatusCode::InvalidDescription,
                    "the model does not publish the output '{}'; an anchor-free model publishes "
                    "the detect row's ports under their own names",
-                   port_name(K_ONE_TO_MANY, 0, "boxes"));
+                   detect_port_name(K_DETECT_ONE_TO_MANY, 0, K_DETECT_BOXES));
 
         FreeModelFacts& facts = builder.facts();
-        facts.has_one_to_one = builder.publishes(K_ONE_TO_ONE);
+        facts.has_one_to_one = builder.publishes(K_DETECT_ONE_TO_ONE);
         for (std::size_t level = 0; builder.has_level(level); ++level)
         {
             FreeLevelFacts level_facts;
-            SA_TRY(builder.read_copy(K_ONE_TO_MANY, level, level_facts, level_facts.one_to_many));
+            SA_TRY(builder.read_copy(K_DETECT_ONE_TO_MANY, level, level_facts,
+                                     level_facts.one_to_many));
             if (facts.has_one_to_one)
             {
-                SA_TRY(builder.read_copy(K_ONE_TO_ONE, level, level_facts,
+                SA_TRY(builder.read_copy(K_DETECT_ONE_TO_ONE, level, level_facts,
                                          level_facts.one_to_one));
             }
             facts.levels.push_back(std::move(level_facts));

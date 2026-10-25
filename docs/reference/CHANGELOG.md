@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-26 — blocks: Added an optional `padding` to the conv row, half the kernel when absent (`conv_norm.hpp`).
+- 2026-10-26 — detect: Moved the anchor-free head's port, branch and bias names into a contract the head and its training both read (`head_contract.hpp`).
 - 2026-10-25 — training: Added the start of an anchor head's objectness and class biases from the strides derived from the model file and its trace (`anchor_bias_init.hpp`).
 - 2026-10-25 — training: Added the host side of an anchor-free step, which decodes the one-to-many ports, runs the TaskAlignedAssigner and fills the loss leaves of every level (`free_assignment_stage.hpp`).
 - 2026-10-25 — detect: Added the shape-ratio loss of an anchor head level and its delta, with the training section's `box_gain`, `class_gain` and `objectness_gain` (`shape_ratio_delta.hpp`).

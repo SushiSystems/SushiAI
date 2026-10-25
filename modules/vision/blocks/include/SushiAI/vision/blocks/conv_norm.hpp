@@ -55,7 +55,7 @@ namespace SushiAI
         template<typename Convolution, typename Activation>
         struct ConvNorm
         {
-            /** @brief Holds the convolution, padded by kernel / 2 on every side. */
+            /** @brief Holds the convolution, padded by kernel / 2 on every side unless stated. */
             Convolution conv;
 
             /** @brief Holds the normalisation over the convolution's output channels. */
@@ -75,6 +75,18 @@ namespace SushiAI
                   bn(out_channels, norm)
             {
 
+            }
+
+            /**
+             * @brief Builds the three layers over a window padded by @p padding on every side.
+             * @param padding Rows and columns of zeros on each side; zero or more.
+             */
+            ConvNorm(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t stride,
+                     int64_t padding, NN::NormOptions norm)
+                : ConvNorm(in_channels, out_channels, kernel, stride, norm)
+            {
+                conv.geometry.pad_top = padding;
+                conv.geometry.pad_left = padding;
             }
 
             /** @brief Lists the two children that hold state, under "conv" and "bn". */
@@ -130,7 +142,8 @@ namespace SushiAI
 
         /**
          * @brief Builds a Conv node from "filters", with optional "kernel" and "stride", 1 when
-         *        absent, and the optional "bn_epsilon" and "bn_momentum".
+         *        absent, an optional "padding" of zero or more, kernel / 2 when absent, and the
+         *        optional "bn_epsilon" and "bn_momentum".
          * @param inputs One per-sample [H, W, C] shape; C becomes the input width.
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */

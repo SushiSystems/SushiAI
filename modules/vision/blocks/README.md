@@ -50,7 +50,7 @@ that comment.
 
 | Factory | Required | Optional |
 | --- | --- | --- |
-| `make_conv_node` | `filters` | `kernel`, `stride`, `bn_epsilon`, `bn_momentum` |
+| `make_conv_node` | `filters` | `kernel`, `stride`, `padding`, `bn_epsilon`, `bn_momentum` |
 | `make_bottleneck_node` | `filters`, `hidden` | `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c3k_node` | `filters` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c3k2_node` | `filters`, `hidden` | `inner`, `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
@@ -78,7 +78,8 @@ and the head; their source is `docs/agent/2026_10_07_YOLO26/PLAN.md`, units U6 t
 an activation, and lists its state under "conv" and "bn". `Conv` is `ConvNorm<Conv2d, SiLU>`
 and `ConvLinear` is `ConvNorm<Conv2d, Identity>`. `DWConv` and `DWConvLinear` are the same two
 over `DepthwiseConv2d`, which refuses unequal input and output widths. `make_conv_node` reads `filters`, the
-optional `kernel` and `stride`, which are 1 when absent, and the two norm keys.
+optional `kernel` and `stride`, which are 1 when absent, the optional `padding`, a whole number of
+zero or more that is `kernel / 2` when absent, and the two norm keys.
 
 ### bottleneck.hpp
 
@@ -167,7 +168,10 @@ wide and the class branches `max(C0, min(classes, 100))`, where `C0` is the widt
 level. `DetectOptions` carries the same three choices to `create()`, and its `strides`, one per
 level, set the last box biases to 1 and the last class biases to
 `log(5 / classes / (640 / stride)^2)`; without strides those biases stay 0. The ports are named `<copy>.level<l>.boxes` and `<copy>.level<l>.scores`:
-the copy `one2many` first, and in each copy the boxes of every level, then the scores. A training
+the copy `one2many` first, and in each copy the boxes of every level, then the scores. The names of the
+copies, roles and branches, the index of a branch's last convolution and the bias constants are
+the anchor-free head contract of `vision/detect` (`free/head_contract.hpp`), which the head and
+the training code both read. A training
 trace passes each feature through `stop_gradient` before the one-to-one copy; an evaluation trace
 does not. `make_detect_node` reads `classes`, the three options and the two norm keys.
 

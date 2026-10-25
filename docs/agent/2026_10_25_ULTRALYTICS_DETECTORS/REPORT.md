@@ -17,6 +17,7 @@ dispatch: U4 task section and facts — opus low, 76 turns, passed, rung 1
 dispatch: U11 shape-ratio loss — opus low, 42 turns, passed, rung 1
 dispatch: U12 yolov5n file and anchor biases — sonnet medium, 77 turns, passed, rung 1
 dispatch: U6 anchor-free assignment stage — opus low, 41 turns, passed, rung 1
+dispatch: conv padding and RW-142 — sonnet medium, 45 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -127,3 +128,14 @@ contested anchor to the first truth of the largest overlap, as the assigner alre
 is pinned on purpose: anchors inside a truth whose alignment metric is 0 can win the top-k by
 index and become foreground with a target score of 0, as Ultralytics' assigner allows. Three
 switches over the closed `FreeLeafKind` name, size and source the leaves.
+
+## 11. The conv padding and the head contract
+
+The `conv` row takes `padding`, half the kernel when absent, so YOLOv5's stem is one row of
+kernel 6, stride 2 and padding 2. The worker published the head's names from `detect_head.hpp`,
+which made `vision/training` depend on `vision/blocks`. The owner asked for the edge only if it
+kept SOLID; it does not, since the training code would depend on a concrete block for what is a
+contract between the head and the loss. The names and the class bias formula moved to
+`vision/detect` (`free/head_contract.hpp`), which `blocks` now depends on and `training` already
+did; `detect_head.hpp` re-exports them with using-declarations, and the formula's two copies are
+one.

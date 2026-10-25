@@ -131,8 +131,26 @@ first state record is "conv.weight" [8, 1, 1, 3].
 
 ## TheFactoryRefusesAnUnknownKey
 
-The key `padding` fails with `InvalidDescription` and a message containing "layer 0 'conv'",
-"'padding'" and "filters".
+The key `groups` fails with `InvalidDescription` and a message containing "layer 0 'conv'",
+"'groups'" and "padding", the last because it is among the accepted keys.
+
+## TheFactoryDefaultsPaddingToHalfTheKernel
+
+A row of 16 filters, kernel 3, stride 2 over [640, 640, 3] has a port of shape [320, 320, 16].
+
+## TheFactoryHonoursAStatedPadding
+
+A row of 16 filters, kernel 6, stride 2, padding 2 over [640, 640, 3] has a port of shape
+[320, 320, 16], and its evaluation trace over [1, 640, 640, 3] yields [1, 320, 320, 16].
+
+## TheFactoryAcceptsAPaddingOfZero
+
+A row of 4 filters, kernel 3, padding 0 over [8, 8, 3] has a port of shape [6, 6, 4].
+
+## TheFactoryRefusesAPaddingThatIsNotAWholeNumberOfZeroOrMore
+
+A `padding` of -1 fails with "'padding'", "zero or more" and "-1". A `padding` given as the
+string "1" fails with "'padding'" and "whole number".
 
 ## TheFactoryRefusesARowWithoutFilters
 

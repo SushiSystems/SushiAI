@@ -28,7 +28,6 @@
 #include <SushiAI/vision/training/free_bias_init.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <cstddef>
 #include <string>
 #include <vector>
@@ -37,20 +36,12 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
+#include <SushiAI/vision/detect/free/head_contract.hpp>
 
 namespace SushiAI::Vision::Training
 {
     namespace
     {
-        /** @brief Holds the value the last box convolution's bias starts from. */
-        constexpr double K_BOX_BIAS = 1.0;
-
-        /** @brief Holds the expected object count per image the class bias assumes. */
-        constexpr double K_OBJECTS_PER_IMAGE = 5.0;
-
-        /** @brief Holds the image side, in pixels, the class bias assumes. */
-        constexpr double K_REFERENCE_IMAGE_SIDE = 640.0;
-
         /** @brief Holds the box sides each position predicts a distribution for. */
         constexpr std::int64_t K_BOX_SIDES = 4;
 
@@ -61,13 +52,14 @@ namespace SushiAI::Vision::Training
             float value;               /**< The value every element is set to. */
         };
 
-        /** @brief Returns "<prefix>.<branch>.<level>.2.bias", or without a prefix when empty. */
+        /** @brief Returns "<prefix>.<branch>.<level>.<last conv>.bias", or without a prefix. */
         std::string bias_name(std::string_view prefix, std::string_view branch, std::size_t level)
         {
             std::string name;
             if (!prefix.empty())
                 name.append(prefix).append(".");
-            name.append(branch).append(".").append(std::to_string(level)).append(".2.bias");
+            name.append(branch).append(".").append(std::to_string(level)).append(".");
+            name.append(std::to_string(Detect::Free::K_DETECT_LAST_CONV_INDEX)).append(".bias");
             return name;
         }
 
@@ -101,7 +93,7 @@ namespace SushiAI::Vision::Training
                          std::vector<BiasWrite>& writes)
         {
             SA_TRY(plan_write(state, bias_name(prefix, box_branch, level),
-                              K_BOX_SIDES * facts.reg_max, K_BOX_BIAS, writes));
+                              K_BOX_SIDES * facts.reg_max, Detect::Free::K_DETECT_BOX_BIAS, writes));
             return plan_write(state, bias_name(prefix, class_branch, level), facts.classes,
                               free_class_bias(facts.classes, facts.levels[level].stride),
                               writes);
@@ -110,8 +102,7 @@ namespace SushiAI::Vision::Training
 
     double free_class_bias(std::int64_t classes, std::int64_t stride)
     {
-        const double cells = K_REFERENCE_IMAGE_SIDE / static_cast<double>(stride);
-        return std::log(K_OBJECTS_PER_IMAGE / static_cast<double>(classes) / (cells * cells));
+        return Detect::Free::detect_class_bias(classes, static_cast<double>(stride));
     }
 
     Status initialize_free_biases(const FreeModelFacts& facts, std::string_view head_prefix,
@@ -120,11 +111,13 @@ namespace SushiAI::Vision::Training
         std::vector<BiasWrite> writes;
         for (std::size_t level = 0; level < facts.levels.size(); ++level)
         {
-            SA_TRY(plan_copy(state, facts, head_prefix, "cv2", "cv3", level, writes));
+            SA_TRY(plan_copy(state, facts, head_prefix, Detect::Free::K_DETECT_BOX_BRANCH,
+                             Detect::Free::K_DETECT_CLASS_BRANCH, level, writes));
             if (facts.has_one_to_one)
             {
-                SA_TRY(plan_copy(state, facts, head_prefix, "one2one_cv2", "one2one_cv3", level,
-                                 writes));
+                SA_TRY(plan_copy(state, facts, head_prefix,
+                                 Detect::Free::K_DETECT_ONE_TO_ONE_BOX_BRANCH,
+                                 Detect::Free::K_DETECT_ONE_TO_ONE_CLASS_BRANCH, level, writes));
             }
         }
 

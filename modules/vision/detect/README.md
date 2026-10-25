@@ -39,6 +39,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `free/assigner.hpp` | `AssignerInputs`, `TaskAlignedAssigner` |
 | `free/distribution_expectation.hpp` | `expect_distances`, `fill_distribution_projection` |
 | `free/distribution_targets.hpp` | `K_DISTRIBUTION_MARGIN`, `fill_distribution_weights` |
+| `free/head_contract.hpp` | the `K_DETECT_*` port, branch and bias names, `detect_port_name`, `detect_class_bias` |
 | `free/free_task.hpp` | `K_FREE_TASK_TYPE`, `FreeTask`, `read_free_task`, `write_free_task`, `one_to_many_assigner_config`, `one_to_one_assigner_config` |
 | `free/target_leaves.hpp` | `TargetLeafInputs`, `TargetLeaves`, `build_target_leaves`, `K_SAFE_BOX` |
 | `detection_row.hpp` | The six columns of a detection, `K_MAX_DETECTIONS`, `K_VALIDATION_CONFIDENCE` |
@@ -168,6 +169,16 @@ member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite 
 ## free/distribution_targets.hpp
 
 [`include/SushiAI/vision/detect/free/distribution_targets.md`](include/SushiAI/vision/detect/free/distribution_targets.md) describes it.
+
+## free/head_contract.hpp
+
+The names an anchor-free head publishes and its training reads: the copies `one2many` and
+`one2one`, the roles `boxes` and `scores`, a port `<copy>.level<l>.<role>` from
+`detect_port_name`, the branches `cv2`, `cv3`, `one2one_cv2` and `one2one_cv3`, and the index 2 of
+the biased convolution that ends each branch. `detect_class_bias` returns the start of a last
+class bias, `log(5 / classes / (640 / stride)^2)`; a last box bias starts at 1. The head in
+`vision/blocks` and the facts and bias start in `vision/training` both read this header, so
+neither depends on the other.
 
 ## free/free_task.hpp
 

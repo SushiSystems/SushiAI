@@ -99,3 +99,9 @@ constant 0.
 
 With strides 8, 16 and 32, each last box bias starts from 1 and each last class bias from
 log(5 / 80 / (640 / stride)^2), on the one-to-many and the one-to-one copy, in both forms.
+
+## ThePublishedNamesAndConstantsEqualTheSchemeLiterals
+
+`detect_port_name` gives "one2many.level0.boxes" and "one2one.level12.scores". The branch names
+are "cv2", "cv3", "one2one_cv2" and "one2one_cv3", the last convolution's index is 2, the box
+bias is 1, and the class bias constants are 5 and 640.

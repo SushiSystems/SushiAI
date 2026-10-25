@@ -28,7 +28,6 @@
 #include <SushiAI/vision/blocks/detect_head.hpp>
 
 #include <algorithm>
-#include <cmath>
 #include <string>
 #include <utility>
 #include <variant>
@@ -63,15 +62,6 @@ namespace SushiAI
             /** @brief Names the value of K_CLASS_BRANCH_KEY for the plain form. */
             constexpr std::string_view K_PLAIN = "plain";
 
-            /** @brief Holds the value the last box convolution's bias starts from. */
-            constexpr double K_BOX_BIAS_INIT = 1.0;
-
-            /** @brief Holds the expected object count per image the class bias assumes. */
-            constexpr double K_OBJECTS_PER_IMAGE = 5.0;
-
-            /** @brief Holds the image side, in pixels, the class bias assumes. */
-            constexpr double K_REFERENCE_IMAGE_SIDE = 640.0;
-
             /** @brief Names the rank of a per-sample [H, W, C] feature map. */
             constexpr int32_t K_FEATURE_MAP_RANK = 3;
 
@@ -89,18 +79,6 @@ namespace SushiAI
 
             /** @brief Holds the class count above which a class branch stops widening. */
             constexpr int64_t K_CLASS_WIDTH_CAP = 100;
-
-            /** @brief Names the copy whose ports come first. */
-            constexpr std::string_view K_ONE_TO_MANY = "one2many";
-
-            /** @brief Names the copy whose ports come second. */
-            constexpr std::string_view K_ONE_TO_ONE = "one2one";
-
-            /** @brief Names the role of a box port. */
-            constexpr std::string_view K_BOXES = "boxes";
-
-            /** @brief Names the role of a class-logit port. */
-            constexpr std::string_view K_SCORES = "scores";
 
             /** @brief Builds the biased, unpadded 1x1 convolution that ends a branch. */
             [[nodiscard]] NN::Conv2d biased_pointwise(int64_t in_channels, int64_t out_channels,
@@ -141,15 +119,6 @@ namespace SushiAI
                 /** @brief Holds the epsilon and the momentum of every norm. */
                 NN::NormOptions norm;
             };
-
-            /** @brief Returns the class bias of a level of @p stride over @p classes. */
-            [[nodiscard]] double class_bias_for(int64_t classes, double stride)
-            {
-                const double cells = K_REFERENCE_IMAGE_SIDE / stride;
-
-                return std::log(K_OBJECTS_PER_IMAGE / static_cast<double>(classes) /
-                                (cells * cells));
-            }
 
             /** @brief Builds the box branch of @p spec. */
             [[nodiscard]] BoxBranch box_branch(const LevelSpec& spec)
@@ -237,12 +206,7 @@ namespace SushiAI
                               std::string_view role, const std::vector<Shape>& shapes)
             {
                 for (std::size_t level = 0; level < shapes.size(); ++level)
-                {
-                    std::string name(copy);
-                    name.append(".level").append(std::to_string(level)).append(".");
-                    name.append(role);
-                    ports.push_back(NN::Port{std::move(name), shapes[level]});
-                }
+                    ports.push_back(NN::Port{detect_port_name(copy, level, role), shapes[level]});
             }
 
             /** @brief Appends the ports of one copy: every box port, then every score port. */
@@ -250,8 +214,8 @@ namespace SushiAI
                                    const std::vector<Shape>& boxes,
                                    const std::vector<Shape>& scores)
             {
-                append_ports(ports, copy, K_BOXES, boxes);
-                append_ports(ports, copy, K_SCORES, scores);
+                append_ports(ports, copy, K_DETECT_BOXES, boxes);
+                append_ports(ports, copy, K_DETECT_SCORES, scores);
             }
 
             /**
@@ -324,8 +288,8 @@ namespace SushiAI
                     const LevelSpec spec{
                         plan.levels[level][2], plan.box_width, plan.box_channels,
                         plan.class_width, plan.classes,
-                        has_strides ? K_BOX_BIAS_INIT : 0.0,
-                        has_strides ? class_bias_for(plan.classes, plan.options.strides[level])
+                        has_strides ? K_DETECT_BOX_BIAS : 0.0,
+                        has_strides ? detect_class_bias(plan.classes, plan.options.strides[level])
                                     : 0.0,
                         plan.norm};
 
@@ -427,9 +391,9 @@ namespace SushiAI
 
                 std::vector<NN::Port> ports;
                 ports.reserve(2 * (boxes.size() + scores.size()));
-                append_copy_ports(ports, K_ONE_TO_MANY, boxes, scores);
+                append_copy_ports(ports, K_DETECT_ONE_TO_MANY, boxes, scores);
                 if (options.end2end)
-                    append_copy_ports(ports, K_ONE_TO_ONE, boxes, scores);
+                    append_copy_ports(ports, K_DETECT_ONE_TO_ONE, boxes, scores);
 
                 return std::unique_ptr<DetectHead>(new DetectHead(
                     std::move(branches), std::move(ports), levels.size(), options.end2end));
