@@ -254,6 +254,15 @@ the image fitted as the model's `fit` says and not the file on disk. A detection
 above 0.25, and a box is suppressed above a measure of 0.45. Both numbers are constants of
 `domains_vision.cpp`; no file states them.
 
+When the data carries a `boxes` role, the row then prints the mean average precision at IoU 0.5
+over the split: `truth_from_roles` reads the labels of each batch, `add_batch` feeds them with the
+detections to an `AveragePrecision`, and the last line gives `map50`, the box count and the image
+count. The metric reads the detections of the validation confidence, 0.001, and not only those
+above 0.25: the suppression runs once at 0.001 and the printout keeps the rows above 0.25, which
+is the same set because a box is suppressed only by a box of higher score. Truth and detections
+are both in pixels of the network input, so the number does not depend on the size of the file on
+disk. Data without a `boxes` role prints a line saying the mean was not computed.
+
 The command still takes a data file, so it reports a dataset split. It does not take one
 image file.
 

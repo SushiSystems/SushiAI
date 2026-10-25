@@ -20,6 +20,7 @@ Each test file has a page beside it that says what its cases pin.
 | `free/test_anchors.cpp` | [`free/test_anchors.md`](free/test_anchors.md) |
 | `free/test_assigner.cpp` | [`free/test_assigner.md`](free/test_assigner.md) |
 | `test_average_precision.cpp` | [`test_average_precision.md`](test_average_precision.md) |
+| `test_batch_average_precision.cpp` | [`test_batch_average_precision.md`](test_batch_average_precision.md) |
 | `anchor/test_head_delta.cpp` | [`anchor/test_head_delta.md`](anchor/test_head_delta.md) |
 | `test_iou_gradient.cpp` | [`test_iou_gradient.md`](test_iou_gradient.md) |
 | `test_suppression_criterion.cpp` | [`test_suppression_criterion.md`](test_suppression_criterion.md) |

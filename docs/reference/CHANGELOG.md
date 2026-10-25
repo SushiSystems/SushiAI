@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — programs: Added mean average precision at IoU 0.5 to the `anchor_detection` inference report, fed by `add_batch()` (`batch_average_precision.hpp`, `domains_vision.cpp`).
 - 2026-10-25 — config: Added `fit` to the model file's `input` block and `Config::fit_data_to_model()`, which hands it to the data block and refuses a block stating another (`model_config.hpp`, `data_fit.hpp`).
 - 2026-10-25 — datasets: Made a data block or section's `fit` choose between stretching and letterboxing an image (`task_dataset.cpp`).
 - 2026-10-25 — importers: Made the Darknet import accept `letter_box=1` and write the `.cfg`'s `letter_box` as the input's fit (`darknet_model.cpp`).

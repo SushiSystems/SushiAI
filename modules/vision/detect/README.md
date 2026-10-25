@@ -44,6 +44,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `suppression_criterion.hpp` | `K_DEFAULT_DISTANCE_EXPONENT`, `SuppressionCriterion`, `measure_suppression` |
 | `detections_nms.hpp` | `LabelMode`, `ClassMode`, `NMSConfig`, `suppress_overlaps`, `select_nms_detections` |
 | `average_precision.hpp` | `K_IOU_THRESHOLDS`, `ClassMetrics`, `MetricsSummary`, `match_detections`, `integrate_precision`, `AveragePrecision` |
+| `batch_average_precision.hpp` | `add_batch` |
 | `anchor/anchor_size.hpp` | `AnchorSize`, `shape_iou` |
 | `anchor/anchor_layout.hpp` | `AnchorLayout`, `validate_anchor_layout` |
 | `anchor/head_options.hpp` | `HeadCoding`, `HeadOptions`, `HeadShape`, `NetworkSize`, the entry constants, `validate_head`, `count_head_channels`, `count_head_rows` |
@@ -138,6 +139,10 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 ## average_precision.hpp
 
 [`include/SushiAI/vision/detect/average_precision.md`](include/SushiAI/vision/detect/average_precision.md) describes it.
+
+## batch_average_precision.hpp
+
+[`include/SushiAI/vision/detect/batch_average_precision.md`](include/SushiAI/vision/detect/batch_average_precision.md) describes it.
 
 ## The anchor part
 

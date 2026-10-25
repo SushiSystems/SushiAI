@@ -1626,3 +1626,14 @@ The owner cancelled the B1 build on 2026-10-25 before it finished, and ruled tha
 until the five models of the Ultralytics plan are written. Nothing of T2 or T3 has been compiled
 beyond single files. The build must confirm the `Small_DataFit`, `ModelConfig`, `ModelWriter`,
 `DatasetsReaderSection`, `DarknetModel` and `DarknetImport` cases, and the T0 filter again.
+
+### T4, written and not built
+
+`add_batch()` (`batch_average_precision.hpp`) drops the padding rows of a truth batch and feeds
+the existing `AveragePrecision` once per image. The anchor report suppresses at the validation
+confidence of 0.001, prints the rows above 0.25 and prints mAP@0.5 after the detections; data
+without a boxes role prints that mAP was not computed. Detections and truth are both in pixels of
+the network input. `Small_BatchAveragePrecision` pins a hand-worked mAP of 0.745. No program test
+covers the report; T5 brings the checkpoint it needs.
+
+dispatch: T4 mAP in inference — sonnet medium, 64 turns, passed, rung 1

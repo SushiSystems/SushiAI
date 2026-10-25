@@ -349,8 +349,11 @@ settings. A stretch differs too: Darknet maps with `(in - 1) / (out - 1)` per ax
 The training file the import writes states `"ignore_threshold": 0.699999988079071`.
 
 ### RW-135 Report mean average precision in `sushiai inference`
-- State: open
+- State: unmeasured
 - Done when: inference prints mAP at an IoU of 0.5 against the labels of the evaluated split
+
+The anchor report suppresses at the validation confidence, prints above the score threshold and
+feeds `add_batch()` (`batch_average_precision.hpp`). It has not been built or run.
 
 ### RW-136 Carry the `.cfg`'s augmentation into the training file
 - State: open

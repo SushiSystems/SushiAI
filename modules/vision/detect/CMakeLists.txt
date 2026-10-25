@@ -29,6 +29,7 @@ sushiai_add_module(NAME detect TIER vision
         source/anchor/head_truth.cpp
         source/anchor/seeded_sequence.cpp
         source/average_precision.cpp
+        source/batch_average_precision.cpp
         source/box_format.cpp
         source/detections_nms.cpp
         source/detections_topk.cpp

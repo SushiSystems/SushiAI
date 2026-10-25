@@ -43,19 +43,25 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/data/roles.hpp>
+#include <SushiAI/data/target.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_section.hpp>
+#include <SushiAI/vision/detect/average_precision.hpp>
+#include <SushiAI/vision/detect/batch_average_precision.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
+#include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_objective_factory.hpp>
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
+#include <SushiAI/vision/training/truth_from_roles.hpp>
 
 #include "epoch_loop.hpp"
 #include "inference_run.hpp"
@@ -239,10 +245,26 @@ namespace SushiAI
                 }
             }
 
-            /** @brief Prints the detections of image @p image, one row each, best score first. */
-            void print_detections(std::size_t image, const std::vector<float>& detections)
+            /**
+             * @brief Returns how many leading rows of @p detections score above the threshold.
+             * @pre The rows are in descending score, as select_nms_detections writes them.
+             */
+            [[nodiscard]] std::size_t count_confident(const std::vector<float>& detections)
             {
-                const std::size_t count = detections.size() / Vision::Detect::K_DETECTION_VALUES;
+                const std::size_t rows = detections.size() / Vision::Detect::K_DETECTION_VALUES;
+                std::size_t count = 0;
+                while (count < rows
+                       && detections[count * Vision::Detect::K_DETECTION_VALUES
+                                     + Vision::Detect::K_DETECTION_SCORE]
+                              > K_SCORE_THRESHOLD)
+                    ++count;
+                return count;
+            }
+
+            /** @brief Prints the first @p count rows of the detections of image @p image. */
+            void print_detections(std::size_t image, const std::vector<float>& detections,
+                                  std::size_t count)
+            {
                 std::cout << SushiLog::format_text("image {}: {} detections\n", image, count);
                 for (std::size_t at = 0; at < count; ++at)
                 {
@@ -260,11 +282,24 @@ namespace SushiAI
                 }
             }
 
+            /** @brief Prints the mean average precision at IoU 0.5 of the images in @p metric. */
+            void print_mean_average_precision(const Vision::Detect::AveragePrecision& metric)
+            {
+                const Vision::Detect::MetricsSummary summary = metric.summarize();
+                std::cout << SushiLog::format_text(
+                    "Mean average precision at IoU 0.5 : {} over {} boxes of {} images, "
+                    "detections scored above {}\n",
+                    SushiLog::fixed(summary.map50, 4), summary.instances, summary.images,
+                    Vision::Detect::K_VALIDATION_CONFIDENCE);
+            }
+
             /**
              * @brief Decodes the heads of an anchor model over every batch and prints the
-             *        detections that pass the score threshold and the suppression of the task.
-             * @return Success; the failure of the task section, of bind_heads, of a read or of
-             *         a step; InvalidDescription for an input that is not height, width, depth.
+             *        detections that pass the score threshold and the suppression of the task,
+             *        then the mean average precision against the labels of the split.
+             * @return Success; the failure of the task section, of bind_heads, of a read, of
+             *         a step or of the truth roles; InvalidDescription for an input that is
+             *         not height, width, depth.
              */
             [[nodiscard]] Status report_anchor_detections(PreparedInference& run)
             {
@@ -289,8 +324,8 @@ namespace SushiAI
                     "in pixels of the {} by {} input\n\n",
                     K_SCORE_THRESHOLD, K_SUPPRESSION_THRESHOLD, input[1], input[0]);
 
+                // Suppression runs at the validation confidence; the printout cuts at the score.
                 Vision::Detect::NMSConfig config;
-                config.confidence_threshold = K_SCORE_THRESHOLD;
                 config.iou_threshold = K_SUPPRESSION_THRESHOLD;
                 config.criterion = task.criterion;
                 config.distance_exponent = task.distance_exponent;
@@ -301,6 +336,11 @@ namespace SushiAI
                 std::vector<float> scores(batch_size * rows * classes);
                 std::vector<std::vector<float>> detections;
                 std::size_t found = 0;
+
+                const bool labelled =
+                    Data::find_target(run.dataset.targets(), Data::K_ROLE_BOXES) != nullptr;
+                Vision::Detect::AveragePrecision metric;
+                Vision::Detect::GroundTruthBatch truth;
 
                 Data::Batch batch;
                 for (std::size_t b = 0; b < run.dataset.batch_count(); ++b)
@@ -317,14 +357,26 @@ namespace SushiAI
                         config, detections);
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
-                        print_detections(b * batch_size + image, detections[image]);
-                        found += detections[image].size() / Vision::Detect::K_DETECTION_VALUES;
+                        const std::size_t count = count_confident(detections[image]);
+                        print_detections(b * batch_size + image, detections[image], count);
+                        found += count;
+                    }
+
+                    if (labelled)
+                    {
+                        SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        Vision::Detect::add_batch(metric, detections, truth);
                     }
                 }
 
                 std::cout << SushiLog::format_text(
                     "\n{} detections over {} images.\n", found,
                     run.dataset.batch_count() * batch_size);
+                if (labelled)
+                    print_mean_average_precision(metric);
+                else
+                    std::cout << "Mean average precision : not computed, the data carries no "
+                                 "boxes role\n";
                 return Status();
             }
 
