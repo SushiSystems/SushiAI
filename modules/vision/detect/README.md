@@ -39,6 +39,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `free/assigner.hpp` | `AssignerInputs`, `TaskAlignedAssigner` |
 | `free/distribution_expectation.hpp` | `expect_distances`, `fill_distribution_projection` |
 | `free/distribution_targets.hpp` | `K_DISTRIBUTION_MARGIN`, `fill_distribution_weights` |
+| `free/free_task.hpp` | `K_FREE_TASK_TYPE`, `FreeTask`, `read_free_task`, `write_free_task`, `one_to_many_assigner_config`, `one_to_one_assigner_config` |
 | `free/target_leaves.hpp` | `TargetLeafInputs`, `TargetLeaves`, `build_target_leaves`, `K_SAFE_BOX` |
 | `detection_row.hpp` | The six columns of a detection, `K_MAX_DETECTIONS`, `K_VALIDATION_CONFIDENCE` |
 | `prediction_shape.hpp` | `PredictionShape` |
@@ -154,6 +155,10 @@ member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite 
 ## free/distribution_targets.hpp
 
 [`include/SushiAI/vision/detect/free/distribution_targets.md`](include/SushiAI/vision/detect/free/distribution_targets.md) describes it.
+
+## free/free_task.hpp
+
+[`include/SushiAI/vision/detect/free/free_task.md`](include/SushiAI/vision/detect/free/free_task.md) describes it.
 
 ## free/target_leaves.hpp
 

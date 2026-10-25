@@ -42,6 +42,7 @@ sushiai_add_module(NAME detect TIER vision
         source/free/box_coding.cpp
         source/free/distribution_expectation.cpp
         source/free/distribution_targets.cpp
+        source/free/free_task.cpp
         source/free/level_rows.cpp
         source/free/target_leaves.cpp
         source/ground_truth.cpp

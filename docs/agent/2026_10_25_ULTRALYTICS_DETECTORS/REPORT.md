@@ -13,6 +13,7 @@ dispatch: U2 detect options — sonnet medium, 71 turns, passed, rung 1
 dispatch: U10 shape-ratio assignment — opus low, 43 turns, passed, rung 1
 dispatch: U15 deterministic key — sonnet medium, 44 turns, passed, rung 1
 dispatch: U3 distribution focal loss — opus low, 58 turns, passed, rung 1
+dispatch: U4 task section and facts — opus low, 76 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -85,3 +86,18 @@ multiplies by a `[reg_max, 1]` leaf of the bin values, because `K_CONSTANT` hold
 quarter for the mean over sides, so the mask, the normalisation and the mean live in the weights.
 The worker did not load `cpp-code-style` or `testing`; the files pass the comment checker and the
 syntax check.
+
+## 8. U4, written and not built
+
+The `anchor_free_detection` section holds `score_threshold`, `suppression` and an optional
+`assignment` with a `one_to_many` and a `one_to_one` branch over `AssignerConfig`.
+`derive_free_model_facts()` walks the published `one2many.level<l>` ports and returns, per level,
+the size, the stride and the port names of each copy, with `reg_max`, the class count and whether
+a one-to-one copy exists; a stride that does not divide the input is refused naming the port.
+`initialize_free_biases()` runs after `NN::initialize` and writes the last biases by state name,
+all entries checked before any is written. A setter on `DetectHead` would come too late: a
+convolution reads its bias start on the first trace, and the strides are known only after it.
+
+Both files repeat the head's port and branch names and the constants 1, 5 and 640;
+`detect_head.hpp` should publish them (RW-142). The facts and the bias code live in
+`vision/training`, since `detect` depends on neither the trace nor the model state.

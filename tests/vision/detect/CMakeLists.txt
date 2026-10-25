@@ -36,6 +36,7 @@ sushiai_add_test_program(OWNER vision/detect
         free/test_box_coding.cpp
         free/test_distribution_expectation.cpp
         free/test_distribution_targets.cpp
+        free/test_free_task.cpp
         free/test_level_rows.cpp
         free/test_target_leaves.cpp
         test_average_precision.cpp

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-25 — detect: Added the `anchor_free_detection` task section, which holds the thresholds and the assigner settings a model cannot state (`free_task.hpp`).
+- 2026-10-25 — training: Added the anchor-free facts derived from a traced model's detect ports, and the start of the head's last biases from the derived strides (`free_model_facts.hpp`, `free_bias_init.hpp`).
 - 2026-10-25 — detect: Added the distribution expectation of a box output of `4 * reg_max` channels on the host, and the bin weights of the distribution focal loss (`distribution_expectation.hpp`, `distribution_targets.hpp`).
 - 2026-10-25 — training: Added the distribution expectation and the distribution focal loss as graph emitters (`distribution_expectation_graph.hpp`, `distribution_focal_loss.hpp`).
 - 2026-10-25 — config: Added the training file's `deterministic` key, true by default, in training file version 3 (`train_config.hpp`).

@@ -16,6 +16,8 @@ sushiai_add_test_program(OWNER vision/training
         test_dice_targets.cpp
         test_distribution_expectation_graph.cpp
         test_distribution_focal_loss.cpp
+        test_free_bias_init.cpp
+        test_free_model_facts.cpp
         test_head_delta_loss.cpp
         test_pixel_cross_entropy_objective.cpp
         test_pixel_extents.cpp
@@ -25,6 +27,8 @@ sushiai_add_test_program(OWNER vision/training
         test_segmentation_metrics.cpp
         test_truth_from_roles.cpp
     DEPENDS
+        engine_fixture
         failure_expectations
         seeded_noise
-        tensor_values)
+        tensor_values
+        vision/blocks)

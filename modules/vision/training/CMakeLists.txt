@@ -16,6 +16,8 @@ sushiai_add_module(NAME training TIER vision
         source/dice_targets.cpp
         source/distribution_expectation_graph.cpp
         source/distribution_focal_loss.cpp
+        source/free_bias_init.cpp
+        source/free_model_facts.cpp
         source/head_delta_loss.cpp
         source/pixel_cross_entropy_objective.cpp
         source/pixel_labels.cpp
@@ -24,6 +26,6 @@ sushiai_add_module(NAME training TIER vision
         source/pixel_targets.cpp
         source/segmentation_metrics.cpp
         source/truth_from_roles.cpp
-    PUBLIC_DEPENDS config data dtype failure graph nn optim train vision/detect vision/segment
-    PRIVATE_DEPENDS execution seam shape
+    PUBLIC_DEPENDS config data dtype failure graph nn optim shape train vision/detect vision/segment
+    PRIVATE_DEPENDS execution seam
     EXTERNAL_PUBLIC SushiRuntime::core)
