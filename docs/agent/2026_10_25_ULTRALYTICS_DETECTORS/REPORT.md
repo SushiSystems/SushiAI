@@ -30,6 +30,9 @@ dispatch: determinism audit — haiku high, 21 turns, passed, rung 1
 dispatch: share registration test helpers — sonnet low, 17 turns, passed, rung 1
 dispatch: U8 anchor-free objective, step and run row — opus low, 79 turns, passed, rung 1
 dispatch: U13b anchor-free example files — sonnet low, passed, rung 1
+dispatch: NaN-safe ordering and entry checks — sonnet medium, 72 tool calls, passed, rung 1
+dispatch: extract the program run assembly — sonnet medium, 51 tool calls, passed, rung 1
+dispatch: anchor bias start in the anchor run — sonnet low, 31 tool calls, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -220,3 +223,17 @@ and progress reporting, and the two steps their truth checks (RW-144). A fresh r
 The inference report decodes the one-to-many ports with `FreeBatchDecoder`, suppresses class-aware
 with the best class per anchor and prints mAP at IoU 0.5 over the labelled split; the one-to-one
 ports are not read.
+
+## 17. Determinism, program assembly and anchor biases, written and not built
+
+- Host stages refuse non-finite port values, targets and logits on entry, naming the index, and
+  every selection orders NaN last with ties by index (`float_order.hpp`). The new tests were not
+  seen failing.
+- `run_training_file` and `run_inference_file` hold what the two mains assembled, and
+  `test_anchor_run.cpp` calls them. `check_start` and `load_model` now run after the runtime is
+  made, so a file with two errors may report another one first.
+- A fresh anchor run starts each head's objectness and class biases from its stride. The run reads
+  the model file a second time for it, because `PreparedRun` carries no `ModelSpec`.
+- U14: `RUNNING_MODELS.md` has a section on training a detector, `MODEL_FILE.md` the `assignment`
+  and `size` keys and the `anchor_free_detection` section, and the programs README the
+  `anchor_free` run row.

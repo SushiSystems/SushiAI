@@ -119,6 +119,19 @@ A `data` block with `reader`:
 
 `applications/examples/yolov7_tiny/` holds a training file that uses all three.
 
+### Training a detector
+
+A detector's `objective` names its engine. `{ "type": "anchor" }` trains a model whose `task` is
+`anchor_detection`, with the deltas of each head computed on the host; `{ "type": "anchor_free" }`
+trains one whose `task` is `anchor_free_detection`, with the loss evaluated as a graph on the device
+and the label assignment on the host. Both start the biases of a fresh run from the strides the
+trace gives. The loss gains are keys of the objective; the detect and training READMEs list them.
+`sushiai inference` reports the detections of every image and the mAP at IoU 0.5.
+
+The example folders `applications/examples/yolov3_tiny`, `yolov4_tiny`, `yolov5n`, `yolov8n`,
+`yolo11n` and `yolo26` hold a model, a training file and an evaluation file over coco128, and each
+README names the commands. None of them is a preset: each model is the JSON its rows compose.
+
 ### Training on a cluster
 
 A `cluster` section trains one model over several machines. Only a distributed build

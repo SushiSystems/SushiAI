@@ -133,6 +133,19 @@ file order, and the domain that owns the type reads the other keys. `ModelSpec::
 without the key is null. `anchor_detection` belongs to `modules/vision/detect`, whose
 `README.md` lists its keys under `anchor/anchor_task.hpp`.
 
+An `anchor_detection` task may state `assignment`, an object whose `rule` picks the cells and
+anchors a truth trains: `best_shape`, the default, takes the anchor whose shape fits best, and
+`shape_ratio` takes every anchor whose width and height ratios to the truth stay under
+`ratio_limit`, in the truth's cell and the neighbours `neighbour_offset` reaches. A head with
+`"coding": "logit"` may state `"size": "squared_sigmoid"`, which decodes a size as
+`(2 * sigmoid(t))^2` times the anchor in place of `exp(t)`. The detect README lists both under
+`anchor/assignment_section.hpp` and `anchor/head_options.hpp`.
+
+`anchor_free_detection` belongs to the same module, under `free/free_task.hpp`. It holds what the
+graph cannot say: the score threshold, the suppression and the assigner's settings. The levels,
+their strides, `reg_max` and the class count come from the `detect` row and the traced shapes.
+`applications/examples/yolov8n/model.json` carries one.
+
 A version 1 file may not carry `task`.
 
 ## Building a model

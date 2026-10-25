@@ -30,7 +30,7 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
-| `domains_vision.cpp` | The vision rows, the `anchor` run and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
+| `domains_vision.cpp` | The vision rows, the `anchor` and `anchor_free` runs and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
 | `domains_vision_none.cpp` | No row; compiled when it is off |
 | `domains_language.cpp` | The language rows and the `next_token_generation` report; compiled when `SA_BUILD_LANGUAGE` is on |
 | `domains_language_none.cpp` | No row; compiled when it is off |
@@ -122,6 +122,7 @@ the trainer can feed, and a domain adds one by registering the objective alone.
 | Objective type | Run | Added by |
 | --- | --- | --- |
 | `anchor` | `Vision::Training::AnchorTrainingStep` under `run_anchor_training` | `register_vision_domain`, `domains_vision.cpp` |
+| `anchor_free` | `Vision::Training::FreeTrainingStep` under `run_free_training` | `register_vision_domain`, `domains_vision.cpp` |
 | Any other: `cross_entropy`, `binary_cross_entropy`, `multi_label`, `mean_squared_error`, `next_token` | `Train::Trainer::run_step` per batch | `register_runs`, `trainer_run.cpp` |
 
 An objective that keeps the default `Train::Objective::feed` and has no row fails its first
