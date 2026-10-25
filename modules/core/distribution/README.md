@@ -285,9 +285,11 @@ split the sum over rows inside the matrix product, so that case compares within 
 
 `ReplicaStep::begin`, the replica's micro-batch sum and `ParameterPublish::make` copy between the
 packs and the model's tensors with host `memcpy`. Every side is host memory: SushiAI's pool
-allocates `Residency::Shared`, a `TensorPack` allocates `Residency::Shared` on the device its
-tensors live on (the publish's parameters, the exchange's parameter pack, the position tensor),
-and SushiRuntime
-borrows every view a worker's dispatch hands a kernel as `Residency::Shared`.
+allocates `Residency::Shared`, a `TensorPack` allocates pinned `Residency::Host` memory of the
+device its tensors live on (the publish's parameters, the exchange's parameter pack, the position
+tensor), and SushiRuntime borrows every view a worker's dispatch hands a kernel as
+`Residency::Shared`. The transport reads a pack while kernels run, which managed memory does not
+allow on CUDA on Windows; KI-17 in `docs/reference/KNOWN_ISSUES.md` holds what remains of that
+limit.
 `require_host_visible()` stops the process at the copy, naming the tensor, if a model tensor
 ever lives in device memory.

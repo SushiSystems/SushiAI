@@ -186,7 +186,8 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
     const std::shared_ptr<const Apps::ReplicaSource> source =
         Apps::ReplicaSource::load(spec).value();
     std::unique_ptr<Distribution::ReplicaKernel> worker_kernel =
-        Apps::make_served_kernel(source, section, K_WORKER_NAME).value();
+        Apps::make_served_kernel(source, section, K_WORKER_NAME, worker_replica_config())
+            .value();
     std::unique_ptr<Distribution::ReplicaKernel> master_kernel =
         Apps::make_served_kernel(source, section, section.worker_of(0)).value();
 

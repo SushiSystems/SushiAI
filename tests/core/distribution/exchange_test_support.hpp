@@ -44,6 +44,7 @@
 #include <SushiRuntime/placement/placement_rules.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
+#include <SushiAI/distribution/replica_step.hpp>
 
 /** @brief Holds what the tests of the gradient exchange share. */
 namespace SushiAI::Distribution::ExchangeSupport
@@ -77,12 +78,37 @@ namespace SushiAI::Distribution::ExchangeSupport
         return ClusterSection::read(value, std::filesystem::path(".")).value();
     }
 
-    /** @brief Returns a runtime whose machine reports @p name. */
-    inline SushiRuntime::Runtime named_runtime(const char* name)
+    /** @brief Returns a runtime whose machine reports @p name, on the devices @p devices takes. */
+    inline SushiRuntime::Runtime named_runtime(const char* name,
+                                               SushiRuntime::DeviceFilter devices = {})
     {
         SushiRuntime::RuntimeConfig config;
         config.node_name = name;
+        config.devices = devices;
         return SushiRuntime::Runtime::create(config).value();
+    }
+
+    /** @brief Returns the devices of the in-process worker: the CPU alone, as KI-17 requires. */
+    inline SushiRuntime::DeviceFilter worker_devices()
+    {
+        SushiRuntime::DeviceFilter devices;
+        devices.include_gpu = false;
+        devices.include_accelerator = false;
+        return devices;
+    }
+
+    /**
+     * @brief Returns the runtime configuration of a replica the in-process worker serves: the
+     *        CPU alone, so each machine of the one process drives hardware of its own.
+     *
+     * Two runtimes of one process on one CUDA GPU on Windows fault a host copy; see KI-17 in
+     * docs/reference/KNOWN_ISSUES.md.
+     */
+    inline SushiRuntime::RuntimeConfig worker_replica_config()
+    {
+        SushiRuntime::RuntimeConfig config = replica_runtime_config();
+        config.devices = worker_devices();
+        return config;
     }
 
     /** @brief Fills a registry with the kernels one machine serves. */
@@ -102,7 +128,7 @@ namespace SushiAI::Distribution::ExchangeSupport
             TwoMachines(const ClusterSection& section, const KernelSetup& master_kernels,
                         const KernelSetup& worker_kernels)
                 : worker_kernels_(registry(worker_kernels)),
-                  worker_runtime_(named_runtime(K_WORKER_NAME)),
+                  worker_runtime_(named_runtime(K_WORKER_NAME, worker_devices())),
                   agent_(worker_runtime_,
                          SushiRuntime::Distributed::InProcessTransport::make_worker(fabric_),
                          worker_kernels_, worker_options()),

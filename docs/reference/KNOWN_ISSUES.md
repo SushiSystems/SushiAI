@@ -1,6 +1,6 @@
 # Known issues
 
-Next id: KI-17
+Next id: KI-18
 
 ## Library behaviour
 
@@ -35,6 +35,21 @@ Next id: KI-17
 - Recognise: an exception reaches a caller that expected a `Status` or a `Result`
 - Workaround: call through `seam/seam.hpp`
 - Fix: RW-11
+
+### KI-17 Two runtimes of one process on one CUDA GPU on Windows fault a host copy
+- Origin: toolchain
+- Where: `modules/core/distribution/source/replica_step.cpp`
+- Cause: the CUDA driver on Windows gives no concurrent managed access, so the host may not touch
+  `Residency::Shared` memory while any runtime of the process runs a kernel on that GPU; a replica
+  copies its parameters and results into its model's shared tensors on the host
+- Recognise: exception 0xC0000006 in `memmove` under a replica's host copy, or
+  `CUDA_ERROR_UNKNOWN` at a kernel launch, while a second runtime of the process works
+- Workaround: give each runtime of one process its own device; the in-process workers of
+  `tests/core/distribution/exchange_test_support.hpp` and
+  `tests/applications/programs/source/cluster_test_files.hpp` drive the CPU
+- Fix: none, a limit of the driver. A cluster master holds its own runtime and replica 0's; its
+  exchange orders its kernels before or after the replicas and its packs are pinned host memory,
+  but no test runs a master on a CUDA GPU on Windows beside a busy runtime
 
 ## Documentation
 

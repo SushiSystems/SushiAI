@@ -35,6 +35,7 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
+#include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
 
 /** @brief Holds what the tests of the cluster run of `sushiai train` share. */
@@ -42,6 +43,21 @@ namespace SushiAI::Apps::ClusterTest
 {
     /** @brief Holds the name the worker reports for its machine. */
     inline constexpr const char* K_WORKER_NAME = "worker";
+
+    /**
+     * @brief Returns the runtime configuration of the replica the in-process worker serves: the
+     *        CPU alone, so each machine of the one process drives hardware of its own.
+     *
+     * Two runtimes of one process on one CUDA GPU on Windows fault a host copy; see KI-17 in
+     * docs/reference/KNOWN_ISSUES.md.
+     */
+    inline SushiRuntime::RuntimeConfig worker_replica_config()
+    {
+        SushiRuntime::RuntimeConfig config = Distribution::replica_runtime_config();
+        config.devices.include_gpu = false;
+        config.devices.include_accelerator = false;
+        return config;
+    }
 
     /** @brief Holds the seed the training file states. */
     inline constexpr std::uint64_t K_SEED = 7;

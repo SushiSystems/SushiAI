@@ -142,7 +142,8 @@ namespace
             ReplicaKernel::make(section.plan(), linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN})
                 .value();
         std::unique_ptr<ReplicaKernel> worker_kernel =
-            ReplicaKernel::make(section.plan(), linear_factory(), ReplicaDraws{K_SEED, 1, K_RUN})
+            ReplicaKernel::make(section.plan(), linear_factory(), ReplicaDraws{K_SEED, 1, K_RUN},
+                                worker_replica_config())
                 .value();
         TwoMachines machines(
             section,

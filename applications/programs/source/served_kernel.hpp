@@ -32,6 +32,7 @@
 #include <string_view>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
+#include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/failure/result.hpp>
 
 #include "training_replica_model.hpp"
@@ -44,12 +45,14 @@ namespace SushiAI
          * @brief Builds the kernel of the replica the section places on @p machine: the
          *        master's local replica 0, or the replica a worker's name picks.
          * @param source Not null; the files of the run, whose run index the draws take.
+         * @param config The configuration of the runtime the replica's step drives.
          * @return The kernel, InvalidDescription when no replica names @p machine, or the
          *         refusal of the seed or of the replica's step.
          */
         [[nodiscard]] Result<std::unique_ptr<Distribution::ReplicaKernel>> make_served_kernel(
             const std::shared_ptr<const ReplicaSource>& source,
-            const Distribution::ClusterSection& section, std::string_view machine);
+            const Distribution::ClusterSection& section, std::string_view machine,
+            const SushiRuntime::RuntimeConfig& config = Distribution::replica_runtime_config());
 
     } // namespace Apps
 } // namespace SushiAI
