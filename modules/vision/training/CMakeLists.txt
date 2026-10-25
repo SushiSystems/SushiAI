@@ -14,6 +14,8 @@ sushiai_add_module(NAME training TIER vision
         source/anchor_training_loop.cpp
         source/anchor_training_step.cpp
         source/best_shape_head_delta_rule.cpp
+        source/detection_run_check.cpp
+        source/detection_truth_check.cpp
         source/dice_objective.cpp
         source/dice_targets.cpp
         source/distribution_expectation_graph.cpp
@@ -36,6 +38,7 @@ sushiai_add_module(NAME training TIER vision
         source/pixel_losses.cpp
         source/pixel_objective.cpp
         source/pixel_targets.cpp
+        source/run_progress.cpp
         source/segmentation_metrics.cpp
         source/shape_ratio_head_delta_rule.cpp
         source/truth_from_roles.cpp

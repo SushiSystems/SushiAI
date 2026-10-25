@@ -44,6 +44,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
+#include <SushiAI/vision/training/detection_truth_check.hpp>
 
 namespace SushiAI::Vision::Training
 {
@@ -196,37 +197,11 @@ namespace SushiAI::Vision::Training
     Status AnchorTrainingStep::check_truth(const Detect::GroundTruthBatch& truth) const
     {
         const std::vector<AnchorHead>& heads = objective_.heads();
-        const std::int64_t batch = heads.front().shape.batch;
 
-        SA_FAIL_IF(truth.batch != batch, StatusCode::Incompatible,
-                   "The truth holds {} images, but the heads were declared for a batch of {}",
-                   truth.batch, batch);
-        SA_FAIL_IF(truth.max_boxes < 0, StatusCode::Incompatible,
-                   "The truth holds {} rows per image; the count cannot be negative",
-                   truth.max_boxes);
+        SA_TRY(check_truth_layout(truth, heads.front().shape.batch, "heads were declared for"));
 
-        const std::size_t rows = static_cast<std::size_t>(batch * truth.max_boxes);
-        SA_FAIL_IF(truth.labels.size() != rows || truth.valid.size() != rows
-                       || truth.boxes.size() != rows * 4,
-                   StatusCode::Incompatible,
-                   "A truth of {} images and {} rows per image needs {} labels, {} flags and {} "
-                   "box values; it holds {}, {} and {}",
-                   batch, truth.max_boxes, rows, rows, rows * 4, truth.labels.size(),
-                   truth.valid.size(), truth.boxes.size());
-
-        for (std::size_t row = 0; row < rows; ++row)
-        {
-            if (truth.valid[row] == 0)
-                continue;
-
-            for (const AnchorHead& head : heads)
-            {
-                SA_FAIL_IF(truth.labels[row] < 0 || truth.labels[row] >= head.options.num_classes,
-                           StatusCode::InvalidDescription,
-                           "Truth row {} has the label {}, but the head '{}' has {} classes", row,
-                           truth.labels[row], head.output, head.options.num_classes);
-            }
-        }
+        for (const AnchorHead& head : heads)
+            SA_TRY(check_truth_labels(truth, head.options.num_classes, head.output));
 
         return Status();
     }

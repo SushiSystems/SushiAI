@@ -718,8 +718,11 @@ built or run.
 The host stage evaluates the loss a second time in double for the metrics.
 
 ### RW-144 Share the training loop and step checks of the two detection engines
-- State: open
+- State: unmeasured
 - Done when: the anchor and anchor-free loops share one run check and progress report, and the
   two steps one truth check
 - Source: `docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/REPORT.md`
 
+The three checks are shared and written (`detection_truth_check.hpp`, `detection_run_check.hpp`,
+`run_progress.hpp`); the owner's build runs their tests. The epoch and batch iteration is still
+written out in both loops.

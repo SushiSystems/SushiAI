@@ -572,3 +572,111 @@ With all six pixels ignored, the cross-entropy loss and every gradient element a
 
 A mask that holds 4 at pixel 2 is refused as `Incompatible`. The message contains "holds 4 at pixel
 2" and "below 4".
+
+## test_detection_truth_check.cpp
+
+Suites: `Small_DetectionTruthCheck`.
+
+Tests `check_truth_layout` and `check_truth_labels` in
+`modules/vision/training/include/SushiAI/vision/training/detection_truth_check.hpp` over a truth
+of two images and two rows, the last row padding, with labels 0, 2, 1 and 0 over 3 classes.
+
+### AcceptsATruthOfTheDeclaredBatch
+
+Both checks succeed on that truth.
+
+### ATruthOfAnotherBatchNamesBothBatchesAndTheOrigin
+
+A truth of 3 images against a batch of 2 is `Incompatible`; the message contains "3 images" and
+"ports were traced for a batch of 2".
+
+### ANegativeRowCountIsRefused
+
+A row count of -1 is `Incompatible`; the message contains "-1 rows" and "cannot be negative".
+
+### AnArrayOfAnotherSizeIsRefusedWithTheSizesItNeeds
+
+Dropping one value from the labels, the flags or the boxes is `Incompatible`. The message gives
+the needed "4 labels, 4 flags and 16 box values" and the held "3, 4 and 16", "4, 3 and 16" or
+"4, 4 and 15".
+
+### AValidLabelOutsideTheClassesNamesTheRowAndTheHolder
+
+Label 3 on valid row 2 is `InvalidDescription`; the message contains "row 2", "label 3" and
+"head.1 has 3 classes".
+
+### ANegativeValidLabelIsRefused
+
+Label -1 on valid row 0 is `InvalidDescription`.
+
+### APaddingRowMayHoldAnyLabel
+
+Label 99 on the padding row passes.
+
+## test_detection_run_check.cpp
+
+Suites: `Small_DetectionRunCheck`.
+
+Tests `check_detection_run` and `make_detection_run_plan` in
+`modules/vision/training/include/SushiAI/vision/training/detection_run_check.hpp`. A stub dataset
+states three batches of two images and the three truth roles over 2 slots and 3 classes; it
+cannot be read, since the check reads no batch. The subject is named "A test run".
+
+### AcceptsADatasetTheSubjectCanRead
+
+The stub passes with a default plan.
+
+### ThePlanCopiesTheFieldsOfTheOptions
+
+A plan made from options of 4 epochs, first epoch 2, first batch 1 and a schedule holds the
+same four values.
+
+### EpochsTheRunCannotUseAreRefusedNamingTheRun
+
+0 epochs and a first epoch of -1 are `InvalidDescription`; the messages open with "A test run".
+
+### ADatasetWithoutBatchesIsRefused
+
+A stub of no batches is `InvalidDescription` naming 'stub' and "no batches".
+
+### AFirstBatchTheDatasetLacksIsRefused
+
+A first batch of 3 over 3 batches is `Incompatible` naming "batch 3" and "3 batches".
+
+### ABatchOfAnotherSizeNamesBothSizesAndTheOrigin
+
+A stub of 3 images per batch is `Incompatible`; the message contains "batch of 3" and
+"heads were declared for 2".
+
+### AnInvalidScheduleIsRefused
+
+A step schedule of 2 steps and 1 scale is `InvalidDescription` naming "2 steps" and "1 scales".
+
+### ADatasetWithoutTheBoxesRoleIsRefused
+
+A stub that publishes only a labels role is `InvalidDescription` naming 'boxes'.
+
+### RolesOverAnotherClassCountAreRefused
+
+A subject of 4 classes against roles of 3 fails the role match.
+
+## test_run_progress.cpp
+
+Suites: `Small_RunProgress`.
+
+Tests `report_run_progress` and `notify_guarded` in
+`modules/vision/training/include/SushiAI/vision/training/run_progress.hpp` with a progress type
+declared in the test.
+
+### AnEmptyCallbackSucceeds
+
+An empty callback and an empty function both succeed.
+
+### TheCallbackReceivesTheProgressOnce
+
+The callback runs once and sees the update 7 it was handed.
+
+### AThrowOfTheCallbackBecomesAFailure
+
+A callback that throws `std::runtime_error` yields a failed status whose message contains the
+text of the exception.

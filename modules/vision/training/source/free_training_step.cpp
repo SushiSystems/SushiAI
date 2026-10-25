@@ -45,6 +45,7 @@
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
+#include <SushiAI/vision/training/detection_truth_check.hpp>
 
 namespace SushiAI::Vision::Training
 {
@@ -251,35 +252,9 @@ namespace SushiAI::Vision::Training
 
     Status FreeTrainingStep::check_truth(const Detect::GroundTruthBatch& truth) const
     {
-        const std::int64_t batch = objective_.batch();
-        const std::int64_t classes = objective_.facts().classes;
+        SA_TRY(check_truth_layout(truth, objective_.batch(), "ports were traced for"));
 
-        SA_FAIL_IF(truth.batch != batch, StatusCode::Incompatible,
-                   "The truth holds {} images, but the ports were traced for a batch of {}",
-                   truth.batch, batch);
-        SA_FAIL_IF(truth.max_boxes < 0, StatusCode::Incompatible,
-                   "The truth holds {} rows per image; the count cannot be negative",
-                   truth.max_boxes);
-
-        const std::size_t rows = static_cast<std::size_t>(batch * truth.max_boxes);
-        SA_FAIL_IF(truth.labels.size() != rows || truth.valid.size() != rows
-                       || truth.boxes.size() != rows * 4,
-                   StatusCode::Incompatible,
-                   "A truth of {} images and {} rows per image needs {} labels, {} flags and {} "
-                   "box values; it holds {}, {} and {}",
-                   batch, truth.max_boxes, rows, rows, rows * 4, truth.labels.size(),
-                   truth.valid.size(), truth.boxes.size());
-
-        for (std::size_t row = 0; row < rows; ++row)
-        {
-            SA_FAIL_IF(truth.valid[row] != 0 && (truth.labels[row] < 0
-                                                 || truth.labels[row] >= classes),
-                       StatusCode::InvalidDescription,
-                       "Truth row {} has the label {}, but the ports hold {} classes", row,
-                       truth.labels[row], classes);
-        }
-
-        return Status();
+        return check_truth_labels(truth, objective_.facts().classes, "the model");
     }
 
     Status FreeTrainingStep::feed_leaves(const Detect::GroundTruthBatch& truth)

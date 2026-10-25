@@ -13,6 +13,8 @@ sushiai_add_test_program(OWNER vision/training
         test_anchor_objective_factory.cpp
         test_anchor_training_loop.cpp
         test_anchor_training_step.cpp
+        test_detection_run_check.cpp
+        test_detection_truth_check.cpp
         test_dice_objective.cpp
         test_dice_targets.cpp
         test_distribution_expectation_graph.cpp
@@ -31,6 +33,7 @@ sushiai_add_test_program(OWNER vision/training
         test_pixel_labels.cpp
         test_pixel_losses.cpp
         test_pixel_targets.cpp
+        test_run_progress.cpp
         test_segmentation_metrics.cpp
         test_truth_from_roles.cpp
     DEPENDS

@@ -33,6 +33,7 @@ dispatch: U13b anchor-free example files — sonnet low, passed, rung 1
 dispatch: NaN-safe ordering and entry checks — sonnet medium, 72 tool calls, passed, rung 1
 dispatch: extract the program run assembly — sonnet medium, 51 tool calls, passed, rung 1
 dispatch: anchor bias start in the anchor run — sonnet low, 31 tool calls, passed, rung 1
+dispatch: RW-144 shared detection checks — sonnet medium, 47 tool calls, passed, rung 1
 
 ## 2. Seen while mapping
 

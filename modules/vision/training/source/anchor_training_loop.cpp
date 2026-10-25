@@ -25,90 +25,38 @@
  * @author Mustafa Garip
  */
 
-#include <SushiAI/data/epoch.hpp>
 #include <SushiAI/vision/training/anchor_training_loop.hpp>
 
 #include <vector>
 
-#include <SushiAI/failure/check.hpp>
-#include <SushiAI/seam/seam.hpp>
+#include <SushiAI/data/epoch.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/data/roles.hpp>
-#include <SushiAI/data/target.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/optim/optimizer.hpp>
-#include <SushiAI/train/role_match.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
+#include <SushiAI/vision/training/detection_run_check.hpp>
+#include <SushiAI/vision/training/run_progress.hpp>
 #include <SushiAI/vision/training/truth_from_roles.hpp>
 
 namespace SushiAI::Vision::Training
 {
     namespace
     {
-        /** @brief Holds the rank of the boxes role of one sample, [M, 4]. */
-        constexpr std::int32_t K_BOXES_RANK = 2;
-
-        /**
-         * @brief Checks that @p dataset can feed @p step for the run @p options describes.
-         * @return Success; InvalidDescription for no epoch, a negative first epoch, no batch
-         *         or no [M, 4] boxes role; Incompatible for another batch size or a first
-         *         batch the dataset lacks; or the failure of
-         *         validate_rate_schedule or of match_roles.
-         */
+        /** @brief Checks that @p dataset can feed @p step for the run @p options describes. */
         [[nodiscard]] Status check_run(const AnchorTrainingStep& step,
                                        const Data::Dataset& dataset,
                                        const AnchorLoopOptions& options)
         {
             const AnchorHead& head = step.objective().heads().front();
 
-            SA_FAIL_IF(options.epochs < 1, StatusCode::InvalidDescription,
-                       "An anchor run needs at least one epoch; got {}", options.epochs);
-            SA_FAIL_IF(options.first_epoch < 0, StatusCode::InvalidDescription,
-                       "An anchor run starts at an epoch index of 0 or above; got {}",
-                       options.first_epoch);
-            SA_FAIL_IF(dataset.batch_count() == 0, StatusCode::InvalidDescription,
-                       "The '{}' data holds no batches", dataset.name());
-            SA_FAIL_IF(options.first_batch >= dataset.batch_count(), StatusCode::Incompatible,
-                       "The run starts at batch {} of its first epoch, but the '{}' data holds "
-                       "{} batches an epoch",
-                       options.first_batch, dataset.name(), dataset.batch_count());
-            SA_FAIL_IF(dataset.batch_size() != head.shape.batch, StatusCode::Incompatible,
-                       "The '{}' data has a batch of {}, but the heads were declared for {}",
-                       dataset.name(), dataset.batch_size(), head.shape.batch);
+            DetectionRunSubject subject;
+            subject.run_name = "An anchor run";
+            subject.batch_origin = "heads were declared for";
+            subject.batch = head.shape.batch;
+            subject.classes = head.options.num_classes;
 
-            if (options.schedule != nullptr)
-            {
-                SA_TRY(Optim::validate_rate_schedule(*options.schedule));
-            }
-
-            const Data::TargetDescription* const boxes =
-                Data::find_target(dataset.targets(), Data::K_ROLE_BOXES);
-            SA_FAIL_IF(boxes == nullptr || boxes->sample_shape.rank() != K_BOXES_RANK,
-                       StatusCode::InvalidDescription,
-                       "The '{}' data publishes no '{}' role of [M, {}] per sample, which "
-                       "states the object slots a detection step reads",
-                       dataset.name(), Data::K_ROLE_BOXES, K_TRUTH_BOX_VALUES);
-
-            SA_TRY_ASSIGN(const std::vector<Data::TargetDescription> roles,
-                          describe_truth_roles(boxes->sample_shape.dim(0),
-                                               head.options.num_classes));
-
-            return Train::match_roles(roles, dataset);
-        }
-
-        /** @brief Calls the callback of @p options, when it holds one, and guards its throw. */
-        [[nodiscard]] Status report_progress(const AnchorLoopOptions& options,
-                                             const AnchorProgress& progress)
-        {
-            if (!options.on_update)
-                return Status();
-
-            return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Execute, [&]()
-            {
-                options.on_update(progress);
-                return Status();
-            });
+            return check_detection_run(dataset, subject, make_detection_run_plan(options));
         }
     } // namespace
 
@@ -151,7 +99,7 @@ namespace SushiAI::Vision::Training
                 report.last_rate = progress.rate;
                 ++report.updates;
 
-                SA_TRY(report_progress(options, progress));
+                SA_TRY(report_run_progress(options.on_update, progress));
             }
         }
 

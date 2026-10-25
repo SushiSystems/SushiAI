@@ -56,6 +56,9 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/anchor_training_step.hpp>` | `AnchorTrainingStep` |
 | `<SushiAI/vision/training/anchor_training_loop.hpp>` | `AnchorProgress`, `AnchorProgressCallback`, `AnchorLoopOptions`, `AnchorRunReport`, `run_anchor_training` |
 | `<SushiAI/vision/training/truth_from_roles.hpp>` | `K_TRUTH_BOX_VALUES`, `describe_truth_roles`, `truth_from_roles` |
+| `<SushiAI/vision/training/detection_truth_check.hpp>` | `check_truth_layout`, `check_truth_labels` |
+| `<SushiAI/vision/training/detection_run_check.hpp>` | `DetectionRunSubject`, `DetectionRunPlan`, `make_detection_run_plan`, `check_detection_run` |
+| `<SushiAI/vision/training/run_progress.hpp>` | `notify_guarded`, `report_run_progress` |
 | `<SushiAI/vision/training/pixel_extents.hpp>` | `PixelExtents` |
 | `<SushiAI/vision/training/pixel_labels.hpp>` | `validate_pixel_labels` |
 | `<SushiAI/vision/training/pixel_targets.hpp>` | `fill_pixel_targets` |
@@ -169,6 +172,9 @@ or a box against the image; `AnchorTrainingStep::run` and `validate_head_truth` 
 | `tests/vision/training/test_anchor_objective_factory.cpp` | The heads from the published shapes, the options from the section, the refusals |
 | `tests/vision/training/test_anchor_training_loop.cpp` | The rate of each update over two epochs, a run without a schedule, a run that starts at a later epoch and batch, the run count of both passes restored once, the refusals, a callback that throws |
 | `tests/vision/training/test_truth_from_roles.cpp` | The three descriptions, the copy with a tolerance of zero, the storage kept between batches, the refusals |
+| `tests/vision/training/test_detection_truth_check.cpp` | The batch, row count and array sizes of a truth, a label outside the classes by row and holder, a padding row left unchecked |
+| `tests/vision/training/test_detection_run_check.cpp` | The epochs, the first batch, the batch size, the schedule and the roles of a run, and the plan copied from loop options. Reads no batch |
+| `tests/vision/training/test_run_progress.cpp` | An empty callback, one call with the progress, a throw returned as a failure |
 | `tests/vision/training/test_pixel_targets.cpp` | The label check, the indices and weights of the cross entropy, the five Dice leaves, a mask with no kept pixel, the refusals and that a refused fill writes nothing. Needs an engine |
 | `tests/vision/training/test_pixel_cross_entropy_objective.cpp`, `test_dice_objective.cpp`, `test_pixel_extents.cpp` | What `make` keeps and refuses, the INT32 bound at 54 and 55 images of 512 by 512 over 150 classes, the leaves, the nodes of both losses, both factories and what they refuse |
 | `tests/vision/training/test_segmentation_metrics.cpp` | Mean IoU and pixel accuracy of one step by hand, and the steps refused. Needs an engine |
@@ -222,6 +228,23 @@ dataset lacks is `Incompatible`.
 `AnchorTrainingStep::run_count()` returns the run count of the training pass, and
 `restore_run_count(count)` sets the count of both passes, which `run` advances together. A
 model with dropout draws a mask in each pass, so both need the count of the saved run.
+
+## What the two detection engines share
+
+The anchor and the anchor-free engine differ in the cost they report and in how a step turns
+outputs into leaves. Three checks do not differ, and each lives in one file that both use.
+
+- `check_truth_layout` and `check_truth_labels` are the truth checks of `AnchorTrainingStep::run`
+  and `FreeTrainingStep::run`. The caller passes the batch it was built for, the words that say
+  what fixed it, and for the labels the class count and the name of what holds it: a head's
+  output for the anchor step, "the ports" for the free step.
+- `check_detection_run` is the check of `run_anchor_training` and `run_free_training` before the
+  first update. A `DetectionRunSubject` carries the batch and class count of the model and the
+  words of the messages; a `DetectionRunPlan`, made from either loop's options by
+  `make_detection_run_plan`, carries the epochs, the start and the schedule.
+- `report_run_progress` hands one update's progress to the loop's callback and returns a throw
+  of it as a failure. It is a template over the progress type, so each engine keeps its own
+  `AnchorProgress` or `FreeProgress`.
 
 ## The per-pixel objectives
 
