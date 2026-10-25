@@ -9,6 +9,9 @@ dispatch: C1 program shared library — haiku high, 27 tool calls, passed, rung 
 dispatch: C2 and C7 device sources — opus low, 3 tool calls, stopped on DISPATCH rule 3 (no build files); done inline
 dispatch: C4 fusion selector — sonnet low, 33 tool calls, sent back once for rules 1 and 2, passed
 dispatch: C5 span-only headers — haiku high, 56 tool calls, passed, rung 1
+dispatch: C8a umbrella out of tests/core — haiku high, running
+dispatch: C3 device sources checker — sonnet medium, 21 tool calls, passed, rung 1
+dispatch: C8b umbrella out of tests/layers — haiku high, running
 
 ## 1. Findings
 
