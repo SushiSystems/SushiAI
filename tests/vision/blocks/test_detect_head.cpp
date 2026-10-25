@@ -27,8 +27,10 @@
  */
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -52,7 +54,9 @@ using namespace SushiAI;
 using NN::BufferUpdateList;
 using NN::NormOptions;
 using NN::Trace;
+using Vision::Blocks::ClassBranchStyle;
 using Vision::Blocks::DetectHead;
+using Vision::Blocks::DetectOptions;
 
 namespace
 {
@@ -248,6 +252,109 @@ namespace
             return nullptr;
 
         return std::move(made).value();
+    }
+
+    /** @brief Holds the distribution bins per box side of the fixture's wide-box heads. */
+    constexpr int64_t K_REG_MAX = 16;
+
+    /** @brief Holds the box branch width of the wide-box fixture: max(16, 64 / 4, 4 * 16). */
+    constexpr int64_t K_WIDE_BOX_WIDTH = 64;
+
+    /** @brief Holds the strides of the three fixture levels. */
+    const std::vector<double> K_STRIDES = {8.0, 16.0, 32.0};
+
+    /** @brief Holds the tolerance for comparing a bias with its closed form. */
+    constexpr double K_BIAS_TOLERANCE = 1e-12;
+
+    /** @brief Builds a head over K_SIDES and K_WIDTHS with @p options, or fails the test. */
+    std::unique_ptr<DetectHead> make_head(const DetectOptions& options)
+    {
+        const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
+        Result<std::unique_ptr<DetectHead>> made =
+            DetectHead::create(span_of(levels), K_CLASSES, K_YOLO_NORM, options);
+        EXPECT_TRUE(Test::status_is_ok(made.status()));
+        if (!made.status().is_ok())
+            return nullptr;
+
+        return std::move(made).value();
+    }
+
+    /** @brief Returns the options of a head with wide boxes, one copy and plain class branches. */
+    DetectOptions plain_single_copy_options()
+    {
+        DetectOptions options;
+        options.reg_max = K_REG_MAX;
+        options.end2end = false;
+        options.class_branch = ClassBranchStyle::Plain;
+
+        return options;
+    }
+
+    /** @brief Appends the twelve records of each level's wide box branch under @p prefix. */
+    void append_wide_box_branches(std::vector<std::string>& records, const std::string& prefix)
+    {
+        for (std::size_t level = 0; level < K_LEVELS; ++level)
+        {
+            const std::string branch = prefix + "." + std::to_string(level);
+            append_conv_norm(records, branch + ".0",
+                             Shape{K_WIDE_BOX_WIDTH, 3, 3, K_WIDTHS[level]}, K_WIDE_BOX_WIDTH);
+            append_conv_norm(records, branch + ".1",
+                             Shape{K_WIDE_BOX_WIDTH, 3, 3, K_WIDE_BOX_WIDTH}, K_WIDE_BOX_WIDTH);
+            append_biased_pointwise(records, branch + ".2", 4 * K_REG_MAX, K_WIDE_BOX_WIDTH);
+        }
+    }
+
+    /** @brief Appends the twelve records of each level's plain class branch under @p prefix. */
+    void append_plain_class_branches(std::vector<std::string>& records,
+                                     const std::string& prefix)
+    {
+        for (std::size_t level = 0; level < K_LEVELS; ++level)
+        {
+            const std::string branch = prefix + "." + std::to_string(level);
+            append_conv_norm(records, branch + ".0", Shape{K_CLASS_WIDTH, 3, 3, K_WIDTHS[level]},
+                             K_CLASS_WIDTH);
+            append_conv_norm(records, branch + ".1", Shape{K_CLASS_WIDTH, 3, 3, K_CLASS_WIDTH},
+                             K_CLASS_WIDTH);
+            append_biased_pointwise(records, branch + ".2", K_CLASSES, K_CLASS_WIDTH);
+        }
+    }
+
+    /**
+     * @brief Traces @p head once in evaluation mode and returns the constant every bias named
+     *        "<...>.2.bias" starts from, keyed by its state name.
+     */
+    std::map<std::string, double> last_bias_constants(DetectHead& head)
+    {
+        FeatureGraph traced;
+        std::vector<Graph::ValueID> outputs;
+        SA_EXPECT_OK(head.forward(Trace::evaluation(traced.builder), traced.inputs(), outputs));
+
+        std::map<std::string, double> constants;
+        const auto on_parameter = [&constants](const std::string& name, NN::Parameter& state)
+        {
+            const std::string suffix = ".2.bias";
+            const bool is_last = name.size() > suffix.size() &&
+                                 name.compare(name.size() - suffix.size(), suffix.size(),
+                                              suffix) == 0;
+            if (!is_last)
+                return;
+
+            EXPECT_EQ(state.init().kind, NN::ParameterInit::Kind::Constant) << name;
+            constants[name] = state.init().constant;
+        };
+        const auto on_buffer = [](const std::string&, NN::Buffer&) {};
+        const NN::StateVisitor visitor(on_parameter, on_buffer);
+        NN::walk_state(head, "", visitor);
+
+        return constants;
+    }
+
+    /** @brief Returns log(5 / classes / (640 / stride)^2) for the fixture's class count. */
+    double expected_class_bias(double stride)
+    {
+        const double cells = 640.0 / stride;
+
+        return std::log(5.0 / static_cast<double>(K_CLASSES) / (cells * cells));
     }
 
 } // namespace
@@ -472,4 +579,173 @@ TEST(Medium_BlockDetectHead, TheFactoryRefusesARowThatDoesNotFit)
     SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(none), row, K_CONTEXT),
                       StatusCode::InvalidDescription, "layer 23 'detect'",
                       "at least one feature level");
+}
+
+/**
+ * @brief Tests that a wide-box, one-copy, plain-class head over 64, 128 and 256 channels and 80
+ *        classes carries 72 records with a 64-wide box branch emitting 4 * 16 channels.
+ */
+TEST(Medium_BlockDetectHead, AWideBoxPlainSingleCopyHeadCarriesItsRecords)
+{
+    const std::unique_ptr<DetectHead> head = make_head(plain_single_copy_options());
+    ASSERT_NE(head, nullptr);
+    FeatureGraph traced;
+    BufferUpdateList list;
+    std::vector<Graph::ValueID> outputs;
+    SA_EXPECT_OK(head->forward(Trace::training(traced.builder, list), traced.inputs(), outputs));
+
+    std::vector<std::string> expected;
+    append_wide_box_branches(expected, "model.22.cv2");
+    append_plain_class_branches(expected, "model.22.cv3");
+    ASSERT_EQ(expected.size(), 72u);
+
+    EXPECT_EQ(walk(*head, "model.22"), expected);
+    EXPECT_EQ(count_nodes(traced.graph, Ops::K_STOP_GRADIENT.id), 0u);
+    EXPECT_EQ(count_nodes(traced.graph, Ops::K_DEPTHWISE_CONV2D.id), 0u);
+    EXPECT_EQ(outputs.size(), 2 * K_LEVELS);
+}
+
+/** @brief Tests the port count and the channel widths of each combination of the options. */
+TEST(Medium_BlockDetectHead, ThePortCountFollowsTheCopiesAndTheBoxWidthFollowsRegMax)
+{
+    const std::unique_ptr<DetectHead> defaults = make_head(DetectOptions());
+    ASSERT_NE(defaults, nullptr);
+    EXPECT_EQ(defaults->ports().size(), 4 * K_LEVELS);
+    EXPECT_EQ(defaults->ports()[0].shape, (Shape{80, 80, 4}));
+
+    DetectOptions wide;
+    wide.reg_max = K_REG_MAX;
+    const std::unique_ptr<DetectHead> wide_head = make_head(wide);
+    ASSERT_NE(wide_head, nullptr);
+    ASSERT_EQ(wide_head->ports().size(), 4 * K_LEVELS);
+    EXPECT_EQ(wide_head->ports()[0].shape, (Shape{80, 80, 4 * K_REG_MAX}));
+    EXPECT_EQ(wide_head->ports()[2 * K_LEVELS].shape, (Shape{80, 80, 4 * K_REG_MAX}));
+    EXPECT_EQ(wide_head->ports()[K_LEVELS].shape, (Shape{80, 80, K_CLASSES}));
+
+    DetectOptions single;
+    single.end2end = false;
+    const std::unique_ptr<DetectHead> single_head = make_head(single);
+    ASSERT_NE(single_head, nullptr);
+    ASSERT_EQ(single_head->ports().size(), 2 * K_LEVELS);
+    EXPECT_EQ(single_head->ports()[0].name, "one2many.level0.boxes");
+    EXPECT_EQ(single_head->ports()[2 * K_LEVELS - 1].name, "one2many.level2.scores");
+
+    const std::unique_ptr<DetectHead> plain = make_head(plain_single_copy_options());
+    ASSERT_NE(plain, nullptr);
+    ASSERT_EQ(plain->ports().size(), 2 * K_LEVELS);
+    EXPECT_EQ(plain->ports()[0].shape, (Shape{80, 80, 4 * K_REG_MAX}));
+    EXPECT_EQ(plain->ports()[2 * K_LEVELS - 1].shape, (Shape{20, 20, K_CLASSES}));
+}
+
+/** @brief Tests that the factory reads the three structural keys and builds the same head. */
+TEST(Medium_BlockDetectHead, TheFactoryBuildsAWideBoxPlainSingleCopyRow)
+{
+    const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
+    const Config::Value attributes = attributes_of(
+        R"({"classes": 80, "reg_max": 16, "end2end": false, "class_branch": "plain"})");
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
+                            Vision::Blocks::make_detect_node(span_of(levels), attributes,
+                                                             K_CONTEXT));
+    EXPECT_EQ(node->ports().size(), 2 * K_LEVELS);
+    EXPECT_EQ(node->ports()[0].shape, (Shape{80, 80, 4 * K_REG_MAX}));
+
+    FeatureGraph traced;
+    std::vector<Graph::ValueID> outputs;
+    SA_EXPECT_OK(node->forward(Trace::evaluation(traced.builder), traced.inputs(), outputs));
+    EXPECT_EQ(walk(*node, "model.22").size(), 72u);
+}
+
+/** @brief Tests that create refuses a reg_max below one and strides that do not fit. */
+TEST(Medium_BlockDetectHead, CreateRefusesOptionsThatDoNotFit)
+{
+    const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
+
+    DetectOptions no_bins;
+    no_bins.reg_max = 0;
+    SA_EXPECT_FAILURE(DetectHead::create(span_of(levels), K_CLASSES, K_YOLO_NORM, no_bins),
+                      StatusCode::InvalidDescription, "reg_max of at least one", "0");
+
+    DetectOptions short_strides;
+    short_strides.strides = {8.0, 16.0};
+    SA_EXPECT_FAILURE(
+        DetectHead::create(span_of(levels), K_CLASSES, K_YOLO_NORM, short_strides),
+        StatusCode::InvalidDescription, "one stride per level", "2 strides", "3 levels");
+
+    DetectOptions flat_stride;
+    flat_stride.strides = {8.0, 0.0, 32.0};
+    SA_EXPECT_FAILURE(DetectHead::create(span_of(levels), K_CLASSES, K_YOLO_NORM, flat_stride),
+                      StatusCode::InvalidDescription, "positive finite strides");
+}
+
+/** @brief Tests that the factory refuses a bad value for each of the three new keys. */
+TEST(Medium_BlockDetectHead, TheFactoryRefusesABadValueForEachNewKey)
+{
+    const std::vector<Shape> levels = level_shapes(K_SIDES, K_WIDTHS);
+    const Config::Value zero_bins = attributes_of(R"({"classes": 80, "reg_max": 0})");
+    const Config::Value text_bins = attributes_of(R"({"classes": 80, "reg_max": "16"})");
+    const Config::Value text_flag = attributes_of(R"({"classes": 80, "end2end": "yes"})");
+    const Config::Value unknown_form =
+        attributes_of(R"({"classes": 80, "class_branch": "wide"})");
+    const Config::Value number_form = attributes_of(R"({"classes": 80, "class_branch": 3})");
+
+    SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(levels), zero_bins, K_CONTEXT),
+                      StatusCode::InvalidDescription, "layer 23 'detect'", "'reg_max'",
+                      "positive");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(levels), text_bins, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'reg_max'", "whole number");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(levels), text_flag, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'end2end'", "true or false");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(levels), unknown_form, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'class_branch'", "depthwise", "plain",
+                      "wide");
+    SA_EXPECT_FAILURE(Vision::Blocks::make_detect_node(span_of(levels), number_form, K_CONTEXT),
+                      StatusCode::InvalidDescription, "'class_branch'", "depthwise", "plain");
+}
+
+/** @brief Tests that without strides every last bias starts from zero, in both forms. */
+TEST(Medium_BlockDetectHead, WithoutStridesEveryLastBiasStartsFromZero)
+{
+    for (const ClassBranchStyle style : {ClassBranchStyle::Depthwise, ClassBranchStyle::Plain})
+    {
+        DetectOptions options;
+        options.class_branch = style;
+        const std::unique_ptr<DetectHead> head = make_head(options);
+        ASSERT_NE(head, nullptr);
+
+        const std::map<std::string, double> constants = last_bias_constants(*head);
+        EXPECT_EQ(constants.size(), 4 * K_LEVELS);
+        for (const auto& entry : constants)
+            EXPECT_NEAR(entry.second, 0.0, K_BIAS_TOLERANCE) << entry.first;
+    }
+}
+
+/**
+ * @brief Tests that strides set the last box bias to 1 and each last class bias to
+ *        log(5 / classes / (640 / stride)^2), on both copies and in both forms.
+ */
+TEST(Medium_BlockDetectHead, StridesSetTheLastBiasesOfBothCopies)
+{
+    for (const ClassBranchStyle style : {ClassBranchStyle::Depthwise, ClassBranchStyle::Plain})
+    {
+        DetectOptions options;
+        options.class_branch = style;
+        options.strides = K_STRIDES;
+        const std::unique_ptr<DetectHead> head = make_head(options);
+        ASSERT_NE(head, nullptr);
+
+        const std::map<std::string, double> constants = last_bias_constants(*head);
+        ASSERT_EQ(constants.size(), 4 * K_LEVELS);
+        for (std::size_t level = 0; level < K_LEVELS; ++level)
+        {
+            const std::string index = std::to_string(level);
+            for (const std::string_view copy : {std::string_view(), std::string_view("one2one_")})
+            {
+                EXPECT_NEAR(constants.at(std::string(copy) + "cv2." + index + ".2.bias"), 1.0,
+                            K_BIAS_TOLERANCE);
+                EXPECT_NEAR(constants.at(std::string(copy) + "cv3." + index + ".2.bias"),
+                            expected_class_bias(K_STRIDES[level]), K_BIAS_TOLERANCE);
+            }
+        }
+    }
 }

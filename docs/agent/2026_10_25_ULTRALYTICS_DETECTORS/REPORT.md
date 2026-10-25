@@ -9,6 +9,7 @@ dispatch: map YOLOv5 and YOLOv4-tiny — haiku medium, 23 turns, passed, rung 1
 dispatch: map the training and inference rows — haiku medium, 53 turns, passed, rung 1
 dispatch: check that the YOLO26 model file builds — haiku medium, 26 turns, passed, rung 1
 dispatch: U1 c2f and c3 — sonnet medium, 49 turns, passed, rung 1
+dispatch: U2 detect options — sonnet medium, 71 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -25,3 +26,13 @@ through a new constructor that takes both bottleneck kernels, 1 and 3. Both rows
 `hidden`, `repeats`, `shortcut` and the norm keys, as `c3k2` does. The block tests check the
 wiring of a traced `[1, 2, 2, 8]` input, not output values: the block tests have no engine. Each
 block test file repeats the same helpers.
+
+## 4. U2, written and not built
+
+`DetectOptions` holds `reg_max`, `end2end`, `class_branch` and `strides`; the branches are a
+`std::variant` of the two class-branch forms. Defaults keep the YOLO26 file's 594 records. A
+level's stride cannot be derived inside the row: its factory sees only the per-level shapes. The
+row therefore takes no `strides` key, and U4 derives the strides from the built model and
+applies the bias initialisation on a fresh run. Ultralytics' `dfl.conv.weight`, a fixed ramp, has
+no state record; a later `.pt` mapping skips it. The state names follow Ultralytics' as
+remembered, not checked against a checkpoint.

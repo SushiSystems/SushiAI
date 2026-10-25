@@ -32,6 +32,7 @@
 #include <memory>
 #include <string_view>
 #include <tuple>
+#include <variant>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -51,7 +52,7 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
-        /** @brief Names the box branch of one level: two 3x3 Conv, then a biased 1x1 to 4. */
+        /** @brief Names the box branch of one level: two 3x3 Conv, then a biased 1x1. */
         using BoxBranch = NN::Sequential<Conv, Conv, NN::Conv2d>;
 
         /** @brief Names one stage of a class branch: a 3x3 DWConv, then a 1x1 Conv. */
@@ -60,11 +61,74 @@ namespace SushiAI
         /** @brief Names the class branch of one level: two stages, then a biased 1x1. */
         using ClassBranch = NN::Sequential<ClassStage, ClassStage, NN::Conv2d>;
 
+        /** @brief Names the plain class branch of one level: two 3x3 Conv, then a biased 1x1. */
+        using PlainClassBranch = NN::Sequential<Conv, Conv, NN::Conv2d>;
+
+        /** @brief Names the form of a head's class branches. */
+        enum class ClassBranchStyle : std::uint8_t
+        {
+            Depthwise, /**< Two depthwise-style stages, then a 1x1. */
+            Plain,     /**< Three layers: two 3x3 Conv, then a 1x1. */
+        };
+
+        /**
+         * @brief Holds the branches of both copies of a head under their checkpoint names.
+         * @tparam ClassType The class branch form, ClassBranch or PlainClassBranch.
+         */
+        template<typename ClassType>
+        struct DetectBranches
+        {
+            /** @brief Holds the one-to-many box branch of each level. */
+            NN::ModuleList<BoxBranch> cv2;
+
+            /** @brief Holds the one-to-many class branch of each level. */
+            NN::ModuleList<ClassType> cv3;
+
+            /** @brief Holds the one-to-one box branch of each level; empty without end2end. */
+            NN::ModuleList<BoxBranch> one2one_cv2;
+
+            /** @brief Holds the one-to-one class branch of each level; empty without end2end. */
+            NN::ModuleList<ClassType> one2one_cv3;
+
+            /** @brief Lists the four children in checkpoint order. */
+            static constexpr auto fields()
+            {
+                return std::tuple{
+                    NN::child("cv2", &DetectBranches::cv2),
+                    NN::child("cv3", &DetectBranches::cv3),
+                    NN::child("one2one_cv2", &DetectBranches::one2one_cv2),
+                    NN::child("one2one_cv3", &DetectBranches::one2one_cv3),
+                };
+            }
+        };
+
+        /** @brief Holds the structural choices of a head beyond its levels and class count. */
+        struct DetectOptions
+        {
+            /** @brief Holds the distribution bins per box side; the box branch emits 4 times it. */
+            int64_t reg_max = 1;
+
+            /** @brief Tells whether the one-to-one copy exists next to the one-to-many copy. */
+            bool end2end = true;
+
+            /** @brief Holds the form of the class branches. */
+            ClassBranchStyle class_branch = ClassBranchStyle::Depthwise;
+
+            /**
+             * @brief Holds the stride of each level, finest first. Empty leaves every bias at
+             *        zero; otherwise the last box convolution starts at 1 and each last class
+             *        convolution at log(5 / classes / (640 / stride)^2). A row cannot state it,
+             *        so only a caller that knows the input size sets it.
+             */
+            std::vector<double> strides{};
+        };
+
         /**
          * @brief Maps each feature level to raw boxes and class logits, once per copy.
          *
-         * The one-to-many copy comes first. Each copy appends the boxes of every level, then
-         * the scores of every level, as "<copy>.level<l>.boxes" and "<copy>.level<l>.scores".
+         * The one-to-many copy comes first, then the one-to-one copy unless end2end is off. Each
+         * copy appends the boxes of every level, then the scores, as "<copy>.level<l>.boxes"
+         * and "<copy>.level<l>.scores".
          */
         class DetectHead final : public NN::Node
         {
@@ -73,12 +137,13 @@ namespace SushiAI
                  * @brief Builds both copies over the per-sample shapes of the levels.
                  * @param levels One [H, W, C] shape per level, finest first.
                  * @param classes The number of class logits per position; at least one.
-                 * @param norm The epsilon and the momentum of every batch normalisation.
-                 * @return The node, or InvalidDescription when @p levels is empty, a level is
-                 *         not rank 3 or holds no channel, or @p classes is below one.
+                 * @param options The box width, the copies, the class branch form, the strides.
+                 * @return The node, or InvalidDescription for a bad level, classes, reg_max
+                 *         or strides.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<DetectHead>> create(
-                    NN::ShapeSpan levels, int64_t classes, NN::NormOptions norm);
+                    NN::ShapeSpan levels, int64_t classes, NN::NormOptions norm,
+                    const DetectOptions& options = DetectOptions());
 
                 /**
                  * @brief Traces both copies and appends one id per port, in the order of ports().
@@ -92,7 +157,8 @@ namespace SushiAI
                                              std::vector<Graph::ValueID>& outputs) override;
 
                 /**
-                 * @brief Walks "cv2", "cv3", "one2one_cv2" and "one2one_cv3", each by level.
+                 * @brief Walks "cv2", "cv3", "one2one_cv2" and "one2one_cv3", each by level; the
+                 *        one-to-one names are absent without end2end.
                  * @param prefix Dotted prefix the four names hang under.
                  */
                 void walk_state(std::string_view prefix, const NN::StateVisitor& visitor) override;
@@ -104,36 +170,13 @@ namespace SushiAI
                 [[nodiscard]] SushiRuntime::span<const NN::Port> ports() const noexcept override;
 
             private:
-                /** @brief Holds the branches of both copies under their checkpoint names. */
-                struct Branches
-                {
-                    /** @brief Holds the one-to-many box branch of each level. */
-                    NN::ModuleList<BoxBranch> cv2;
-
-                    /** @brief Holds the one-to-many class branch of each level. */
-                    NN::ModuleList<ClassBranch> cv3;
-
-                    /** @brief Holds the one-to-one box branch of each level. */
-                    NN::ModuleList<BoxBranch> one2one_cv2;
-
-                    /** @brief Holds the one-to-one class branch of each level. */
-                    NN::ModuleList<ClassBranch> one2one_cv3;
-
-                    /** @brief Lists the four children in checkpoint order. */
-                    static constexpr auto fields()
-                    {
-                        return std::tuple{
-                            NN::child("cv2", &Branches::cv2),
-                            NN::child("cv3", &Branches::cv3),
-                            NN::child("one2one_cv2", &Branches::one2one_cv2),
-                            NN::child("one2one_cv3", &Branches::one2one_cv3),
-                        };
-                    }
-                };
+                /** @brief Names the branches of either class branch form. */
+                using Branches = std::variant<DetectBranches<ClassBranch>,
+                                              DetectBranches<PlainClassBranch>>;
 
                 /** @brief Binds the branches and the ports create() derived from them. */
                 DetectHead(Branches branches, std::vector<NN::Port> ports,
-                           std::size_t level_count);
+                           std::size_t level_count, bool end2end);
 
                 /** @brief Holds the branches of both copies. */
                 Branches branches_;
@@ -143,10 +186,14 @@ namespace SushiAI
 
                 /** @brief Holds how many values forward() reads. */
                 std::size_t level_count_;
+
+                /** @brief Holds whether forward() traces the one-to-one copy. */
+                bool end2end_;
         };
 
         /**
-         * @brief Builds a DetectHead node from "classes", with the optional "bn_epsilon" and
+         * @brief Builds a DetectHead node from "classes", with the optional "reg_max",
+         *        "end2end", "class_branch" ("depthwise" or "plain"), "bn_epsilon" and
          *        "bn_momentum".
          * @param inputs One per-sample [H, W, C] shape per level, finest first.
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.

@@ -62,3 +62,40 @@ yields 204 records.
 An unknown key "filters" fails with a message holding "layer 23 'detect'" and "'filters'". A
 row without "classes" fails with "'classes'" and "absent". An empty level list fails with
 "layer 23 'detect'" and "at least one feature level".
+
+## AWideBoxPlainSingleCopyHeadCarriesItsRecords
+
+With `reg_max` 16, `end2end` false and `class_branch` "plain", the 64, 128 and 256 channel head
+walked under "model.22" yields 72 records: per level a 64-wide box branch ending in a 1x1 of 64
+channels under `cv2`, and a plain class branch of two 3x3 `Conv` of width 80 and a 1x1 of 80
+channels under `cv3`. No STOP_GRADIENT and no DEPTHWISE_CONV2D node is traced, and `forward`
+appends six values.
+
+## ThePortCountFollowsTheCopiesAndTheBoxWidthFollowsRegMax
+
+The defaults give twelve ports with 4 box channels. `reg_max` 16 makes every boxes port 64
+channels wide. `end2end` false leaves six ports, all "one2many".
+
+## TheFactoryBuildsAWideBoxPlainSingleCopyRow
+
+The row `{"classes": 80, "reg_max": 16, "end2end": false, "class_branch": "plain"}` builds the
+same head as the options do: six ports, 72 records.
+
+## CreateRefusesOptionsThatDoNotFit
+
+`create` refuses a `reg_max` of 0, two strides for three levels and a stride of 0.
+
+## TheFactoryRefusesABadValueForEachNewKey
+
+The factory refuses `reg_max` of 0 and of "16", `end2end` of "yes", and `class_branch` of
+"wide" and of 3, naming the key each time.
+
+## WithoutStridesEveryLastBiasStartsFromZero
+
+With no strides, the twelve `.2.bias` parameters of either class branch form start from the
+constant 0.
+
+## StridesSetTheLastBiasesOfBothCopies
+
+With strides 8, 16 and 32, each last box bias starts from 1 and each last class bias from
+log(5 / 80 / (640 / stride)^2), on the one-to-many and the one-to-one copy, in both forms.

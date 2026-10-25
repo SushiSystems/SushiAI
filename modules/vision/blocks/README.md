@@ -58,7 +58,7 @@ that comment.
 | `make_c2f_node` | `filters`, `hidden` | `repeats`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_sppf_node` | `filters` | `kernel`, `pools`, `shortcut`, `bn_epsilon`, `bn_momentum` |
 | `make_c2psa_node` | `filters`, `hidden` | `repeats`, `heads`, `bn_epsilon`, `bn_momentum` |
-| `make_detect_node` | `classes` | `bn_epsilon`, `bn_momentum` |
+| `make_detect_node` | `classes` | `reg_max`, `end2end`, `class_branch`, `bn_epsilon`, `bn_momentum` |
 | `make_segment_head_node` | `classes` | `hidden`, `scale`, `bn_epsilon`, `bn_momentum` |
 
 `registration` adds the factories of `conv`, `bottleneck`, `c3k`, `c3k2`, `c2f`, `c3`, `sppf`,
@@ -157,15 +157,19 @@ that `heads` does not split into parts of at least two channels.
 
 ### detect_head.hpp
 
-`DetectHead` holds two copies of the head, one-to-many under "cv2" and "cv3" and one-to-one under
-"one2one_cv2" and "one2one_cv3". Per level, a `BoxBranch` is two 3x3 `Conv` and a biased 1x1
-convolution to 4 channels, and a `ClassBranch` is two `ClassStage`s, each a 3x3 `DWConv` and a
-1x1 `Conv`, and a biased 1x1 convolution to `classes` channels. The box branches are
-`max(16, C0 / 4, 4)` wide and the class branches `max(C0, min(classes, 100))`, where `C0` is the
-width of the first level. The ports are named `<copy>.level<l>.boxes` and `<copy>.level<l>.scores`:
+`DetectHead` holds the one-to-many copy of the head under "cv2" and "cv3" and, when `end2end` is
+true, as it is by default, a one-to-one copy under "one2one_cv2" and "one2one_cv3". Per level, a
+`BoxBranch` is two 3x3 `Conv` and a biased 1x1 convolution to `4 * reg_max` channels, `reg_max`
+being 1 by default. A class branch ends in a biased 1x1 convolution to `classes` channels; before
+it, `class_branch` "depthwise", the default, puts two `ClassStage`s, each a 3x3 `DWConv` and a
+1x1 `Conv`, and "plain" puts two 3x3 `Conv`. The box branches are `max(16, C0 / 4, 4 * reg_max)`
+wide and the class branches `max(C0, min(classes, 100))`, where `C0` is the width of the first
+level. `DetectOptions` carries the same three choices to `create()`, and its `strides`, one per
+level, set the last box biases to 1 and the last class biases to
+`log(5 / classes / (640 / stride)^2)`; without strides those biases stay 0. The ports are named `<copy>.level<l>.boxes` and `<copy>.level<l>.scores`:
 the copy `one2many` first, and in each copy the boxes of every level, then the scores. A training
 trace passes each feature through `stop_gradient` before the one-to-one copy; an evaluation trace
-does not. `make_detect_node` reads `classes` and the two norm keys.
+does not. `make_detect_node` reads `classes`, the three options and the two norm keys.
 
 ### segment_head.hpp
 
