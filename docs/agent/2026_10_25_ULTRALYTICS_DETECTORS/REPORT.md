@@ -26,6 +26,8 @@ dispatch: U9 anchor-free inference row — opus low, 64 turns, passed, rung 1
 dispatch: U13a YOLOv4-tiny and YOLOv5n example files — sonnet low, 22 turns, passed, rung 1
 dispatch: review of 81b1f5f..HEAD — opus low, scan depth, passed, rung 1
 dispatch: rename the best-shape rule — sonnet low, 13 turns, passed, rung 1
+dispatch: determinism audit — haiku high, 21 turns, passed, rung 1
+dispatch: share registration test helpers — sonnet low, 17 turns, passed, rung 1
 
 ## 2. Seen while mapping
 

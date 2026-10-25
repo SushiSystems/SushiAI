@@ -1,6 +1,6 @@
 # tests/vision/registration
 
-The tests of the module `vision/registration`, one file per header of `modules/vision/registration/include/`. The suite prefix of a case gives its ctest label.
+The tests of the module `vision/registration`, one file per header of `modules/vision/registration/include/`. The suite prefix of a case gives its ctest label. `registration_test_support.hpp` holds the helpers the three files share: `composed`, `trace_outputs` and `count_parameters`.
 
 ## test_registration.cpp
 

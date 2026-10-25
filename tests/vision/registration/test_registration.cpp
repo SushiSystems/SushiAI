@@ -97,6 +97,7 @@
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/registration/registration.hpp>
+#include "registration_test_support.hpp"
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -107,6 +108,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     using Test::K_TRACE_BATCH;
+    using Test::composed;
     using Test::MinimalCase;
     using Test::TraceSummary;
     using Test::attributes_from;
@@ -187,16 +189,6 @@ namespace
     Result<NN::NodeRegistry> blocks_alone()
     {
         NN::NodeRegistry registry;
-        SA_TRY(Vision::register_nodes(registry));
-
-        return Result<NN::NodeRegistry>(std::move(registry));
-    }
-
-    /** @brief Builds a registry from NN::register_layers, then Vision::register_nodes. */
-    Result<NN::NodeRegistry> composed()
-    {
-        NN::NodeRegistry registry;
-        SA_TRY(NN::register_layers(registry));
         SA_TRY(Vision::register_nodes(registry));
 
         return Result<NN::NodeRegistry>(std::move(registry));

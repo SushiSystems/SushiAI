@@ -56,6 +56,7 @@
 #include <SushiAI/vision/detect/anchor/shape_ratio_assignment.hpp>
 #include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/anchor_bias_init.hpp>
+#include "registration_test_support.hpp"
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -66,6 +67,10 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    using Test::composed;
+    using Test::count_parameters;
+    using Test::trace_outputs;
+
     /** @brief Holds the row count of the yolov5n model file. */
     constexpr std::size_t K_ROWS = 29;
 
@@ -101,56 +106,11 @@ namespace
     /** @brief Bounds the error of a float32 bias against the double formula. */
     constexpr double K_BIAS_TOLERANCE = 1e-5;
 
-    /** @brief Builds a registry from the layer rows, then the vision node rows. */
-    Result<NN::NodeRegistry> composed()
-    {
-        NN::NodeRegistry registry;
-        SA_TRY(NN::register_layers(registry));
-        SA_TRY(Vision::register_nodes(registry));
-
-        return Result<NN::NodeRegistry>(std::move(registry));
-    }
-
     /** @brief Returns the path of the yolov5n model file. */
     std::filesystem::path model_path()
     {
         return std::filesystem::path(SA_REPOSITORY_ROOT) / "applications" / "examples"
                / "yolov5n" / "model.json";
-    }
-
-    /** @brief Traces @p model over a batch of one and lists its outputs with their extents. */
-    std::vector<Train::OutputShape> trace_outputs(ModelGraph& model, const Shape& sample)
-    {
-        Graph::Graph graph;
-        const Graph::GraphBuilder builder(graph);
-        const Graph::ValueID input =
-            builder.input(Shape{1, sample[0], sample[1], sample[2]}, "x");
-        NN::BufferUpdateList updates;
-
-        const NN::ModelOutputs outputs =
-            model.trace(NN::Trace::training(builder, updates), input).value();
-
-        std::vector<Train::OutputShape> shapes;
-        for (const NN::ModelOutputs::Entry& output : outputs.all())
-            shapes.push_back(Train::OutputShape{output.first, graph.value(output.second).shape});
-        return shapes;
-    }
-
-    /** @brief Returns the number of elements the parameters of @p model hold. */
-    std::int64_t count_parameters(ModelGraph& model)
-    {
-        std::int64_t total = 0;
-        auto on_parameter = [&total](const std::string&, NN::Parameter& parameter)
-        {
-            total += parameter.shape().num_elements();
-        };
-        auto on_buffer = [](const std::string&, NN::Buffer&)
-        {
-
-        };
-        const NN::StateVisitor visitor(on_parameter, on_buffer);
-        model.walk_state("", visitor);
-        return total;
     }
 
     /** @brief Provides the engine the state of the bias case is allocated on. */
