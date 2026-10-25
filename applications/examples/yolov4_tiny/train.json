@@ -1,0 +1,45 @@
+{
+    "sushiai_train": 3,
+    "model": "../../../build/yolov4_tiny/model.json",
+    "weights": "../../../build/yolov4_tiny/weights.sushi",
+    "checkpoint": "../../../build/yolov4_tiny/trained.sushi",
+    "data": {
+        "reader": "yolo_txt",
+        "task": "detection",
+        "root": "D:/Projects/.sushisystems/datasets/coco128",
+        "split": "train2017",
+        "batch_size": 16,
+        "input": [416, 416],
+        "max_objects": 128,
+        "classes": 80
+    },
+    "objective": {
+        "type": "anchor",
+        "match_threshold": 1.0,
+        "ignore_threshold": 0.699999988079071,
+        "box_loss": "complete_iou",
+        "box_gradient": "darknet_compatible",
+        "objectness_target": "one",
+        "box_weight": 0.07000000029802322,
+        "object_weight": 1.0,
+        "max_delta": 0.0,
+        "class_gate": 0.25,
+        "box_gain": 0.05000000074505806,
+        "class_gain": 0.5,
+        "objectness_gain": 1.0
+    },
+    "optimizer": {
+        "type": "sgd",
+        "momentum": 0.9,
+        "weight_decay": 5e-04
+    },
+    "schedule": {
+        "type": "step",
+        "base_rate": 0.00261,
+        "warmup_iterations": 1000,
+        "warmup_power": 4.0,
+        "steps": [1600000, 1800000],
+        "scales": [0.1, 0.1]
+    },
+    "epochs": 10
+}

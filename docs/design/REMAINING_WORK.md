@@ -5,8 +5,7 @@ Next id: RW-143
 ## Next
 
 - RW-56 The test that loads the import's written files waits for the owner's build
-- RW-132 Neither end of the anchor path has a program-level test
-- RW-133 YOLOv3-tiny has no training file a run can start from
+- RW-132 and RW-133 are written and wait for the owner's build: the anchor run test and the YOLOv3-tiny example
 - RW-48 The milestone: YOLOv3-tiny imported, trained and run from the command line
 
 ## Decisions waiting for the owner
@@ -313,13 +312,13 @@ The score threshold 0.25 and the suppression threshold 0.45 are constants in
   the import wrote, not the `.cfg`
 
 ### RW-132 Run both ends of the anchor path in a program test
-- State: open
+- State: unmeasured
 - Done when: a test under `tests/applications/programs/` trains an anchor model over a small
   YOLO-layout fixture through the train program's anchor row, and runs
   `report_anchor_detections` on the checkpoint it wrote
 
 ### RW-133 Give YOLOv3-tiny an example directory
-- State: open
+- State: unmeasured
 - Done when: `applications/examples/yolov3_tiny/` holds a `train.json` with a filled `yolo_txt`
   data block and a README a run can follow
 

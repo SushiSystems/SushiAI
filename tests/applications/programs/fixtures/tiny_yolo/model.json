@@ -1,0 +1,21 @@
+{
+    "format_version": 2,
+    "input": { "shape": [16, 16, 3] },
+    "layers": [
+        { "type": "conv2d", "filters": 8, "kernel": 3, "stride": 2, "padding": 1, "use_bias": true },
+        { "type": "leaky_relu", "slope": 0.1 },
+        { "type": "conv2d", "filters": 14, "kernel": 1, "stride": 1, "padding": 0, "use_bias": true }
+    ],
+    "outputs": [
+        { "node": 2, "port": "output", "name": "head.0" }
+    ],
+    "task": {
+        "type": "anchor_detection",
+        "classes": 2,
+        "anchors": [[0.25, 0.25], [0.5, 0.5]],
+        "heads": [
+            { "output": "head.0", "anchors": [0, 1], "coding": "logit", "scale_xy": 1.0 }
+        ],
+        "suppression": { "criterion": "iou" }
+    }
+}

@@ -1637,3 +1637,17 @@ the network input. `Small_BatchAveragePrecision` pins a hand-worked mAP of 0.745
 covers the report; T5 brings the checkpoint it needs.
 
 dispatch: T4 mAP in inference — sonnet medium, 64 turns, passed, rung 1
+
+### T5 and T6, written and not built
+
+`test_anchor_run.cpp` trains the `tiny_yolo` fixture (two convolutions, one head of two anchors
+and two classes, four 16 by 16 images) for two steps through `TrainingSetup::make` and
+`run_training`, saves the checkpoint, and reports it through the `anchor_detection` inference
+row; it checks the step count, one compile, the checkpoint and the report's lines, not detection
+values. Its helpers repeat the assembly `train.cpp` and `inference.cpp` hold in `main`.
+`applications/examples/yolov3_tiny/` holds a version 3 training file with the import's objective
+and a filled `yolo_txt` block, and the evaluation file of T1; the model and weights stay in
+`build/yolov3_tiny`.
+
+dispatch: T5 and T6 — sonnet medium, 49 turns, passed, rung 1
+

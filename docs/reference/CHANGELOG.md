@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-26 — examples: Added training and evaluation files over coco128 for YOLOv3-tiny and YOLOv4-tiny, whose models the Darknet import writes, and for YOLOv5n, trained from scratch (`applications/examples/yolov3_tiny/train.json`).
+- 2026-10-26 — programs: Added a test that trains an anchor model two steps through the `anchor` run row and reports its checkpoint (`test_anchor_run.cpp`).
 - 2026-10-26 — programs: Made a training file whose cluster replica falls back to the master refused while `deterministic` is true, naming both keys (`training_cluster_section.hpp`).
 - 2026-10-26 — training: Added the anchor-free detection loss as a graph, with its host evaluation and four gain keys (`free_detection_loss.hpp`, `free_loss_gains.hpp`).
 - 2026-10-26 — examples: Added the yolov8n and yolo11n model files and the anchor-free task section to the yolo26 file (`applications/examples/yolov8n/model.json`).
