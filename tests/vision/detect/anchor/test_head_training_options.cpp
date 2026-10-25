@@ -77,6 +77,12 @@ TEST(Small_DetectAnchorDelta, TrainingOptionsOutsideTheirRangeAreRefused)
     refused[7].max_delta = -2.0f;
     refused.emplace_back();
     refused.back().box_gradient = static_cast<BoxGradient>(K_UNKNOWN_ENUMERATOR);
+    refused.emplace_back();
+    refused.back().box_gain = -0.5f;
+    refused.emplace_back();
+    refused.back().class_gain = not_a_number;
+    refused.emplace_back();
+    refused.back().objectness_gain = std::numeric_limits<float>::infinity();
 
     for (std::size_t index = 0; index < refused.size(); ++index)
     {

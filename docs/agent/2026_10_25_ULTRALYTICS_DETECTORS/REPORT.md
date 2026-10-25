@@ -14,6 +14,7 @@ dispatch: U10 shape-ratio assignment — opus low, 43 turns, passed, rung 1
 dispatch: U15 deterministic key — sonnet medium, 44 turns, passed, rung 1
 dispatch: U3 distribution focal loss — opus low, 58 turns, passed, rung 1
 dispatch: U4 task section and facts — opus low, 76 turns, passed, rung 1
+dispatch: U11 shape-ratio loss — opus low, 42 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -101,3 +102,15 @@ convolution reads its bias start on the first trace, and the strides are known o
 Both files repeat the head's port and branch names and the constants 1, 5 and 640;
 `detect_head.hpp` should publish them (RW-142). The facts and the bias code live in
 `vision/training`, since `detect` depends on neither the trace nor the model state.
+
+## 9. U11, written and not built
+
+The head is `[B, H, W, A * (5 + C)]`, each slot x, y, w, h, objectness, classes: Ultralytics'
+`[b, na, h, w, 5 + nc]` with the anchors moved last. Only logit coding is accepted. The delta is
+`-B` times the gradient of the total loss, which already carries Ultralytics' factor of the batch.
+Objectness targets are held fixed. The worker loaded `sushiskills` and `humanizer` only; the files
+pass the comment checker and the syntax check.
+
+Left for the next dispatch: the training step does not call the unit yet, since the anchor
+objective carries no assignment choice and its cost is Darknet's; and the box gradient
+differentiates CIoU's `alpha`, which Ultralytics holds constant.

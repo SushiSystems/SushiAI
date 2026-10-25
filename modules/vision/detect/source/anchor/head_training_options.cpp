@@ -74,6 +74,17 @@ namespace SushiAI
             SA_FAIL_IF(!is_finite_magnitude(options.max_delta), StatusCode::InvalidDescription,
                        "max_delta of an anchor head must be finite and not negative; got {}",
                        options.max_delta);
+            SA_FAIL_IF(!is_finite_magnitude(options.box_gain), StatusCode::InvalidDescription,
+                       "the box gain of an anchor head must be finite and not negative; got {}",
+                       options.box_gain);
+            SA_FAIL_IF(!is_finite_magnitude(options.class_gain), StatusCode::InvalidDescription,
+                       "the class gain of an anchor head must be finite and not negative; got {}",
+                       options.class_gain);
+            SA_FAIL_IF(!is_finite_magnitude(options.objectness_gain),
+                       StatusCode::InvalidDescription,
+                       "the objectness gain of an anchor head must be finite and not negative; "
+                       "got {}",
+                       options.objectness_gain);
 
             SA_FAIL_IF(options.box_loss != BoxLoss::SquaredError &&
                            options.box_loss != BoxLoss::CompleteIoU,

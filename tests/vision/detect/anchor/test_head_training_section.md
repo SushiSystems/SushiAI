@@ -37,8 +37,8 @@ section with `max_delta` 2.5 alone reads as the defaults with that one field cha
 ## WritesTheTypeEveryKeyInOrderAndAFloatAsItsDouble
 
 The written section has the keys `type`, `match_threshold`, `ignore_threshold`, `box_loss`,
-`box_gradient`, `objectness_target`, `box_weight`, `object_weight`, `max_delta`, `class_gate`
-in that order. Its type is `K_ANCHOR_OBJECTIVE_TYPE` and its `box_loss` "complete_iou". The
+`box_gradient`, `objectness_target`, `box_weight`, `object_weight`, `max_delta`, `class_gate`,
+`box_gain`, `class_gain`, `objectness_gain` in that order. Its type is `K_ANCHOR_OBJECTIVE_TYPE` and its `box_loss` "complete_iou". The
 match threshold equals `double(0.213f)` and the box weight `double(0.07f)`.
 
 ## ReadsAndWritesEachEnumeratorString
@@ -89,8 +89,9 @@ A `max_delta` of 1e39 fails with `InvalidDescription`, "objective 'max_delta'" a
 
 The read fails with `InvalidDescription` and "objective" for a `match_threshold` of 0.0
 ("match threshold", "(0, 1]"), an `ignore_threshold` of 1.5 ("ignore threshold", "1.5"), a
-`class_gate` of -0.25 ("class gate", "-0.25") and a `box_weight` of -1.0 ("box weight",
-"-1").
+`class_gate` of -0.25 ("class gate", "-0.25"), a `box_weight` of -1.0 ("box weight",
+"-1"), a `box_gain` of -1.0 ("box gain", "-1"), a `class_gain` of -2.0 ("class gain", "-2")
+and an `objectness_gain` of -3.0 ("objectness gain", "-3").
 
 ## WriterRefusesTheValuesTheOptionsCheckRefuses
 

@@ -21,6 +21,9 @@ and the two thresholds are stated beside the others, not under a `thresholds` ob
 | `object_weight` | A finite number, 0 or more | `object_weight` |
 | `max_delta` | A finite number, 0 or more; 0 sets no bound | `max_delta` |
 | `class_gate` | A number in [0, 1] | `class_gate` |
+| `box_gain` | A finite number, 0 or more | `box_gain` |
+| `class_gain` | A finite number, 0 or more | `class_gain` |
+| `objectness_gain` | A finite number, 0 or more | `objectness_gain` |
 
 ```json
 "objective": {
@@ -33,7 +36,10 @@ and the two thresholds are stated beside the others, not under a `thresholds` ob
     "box_weight": 0.07,
     "object_weight": 1.0,
     "max_delta": 5.0,
-    "class_gate": 0.25
+    "class_gate": 0.25,
+    "box_gain": 0.05,
+    "class_gain": 0.5,
+    "objectness_gain": 1.0
 }
 ```
 

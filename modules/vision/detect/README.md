@@ -67,8 +67,21 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `anchor/target_assignment.hpp` | `TargetAssignment`, `AssignmentInput`, `AssignmentRule` |
 | `anchor/shape_ratio_assignment.hpp` | `K_DEFAULT_RATIO_LIMIT`, `K_DEFAULT_NEIGHBOUR_OFFSET`, `ShapeRatioOptions`, `validate_shape_ratio_options`, `ShapeRatioAssignment` |
 | `anchor/assignment_section.hpp` | `AssignmentRuleKind`, `AssignmentChoice`, `read_assignment_section`, `writes_assignment_section`, `write_assignment_section` |
+| `anchor/shape_ratio_delta.hpp` | `K_MAX_BALANCED_LEVELS`, `ShapeRatioDeltaInput`, `ShapeRatioFactors`, `ShapeRatioLoss`, `objectness_balance`, `derive_shape_ratio_factors`, `validate_shape_ratio_delta`, `build_objectness_targets`, `measure_shape_ratio_loss`, `compute_shape_ratio_delta` |
 | `anchor/head_training_section.hpp` | `K_ANCHOR_OBJECTIVE_TYPE`, `read_head_training_section`, `write_head_training_section` |
 | `anchor/seeded_sequence.hpp` | `Detail::SeededSequence` |
+
+## anchor/shape_ratio_delta.hpp
+
+The loss of one head level under the shape-ratio assignment, and its delta. A slot decodes its
+offsets as `2 * sigmoid - 0.5` and its sides as `(2 * sigmoid)^2` times the anchor. The box term
+is one minus the complete IoU against the record's box; objectness is a cross-entropy against the
+complete IoU clamped at 0, weighted by a balance taken from the level count (4, 1, 0.4 for three
+levels; 4, 1, 0.25, 0.06, 0.02 up to five); the class term is a one-hot cross-entropy when there
+is more than one class. The gains `box_gain`, `class_gain` and `objectness_gain` of the training
+section (0.05, 0.5, 1) are scaled by three over the level count, the classes over 80 and the
+input area over 640 squared. The delta is the loss's gradient times minus the batch, as the
+anchor objective's loss expects.
 
 ## anchor/shape_ratio_assignment.hpp
 

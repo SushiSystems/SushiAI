@@ -28,6 +28,7 @@ sushiai_add_test_program(OWNER vision/detect
         anchor/test_head_truth.cpp
         anchor/test_seeded_sequence.cpp
         anchor/test_shape_ratio_assignment.cpp
+        anchor/test_shape_ratio_delta.cpp
         free/test_anchor_leaves.cpp
         free/test_anchors.cpp
         free/test_assigner.cpp

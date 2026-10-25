@@ -70,7 +70,10 @@ namespace
         "box_weight": 0.0625,
         "object_weight": 1.5,
         "max_delta": 5.0,
-        "class_gate": 0.125
+        "class_gate": 0.125,
+        "box_gain": 0.25,
+        "class_gain": 0.75,
+        "objectness_gain": 2.0
     })";
 
     /** @brief Parses @p text as an objective section. */
@@ -98,6 +101,9 @@ namespace
         options.object_weight = 0.4f;
         options.max_delta = 5.0f;
         options.class_gate = 0.3f;
+        options.box_gain = 0.07f;
+        options.class_gain = 0.3f;
+        options.objectness_gain = 0.7f;
         return options;
     }
 
@@ -131,6 +137,10 @@ namespace
         EXPECT_TRUE(same_bits(found.object_weight, wanted.object_weight)) << found.object_weight;
         EXPECT_TRUE(same_bits(found.max_delta, wanted.max_delta)) << found.max_delta;
         EXPECT_TRUE(same_bits(found.class_gate, wanted.class_gate)) << found.class_gate;
+        EXPECT_TRUE(same_bits(found.box_gain, wanted.box_gain)) << found.box_gain;
+        EXPECT_TRUE(same_bits(found.class_gain, wanted.class_gain)) << found.class_gain;
+        EXPECT_TRUE(same_bits(found.objectness_gain, wanted.objectness_gain))
+            << found.objectness_gain;
     }
 
     /** @brief Expects @p options to survive the writer, JSON text, the parser and the reader. */
@@ -191,6 +201,9 @@ TEST(Small_DetectAnchorTrainingSection, ReadsEveryFieldOfASection)
     wanted.object_weight = 1.5f;
     wanted.max_delta = 5.0f;
     wanted.class_gate = 0.125f;
+    wanted.box_gain = 0.25f;
+    wanted.class_gain = 0.75f;
+    wanted.objectness_gain = 2.0f;
 
     expect_same_options(options, wanted);
 }
@@ -223,7 +236,8 @@ TEST(Small_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsI
               (std::vector<std::string>{"type", "match_threshold", "ignore_threshold",
                                         "box_loss", "box_gradient", "objectness_target",
                                         "box_weight", "object_weight", "max_delta",
-                                        "class_gate"}));
+                                        "class_gate", "box_gain", "class_gain",
+                                        "objectness_gain"}));
     EXPECT_EQ(section.at("type", "objective").as_string("type"), K_ANCHOR_OBJECTIVE_TYPE);
     EXPECT_EQ(section.at("box_loss", "objective").as_string("box_loss"), "complete_iou");
 
@@ -354,6 +368,12 @@ TEST(Small_DetectAnchorTrainingSection, RefusesTheValuesTheOptionsCheckRefuses)
                       StatusCode::InvalidDescription, "objective", "class gate", "-0.25");
     SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_weight": -1.0)")),
                       StatusCode::InvalidDescription, "objective", "box weight", "-1");
+    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("box_gain": -1.0)")),
+                      StatusCode::InvalidDescription, "objective", "box gain", "-1");
+    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("class_gain": -2.0)")),
+                      StatusCode::InvalidDescription, "objective", "class gain", "-2");
+    SA_EXPECT_FAILURE(read_head_training_section(section_of(R"("objectness_gain": -3.0)")),
+                      StatusCode::InvalidDescription, "objective", "objectness gain", "-3");
 }
 
 /** @brief Tests that the writer refuses the values validate_head_training refuses. */

@@ -64,13 +64,19 @@ namespace SushiAI
             float object_weight = 1.0f; /**< Factor of the objectness deltas. */
             float max_delta = 0.0f;     /**< Bound of a box delta's magnitude; 0 sets none. */
             float class_gate = 0.25f;   /**< Class probability a slot needs to be ignored. */
+            /// @brief Holds the base gain of the box mean under the shape-ratio loss.
+            float box_gain = 0.05f;
+            /// @brief Holds the base gain of the class mean under the shape-ratio loss.
+            float class_gain = 0.5f;
+            /// @brief Holds the base gain of the objectness mean under the shape-ratio loss.
+            float objectness_gain = 1.0f;
         };
 
         /**
          * @brief Checks that every training option holds a value the delta can use.
          * @return Success, or InvalidDescription for a match threshold outside (0, 1], an
-         *         ignore threshold or a class gate outside [0, 1], a weight or a bound that
-         *         is negative or not finite, or an enumerator outside its enumeration.
+         *         ignore threshold or a class gate outside [0, 1], a weight, a gain or a
+         *         bound that is negative or not finite, or an enumerator outside its enumeration.
          */
         [[nodiscard]] Status validate_head_training(const HeadTrainingOptions& options);
 

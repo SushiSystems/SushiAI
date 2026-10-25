@@ -256,6 +256,33 @@ namespace SushiAI
                  [](const HeadTrainingOptions& options, std::string_view) -> Result<Value>
                  {
                      return number_value(options.class_gate);
+                 }},
+                {"box_gain",
+                 [](const Value& member, std::string_view where, HeadTrainingOptions& options)
+                 {
+                     return read_number(member, where, options.box_gain);
+                 },
+                 [](const HeadTrainingOptions& options, std::string_view) -> Result<Value>
+                 {
+                     return number_value(options.box_gain);
+                 }},
+                {"class_gain",
+                 [](const Value& member, std::string_view where, HeadTrainingOptions& options)
+                 {
+                     return read_number(member, where, options.class_gain);
+                 },
+                 [](const HeadTrainingOptions& options, std::string_view) -> Result<Value>
+                 {
+                     return number_value(options.class_gain);
+                 }},
+                {"objectness_gain",
+                 [](const Value& member, std::string_view where, HeadTrainingOptions& options)
+                 {
+                     return read_number(member, where, options.objectness_gain);
+                 },
+                 [](const HeadTrainingOptions& options, std::string_view) -> Result<Value>
+                 {
+                     return number_value(options.objectness_gain);
                  }}};
 
             /** @brief Returns "type" and the key of every field, in the order a section lists. */
