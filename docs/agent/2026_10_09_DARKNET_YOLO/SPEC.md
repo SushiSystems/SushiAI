@@ -361,7 +361,7 @@ Proposals of this revision, beyond the six requirements:
 
 ### 6.1 Where they are and what they hold
 
-Outside the repository, under `D:\Projects\.sushisystems\models\darknet\`, which a test reaches as `<SA_REFERENCE_DATA_DIR>/darknet/`: the six `.cfg` and `.weights` files and `coco.names` directly in it, and `references/<model>[_thresh_0p01]/` with one raw little-endian `float32` `<name>.bin` and one `<name>.json` per tensor (REPORT 2.2). `SA_REFERENCE_DATA_DIR` is an environment variable read at run time, so no path is compiled in. Darknet commit `59596d7880f6504768df41d6daa586f5cb2b932f`.
+Outside the repository, under `D:\Projects\.sushisystems\models\darknet\`, which `SA_REFERENCE_DATA_DIR` names: the six `.cfg` and `.weights` files and `coco.names` directly in it, and `references/<model>[_thresh_0p01]/` with one raw little-endian `float32` `<name>.bin` and one `<name>.json` per tensor (REPORT 2.2). `SA_REFERENCE_DATA_DIR` is an environment variable read at run time, so no path is compiled in. Darknet commit `59596d7880f6504768df41d6daa586f5cb2b932f`.
 
 | Name | Shape | Content |
 | --- | --- | --- |

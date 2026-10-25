@@ -1579,3 +1579,36 @@ Open:
 - `Optim::SGD` decays every slot, and Darknet decays the weights only. The update comparison is expected to show it on the biases and the batch norm scales; the fix is parameter groups in `core/optim`, a public interface and so the owner's decision.
 - SushiAI's own calls into SushiRuntime were moved to the v0.4.0 spellings in fifteen files. Each passes `-fsyntax-only` against SushiRuntime `281c2fa` with the deprecation errors of SushiBLAS's headers demoted to warnings; none has been built.
 
+
+## 32. The YOLOv3-tiny milestone: runs
+
+The tasks are those of `PLAN.md`, section 3.
+
+### T0, the parity scenarios
+
+2026-10-25, RTX 3080 Ti, SushiBLAS `802e59d`, SushiRuntime `382425b3`,
+`SA_REFERENCE_DATA_DIR=D:/Projects/.sushisystems/models/darknet`. The variable names the folder
+that holds the `.cfg` files; a value one level up skips every case with "the reference file is
+missing".
+
+`sa test -l all -f "DarknetYolov3Tiny|DarknetDecode|DarknetImportEndToEnd"`: 33 of 33 passed in
+64 s. That is the six `Models/Small_DarknetDecode` cases, the four `Medium_DarknetYolov3TinyForward`
+cases, `Medium_DarknetYolov3TinyLayers`, the ten `Medium_DarknetYolov3TinyTraining` cases and the
+twelve `ParityModels/Medium_DarknetImportEndToEnd` cases. The one-batch overfit,
+`TheCostOfOneBatchFallsUnderATenth`, took 28.5 s.
+
+### T1, the stock weights over coco128
+
+`sa import darknet yolov3-tiny.cfg yolov3-tiny.weights --output build/yolov3_tiny` wrote a model
+of 43 rows with 2 outputs and an `anchor_detection` task, 59 weight tensors, and a training file
+whose `data` is `null`. It printed eleven notes for the `[net]` and `[yolo]` keys it does not carry
+(batch, subdivisions, angle, saturation, exposure, hue, max_batches, jitter, random).
+
+`sa inference` over coco128 `train2017`, batch 16, 416 by 416, letterboxed: 472 detections over
+128 images, one compile, 7.8 s for the whole command. The classes of the first images agree with
+their labels: a bowl in `000000000009`, a giraffe in `000000000025`, a vase in `000000000030`, a
+zebra in `000000000034`, a clock and a car in `000000000064`. Two images with one labelled object
+each (`000000000036`, `000000000042`) gave no detection above 0.25.
+
+The training file states `"ignore_threshold": 0.699999988079071`: the writer prints the float32
+value widened to double, where the `.cfg` says `.7`.

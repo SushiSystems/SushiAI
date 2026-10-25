@@ -1,10 +1,10 @@
 # Remaining work
 
-Next id: RW-137
+Next id: RW-138
 
 ## Next
 
-- RW-116 The Darknet parity scenarios are the YOLOv3-tiny gate, and the last run skipped them
+- RW-134 The owner ruled that a model fits its images as its `.cfg` says; T2 of the YOLOv3-tiny plan
 - RW-56 The import's written files are what a user trains from, and no test loads them
 - RW-132 Neither end of the anchor path has a program-level test
 - RW-133 YOLOv3-tiny has no training file a run can start from
@@ -333,6 +333,13 @@ The owner ruled on 2026-10-25 that the model follows its `.cfg`. Today the detec
 letterboxes (`modules/vision/datasets/source/task_table.cpp`) and the import refuses
 `letter_box=1`, while Darknet stretches under the stock `letter_box=0`.
 
+### RW-137 Write a float32 setting as the shortest decimal that reads back
+- State: open
+- Done when: the import writes the `.cfg`'s `ignore_thresh=.7` as `0.7`, and a written float32
+  value parses back to the same float32
+
+The training file the import writes states `"ignore_threshold": 0.699999988079071`.
+
 ### RW-135 Report mean average precision in `sushiai inference`
 - State: open
 - Done when: inference prints mAP at an IoU of 0.5 against the labels of the evaluated split
@@ -641,10 +648,13 @@ No old spelling is left in the source.
 
 ### RW-116 Run the Darknet parity scenarios
 - State: unmeasured
-- Done when: the scenarios in `tests/vision/importers/test_darknet_training/` and
-  `test_darknet_import/` have run with `SA_REFERENCE_DATA_DIR` set, YOLOv3-tiny's first
+- Done when: the scenarios of YOLOv4-tiny, YOLOv7-tiny, YOLOv3, YOLOv4 and YOLOv7 in
+  `tests/vision/importers/test_darknet_training/` and `test_darknet_import/` have run with
+  `SA_REFERENCE_DATA_DIR` set
+- Source: `docs/agent/2026_10_09_DARKNET_YOLO/REPORT.md` §32
 
-Without the variable they skip; the last run skipped all of them.
+The variable names the folder that holds the `.cfg` files; without it the cases skip. YOLOv3-tiny's
+scenarios, the decode cases and the import cases passed on 2026-10-25.
 
 ### RW-117 Name every suite after its unit
 - State: open

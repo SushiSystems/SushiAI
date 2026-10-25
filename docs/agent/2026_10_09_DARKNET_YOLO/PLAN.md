@@ -20,7 +20,7 @@ the last test run because `SA_REFERENCE_DATA_DIR` was unset.
 | Subject | Value |
 | --- | --- |
 | Model | `yolov3-tiny`, Darknet's stock `.cfg` and `.weights` |
-| References | `SA_REFERENCE_DATA_DIR=D:/Projects/.sushisystems/models`; the Darknet build beside them computes the reference mAP and step time |
+| References | `SA_REFERENCE_DATA_DIR=D:/Projects/.sushisystems/models/darknet`; the Darknet build beside them computes the reference mAP and step time |
 | Data | coco128 at `D:/Projects/.sushisystems/datasets/coco128`, split `train2017`, 128 images, outside the repository |
 | Image fit | The model follows its `.cfg`: stretch under `letter_box=0`, letterbox under 1 (RW-134, ruled 2026-10-25) |
 | Mode | Inline, one session, tasks in the order of section 3 (ruled 2026-10-25) |
