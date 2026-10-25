@@ -32,12 +32,14 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;

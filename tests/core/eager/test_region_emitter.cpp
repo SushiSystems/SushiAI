@@ -31,10 +31,11 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include "eager_run_support.hpp"
 #include "eager_test_support.hpp"
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/execution/execution.hpp>

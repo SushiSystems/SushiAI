@@ -33,7 +33,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/SushiAI.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -42,6 +43,8 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/optimizer_registry.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;

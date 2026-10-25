@@ -28,8 +28,8 @@
 
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/optim/loss_scaler.hpp>
 
 using namespace SushiAI;
 using Optim::LossScaleOptions;

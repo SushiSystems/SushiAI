@@ -35,7 +35,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/dtype/dtype.hpp>

@@ -37,6 +37,7 @@
 #include <SushiBLAS/blas/blas.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -55,7 +56,6 @@
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
 
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
