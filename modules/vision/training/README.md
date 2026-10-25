@@ -72,7 +72,8 @@ model. `FreeTrainingStep` splits the step at the ports: the host stage runs
 `FreeAssignmentStage` over the batch's truth and writes the loss leaves and the bin values, then
 the loss graph, its backward and the optimiser run. The host stage also evaluates the loss terms
 in double for the metrics, since the graph keeps no term values. `run_free_training` drives the
-step over the epochs, and a fresh run without weights starts the head's last biases.
+step over the epochs, and a fresh run without weights starts the head's last biases. The stage and `FreeBatchDecoder`
+throw on a NaN or an infinity in a port value or a valid truth box, naming the level and index.
 
 `AnchorObjective` computes each batch's deltas and cost through a `HeadDeltaRule` chosen once from
 the task's `assignment`: `best_shape` gives `BestShapeHeadDeltaRule`, which runs `compute_head_delta`

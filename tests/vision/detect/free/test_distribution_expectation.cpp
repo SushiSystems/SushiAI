@@ -26,6 +26,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
@@ -97,4 +98,14 @@ TEST(Small_DetectDistributionExpectation, TheProjectionCountsTheBins)
     fill_distribution_projection(projection);
 
     EXPECT_EQ(projection, (std::vector<float>{0.0f, 1.0f, 2.0f, 3.0f}));
+}
+
+/** @brief Tests that a non-finite logit is refused with its index. */
+TEST(Small_DetectDistributionExpectation, RefusesANonFiniteLogitWithItsIndex)
+{
+    std::vector<float> logits = hand_logits();
+    logits[6] = std::numeric_limits<float>::quiet_NaN();
+    std::vector<float> distances(4, -1.0f);
+
+    SA_EXPECT_ERROR(expect_distances(logits, K_BINS, distances), "bin logit 6", "finite");
 }

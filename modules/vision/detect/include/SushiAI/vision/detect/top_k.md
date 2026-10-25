@@ -4,7 +4,8 @@
 ## select_top_k
 
 Returns the indices of the k largest values, largest first, and orders equal values by ascending
-index. `torch.topk` and `argsort` leave the order of equal values unspecified, so this rule is
+index. A NaN ranks below every number, so the order is total whatever the data holds.
+`torch.topk` and `argsort` leave the order of equal values unspecified, so this rule is
 SushiAI's own, and it is where a result can differ from the reference. Four call sites inherit it:
 
 | Call site | Reference line | What a tie decides |

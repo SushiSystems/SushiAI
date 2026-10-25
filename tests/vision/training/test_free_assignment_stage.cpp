@@ -28,6 +28,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,6 +38,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
@@ -243,6 +245,24 @@ namespace
         }
         EXPECT_NEAR(targets.l1_scale[K_ANCHOR_A * 4], 1.0f / 48.0f, K_TOLERANCE);
     }
+
+    /** @brief Runs a raw-distance stage over @p ports and @p truth; throws as assign() does. */
+    void assign_over(const Ports& ports, const Vision::Detect::GroundTruthBatch& truth)
+    {
+        Result<FreeAssignmentStage> made = FreeAssignmentStage::make(
+            make_facts(1), Vision::Detect::Free::FreeTask{}, K_BATCH);
+        ASSERT_TRUE(made.status().is_ok());
+        std::array<FreeLevelViews, 2> views;
+        for (std::size_t level = 0; level < views.size(); ++level)
+        {
+            views[level].boxes = SushiRuntime::span<const float>(ports.boxes[level].data(),
+                                                                 ports.boxes[level].size());
+            views[level].scores = SushiRuntime::span<const float>(ports.scores[level].data(),
+                                                                  ports.scores[level].size());
+        }
+        made.value().assign(SushiRuntime::span<const FreeLevelViews>(views.data(), views.size()),
+                            truth);
+    }
 } // namespace
 
 TEST(Small_VisionTrainingFreeAssignmentStage, MakeRefusesABatchBelowOne)
@@ -310,4 +330,31 @@ TEST(Small_VisionTrainingFreeAssignmentStage, BinnedDistancesGiveTheSameTargetsA
     const std::size_t level0 = find_leaf(stage, "free.distribution_weights.level0");
     ASSERT_LT(level0, stage.leaves().size());
     EXPECT_EQ(stage.leaves()[level0].shape, (Shape{K_BATCH, 4, 4, 16}));
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, RefusesANonFiniteBoxOutputNamingLevelAndIndex)
+{
+    Ports ports = make_ports(1);
+    ports.boxes[1][7] = std::numeric_limits<float>::quiet_NaN();
+
+    SA_EXPECT_ERROR(assign_over(ports, make_truth()), "level 1 box output 7");
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, RefusesAnInfiniteScoreNamingLevelAndIndex)
+{
+    Ports ports = make_ports(1);
+    ports.scores[0][3] = std::numeric_limits<float>::infinity();
+
+    SA_EXPECT_ERROR(assign_over(ports, make_truth()), "level 0 score 3");
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, RefusesANonFiniteValidTruthBoxButNotPadding)
+{
+    const Ports ports = make_ports(1);
+    Vision::Detect::GroundTruthBatch truth = make_truth();
+    truth.boxes[14] = std::numeric_limits<float>::quiet_NaN();
+    EXPECT_NO_THROW(assign_over(ports, truth));
+
+    truth.boxes[5] = std::numeric_limits<float>::quiet_NaN();
+    SA_EXPECT_ERROR(assign_over(ports, truth), "truth slot 1", "at 1");
 }

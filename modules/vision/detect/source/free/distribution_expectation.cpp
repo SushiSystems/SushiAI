@@ -33,6 +33,7 @@
 
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 
 namespace SushiAI
 {
@@ -49,6 +50,9 @@ namespace SushiAI
                         "bin logits must be [B, A, 4 * {}] over [B, A, 4] distances; got {} "
                         "and {} values",
                         bins, logits.size(), sides);
+            const std::int64_t bad = first_non_finite(logits);
+            SA_THROW_IF(bad >= 0, "bin logit {} is {}; every logit must be finite", bad,
+                        logits[static_cast<std::size_t>(bad)]);
 
             for (std::size_t side = 0; side < sides; ++side)
             {

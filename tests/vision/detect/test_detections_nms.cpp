@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
@@ -361,4 +362,20 @@ TEST(Medium_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
         SushiAI::Vision::Detect::select_nms_detections(
             boxes, scores, PredictionShape{1, 2, 2}, NMSConfig{}, detections),
         "[1, 2, 2] scores", "8 and 6 values");
+}
+
+/** @brief Tests that a NaN first class score does not hide the finite row maximum. */
+TEST(Small_DetectPostprocess, SuppressionKeepsTheFiniteRowMaximumBesideANaN)
+{
+    const float nan = std::numeric_limits<float>::quiet_NaN();
+    const std::vector<float> boxes{10.0f, 10.0f, 4.0f, 4.0f};
+    const std::vector<float> scores{nan, 0.9f, 0.2f};
+    const NMSConfig config =
+        make_nms_config(0.25f, 0.45f, LabelMode::BestClass, ClassMode::ClassAware);
+
+    const std::vector<float> detections = suppress_one_image(boxes, scores, 3, config);
+
+    ASSERT_EQ(detections.size(), 6u);
+    EXPECT_FLOAT_EQ(detections[4], 0.9f);
+    EXPECT_FLOAT_EQ(detections[5], 1.0f);
 }

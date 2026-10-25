@@ -36,6 +36,7 @@
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
 
@@ -307,6 +308,29 @@ namespace SushiAI
                            record.image, record.slot, record.row, record.col, record.label,
                            input.head_index);
             }
+
+            // Sorted by slot then list place, so the later of two equal slots is the one named.
+            std::vector<std::pair<std::size_t, std::size_t>> places;
+            places.reserve(input.assignments.size());
+            for (std::size_t ordinal = 0; ordinal < input.assignments.size(); ++ordinal)
+                places.emplace_back(slot_index(plan, input.assignments[ordinal]), ordinal);
+            std::sort(places.begin(), places.end());
+            for (std::size_t at = 1; at < places.size(); ++at)
+            {
+                const TargetAssignment& repeated = input.assignments[places[at].second];
+                SA_FAIL_IF(places[at].first == places[at - 1].first,
+                           StatusCode::InvalidDescription,
+                           "head {} holds two assignments to image {}, slot {}, cell ({}, {}); "
+                           "a slot takes one",
+                           input.head_index, repeated.image, repeated.slot, repeated.row,
+                           repeated.col);
+            }
+
+            const std::int64_t bad_value = first_non_finite(input.head);
+            SA_FAIL_IF(bad_value >= 0, StatusCode::InvalidDescription,
+                       "head {} holds {} at value {}; every head value must be finite",
+                       input.head_index, input.head[static_cast<std::size_t>(bad_value)],
+                       bad_value);
             return Status();
         }
 

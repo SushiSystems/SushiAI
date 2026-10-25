@@ -33,6 +33,7 @@ operation order; the build compiles with `-ffp-contract=off`, so no multiply and
 | `iou.hpp` | `intersection_over_union`, `complete_iou`, the elementwise forms, `pairwise_iou` |
 | `iou_gradient.hpp` | `K_ASPECT_TRADE_OFF_EPS`, `BoxGradient`, `complete_iou_gradient` |
 | `top_k.hpp` | `select_top_k` |
+| `float_order.hpp` | `first_non_finite`, `ranks_above` |
 | `ground_truth.hpp` | `GroundTruthRows`, `GroundTruthBatch`, `pad_ground_truth` |
 | `free/assigner_config.hpp` | `AssignerConfig` and the two branch presets |
 | `free/assignment.hpp` | `Assignment` |
@@ -82,7 +83,8 @@ levels; 4, 1, 0.25, 0.06, 0.02 up to five); the class term is a one-hot cross-en
 is more than one class. The gains `box_gain`, `class_gain` and `objectness_gain` of the training
 section (0.05, 0.5, 1) are scaled by three over the level count, the classes over 80 and the
 input area over 640 squared. The delta is the loss's gradient times minus the batch, as the
-anchor objective's loss expects.
+anchor objective's loss expects. Validation also refuses two assignments to one slot of one cell
+and a head value that is NaN or infinite.
 
 ## anchor/shape_ratio_assignment.hpp
 
@@ -145,6 +147,10 @@ member out. `ratio_limit` must be finite and above 1, `neighbour_offset` finite 
 ## top_k.hpp
 
 [`include/SushiAI/vision/detect/top_k.md`](include/SushiAI/vision/detect/top_k.md) describes it.
+
+## float_order.hpp
+
+[`include/SushiAI/vision/detect/float_order.md`](include/SushiAI/vision/detect/float_order.md) describes it.
 
 ## ground_truth.hpp
 
@@ -306,7 +312,7 @@ together with per-class counters, which this library does not have.
 row counts when its `valid` flag is set; the list of an image ends at `max_boxes`, and no value
 of a row ends it. It returns `InvalidDescription` naming the image, the row and the value for a
 class outside the head's classes, a centre outside [0, 1) on either axis, and a width or height
-that is not positive.
+that is not positive and finite.
 
 `compute_head_delta` returns a `Status`. A truth comes from a dataset, so the delta returns what
 `validate_head_truth` says about it and leaves `result` untouched. The caller's own arguments

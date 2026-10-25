@@ -151,6 +151,15 @@ TEST(Small_DetectAnchorHeadTruth, RefusesAHeightThatIsNotPositive)
                       "size 0.5 by -0.25");
 }
 
+/** @brief Tests that a width that overflows to infinity around a centre of 0 is refused. */
+TEST(Small_DetectAnchorHeadTruth, RefusesASideThatOverflowsToInfinity)
+{
+    const GroundTruthBatch truth = make_truth({-3.0e38f, 16.0f, 3.0e38f, 48.0f}, 0);
+
+    SA_EXPECT_FAILURE(validate_head_truth(truth, 1, K_CLASSES, K_NETWORK),
+                      StatusCode::InvalidDescription, "truth row 1 of image 0", "finite");
+}
+
 /** @brief Tests that a class at the head's class count is refused with its id. */
 TEST(Small_DetectAnchorHeadTruth, RefusesAClassAtTheClassCount)
 {

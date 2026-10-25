@@ -32,6 +32,7 @@
 
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
@@ -94,6 +95,12 @@ namespace SushiAI::Vision::Training
         for (std::size_t k = 0; k < levels_.size(); ++k)
         {
             const std::int64_t level_anchors = levels_[k].height * levels_[k].width;
+            const std::int64_t bad_box = Detect::first_non_finite(levels[k].boxes);
+            SA_THROW_IF(bad_box >= 0, "level {} box output {} is {}; every output must be finite",
+                        k, bad_box, levels[k].boxes[static_cast<std::size_t>(bad_box)]);
+            const std::int64_t bad_score = Detect::first_non_finite(levels[k].scores);
+            SA_THROW_IF(bad_score >= 0, "level {} score {} is {}; every score must be finite", k,
+                        bad_score, levels[k].scores[static_cast<std::size_t>(bad_score)]);
             Detect::Free::join_level(levels[k].boxes,
                                      Detect::Free::LevelPlacement{batch_, anchors_, box_channels,
                                                                   offset, level_anchors},

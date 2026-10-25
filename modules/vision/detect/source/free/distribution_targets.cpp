@@ -33,6 +33,7 @@
 
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 
 namespace SushiAI
 {
@@ -59,6 +60,13 @@ namespace SushiAI
                         "distribution targets must be [B, A, 4] over [B, A] weights with "
                         "[B, A, 4 * {}] bin weights; got {}, {} and {} values",
                         bins, target_distances.size(), rows, weights.size());
+
+            const std::int64_t bad_target = first_non_finite(target_distances);
+            SA_THROW_IF(bad_target >= 0, "target distance {} is {}; every target must be finite",
+                        bad_target, target_distances[static_cast<std::size_t>(bad_target)]);
+            const std::int64_t bad_weight = first_non_finite(normalized_weight);
+            SA_THROW_IF(bad_weight >= 0, "normalized weight {} is {}; every weight must be finite",
+                        bad_weight, normalized_weight[static_cast<std::size_t>(bad_weight)]);
 
             std::fill(weights.begin(), weights.end(), 0.0f);
             const double ceiling = static_cast<double>(reg_max - 1) - K_DISTRIBUTION_MARGIN;

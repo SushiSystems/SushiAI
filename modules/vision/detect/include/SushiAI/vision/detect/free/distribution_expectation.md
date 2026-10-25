@@ -10,7 +10,8 @@ bottom (`U/nn/modules/block.py`, class `DFL`). It takes the softmax over each si
 applies a 1x1 convolution whose weights are `0, 1, ..., reg_max - 1`, the expected bin.
 
 The softmax runs in double, shifted by the side's largest logit, and the result is narrowed once.
-With `reg_max = 1` the layer is the identity and the logits are copied.
+With `reg_max = 1` the layer is the identity and the logits are copied. A logit that is NaN or
+infinite throws, naming its index.
 
 ## fill_distribution_projection
 

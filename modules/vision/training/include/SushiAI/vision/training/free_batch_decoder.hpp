@@ -67,7 +67,8 @@ namespace SushiAI::Vision::Training
              * @param levels One entry per level of the facts, finest first.
              * @param boxes Receives `[B, A, 4]` centre x, centre y, width, height in pixels.
              * @param scores Receives `[B, A, C]`, the sigmoid of each class logit.
-             * @pre Every span holds the extents above; a mismatch throws Error.
+             * @pre Every span holds the extents above; a mismatch throws Error. So does a NaN
+             *      or an infinity in a level's boxes or scores, naming the level and the index.
              */
             void decode(SushiRuntime::span<const FreeLevelLogits> levels,
                         SushiRuntime::span<float> boxes, SushiRuntime::span<float> scores);

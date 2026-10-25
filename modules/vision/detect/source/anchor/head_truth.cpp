@@ -28,6 +28,7 @@
 
 #include <SushiAI/vision/detect/anchor/head_truth.hpp>
 
+#include <cmath>
 #include <cstddef>
 
 #include <SushiAI/vision/detect/box_format.hpp>
@@ -88,10 +89,11 @@ namespace SushiAI
                            "truth row {} of image {} has its centre at ({}, {}); each "
                            "coordinate must lie in [0, 1)",
                            row, image, box.x, box.y);
-                SA_FAIL_IF(!(box.width > 0.0f) || !(box.height > 0.0f),
+                SA_FAIL_IF(!(box.width > 0.0f) || !(box.height > 0.0f) ||
+                               !std::isfinite(box.width) || !std::isfinite(box.height),
                            StatusCode::InvalidDescription,
                            "truth row {} of image {} has the size {} by {}; each side must be "
-                           "positive",
+                           "positive and finite",
                            row, image, box.width, box.height);
                 return Status();
             }

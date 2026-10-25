@@ -36,6 +36,7 @@
 
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/head_truth.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 
 #include "truth_box.hpp"
 
@@ -210,8 +211,10 @@ namespace SushiAI
                               return true;
                           if (precedes(right.assignment, left.assignment))
                               return false;
-                          if (left.score != right.score)
-                              return left.score > right.score;
+                          if (ranks_above(left.score, right.score))
+                              return true;
+                          if (ranks_above(right.score, left.score))
+                              return false;
                           return left.truth < right.truth;
                       });
 

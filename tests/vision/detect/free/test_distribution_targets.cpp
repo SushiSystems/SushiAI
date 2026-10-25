@@ -26,6 +26,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
@@ -88,4 +89,16 @@ TEST(Small_DetectDistributionTargets, WeightsOfAnotherSizeThrow)
 
     SA_EXPECT_ERROR(fill_distribution_weights(targets, normalized, K_BINS, weights), "4, 1",
                     "15 values");
+}
+
+/** @brief Tests that a non-finite target distance is refused with its index. */
+TEST(Small_DetectDistributionTargets, RefusesANonFiniteTargetWithItsIndex)
+{
+    std::vector<float> targets = {1.0f, 1.0f, 1.0f, 1.0f};
+    targets[2] = std::numeric_limits<float>::quiet_NaN();
+    const std::vector<float> normalized = {K_FOREGROUND_WEIGHT};
+    std::vector<float> weights(4 * K_BINS, 0.0f);
+
+    SA_EXPECT_ERROR(fill_distribution_weights(targets, normalized, K_BINS, weights),
+                    "target distance 2", "finite");
 }

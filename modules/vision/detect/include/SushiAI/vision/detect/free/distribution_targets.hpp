@@ -40,7 +40,7 @@ namespace SushiAI
 
         /**
          * @brief Writes the `[B, A, 4 * reg_max]` bin weights of `[B, A, 4]` target distances.
-         * @param normalized_weight `[B, A]`, as TargetLeaves::normalized_weight holds it.
+         * @param normalized_weight `[B, A]`; a NaN or infinity here or in a target throws Error.
          * @param reg_max Bins per side; must be at least 2.
          * @param weights Receives the two linear weights of each clamped target, at the bins
          *        around it, times a quarter of its row's normalized weight; 0 elsewhere.

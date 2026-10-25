@@ -38,7 +38,7 @@ namespace SushiAI
         /**
          * @brief Decodes `[B, A, 4 * reg_max]` bin logits into `[B, A, 4]` expected distances.
          * @param logits Channel `side * reg_max + bin`, sides in the order left, top, right,
-         *        bottom.
+         *        bottom; every value must be finite, and the first that is not is refused.
          * @param reg_max Bins per side; must be positive. 1 copies the logits.
          * @param distances Receives `[B, A, 4]`: the softmax of a side's bins times 0..reg_max-1.
          * @see modules/vision/detect/README.md

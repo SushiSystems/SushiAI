@@ -35,6 +35,7 @@
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
@@ -227,6 +228,7 @@ namespace SushiAI::Vision::Training
         SA_THROW_IF(truth.batch != batch_, "the truth holds {} images for a stage of {}",
                     truth.batch, batch_);
         join_levels(levels);
+        refuse_non_finite_truth(truth);
         decode_predictions();
 
         Detect::Free::AssignerInputs inputs;
@@ -281,11 +283,33 @@ namespace SushiAI::Vision::Training
                         level_rows * static_cast<std::size_t>(classes_), views.boxes.size(),
                         views.scores.size());
 
+            const std::int64_t bad_box = Detect::first_non_finite(views.boxes);
+            SA_THROW_IF(bad_box >= 0, "level {} box output {} is {}; every output must be finite",
+                        level, bad_box, views.boxes[static_cast<std::size_t>(bad_box)]);
+            const std::int64_t bad_score = Detect::first_non_finite(views.scores);
+            SA_THROW_IF(bad_score >= 0, "level {} score {} is {}; every score must be finite",
+                        level, bad_score, views.scores[static_cast<std::size_t>(bad_score)]);
+
             Detect::Free::LevelPlacement placement{batch_, anchors_, box_channels,
                                                    offsets_[level], level_anchors};
             Detect::Free::join_level(views.boxes, placement, view(box_outputs_));
             placement.channels = classes_;
             Detect::Free::join_level(views.scores, placement, view(probabilities_));
+        }
+    }
+
+    void FreeAssignmentStage::refuse_non_finite_truth(const Detect::GroundTruthBatch& truth) const
+    {
+        constexpr std::size_t values = Detect::K_BOX_VALUES;
+        for (std::size_t slot = 0; slot < truth.valid.size(); ++slot)
+        {
+            if (truth.valid[slot] == 0 || slot * values + values > truth.boxes.size())
+                continue;
+
+            const SushiRuntime::span<const float> box(truth.boxes.data() + slot * values, values);
+            const std::int64_t bad = Detect::first_non_finite(box);
+            SA_THROW_IF(bad >= 0, "truth slot {} has the box value {} at {}; it must be finite",
+                        slot, box[static_cast<std::size_t>(bad)], bad);
         }
     }
 

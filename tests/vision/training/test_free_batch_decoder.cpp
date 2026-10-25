@@ -29,11 +29,13 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include <gtest/gtest.h>
 
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/vision/training/free_batch_decoder.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
@@ -138,4 +140,25 @@ TEST(Small_FreeBatchDecoder, RejectsAMissingLevel)
     std::vector<float> scores(K_ANCHORS * 2);
 
     EXPECT_THROW(decoder.decode(levels, boxes, scores), SushiAI::Error);
+}
+
+/** @brief Tests that a NaN box output or an infinite score throws, naming level and index. */
+TEST(Small_FreeBatchDecoder, RefusesNonFiniteBoxOutputsAndScores)
+{
+    FreeBatchDecoder decoder(make_facts(1), 1);
+    std::vector<float> level0(8, 0.0f);
+    const std::vector<float> level1(4, 0.5f);
+    std::vector<float> boxes(K_ANCHORS * 4);
+    std::vector<float> scores(K_ANCHORS * 2);
+
+    level0[5] = std::numeric_limits<float>::quiet_NaN();
+    std::array<FreeLevelLogits, 2> levels = {FreeLevelLogits{level0, K_LEVEL0_SCORES},
+                                             FreeLevelLogits{level1, K_LEVEL1_SCORES}};
+    SA_EXPECT_ERROR(decoder.decode(levels, boxes, scores), "level 0 box output 5");
+
+    level0[5] = 0.0f;
+    std::vector<float> bad_scores = K_LEVEL1_SCORES;
+    bad_scores[1] = std::numeric_limits<float>::infinity();
+    levels[1] = FreeLevelLogits{level1, bad_scores};
+    SA_EXPECT_ERROR(decoder.decode(levels, boxes, scores), "level 1 score 1");
 }

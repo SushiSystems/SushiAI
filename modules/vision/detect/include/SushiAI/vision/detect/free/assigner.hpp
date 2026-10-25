@@ -71,7 +71,8 @@ namespace SushiAI
 
                 /**
                  * @brief Writes the targets of every anchor of @p inputs into @p assignment.
-                 * @pre No input value is NaN.
+                 * @pre No score, predicted box or valid ground-truth box value is NaN or infinite;
+                 *      FreeAssignmentStage refuses them before it calls this.
                  * @see modules/vision/detect/README.md
                  */
                 void assign(const AssignerInputs& inputs, Assignment& assignment);

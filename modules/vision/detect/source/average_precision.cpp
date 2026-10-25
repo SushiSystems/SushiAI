@@ -35,6 +35,7 @@
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
 
 namespace SushiAI
@@ -274,7 +275,7 @@ namespace SushiAI
                                  {
                                      if (classes[left] != classes[right])
                                          return classes[left] < classes[right];
-                                     return scores[left] > scores[right];
+                                     return ranks_above(scores[left], scores[right]);
                                  });
                 return ranked;
             }

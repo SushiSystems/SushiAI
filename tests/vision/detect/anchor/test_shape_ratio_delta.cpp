@@ -31,6 +31,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
@@ -405,4 +406,42 @@ TEST(Small_DetectAnchorShapeRatioDelta, RefusesAHeadOrAnAssignmentItCannotRead)
     SA_EXPECT_FAILURE(
         compute_shape_ratio_delta(make_input(layout, training, 1, 2, head, outside), delta),
         StatusCode::InvalidDescription, "outside head 1");
+}
+
+/** @brief Tests that two records for one slot of one cell are refused, whichever order they sit in. */
+TEST(Small_DetectAnchorShapeRatioDelta, RefusesTwoAssignmentsToOneSlot)
+{
+    const AnchorLayout layout = make_two_level_layout();
+    const HeadTrainingOptions training;
+    const std::vector<float> head = make_head(2 * 2 * 2 * (5 + K_CLASSES));
+    const TargetAssignment first = {0, 1, 1, 0, 0.5f, 0.5f, 1.0f, 1.0f, 0, 0};
+    const TargetAssignment other = {0, 0, 0, 0, 0.5f, 0.5f, 1.0f, 1.0f, 1, 1};
+    TargetAssignment second = first;
+    second.label = 2;
+    second.truth_row = 1;
+    const std::vector<TargetAssignment> adjacent = {first, second, other};
+    const std::vector<TargetAssignment> apart = {first, other, second};
+    HeadDelta delta;
+
+    SA_EXPECT_FAILURE(
+        compute_shape_ratio_delta(make_input(layout, training, 1, 2, head, adjacent), delta),
+        StatusCode::InvalidDescription, "two assignments", "image 0, slot 1, cell (1, 0)");
+    SA_EXPECT_FAILURE(
+        compute_shape_ratio_delta(make_input(layout, training, 1, 2, head, apart), delta),
+        StatusCode::InvalidDescription, "two assignments", "image 0, slot 1, cell (1, 0)");
+}
+
+/** @brief Tests that a NaN or infinite head value is refused with its index. */
+TEST(Small_DetectAnchorShapeRatioDelta, RefusesANonFiniteHeadValue)
+{
+    const AnchorLayout layout = make_two_level_layout();
+    const HeadTrainingOptions training;
+    std::vector<float> head = make_head(2 * 2 * 2 * (5 + K_CLASSES));
+    head[11] = std::numeric_limits<float>::infinity();
+    const std::vector<TargetAssignment> none;
+    HeadDelta delta;
+
+    SA_EXPECT_FAILURE(
+        compute_shape_ratio_delta(make_input(layout, training, 1, 2, head, none), delta),
+        StatusCode::InvalidDescription, "head 1", "at value 11", "finite");
 }

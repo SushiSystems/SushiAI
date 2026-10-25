@@ -106,7 +106,9 @@ namespace SushiAI::Vision::Training
              * @brief Joins the levels, decodes them, assigns @p truth and fills every leaf.
              * @param levels One entry per level of the facts, finest first.
              * @param truth Pixel corners of @p batch images.
-             * @throws Error If a view or the truth does not match the facts and the batch.
+             * @throws Error If a view or the truth does not match the facts and the batch, or if a
+             *         box output, a score or a valid truth box holds a NaN or an infinity; the
+             *         message names the level and the first bad index.
              */
             void assign(SushiRuntime::span<const FreeLevelViews> levels,
                         const Detect::GroundTruthBatch& truth);
@@ -134,6 +136,9 @@ namespace SushiAI::Vision::Training
 
             /** @brief Writes the joined logits and scores of @p levels after checking them. */
             void join_levels(SushiRuntime::span<const FreeLevelViews> levels);
+
+            /** @brief Throws unless every box value of a valid slot of @p truth is finite. */
+            void refuse_non_finite_truth(const Detect::GroundTruthBatch& truth) const;
 
             /** @brief Writes the predicted pixel boxes and the score probabilities. */
             void decode_predictions();

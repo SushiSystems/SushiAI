@@ -34,6 +34,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
@@ -88,7 +89,12 @@ namespace SushiAI
                 for (std::size_t anchor = 0; anchor < anchors; ++anchor)
                 {
                     const float* row = scores.data() + anchor * classes;
-                    const float* best = std::max_element(row, row + classes);
+                    const float* best = row;
+                    for (const float* at = row + 1; at < row + classes; ++at)
+                    {
+                        if (ranks_above(*at, *best))
+                            best = at;
+                    }
                     if (!(*best > config.confidence_threshold))
                         continue;
 

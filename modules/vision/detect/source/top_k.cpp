@@ -33,6 +33,7 @@
 #include <numeric>
 
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/vision/detect/float_order.hpp>
 
 namespace SushiAI
 {
@@ -52,8 +53,10 @@ namespace SushiAI
             {
                 const float left_value = values[static_cast<std::size_t>(left)];
                 const float right_value = values[static_cast<std::size_t>(right)];
-                if (left_value != right_value)
-                    return left_value > right_value;
+                if (ranks_above(left_value, right_value))
+                    return true;
+                if (ranks_above(right_value, left_value))
+                    return false;
                 return left < right;
             };
             std::partial_sort(indices.begin(), indices.begin() + k, indices.end(), ranks_before);

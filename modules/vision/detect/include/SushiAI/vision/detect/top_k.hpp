@@ -40,8 +40,8 @@ namespace SushiAI
         /**
          * @brief Writes the indices of the @p k largest values, largest first.
          * @param k At least 0 and at most the number of values.
-         * @param indices Receives k indices; equal values are ordered by ascending index.
-         * @pre No value is NaN.
+         * @param indices Receives k indices; equal values are ordered by ascending index,
+         *        and a NaN ranks below every number.
          * @see modules/vision/detect/README.md
          */
         void select_top_k(SushiRuntime::span<const float> values,
