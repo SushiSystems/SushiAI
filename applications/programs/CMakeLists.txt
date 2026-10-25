@@ -28,7 +28,7 @@ if(SA_ENABLE_DISTRIBUTED)
         source/cluster_training.cpp source/cluster_run.cpp source/master_cluster.cpp
         source/served_kernel.cpp source/training_replica_model.cpp
         source/replica_tensors.cpp source/worker_arguments.cpp
-        source/replica_fallback_warning.cpp)
+        source/replica_fallback_warning.cpp source/training_cluster_section.cpp)
 else()
     set(SUSHIAI_PROGRAM_CLUSTER source/cluster_training_none.cpp)
 endif()

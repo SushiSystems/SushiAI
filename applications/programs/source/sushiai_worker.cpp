@@ -45,6 +45,7 @@
 #include <SushiAI/failure/status.hpp>
 
 #include "served_kernel.hpp"
+#include "training_cluster_section.hpp"
 #include "training_replica_model.hpp"
 #include "worker_arguments.hpp"
 
@@ -88,7 +89,7 @@ namespace
                    "'{}' has no 'cluster' section, so it names no replica to serve",
                    spec_path);
         SA_TRY_ASSIGN(const SushiAI::Distribution::ClusterSection section,
-                      SushiAI::Distribution::ClusterSection::read(spec.cluster, spec.base));
+                      SushiAI::Apps::read_training_cluster(spec));
 
         SA_TRY_ASSIGN(const std::shared_ptr<const SushiAI::Apps::ReplicaSource> source,
                       SushiAI::Apps::ReplicaSource::load(spec));

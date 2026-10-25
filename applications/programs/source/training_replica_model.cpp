@@ -46,6 +46,8 @@
 #include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/seam/seam.hpp>
 
+#include "training_cluster_section.hpp"
+
 namespace SushiAI
 {
     namespace Apps
@@ -76,7 +78,7 @@ namespace SushiAI
                                                                std::uint64_t run_index)
             {
                 SA_TRY_ASSIGN(const Distribution::ClusterSection section,
-                              Distribution::ClusterSection::read(spec.cluster, spec.base));
+                              read_training_cluster(spec));
                 SA_TRY_ASSIGN(const std::uint64_t seed,
                               Config::read_run_seed(spec, "the training file"));
 

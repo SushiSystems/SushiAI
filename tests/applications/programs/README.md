@@ -48,6 +48,22 @@ loss and not the inputs, and holds a gradient with data for every parameter slot
 a setup of `SetupScope::Step`. The pool of the `Results` setup allocates fewer bytes than the pool
 of the `Step` setup, which has a plan.
 
+## source/test_training_cluster_section.cpp
+
+Suites: `Small_TrainingClusterSection`.
+
+### ALocalFallbackUnderTheDefaultIsRefusedNamingBothKeys
+
+A version 3 file that does not state `deterministic` and whose second replica states
+`if_absent: "local"` is refused with `InvalidDescription`; the message names replica 1,
+`'if_absent': 'local'` and `'deterministic' is true`. A file that states `"deterministic": true`
+and a version 2 file, which cannot state the key, are refused the same way.
+
+### ALocalFallbackIsReadWhenTheRunIsNotDeterministic
+
+The same section in a version 3 file with `"deterministic": false` is read. A section whose
+second replica states `fail`, or `wait` with `wait_ms` 250, is read under the default.
+
 ## source/test_training_replica_model.cpp
 
 Suites: `Medium_TrainingReplicaModel`.

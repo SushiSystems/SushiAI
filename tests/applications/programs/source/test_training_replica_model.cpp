@@ -177,8 +177,6 @@ TEST_F(Medium_TrainingReplicaModel, TheOptimizerAndTheOutputPathsLeaveTheFingerp
     const std::vector<std::pair<std::string, std::string>> changes = {
         {R"("learning_rate": 0.003)", R"("learning_rate": 0.004)"},
         {R"("epochs": 1,)", R"("epochs": 3, "checkpoint": "elsewhere.sushi",)"},
-        {R"("worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail")",
-         R"("worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "local")"},
     };
     for (const std::pair<std::string, std::string>& change : changes)
     {
@@ -186,6 +184,41 @@ TEST_F(Medium_TrainingReplicaModel, TheOptimizerAndTheOutputPathsLeaveTheFingerp
             read_spec(files, replaced(text, change.first, change.second));
         EXPECT_EQ(fingerprint_of(worker), master) << change.second;
     }
+}
+
+namespace
+{
+    /** @brief Returns the replica "worker" of the shared training file with @p if_absent. */
+    std::string worker_replica(const std::string& name, const std::string& if_absent)
+    {
+        return R"("worker": ")" + name + R"(", "rows": 2, "micro_batch": 2, "if_absent": ")" +
+               if_absent + R"(")";
+    }
+} // namespace
+
+/** @brief Tests that a replica's "if_absent" leaves the fingerprint alone. */
+TEST_F(Medium_TrainingReplicaModel, TheIfAbsentOfAReplicaLeavesTheFingerprintAlone)
+{
+    const ClusterTestFiles files("sushiai_replica_model_if_absent.json");
+    const std::string text = replaced(training_file(files.model_file.path()),
+                                      R"("sushiai_train": 2,)",
+                                      R"("sushiai_train": 3, "deterministic": false,)");
+    const std::uint64_t master = fingerprint_of(read_spec(files, text));
+
+    const Config::TrainSpec worker = read_spec(
+        files, replaced(text, worker_replica("master", "fail"), worker_replica("master", "local")));
+    EXPECT_EQ(fingerprint_of(worker), master);
+}
+
+/** @brief Tests that a source of a deterministic run whose replica falls back is refused. */
+TEST_F(Medium_TrainingReplicaModel, ASourceOfADeterministicRunWithALocalFallbackIsRefused)
+{
+    const ClusterTestFiles files("sushiai_replica_model_deterministic_local.json");
+    const Config::TrainSpec spec = read_spec(
+        files, replaced(training_file(files.model_file.path()), worker_replica("worker", "fail"),
+                        worker_replica("worker", "local")));
+
+    SA_EXPECT_FAILURE(Apps::ReplicaSource::load(spec).status(), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that rows inside their batch, of the traced count, are fed. */

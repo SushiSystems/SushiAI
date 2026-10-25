@@ -699,7 +699,7 @@ Four of the seven end in the generator's cut.
 The seam has one implementation, the shape-ratio rule, until this split.
 
 ### RW-141 Refuse `if_absent: "local"` under `deterministic: true`
-- State: open
+- State: unmeasured
 - Done when: a training file whose cluster section lets a replica fall back to the master is
   refused while `deterministic` is true, naming both keys, and the tests and examples that use the
   fallback state `deterministic: false`
@@ -707,3 +707,5 @@ The seam has one implementation, the shape-ratio rule, until this split.
 
 The owner ruled on 2026-10-25 that a key asking for an unordered path is refused under
 `deterministic: true`. The fallback runs a replica on other hardware, so its bits differ.
+`read_training_cluster()` refuses it for the three programs that read the section; it has not been
+built or run.

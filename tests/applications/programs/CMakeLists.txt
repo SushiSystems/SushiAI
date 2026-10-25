@@ -39,12 +39,14 @@ if(SA_ENABLE_DISTRIBUTED)
         source/test_master_cluster.cpp
         source/test_replica_tensors.cpp
         source/test_served_kernel.cpp
+        source/test_training_cluster_section.cpp
         source/test_training_replica_model.cpp
         source/test_worker_arguments.cpp
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_run.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/master_cluster.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/served_kernel.cpp"
+        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_cluster_section.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_replica_model.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp"
         "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_fallback_warning.cpp"

@@ -21,6 +21,7 @@ dispatch: conv padding and RW-142 — sonnet medium, 45 turns, passed, rung 1
 dispatch: wire the shape-ratio rule — opus low, 112 turns, passed, rung 1
 dispatch: U5 model files — sonnet medium, 44 turns, passed, rung 1
 dispatch: U7 anchor-free loss graph — opus low, 76 turns, passed, rung 1
+dispatch: RW-141 local fallback refusal — sonnet low, 45 turns, passed, rung 1
 
 ## 2. Seen while mapping
 

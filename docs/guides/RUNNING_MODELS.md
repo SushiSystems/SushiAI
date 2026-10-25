@@ -95,7 +95,7 @@ Seven optional parts of `train.json`:
 | `seed` | An integer of 0 or above, 0 when absent. It seeds the random sites of the training graph, which today are the dropout layers. The `seed` of a `data` block is a different key: it seeds the data |
 | `schedule` | `{ "type": "step", "base_rate": ..., "warmup_iterations": ..., "warmup_power": ..., "steps": [...], "scales": [...] }`. A file with a schedule states its rate there: `learning_rate` in `optimizer` is then an error |
 | `data` with `reader` | A dataset read from files, in place of `type` |
-| `deterministic` | Version 3 only. A boolean, `true` when absent. While it is `true`, the same files, seed and device give the same weights after every step, bit for bit, and a key that asks for an unordered path is refused when the file is read, naming the key. `false` opens such paths. No key asks for one yet: the data loader hands batches over in index order whatever `workers` and `prefetch` say |
+| `deterministic` | Version 3 only. A boolean, `true` when absent. While it is `true`, the same files, seed and device give the same weights after every step, bit for bit, and a key that asks for an unordered path is refused when the file is read, naming the key. `false` opens such paths. One key asks for one: a `cluster` replica with `"if_absent": "local"` runs a lost worker's replica on the master's device, so a file that states it also states `"deterministic": false`. The data loader hands batches over in index order whatever `workers` and `prefetch` say |
 | `cluster` | Version 2 and later. The replicas that train the model on several machines. Its fields are in `modules/core/distribution/README.md` |
 
 A `data` block with `reader`:
@@ -143,7 +143,9 @@ also restores the replay counter of the cluster run.
 The master waits until every worker the section names has attached, or until the section's
 `attach_timeout_ms` passes (60000 by default, raised to the largest `wait_ms` of its `wait`
 rules). A worker still missing then ends the run with `DeviceFailed` naming it when a replica on
-it is `fail`; a `local` or `wait` replica goes as its rule says.
+it is `fail`; a `local` or `wait` replica goes as its rule says. A `local` replica runs on the master's
+hardware, so the file is refused unless it states version 3 and `"deterministic": false`, naming
+both keys.
 
 ### Resuming a run
 

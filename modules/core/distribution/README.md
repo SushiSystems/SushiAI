@@ -69,7 +69,12 @@ in a training file.
 
 `if_absent` has no default. `local` runs the replica on the master, which is other hardware, so a
 run that loses a worker under `local` stops being repeatable; the choice is written down in the
-file rather than made by omission.
+file rather than made by omission. The training file also carries `deterministic`, true when it is
+absent, and `sushiai train` and `sushiai_worker` refuse a replica that states `if_absent: "local"`
+while it is true, naming both keys and the replica. Such a file states version 3 and
+`"deterministic": false`. This module does not know `deterministic`; the programs check the pair in
+`read_training_cluster`.
+The example below states `local`, so its file states `"deterministic": false`.
 
 The training file states version 2 to carry this section (`K_TRAIN_CLUSTER_VERSION` in
 `train_config.hpp`); a version 1 file with a `cluster` key is refused. `attach_timeout_ms` joined

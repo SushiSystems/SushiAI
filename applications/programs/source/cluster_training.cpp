@@ -46,6 +46,7 @@
 #include "master_cluster.hpp"
 #include "replica_fallback_warning.hpp"
 #include "served_kernel.hpp"
+#include "training_cluster_section.hpp"
 #include "training_replica_model.hpp"
 
 namespace SushiAI
@@ -58,7 +59,7 @@ namespace SushiAI
             [[nodiscard]] Result<Distribution::ClusterSection> read_section(
                 const Config::TrainSpec& spec)
             {
-                return Distribution::ClusterSection::read(spec.cluster, spec.base);
+                return read_training_cluster(spec);
             }
         } // namespace
 
