@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-25 — programs: Made the cluster master await the worker of each replica above 0, one replica per machine as the cluster section requires (`master_cluster.hpp`).
 - 2026-10-25 — seam: Fixed SushiRuntime's `InvalidArgument` reaching no status; it maps to `InvalidDescription` (`seam.cpp`).
 - 2026-10-25 — umbrella: Added `step_recording.hpp`, and `replica_serve_observer.hpp` under `SA_DISTRIBUTED`, to the umbrella header (`SushiAI.hpp`).
 - 2026-10-25 — build: Fixed every file that names `SushiBLAS::TaskRecorder` relying on SushiBLAS's `engine.hpp` to include it (`task_recorder.hpp`).

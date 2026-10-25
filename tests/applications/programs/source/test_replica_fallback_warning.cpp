@@ -139,9 +139,9 @@ TEST(Small_ReplicaFallbackWarning, AnAbsentWorkerWarnsEachOfItsReplicasOnce)
     Apps::ReplicaFallbackWarning warning(two_workers());
     CapturedRecords captured;
 
-    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", {1}});
-    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", {1}});
-    warning.warn_absent_at_attach(Apps::AwaitedWorker{"right", {2}});
+    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", 1});
+    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", 1});
+    warning.warn_absent_at_attach(Apps::AwaitedWorker{"right", 2});
 
     ASSERT_EQ(captured.messages.size(), 2u);
     EXPECT_TRUE(holds(captured.messages[0], "worker 'left' did not attach; replica 1 runs on "
@@ -157,7 +157,7 @@ TEST(Small_ReplicaFallbackWarning, TheTwoCausesWarnApart)
     Apps::ReplicaFallbackWarning warning(two_workers());
     CapturedRecords captured;
 
-    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", {1}});
+    warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", 1});
     warning.on_served(1, Distribution::ReplicaPosition::at_step(0, 2));
 
     EXPECT_EQ(captured.messages.size(), 2u);

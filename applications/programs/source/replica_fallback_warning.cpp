@@ -76,18 +76,15 @@ namespace SushiAI
 
         void ReplicaFallbackWarning::warn_absent_at_attach(const AwaitedWorker& worker)
         {
-            for (const std::size_t replica : worker.replicas)
-            {
-                if (replica >= replicas_.size() || replicas_[replica].warned_at_attach)
-                    continue;
+            if (worker.replica >= replicas_.size() || replicas_[worker.replica].warned_at_attach)
+                return;
 
-                Replica& entry = replicas_[replica];
-                entry.warned_at_attach = true;
-                SA_LOG_WARN(K_PROGRAMS_LOG_CATEGORY,
-                            "worker '{}' did not attach; replica {} {}, so the run is not "
-                            "repeatable from the step it first runs there",
-                            worker.name, replica, entry.absent_action);
-            }
+            Replica& entry = replicas_[worker.replica];
+            entry.warned_at_attach = true;
+            SA_LOG_WARN(K_PROGRAMS_LOG_CATEGORY,
+                        "worker '{}' did not attach; replica {} {}, so the run is not "
+                        "repeatable from the step it first runs there",
+                        worker.name, worker.replica, entry.absent_action);
         }
 
         void ReplicaFallbackWarning::on_served(std::uint64_t replica,

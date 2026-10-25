@@ -68,21 +68,21 @@ namespace SushiAI
         [[nodiscard]] std::chrono::milliseconds attach_bound(
             const Distribution::ClusterSection& section);
 
-        /** @brief Names one worker the master expects and the replicas that run on it. */
+        /** @brief Names one worker the master expects and the replica that runs on it. */
         struct AwaitedWorker
         {
             /// @brief The name the worker's HELLO carries.
             std::string name;
 
-            /// @brief The replicas above 0 the section places on it, in order.
-            std::vector<std::size_t> replicas;
+            /// @brief The replica, above 0, the section places on it.
+            std::size_t replica = 0;
         };
 
         /**
-         * @brief Returns the distinct workers replicas 1 and above name, in the order they first
-         *        appear, leaving out the master's own machine.
+         * @brief Returns the worker of each replica above 0, in replica order.
          *
-         * Names are compared as SushiRuntime places them: the first DNS label, in lower case.
+         * The section names each machine once and gives replica 0 to the master, so every entry
+         * is a distinct machine other than the master's.
          */
         [[nodiscard]] std::vector<AwaitedWorker> awaited_workers(
             const Distribution::ClusterSection& section);

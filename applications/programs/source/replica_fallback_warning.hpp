@@ -57,8 +57,8 @@ namespace SushiAI
                 explicit ReplicaFallbackWarning(const Distribution::ClusterSection& section);
 
                 /**
-                 * @brief Warns once for each replica on @p worker, which did not attach: what
-                 *        its "if_absent" makes it do.
+                 * @brief Warns once that @p worker did not attach, and what the "if_absent" of
+                 *        its replica makes that replica do.
                  */
                 void warn_absent_at_attach(const AwaitedWorker& worker);
 

@@ -98,19 +98,6 @@ namespace
             .value();
     }
 
-    /** @brief Returns the section of a master and two replicas that both name the worker "left". */
-    Distribution::ClusterSection one_worker_two_replicas()
-    {
-        const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
-            "attach_timeout_ms": 200, "replicas": [
-                {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
-                {"worker": "left", "rows": 1, "micro_batch": 1, "if_absent": "local"},
-                {"worker": "left", "rows": 1, "micro_batch": 1, "if_absent": "local"}
-            ]})";
-        return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
-            .value();
-    }
-
     /** @brief Holds a master and the workers a case starts, joined over one InProcessFabric. */
     class Fabric final
     {
@@ -237,29 +224,17 @@ TEST(Medium_MasterCluster, AMissingWorkerUnderLocalRuns)
     SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section).status());
 }
 
-/** @brief Tests that two replicas on one worker are one awaited worker. */
-TEST(Medium_MasterCluster, TwoReplicasOnOneWorkerCountAsOneAwaitedWorker)
+/** @brief Tests that the master awaits the worker of each replica above 0, in replica order. */
+TEST(Medium_MasterCluster, AwaitsTheWorkerOfEachReplicaAboveZeroInOrder)
 {
-    const std::vector<Apps::AwaitedWorker> awaited =
-        Apps::awaited_workers(one_worker_two_replicas());
+    const std::vector<Apps::AwaitedWorker> awaited = Apps::awaited_workers(
+        two_workers(R"("if_absent": "fail")", R"("if_absent": "local")", K_SHORT_ATTACH));
 
-    ASSERT_EQ(awaited.size(), 1u);
-    EXPECT_EQ(awaited.front().name, "left");
-    EXPECT_EQ(awaited.front().replicas, (std::vector<std::size_t>{1, 2}));
-}
-
-/** @brief Tests that the one worker serving two replicas, once attached, leaves nothing missing. */
-TEST(Medium_MasterCluster, AWorkerServingTwoReplicasAttachedLeavesNoneMissing)
-{
-    const Distribution::ClusterSection section = one_worker_two_replicas();
-    Fabric fabric;
-    fabric.start_worker("left");
-
-    const Result<std::vector<Apps::AwaitedWorker>> missing =
-        Apps::wait_for_workers(fabric.cluster(), section);
-
-    SA_EXPECT_OK(missing.status());
-    EXPECT_TRUE(missing.value().empty());
+    ASSERT_EQ(awaited.size(), 2u);
+    EXPECT_EQ(awaited[0].name, "left");
+    EXPECT_EQ(awaited[0].replica, 1u);
+    EXPECT_EQ(awaited[1].name, "right");
+    EXPECT_EQ(awaited[1].replica, 2u);
 }
 
 /** @brief Tests that a worker with an unexpected name does not hide the missing one. */
@@ -277,16 +252,15 @@ TEST(Medium_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
     SA_EXPECT_OK(missing.status());
     ASSERT_EQ(missing.value().size(), 1u);
     EXPECT_EQ(missing.value().front().name, "right");
-    EXPECT_EQ(missing.value().front().replicas, (std::vector<std::size_t>{2}));
+    EXPECT_EQ(missing.value().front().replica, 2u);
 }
 
-/** @brief Tests that a replica on the master's own machine is not awaited and fails nothing. */
-TEST(Medium_MasterCluster, AReplicaOnTheMasterIsNotAwaitedAndDoesNotFail)
+/** @brief Tests that a section of the master alone awaits no worker and fails nothing. */
+TEST(Medium_MasterCluster, AMasterAloneAwaitsNoWorkerAndDoesNotFail)
 {
     const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
         "attach_timeout_ms": 200, "replicas": [
-            {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"},
-            {"worker": "Master.lab.example", "rows": 1, "micro_batch": 1, "if_absent": "fail"}
+            {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"}
         ]})";
     const Distribution::ClusterSection section =
         Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".").value();

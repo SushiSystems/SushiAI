@@ -153,23 +153,10 @@ namespace SushiAI
         std::vector<AwaitedWorker> awaited_workers(const Distribution::ClusterSection& section)
         {
             std::vector<AwaitedWorker> awaited;
-            for (std::size_t replica = 1; replica < section.plan().replica_count(); ++replica)
-            {
-                const std::string& name = section.worker_of(replica);
-                if (SushiRuntime::machine_names_match(name, section.worker_of(0)))
-                    continue;
-
-                const auto known = std::find_if(
-                    awaited.begin(), awaited.end(),
-                    [&](const AwaitedWorker& worker)
-                    {
-                        return SushiRuntime::machine_names_match(worker.name, name);
-                    });
-                if (known == awaited.end())
-                    awaited.push_back(AwaitedWorker{name, {replica}});
-                else
-                    known->replicas.push_back(replica);
-            }
+            const std::size_t count = section.plan().replica_count();
+            awaited.reserve(count > 0 ? count - 1 : 0);
+            for (std::size_t replica = 1; replica < count; ++replica)
+                awaited.push_back(AwaitedWorker{section.worker_of(replica), replica});
             return awaited;
         }
 
@@ -203,12 +190,9 @@ namespace SushiAI
             for (const AwaitedWorker& worker : seen.absent)
             {
                 missing += (missing.empty() ? "'" : ", '") + worker.name + "'";
-                for (std::size_t replica : worker.replicas)
-                {
-                    if (section.absent_policy_of(replica).action
-                        == SushiRuntime::AbsentAction::Fail)
-                        fails = true;
-                }
+                if (section.absent_policy_of(worker.replica).action
+                    == SushiRuntime::AbsentAction::Fail)
+                    fails = true;
             }
             SA_FAIL_IF(fails, StatusCode::DeviceFailed,
                        "The workers {} did not attach within {} ms, and the 'if_absent' of a "
