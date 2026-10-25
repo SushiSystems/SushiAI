@@ -214,3 +214,36 @@ and a [16, 28, 28, 1] input tensor.
 
 For a directory that does not exist, `mnist_available` is false, `try_load_mnist` fails with
 `FileNotFound` and names the directory, and `mnist_expected_paths` is not empty.
+
+## test_ultralytics_files.cpp
+
+Suites: `Medium_UltralyticsFiles`.
+
+Tests the model files `applications/examples/yolov8n/model.json` and
+`applications/examples/yolo11n/model.json`, and the task section of those two and of
+`applications/examples/yolo26/model.json`. The cases read the files from `SA_REPOSITORY_ROOT`.
+
+### HoldTheirRowsAndTheirInput
+
+`yolov8n` has 23 rows and `yolo11n` has 24; both take a [640, 640, 3] input and name one output node.
+
+### BuildToTheParameterCountOfTheReference
+
+The built model holds the parameters of the Ultralytics summary line, 3,157,200 for `yolov8n` and
+2,624,080 for `yolo11n`, less 16. The 16 are the fixed ramp of the distribution expectation, which
+Ultralytics counts as a parameter and this framework keeps as no state record.
+
+### PublishTheOneToManyPortsAtTheLevelStrides
+
+Each model publishes six ports: the boxes of the three levels at 80, 40 and 20 positions a side,
+64 channels wide, and the scores at the same sides, 80 channels wide. No `one2one` port exists.
+
+### GiveTheFactsOfAnAnchorFreeModel
+
+`derive_free_model_facts` over the traced outputs gives strides 8, 16 and 32, a `reg_max` of 16,
+80 classes and no one-to-one copy.
+
+### TheTaskSectionReadsBackAsTheDefaults
+
+`read_free_task` reads the task section of `yolov8n`, `yolo11n` and `yolo26` as the `FreeTask`
+defaults: score threshold 0.25 and intersection-over-union suppression at 0.7.

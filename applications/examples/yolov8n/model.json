@@ -1,0 +1,41 @@
+{
+    "format_version": 2,
+    "input": { "shape": [640, 640, 3] },
+    "defaults": {
+        "conv":   { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "c2f":    { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "sppf":   { "bn_epsilon": 0.001, "bn_momentum": 0.03 },
+        "detect": { "bn_epsilon": 0.001, "bn_momentum": 0.03 }
+    },
+    "layers": [
+        { "type": "conv", "filters": 16, "kernel": 3, "stride": 2 },
+        { "type": "conv", "filters": 32, "kernel": 3, "stride": 2 },
+        { "type": "c2f", "filters": 32, "hidden": 16, "repeats": 1, "shortcut": true },
+        { "type": "conv", "filters": 64, "kernel": 3, "stride": 2 },
+        { "type": "c2f", "filters": 64, "hidden": 32, "repeats": 2, "shortcut": true },
+        { "type": "conv", "filters": 128, "kernel": 3, "stride": 2 },
+        { "type": "c2f", "filters": 128, "hidden": 64, "repeats": 2, "shortcut": true },
+        { "type": "conv", "filters": 256, "kernel": 3, "stride": 2 },
+        { "type": "c2f", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": true },
+        { "type": "sppf", "filters": 256, "kernel": 5, "pools": 3, "shortcut": false },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 6] },
+        { "type": "c2f", "filters": 128, "hidden": 64, "repeats": 1, "shortcut": false },
+        { "type": "upsample", "scale": 2 },
+        { "type": "concat", "from": [-1, 4] },
+        { "type": "c2f", "filters": 64, "hidden": 32, "repeats": 1, "shortcut": false },
+        { "type": "conv", "filters": 64, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 12] },
+        { "type": "c2f", "filters": 128, "hidden": 64, "repeats": 1, "shortcut": false },
+        { "type": "conv", "filters": 128, "kernel": 3, "stride": 2 },
+        { "type": "concat", "from": [-1, 9] },
+        { "type": "c2f", "filters": 256, "hidden": 128, "repeats": 1, "shortcut": false },
+        { "type": "detect", "from": [15, 18, 21], "classes": 80, "reg_max": 16, "end2end": false, "class_branch": "plain" }
+    ],
+    "outputs": [ { "node": 22 } ],
+    "task": {
+        "type": "anchor_free_detection",
+        "score_threshold": 0.25,
+        "suppression": { "criterion": "iou", "threshold": 0.7 }
+    }
+}

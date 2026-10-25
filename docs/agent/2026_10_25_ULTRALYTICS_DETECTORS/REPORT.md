@@ -19,6 +19,7 @@ dispatch: U12 yolov5n file and anchor biases — sonnet medium, 77 turns, passed
 dispatch: U6 anchor-free assignment stage — opus low, 41 turns, passed, rung 1
 dispatch: conv padding and RW-142 — sonnet medium, 45 turns, passed, rung 1
 dispatch: wire the shape-ratio rule — opus low, 112 turns, passed, rung 1
+dispatch: U5 model files — sonnet medium, 44 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -154,3 +155,12 @@ at the unshifted head. The epsilon is 1e-6 where Ultralytics uses 1e-7.
 
 `yolov5n`'s heads are the three convolutions' logits, with `"size": "squared_sigmoid"` decoding
 `(2 * sigmoid)^2` times the anchor. The Darknet forward parity code reads no `size`.
+
+## 13. U5, written and not built
+
+`yolov8n` has 23 rows and `yolo11n` 24; with `yolo26` they carry an `anchor_free_detection`
+section at the defaults. A count over the rows gives 3,157,184 parameters for YOLOv8n and
+2,624,064 for YOLO11n, 16 under Ultralytics' summaries as remembered (3,157,200 and 2,624,080):
+the 16 values of the distribution ramp, which has no state record here. The test pins the
+summary minus 16. The C3k2 rows of `yolo11n` take `bottleneck` or `c3k` as the yaml states for
+scale n. Three registration test files now each hold a copy of the same composing helper.

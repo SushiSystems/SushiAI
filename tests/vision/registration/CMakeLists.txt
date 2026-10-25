@@ -9,6 +9,7 @@
 sushiai_add_test_program(OWNER vision/registration
     SOURCES
         test_registration.cpp
+        test_ultralytics_files.cpp
         test_yolov5n.cpp
     DEPENDS
         failure_expectations

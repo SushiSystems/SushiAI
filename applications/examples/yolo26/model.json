@@ -34,5 +34,10 @@
         { "type": "c3k2", "filters": 256, "hidden": 128, "repeats": 1, "inner": "bottleneck_psa", "shortcut": true },
         { "type": "detect", "from": [16, 19, 22], "classes": 80 }
     ],
-    "outputs": [ { "node": 23 } ]
+    "outputs": [ { "node": 23 } ],
+    "task": {
+        "type": "anchor_free_detection",
+        "score_threshold": 0.25,
+        "suppression": { "criterion": "iou", "threshold": 0.7 }
+    }
 }
