@@ -20,6 +20,7 @@ dispatch: U6 anchor-free assignment stage — opus low, 41 turns, passed, rung 1
 dispatch: conv padding and RW-142 — sonnet medium, 45 turns, passed, rung 1
 dispatch: wire the shape-ratio rule — opus low, 112 turns, passed, rung 1
 dispatch: U5 model files — sonnet medium, 44 turns, passed, rung 1
+dispatch: U7 anchor-free loss graph — opus low, 76 turns, passed, rung 1
 
 ## 2. Seen while mapping
 
@@ -164,3 +165,18 @@ section at the defaults. A count over the rows gives 3,157,184 parameters for YO
 the 16 values of the distribution ramp, which has no state record here. The test pins the
 summary minus 16. The C3k2 rows of `yolo11n` take `bottleneck` or `c3k` as the yaml states for
 scale n. Three registration test files now each hold a copy of the same composing helper.
+
+## 14. U7, written and not built
+
+Per level, over the one-to-many ports: the class term is `softplus(x) - x * t` summed; the box
+term decodes the distances (through the distribution expectation), swaps background anchors for
+`safe_boxes` with a `SELECT` on `box_mask`, and sums `(1 - CIoU) * normalized_weight` with CIoU's
+trade-off weight behind `STOP_GRADIENT` and Ultralytics' epsilon of 1e-7; the distribution focal
+term runs when `reg_max` is above 1; an L1 term on the distances runs when `l1_gain` is above 0,
+which it is not by default. Only the class term is divided by the score sum: the box, focal and
+L1 leaves already carry that division. Each term is scaled by its gain times the batch, so the
+loss root needs no seed factor. `anchor_strides` goes unused, the loss working in grid units, and
+the objective must declare the `[reg_max, 1]` bin-value leaf the expectation multiplies by.
+
+The gradcheck covers box, class and L1 together where the predicted and target boxes share an
+aspect ratio, since a central difference cannot see a weight held constant elsewhere.

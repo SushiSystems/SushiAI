@@ -36,6 +36,9 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 | `<SushiAI/vision/training/distribution_focal_loss.hpp>` | `emit_distribution_focal_loss` |
 | `<SushiAI/vision/training/anchor_bias_init.hpp>` | `AnchorBiasHead`, `derive_anchor_bias_heads`, `initialize_anchor_biases` |
 | `<SushiAI/vision/training/free_assignment_stage.hpp>` | `FreeLeafKind`, `FreeLeaf`, `FreeLevelViews`, `FreeAssignmentStage` |
+| `<SushiAI/vision/training/free_detection_loss.hpp>` | `FreeLossValues`, `FreeLossTermIDs`, `emit_free_detection_loss` |
+| `<SushiAI/vision/training/free_detection_loss_host.hpp>` | `evaluate_free_detection_loss` |
+| `<SushiAI/vision/training/free_loss_gains.hpp>` | `FreeLossGains`, `K_FREE_LOSS_GAIN_KEYS`, `validate_free_loss_gains`, `read_free_loss_gains` |
 | `<SushiAI/vision/training/free_model_facts.hpp>` | `FreeLevelPorts`, `FreeLevelFacts`, `FreeModelFacts`, `derive_free_model_facts` |
 | `<SushiAI/vision/training/free_bias_init.hpp>` | `free_class_bias`, `initialize_free_biases` |
 | `<SushiAI/vision/training/anchor_head.hpp>` | `AnchorHead` |

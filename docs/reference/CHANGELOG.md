@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — training: Added the anchor-free detection loss as a graph, with its host evaluation and four gain keys (`free_detection_loss.hpp`, `free_loss_gains.hpp`).
 - 2026-10-26 — examples: Added the yolov8n and yolo11n model files and the anchor-free task section to the yolo26 file (`applications/examples/yolov8n/model.json`).
 - 2026-10-26 — training: Made the anchor objective compute deltas and cost through a head delta rule chosen from the task's `assignment` (`head_delta_rule.hpp`).
 - 2026-10-26 — detect: Added the squared-sigmoid size form of a logit anchor head, the task's `size` key (`head_options.hpp`).
