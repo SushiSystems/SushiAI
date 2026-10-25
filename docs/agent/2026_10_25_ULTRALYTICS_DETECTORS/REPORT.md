@@ -29,6 +29,7 @@ dispatch: rename the best-shape rule — sonnet low, 13 turns, passed, rung 1
 dispatch: determinism audit — haiku high, 21 turns, passed, rung 1
 dispatch: share registration test helpers — sonnet low, 17 turns, passed, rung 1
 dispatch: U8 anchor-free objective, step and run row — opus low, 79 turns, passed, rung 1
+dispatch: U13b anchor-free example files — sonnet low, passed, rung 1
 
 ## 2. Seen while mapping
 

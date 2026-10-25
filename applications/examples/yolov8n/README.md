@@ -2,10 +2,10 @@
 
 `model.json` describes YOLOv8n in version 2 of the model file: 23 rows, one per row of the
 Ultralytics `yolov8.yaml` at scale `n` (depth 0.33, width 0.25, at most 1024 channels), read by
-`NN::build_model` (`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). There is no C++ and no
-training configuration in this directory.
+`NN::build_model` (`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). `train.json` and `eval.json` sit beside it for
+`sa train` and `sa inference`. There is no C++ in this directory.
 
-No command trains or evaluates this model yet, and no run has been made with it.
+No run has been made with this model.
 `Medium_UltralyticsFiles` in `tests/vision/registration/test_ultralytics_files.cpp` pins the build.
 
 ## Rows
@@ -35,3 +35,19 @@ extra are the fixed ramp of the distribution expectation, which has no state rec
 The `task` section is `anchor_free_detection` with the default score threshold, 0.25, and
 suppression by intersection over union at 0.7. Strides, ports, `reg_max` and the class count come
 from the built model.
+
+## Training and inference
+
+`train.json` trains from scratch: it names no `weights` file. Its `checkpoint` is
+`../../../build/yolov8n/trained.sushi`, and `data.root` is an absolute path to coco128 that you edit to
+your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
+
+The data block, `anchor_free` objective, optimizer and epoch count are those of
+`applications/examples/yolo11n/train.json`; `letterbox` is the detection default.
+
+```bash
+sa train applications/examples/yolov8n/train.json
+sa inference applications/examples/yolov8n/model.json build/yolov8n/trained.sushi     applications/examples/yolov8n/eval.json
+```
+
+`eval.json` reads the training split, so it measures fit, not generalisation.

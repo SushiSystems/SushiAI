@@ -2,14 +2,14 @@
 
 `model.json` describes YOLO26n in version 2 of the model file: 24 rows, one per row of the
 Ultralytics `yolo26.yaml` at scale `n`, read by `NN::build_model`
-(`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). There is no C++ and no training configuration in
-this directory.
+(`modules/layers/nn/include/SushiAI/nn/node_registry.hpp`). `train.json` and `eval.json` sit beside it for
+`sa train` and `sa inference`. There is no C++ in this directory.
 
 `build_model` builds the whole file over the registry that `NN::register_layers` and
 `Vision::register_nodes` fill. `TheYOLO26FileBuildsWhole` in
 `tests/vision/registration/test_registration.cpp` pins that build: the 594 state records
-of `weights.sushi` and the twelve ports the last row publishes. No command trains or evaluates this
-model, and no run has been made with it.
+of `weights.sushi` and the twelve ports the last row publishes. No run has been made with this
+model.
 
 ## Row types
 
@@ -80,3 +80,19 @@ A graph built from this file names its state by row index, so a checkpoint recor
 `0.conv.weight` where the Ultralytics state dictionary has `model.0.conv.weight`.
 
 The design is the model graph spec in the version history, sections 2.6 and 2.10.
+
+## Training and inference
+
+`train.json` trains from scratch: it names no `weights` file. Its `checkpoint` is
+`../../../build/yolo26/trained.sushi`, and `data.root` is an absolute path to coco128 that you edit to
+your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
+
+The data block, `anchor_free` objective, optimizer and epoch count are those of
+`applications/examples/yolo11n/train.json`; `letterbox` is the detection default.
+
+```bash
+sa train applications/examples/yolo26/train.json
+sa inference applications/examples/yolo26/model.json build/yolo26/trained.sushi     applications/examples/yolo26/eval.json
+```
+
+`eval.json` reads the training split, so it measures fit, not generalisation.

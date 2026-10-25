@@ -1,0 +1,30 @@
+{
+    "sushiai_train": 3,
+    "model": "model.json",
+    "checkpoint": "../../../build/yolov8n/trained.sushi",
+    "data": {
+        "reader": "yolo_txt",
+        "task": "detection",
+        "root": "D:/Projects/.sushisystems/datasets/coco128",
+        "split": "train2017",
+        "batch_size": 16,
+        "input": [640, 640],
+        "max_objects": 128,
+        "classes": 80
+    },
+    "objective": {
+        "type": "anchor_free",
+        "box_gain": 7.5,
+        "class_gain": 0.5,
+        "distribution_gain": 1.5,
+        "l1_gain": 0.0
+    },
+    "optimizer": {
+        "type": "sgd",
+        "learning_rate": 0.01,
+        "momentum": 0.937,
+        "weight_decay": 5e-04,
+        "nesterov": true
+    },
+    "epochs": 10
+}
