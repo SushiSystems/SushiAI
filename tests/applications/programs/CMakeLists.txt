@@ -7,29 +7,19 @@
 # The test program of the application programs, and the smoke tests of sushiai_train and
 # sushiai_inference.
 
-# The programs are executables with no library, so the units a test reaches without a
-# process are compiled here beside the tests.
-set(SUSHIAI_PROGRAM_SOURCE_DIR "${PROJECT_SOURCE_DIR}/applications/programs/source")
-
-set(SUSHIAI_PROGRAM_TEST_DOMAINS)
-set(SUSHIAI_PROGRAM_TEST_LINKS)
+# The program sources are the library sushiai_program_shared, built once in applications/programs
+# and linked here. The tests compile only their own units.
+set(SUSHIAI_PROGRAM_TEST_SOURCES)
+set(SUSHIAI_PROGRAM_TEST_LINKS sushiai_program_shared)
 if(SA_BUILD_VISION)
-    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_vision.cpp")
-    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${CMAKE_CURRENT_SOURCE_DIR}/source/test_anchor_run.cpp")
+    list(APPEND SUSHIAI_PROGRAM_TEST_SOURCES source/test_anchor_run.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_vision)
-else()
-    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_vision_none.cpp")
 endif()
 if(SA_BUILD_LANGUAGE)
-    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_language.cpp")
     list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_language)
-else()
-    list(APPEND SUSHIAI_PROGRAM_TEST_DOMAINS
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/domains_language_none.cpp")
 endif()
 
-# The cluster units and their tests exist in a distributed build; any other
-# build compiles the refusal in their place.
+# The cluster tests exist in a distributed build; any other build has none.
 set(SUSHIAI_PROGRAM_TEST_CLUSTER)
 set(SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS)
 if(SA_ENABLE_DISTRIBUTED)
@@ -42,20 +32,8 @@ if(SA_ENABLE_DISTRIBUTED)
         source/test_served_kernel.cpp
         source/test_training_cluster_section.cpp
         source/test_training_replica_model.cpp
-        source/test_worker_arguments.cpp
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_run.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/master_cluster.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/served_kernel.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_cluster_section.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_replica_model.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_tensors.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/replica_fallback_warning.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/worker_arguments.cpp")
+        source/test_worker_arguments.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS distribution)
-else()
-    list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/cluster_training_none.cpp")
 endif()
 
 sushiai_add_test_program(APPLICATION programs
@@ -69,26 +47,15 @@ sushiai_add_test_program(APPLICATION programs
         source/test_trainer_run.cpp
         source/test_training_run.cpp
         source/test_training_setup.cpp
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_run.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/epoch_loop.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/trainer_run.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_run.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/registries.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/run_start.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_setup.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/training_program.cpp"
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}/inference_program.cpp"
         ${SUSHIAI_PROGRAM_TEST_CLUSTER}
-        ${SUSHIAI_PROGRAM_TEST_DOMAINS}
+        ${SUSHIAI_PROGRAM_TEST_SOURCES}
     DEPENDS
         classifier_objective
         failure_expectations
         scratch_files
         ${SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS}
     LINKS
-        ${SUSHIAI_PROGRAM_TEST_LINKS}
-    INCLUDES
-        "${SUSHIAI_PROGRAM_SOURCE_DIR}")
+        ${SUSHIAI_PROGRAM_TEST_LINKS})
 
 # --- The `sushiai train` / `sushiai inference` smoke tests ---
 # Two separate tests, not one chained round trip: a single test that trained

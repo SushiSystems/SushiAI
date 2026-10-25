@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — programs: Compiled the shared program sources once, into a library the four programs and the program tests link (`applications/programs/CMakeLists.txt`).
 - 2026-10-26 — guides: Described training a detector and the anchor task's assignment and size keys (`docs/guides/RUNNING_MODELS.md`).
 - 2026-10-26 — programs: Made a fresh anchor run start each head's objectness and class biases from its stride, and the anchor run test call the shared assembly (`domains_vision.cpp`).
 - 2026-10-26 — programs: Moved the training and inference assembly out of the two mains into functions the program tests call (`training_program.hpp`, `inference_program.hpp`).

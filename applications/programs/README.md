@@ -40,7 +40,9 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `training_program.hpp`, `training_program.cpp` | `run_training_file` and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
 | `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
-A distributed build links the first set into every program. `sushiai_train` then trains a
+The sources in the table compile once, into the library `sushiai_program_shared`. The programs
+and the program tests link that library; each program adds only its own main file. A distributed
+build compiles the cluster rows into it. `sushiai_train` then trains a
 `cluster` section on the master, and `sushiai_worker` serves the replica named by its `--name`
 on each worker machine; the other flags go to SushiRuntime's worker. The training file comes
 first: `-h`, `--help`, `-V` or `--version` there prints and exits 0, and any other flag there is

@@ -40,17 +40,31 @@ set(SUSHIAI_PROGRAM_SHARED
     source/training_program.cpp source/inference_program.cpp
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 
-add_executable(sushiai_train
-    source/train.cpp ${SUSHIAI_PROGRAM_SHARED})
-add_executable(sushiai_inference
-    source/inference.cpp ${SUSHIAI_PROGRAM_SHARED})
-add_executable(sushiai_import
-    source/import.cpp ${SUSHIAI_PROGRAM_SHARED})
+# The shared sources are compiled once, into a library the programs and the program tests link.
+# The include folder and the libraries are public: the headers beside the sources name their types.
+add_library(sushiai_program_shared STATIC ${SUSHIAI_PROGRAM_SHARED})
+target_include_directories(sushiai_program_shared PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/source")
+target_link_libraries(sushiai_program_shared PUBLIC sushiai)
+if(SA_BUILD_VISION)
+    target_link_libraries(sushiai_program_shared PUBLIC sushiai_vision)
+endif()
+if(SA_BUILD_LANGUAGE)
+    target_link_libraries(sushiai_program_shared PUBLIC sushiai_language)
+endif()
+sushiai_apply_build_policy(sushiai_program_shared)
+
+add_executable(sushiai_train source/train.cpp)
+target_link_libraries(sushiai_train PRIVATE sushiai_program_shared)
+add_executable(sushiai_inference source/inference.cpp)
+target_link_libraries(sushiai_inference PRIVATE sushiai_program_shared)
+add_executable(sushiai_import source/import.cpp)
+target_link_libraries(sushiai_import PRIVATE sushiai_program_shared)
+set(SUSHIAI_PROGRAM_TARGETS sushiai_train sushiai_inference sushiai_import)
 
 # The worker serves a cluster's replicas, so only a distributed build has one.
 if(SA_ENABLE_DISTRIBUTED)
-    add_executable(sushiai_worker
-        source/sushiai_worker.cpp ${SUSHIAI_PROGRAM_SHARED})
+    add_executable(sushiai_worker source/sushiai_worker.cpp)
+    target_link_libraries(sushiai_worker PRIVATE sushiai_program_shared)
     list(APPEND SUSHIAI_PROGRAM_TARGETS sushiai_worker)
 endif()
 
