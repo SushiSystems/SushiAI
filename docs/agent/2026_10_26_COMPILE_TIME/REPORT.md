@@ -1,6 +1,6 @@
 # Compile time and include hygiene: report
 
-**Status:** Open — written 2026-10-26; tasks are written as workers report, nothing built.
+**Status:** Open — written 2026-10-26; C1 to C5, C7 and C8 are written and committed, C6 waits for the owner, nothing is built.
 
 ## Dispatches
 
@@ -13,6 +13,7 @@ dispatch: C8a umbrella out of tests/core — haiku high, passed, rung 1
 dispatch: C3 device sources checker — sonnet medium, 21 tool calls, passed, rung 1
 dispatch: C8b umbrella out of tests/layers — haiku high, passed, rung 1; left poll loops running, stopped by the orchestrator
 dispatch: C8c umbrella out of tests/vision and tests/language — haiku high, 77 tool calls, passed, rung 1; left a poll loop running until told
+dispatch: C8d umbrella out of the Darknet cases and program tests — haiku high, 97 tool calls, passed, rung 1
 
 ## 1. Findings
 
@@ -49,3 +50,22 @@ SushiBLAS ships no forward header; `Tensor` is a `struct`, `Engine` a `class`.
 Umbrellas: `SushiAI/SushiAI.hpp` reaches 201 headers and is included by 107 test files, 8 module
 files (the three Darknet case modules' headers and sources, and the language and vision
 umbrellas) and 7 application files. `SushiAI/vision.hpp` reaches 144 headers and two tests.
+
+## 4. C2 to C8, written and not built
+
+- C2: units compile for the device only when their module names them in `DEVICE_SOURCES`; five
+  do. Modules link `SushiAI::blas`. The configure, the link of every executable and the run of the
+  whole test suite are unverified until the owner's build.
+- C3: `tools/layering/check_device_sources.py` passes on the tree; its six tests pass.
+- C4: `fusion_selector.hpp` no longer includes `launch/device_policy.hpp`.
+- C5: one header lost an unused include; the inventory's span-only verdicts were wrong (section 3).
+- C8: no module header or source and no test includes an umbrella, except the umbrellas' own
+  tests, `applications/examples` and `tests/package`, which show a consumer. The Darknet case
+  modules no longer depend on `umbrella`. Each file passes a syntax check against the flags of the
+  last build's `compile_commands.json`; four new tests have no entry there and were checked with a
+  sibling's flags.
+- C6 waits for the owner's ruling on a SushiBLAS forward header, after the build measures C2.
+
+The workers left poll loops and three whole-disk `find /` scans running on 2026-10-26, which loaded
+the owner's machine; the orchestrator stopped them, and every later dispatch forbids background
+commands.

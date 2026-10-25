@@ -1,6 +1,6 @@
 # Compile time and include hygiene: plan
 
-**Status:** Open — written 2026-10-26. The owner asked that day for the places where SYCL is included or compiled for nothing, and for the compile time they cost to come down without breaking SOLID. Builds stay forbidden until the Ultralytics models run, so every task here is written and syntax-checked; the owner's build measures it.
+**Status:** Open — written 2026-10-26; every task but C6 is written, and the owner's build measures them. The owner asked that day for the places where SYCL is included or compiled for nothing, and for the compile time they cost to come down without breaking SOLID. Builds stay forbidden until the Ultralytics models run, so every task here is written and syntax-checked; the owner's build measures it.
 
 ## 1. The goal
 

@@ -14,7 +14,6 @@ sushiai_add_module(NAME darknet_forward_cases TIER vision INTERNAL
         engine_fixture
         failure
         failure_expectations
-        umbrella
         vision/detect
         vision/importers
     PRIVATE_DEPENDS allocation config graph nn shape train

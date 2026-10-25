@@ -32,14 +32,24 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/io/run_progress.hpp>
+#include <SushiAI/nn/layers.hpp>
+#include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/optim/rate_schedule.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
+#include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/steps.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 #include "epoch_loop.hpp"
 #include "training_run.hpp"

@@ -15,7 +15,6 @@ sushiai_add_module(NAME darknet_training_cases TIER vision INTERNAL
         engine_fixture
         failure
         failure_expectations
-        umbrella
         vision/detect
     PRIVATE_DEPENDS
         allocation

@@ -40,18 +40,27 @@
 #include "run_start.hpp"
 #include "trainer_run.hpp"
 #include "training_run.hpp"
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/classifier_objective/classifier_objective.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/data/dataset.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
+#include <SushiAI/nn/init.hpp>
+#include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
+#include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/objective_context.hpp>
+#include <SushiAI/train/steps.hpp>
+#include <SushiAI/train/trainer.hpp>
+#include <SushiAI/train/training_graph.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/applications/programs/README.md.

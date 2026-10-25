@@ -15,7 +15,6 @@ sushiai_add_module(NAME darknet_import_cases TIER vision INTERNAL
         failure_expectations
         io
         nn
-        umbrella
         vision/importers
     PRIVATE_DEPENDS
         config

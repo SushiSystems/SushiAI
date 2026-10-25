@@ -38,13 +38,14 @@
 #include "registries.hpp"
 #include "training_setup.hpp"
 #include "training_program.hpp"
-#include <SushiAI/SushiAI.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/config/value.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
+#include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/training/anchor_bias_init.hpp>
 
 using namespace SushiAI;
