@@ -1,12 +1,28 @@
 # Remaining work
 
-Next id: RW-132
+Next id: RW-137
+
+## Next
+
+- RW-116 The Darknet parity scenarios are the YOLOv3-tiny gate, and the last run skipped them
+- RW-56 The import's written files are what a user trains from, and no test loads them
+- RW-132 Neither end of the anchor path has a program-level test
+- RW-133 YOLOv3-tiny has no training file a run can start from
+- RW-48 The milestone: YOLOv3-tiny imported, trained and run from the command line
 
 ## Decisions waiting for the owner
 
 ### RW-1 Tag a first release
 - State: decision
 - Done when: the owner has approved 0.1.0 and `## Unreleased` becomes its section
+
+### RW-38 Choose whether the raw cache needs a tool of its own
+- State: decision
+- Done when: the owner has ruled that the dataset build's `write_sample_cache` is the tool, or
+  named a command that writes the cache without starting a run
+
+The cache is written through libjpeg-turbo when a dataset with a `cache` key is built
+(`modules/vision/datasets/source/task_dataset.cpp`). The YOLO26 ruling named a separate tool.
 
 ## Rulings to carry out
 
@@ -19,12 +35,17 @@ Next id: RW-132
 The four repositories each hold a `docs/design/LAYERED_EXECUTION/README.md` with their share. The owner
 ruled on 2026-10-19 how a run spans machines: through SushiRuntime's distributed layer, carried by
 SushiBLAS, YOLOv3-tiny first. The runtime's measurements (its R13) come after the placement
-labels, as ruled on 2026-10-20.
+labels, as ruled on 2026-10-20. A0 to A4 are built; A5 to A7 need two and five machines.
 
 ### RW-2 Make `BatchNorm2d` and a nested `ModelGraph` refuse a misfit with a `Status`
 - State: open
-- Done when: both return a `Status` when added with a misfit, as the owner ruled on 2026-10-19
-- Source: `docs/agent/2026_10_07_YOLO26/SPEC.md`
+- Done when: `NN::ModuleNode::create` returns `InvalidDescription` for a `BatchNorm2d` whose
+  input is not `[H, W, channels]` and for a nested `ModelGraph` whose input does not fit or that
+  has no single output
+- Where: `modules/layers/nn/source/batch_norm2d.cpp`, `modules/layers/nn/source/model_graph.cpp`
+
+Today both `output_shape` functions return a shape unchecked, and the misfit is refused only when
+the model is traced.
 
 ### RW-5 Design value-dependent control flow in autograd
 - State: open
@@ -33,7 +54,8 @@ labels, as ruled on 2026-10-20.
 
 ### RW-6 Test a model file with a missing block
 - State: open
-- Done when: `TheYOLO26FileNamesEachMissingBlock` has a successor under `vision/registration`
+- Done when: a test under `tests/vision/registration/` loads a model file with a block missing
+  and checks that the `Status` names the block
 
 ## Runs not yet made
 
@@ -43,14 +65,20 @@ labels, as ruled on 2026-10-20.
   `image` layout read from the IDX files
 - Source: `docs/agent/2026_10_07_CV_CLOSE/SPEC.md`
 
+`Medium_VisionMnist.AnImageLayoutYieldsRankFourBatches` skips without the IDX files.
+
 ### RW-9 Check the demo transcript against a run
 - State: unmeasured
 - Done when: the transcript of `docs/guides/DEMO.md` matches a run, its node counts among them,
   and a HALF comparison under `ForceReference` has run
 
+`Medium_Demo.MLPRunsAndReportsOneCompile` pins the compile count and not the node counts.
+
 ### RW-10 Run `sa test` around the three programs
 - State: unmeasured
-- Done when: the CTest cases around `sushiai_train`, `sushiai_inference` and the demo pass
+- Done when: `Medium_App.TrainRunsAndReportsOneCompile`,
+  `Medium_App.InferenceLoadsACheckpointAndReportsOneCompile` and
+  `Medium_Demo.MLPRunsAndReportsOneCompile` pass in a recorded run
 
 ## Failure contract
 
@@ -61,34 +89,46 @@ labels, as ruled on 2026-10-20.
   allows
 - Source: `docs/design/PROGRAMME/README.md`
 
-Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridging eleven, and
-`Scope`'s destructor throwing through `ScopeTrace::close()`.
+Stage 2 of the programme: 425 sites in 69 files under `modules/`, `NN::Detail::bridge_throwing`
+called from 61 sites, `try` or `catch` in 30 files outside the seam, and `Scope`'s destructor
+throwing through `ScopeTrace::close()`.
 
 ### RW-12 Observe that a dropped recording releases storage and scratch
-- State: unmeasured
-- Done when: a test watches the graph of a failed `record_and_run()` release both when it is dropped
+- State: open
+- Done when: a test counts the engine's storage and scratch before and after a failed
+  `record_and_run()` and sees both back where they started
 
-### RW-13 Decide whether fusion declines GEMM epilogues under `ForceReference`
+`tests/core/execution/test_execution.cpp` proves that a failed recording's tasks do not run; it
+does not watch the memory.
+
+### RW-13 Show that the fused and plain GEMM epilogues agree under `ForceReference`
 - State: unmeasured
-- Done when: a build shows whether the fused and plain forms agree under `ForceReference`, and
-  `DeviceFusionSelector` follows
+- Done when: a test runs a fused and a plain GEMM epilogue under `ForceReference`, and the
+  comment of `DeviceFusionSelector` cites its result
+
+The selector already declines every GEMM epilogue under `ForceReference`
+(`modules/core/graph/source/fusion_selector.cpp`).
 
 ### RW-14 State what the gradient check's reference mode proves
 - State: open
 - Done when: the gradient check's documentation says the reference path shares the element
   functor with the SYCL path, so it separates launch and index errors, not formula errors
 
+`gradcheck.hpp` names no reference mode; the entry means the engine's `ForceReference` under which
+the checked graph runs.
+
 ## Eager front end
 
 ### RW-15 Build the eager units and run their tests
 - State: unmeasured
-- Done when: the nine test files of the eager module pass, five of them on an engine
+- Done when: the 19 test files of the eager module pass, seven of them on an engine
 - Source: `docs/agent/2026_10_07_EAGER_FRONT_END/SPEC.md`
 
 ### RW-16 Read the host cost of an eager step off a run
 - State: unmeasured
-- Done when: `test_step_cost.cpp` has printed the cost of an unchanged step for two and fifty
-  layers, and of a scope that appears and disappears
+- Done when: the `Medium_EagerStepCost` cases of `tests/core/eager/test_session.cpp` have printed
+  the cost of an unchanged step for two and fifty layers, and of a scope that appears and
+  disappears
 
 ### RW-17 Design the phases of an eager session
 - State: open
@@ -120,28 +160,15 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 
 ## Convolutional networks
 
-### RW-24 Train batch normalisation
+### RW-27 Pad convolution and average pooling asymmetrically
 - State: open
-- Done when: a non-trainable `Buffer`, training and evaluation modes, a ones initialiser and the
-  running-statistics update exist; `K_BATCHNORM_UPDATE_STATS` has an emitter and a lowering
-
-### RW-25 Take layers with more than one input
-- State: open
-- Done when: `Concat`, a residual block and named children exist
-
-### RW-26 Give images a rank-4 input leaf
-- State: open
-- Done when: an image model needs no `Unflatten` layer
-
-### RW-27 Pad asymmetrically in the layers and the model file
-- State: open
-- Done when: `Conv2d`, the pools and the `padding` key take the extents the builder's
-  `_with_extents` emitters express
+- Done when: `Conv2d` and `AvgPool2d` take trailing pads through the builder's `_with_extents`
+  emitters, and the model file accepts them as `trailing_padding`, as `maxpool2d` does
 
 ### RW-29 Give the layer-name prefix of a refused window one home
 - State: open
 - Done when: `Conv2d`, both pools and `Upsample2d` stop catching and re-throwing the builder's
-  message, and the pools share one `fit_window`
+  message, and the four copies of `fit_window` become one
 
 ### RW-30 Check settings and ranks in one order across the layers
 - State: open
@@ -152,20 +179,14 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 - State: open
 - Done when: a slope that narrows to 0 or 1 in float32 is refused
 
-### RW-32 Call `rematerialise_im2col` from `build_graph`
-- State: open
-- Done when: `build_graph` runs the pass, as the eager region program does
-
 ### RW-33 Pass the ResNet-18 on CIFAR-10 gate
 - State: open
-- Done when: the gate of the August design passes, with its loader and augmentation
+- Done when: a ResNet-18 model file and a CIFAR-10 training file exist, and the gate of the
+  August design passes on them
+
+The CIFAR reader and the augmentation pipeline exist; no basic block or projection shortcut does.
 
 ## YOLO26
-
-### RW-34 Report detections in `sushiai inference`
-- State: open
-- Done when: inference accepts a model with several outputs and reports its detections
-- Source: `docs/agent/2026_10_07_YOLO26/SPEC.md`
 
 ### RW-35 Build the detection objective
 - State: open
@@ -174,21 +195,18 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 
 ### RW-36 Assign labels in two passes in the training loop
 - State: open
-- Done when: a forward-only replay, the host assigner and the full step run in the loop, with
-  what `CompiledStep` and `Trainer` need
+- Done when: an anchor-free training step replays forward only, assigns with `detect/free`, and
+  runs the full step in the loop
 
-### RW-37 Load a detection dataset on threads
-- State: open
-- Done when: a directory-backed sample source, a build pass that parses and rejects labels once
-  and one pipeline per thread exist
+The Darknet loop splits one replay at the heads (`AnchorTrainingStep`); the YOLO26 loop is not
+written.
 
-### RW-38 Write the image decode tool
+### RW-39 Add MuSGD, learning rates per parameter group and the weight EMA
 - State: open
-- Done when: a tool writes the raw cache through libjpeg-turbo from vcpkg
+- Done when: MuSGD and the weight EMA exist with tests, and parameter groups carry their own
+  learning rates
 
-### RW-39 Add MuSGD, parameter groups, a cosine schedule with warm-up and the weight EMA
-- State: open
-- Done when: each exists with tests; parameter groups also give the Darknet weight-only decay
+The cosine schedule with warm-up and the weight-only decay exist.
 
 ### RW-40 Allow one HALF unit below 2^-13 between the reference path and the device
 - State: open
@@ -201,7 +219,8 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 
 ### RW-42 Close the detect module's open interface points
 - State: open
-- Done when: the points under "Detection host lane" are closed
+- Done when: the owner has ruled on the limits header, and `suppress_overlaps` and the
+  torchvision `nms` are compared with a reference
 - Source: `docs/agent/2026_10_07_YOLO26/PLAN.md`
 
 ## Domain modules
@@ -211,40 +230,43 @@ Stage 2 of the programme: 398 sites in 66 files, `nn/throwing_bridge.hpp` bridgi
 - Done when: key, target, dependencies, tests and install are one function each
 - Source: `docs/design/DOMAIN_MODULES/README.md`
 
-### RW-44 Give the join that lists type names one home
+### RW-44 Give the join that lists names one home
 - State: open
-- Done when: `node_registry.cpp`, `layer_registry.cpp` and `dataset_registry.cpp` share it
+- Done when: every registry and reader table builds its list of names through one function
+
+At least eight copies: the node, layer, dataset, importer and objective registries, the reader
+section, `csv.cpp` and the sampler section.
 
 ## Darknet-era YOLO
 
-### RW-45 Follow SushiRuntime v0.4.0 and the first SushiBLAS tag
+### RW-45 Follow the first SushiBLAS tag
 - State: blocked
-- Blocked by: sushiblas RW-8, external: the SushiRuntime tag that carries LAYERED_EXECUTION R1 to R10
-- Done when: the spellings this tree uses build against SushiRuntime v0.4.0, and CI pins
-  `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` to tags
+- Blocked by: sushiblas RW-8
+- Done when: CI pins `SUSHIRUNTIME_REF` and `SUSHIBLAS_REF` to tags
 - Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`
 - Where: `.github/workflows/ci.yml`, `.github/workflows/nightly.yml`
 
-A pre-merge build checks out SushiRuntime and SushiBLAS at `main`. `SUSHIRUNTIME_REF` and
-`SUSHIBLAS_REF` are `main`. Cause: SushiBLAS has no tag, and SushiRuntime's latest tag predates the
-runtime SushiBLAS `main` configures against.
+Both refs are `main`. SushiRuntime has tag `v0.4.0`; SushiBLAS has no release tag.
 
 ### RW-46 Confirm weight-only decay against Darknet
 - State: unmeasured
 - Done when: a parity suite states a decay and matches Darknet, which decays convolution weights
   and neither biases nor batch norm scales
 
-### RW-47 Drive `StepSchedule` from a training loop
-- State: open
-- Done when: a loop reads the rate the schedule returns per iteration
+The training parity cases set momentum and decay to 0
+(`modules/vision/darknet_training_cases/source/darknet_training.cpp`).
 
-### RW-48 Train a model from a cfg in `sushiai train`
+### RW-48 Train YOLOv3-tiny from the command line
 - State: open
-- Done when: `sushiai train` takes a cfg and `sushiai inference` reports its detections
+- Done when: `sushiai import darknet` of `yolov3-tiny.cfg`, `sushiai train` and
+  `sushiai inference` have run end to end on a small YOLO-layout dataset and printed detections
 
-### RW-49 Letterbox the input, with the inverse for boxes
+Every link exists; the chain has never run.
+
+### RW-49 Map boxes back through the letterbox
 - State: open
-- Done when: preprocessing letterboxes and boxes map back
+- Done when: a function maps boxes from the letterboxed input to the source image, and
+  `sushiai inference` prints them in source pixels
 
 ### RW-50 Delete the temporary Darknet checkout
 - State: open
@@ -252,60 +274,91 @@ runtime SushiBLAS `main` configures against.
 
 ## Model import
 
-### RW-51 Build and run the writers and the task section
+### RW-51 Run the writers and the task section
 - State: unmeasured
-- Done when: `write_json`, `write_model`, `AnchorTask` and their tests pass
+- Done when: `write_json`, `write_model`, `AnchorTask` and their tests pass in a recorded run
 - Source: `docs/design/MODEL_IMPORT/README.md`
-
-### RW-52 Give the `task` section a registry row
-- State: open
-- Done when: the row exists and inference decodes a model from it
-
-### RW-53 Put the `anchor` objective and the step schedule in the training file
-- State: open
-- Done when: both are keys of the training file
 
 ### RW-54 Let the `idx` reader row name its two files, and a row set the letterbox
 - State: open
 - Done when: both rows exist
 
-### RW-55 Close what phase 3 of the import lacks
+### RW-55 Add subdivisions and options per head
 - State: open
-- Done when: subdivisions, options per head and a restorable step count exist
+- Done when: the training file takes `subdivisions`, and each head of the anchor objective takes
+  its own options
 - Source: `docs/design/MODEL_IMPORT/README.md`
 
-### RW-56 Build and run the import
+The restorable step count exists. A stock `yolov3-tiny.cfg` has two identical heads, and a
+smaller `batch_size` stands in for subdivisions.
+
+### RW-56 Load the files the import writes
 - State: unmeasured
-- Done when: the three written files match their expected text and `load_checkpoint` accepts the
-  written weights of all six models
+- Done when: the three files the import writes for each of the six models equal their expected
+  text, and `load_checkpoint` accepts each written `weights.sushi`
+
+`ParityModels/Medium_DarknetImportEndToEnd` compares the translation in memory, not the files.
 
 ### RW-57 Set detection thresholds in `eval.json` and infer on one image file
 - State: open
 - Done when: both work
 
-### RW-58 Add `sushiai import darknet`
+The score threshold 0.25 and the suppression threshold 0.45 are constants in
+`applications/programs/source/domains_vision.cpp`.
+
+### RW-58 Read the imported files in the parity suites
 - State: open
-- Done when: the command exists and the parity suites read the imported files
+- Done when: the forward and training parity suites load the `model.json` and `weights.sushi`
+  the import wrote, not the `.cfg`
+
+### RW-132 Run both ends of the anchor path in a program test
+- State: open
+- Done when: a test under `tests/applications/programs/` trains an anchor model over a small
+  YOLO-layout fixture through the train program's anchor row, and runs
+  `report_anchor_detections` on the checkpoint it wrote
+
+### RW-133 Give YOLOv3-tiny an example directory
+- State: open
+- Done when: `applications/examples/yolov3_tiny/` holds a `train.json` with a filled `yolo_txt`
+  data block and a README a run can follow
+
+The import writes `"data": null`, since no `.cfg` names a dataset.
+
+### RW-134 Fit images as the imported `.cfg` says
+- State: open
+- Done when: the import writes the `.cfg`'s `letter_box` into the task section, and the
+  detection task stretches an image under 0 and letterboxes it under 1
+
+The owner ruled on 2026-10-25 that the model follows its `.cfg`. Today the detection task always
+letterboxes (`modules/vision/datasets/source/task_table.cpp`) and the import refuses
+`letter_box=1`, while Darknet stretches under the stock `letter_box=0`.
+
+### RW-135 Report mean average precision in `sushiai inference`
+- State: open
+- Done when: inference prints mAP at an IoU of 0.5 against the labels of the evaluated split
+
+### RW-136 Carry the `.cfg`'s augmentation into the training file
+- State: open
+- Done when: `jitter`, `hue`, `saturation` and `exposure` are training-file keys the import
+  writes
+
+The import prints a note for each and drops it.
 
 ## Datasets and tasks
 
-### RW-59 Build and run `Batch` with roles and `vision/codecs`
+### RW-59 Run `Batch` with roles and `vision/codecs`
 - State: unmeasured
 - Done when: both pass, with `test_learning_curve`, `test_determinism` and `test_compile_once`
 - Source: `docs/design/DATASETS/README.md`
 
-### RW-60 See the engine allocate under concurrent calls
+### RW-60 See the loader allocate from two threads
 - State: unmeasured
-- Done when: a test allocates from two threads, as the first read of a `ReaderDataset` into a
-  new `Batch` does
+- Done when: `Medium_DatasetsReaderSection.WorkersReadTheSameBatchesAhead` passes in a recorded
+  run
 
 ### RW-61 Run a death test inside an engine fixture
 - State: unmeasured
 - Done when: `ABatchOutsideTheEpochStopsTheProcess` is seen to pass engine start-up in its child
-
-### RW-62 Turn the detection roles into a `GroundTruthBatch`
-- State: open
-- Done when: `vision/training` converts int32 classes to int64 and the float `valid` to bytes
 
 ### RW-63 Give the imaging functions a status
 - State: open
@@ -315,10 +368,7 @@ runtime SushiBLAS `main` configures against.
 - State: open
 - Done when: `resize_bilinear` does not alias a large image fitted to a small input
 
-### RW-65 Write the raw cache from a folder of images
-- State: open
-- Done when: the rest of phase 2 of the datasets design exists
-- Source: `docs/design/DATASETS/README.md`
+Darknet's resize is a two-tap bilinear too, so averaging moves away from the Darknet reference.
 
 ### RW-66 Give the decoders one exception boundary
 - State: open
@@ -333,21 +383,14 @@ runtime SushiBLAS `main` configures against.
 - State: open
 - Done when: a collator that reads no mask stops a mask being decoded
 
-### RW-69 Build and run the loader on two threads
-- State: unmeasured
-- Done when: a test allocates from two threads through the loader
-
-### RW-70 Collate detections and train over `AnchorTrainingStep`
-- State: open
-- Done when: the detection collator exists and `train` runs over the step
-
 ### RW-71 Checkpoint inside an epoch
 - State: open
 - Done when: `sushiai train` saves at a batch and the written batch index is that batch
 
-### RW-72 Test the program loops from a start other than zero
+### RW-72 Test the cluster loop and the trainer run from a start other than zero
 - State: open
-- Done when: `test_program_runs.cpp` starts a loop past zero
+- Done when: a test starts the cluster loop and the `Trainer` fallback run past epoch 0 and past
+  batch 0, as `test_epoch_loop.cpp` does
 
 ### RW-73 Let `Trainer::fit` resume past epoch 0
 - State: open
@@ -365,7 +408,7 @@ runtime SushiBLAS `main` configures against.
 - State: open
 - Done when: a sum of two terms computes mean IoU once
 
-### RW-77 Build and run segmentation
+### RW-77 Run segmentation
 - State: unmeasured
 - Done when: the objectives, the head and the overfit test pass
 
@@ -383,9 +426,10 @@ runtime SushiBLAS `main` configures against.
 
 ## Language
 
-### RW-81 Design the decision model, phase 6
+### RW-81 State the frame budget and training data of phase 6
 - State: open
-- Done when: phase 6 is designed, the first work after the build passes by the owner's ruling
+- Done when: the language design states the frame budget and the training data of phase 6, and
+  names the first task after the build passes
 - Source: `docs/design/LANGUAGE/README.md`
 
 ### RW-82 Show per-term losses in a step's view
@@ -415,27 +459,32 @@ runtime SushiBLAS `main` configures against.
 
 ### RW-88 Give every node one factory signature
 - State: open
-- Done when: vision's rows take it and the linked rows go
+- Done when: `language_head`, the one linked row, takes the signature of the others and
+  `LinkedNodeFactory` goes
 
 ### RW-89 Call `match_input` from the anchor loop
 - State: open
 - Done when: the loop matches inputs as well as roles
 
-### RW-90 Pass the epoch through the dataset seam
+### RW-90 Redraw a token dataset's windows per epoch
 - State: open
-- Done when: window starts can be redrawn per epoch: one pure virtual, 8 overrides, 68 call sites
+- Done when: `TokenDataset` implements `Data::EpochAware` and redraws its window starts at each
+  epoch
 
 ### RW-91 Give `at_boundary` and the little-endian readers one home
 - State: open
-- Done when: `vision/datasets`, `language/text` and `language/datasets` share them
+- Done when: the three `at_boundary` copies (`vision/datasets`, `language/text`,
+  `language/datasets`) and the two `little_endian.hpp` copies are one each
 
 ### RW-92 Measure `train_bpe` on a corpus of tens of megabytes
 - State: unmeasured
-- Done when: the time and memory are recorded
+- Done when: `sushiai tokenize train` over a corpus of at least 20 MB is timed, and its time and
+  peak memory are in `modules/language/text/README.md`
 
-### RW-93 Close the points phase 2 left open
+### RW-93 Settle the masked attention score
 - State: open
-- Done when: the points the language design lists are closed
+- Done when: the masked score is a value that is minus infinity in HALF, or the language design
+  records -1e9 as a decision
 - Source: `docs/design/LANGUAGE/README.md`
 
 ### RW-94 Fill the dropout mask on the device
@@ -447,26 +496,24 @@ B1 belongs to SushiBLAS; its entry there waits until that repository's current w
 
 ### RW-95 Make the tests' bodies match their names
 - State: open
-- Done when: `DropoutRefusesOperandsThatDoNotFit`, `AMergeOfALaterTokenIsRefused`,
-  `AMissingFileFails` and `ARefusedDiceFillChangesNothing` check what they name
+- Done when: `AMissingFileFails` checks a `FileNotFound` code and the path,
+  `ARefusedDiceFillChangesNothing` checks all five leaves, and `DropoutRefusesOperandsThatDoNotFit`
+  has the empty-input case its comment promises
 
 ### RW-96 Check the older test pages sentence by sentence
 - State: open
-- Done when: the about 190 older sections of the test READMEs match their sources and none of
-  their lines passes 100 columns (106 do)
+- Done when: the test pages under `tests/` match their sources and none of their lines passes 100
+  columns (227 do)
 
-### RW-97 Write the Darknet sections of the importer test page from the helpers
+### RW-97 Describe the shared check helpers on the importer test page
 - State: open
-- Done when: `tests/vision/importers/README.md` describes the shared check helpers from their
-  bodies
+- Done when: `tests/vision/importers/README.md` links the test files that exist and describes
+  the helpers of the three `darknet_*_cases` modules from their bodies
 
-### RW-98 Check a token id against the table before a step
+### RW-98 Check a token id against the embedding before a step
 - State: open
-- Done when: an id outside the table is refused before the sparse product reads it (A5)
-
-### RW-99 Take an int32 input in the model file
-- State: open
-- Done when: `Config::ModelSpec` states an input type, so an `embedding` row works from a file
+- Done when: an input id outside `Embedding::num_embeddings` is refused with a named error before
+  the step
 
 ## Memory planning and speed
 
@@ -484,23 +531,19 @@ A rule leaves out a buffer the host fills once or a replay prelude writes.
 - Where: `tests/vision/importers/test_darknet_training/test_yolov4.cpp`,
   `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
 
-A head of YOLOv4 is up to 0.205 from the dump on values near 40, one of YOLOv7 up to 0.0052; the
-tiny models hold 1e-3, and the memory plan is ruled out for them.
-
-The step bounds of YOLOv4 and YOLOv7 are wide and unexplained. A head is held to 0.31 of the dump in
-YOLOv4 and 0.0079 in YOLOv7, 1.5 times the one measured difference. Cause: unknown; no layer before
-the heads is compared.
+A head is held to 0.31 of the dump in YOLOv4 and 0.0079 in YOLOv7. The differences behind those
+bounds (0.205 and 0.0052) were measured on 2026-10-13, before SushiBLAS's later work, and are to
+be measured again. The tiny models' differences are explained by Darknet's variance divisor and
+its backward clearing a route's delta (`test_yolov3_tiny.md`).
 
 ### RW-102 Close the step time against Darknet
 - State: open
 - Done when: a full-size step takes the time of a Darknet iteration on the same card
 
-RTX 3080 Ti, batch 2, 200 steps: YOLOv4 0.76 s a step against 0.21 s, YOLOv7 0.70 s against
-0.18 s. The host stage costs YOLOv4 115 ms to read the heads and 120 ms to write the deltas, all
-on `Residency::Shared` pages; batch normalisation and its gradient, lowered to primitives, are
-most of the 4 980 small nodes. Left, by return: copy heads and deltas through
-`Residency::Host` tensors (an allocation of that residency in `allocation.hpp`), fuse batch
-normalisation and its gradient, compute the deltas on the device.
+Measured on 2026-10-13 and to be measured again: RTX 3080 Ti, batch 2, 200 steps, YOLOv4 0.76 s a
+step against 0.21 s. Left: `Residency::Host` tensors for the heads and deltas (SushiRuntime has
+the residency, `allocation.cpp` does not offer it), batch normalisation and its gradient fused
+(SushiBLAS has no kernel), the deltas on the device.
 
 ### RW-103 Make the one-batch overfit of YOLOv7 hold
 - State: open
@@ -508,10 +551,7 @@ normalisation and its gradient, compute the deltas on the device.
   the instability found and the bound ruled by the owner
 - Where: `tests/vision/importers/test_darknet_training/test_yolov7.cpp`
 
-The one-batch overfit of YOLOv7 fails.
-`Large_DarknetYolov7Training.TheCostOfOneBatchFallsUnderATenth` reads 11.1 at step 199 against a
-bound of 3.56. Cause: the run is unstable on its batch, and the order of one sum decides the
-outcome.
+It read 11.1 at step 199 against 3.56 on 2026-10-13; the run is to be made again.
 
 ### RW-104 Measure where YOLOv3's training step leaves Darknet, layer by layer
 - State: unmeasured
@@ -519,16 +559,13 @@ outcome.
   75 convolutions or enters at one
 - Where: `tests/vision/importers/test_darknet_training/test_yolov3.cpp`
 
-The step bounds of YOLOv3 are wide and unexplained. A head is held to 0.36 of the dump, 1.5 times
-the one measured difference. Cause: unknown; no layer before the heads is compared.
+A head is held to 0.36 of the dump, 1.5 times the one measured difference.
 
 ### RW-105 Feed a batch without two copies
 - State: blocked
 - Blocked by: sushiruntime RW-59
 - Done when: a step writes the batch into the plan's input buffers without two `blas().copy()`
   calls
-
-A `Dataset` that writes each batch into the two buffers the plan owns is the other way.
 
 ## Fusion and the IR
 
@@ -541,7 +578,8 @@ A `Dataset` that writes each batch into the two buffers the plan owns is the oth
 - State: open
 - Done when: it lowers to fewer than three calls
 
-The SushiBLAS whole-tensor reduction takes no transform functor.
+SushiBLAS's folding reduction takes a transform and a finalize functor in its dispatch, and its
+public `ReductionOps` does not.
 
 ### RW-108 Skip the whole step on overflow
 - State: open
@@ -549,56 +587,44 @@ The SushiBLAS whole-tensor reduction takes no transform functor.
   reads the count buffer and writes a gradient
 - Where: `modules/core/optim/include/SushiAI/optim/loss_scaler.hpp`
 
-An overflowed gradient in mixed precision skips one parameter's update only. One step updates some
-layers and not others. Cause: `LossScaler` screens each parameter's gradient and skips that
-parameter alone.
+An overflowed gradient in mixed precision skips one parameter's update only, so one step updates
+some layers and not others.
 
 ### RW-109 Add bfloat16
 - State: open
 - Done when: `MixedPrecisionPolicy` takes bfloat16
 
-`SushiBLAS::Core::DataType` has no bfloat16 entry; its entry there waits until that
-repository's current work is done.
-
-### RW-123 Differentiate `K_LOG_SOFTMAX` on its own
-- State: open
-- Done when: it has a backward rule outside the fused pair with `K_NLL_LOSS`
+`SushiBLAS::Core::DataType` has no bfloat16 entry.
 
 ## Data and objectives
 
-### RW-110 Widen `Dataset` beyond classification
+### RW-111 Check that an objective writes every leaf it declares
 - State: open
-- Done when: a regression task or a detector can implement `Dataset` without `num_classes()` and
-  classification targets (`modules/core/data/include/SushiAI/data/dataset.hpp`)
-
-### RW-111 Feed arbitrary objective leaves
-- State: open
-- Done when: `Trainer` writes every leaf an objective declares in `ObjectiveLeaves`
+- Done when: `Trainer` returns a `Status` when `feed` leaves a leaf of `ObjectiveLeaves::all()`
+  unwritten, with a test whose objective skips one
 
 ## Diagnostics
 
-### RW-112 Pin a reference loss curve
-- State: open
-- Done when: a test compares a run's loss with a recorded curve
-
 ### RW-113 Print per-node timings in the demo
 - State: open
-- Done when: `applications/examples/source/demo_mlp.cpp` builds a profiling context and prints
-  the table
+- Done when: `applications/examples/source/demo_mlp.cpp` turns on `RuntimeConfig::profiling` and
+  prints the per-node table of `CompiledStep::last_report()`
 
 ## Graph capabilities
 
 ### RW-120 Carry out the SushiAI items of the graph capabilities plan
 - State: open
-- Done when: the G and A items of section 5 are closed
+- Done when: G2 to G5, G7 to G12, A2, A5, A6 and A12 of section 5 are closed
 - Source: `docs/design/GRAPH_CAPABILITIES/README.md`
 
 R1 is `sushiruntime RW-62`; R2 is `docs/design/LAYERED_EXECUTION/README.md`, `RW-130`. The B items belong to
-SushiBLAS, and their entry there waits until that repository's current work is done.
+SushiBLAS.
 
-### RW-121 Move onto SushiBLAS's views, enums and `BLASScalar`
-- State: open
-- Done when: this tree builds on that interface
+### RW-121 Build on SushiBLAS's views, enums and `BLASScalar`
+- State: unmeasured
+- Done when: `sa build` of this tree is clean against SushiBLAS `main` at 802e59d or later
+
+No old spelling is left in the source.
 
 ### RW-122 Give `Status` a code for a runtime busy with another run
 - State: open
@@ -611,23 +637,24 @@ SushiBLAS, and their entry there waits until that repository's current work is d
 - Done when: the numbers of `TUTORIAL.md`, sections 1 to 6 of `ARCHITECTURE.md` and the flag
   tables of `CLI_GUIDE.md` are checked against the code
 
-
 ## Test tree
 
-### RW-116 Run the Darknet parity scenarios of YOLOv3, YOLOv4 and YOLOv7 after the move
+### RW-116 Run the Darknet parity scenarios
 - State: unmeasured
 - Done when: the scenarios in `tests/vision/importers/test_darknet_training/` and
-  `test_darknet_import/` have run on the moved tree
+  `test_darknet_import/` have run with `SA_REFERENCE_DATA_DIR` set, YOLOv3-tiny's first
+
+Without the variable they skip; the last run skipped all of them.
 
 ### RW-117 Name every suite after its unit
 - State: open
-- Done when: no suite such as `Small_Diagnostics` or `Unit_<Module><Header>` starts with
-  another name
+- Done when: `Small_Diagnostics` in `test_backward.cpp` and `test_builder.cpp` is named after the
+  unit each file tests
 
-### RW-118 List the new test pages and give the new test folders a README
+### RW-118 Give every test folder a README
 - State: open
-- Done when: each folder README that keeps a test-file table lists its new pages, and the 18 new
-  folders have a README
+- Done when: the 28 test folders that hold sources and no README have one, and each README with a
+  test-file table lists its pages
 
 ### RW-119 Move three tests into their mirror files
 - State: open
@@ -640,4 +667,4 @@ SushiBLAS, and their entry there waits until that repository's current work is d
 - State: open
 - Done when: each topic has an `**About:**` line of one sentence written for a cold reader
 
-The topic model generated the lines from the first sentence of each document or from its title.
+Four of the seven end in the generator's cut.
