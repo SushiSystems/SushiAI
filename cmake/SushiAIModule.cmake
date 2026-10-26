@@ -123,6 +123,11 @@ function(sushiai_promote_imported)
         if(aliased OR NOT imported OR global)
             continue()
         endif()
+        # Only the directory whose find_package created a target may promote it.
+        get_directory_property(found_here IMPORTED_TARGETS)
+        if(NOT external IN_LIST found_here)
+            continue()
+        endif()
 
         set_target_properties(${external} PROPERTIES IMPORTED_GLOBAL TRUE)
 
@@ -152,9 +157,12 @@ endfunction()
 #     [PUBLIC_DEPENDS <module key> ...] [PRIVATE_DEPENDS <module key> ...]
 #     [EXTERNAL_PUBLIC <target> ...] [EXTERNAL_PRIVATE_INCLUDES <target> ...]
 #     [EXTERNAL_PRIVATE_LINKS <target> ...] [PUBLIC_DEFINITIONS <name> ...]
-#     [TESTS tests/<file>.cpp ...] [INTERNAL])
+#     [TESTS tests/<file>.cpp ...] [INTERNAL] [UNINSTALLED_HEADERS])
 #
 # INTERNAL declares a module only the tests use; see sushiai_add_internal_module.
+# UNINSTALLED_HEADERS keeps the module's include/ for the build: the library's own sources, its
+# tests and programs reach it, and it is neither installed nor named by the umbrella. It is for a
+# module whose headers name a dependency no consumer of the package may see.
 # Called from modules/<tier>/<module>/CMakeLists.txt. With SOURCES the module
 # is an OBJECT library, without them an INTERFACE one. DEVICE_SOURCES names the
 # SOURCES that instantiate a device kernel; only those compile for the device
@@ -175,7 +183,7 @@ endfunction()
 function(sushiai_add_module)
     set(multi_value_keywords SOURCES DEVICE_SOURCES PUBLIC_DEPENDS PRIVATE_DEPENDS EXTERNAL_PUBLIC
         EXTERNAL_PRIVATE_INCLUDES EXTERNAL_PRIVATE_LINKS PUBLIC_DEFINITIONS TESTS)
-    cmake_parse_arguments(ARG "INTERNAL" "NAME;TIER" "${multi_value_keywords}" ${ARGN})
+    cmake_parse_arguments(ARG "INTERNAL;UNINSTALLED_HEADERS" "NAME;TIER" "${multi_value_keywords}" ${ARGN})
 
     if(NOT ARG_NAME OR NOT ARG_TIER)
         message(FATAL_ERROR "sushiai_add_module: NAME and TIER are required.")
@@ -278,7 +286,11 @@ function(sushiai_add_module)
             "$<TARGET_PROPERTY:${external},INTERFACE_COMPILE_DEFINITIONS>")
     endforeach()
 
-    set_property(GLOBAL APPEND PROPERTY SUSHIAI_INCLUDE_ROOTS_${library} "${include_root}")
+    if(ARG_UNINSTALLED_HEADERS)
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_BUILD_INCLUDE_ROOTS_${library} "${include_root}")
+    else()
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_INCLUDE_ROOTS_${library} "${include_root}")
+    endif()
 
     foreach(test IN LISTS ARG_TESTS)
         set_property(GLOBAL APPEND PROPERTY SUSHIAI_TESTS_${library}
@@ -286,8 +298,10 @@ function(sushiai_add_module)
     endforeach()
 
     # A header's page (<name>.md) sits beside it and is not installed.
-    install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-        FILES_MATCHING PATTERN "*.hpp")
+    if(NOT ARG_UNINSTALLED_HEADERS)
+        install(DIRECTORY "${include_root}/" DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+            FILES_MATCHING PATTERN "*.hpp")
+    endif()
 endfunction()
 
 # Links one dependency of an internal module: an internal dependency itself, a
@@ -409,12 +423,13 @@ function(sushiai_add_library)
 
     get_property(objects GLOBAL PROPERTY SUSHIAI_OBJECTS_${ARG_NAME})
     get_property(include_roots GLOBAL PROPERTY SUSHIAI_INCLUDE_ROOTS_${ARG_NAME})
+    get_property(build_include_roots GLOBAL PROPERTY SUSHIAI_BUILD_INCLUDE_ROOTS_${ARG_NAME})
     get_property(private_links GLOBAL PROPERTY SUSHIAI_PRIVATE_LINKS_${ARG_NAME})
 
     add_library(${ARG_NAME} STATIC ${objects})
     add_library(SushiAI::${ARG_EXPORT_NAME} ALIAS ${ARG_NAME})
 
-    foreach(include_root IN LISTS include_roots)
+    foreach(include_root IN LISTS include_roots build_include_roots)
         target_include_directories(${ARG_NAME} PUBLIC "$<BUILD_INTERFACE:${include_root}>")
     endforeach()
     target_include_directories(${ARG_NAME} PUBLIC

@@ -32,6 +32,15 @@ include(Profiler) # SA_ENABLE_PROFILER, SA_PROFILE_LEVEL -> SushiProfiler::Sushi
 option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
 include(Runtime)  # SushiRuntime_DIR from the CLI -> SushiRuntime::SushiRuntime
 include(BLAS)     # SushiBLAS_DIR from the CLI -> SushiBLAS::sushiblas
+# The packages above are found here, so only this directory may make their targets visible to
+# modules/, tests/ and applications/; a module directory cannot promote a target it did not find.
+get_property(sushiai_package_targets DIRECTORY PROPERTY IMPORTED_TARGETS)
+foreach(package_target IN LISTS sushiai_package_targets)
+    get_target_property(package_target_global ${package_target} IMPORTED_GLOBAL)
+    if(NOT package_target_global)
+        set_target_properties(${package_target} PROPERTIES IMPORTED_GLOBAL TRUE)
+    endif()
+endforeach()
 if(SA_ENABLE_DISTRIBUTED AND NOT (SushiRuntime_DISTRIBUTED AND SushiBLAS_DISTRIBUTED))
     message(FATAL_ERROR
         "SA_ENABLE_DISTRIBUTED is ON, and the SushiRuntime package (${SushiRuntime_DIR}) or the "

@@ -10,6 +10,7 @@ sushiai_add_test_program(OWNER profile_records
     SOURCES
         test_profile_records.cpp
     DEPENDS
+        profile_records
         scratch_files
     LINKS
         ${SA_PROFILER_LINKS})

@@ -9,7 +9,7 @@
 # profile_config.hpp, never through compile definitions, so a change of level rebuilds only
 # the files that include profile.hpp.
 
-sushiai_add_module(NAME profile TIER core
+sushiai_add_module(NAME profile TIER core UNINSTALLED_HEADERS
     SOURCES
         source/timelines.cpp
     PRIVATE_DEPENDS failure
@@ -30,5 +30,3 @@ configure_file(profile_config.hpp.in
 sushiai_module_key(profile core profile_key)
 sushiai_module_target("${profile_key}" profile_target)
 target_include_directories(${profile_target} PUBLIC "$<BUILD_INTERFACE:${profile_generated}>")
-install(FILES "${profile_generated}/SushiAI/profile/profile_config.hpp"
-    DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/SushiAI/profile")
