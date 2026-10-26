@@ -17,6 +17,7 @@ from sushicore.provision.sushi_packages import PackageSet, RunDirs
 from sushicore.provision.sushi_packages import configure_arguments  # noqa: F401  (callers take it from here)
 
 from ..config import Config
+from .sycl_targets import sycl_targets_define
 
 #: The file of a build tree that names the run-time folders of the packages it linked.
 K_RUN_DIRS_FILE = ".sushiai_package_dirs.json"
@@ -24,6 +25,10 @@ K_RUN_DIRS_FILE = ".sushiai_package_dirs.json"
 #: The libraries whose package is built with the distributed layer when SushiAI is.
 K_DISTRIBUTED_LIBRARIES = ("sushiruntime", "sushiblas")
 K_DISTRIBUTED_FLAG = "--distributed"
+
+#: The library that takes the device target list, and the flag that carries it.
+K_BLAS = "sushiblas"
+K_DEFINE_FLAG = "-D"
 
 #: The build types whose library packages are built as release.
 K_RELEASE_PACKAGE_TYPES = ("asan", "minsizerel")
@@ -39,19 +44,26 @@ def package_build_type(build_type: str) -> str:
     return K_PACKAGE_BUILD_TYPE if build_type in K_RELEASE_PACKAGE_TYPES else build_type
 
 
-def package_options(distributed: bool) -> Mapping[str, tuple[str, ...]]:
+def package_options(distributed: bool, sycl_targets: str = "") -> Mapping[str, tuple[str, ...]]:
     """Return the extra `build` arguments each library takes for this SushiAI build.
 
     The distribution module needs the distributed layer of SushiRuntime and the cluster module of
-    SushiBLAS, so ``--distributed`` of SushiAI becomes ``--distributed`` of both packages.
+    SushiBLAS, so ``--distributed`` of SushiAI becomes ``--distributed`` of both packages. A
+    device target list becomes ``-D SB_SYCL_TARGETS=<list>`` of the SushiBLAS package, so another
+    list is another package and an equal one is reused.
     """
-    if not distributed:
-        return {}
-    return {name: (K_DISTRIBUTED_FLAG,) for name in K_DISTRIBUTED_LIBRARIES}
+    options: dict[str, tuple[str, ...]] = {}
+    if distributed:
+        options.update({name: (K_DISTRIBUTED_FLAG,) for name in K_DISTRIBUTED_LIBRARIES})
+    if sycl_targets:
+        define = (K_DEFINE_FLAG, *sycl_targets_define(sycl_targets))
+        options[K_BLAS] = (*options.get(K_BLAS, ()), *define)
+    return options
 
 
 def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed: bool,
-            report: Callable[[str], None], warn: Callable[[str], None]) -> PackageSet:
+            sycl_targets: str, report: Callable[[str], None],
+            warn: Callable[[str], None]) -> PackageSet:
     """Return a built package of SushiLog, SushiProfiler, SushiRuntime and SushiBLAS.
 
     A missing package is built once through the library's own CLI.
@@ -62,13 +74,14 @@ def resolve(cfg: Config, root: Path, build_type: str, compiler: str, distributed
         build_type: The build type of this configure, such as ``release``.
         compiler: The compiler of this build; the packages are built with it.
         distributed: Whether the distribution module is built.
+        sycl_targets: The ahead-of-time device targets of the SushiBLAS package, or ''.
         report: Receives one ``reused`` or ``built`` line per library.
         warn: Receives the warnings of the resolver.
 
     Raises:
         sushicore.provision.sushi_packages.PackageError: A package cannot be chosen.
     """
-    return cfg.sushi_packages(root, package_build_type(build_type), package_options(distributed),
+    return cfg.sushi_packages(root, package_build_type(build_type), package_options(distributed, sycl_targets),
                               report=report, warn=warn, compiler=compiler)
 
 

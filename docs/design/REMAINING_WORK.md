@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-146
+Next id: RW-147
 
 ## Next
 
@@ -60,6 +60,16 @@ the model is traced.
 - State: open
 - Done when: a test under `tests/vision/registration/` loads a model file with a block missing
   and checks that the `Status` names the block
+
+### RW-146 Move the project service of the CLI onto injected collaborators
+- State: open
+- Done when: `cli/sushiai/services/project.py` holds a `ProjectService` that takes its console, runner,
+  driver and configuration through its constructor, as SushiBLAS's does, and `build` is split into
+  the steps that resolve the packages, configure and compile
+- Source: `cli/sushiai/services/project.py`
+
+The module keeps `_DRIVER`, `_RUNNER` and the console as module attributes, and its tests replace
+them with `monkeypatch`. `build` resolves packages, configures and compiles in one function.
 
 ## Runs not yet made
 

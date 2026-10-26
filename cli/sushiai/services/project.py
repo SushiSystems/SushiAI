@@ -32,6 +32,7 @@ from ..env import load_build_env
 from . import discovery, library_packages
 from .distributed import K_DISTRIBUTED_VARIABLE, distributed_define
 from .sanitizer import Sanitizer, sanitize_define
+from .sycl_targets import read_sycl_targets, record_sycl_targets
 
 
 class BuildType(str, enum.Enum):
@@ -96,6 +97,13 @@ def _distributed(build_dir: Path, requested: bool | None) -> bool:
     if requested is not None:
         return requested
     return cached_value(build_dir, K_DISTRIBUTED_VARIABLE) == "ON"
+
+
+def _sycl_targets(build_dir: Path, requested: str | None) -> str:
+    """Returns the device target list: *requested*, else what the tree recorded, else none."""
+    if requested is not None:
+        return requested
+    return read_sycl_targets(build_dir)
 
 
 def _run_env(cfg: Config, build_dir: Path) -> dict[str, str]:
@@ -216,11 +224,13 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
 def build(build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None,
           sanitizer: Sanitizer | None = None,
-          distributed: bool | None = None) -> int:
+          distributed: bool | None = None,
+          sycl_targets: str | None = None) -> int:
     """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched.
 
-    *sanitizer* sets the sanitizers of host code and *distributed* the distributed layer;
-    None keeps the cached value of each.
+    *sanitizer* sets the sanitizers of host code and *distributed* the distributed layer and
+    *sycl_targets* the device targets of the SushiBLAS package; None keeps the
+    cached value of each.
     """
     console.header("Project Build")
     try:
@@ -250,10 +260,11 @@ def build(build_type: BuildType, clean: bool = False,
     else:
         console.info("Reconfiguring in place...")
 
+    targets = _sycl_targets(build_dir, sycl_targets)
     try:
         packages = library_packages.resolve(
             cfg, root, build_type.value, cfg.resolved_compiler(root),
-            _distributed(build_dir, distributed), console.info, console.warn)
+            _distributed(build_dir, distributed), targets, console.info, console.warn)
     except PackageError as error:
         console.error(str(error))
         return 1
@@ -267,6 +278,7 @@ def build(build_type: BuildType, clean: bool = False,
         console.error("CMake configure failed.")
         return rc
     library_packages.record_run_dirs(build_dir, run_dirs)
+    record_sycl_targets(build_dir, targets)
 
     console.info("Building...")
     rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
@@ -498,7 +510,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     try:
         packages = library_packages.resolve(
             cfg, root, build_type.lower(), cfg.resolved_compiler(root),
-            _distributed(build_dir, None), console.info, console.warn)
+            _distributed(build_dir, None), _sycl_targets(build_dir, None),
+            console.info, console.warn)
     except PackageError as error:
         console.error(str(error))
         return 1

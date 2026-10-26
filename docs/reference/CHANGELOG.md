@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — cli: Added `sa build --sycl-targets`, which passes `-D SB_SYCL_TARGETS=<list>` to the SushiBLAS package (`cli/sushiai/services/sycl_targets.py`).
 - 2026-10-26 — build: Took SushiRuntime as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIRUNTIME_DIR` (`cmake/Runtime.cmake`).
 - 2026-10-26 — build: Took SushiBLAS as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIBLAS_DIR` (`cmake/BLAS.cmake`).
 - 2026-10-26 — build: Took SushiLog as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHILOG_DIR` (`cmake/Log.cmake`).

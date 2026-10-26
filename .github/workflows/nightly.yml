@@ -15,7 +15,9 @@ permissions:
 env:
   SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
-  SUSHILOG_REF: v0.2.2
+  SUSHILOG_REF: v0.2.3
+  # The commit cli/sushistack.deps.toml pins; it becomes v0.2.0 when SushiProfiler is tagged.
+  SUSHIPROFILER_REF: f303075857f444a4edd89cfaae598d0847b8899b
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
   SA_CXX: icpx
@@ -47,6 +49,12 @@ jobs:
           repository: SushiSystems/SushiLog
           ref: ${{ env.SUSHILOG_REF }}
           path: sushilog
+          token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: SushiSystems/SushiProfiler
+          ref: ${{ env.SUSHIPROFILER_REF }}
+          path: sushiprofiler
           token: ${{ secrets.SUSHISTACK_CI_TOKEN || github.token }}
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:

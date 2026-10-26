@@ -45,6 +45,7 @@ def test_build_command_forwards_the_distributed_option(
         define: Sequence[str] | None,
         sanitize: project.Sanitizer | None,
         distributed_option: bool | None,
+        sycl_targets: str | None,
     ) -> int:
         """Records the option and reports success."""
         received.append(distributed_option)

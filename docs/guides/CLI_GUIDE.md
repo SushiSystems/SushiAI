@@ -122,6 +122,7 @@ search path.
 ```bash
 sa build -D SA_BUILD_TESTS=OFF
 sa build -D SA_BUILD_TESTS=OFF -D SA_ENABLE_PROFILER=OFF
+sa build --sycl-targets "spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
 ```
 
 Repeatable, `VAR=VALUE`, passed straight through to `cmake`: the same flag
@@ -136,9 +137,12 @@ Two things worth knowing:
 - **They are appended last**, after every default the CLI sets, so an explicit
   `-D` is never silently outranked by one of them.
 
-A variable of SushiBLAS or SushiRuntime, `SB_SYCL_TARGETS` among them, is not a cache variable
-of this build tree: those libraries are built as packages by their own CLIs, so it is set in
-their builds.
+AOT device targeting is the `--sycl-targets` option. It passes `-D SB_SYCL_TARGETS=<list>` to
+`sb build` of the SushiBLAS package, so another list is another package and an equal one is
+reused. The device units of this tree take their options from the package's
+`SushiBLAS::device_code`, which carries the targets the package was built with. Left out, the list of the last build stays; an
+empty string clears it. Any other variable of SushiBLAS or SushiRuntime is not a cache variable
+of this build tree: those libraries are built as packages by their own CLIs.
 
 ## `sa test`
 

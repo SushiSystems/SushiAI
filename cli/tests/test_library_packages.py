@@ -138,11 +138,12 @@ def test_distributed_becomes_the_distributed_option_of_both_packages():
 def test_resolve_asks_for_the_closure_with_the_compiler_and_the_package_type():
     cfg = _Config()
 
-    library_packages.resolve(cfg, Path("."), "asan", "clang++", True, print, print)
+    library_packages.resolve(cfg, Path("."), "asan", "clang++", True, "spir64", print, print)
 
     assert cfg.asked == [{"build_type": "release", "compiler": "clang++",
                           "options": {"sushiruntime": ("--distributed",),
-                                      "sushiblas": ("--distributed",)}}]
+                                      "sushiblas": ("--distributed", "-D",
+                                                    "SB_SYCL_TARGETS=spir64")}}]
 
 
 def test_the_run_dirs_are_written_read_and_put_first_on_the_path(tmp_path):
@@ -256,3 +257,95 @@ def test_the_consumer_runs_without_the_package_folders_on_its_path():
     stripped = project._consumer_run_env(cfg, Path("."), env, ["C:/pkg/bin"])
 
     assert stripped["PATH"] == "C:/other"
+
+
+def test_sycl_targets_go_to_the_blas_package_alone(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(BuildType.release, sycl_targets="spir64;nvidia_gpu_sm_86") == 0
+
+    assert cfg.asked[0]["options"] == {
+        "sushiblas": ("-D", "SB_SYCL_TARGETS=spir64;nvidia_gpu_sm_86")}
+    assert not [item for item in driver.configured[0] if "SB_SYCL_TARGETS" in item]
+
+
+def test_a_build_that_leaves_the_targets_out_keeps_what_the_tree_has(parts):
+    root, cfg, driver, console = parts
+    (root / "build").mkdir()
+    (root / "build" / ".sushiai_sycl_targets").write_text("spir64")
+
+    assert project.build(BuildType.release) == 0
+
+    assert cfg.asked[0]["options"] == {"sushiblas": ("-D", "SB_SYCL_TARGETS=spir64")}
+
+
+def test_an_empty_target_list_clears_the_targets_of_the_package(parts):
+    root, cfg, driver, console = parts
+    (root / "build").mkdir()
+    (root / "build" / "CMakeCache.txt").write_text("SB_SYCL_TARGETS:STRING=spir64\n")
+
+    assert project.build(BuildType.release, sycl_targets="") == 0
+
+    assert cfg.asked[0]["options"] == {}
+
+
+def test_the_package_suite_resolves_again_and_hands_the_consumer_the_packages(parts, monkeypatch):
+    root, cfg, driver, console = parts
+    build = root / "build"
+    build.mkdir()
+    (build / "CMakeCache.txt").write_text(
+        "CMAKE_BUILD_TYPE:STRING=Debug\nSA_ENABLE_DISTRIBUTED:BOOL=ON\n")
+    commands: list[list[str]] = []
+
+    class _Runner:
+        """Records each command and succeeds."""
+
+        def run(self, cmd, cwd, env=None) -> int:
+            """Keeps *cmd*."""
+            commands.append(list(cmd))
+            return 0
+
+    monkeypatch.setattr(project, "_RUNNER", _Runner())
+    monkeypatch.setattr(project.discovery, "match_by_name",
+                        lambda tree, name: Path(tree) / name)
+
+    assert project.test_package(cfg, root, build, {}) == 0
+
+    assert cfg.asked[0]["build_type"] == "debug"
+    assert set(cfg.asked[0]["options"]) == {"sushiruntime", "sushiblas"}
+    consumer = driver.configured[0]
+    assert f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}" in consumer
+    assert f"-DSushiBLAS_DIR={K_BLAS_CONFIG}" in consumer
+
+
+def test_a_refused_closure_stops_the_package_suite_before_the_consumer(parts, monkeypatch):
+    root, cfg, driver, console = parts
+    cfg.fail = True
+    (root / "build").mkdir()
+
+    class _Runner:
+        """Succeeds without running anything."""
+
+        def run(self, cmd, cwd, env=None) -> int:
+            """Succeeds."""
+            return 0
+
+    monkeypatch.setattr(project, "_RUNNER", _Runner())
+    assert project.test_package(cfg, root, root / "build", {}) == 1
+
+    assert driver.configured == []
+
+
+def test_the_consumer_gets_the_package_libraries_beside_its_executable(tmp_path, monkeypatch):
+    prefix, dest, package = tmp_path / "prefix", tmp_path / "dest", tmp_path / "pkg" / "bin"
+    (prefix / "bin").mkdir(parents=True)
+    dest.mkdir()
+    package.mkdir(parents=True)
+    (package / "sushiruntime.dll").write_text("", encoding="utf-8")
+    monkeypatch.setattr(project, "_vcpkg_prefix", lambda cfg, root: None)
+    monkeypatch.setattr(project, "console", _Console())
+
+    assert project._deploy_consumer_dlls(SimpleNamespace(is_windows=True), tmp_path, prefix,
+                                         dest, [str(package)]) is True
+
+    assert (dest / "sushiruntime.dll").is_file()

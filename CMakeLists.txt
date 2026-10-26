@@ -31,13 +31,13 @@ include(Profiler) # SA_ENABLE_PROFILER, SA_PROFILE_LEVEL -> SushiProfiler::Sushi
 # The distribution module's target carries SA_DISTRIBUTED to whatever links it.
 option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
 include(Runtime)  # SushiRuntime_DIR from the CLI -> SushiRuntime::SushiRuntime
-if(SA_ENABLE_DISTRIBUTED AND NOT SushiRuntime_DISTRIBUTED)
-    message(FATAL_ERROR
-        "SA_ENABLE_DISTRIBUTED is ON and the SushiRuntime package at ${SushiRuntime_DIR} was "
-        "built without its distributed layer. Build with `sa build --distributed`, which builds "
-        "the packages that way.")
-endif()
 include(BLAS)     # SushiBLAS_DIR from the CLI -> SushiBLAS::sushiblas
+if(SA_ENABLE_DISTRIBUTED AND NOT (SushiRuntime_DISTRIBUTED AND SushiBLAS_DISTRIBUTED))
+    message(FATAL_ERROR
+        "SA_ENABLE_DISTRIBUTED is ON, and the SushiRuntime package (${SushiRuntime_DIR}) or the "
+        "SushiBLAS package (${SushiBLAS_DIR}) was built without its distributed layer. Run "
+        "`sa build --distributed`, which builds both packages that way.")
+endif()
 include(SushiAISyclTarget)  # sushiai_apply_sycl() helper
 
 # Compile policy. SushiAIBuildPolicy composes the warning, architecture, and

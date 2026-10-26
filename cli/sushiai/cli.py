@@ -82,6 +82,7 @@ def _print_error(message: str) -> None:
            "sa build --type debug\n"
            "sa build --clean  # Wipe the build tree first\n"
            "sa build --distributed  # Also build the distributed layer and sushiai_worker\n"
+           "sa build --sycl-targets \"spir64;nvidia_gpu_sm_86\"  # AOT device targets\n"
            "sa build -D SA_BUILD_TESTS=OFF  # Pass a CMake cache variable through",
 )
 def build(
@@ -93,12 +94,16 @@ def build(
     define: Optional[list[str]] = typer.Option(
         None, "--define", "-D", metavar="VAR=VALUE",
         help="Pass a CMake cache variable through to configure. Repeatable. "
-             "Quote values containing ';', e.g. "
-             '-D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_86".'),
+             "Quote values containing ';', e.g. -D SA_SANITIZE=\"address;undefined\"."),
     sanitize: Optional[Sanitizer] = typer.Option(
         None, "--sanitize", case_sensitive=False,
         help="Sanitizers for host code: none | address-undefined | thread. "
              "Kept in the build tree until set again."),
+    sycl_targets: Optional[str] = typer.Option(
+        None, "--sycl-targets", metavar="LIST",
+        help="Ahead-of-time device targets, e.g. \"spir64;nvidia_gpu_sm_86\". They go to the "
+             "SushiBLAS package, so another list is another package. Left out, the list of "
+             "the last build stays; an empty string clears it."),
     distributed: Optional[bool] = typer.Option(
         None, "--distributed/--no-distributed",
         help="Build the distributed layer of the stack, modules/core/distribution and "
@@ -111,7 +116,7 @@ def build(
     flag on a later run does not unset them; pass VAR= to clear one, or
     --clean to start over.
     """
-    raise typer.Exit(project_svc.build(type, clean, define, sanitize, distributed))
+    raise typer.Exit(project_svc.build(type, clean, define, sanitize, distributed, sycl_targets))
 
 
 @app.command(
