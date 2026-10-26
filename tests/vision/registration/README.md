@@ -86,10 +86,10 @@ count the manifest records for feature levels 0 and 1, and each level's stride t
 is the input height. Row 21 traces to [2, 20, 20, 384]. The state is the manifest's records for
 rows 0 to 9 followed by its 145 records for rows 11 to 21.
 
-### RegistersTheAnchorAndThePixelObjectives
+### RegistersTheDetectionAndThePixelObjectives
 
-After `Train::register_objectives`, `Vision::register_objectives` adds three rows: "anchor",
-"pixel_cross_entropy" and "dice". Row 0 stays "cross_entropy". A second call fails with
+After `Train::register_objectives`, `Vision::register_objectives` adds four rows: "anchor",
+"anchor_free", "pixel_cross_entropy" and "dice". Row 0 stays "cross_entropy". A second call fails with
 `InvalidDescription`, "'anchor'" and "already registered".
 
 ### TheAnchorRowReadsTheTaskOfTheModel

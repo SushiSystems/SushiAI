@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — tests: Made the registration test expect the anchor-free objective, and the anchor factory test refuse the second of two heads that disagree on their size form (`test_registration.cpp`).
 - 2026-10-26 — tools: Made the device sources checker read the `DEVICE_SOURCES` of test programs and count a task recorder's kernel pair as a kernel (`tools/layering/check_device_sources.py`).
 - 2026-10-26 — programs: Made the programs and examples include the SushiBLAS headers they use in place of its umbrella, whose inline primitives launch kernels (`training_program.cpp`).
 - 2026-10-26 — build: Read the device compile options from `SushiBLAS::device_code` and link `SushiBLAS::sushiblas` directly, dropping `SushiAI::blas`; test programs take `DEVICE_SOURCES` (`cmake/SushiAISyclTarget.cmake`).

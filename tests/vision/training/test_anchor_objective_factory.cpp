@@ -146,7 +146,8 @@ TEST(Small_AnchorObjectiveFactory, TheShapeRatioAssignmentRefusesAnActivatedHead
         "classes": 2,
         "anchors": [[0.25, 0.25], [0.5, 0.25], [0.5, 0.75], [0.75, 0.5]],
         "heads": [
-            {"output": "head.0", "anchors": [0, 1], "coding": "logit", "scale_xy": 1.0},
+            {"output": "head.0", "anchors": [0, 1], "coding": "logit", "scale_xy": 1.0,
+             "size": "squared_sigmoid"},
             {"output": "head.1", "anchors": [2, 3], "coding": "activated", "scale_xy": 1.5}
         ],
         "suppression": {"criterion": "iou"},

@@ -664,19 +664,20 @@ TEST(Medium_VisionRegistration, YOLO26NeckTracesToTheReferenceLevels)
     EXPECT_EQ(trace.state, expected);
 }
 
-/** @brief Tests that the vision domain adds its three objectives after the layers' rows. */
-TEST(Medium_VisionRegistration, RegistersTheAnchorAndThePixelObjectives)
+/** @brief Tests that the vision domain adds its four objectives after the layers' rows. */
+TEST(Medium_VisionRegistration, RegistersTheDetectionAndThePixelObjectives)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
     const std::size_t layers = registry.rows().size();
     SA_EXPECT_OK(Vision::register_objectives(registry));
 
-    ASSERT_EQ(registry.rows().size(), layers + 3);
+    ASSERT_EQ(registry.rows().size(), layers + 4);
     EXPECT_EQ(registry.rows()[0].type, "cross_entropy");
     EXPECT_EQ(registry.rows()[layers].type, "anchor");
-    EXPECT_EQ(registry.rows()[layers + 1].type, "pixel_cross_entropy");
-    EXPECT_EQ(registry.rows()[layers + 2].type, "dice");
+    EXPECT_EQ(registry.rows()[layers + 1].type, "anchor_free");
+    EXPECT_EQ(registry.rows()[layers + 2].type, "pixel_cross_entropy");
+    EXPECT_EQ(registry.rows()[layers + 3].type, "dice");
 
     SA_EXPECT_FAILURE(Vision::register_objectives(registry), StatusCode::InvalidDescription,
                       "'anchor'", "already registered");
