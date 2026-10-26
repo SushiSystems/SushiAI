@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/autograd/tape.hpp>
@@ -81,6 +82,12 @@ namespace SushiAI
 
                 /** @brief The summed gradient of @p primal, materialising the sum on first read. */
                 Graph::ValueID resolve(Graph::ValueID primal);
+
+                /**
+                 * @brief Returns whether @p gradient may be accumulated into in place: no other
+                 *        contribution, resolved gradient or forward node can read it.
+                 */
+                bool owns_buffer(Graph::ValueID gradient) const;
 
                 /**
                  * @brief Returns the gradient a caller requested for @p value, after run().
@@ -150,6 +157,12 @@ namespace SushiAI
 
                 /** @brief Holds the summed gradients already read, per primal value. */
                 std::unordered_map<Graph::ValueID, Graph::ValueID> resolved_;
+
+                /** @brief Holds how many contributions name each gradient value. */
+                std::unordered_map<Graph::ValueID, std::size_t> contribution_counts_;
+
+                /** @brief Holds every gradient value resolved_ returns. */
+                std::unordered_set<Graph::ValueID> resolved_gradients_;
 
                 /** @brief Holds the view of this run that backward rules receive. */
                 GradientTape tape_;

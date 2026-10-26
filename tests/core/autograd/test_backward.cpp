@@ -1552,6 +1552,40 @@ TEST(Small_Backward, FanOutEmitsAnAccumulateChain)
     EXPECT_EQ(graph.node(graph.value(grads[0]).producer).op, Ops::K_ACCUMULATE.id);
 }
 
+TEST(Small_Backward, AnAccumulateNeverWritesIntoAGradientAnotherValueReads)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    // ADD hands one gradient to both operands, and a's sum then accumulates over it in place.
+    const ValueID a = builder.parameter(Shape{4, 1}, "a");
+    const ValueID b = builder.parameter(Shape{4, 1}, "b");
+    const ValueID sum = builder.add(builder.add(a, b), builder.mul(a, a));
+    const ValueID loss = builder.sum_rows(sum);
+
+    const std::vector<ValueID> wrt = {a, b};
+    const std::vector<ValueID> grads =
+        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+
+    ASSERT_GE(count_op(graph, Ops::K_ACCUMULATE.id) + count_op(graph, Ops::K_ADD.id), 3u);
+    for (std::size_t n = 0; n < graph.node_count(); ++n)
+    {
+        const Graph::Node& node = graph.node(static_cast<NodeID>(n));
+        if (node.op != Ops::K_ACCUMULATE.id)
+            continue;
+        const ValueID target = node.inputs.at(0);
+        std::size_t readers = 0;
+        for (std::size_t m = 0; m < graph.node_count(); ++m)
+        {
+            const Graph::Node& other = graph.node(static_cast<NodeID>(m));
+            readers += static_cast<std::size_t>(
+                std::count(other.inputs.begin(), other.inputs.end(), target));
+        }
+        EXPECT_EQ(readers, 1u) << "value " << target << " is accumulated into and read elsewhere";
+        EXPECT_EQ(std::count(grads.begin(), grads.end(), target), 0);
+    }
+}
+
 TEST(Small_Backward, ThreeContributorsChainTwoAccumulates)
 {
     Graph::Graph graph;

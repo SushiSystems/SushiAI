@@ -79,3 +79,31 @@ before-and-after time. `build/compile_commands.json` lists `-fsycl` on 123 units
 SushiAI device units and 118 units of the SushiRuntime checkout the build adds, which its own
 directory-scope options compile for the device (the SushiRuntime plan of the same day). 3650
 warnings, all `-Woverride-module`, come from the device link. Tests have not run.
+
+## 6. SushiBLAS and SushiRuntime split their device units
+
+dispatch: SushiBLAS SYCL compile plan and S1 to S3 — opus medium, 160 tool calls, passed, rung 1
+dispatch: SushiRuntime SYCL compile plan and S1 to S5 — opus medium, 175 tool calls, passed, rung 1
+
+Both reports are in their repositories, `docs/agent/2026_10_26_SYCL_COMPILE_TIME/REPORT.md`.
+SushiBLAS now publishes its device compile options on `SushiBLAS::device_code` and none on
+`SushiBLAS::sushiblas`, so `SushiAI::blas`, which stripped them, is gone: the modules link
+`SushiBLAS::sushiblas` and `sushiai_apply_sycl()` reads `SushiBLAS::device_code` for the device
+units. SushiRuntime refuses at compile time a kernel recorded in a unit compiled without `-fsycl`.
+
+The first build against both trees stopped on that guard in `training_program.cpp`: SushiBLAS's
+umbrella includes `graph_primitives/counting_sort.hpp`, whose inline body launches kernels. The six
+program and example sources now include the SushiBLAS headers they use; the two tests that include
+the umbrella on purpose, `tests/layers/umbrella/test_SushiAI.cpp` and the package consumer, compile
+for the device. `tools/layering/check_device_sources.py` reads test programs' `DEVICE_SOURCES` and
+counts `record_pair` and `record_late_pair` as kernels; with that, `test_region_executor.cpp` is in
+its test program's list. A two-job build was stopped by Claude Code under memory pressure at step
+682 of 693 with two device links failed and no message; the four-job build that followed passed.
+
+The test run before these changes failed four tests. Three were stale expectations. The fourth,
+`TheBoxClassAndL1GradientMatchesACentralDifference`, found a defect in the reverse walk:
+`ACCUMULATE` writes into its first operand, and `ADD` hands one gradient value to both operands, so
+summing one operand's parts wrote into the other's gradient. The box term of the anchor-free loss
+gave 6.671 for a derivative of 3.105. The first two parts of a sum whose first part is shared now
+add into a new buffer; `Small_Backward.AnAccumulateNeverWritesIntoAGradientAnotherValueReads` pins
+it and failed before the fix.

@@ -72,6 +72,7 @@ namespace SushiAI
                         b.shape.to_string(), primal, a.shape.to_string());
 
             contributions_[primal].push_back(gradient);
+            ++contribution_counts_[gradient];
         }
 
         void Differentiator::skip(Graph::NodeID node)
@@ -94,12 +95,30 @@ namespace SushiAI
             {
                 const std::vector<Graph::ValueID>& parts = found->second;
                 result = parts.front();
-                for (std::size_t i = 1; i < parts.size(); ++i)
-                    result = builder_.accumulate(result, parts[i]);
+                std::size_t next = 1;
+                // ACCUMULATE writes into its first operand; a shared one is first added afresh.
+                if (parts.size() > 1 && !owns_buffer(result))
+                    result = builder_.add(result, parts[next++]);
+                for (; next < parts.size(); ++next)
+                    result = builder_.accumulate(result, parts[next]);
             }
 
             resolved_.emplace(primal, result);
+            if (result != Graph::K_NO_VALUE)
+                resolved_gradients_.insert(result);
             return result;
+        }
+
+        bool Differentiator::owns_buffer(Graph::ValueID gradient) const
+        {
+            const auto count = contribution_counts_.find(gradient);
+            if (count == contribution_counts_.end() || count->second != 1)
+                return false;
+            if (resolved_gradients_.count(gradient) != 0)
+                return false;
+            const Graph::NodeID producer = graph_.value(gradient).producer;
+            return producer != Graph::K_NO_NODE &&
+                   static_cast<std::size_t>(producer) >= forward_node_count_;
         }
 
         Graph::ValueID Differentiator::resolve_requested(Graph::ValueID value)

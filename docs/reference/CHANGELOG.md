@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — autograd: Fixed a gradient that a fan-out sum wrote into while another value still read it, as the one gradient `ADD` hands both operands; the first two parts of a shared sum now add into a new buffer (`differentiator.cpp`).
 - 2026-10-26 — tests: Made the registration test expect the anchor-free objective, and the anchor factory test refuse the second of two heads that disagree on their size form (`test_registration.cpp`).
 - 2026-10-26 — tools: Made the device sources checker read the `DEVICE_SOURCES` of test programs and count a task recorder's kernel pair as a kernel (`tools/layering/check_device_sources.py`).
 - 2026-10-26 — programs: Made the programs and examples include the SushiBLAS headers they use in place of its umbrella, whose inline primitives launch kernels (`training_program.cpp`).
