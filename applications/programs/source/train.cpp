@@ -33,7 +33,7 @@
 #include <string_view>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include "cluster_training.hpp"
 #include "training_program.hpp"
 

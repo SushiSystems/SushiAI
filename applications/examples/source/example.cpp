@@ -37,7 +37,8 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/core/version.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 
 /** @brief Shortens the SushiBLAS namespace. */
 namespace sb = SushiBLAS;

@@ -39,7 +39,8 @@
 #include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/engine/engine.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include "inference_run.hpp"

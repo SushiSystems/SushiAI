@@ -34,7 +34,7 @@
 #include <string_view>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include "inference_program.hpp"
 
 /** @brief Shortens the SushiBLAS namespace. */

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — programs: Made the programs and examples include the SushiBLAS headers they use in place of its umbrella, whose inline primitives launch kernels (`training_program.cpp`).
 - 2026-10-26 — build: Read the device compile options from `SushiBLAS::device_code` and link `SushiBLAS::sushiblas` directly, dropping `SushiAI::blas`; test programs take `DEVICE_SOURCES` (`cmake/SushiAISyclTarget.cmake`).
 - 2026-10-26 — vision: Added the public headers of the anchor-free engine, the anchor assignment rules and the `c2f` and `c3` blocks to the vision umbrella (`SushiAI/vision.hpp`).
 - 2026-10-26 — vision: Made the three Darknet case modules and the program tests include the SushiAI headers they use, and dropped the case modules' dependency on the umbrella (`darknet_forward.hpp`).

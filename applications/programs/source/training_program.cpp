@@ -40,7 +40,8 @@
 #include <SushiAI/optim/rate_schedule.hpp>
 #include <SushiAI/optim/run_schedule.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
-#include <SushiBLAS/SushiBLAS.hpp>
+#include <SushiBLAS/core/version.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include "cluster_training.hpp"
