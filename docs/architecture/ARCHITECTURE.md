@@ -166,15 +166,15 @@ sushiai_add_library(NAME sushiai EXPORT_NAME sushiai
     UMBRELLA "${CMAKE_CURRENT_SOURCE_DIR}/layers/umbrella/include/SushiAI/SushiAI.hpp")
 ```
 
-A module's `DEVICE_SOURCES` name the `SOURCES` that instantiate a device kernel, today the two
-elementwise lowerings of `graph` and the three optimizer steps of `optim`. On the intel-llvm path
-only those compile with `-fsycl`; every other unit compiles for the host, with the toolchain's SYCL
-headers as a system include directory. A unit that submits a kernel and is left off the list
-compiles clean and fails at run time, so the list is part of the module's review.
+A module's or test program's `DEVICE_SOURCES` name the `SOURCES` that instantiate a device
+kernel, today the two elementwise lowerings of `graph`, the three optimizer steps of `optim` and
+one test of `eager`. On the intel-llvm path only those compile with `-fsycl` and the options of
+`SushiBLAS::device_code`; every other unit compiles for the host with the SYCL headers that
+`SushiBLAS::sushiblas` publishes. A unit that submits a kernel and is left off the list fails at
+compile time or at run time, so `tools/layering/check_device_sources.py` checks the list.
 `sushiai_add_library()` links each library `PUBLIC` to the external targets its modules name in
-`EXTERNAL_PUBLIC`, such as `SushiRuntime::core` and `SushiAI::blas`, and the vision library adds
-`DEPENDS sushiai`. `SushiAI::blas` is SushiBLAS without the device compile options its target
-publishes: its link, include directories and definitions, and SushiRuntime.
+`EXTERNAL_PUBLIC`, such as `SushiRuntime::core` and `SushiBLAS::sushiblas`, and the vision library
+adds `DEPENDS sushiai`.
 
 A module only the tests use passes `INTERNAL` to `sushiai_add_module()`. It joins no library and
 installs nothing. `tools/layering/check_layering.py` compares every include of a module with
@@ -208,11 +208,10 @@ relative to `SushiAI/` under the `include/` of the module that owns it:
   `nn/init.hpp`, `optim/`, `data/`, `train/`, `io/checkpoint.hpp`) reaches
   SushiBLAS.
 
-The SYCL policy lives in `cmake/SushiAISyclTarget.cmake`. Each library links
-with `-fsycl` and SushiBLAS's device targets `PUBLIC`, so an example or a test
-that links it pulls the device images out at its link without compiling its
-own units for the device. An installed consumer links SushiBLAS whole and
-compiles as SushiBLAS asks.
+The SYCL policy lives in `cmake/SushiAISyclTarget.cmake`. The device link
+options come with `SushiBLAS::sushiblas`, so an example or a test that links a
+SushiAI library pulls the device images out at its link without compiling its
+own units for the device.
 
 ### 3.1 How a failure leaves the library
 
@@ -272,7 +271,10 @@ cannot be held and rewritten.
 Gradient accumulation at a fan-out is tiered: zero contributors means no
 gradient value at all (a symbolic zero, not a materialised buffer), one
 means the gradient *is* that value, and two or more emit `K_ACCUMULATE` nodes
-in contributor order.
+in contributor order. `K_ACCUMULATE` writes into the buffer of its first
+operand, so when the first contribution is also read elsewhere, as the one
+gradient `K_ADD` hands both operands is, the first two contributions are
+summed by a `K_ADD` into a new buffer and the chain accumulates into that.
 
 ### 4.1 One translation unit per domain
 
@@ -434,7 +436,7 @@ cmake/
   BLAS.cmake             D3 resolution -> SushiBLAS::sushiblas
   SushiAIModule.cmake    sushiai_add_module(), sushiai_add_library()
   SushiAILayers.cmake    the tier table: each module's tier and library
-  SushiAISyclTarget.cmake        the SYCL policy and SushiAI::blas
+  SushiAISyclTarget.cmake        the SYCL policy
   SushiAIBuildPolicy.cmake       composes warnings/perf/sanitizers
   SushiAICompilerWarnings.cmake
   SushiAIOptimization.cmake

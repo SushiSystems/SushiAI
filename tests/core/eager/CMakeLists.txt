@@ -27,6 +27,8 @@ sushiai_add_test_program(OWNER eager
         test_step_executor.cpp
         test_storage_bank.cpp
         test_storage_id.cpp
+    DEVICE_SOURCES
+        test_region_executor.cpp
     DEPENDS
         failure_expectations
         tensor_values)

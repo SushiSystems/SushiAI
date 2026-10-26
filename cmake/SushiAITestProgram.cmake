@@ -76,7 +76,8 @@ function(sushiai_discover_sized_tests program)
 endfunction()
 
 # sushiai_add_test_program(OWNER <module key> | APPLICATION <name>
-#     SOURCES test_<name>.cpp ... [DEPENDS <module key> ...] [LINKS <target> ...] [INCLUDES <folder> ...])
+#     SOURCES test_<name>.cpp ... [DEVICE_SOURCES test_<name>.cpp ...]
+#     [DEPENDS <module key> ...] [LINKS <target> ...] [INCLUDES <folder> ...])
 #
 # Called from tests/<tier>/<module>/CMakeLists.txt with the key the module has
 # in SUSHIAI_MODULE_TIERS, or from tests/applications/<name>/CMakeLists.txt.
@@ -87,9 +88,11 @@ endfunction()
 # Every case carries the size its suite-name prefix gives; CTest labels it with that size and
 # enforces the size's timeout. SA_TEST_FIXTURE_DIR names the
 # fixtures/ folder beside its CMakeLists.txt, and SA_REPOSITORY_ROOT names the
-# root of the repository.
+# root of the repository. DEVICE_SOURCES names the SOURCES that instantiate a
+# device kernel; only those compile for the device (cmake/SushiAISyclTarget.cmake).
 function(sushiai_add_test_program)
-    cmake_parse_arguments(ARG "" "OWNER;APPLICATION" "SOURCES;DEPENDS;LINKS;INCLUDES" ${ARGN})
+    cmake_parse_arguments(ARG "" "OWNER;APPLICATION" "SOURCES;DEVICE_SOURCES;DEPENDS;LINKS;INCLUDES"
+        ${ARGN})
 
     if(NOT ARG_SOURCES OR (NOT ARG_OWNER AND NOT ARG_APPLICATION))
         message(FATAL_ERROR
@@ -120,6 +123,10 @@ function(sushiai_add_test_program)
     endif()
 
     add_executable(${program} ${ARG_SOURCES})
+    if(ARG_DEVICE_SOURCES)
+        sushiai_check_device_sources(${program} "${ARG_SOURCES}" "${ARG_DEVICE_SOURCES}")
+        sushiai_apply_sycl(${program} DEVICE_SOURCES ${ARG_DEVICE_SOURCES})
+    endif()
 
     sushiai_module_target(engine_fixture fixture_target)
     target_link_libraries(${program} PRIVATE ${library} GTest::gtest ${fixture_target})

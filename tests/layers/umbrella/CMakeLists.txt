@@ -4,9 +4,10 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-# The test program of the module umbrella; see cmake/SushiAITestProgram.cmake.
+# The test program of the module umbrella; see cmake/SushiAITestProgram.cmake. The test includes
+# both umbrellas as a consumer does, and SushiBLAS's instantiates kernels.
 
-sushiai_add_test_program(OWNER umbrella SOURCES test_SushiAI.cpp)
+sushiai_add_test_program(OWNER umbrella SOURCES test_SushiAI.cpp DEVICE_SOURCES test_SushiAI.cpp)
 
 # The distribution case compiles only where the library carries SA_DISTRIBUTED to its consumers.
 if(SA_ENABLE_DISTRIBUTED)

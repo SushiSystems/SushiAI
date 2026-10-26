@@ -447,7 +447,9 @@ function(sushiai_add_library)
         CXX_STANDARD 17
         CXX_STANDARD_REQUIRED ON)
 
-    sushiai_apply_sycl_link(${ARG_NAME})
+    if(NOT SA_SYCL_PER_SOURCE)
+        sushiai_apply_sycl(${ARG_NAME})
+    endif()
 
     sushiai_check_umbrella(${ARG_NAME} "${ARG_UMBRELLA}")
 

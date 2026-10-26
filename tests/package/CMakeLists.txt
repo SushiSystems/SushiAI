@@ -87,8 +87,11 @@ message(STATUS "SushiAI interface link libraries:  ${_sa_interface_links}")
 
 add_executable(sushiai_package_consumer main.cpp)
 
+# main.cpp includes SushiBLAS's umbrella, whose inline primitives instantiate kernels, so it
+# compiles with the device options SushiBLAS::device_code carries.
 target_link_libraries(sushiai_package_consumer PRIVATE
     SushiAI::sushiai
+    SushiBLAS::device_code
 )
 
 # C++17, and NOT C++20 - which is where this file deliberately stops mirroring
