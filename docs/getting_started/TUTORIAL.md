@@ -50,9 +50,9 @@ sa config                # shows what the CLI resolved, and where each value cam
 
 `hub install` provisions several checkouts at once; `sa setup` covers this one.
 
-If a sibling cannot be found, `sa build` fails immediately and names which one
-and where it looked: it does not let CMake's `add_subdirectory` error surface
-instead. `sa config` is the first thing to run when that happens.
+`sa build` builds a package of each sibling the first time and reuses it afterwards. If a
+checkout cannot be found, it fails immediately and names which one. `sa config` is the first
+thing to run when that happens.
 
 ```bash
 sa build --type release

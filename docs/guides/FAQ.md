@@ -63,8 +63,8 @@ sa test                   # unit, integration and regression suites
 sa run sushiai_core_graph_tests   # one module's cases in one process
 ```
 
-`sa` and `sushiai` are the same program. If a sibling checkout cannot be found, `sa build` stops
-and names which one and where it looked; `sa config` prints what the CLI resolved and where each
+`sa` and `sushiai` are the same program. If a library checkout cannot be found, `sa build` stops
+and names which one; `sa config` prints what the CLI resolved and where each
 value came from. `sa build --type debug` and `sa build --type relwithdebinfo` select the other
 build types, and `-D VAR=VALUE` passes a CMake cache variable through to the configure step.
 

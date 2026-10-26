@@ -30,12 +30,10 @@ for every CLI that builds against them, so `sa` must read the variables those CL
 profile's prefix. It is a module attribute because `sa config` reports which values came
 from the environment and needs the reverse map.
 
-Each Sushi library the fragment pins, SushiLog among them, reaches CMake as `<NAME>_DIR`
-through sushicore's `sushi_definitions`; `services/project.py` adds them to every configure.
-
-An empty `sushiruntime_dir` means `../sushiruntime` relative to the project root, and an
-empty `sushiblas_dir` means `../sushiblas`. Both match the defaults of `SUSHIRUNTIME_DIR`
-and `SUSHIBLAS_DIR` in the root `CMakeLists.txt`.
+`sushiruntime_dir` and `sushiblas_dir` name the checkouts the packages of those libraries are
+built from. sushicore reads every `<name>_dir` field for this; an empty one means the sibling
+checkout or the copy `sa setup` fetches. Neither reaches CMake: the root `CMakeLists.txt` takes
+each library as a package through `find_package`, and `services/library_packages.py` supplies it.
 
 ## console.py
 
@@ -95,8 +93,19 @@ SushiAI's: its profile, its config module and how it finds its build environment
 
 The walk over the build tree is shared; see `sushicore.discovery.ExecutableIndex`. The
 module contributes only the directories to prune, and it does not spell them out either.
-They are the sibling checkouts `PROFILE` already names, because a module that builds a
-dependency in-tree must not offer that dependency's executables as its own.
+They are the sibling checkouts `PROFILE` already names, so that a sibling's build tree under
+this repository is never offered as SushiAI's own executable.
+
+## services/library_packages.py
+
+A thin adapter over sushicore's `sushi_packages`. `resolve` returns a built package of SushiLog,
+SushiProfiler, SushiRuntime and SushiBLAS, building a missing one once with the compiler of the
+build; `--distributed` becomes `--distributed` of the SushiRuntime and SushiBLAS packages, and
+`asan` or `minsizerel` link release packages. `build` writes the run-time folders of the
+packages to `.sushiai_package_dirs.json` in its tree, and `test`, `run`, `train`, `inference`
+and the demos prepend them to the library search path through `_run_env`, without resolving
+again. The package suite resolves once more, because its consumer needs the folders as
+`-D<Package>_DIR`, and runs the consumer without them on the path.
 
 ## services/profiler.py
 
@@ -114,9 +123,9 @@ The module holds SushiAI's own build policy: which cache variables it passes and
 targets and test suites it has. It drives cmake and ctest through
 `sushicore.cmake_driver.CMakeDriver` with the snapshotted build environment.
 
-SushiAI configures against the SushiRuntime sibling's bundled clang++ and against vcpkg,
-through SushiBLAS's own transitive resolution. The configure arguments resolve both from the
-sibling checkouts or from the config overrides and provision nothing. This mirrors
+SushiAI configures against the bundled clang++ of the shared toolchain and against vcpkg. The
+libraries it links arrive as packages (see `services/library_packages.py`), so the configure
+compiles no source of another repository and provisions nothing. This mirrors
 SushiEngine's `se` CLI and not SushiBLAS's `sb`, which still models an older oneAPI build
 from before SB-0 and SB-2.
 

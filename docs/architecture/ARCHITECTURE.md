@@ -116,26 +116,19 @@ compile error.
 
 ## 2. The sibling dependency chain (D3)
 
-SushiAI depends on two siblings, resolved independently through the same
-three-mode, layered CMake pattern used stack-wide (`cmake/Runtime.cmake`,
-`cmake/BLAS.cmake`):
+SushiAI depends on two siblings, SushiRuntime and SushiBLAS, and on SushiLog and SushiProfiler.
+Each is a built package: `cmake/Runtime.cmake`, `cmake/BLAS.cmake`, `cmake/Log.cmake` and
+`cmake/Profiler.cmake` each call `find_package(<Name> CONFIG REQUIRED)` and nothing else. No
+library of another repository is compiled in this tree.
 
-1. **TARGET-guard**: reuse an already-defined `SushiRuntime::SushiRuntime` /
-   `SushiBLAS::sushiblas` if a superproject already brought it in.
-2. **`find_package(... QUIET)`**: an installed package.
-3. **Sibling `add_subdirectory`**: the common case: `../sushiruntime` /
-   `../sushiblas` next to this checkout.
-
-**Order matters.** `Runtime.cmake` runs before `BLAS.cmake` in the root
-`CMakeLists.txt` specifically so that when SushiBLAS's own internal
-`Runtime.cmake` runs (SushiBLAS `add_subdirectory`'d as SushiAI's dependency
-also depends on SushiRuntime), its own TARGET-guard already finds
-`SushiRuntime::SushiRuntime` defined and skips re-adding it: one runtime in
-the whole build tree, not two competing copies.
+`sa build` resolves the four packages before it configures. A package missing from the store is
+built once through the library's own CLI, and the folder of each is handed to CMake as
+`-D<Package>_DIR`. One SushiRuntime package serves SushiBLAS and SushiAI both, so the build
+holds one runtime and not two competing copies. The SYCL toolchain of the build comes from
+`SushiRuntime_SYCL_TOOLCHAIN`, which the installed SushiRuntime package sets.
 
 Every consumer downstream (SushiAI's own targets, the CLI's `-D` flags, an
-out-of-tree `find_package(SushiAI)` consumer) links the same two namespaced
-aliases regardless of which mode actually resolved them.
+out-of-tree `find_package(SushiAI)` consumer) links the same namespaced targets.
 
 The two siblings have separate roles. SushiRuntime holds the graphs and the
 memory and decides where each node runs; it computes nothing. SushiBLAS

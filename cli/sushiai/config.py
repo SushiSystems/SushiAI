@@ -12,7 +12,6 @@ The reasoning is in cli/README.md under "config.py".
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 from sushicore.module_config import ModuleConfig
 from sushicore.profile import ModuleProfile
@@ -51,35 +50,17 @@ class Config(StackConfig):
     Inherits the generic host build-tool fields (cmake/ninja/vcpkg paths) from
     :class:`ToolConfig` and the shared-tree toolchain resolution from
     :class:`StackConfig`. ``cxx`` empty means "discover it": the bundled clang++
-    under the shared toolchain if present, else a clang++ on PATH.
+    under the shared toolchain if present, else a clang++ on PATH. ``sushiruntime_dir`` and
+    ``sushiblas_dir`` name the checkouts the packages of those libraries are built from; empty
+    means the sibling checkout or the copy ``sa setup`` fetches.
     """
 
-    # Empty means ../sushiruntime under the project root, as CMakeLists.txt defaults it.
     sushiruntime_dir: str = ""
 
-    # Empty means ../sushiblas under the project root, as CMakeLists.txt defaults it.
     sushiblas_dir: str = ""
 
     # Run defaults.
     target_bin: str = "sushiai_example"
-
-
-    def runtime_dir(self, root: Path) -> Path:
-        """Resolve the SushiRuntime checkout this build links against.
-
-        @param root The project root.
-        @return The runtime directory, defaulting to ``<root>/../sushiruntime``
-                (which, inside a SushiStack workspace, is the sibling module).
-        """
-        return self.sibling_dir(root, "sushiruntime", self.sushiruntime_dir)
-
-    def blas_dir(self, root: Path) -> Path:
-        """Resolve the SushiBLAS checkout SushiAI builds against.
-
-        @param root The SushiAI project root.
-        @return The SushiBLAS directory, defaulting to ``<root>/../sushiblas``.
-        """
-        return self.sibling_dir(root, "sushiblas", self.sushiblas_dir)
 
 
 def load_config() -> Config:

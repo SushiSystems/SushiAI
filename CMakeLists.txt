@@ -21,20 +21,23 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 
 project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 
-# --- Post-project: sibling dependencies (D3 layered resolution) ---------------
-# SushiRuntime resolved first so SushiBLAS's own internal Runtime.cmake
-# TARGET-guards onto the same target instead of re-adding it (see
-# cmake/Runtime.cmake's header comment).
-include(Log)      # SUSHILOG_DIR from the CLI -> SushiLog::SushiLog
+# --- Post-project: Sushi libraries as packages --------------------------------
+# The CLI builds or reuses a package of each library and passes <Package>_DIR; nothing is built
+# from another repository in this tree. See cmake/Log.cmake, Profiler.cmake, Runtime.cmake and
+# BLAS.cmake.
+include(Log)      # SushiLog_DIR from the CLI -> SushiLog::SushiLog
 include(Profiler) # SA_ENABLE_PROFILER, SA_PROFILE_LEVEL -> SushiProfiler::SushiProfiler
 # Training over several machines needs the distributed layers of the runtime and of SushiBLAS too.
 # The distribution module's target carries SA_DISTRIBUTED to whatever links it.
 option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)
-include(SushiAIDistributedOptions)
-sushiai_follow_distributed_option(SR_ENABLE_DISTRIBUTED "Build SushiRuntime's distributed layer")
-sushiai_follow_distributed_option(SB_ENABLE_DISTRIBUTED "Build SushiBLAS's cluster module")
-include(Runtime)  # add_subdirectory(sushiruntime) -> SushiRuntime::SushiRuntime
-include(BLAS)     # add_subdirectory(sushiblas)    -> SushiBLAS::sushiblas
+include(Runtime)  # SushiRuntime_DIR from the CLI -> SushiRuntime::SushiRuntime
+if(SA_ENABLE_DISTRIBUTED AND NOT SushiRuntime_DISTRIBUTED)
+    message(FATAL_ERROR
+        "SA_ENABLE_DISTRIBUTED is ON and the SushiRuntime package at ${SushiRuntime_DIR} was "
+        "built without its distributed layer. Build with `sa build --distributed`, which builds "
+        "the packages that way.")
+endif()
+include(BLAS)     # SushiBLAS_DIR from the CLI -> SushiBLAS::sushiblas
 include(SushiAISyclTarget)  # sushiai_apply_sycl() helper
 
 # Compile policy. SushiAIBuildPolicy composes the warning, architecture, and

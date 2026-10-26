@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- 2026-10-26 — build: Took SushiRuntime as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIRUNTIME_DIR` (`cmake/Runtime.cmake`).
+- 2026-10-26 — build: Took SushiBLAS as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIBLAS_DIR` (`cmake/BLAS.cmake`).
+- 2026-10-26 — build: Took SushiLog as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHILOG_DIR` (`cmake/Log.cmake`).
+- 2026-10-26 — build: Read `SushiRuntime_SYCL_TOOLCHAIN` from the installed SushiRuntime package in place of `SR_SYCL_TOOLCHAIN` (`cmake/SushiAISyclTarget.cmake`).
+- 2026-10-26 — build: Removed `sushiai_follow_distributed_option`, since the libraries are no longer built in this tree, and refused `SA_ENABLE_DISTRIBUTED` over a SushiRuntime package without its distributed layer (`CMakeLists.txt`).
+- 2026-10-26 — cli: Made `sa build` build or reuse a package of SushiLog, SushiProfiler, SushiRuntime and SushiBLAS and pass `-D<Package>_DIR`, in place of `-DSUSHIRUNTIME_DIR` and `-DSUSHIBLAS_DIR` (`cli/sushiai/services/project.py`).
+- 2026-10-26 — cli: Added the adapter over sushicore's packages; `--distributed` builds two of them distributed, and their run-time folders are kept in the build tree (`cli/sushiai/services/library_packages.py`).
+- 2026-10-26 — cli: Put the package folders first on the library path of `sa test`, `sa run`, `sa train`, `sa inference` and the demos (`cli/sushiai/services/project.py`).
+- 2026-10-26 — cli: Removed `runtime_dir`, `blas_dir` and the sibling check of `sa build`; the two config fields now name the package checkouts (`cli/sushiai/config.py`).
+- 2026-10-26 — cli: Made the package suite resolve the packages again, hand the consumer their folders and stage their libraries, and run the consumer without them on the path (`cli/sushiai/services/project.py`).
+- 2026-10-26 — deps: Upgraded sushicore to 0.9.6 (`cli/pyproject.toml`).
+- 2026-10-26 — deps: Moved the SushiLog pin to v0.2.3 and pinned SushiProfiler at the head of its main, v0.2.0 being tagged after its build (`cli/sushistack.deps.toml`).
+- 2026-10-26 — docs: Described the packages in place of the sibling `add_subdirectory` in the architecture chapter, the CLI guide, the tutorial and the CLI README (`docs/guides/CLI_GUIDE.md`).
+- 2026-10-26 — tests: Added the tests of the package adapter and of the build that uses it, and removed the two tests of the sibling directories (`cli/tests/test_library_packages.py`).
 - 2026-10-26 — build: Added the options `SA_ENABLE_PROFILER` (on) and `SA_PROFILE_LEVEL` (2), written into a generated `profile_config.hpp`, and found SushiProfiler as a package (`cmake/Profiler.cmake`).
 - 2026-10-26 — profile: Added the `profile` module: the `SA_ZONE` macro family over SushiProfiler, the step and batch timelines and `mark_period` (`profile.hpp`).
 - 2026-10-26 — profile: Added `TimelineBinding`, which points `mark_period` at the open session's timelines (`timeline_binding.hpp`).

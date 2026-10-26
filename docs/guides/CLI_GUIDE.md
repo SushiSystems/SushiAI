@@ -49,8 +49,8 @@ pipx uninstall sushiai-cli   # to remove it later
 ### How the CLI finds your compiler and siblings
 
 SushiAI builds against the shared SushiStack SYCL toolchain: it selects no
-toolchain of its own, and against **two sibling checkouts**, SushiRuntime
-and SushiBLAS. The CLI reads all of this from:
+toolchain of its own, and against **built packages** of SushiLog, SushiProfiler,
+SushiRuntime and SushiBLAS, which it builds from their checkouts once. The CLI reads all of this from:
 
 - **`cli/config.toml`**: committed, shared defaults.
 - **`cli/config.local.toml`**: your machine's absolute paths (gitignored).
@@ -106,18 +106,22 @@ The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
 SushiBLAS, which builds `modules/core/distribution` and `sushiai_worker`. `--no-distributed` sets
 it to `OFF`. With neither flag, the setting of the last build stays.
 
-If either sibling can't be found, `sa build` fails fast with a clear message
-naming which one and where it looked, rather than letting CMake's own
-`add_subdirectory` error surface. `sa config` shows what the CLI resolved for
-both `SushiRuntime` and `SushiBLAS`; set `sushiruntime_dir` / `sushiblas_dir`
-in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` in the
-environment) to point either elsewhere.
+`sa build` links SushiLog, SushiProfiler, SushiRuntime and SushiBLAS as built packages. It
+builds a missing one once through the library's own CLI, reuses it afterwards, prints one
+`reused` or `built` line per library, and hands CMake each package's config folder as
+`-D<Package>_DIR`. With `--distributed`, the SushiRuntime and SushiBLAS packages are built with
+their distributed layers. If a checkout is missing, `sa build` stops with a message that names
+it. `sushiruntime_dir` / `sushiblas_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` /
+`SUSHIBLAS_DIR` in the environment) point a package build at another checkout; they are not
+passed to CMake. The folders of the packages are written to `build/.sushiai_package_dirs.json`,
+and `sa test`, `sa run`, `sa train`, `sa inference` and the demos put them first on the library
+search path.
 
 ### `-D` / `--define`: CMake cache variables
 
 ```bash
 sa build -D SA_BUILD_TESTS=OFF
-sa build -D SB_SYCL_TARGETS="spir64;nvidia_gpu_sm_61" -D SA_BUILD_TESTS=OFF
+sa build -D SA_BUILD_TESTS=OFF -D SA_ENABLE_PROFILER=OFF
 ```
 
 Repeatable, `VAR=VALUE`, passed straight through to `cmake`: the same flag
@@ -132,9 +136,9 @@ Two things worth knowing:
 - **They are appended last**, after every default the CLI sets, so an explicit
   `-D` is never silently outranked by one of them.
 
-This is how AOT device targeting is reached: SushiAI `add_subdirectory`s
-SushiBLAS, so SushiBLAS's `SB_SYCL_TARGETS` is a cache variable of *this*
-build tree and there is no other sanctioned way to set it.
+A variable of SushiBLAS or SushiRuntime, `SB_SYCL_TARGETS` among them, is not a cache variable
+of this build tree: those libraries are built as packages by their own CLIs, so it is set in
+their builds.
 
 ## `sa test`
 
@@ -200,16 +204,16 @@ observable from the consumer side.
 Three things the CLI does on the consumer's behalf, all host-environment
 rather than package concerns:
 
-- One install prefix covers all three modules. SushiBLAS and SushiRuntime are
-  `add_subdirectory`'d into this build (see `cmake/BLAS.cmake`), so their
-  install rules run as part of this one and the `find_dependency` calls in
-  `SushiAIConfig.cmake` resolve from the same prefix.
+- The install prefix holds SushiAI alone. SushiLog, SushiProfiler, SushiRuntime and
+  SushiBLAS are packages of their own (see `cmake/BLAS.cmake`), so the CLI resolves them
+  again, hands the consumer configure their `-D<Package>_DIR` folders, and stages their
+  libraries from the packages' run-time folders for the `find_dependency` calls in
+  `SushiAIConfig.cmake`.
 - The consumer configure reuses the same compiler and host-tool flags as the
   main configure, from one shared helper (`_toolchain_args`), so the two
   cannot drift. `CMAKE_PREFIX_PATH` is the deliberate exception: the consumer
-  must also see the install prefix. `SUSHIRUNTIME_DIR` / `SUSHIBLAS_DIR` are
-  excluded too, for a stronger reason: handing the consumer the sibling source
-  trees is the shortcut this suite exists to forbid.
+  must also see the install prefix. The package folders are
+  excluded from it too: each configure takes them from its own resolved packages.
 - On Windows the built binary needs `sushiruntime.dll` **and `hwloc-15.dll`**
   beside it or it exits `0xC0000135` before reaching `main`, which looks like a
   package failure and is not one. hwloc is linked PRIVATE by SushiRuntime and
@@ -218,7 +222,7 @@ rather than package concerns:
   in `sushiruntime.dll`'s import table either way. In-tree binaries get it from
   PATH (`sa` puts the vcpkg installed `bin` there, see `cli/sushiai/env.py`);
   the CLI stages both DLLs for the consumer instead, and runs it with that PATH
-  entry removed so the staging is actually load-bearing rather than shadowed by
+  entry and the package folders removed so the staging is actually load-bearing rather than shadowed by
   the developer's environment.
 
 Both `build/package/prefix` and `build/package/consumer` are deleted before
@@ -420,7 +424,7 @@ sa env            # print the environment the cmake, ctest and run subprocesses 
 sa env --all      # show every variable, not just the build-relevant ones (-a for short)
 ```
 
-`sa config` prints both resolved sibling directories, the compiler, and the
+`sa config` prints the configured package checkouts, the compiler, and the
 vcpkg root, plus the source of each field: `default`, `config.toml` or
 `env:<VARIABLE>`. A value from `cli/config.local.toml` is reported as
 `config.toml`, and a value from the workspace file as `default`.

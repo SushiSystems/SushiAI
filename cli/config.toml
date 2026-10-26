@@ -35,6 +35,7 @@ target_bin = "sushiai_example.exe"
 # ctest_exe       = "C:/Users/<you>/scoop/shims/ctest.exe"
 # vcpkg_root      = "C:/vcpkg"
 # pkgconf_exe     = "C:/vcpkg/installed/x64-windows/tools/pkgconf/pkgconf.exe"
+# Checkouts the SushiRuntime and SushiBLAS packages are built from; not passed to CMake.
 # sushiruntime_dir = "../sushiruntime"
 # sushiblas_dir    = "../sushiblas"
 

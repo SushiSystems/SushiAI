@@ -252,7 +252,7 @@ Source: `cli/sushistack.deps.toml`
 `depends_on` folds both siblings' own toolchain requirements into SushiAI's
 readiness picture. A `[sushisystems.<name>]` table pins a Sushi library at a release tag and its
 commit; `sa setup` fetches it when no `<NAME>_DIR` or sibling checkout provides it, and
-`sa build` hands the path to CMake as `<NAME>_DIR`. If SushiAI ever needs a library neither sibling already
+`sa build` builds or reuses its package and hands the package folder to CMake as `<Package>_DIR`. If SushiAI ever needs a library neither sibling already
 provisions, add a top-level TOML table the way SushiRuntime's own fragment
 documents (description/required/linux_apt/windows_vcpkg/check_cmd), then
 update `CMakeLists.txt` to find and link it. Verify with `sa setup --dry-run`

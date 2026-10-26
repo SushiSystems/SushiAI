@@ -42,18 +42,3 @@ def test_config_dir_defaults_to_cli_when_absent(tmp_path):
     (tmp_path / "CMakeLists.txt").write_text("project(x)\n")
     assert config.config_dir(tmp_path) == tmp_path / "cli"
 
-
-def test_runtime_dir_defaults_to_sibling(tmp_path):
-    """With no override, runtime_dir() resolves to <root>/../sushiruntime."""
-    root = tmp_path / "sushiai"
-    root.mkdir()
-    cfg = config.Config()
-    assert cfg.runtime_dir(root) == (root / ".." / "sushiruntime").resolve()
-
-
-def test_blas_dir_defaults_to_sibling(tmp_path):
-    """With no override, blas_dir() resolves to <root>/../sushiblas."""
-    root = tmp_path / "sushiai"
-    root.mkdir()
-    cfg = config.Config()
-    assert cfg.blas_dir(root) == (root / ".." / "sushiblas").resolve()

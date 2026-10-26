@@ -5,7 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 
 # SushiProfiler, the stack's one profiler, exposed as SushiProfiler::SushiProfiler. The CLI
-# resolves its pin in cli/sushistack.deps.toml and hands SushiProfiler_DIR; only
+# builds or reuses its package from the pin in cli/sushistack.deps.toml and passes
+# SushiProfiler_DIR; only
 # modules/core/profile and the modules that name it link it, privately.
 option(SA_ENABLE_PROFILER "Record SushiAI's zones and periods through SushiProfiler" ON)
 set(SA_PROFILE_LEVEL 2 CACHE STRING "Compile-time ceiling of the SA_ZONE family; 0 removes every site")

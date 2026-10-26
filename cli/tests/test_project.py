@@ -172,7 +172,7 @@ def test_jobs_reach_ctest_as_given(jobs, console, tree, monkeypatch):
     """--jobs reaches ctest_run unchanged, and None leaves the count to ctest."""
     driver = _Driver(removes=False)
     monkeypatch.setattr(project, "_DRIVER", driver)
-    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace())
+    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace(is_windows=False))
     monkeypatch.setattr(project, "load_build_env", lambda cfg, build_dir: {})
     monkeypatch.setattr(project, "_enter_memory_limit", lambda limit: True)
 

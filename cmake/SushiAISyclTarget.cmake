@@ -11,18 +11,18 @@
 # and SushiBLAS::device_code holds the compile options of a unit that instantiates a kernel.
 # docs/agent/2026_10_26_COMPILE_TIME/PLAN.md holds the measurements behind the split.
 #
-# The file name carries the SushiAI prefix because the module path is shared with the SushiBLAS
-# and SushiRuntime checkouts, whose own SyclTarget.cmake defines other functions.
+# SushiRuntime_SYCL_TOOLCHAIN comes from the installed SushiRuntime package. The file name carries
+# the SushiAI prefix so that it cannot collide with another repository's SyclTarget.cmake.
 
 # SA_SYCL_PER_SOURCE: whether device compilation can be given to single sources. It can on the
 # intel-llvm toolchain, where -fsycl is a per-unit option and SushiBLAS publishes its device
 # options apart. Elsewhere add_sycl_to_target() works on whole targets, and every unit takes the
 # device pass.
-if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm" AND TARGET SushiBLAS::device_code)
+if(SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm" AND TARGET SushiBLAS::device_code)
     set(SA_SYCL_PER_SOURCE ON)
 else()
     set(SA_SYCL_PER_SOURCE OFF)
-    message(STATUS "SushiAI: every unit takes the device pass (toolchain='${SR_SYCL_TOOLCHAIN}')")
+    message(STATUS "SushiAI: every unit takes the device pass (toolchain='${SushiRuntime_SYCL_TOOLCHAIN}')")
 endif()
 
 # sushiai_apply_sycl(<target> [DEVICE_SOURCES <src>...])
@@ -35,7 +35,7 @@ function(sushiai_apply_sycl target)
 
     if(NOT SA_SYCL_PER_SOURCE)
         add_sycl_to_target(TARGET ${target})
-        if(SR_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
+        if(SushiRuntime_SYCL_TOOLCHAIN STREQUAL "intel-llvm")
             target_compile_options(${target} PUBLIC -fsycl)
             target_link_options(${target} PUBLIC -fsycl)
         endif()
