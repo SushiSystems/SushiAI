@@ -50,8 +50,9 @@
 namespace SushiAI::Vision::Training
 {
     /**
-     * @brief Owns a training step that stops after the one-to-many ports, so the host
-     *        assigns the targets from the forward pass the step differentiates.
+     * @brief Owns a training step that stops after the ports of the head, so the host
+     *        assigns the targets from the forward pass the step differentiates: the one-to-many
+     *        ports, and the one-to-one ports of a model with that copy.
      * @pre The engine, the pool and the optimizer outlive the step.
      * @see docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/PLAN.md, section 4.
      */
@@ -89,8 +90,18 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] Result<FreeLossTerms> run(const SushiBLAS::Tensor& inputs,
                                                     const Detect::GroundTruthBatch& truth);
 
-            /** @brief Returns the stage as the last run() left it. */
+            /** @brief Returns the one-to-many stage as the last run() left it. */
             [[nodiscard]] const FreeAssignmentStage& stage() const noexcept;
+
+            /**
+             * @brief Sets the weight of the one-to-many loss; the one-to-one loss takes the
+             *        rest of 1. The next run() writes both into their leaves.
+             * @pre @p weight lies in 0..1. Ignored by a model without a one-to-one copy.
+             */
+            void set_one_to_many_weight(float weight) noexcept;
+
+            /** @brief Returns the weight of the one-to-many loss the next run() writes. */
+            [[nodiscard]] float one_to_many_weight() const noexcept;
 
             /** @brief Returns the training step, for its counters. */
             [[nodiscard]] const Train::TrainingStep& training() const noexcept;
@@ -127,13 +138,32 @@ namespace SushiAI::Vision::Training
                 std::vector<double> anchor_points;        /**< 2 per row. */
             };
 
+            /** @brief Holds one copy of the head: its stage, its ports and its leaves. */
+            struct Branch
+            {
+                /// @brief Decodes the ports, assigns the truth and fills the leaves.
+                FreeAssignmentStage stage;
+
+                /// @brief Holds the port ids, boxes then scores of each level, finest first.
+                std::vector<Graph::ValueID> port_ids;
+
+                /// @brief Points at the tensor of each entry of port_ids.
+                std::vector<const SushiBLAS::Tensor*> ports;
+
+                /// @brief Points at the tensor of each stage leaf; null for one the loss skips.
+                std::vector<SushiBLAS::Tensor*> leaves;
+
+                /// @brief Holds a view of each level's ports as the stage reads them.
+                std::vector<FreeLevelViews> views;
+            };
+
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
             FreeTrainingStep(SushiBLAS::Engine& engine, FreeObjective objective,
-                             FreeAssignmentStage stage, Graph::TensorPool& pool,
+                             std::vector<Branch> branches, Graph::TensorPool& pool,
                              SushiBLAS::Tensor& input) noexcept;
 
             /**
-             * @brief Names every one-to-many port and every declared leaf.
+             * @brief Names every port of each copy and every declared leaf.
              * @return The stage; InvalidDescription for a port the model did not publish.
              */
             [[nodiscard]] Result<Train::HostStage> describe_host_stage(
@@ -149,11 +179,20 @@ namespace SushiAI::Vision::Training
             /** @brief Returns Incompatible or InvalidDescription for a truth run() cannot use. */
             [[nodiscard]] Status check_truth(const Detect::GroundTruthBatch& truth) const;
 
-            /** @brief Assigns @p truth over the ports and writes every leaf and the projection. */
+            /**
+             * @brief Assigns @p truth over each copy's ports and writes every leaf, the
+             *        projection and the branch weights.
+             */
             [[nodiscard]] Status feed_leaves(const Detect::GroundTruthBatch& truth);
 
-            /** @brief Evaluates the loss terms over the ports and the leaves just written. */
+            /**
+             * @brief Evaluates the loss terms over the ports and the leaves just written, each
+             *        copy's terms times its weight.
+             */
             [[nodiscard]] FreeLossTerms measure_terms();
+
+            /** @brief Evaluates the loss terms of one copy over its ports and leaves. */
+            [[nodiscard]] FreeLossTerms measure_branch(const Branch& branch);
 
             /// @brief Records and runs the copy of the input; not owned.
             SushiBLAS::Engine* engine_;
@@ -161,8 +200,8 @@ namespace SushiAI::Vision::Training
             /// @brief Describes the ports, the leaves and the gains.
             FreeObjective objective_;
 
-            /// @brief Decodes the ports, assigns the truth and fills the leaves.
-            FreeAssignmentStage stage_;
+            /// @brief Holds the one-to-many copy, then the one-to-one copy when there is one.
+            std::vector<Branch> branches_;
 
             /// @brief Holds the tensor of every value of the training graph; not owned.
             Graph::TensorPool* pool_;
@@ -173,20 +212,14 @@ namespace SushiAI::Vision::Training
             /// @brief Points at the input leaf of the training graph, which its pool owns.
             SushiBLAS::Tensor* input_;
 
-            /// @brief Holds the port ids, boxes then scores of each level, finest first.
-            std::vector<Graph::ValueID> port_ids_;
-
-            /// @brief Points at the tensor of each entry of port_ids_.
-            std::vector<const SushiBLAS::Tensor*> ports_;
-
-            /// @brief Points at the tensor of each stage leaf; null for one the loss skips.
-            std::vector<SushiBLAS::Tensor*> leaves_;
-
             /// @brief Points at the projection leaf; null at reg_max 1.
             SushiBLAS::Tensor* projection_ = nullptr;
 
-            /// @brief Holds a view of each level's ports as the stage reads them.
-            std::vector<FreeLevelViews> views_;
+            /// @brief Points at the two branch weight leaves; null without a one-to-one copy.
+            SushiBLAS::Tensor* branch_weights_[2] = {nullptr, nullptr};
+
+            /// @brief Holds the weight of the one-to-many loss the next run() writes.
+            float one_to_many_weight_ = 1.0f;
 
             /// @brief Holds one level at a time in double for measure_terms().
             LevelDoubles doubles_;

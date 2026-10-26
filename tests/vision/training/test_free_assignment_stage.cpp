@@ -17,6 +17,7 @@
 /* Noncommercial use is free. Commercial use requires a separate licence  */
 /* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
 /* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
 
 /**
  * @file test_free_assignment_stage.cpp
@@ -38,6 +39,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
@@ -287,6 +289,31 @@ TEST(Small_VisionTrainingFreeAssignmentStage, LeavesListEachKindPerLevelThenTheS
     EXPECT_EQ(leaves.back().kind, FreeLeafKind::TargetScoresSum);
     EXPECT_EQ(leaves.back().shape, (Shape{1}));
     EXPECT_EQ(find_leaf(made.value(), "free.distribution_weights.level0"), leaves.size());
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, AOneToOneStageNamesItsLeavesApart)
+{
+    FreeModelFacts facts = make_facts(1);
+    facts.has_one_to_one = true;
+    Result<FreeAssignmentStage> made = FreeAssignmentStage::make(
+        facts, Vision::Detect::Free::FreeTask{}, K_BATCH,
+        Vision::Training::FreeBranch::OneToOne);
+    ASSERT_TRUE(made.status().is_ok());
+    const std::vector<FreeLeaf>& leaves = made.value().leaves();
+
+    ASSERT_EQ(leaves.size(), 19u);
+    EXPECT_EQ(leaves.front().role, "free.one_to_one.target_scores.level0");
+    EXPECT_EQ(leaves.back().role, "free.one_to_one.target_scores_sum");
+    for (const FreeLeaf& leaf : leaves)
+        EXPECT_EQ(leaf.branch, Vision::Training::FreeBranch::OneToOne) << leaf.role;
+}
+
+TEST(Small_VisionTrainingFreeAssignmentStage, AOneToOneStageOfAModelWithoutTheCopyIsRefused)
+{
+    const Result<FreeAssignmentStage> made = FreeAssignmentStage::make(
+        make_facts(1), Vision::Detect::Free::FreeTask{}, K_BATCH,
+        Vision::Training::FreeBranch::OneToOne);
+    SA_EXPECT_FAILURE(made, StatusCode::InvalidDescription, "one-to-one copy");
 }
 
 TEST(Small_VisionTrainingFreeAssignmentStage, RawDistancesGiveHandWorkedTargets)

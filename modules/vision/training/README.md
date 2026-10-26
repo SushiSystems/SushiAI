@@ -70,8 +70,14 @@ which a batch alone can feed and `Train::Trainer` therefore drives. Their intent
 
 
 `FreeObjective`, objective type `anchor_free`, trains the one-to-many ports of an anchor-free
-head. Its section holds the four gains; strides, ports, `reg_max` and classes come from the traced
-model. `FreeTrainingStep` splits the step at the ports: the host stage runs
+head, and its one-to-one ports when the model publishes that copy. Its section holds the four gains
+and `one_to_many_weight_start` (0.8) and `one_to_many_weight_end` (0.1); strides, ports, `reg_max`
+and classes come from the traced model. With a one-to-one copy the loss is the one-to-many loss
+times its weight plus the one-to-one loss times the rest of 1. The weight falls in a straight line
+from the start at epoch 0 to the end at the run's last epoch (`one_to_many_weight`), and the two
+weights are leaves the step writes, so the step compiles once. Each copy has its own
+`FreeAssignmentStage`: the one-to-one stage reads the task's `one_to_one` assigner and names its
+leaves `free.one_to_one.<kind>`. `FreeTrainingStep` splits the step at the ports: the host stage runs
 `FreeAssignmentStage` over the batch's truth and writes the loss leaves and the bin values, then
 the loss graph, its backward and the optimiser run. The host stage also evaluates the loss terms
 in double for the metrics, since the graph keeps no term values. `run_free_training` drives the

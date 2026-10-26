@@ -79,6 +79,7 @@ using Vision::Detect::GroundTruthBatch;
 using Vision::Detect::Free::detect_port_name;
 using Vision::Detect::Free::K_DETECT_BOXES;
 using Vision::Detect::Free::K_DETECT_ONE_TO_MANY;
+using Vision::Detect::Free::K_DETECT_ONE_TO_ONE;
 using Vision::Detect::Free::K_DETECT_SCORES;
 using Vision::Training::FreeLossTerms;
 using Vision::Training::FreeObjective;
@@ -125,10 +126,11 @@ namespace
 
     /**
      * @brief Builds two stride-2 convolutions with a box and a score port behind each.
+     * @param one_to_one Adds a one-to-one copy of every port.
      * @return A model over [8, 8, 3] that publishes the one-to-many ports of level 0 on a
      *         4 by 4 grid, stride 2, and of level 1 on a 2 by 2 grid, stride 4.
      */
-    [[nodiscard]] Result<NN::ModelGraph> build_two_level_model()
+    [[nodiscard]] Result<NN::ModelGraph> build_two_level_model(bool one_to_one)
     {
         NN::ModelGraph model(Shape{K_NETWORK_SIDE, K_NETWORK_SIDE, 3});
 
@@ -156,6 +158,19 @@ namespace
                                 boxes));
             SA_TRY(model.output(detect_port_name(K_DETECT_ONE_TO_MANY, level, K_DETECT_SCORES),
                                 scores));
+            if (!one_to_one)
+                continue;
+
+            SA_TRY_ASSIGN(const NN::NodeRef copy_boxes,
+                          model.add("copy_boxes" + suffix, port_convolution(4 * K_REG_MAX),
+                                    bodies[level]));
+            SA_TRY_ASSIGN(const NN::NodeRef copy_scores,
+                          model.add("copy_scores" + suffix, port_convolution(K_CLASSES),
+                                    bodies[level]));
+            SA_TRY(model.output(detect_port_name(K_DETECT_ONE_TO_ONE, level, K_DETECT_BOXES),
+                                copy_boxes));
+            SA_TRY(model.output(detect_port_name(K_DETECT_ONE_TO_ONE, level, K_DETECT_SCORES),
+                                copy_scores));
         }
 
         return model;
@@ -192,11 +207,11 @@ namespace
     struct TwoLevelCase
     {
         /** @brief Builds everything the step is made from and sets @c ready on success. */
-        void prepare(SushiBLAS::Engine& engine)
+        void prepare(SushiBLAS::Engine& engine, bool one_to_one = false)
         {
             const Shape batch_shape{K_BATCH, K_NETWORK_SIDE, K_NETWORK_SIDE, 3};
 
-            SA_ASSERT_OK_AND_ASSIGN(model, build_two_level_model());
+            SA_ASSERT_OK_AND_ASSIGN(model, build_two_level_model(one_to_one));
             SA_ASSERT_OK_AND_ASSIGN(const Train::TracedStep probe,
                                     Train::build_probe_graph(*model, batch_shape));
             SA_ASSERT_OK_AND_ASSIGN(const std::vector<Train::OutputShape> outputs,
@@ -345,6 +360,42 @@ TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
     ASSERT_EQ(projection.size(), static_cast<std::size_t>(K_REG_MAX));
     EXPECT_NEAR(projection[0], 0.0, K_SAME);
     EXPECT_NEAR(projection[1], 1.0, K_SAME);
+}
+
+/** @brief Tests that a one-to-one copy trains every port and reads both branch weights. */
+TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeightAndReadsBothBranchWeights)
+{
+    TwoLevelCase model;
+    model.prepare(*engine, true);
+    ASSERT_TRUE(model.ready);
+    EXPECT_FLOAT_EQ(model.step->one_to_many_weight(), 0.8f);
+    model.step->set_one_to_many_weight(0.25f);
+
+    const std::vector<std::vector<double>> start = model.weights();
+    std::vector<FreeLossTerms> terms;
+    run_two_steps(model, *engine, terms);
+    const std::vector<std::vector<double>> end = model.weights();
+    ASSERT_EQ(start.size(), end.size());
+
+    for (std::size_t entry = 0; entry < end.size(); ++entry)
+    {
+        double moved = 0.0;
+        for (std::size_t i = 0; i < end[entry].size(); ++i)
+            moved = std::fmax(moved, std::fabs(end[entry][i] - start[entry][i]));
+        EXPECT_GT(moved, 0.0) << model.state->entries()[entry].name;
+    }
+
+    const std::vector<double> many =
+        model.leaf_values(Vision::Training::K_FREE_ONE_TO_MANY_WEIGHT_ROLE);
+    const std::vector<double> one =
+        model.leaf_values(Vision::Training::K_FREE_ONE_TO_ONE_WEIGHT_ROLE);
+    ASSERT_EQ(many.size(), 1u);
+    ASSERT_EQ(one.size(), 1u);
+    EXPECT_NEAR(many[0], 0.25, K_SAME);
+    EXPECT_NEAR(one[0], 0.75, K_SAME);
+    EXPECT_GE(model.leaf_values("free.one_to_one.target_scores_sum")[0], 1.0);
+    for (const FreeLossTerms& measured : terms)
+        EXPECT_TRUE(std::isfinite(measured.total));
 }
 
 /** @brief Tests that a truth of another batch is refused before any replay. */

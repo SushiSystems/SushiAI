@@ -17,6 +17,7 @@
 /* Noncommercial use is free. Commercial use requires a separate licence  */
 /* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
 /* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
 
 /**
  * @file free_assignment_stage.cpp
@@ -107,10 +108,16 @@ namespace SushiAI::Vision::Training
             }
         }
 
-        /** @brief Returns "free.<kind>.level<l>". */
-        std::string level_role(FreeLeafKind kind, std::size_t level)
+        /** @brief Returns "free." or "free.one_to_one.", the start of every role of @p branch. */
+        std::string role_prefix(FreeBranch branch)
         {
-            std::string role("free.");
+            return branch == FreeBranch::OneToOne ? "free.one_to_one." : "free.";
+        }
+
+        /** @brief Returns "<prefix><kind>.level<l>". */
+        std::string level_role(FreeBranch branch, FreeLeafKind kind, std::size_t level)
+        {
+            std::string role = role_prefix(branch);
             role.append(kind_name(kind)).append(".level").append(std::to_string(level));
             return role;
         }
@@ -136,8 +143,11 @@ namespace SushiAI::Vision::Training
 
     Result<FreeAssignmentStage> FreeAssignmentStage::make(const FreeModelFacts& facts,
                                                           const FreeTask& task,
-                                                          std::int64_t batch)
+                                                          std::int64_t batch, FreeBranch branch)
     {
+        SA_FAIL_IF(branch == FreeBranch::OneToOne && !facts.has_one_to_one,
+                   StatusCode::InvalidDescription,
+                   "a one-to-one stage needs a model that publishes a one-to-one copy");
         SA_FAIL_IF(batch < 1, StatusCode::InvalidDescription,
                    "an anchor-free stage needs a batch of at least 1; got {}", batch);
         SA_FAIL_IF(facts.levels.empty(), StatusCode::InvalidDescription,
@@ -158,24 +168,30 @@ namespace SushiAI::Vision::Training
             anchors += level.height * level.width;
         }
 
-        Detect::Free::AssignerConfig config = Detect::Free::one_to_many_assigner_config(
-            facts.classes, SushiRuntime::span<const float>(strides.data(), strides.size()));
-        config.topk = task.one_to_many.topk;
-        config.topk2 = task.one_to_many.topk2;
-        config.alpha = task.one_to_many.alpha;
-        config.beta = task.one_to_many.beta;
+        const bool one_to_one = branch == FreeBranch::OneToOne;
+        const SushiRuntime::span<const float> level_strides(strides.data(), strides.size());
+        const Detect::Free::AssignerConfig& settings =
+            one_to_one ? task.one_to_one : task.one_to_many;
+        Detect::Free::AssignerConfig config =
+            one_to_one ? Detect::Free::one_to_one_assigner_config(facts.classes, level_strides)
+                       : Detect::Free::one_to_many_assigner_config(facts.classes, level_strides);
+        config.topk = settings.topk;
+        config.topk2 = settings.topk2;
+        config.alpha = settings.alpha;
+        config.beta = settings.beta;
         SA_FAIL_IF(config.topk < 1 || config.topk2 < 1 || anchors < config.topk ||
                        anchors < config.topk2,
                    StatusCode::InvalidDescription,
-                   "the one-to-many topk {} and topk2 {} must lie in 1..{}, the anchor count",
-                   config.topk, config.topk2, anchors);
+                   "the {} topk {} and topk2 {} must lie in 1..{}, the anchor count",
+                   one_to_one ? "one-to-one" : "one-to-many", config.topk, config.topk2,
+                   anchors);
 
-        return Result<FreeAssignmentStage>(FreeAssignmentStage(facts, config, batch));
+        return Result<FreeAssignmentStage>(FreeAssignmentStage(facts, config, batch, branch));
     }
 
     FreeAssignmentStage::FreeAssignmentStage(const FreeModelFacts& facts,
                                              const Detect::Free::AssignerConfig& config,
-                                             std::int64_t batch)
+                                             std::int64_t batch, FreeBranch branch)
         : reg_max_(facts.reg_max), classes_(facts.classes), batch_(batch), assigner_(config)
     {
         const FreeLevelFacts& finest = facts.levels.front();
@@ -207,14 +223,14 @@ namespace SushiAI::Vision::Training
             for (std::size_t level = 0; level < levels_.size(); ++level)
             {
                 const FeatureLevel& extents = levels_[level];
-                leaves_.push_back(FreeLeaf{level_role(kind, level),
+                leaves_.push_back(FreeLeaf{level_role(branch, kind, level),
                                            Shape{batch_, extents.height, extents.width, channels},
-                                           kind, static_cast<std::int64_t>(level)});
+                                           kind, static_cast<std::int64_t>(level), branch});
             }
         }
-        leaves_.push_back(FreeLeaf{std::string("free.").append(
+        leaves_.push_back(FreeLeaf{role_prefix(branch).append(
                                        kind_name(FreeLeafKind::TargetScoresSum)),
-                                   Shape{1}, FreeLeafKind::TargetScoresSum, 0});
+                                   Shape{1}, FreeLeafKind::TargetScoresSum, 0, branch});
     }
 
     const std::vector<FreeLeaf>& FreeAssignmentStage::leaves() const noexcept

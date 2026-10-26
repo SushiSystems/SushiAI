@@ -38,6 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
+#include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
@@ -51,14 +52,20 @@ namespace SushiAI::Vision::Training
         /** @brief Holds the key that names the objective's type. */
         constexpr std::string_view K_TYPE_KEY = "type";
 
-        /** @brief Returns "type" and every gain key, the keys the section may hold. */
-        [[nodiscard]] std::array<std::string_view, K_FREE_LOSS_GAIN_KEYS.size() + 1>
-        list_keys() noexcept
+        /** @brief Holds how many keys the section may hold. */
+        constexpr std::size_t K_KEY_COUNT =
+            1 + K_FREE_LOSS_GAIN_KEYS.size() + K_FREE_BRANCH_WEIGHT_KEYS.size();
+
+        /** @brief Returns "type", every gain key and every branch weight key. */
+        [[nodiscard]] std::array<std::string_view, K_KEY_COUNT> list_keys() noexcept
         {
-            std::array<std::string_view, K_FREE_LOSS_GAIN_KEYS.size() + 1> keys{};
-            keys[0] = K_TYPE_KEY;
-            for (std::size_t index = 0; index < K_FREE_LOSS_GAIN_KEYS.size(); ++index)
-                keys[index + 1] = K_FREE_LOSS_GAIN_KEYS[index];
+            std::array<std::string_view, K_KEY_COUNT> keys{};
+            std::size_t at = 0;
+            keys[at++] = K_TYPE_KEY;
+            for (const std::string_view key : K_FREE_LOSS_GAIN_KEYS)
+                keys[at++] = key;
+            for (const std::string_view key : K_FREE_BRANCH_WEIGHT_KEYS)
+                keys[at++] = key;
             return keys;
         }
     } // namespace
@@ -79,6 +86,7 @@ namespace SushiAI::Vision::Training
 
         SA_TRY_ASSIGN(Detect::Free::FreeTask task, Detect::Free::read_free_task(given.task));
         SA_TRY_ASSIGN(const FreeLossGains gains, read_free_loss_gains(attributes));
+        SA_TRY_ASSIGN(const FreeBranchWeights weights, read_free_branch_weights(attributes));
         SA_TRY_ASSIGN(FreeModelFacts facts,
                       derive_free_model_facts(given.input_sample, given.outputs));
 
@@ -87,7 +95,8 @@ namespace SushiAI::Vision::Training
                    "the data spans {} classes, but the model's score ports hold {}",
                    given.classes, facts.classes);
 
-        return FreeObjective::make(std::move(facts), std::move(task), given.batch, gains);
+        return FreeObjective::make(std::move(facts), std::move(task), given.batch, gains,
+                                   weights);
     }
 
     Result<std::unique_ptr<Train::Objective>> make_free_objective(

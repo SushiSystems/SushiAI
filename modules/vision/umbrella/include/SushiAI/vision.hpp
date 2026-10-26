@@ -195,6 +195,7 @@
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
 #include <SushiAI/vision/training/free_batch_decoder.hpp>
 #include <SushiAI/vision/training/free_bias_init.hpp>
+#include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/free_detection_loss.hpp>
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>

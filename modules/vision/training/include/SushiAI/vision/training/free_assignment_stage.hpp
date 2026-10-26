@@ -17,6 +17,7 @@
 /* Noncommercial use is free. Commercial use requires a separate licence  */
 /* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
 /* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
 
 /**
  * @file free_assignment_stage.hpp
@@ -62,6 +63,13 @@ namespace SushiAI::Vision::Training
         TargetScoresSum,     /**< `[1]` the sum of all target scores, at least 1. */
     };
 
+    /** @brief Names the copy of the head a stage assigns: one-to-many or one-to-one. */
+    enum class FreeBranch : std::uint8_t
+    {
+        OneToMany, /**< The copy every model has; roles "free.<kind>...". */
+        OneToOne,  /**< The copy of a model with one; roles "free.one_to_one.<kind>...". */
+    };
+
     /** @brief Holds one leaf the anchor-free loss reads, as the step declares it. */
     struct FreeLeaf
     {
@@ -73,9 +81,12 @@ namespace SushiAI::Vision::Training
         FreeLeafKind kind = FreeLeafKind::TargetScores;
         /** @brief Holds the level the leaf covers; 0 for TargetScoresSum. */
         std::int64_t level = 0;
+
+        /** @brief Holds the copy of the head the leaf serves. */
+        FreeBranch branch = FreeBranch::OneToMany;
     };
 
-    /** @brief Holds host views of one level's one-to-many ports, NHWC as the head emits them. */
+    /** @brief Holds host views of one level's ports of one copy, NHWC as the head emits them. */
     struct FreeLevelViews
     {
         SushiRuntime::span<const float> boxes;  /**< `[B, H, W, 4 * reg_max]` box outputs. */
@@ -83,21 +94,23 @@ namespace SushiAI::Vision::Training
     };
 
     /**
-     * @brief Decodes the one-to-many ports, assigns the truth and fills the loss leaves.
+     * @brief Decodes the ports of one copy of the head, assigns the truth and fills the loss
+     *        leaves.
      * @see docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/PLAN.md, section 4.
      */
     class FreeAssignmentStage final
     {
         public:
             /**
-             * @brief Builds the stage for @p facts and the one-to-many settings of @p task.
+             * @brief Builds the stage for @p facts and the settings of @p branch in @p task.
              * @param batch Images per step, B.
              * @return The stage, or InvalidDescription for a batch below 1, no level, a
-             *         reg_max or class count below 1, or fewer anchors than topk or topk2.
+             *         reg_max or class count below 1, fewer anchors than topk or topk2, or a
+             *         one-to-one branch of a model without that copy.
              */
             [[nodiscard]] static Result<FreeAssignmentStage> make(
                 const FreeModelFacts& facts, const Detect::Free::FreeTask& task,
-                std::int64_t batch);
+                std::int64_t batch, FreeBranch branch = FreeBranch::OneToMany);
 
             /** @brief Returns every leaf, each kind over the levels in order, the sum last. */
             [[nodiscard]] const std::vector<FreeLeaf>& leaves() const noexcept;
@@ -132,7 +145,8 @@ namespace SushiAI::Vision::Training
         private:
             /** @brief Stores checked extents and builds the anchors and the leaf list. */
             FreeAssignmentStage(const FreeModelFacts& facts,
-                                const Detect::Free::AssignerConfig& config, std::int64_t batch);
+                                const Detect::Free::AssignerConfig& config, std::int64_t batch,
+                                FreeBranch branch);
 
             /** @brief Writes the joined logits and scores of @p levels after checking them. */
             void join_levels(SushiRuntime::span<const FreeLevelViews> levels);
@@ -163,7 +177,7 @@ namespace SushiAI::Vision::Training
             std::vector<Detect::Free::FeatureLevel> levels_;
             /// @brief Holds the index of each level's first anchor.
             std::vector<std::int64_t> offsets_;
-            /// @brief Holds the one-to-many assigner.
+            /// @brief Holds the assigner of the branch.
             Detect::Free::TaskAlignedAssigner assigner_;
             /// @brief Holds `[A, 2]` anchor points in grid units.
             std::vector<float> points_;

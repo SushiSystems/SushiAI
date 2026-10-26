@@ -41,6 +41,7 @@
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
+#include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
@@ -53,10 +54,17 @@ namespace SushiAI::Vision::Training
     /** @brief Holds the role and debug name of the `[reg_max, 1]` distribution projection. */
     inline constexpr std::string_view K_FREE_PROJECTION_ROLE = "free.projection";
 
+    /** @brief Holds the role of the `[1]` weight of the one-to-many loss, with a one-to-one copy. */
+    inline constexpr std::string_view K_FREE_ONE_TO_MANY_WEIGHT_ROLE = "free.one_to_many_weight";
+
+    /** @brief Holds the role of the `[1]` weight of the one-to-one loss, with a one-to-one copy. */
+    inline constexpr std::string_view K_FREE_ONE_TO_ONE_WEIGHT_ROLE = "free.one_to_one_weight";
+
     /**
-     * @brief Trains the one-to-many ports of an anchor-free head on the leaves its step's
-     *        host stage assigns.
+     * @brief Trains the one-to-many ports of an anchor-free head, and its one-to-one ports when
+     *        the model has them, on the leaves its step's host stages assign.
      * @see docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/PLAN.md, section 4.
+     * @see docs/agent/2026_10_26_ONE_TO_ONE_LOSS/PLAN.md
      */
     class FreeObjective final : public Train::Objective
     {
@@ -64,23 +72,26 @@ namespace SushiAI::Vision::Training
             /**
              * @brief Checks the description and builds the objective.
              * @param batch Images per step, B.
-             * @return The objective, or the refusal of FreeAssignmentStage::make() or of
-             *         validate_free_loss_gains().
+             * @param weights Mix the two losses; read only when the model has a one-to-one copy.
+             * @return The objective, or the refusal of FreeAssignmentStage::make(),
+             *         validate_free_loss_gains() or validate_free_branch_weights().
              */
             [[nodiscard]] static Result<FreeObjective> make(FreeModelFacts facts,
                                                             Detect::Free::FreeTask task,
                                                             std::int64_t batch,
-                                                            FreeLossGains gains);
+                                                            FreeLossGains gains,
+                                                            FreeBranchWeights weights = {});
 
             /**
-             * @brief Declares one float32 leaf per stage leaf the loss reads, and the
-             *        projection when reg_max is above 1.
+             * @brief Declares one float32 leaf per stage leaf the loss reads, the projection
+             *        when reg_max is above 1, and the two branch weights with a one-to-one copy.
              */
             void declare(const Graph::GraphBuilder& builder,
                          Train::ObjectiveLeaves& leaves) const override;
 
             /**
-             * @brief Emits emit_free_detection_loss() over the one-to-many ports.
+             * @brief Emits emit_free_detection_loss() over the one-to-many ports and, with a
+             *        one-to-one copy, over its ports too, each total times its weight leaf.
              * @return The id of the `[1]` total.
              * @throws Error If @p outputs lacks a port the facts name.
              */
@@ -94,7 +105,7 @@ namespace SushiAI::Vision::Training
             /** @brief Returns whether the loss reads leaves of @p kind under the gains. */
             [[nodiscard]] bool reads_leaf(FreeLeafKind kind) const noexcept;
 
-            /** @brief Returns the leaves of the assignment stage, read or not. */
+            /** @brief Returns the leaves of both assignment stages, read or not, one-to-many first. */
             [[nodiscard]] const std::vector<FreeLeaf>& stage_leaves() const noexcept;
 
             /** @brief Returns the facts the traced outputs state. */
@@ -109,15 +120,29 @@ namespace SushiAI::Vision::Training
             /** @brief Returns the factor of each loss term. */
             [[nodiscard]] const FreeLossGains& gains() const noexcept;
 
+            /** @brief Returns the weights that mix the two losses. */
+            [[nodiscard]] const FreeBranchWeights& branch_weights() const noexcept;
+
         private:
             /** @brief Stores a description make() has checked. */
             FreeObjective(FreeModelFacts facts, Detect::Free::FreeTask task, std::int64_t batch,
-                          FreeLossGains gains, std::vector<FreeLeaf> stage_leaves) noexcept;
+                          FreeLossGains gains, FreeBranchWeights weights,
+                          std::vector<FreeLeaf> stage_leaves) noexcept;
+
+            /**
+             * @brief Emits the loss of one copy of the head over its ports and its leaves.
+             * @return The id of the copy's `[1]` total.
+             */
+            Graph::ValueID branch_loss(const Graph::GraphBuilder& builder,
+                                       const Graph::Graph& graph,
+                                       const NN::ModelOutputs& outputs,
+                                       const Train::ObjectiveLeaves& leaves,
+                                       FreeBranch branch) const;
 
             /// @brief Holds the levels, ports, reg_max and classes of the model.
             FreeModelFacts facts_;
 
-            /// @brief Holds the one-to-many assigner settings.
+            /// @brief Holds the assigner settings of both copies.
             Detect::Free::FreeTask task_;
 
             /// @brief Holds the images per step, B.
@@ -126,7 +151,10 @@ namespace SushiAI::Vision::Training
             /// @brief Holds the factor of each loss term.
             FreeLossGains gains_;
 
-            /// @brief Holds every leaf the assignment stage fills, in its order.
+            /// @brief Holds the weights that mix the two losses.
+            FreeBranchWeights weights_;
+
+            /// @brief Holds every leaf the assignment stages fill, one-to-many first.
             std::vector<FreeLeaf> stage_leaves_;
     };
 

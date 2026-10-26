@@ -107,9 +107,18 @@ namespace SushiAI::Vision::Training
                    "The anchor-free step needs the input leaf of its training graph bound in "
                    "the training pool; call Train::bind_parameters() on that pool first");
 
-        SA_TRY_ASSIGN(FreeAssignmentStage stage,
-                      FreeAssignmentStage::make(objective.facts(), objective.task(),
-                                                objective.batch()));
+        std::vector<FreeBranch> kinds = {FreeBranch::OneToMany};
+        if (objective.facts().has_one_to_one)
+            kinds.push_back(FreeBranch::OneToOne);
+
+        std::vector<Branch> branches;
+        for (const FreeBranch kind : kinds)
+        {
+            SA_TRY_ASSIGN(FreeAssignmentStage stage,
+                          FreeAssignmentStage::make(objective.facts(), objective.task(),
+                                                    objective.batch(), kind));
+            branches.push_back(Branch{std::move(stage), {}, {}, {}, {}});
+        }
         SushiBLAS::Tensor& input = training_pool.tensor(built.spec.inputs);
 
         SA_TRY_ASSIGN(std::unique_ptr<FreeTrainingStep> step,
@@ -117,7 +126,7 @@ namespace SushiAI::Vision::Training
                                                      [&]()
         {
             return std::unique_ptr<FreeTrainingStep>(new FreeTrainingStep(
-                engine, objective, std::move(stage), training_pool, input));
+                engine, objective, std::move(branches), training_pool, input));
         }));
 
         SA_TRY_ASSIGN(options.host_stage, step->describe_host_stage(built));
@@ -130,18 +139,15 @@ namespace SushiAI::Vision::Training
     }
 
     FreeTrainingStep::FreeTrainingStep(SushiBLAS::Engine& engine, FreeObjective objective,
-                                       FreeAssignmentStage stage, Graph::TensorPool& pool,
+                                       std::vector<Branch> branches, Graph::TensorPool& pool,
                                        SushiBLAS::Tensor& input) noexcept
         : engine_(&engine),
           objective_(std::move(objective)),
-          stage_(std::move(stage)),
+          branches_(std::move(branches)),
           pool_(&pool),
           training_(),
           input_(&input),
-          port_ids_(),
-          ports_(),
-          leaves_(),
-          views_(),
+          one_to_many_weight_(objective_.branch_weights().start),
           doubles_()
     {
 
@@ -154,15 +160,19 @@ namespace SushiAI::Vision::Training
         SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                         [this, &built, &stage]() -> Status
         {
-            for (const FreeLevelFacts& level : objective_.facts().levels)
+            for (std::size_t copy = 0; copy < branches_.size(); ++copy)
             {
-                SA_TRY_ASSIGN(const Graph::ValueID boxes, built.outputs.at(level.one_to_many.boxes));
-                SA_TRY_ASSIGN(const Graph::ValueID scores,
-                              built.outputs.at(level.one_to_many.scores));
-                port_ids_.push_back(boxes);
-                port_ids_.push_back(scores);
+                for (const FreeLevelFacts& level : objective_.facts().levels)
+                {
+                    const FreeLevelPorts& names = copy == 0 ? level.one_to_many : level.one_to_one;
+                    SA_TRY_ASSIGN(const Graph::ValueID boxes, built.outputs.at(names.boxes));
+                    SA_TRY_ASSIGN(const Graph::ValueID scores, built.outputs.at(names.scores));
+                    branches_[copy].port_ids.push_back(boxes);
+                    branches_[copy].port_ids.push_back(scores);
+                }
+                stage.reads.insert(stage.reads.end(), branches_[copy].port_ids.begin(),
+                                   branches_[copy].port_ids.end());
             }
-            stage.reads = port_ids_;
 
             for (const FreeLeaf& leaf : objective_.stage_leaves())
             {
@@ -183,6 +193,17 @@ namespace SushiAI::Vision::Training
                 stage.writes.push_back(built.leaves.at(K_FREE_PROJECTION_ROLE));
             }
 
+            if (branches_.size() > 1)
+            {
+                for (const std::string_view role :
+                     {K_FREE_ONE_TO_MANY_WEIGHT_ROLE, K_FREE_ONE_TO_ONE_WEIGHT_ROLE})
+                {
+                    SA_FAIL_IF(!built.leaves.has(role), StatusCode::InvalidDescription,
+                               "The training graph declares no leaf '{}'", role);
+                    stage.writes.push_back(built.leaves.at(role));
+                }
+            }
+
             return Status();
         }));
 
@@ -197,42 +218,63 @@ namespace SushiAI::Vision::Training
         return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                         [this, &built, &facts, batch]() -> Status
         {
-            for (std::size_t level = 0; level < facts.levels.size(); ++level)
+            for (std::size_t copy = 0; copy < branches_.size(); ++copy)
             {
-                const FreeLevelFacts& described = facts.levels[level];
-                const std::int64_t rows = batch * described.height * described.width;
-                const FreeLevelPorts& names = described.one_to_many;
-                const std::int64_t counts[] = {rows * K_BOX_SIDES * facts.reg_max,
-                                               rows * facts.classes};
-                const std::string* const labels[] = {&names.boxes, &names.scores};
-
-                for (std::size_t port = 0; port < 2; ++port)
+                Branch& branch = branches_[copy];
+                for (std::size_t level = 0; level < facts.levels.size(); ++level)
                 {
-                    const Graph::ValueID id = port_ids_[level * 2 + port];
-                    SA_FAIL_IF(!pool_->is_bound(id), StatusCode::InvalidDescription,
-                               "The port '{}' has no tensor in the training pool",
-                               *labels[port]);
-                    const SushiBLAS::Tensor& tensor = pool_->tensor(id);
-                    SA_TRY(check_host_floats(tensor, counts[port], *labels[port]));
-                    ports_.push_back(&tensor);
+                    const FreeLevelFacts& described = facts.levels[level];
+                    const std::int64_t rows = batch * described.height * described.width;
+                    const FreeLevelPorts& names =
+                        copy == 0 ? described.one_to_many : described.one_to_one;
+                    const std::int64_t counts[] = {rows * K_BOX_SIDES * facts.reg_max,
+                                                   rows * facts.classes};
+                    const std::string* const labels[] = {&names.boxes, &names.scores};
+
+                    for (std::size_t port = 0; port < 2; ++port)
+                    {
+                        const Graph::ValueID id = branch.port_ids[level * 2 + port];
+                        SA_FAIL_IF(!pool_->is_bound(id), StatusCode::InvalidDescription,
+                                   "The port '{}' has no tensor in the training pool",
+                                   *labels[port]);
+                        const SushiBLAS::Tensor& tensor = pool_->tensor(id);
+                        SA_TRY(check_host_floats(tensor, counts[port], *labels[port]));
+                        branch.ports.push_back(&tensor);
+                    }
                 }
+
+                for (const FreeLeaf& leaf : branch.stage.leaves())
+                {
+                    if (!objective_.reads_leaf(leaf.kind))
+                    {
+                        branch.leaves.push_back(nullptr);
+                        continue;
+                    }
+                    const Graph::ValueID id = built.leaves.at(leaf.role);
+                    SA_FAIL_IF(!pool_->is_bound(id), StatusCode::InvalidDescription,
+                               "The leaf '{}' has no tensor in the training pool; call "
+                               "Train::bind_parameters() on that pool first",
+                               leaf.role);
+                    SushiBLAS::Tensor& tensor = pool_->tensor(id);
+                    SA_TRY(check_host_floats(tensor, leaf.shape.num_elements(), leaf.role));
+                    branch.leaves.push_back(&tensor);
+                }
+                branch.views.resize(facts.levels.size());
             }
 
-            for (const FreeLeaf& leaf : objective_.stage_leaves())
+            if (branches_.size() > 1)
             {
-                if (!objective_.reads_leaf(leaf.kind))
+                const std::string_view roles[] = {K_FREE_ONE_TO_MANY_WEIGHT_ROLE,
+                                                  K_FREE_ONE_TO_ONE_WEIGHT_ROLE};
+                for (std::size_t index = 0; index < 2; ++index)
                 {
-                    leaves_.push_back(nullptr);
-                    continue;
+                    const Graph::ValueID id = built.leaves.at(roles[index]);
+                    SA_FAIL_IF(!pool_->is_bound(id), StatusCode::InvalidDescription,
+                               "The leaf '{}' has no tensor in the training pool",
+                               roles[index]);
+                    branch_weights_[index] = &pool_->tensor(id);
+                    SA_TRY(check_host_floats(*branch_weights_[index], 1, roles[index]));
                 }
-                const Graph::ValueID id = built.leaves.at(leaf.role);
-                SA_FAIL_IF(!pool_->is_bound(id), StatusCode::InvalidDescription,
-                           "The leaf '{}' has no tensor in the training pool; call "
-                           "Train::bind_parameters() on that pool first",
-                           leaf.role);
-                SushiBLAS::Tensor& tensor = pool_->tensor(id);
-                SA_TRY(check_host_floats(tensor, leaf.shape.num_elements(), leaf.role));
-                leaves_.push_back(&tensor);
             }
 
             if (facts.reg_max > 1)
@@ -245,7 +287,6 @@ namespace SushiAI::Vision::Training
                 SA_TRY(check_host_floats(*projection_, facts.reg_max, K_FREE_PROJECTION_ROLE));
             }
 
-            views_.resize(facts.levels.size());
             return Status();
         });
     }
@@ -262,22 +303,33 @@ namespace SushiAI::Vision::Training
         return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Execute,
                                         [this, &truth]() -> Status
         {
-            for (std::size_t level = 0; level < views_.size(); ++level)
+            for (Branch& branch : branches_)
             {
-                views_[level].boxes = floats_of(*ports_[level * 2]);
-                views_[level].scores = floats_of(*ports_[level * 2 + 1]);
-            }
-            stage_.assign(SushiRuntime::span<const FreeLevelViews>(views_.data(), views_.size()),
-                          truth);
+                for (std::size_t level = 0; level < branch.views.size(); ++level)
+                {
+                    branch.views[level].boxes = floats_of(*branch.ports[level * 2]);
+                    branch.views[level].scores = floats_of(*branch.ports[level * 2 + 1]);
+                }
+                branch.stage.assign(SushiRuntime::span<const FreeLevelViews>(
+                                        branch.views.data(), branch.views.size()),
+                                    truth);
 
-            for (std::size_t leaf = 0; leaf < leaves_.size(); ++leaf)
+                for (std::size_t leaf = 0; leaf < branch.leaves.size(); ++leaf)
+                {
+                    SushiBLAS::Tensor* const tensor = branch.leaves[leaf];
+                    if (tensor == nullptr)
+                        continue;
+                    branch.stage.write_leaf(leaf, SushiRuntime::span<float>(
+                                                      tensor->data_as<float>(),
+                                                      static_cast<std::size_t>(
+                                                          tensor->num_elements)));
+                }
+            }
+
+            if (branch_weights_[0] != nullptr)
             {
-                SushiBLAS::Tensor* const tensor = leaves_[leaf];
-                if (tensor == nullptr)
-                    continue;
-                stage_.write_leaf(leaf, SushiRuntime::span<float>(
-                                            tensor->data_as<float>(),
-                                            static_cast<std::size_t>(tensor->num_elements)));
+                branch_weights_[0]->data_as<float>()[0] = one_to_many_weight_;
+                branch_weights_[1]->data_as<float>()[0] = 1.0f - one_to_many_weight_;
             }
 
             // The projection is rewritten each run; the pool gives no promise to keep a leaf.
@@ -294,15 +346,35 @@ namespace SushiAI::Vision::Training
 
     FreeLossTerms FreeTrainingStep::measure_terms()
     {
+        if (branches_.size() == 1)
+            return measure_branch(branches_.front());
+
+        const double weights[] = {static_cast<double>(one_to_many_weight_),
+                                  1.0 - static_cast<double>(one_to_many_weight_)};
+        FreeLossTerms sum;
+        for (std::size_t copy = 0; copy < branches_.size(); ++copy)
+        {
+            const FreeLossTerms terms = measure_branch(branches_[copy]);
+            sum.total += weights[copy] * terms.total;
+            sum.box += weights[copy] * terms.box;
+            sum.classes += weights[copy] * terms.classes;
+            sum.distribution += weights[copy] * terms.distribution;
+            sum.l1 += weights[copy] * terms.l1;
+        }
+        return sum;
+    }
+
+    FreeLossTerms FreeTrainingStep::measure_branch(const Branch& branch)
+    {
         const FreeModelFacts& facts = objective_.facts();
-        const std::vector<FreeLeaf>& described = objective_.stage_leaves();
+        const std::vector<FreeLeaf>& described = branch.stage.leaves();
         FreeLossTerms sum;
 
         for (std::size_t level = 0; level < facts.levels.size(); ++level)
         {
             LevelDoubles& host = doubles_;
-            widen(*ports_[level * 2], host.boxes);
-            widen(*ports_[level * 2 + 1], host.scores);
+            widen(*branch.ports[level * 2], host.boxes);
+            widen(*branch.ports[level * 2 + 1], host.scores);
             for (std::vector<double>* field :
                  {&host.target_scores, &host.box_mask, &host.normalized_weight, &host.target_boxes,
                   &host.target_distances, &host.l1_scale, &host.safe_boxes,
@@ -311,7 +383,7 @@ namespace SushiAI::Vision::Training
 
             for (std::size_t leaf = 0; leaf < described.size(); ++leaf)
             {
-                if (leaves_[leaf] == nullptr
+                if (branch.leaves[leaf] == nullptr
                     || described[leaf].level != static_cast<std::int64_t>(level))
                     continue;
 
@@ -350,7 +422,7 @@ namespace SushiAI::Vision::Training
                         break;
                 }
                 if (target != nullptr)
-                    widen(*leaves_[leaf], *target);
+                    widen(*branch.leaves[leaf], *target);
             }
 
             const FreeLevelLossArrays arrays{
@@ -363,7 +435,8 @@ namespace SushiAI::Vision::Training
             const FreeLossTerms terms = evaluate_free_detection_loss(
                 SushiRuntime::span<const FreeLevelLossArrays>(&arrays, 1), facts.reg_max,
                 facts.classes, objective_.batch(),
-                static_cast<double>(stage_.targets().target_scores_sum[0]), objective_.gains());
+                static_cast<double>(branch.stage.targets().target_scores_sum[0]),
+                objective_.gains());
             sum.total += terms.total;
             sum.box += terms.box;
             sum.classes += terms.classes;
@@ -406,7 +479,17 @@ namespace SushiAI::Vision::Training
 
     const FreeAssignmentStage& FreeTrainingStep::stage() const noexcept
     {
-        return stage_;
+        return branches_.front().stage;
+    }
+
+    void FreeTrainingStep::set_one_to_many_weight(float weight) noexcept
+    {
+        one_to_many_weight_ = weight;
+    }
+
+    float FreeTrainingStep::one_to_many_weight() const noexcept
+    {
+        return one_to_many_weight_;
     }
 
     const Train::TrainingStep& FreeTrainingStep::training() const noexcept

@@ -28,6 +28,7 @@
 #include <SushiAI/vision/training/free_objective.hpp>
 
 #include <cstddef>
+#include <initializer_list>
 #include <string>
 #include <utility>
 
@@ -83,24 +84,34 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<FreeObjective> FreeObjective::make(FreeModelFacts facts, Detect::Free::FreeTask task,
-                                              std::int64_t batch, FreeLossGains gains)
+                                              std::int64_t batch, FreeLossGains gains,
+                                              FreeBranchWeights weights)
     {
         SA_TRY(validate_free_loss_gains(gains));
+        SA_TRY(validate_free_branch_weights(weights));
         SA_TRY_ASSIGN(const FreeAssignmentStage stage,
                       FreeAssignmentStage::make(facts, task, batch));
 
         std::vector<FreeLeaf> leaves = stage.leaves();
+        if (facts.has_one_to_one)
+        {
+            SA_TRY_ASSIGN(const FreeAssignmentStage one_to_one,
+                          FreeAssignmentStage::make(facts, task, batch, FreeBranch::OneToOne));
+            leaves.insert(leaves.end(), one_to_one.leaves().begin(), one_to_one.leaves().end());
+        }
         return Result<FreeObjective>(FreeObjective(std::move(facts), std::move(task), batch,
-                                                   gains, std::move(leaves)));
+                                                   gains, weights, std::move(leaves)));
     }
 
     FreeObjective::FreeObjective(FreeModelFacts facts, Detect::Free::FreeTask task,
                                  std::int64_t batch, FreeLossGains gains,
+                                 FreeBranchWeights weights,
                                  std::vector<FreeLeaf> stage_leaves) noexcept
         : facts_(std::move(facts)),
           task_(std::move(task)),
           batch_(batch),
           gains_(gains),
+          weights_(weights),
           stage_leaves_(std::move(stage_leaves))
     {
 
@@ -121,6 +132,13 @@ namespace SushiAI::Vision::Training
                        builder.input(Shape{facts_.reg_max, 1}, std::string(K_FREE_PROJECTION_ROLE),
                                      DType::Float32));
         }
+
+        if (facts_.has_one_to_one)
+        {
+            for (const std::string_view role :
+                 {K_FREE_ONE_TO_MANY_WEIGHT_ROLE, K_FREE_ONE_TO_ONE_WEIGHT_ROLE})
+                leaves.add(role, builder.input(Shape{1}, std::string(role), DType::Float32));
+        }
     }
 
     Graph::ValueID FreeObjective::loss(const Graph::GraphBuilder& builder,
@@ -128,18 +146,38 @@ namespace SushiAI::Vision::Training
                                        const NN::ModelOutputs& outputs,
                                        const Train::ObjectiveLeaves& leaves) const
     {
+        const Graph::ValueID one_to_many =
+            branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToMany);
+        if (!facts_.has_one_to_one)
+            return one_to_many;
+
+        const Graph::ValueID one_to_one =
+            branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToOne);
+        return builder.add(
+            builder.mul(one_to_many, leaves.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE)),
+            builder.mul(one_to_one, leaves.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE)));
+    }
+
+    Graph::ValueID FreeObjective::branch_loss(const Graph::GraphBuilder& builder,
+                                              const Graph::Graph& graph,
+                                              const NN::ModelOutputs& outputs,
+                                              const Train::ObjectiveLeaves& leaves,
+                                              FreeBranch branch) const
+    {
         FreeLossValues values;
         values.levels.resize(facts_.levels.size());
         for (std::size_t level = 0; level < facts_.levels.size(); ++level)
         {
-            values.levels[level].boxes = port_of(outputs, facts_.levels[level].one_to_many.boxes);
-            values.levels[level].scores =
-                port_of(outputs, facts_.levels[level].one_to_many.scores);
+            const FreeLevelPorts& ports = branch == FreeBranch::OneToOne
+                                        ? facts_.levels[level].one_to_one
+                                        : facts_.levels[level].one_to_many;
+            values.levels[level].boxes = port_of(outputs, ports.boxes);
+            values.levels[level].scores = port_of(outputs, ports.scores);
         }
 
         for (const FreeLeaf& leaf : stage_leaves_)
         {
-            if (!reads_leaf(leaf.kind))
+            if (leaf.branch != branch || !reads_leaf(leaf.kind))
                 continue;
 
             if (leaf.kind == FreeLeafKind::TargetScoresSum)
@@ -201,6 +239,11 @@ namespace SushiAI::Vision::Training
     const FreeLossGains& FreeObjective::gains() const noexcept
     {
         return gains_;
+    }
+
+    const FreeBranchWeights& FreeObjective::branch_weights() const noexcept
+    {
+        return weights_;
     }
 
     Status add_free_loss_metrics(const FreeLossTerms& terms, Train::Metrics& metrics)

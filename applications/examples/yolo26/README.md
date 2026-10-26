@@ -88,7 +88,9 @@ The design is the model graph spec in the version history, sections 2.6 and 2.10
 your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
 
 The data block, `anchor_free` objective, optimizer and epoch count are those of
-`applications/examples/yolo11n/train.json`; `letterbox` is the detection default.
+`applications/examples/yolo11n/train.json`; `letterbox` is the detection default. The model's
+one-to-one copy trains beside the one-to-many copy: the objective's `one_to_many_weight_start` and
+`one_to_many_weight_end` default to 0.8 and 0.1, and the one-to-one loss takes the rest of 1.
 
 ```bash
 sa train applications/examples/yolo26/train.json

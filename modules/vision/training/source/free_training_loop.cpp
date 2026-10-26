@@ -34,6 +34,7 @@
 #include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
+#include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/detection_run_check.hpp>
 #include <SushiAI/vision/training/run_progress.hpp>
 #include <SushiAI/vision/training/truth_from_roles.hpp>
@@ -70,19 +71,25 @@ namespace SushiAI::Vision::Training
         Data::Batch batch;
         Detect::GroundTruthBatch truth;
 
+        // The branch weights move over the epochs this run reaches, counted from epoch 0.
+        const std::int64_t horizon = options.first_epoch + options.epochs;
         for (std::int64_t epoch = 1; epoch <= options.epochs; ++epoch)
         {
-            Data::begin_epoch(dataset, options.first_epoch + epoch - 1);
+            const std::int64_t index = options.first_epoch + epoch - 1;
+            Data::begin_epoch(dataset, index);
+            step.set_one_to_many_weight(
+                one_to_many_weight(step.objective().branch_weights(), index, horizon));
 
             const std::size_t first = epoch == 1 ? options.first_batch : 0;
-            for (std::size_t index = first; index < dataset.batch_count(); ++index)
+            for (std::size_t batch_index = first; batch_index < dataset.batch_count();
+                 ++batch_index)
             {
-                SA_TRY(dataset.read(index, batch));
+                SA_TRY(dataset.read(batch_index, batch));
                 SA_TRY(truth_from_roles(batch, truth));
 
                 FreeProgress progress;
                 progress.epoch = epoch;
-                progress.batch = index;
+                progress.batch = batch_index;
                 progress.rate = options.schedule != nullptr
                               ? Optim::apply_step_schedule(*options.schedule, optimizer)
                               : optimizer.learning_rate();
