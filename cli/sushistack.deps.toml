@@ -37,10 +37,10 @@ depends_on = ["sushilog", "sushiprofiler", "sushiruntime", "sushiblas"]
 version = "v0.2.3"
 commit  = "5f714a7bca6cad1a49e9a6133e75f0f791dba551"
 
-# The commit is the head of SushiProfiler's main; the v0.2.0 tag is cut after its build.
+# The commit is the head of SushiProfiler's main; the v0.3.0 tag is cut after its build.
 [sushisystems.sushiprofiler]
-version = "v0.2.0"
-commit  = "f303075857f444a4edd89cfaae598d0847b8899b"
+version = "v0.3.0"
+commit  = "c099165b5106f3004972c98e7adbc8f2f66329f3"
 
 [nlohmann-json]
 description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."

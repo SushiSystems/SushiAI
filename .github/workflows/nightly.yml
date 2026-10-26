@@ -16,8 +16,8 @@ env:
   SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
   SUSHILOG_REF: v0.2.3
-  # The commit cli/sushistack.deps.toml pins; it becomes v0.2.0 when SushiProfiler is tagged.
-  SUSHIPROFILER_REF: f303075857f444a4edd89cfaae598d0847b8899b
+  # The commit cli/sushistack.deps.toml pins; it becomes v0.3.0 when SushiProfiler is tagged.
+  SUSHIPROFILER_REF: c099165b5106f3004972c98e7adbc8f2f66329f3
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
   SA_CXX: icpx
