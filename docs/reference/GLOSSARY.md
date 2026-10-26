@@ -96,3 +96,5 @@ The list is generated in `docs/design/README.md`.
 **LAYERED_EXECUTION**: SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed... See [the design](../design/LAYERED_EXECUTION/README.md).
 
 **MODEL_IMPORT**: How a model of another framework (Darknet today; PyTorch weight files, ONNX and Caffe by the format engine below) enters SushiAI once, through one door, and is trained and run afterwards... See [the design](../design/MODEL_IMPORT/README.md).
+**PROFILING**: How SushiAI measures where a training step and an inference batch spend their time, through SushiProfiler alone, down to the IR node each kernel belongs to. See [the design](../design/PROFILING/README.md).
+

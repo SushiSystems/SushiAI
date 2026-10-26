@@ -1,6 +1,6 @@
 # Remaining work
 
-Next id: RW-145
+Next id: RW-146
 
 ## Next
 
@@ -23,6 +23,12 @@ The cache is written through libjpeg-turbo when a dataset with a `cache` key is 
 (`modules/vision/datasets/source/task_dataset.cpp`). The YOLO26 ruling named a separate tool.
 
 ## Rulings to carry out
+
+### RW-145 Measure SushiAI on SushiProfiler
+- State: open
+- Done when: phases P1 to P6 of `docs/design/PROFILING/README.md` are built and the YOLOv5n write-up
+  names the share of each group of a step and the kernels that bound it
+- Source: `docs/design/PROFILING/README.md`
 
 ### RW-130 Carry out layered execution across the stack
 - State: open
