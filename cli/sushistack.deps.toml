@@ -38,8 +38,8 @@ version = "v0.2.3"
 commit  = "5f714a7bca6cad1a49e9a6133e75f0f791dba551"
 
 [sushisystems.sushiprofiler]
-version = "v0.3.1"
-commit  = "ff730eab8b3ba713d37228e2e9662d593e355d10"
+version = "v0.3.2"
+commit  = "8a963f1d792ab2ee10f1c4a6e7b8e8607cfaf91a"
 
 [nlohmann-json]
 description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."

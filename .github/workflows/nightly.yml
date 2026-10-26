@@ -16,7 +16,7 @@ env:
   SUSHIRUNTIME_REF: main
   SUSHIBLAS_REF: main
   SUSHILOG_REF: v0.2.3
-  SUSHIPROFILER_REF: v0.3.1
+  SUSHIPROFILER_REF: v0.3.2
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
   CL_CONFIG_CPU_VECTORIZER_MODE: "1"
   SA_CXX: icpx
