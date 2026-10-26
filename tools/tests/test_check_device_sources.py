@@ -118,3 +118,29 @@ class RuleDeviceSourceOutsideModuleTest(DeviceSourcesTest):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProgramDeviceSourcesTest(DeviceSourcesTest):
+    """Covers test units that instantiate a kernel through a task recorder call."""
+
+    def _test_program(self, device: list[str]) -> None:
+        """Writes a test unit that records a kernel pair and the test program listing it."""
+        _write(self.root, "tests/core/optim/test_step.cpp", "void f() { recorder.record_late_pair(a, b); }")
+        lines = ["sushiai_add_test_program(OWNER optim", "    SOURCES", "        test_step.cpp"]
+        if device:
+            lines += ["    DEVICE_SOURCES"] + [f"        {name}" for name in device]
+        lines.append("    DEPENDS dtype)")
+        _write(self.root, "tests/core/optim/CMakeLists.txt", "\n".join(lines))
+
+    def test_a_listed_test_unit_that_records_a_kernel_passes(self) -> None:
+        self._test_program(["test_step.cpp"])
+        tree = self._declare(["source/sgd.cpp", "source/schedule.cpp"], ["source/sgd.cpp"])
+        self.assertEqual(self._messages(rule_device_source_outside_module, tree), [])
+        self.assertEqual(self._messages(rule_device_source_unneeded, tree), [])
+
+    def test_an_unlisted_test_unit_that_records_a_kernel_is_reported(self) -> None:
+        self._test_program([])
+        tree = self._declare(["source/sgd.cpp", "source/schedule.cpp"], ["source/sgd.cpp"])
+        messages = self._messages(rule_device_source_outside_module, tree)
+        self.assertEqual(len(messages), 1)
+        self.assertIn("test_step.cpp", messages[0])

@@ -36,15 +36,20 @@ K_KERNEL_HEADERS = (
     "SushiBLAS/blas_seam_kernels/*",
     "SushiRuntime/api/detail/emit_*",
     "SushiRuntime/api/launch/nd_range.hpp",
+    "SushiBLAS/graph_primitives/*",
+    "SushiBLAS/SushiBLAS.hpp",
 )
 
 K_MODULES = "modules"
 K_OUTSIDE_FOLDERS = ("tests", "applications")
+# Folders below tests/ that build against the installed package and link SushiBLAS::device_code themselves.
+K_PACKAGE_FOLDERS = ("tests/package",)
 K_PUBLIC_FOLDER = "include"
 K_SOURCE_FOLDER = "source"
 K_PROJECT_PREFIX = "SushiAI/"
 K_INCLUDE = re.compile(r'^\s*#\s*include\s*(?:<([^>]+)>|"([^"]+)")')
-K_KERNEL_CALL = re.compile(r"\b(?:parallel_for|single_task)\(")
+K_KERNEL_CALL = re.compile(r"\b(?:parallel_for|single_task|record_pair|record_late_pair)\(")
+K_TEST_FUNCTION = "sushiai_add_test_program"
 K_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
 K_LINE_COMMENT = re.compile(r"//[^\n]*")
 K_CMAKE_COMMENT = re.compile(r"#[^\n]*")
@@ -118,6 +123,13 @@ class UnitTree:
         return [build for build in found if build is not None]
 
     @cached_property
+    def test_builds(self) -> list[ModuleBuild]:
+        """Returns the test program call of every CMakeLists.txt below tests/ that has one."""
+        found = (_parse_call(path, K_TEST_FUNCTION)
+                 for path in sorted((self.root / K_OUTSIDE_FOLDERS[0]).rglob("CMakeLists.txt")))
+        return [build for build in found if build is not None]
+
+    @cached_property
     def include_roots(self) -> list[Path]:
         """Returns every modules/<tier>/<module>/include folder."""
         return sorted(path for path in (self.root / K_MODULES).glob(f"*/*/{K_PUBLIC_FOLDER}") if path.is_dir())
@@ -173,7 +185,9 @@ class UnitTree:
         for folder in K_OUTSIDE_FOLDERS:
             base = self.root / folder
             if base.is_dir():
-                yield from sorted(path for path in base.rglob("*.cpp") if path.is_file())
+                yield from sorted(path for path in base.rglob("*.cpp") if path.is_file()
+                                  and not any(path.is_relative_to(self.root / package)
+                                              for package in K_PACKAGE_FOLDERS))
 
 
 def collect(paths: list[Path]) -> Iterable[UnitTree]:
@@ -195,8 +209,8 @@ def rule_device_source_missing(tree: UnitTree) -> Iterator[Issue]:
 
 
 def rule_device_source_unneeded(tree: UnitTree) -> Iterator[Issue]:
-    """Yields an issue for each DEVICE_SOURCES entry that reaches no kernel."""
-    for build in tree.builds:
+    """Yields an issue for each DEVICE_SOURCES entry, of a module or a test program, that reaches no kernel."""
+    for build in tree.builds + tree.test_builds:
         for entry in build.device_sources:
             if entry.path.is_file() and tree.reach(entry.path, build.folder / K_SOURCE_FOLDER) is None:
                 yield Issue(entry.build_file, entry.line, f"{entry.path.name} is in DEVICE_SOURCES "
@@ -204,12 +218,15 @@ def rule_device_source_unneeded(tree: UnitTree) -> Iterator[Issue]:
 
 
 def rule_device_source_outside_module(tree: UnitTree) -> Iterator[Issue]:
-    """Yields an issue for each test or application source that reaches a kernel."""
+    """Yields an issue for each test or application source that reaches a kernel and no test program lists."""
+    listed = {entry.path.resolve() for build in tree.test_builds for entry in build.device_sources}
     for unit in tree.outside_units():
+        if unit.resolve() in listed:
+            continue
         reach = tree.reach(unit, None)
         if reach is not None:
             yield Issue(unit, reach.line, f"{unit.name} reaches a kernel through {reach.via} "
-                                          "and no module lists it in DEVICE_SOURCES")
+                                          "and no DEVICE_SOURCES lists it")
 
 
 K_CHECKER = Checker(
