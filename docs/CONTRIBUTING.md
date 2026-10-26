@@ -242,7 +242,7 @@ fragment is
 [module]
 depends_on = ["sushilog", "sushiruntime", "sushiblas"]
 
-[sushi.sushilog]
+[sushisystems.sushilog]
 version = "v0.2.1"
 commit  = "56631fd10919f20c3cac3bd6512f927e7f09cccc"
 ```
@@ -250,7 +250,7 @@ commit  = "56631fd10919f20c3cac3bd6512f927e7f09cccc"
 Source: `cli/sushistack.deps.toml`
 
 `depends_on` folds both siblings' own toolchain requirements into SushiAI's
-readiness picture. A `[sushi.<name>]` table pins a Sushi library at a release tag and its
+readiness picture. A `[sushisystems.<name>]` table pins a Sushi library at a release tag and its
 commit; `sa setup` fetches it when no `<NAME>_DIR` or sibling checkout provides it, and
 `sa build` hands the path to CMake as `<NAME>_DIR`. If SushiAI ever needs a library neither sibling already
 provisions, add a top-level TOML table the way SushiRuntime's own fragment

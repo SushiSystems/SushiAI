@@ -13,7 +13,7 @@ dependencies = [
     "typer>=0.12",
     "rich>=13.0",
     "tomli>=2.0; python_version < '3.11'",
-    "sushicore==0.9.1",
+    "sushicore==0.9.3",
 ]
 
 [project.optional-dependencies]
