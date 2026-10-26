@@ -53,6 +53,7 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/train/steps.hpp>
@@ -63,6 +64,9 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Holds the label of the graph that runs the evaluation step. */
+            constexpr std::string_view K_STEP_LABEL = "eval.step";
+
             /** @brief Holds the weight of the next value when a carried leaf takes it whole. */
             constexpr double K_WHOLE = 1.0;
 
@@ -190,7 +194,8 @@ namespace SushiAI
             Graph::StepRecorder* const trailing =
                 step->carries_state() ? &step->carries_ : nullptr;
             SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(engine, traced.graph, pool,
-                                                                    trailing, selector));
+                                                                    trailing, selector, {},
+                                                                    K_STEP_LABEL));
             SA_TRY(step->reset());
 
             return std::move(step);
@@ -232,16 +237,20 @@ namespace SushiAI
                 SA_TRY(check_feed(*feeds[at], *input_leaves_[at], input_names_[at]));
             }
 
-            SA_TRY(::SushiAI::Detail::record_and_run(
-                *engine_, [&](SushiBLAS::TaskRecorder& recorder) -> Status
             {
-                SushiBLAS::BLASOps blas(recorder);
-                for (std::size_t at = 0; at < feeds.size(); ++at)
-                    blas.copy(*feeds[at], *input_leaves_[at]);
+                SA_ZONE("copy", "input");
+                SA_TRY(::SushiAI::Detail::record_and_run(
+                    *engine_, [&](SushiBLAS::TaskRecorder& recorder) -> Status
+                {
+                    SushiBLAS::BLASOps blas(recorder);
+                    for (std::size_t at = 0; at < feeds.size(); ++at)
+                        blas.copy(*feeds[at], *input_leaves_[at]);
 
-                return Status();
-            }));
+                    return Status();
+                }));
+            }
 
+            SA_ZONE("device", "run");
             return step_->run();
         }
 

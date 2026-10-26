@@ -21,12 +21,12 @@ pytestmark = pytest.mark.medium
 
 K_GROUPS = {
     "Project": ["build", "test", "run", "clean", "docs"],
-    "Models": ["train", "inference", "import", "tokenize", "demo"],
+    "Models": ["train", "inference", "import", "tokenize", "profile", "demo"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
 
 # Commands whose --help is forwarded to the program they run once that program is built.
-K_FORWARDING = {"train", "inference", "import", "tokenize"}
+K_FORWARDING = {"train", "inference", "import", "tokenize", "profile"}
 K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("demo", "mlp")]
 
 K_EXAMPLES = {

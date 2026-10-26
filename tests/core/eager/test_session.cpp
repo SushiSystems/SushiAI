@@ -22,14 +22,13 @@
 
 /**
  * @file test_session.cpp
- * @brief Tests Session: running a model eagerly, region by region, and what a step costs.
+ * @brief Tests Session: running a model eagerly, region by region, and what a settled loop keeps.
  * @author Mustafa Garip
  */
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -446,45 +445,6 @@ namespace
     /** @brief Holds the layer count of the deep model; the design asks for at least 50. */
     constexpr std::size_t K_DEEP_LAYERS = 50;
 
-    /** @brief Sums the costs of several steps. */
-    struct CostSum
-    {
-        std::uint64_t partition_ns = 0; /**< Assigning region keys. */
-        std::uint64_t plan_ns = 0;      /**< Finding boundaries and comparing signatures. */
-        std::uint64_t compile_ns = 0;   /**< Running the passes over built regions. */
-        std::uint64_t total_ns = 0;     /**< The whole flush. */
-        std::size_t steps = 0;          /**< How many steps were added. */
-
-        /** @brief Adds the cost of one step. */
-        void add(const StepCost& cost) noexcept
-        {
-            partition_ns += cost.partition_ns;
-            plan_ns += cost.plan_ns;
-            compile_ns += cost.compile_ns;
-            total_ns += cost.total_ns;
-            ++steps;
-        }
-    };
-
-    /** @brief Returns @p nanoseconds over @p steps, in microseconds. */
-    [[nodiscard]] double mean_us(std::uint64_t nanoseconds, std::size_t steps)
-    {
-        return steps == 0 ? 0.0 : static_cast<double>(nanoseconds) / 1000.0
-                                      / static_cast<double>(steps);
-    }
-
-    /** @brief Prints one row: the three host stages of a step and the whole step beside them. */
-    void report(const std::string& label, const CostSum& sum, std::size_t regions)
-    {
-        const std::uint64_t host = sum.partition_ns + sum.plan_ns + sum.compile_ns;
-        std::cout << "[eager step cost] " << label << ": regions " << regions
-                  << ", partition " << mean_us(sum.partition_ns, sum.steps) << " us"
-                  << ", plan " << mean_us(sum.plan_ns, sum.steps) << " us"
-                  << ", compile " << mean_us(sum.compile_ns, sum.steps) << " us"
-                  << ", host stages " << mean_us(host, sum.steps) << " us"
-                  << ", whole step " << mean_us(sum.total_ns, sum.steps) << " us"
-                  << " (mean of " << sum.steps << " steps)" << std::endl;
-    }
 
     /** @brief Returns the widths of a model of @p layers layers, 16 wide inside, 4 results. */
     [[nodiscard]] std::vector<int64_t> widths_of(std::size_t layers)
@@ -495,12 +455,12 @@ namespace
     }
 
     /**
-     * @brief Runs a settled loop and prints the mean host cost of its unchanged steps.
+     * @brief Runs a settled loop and checks that its unchanged steps neither build nor record.
      * @return The failure of a step, or success once every measured step kept every region.
      */
-    [[nodiscard]] Status measure_settled(SushiBLAS::Engine& engine, const std::string& label,
-                                         const std::vector<int64_t>& widths,
-                                         Support::Scoping scoping)
+    [[nodiscard]] Status run_settled(SushiBLAS::Engine& engine, const std::string& label,
+                                     const std::vector<int64_t>& widths,
+                                     Support::Scoping scoping)
     {
         Support::Loop loop(engine, K_COST_RATE);
         SA_TRY(loop.prepare(engine, widths));
@@ -510,7 +470,6 @@ namespace
         for (int step = 0; step < K_WARM_STEPS; ++step)
             SA_TRY(loop.step(options));
 
-        CostSum sum;
         for (int step = 0; step < K_MEASURED_STEPS; ++step)
         {
             SA_TRY(loop.step(options));
@@ -521,28 +480,26 @@ namespace
                        "had not settled",
                        label, loop.session.last_cost().built,
                        loop.session.last_cost().recorded);
-            sum.add(loop.session.last_cost());
         }
 
-        report(label, sum, loop.executor.region_count());
         return Status();
     }
 } // namespace
 
 TEST_F(Medium_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
 {
-    SA_EXPECT_OK(measure_settled(*engine, "two layers, no scope", {6, 4, 3},
-                                 Support::Scoping::None));
-    SA_EXPECT_OK(measure_settled(*engine, "two layers, one scope per layer", {6, 4, 3},
-                                 Support::Scoping::PerLayer));
+    SA_EXPECT_OK(run_settled(*engine, "two layers, no scope", {6, 4, 3},
+                             Support::Scoping::None));
+    SA_EXPECT_OK(run_settled(*engine, "two layers, one scope per layer", {6, 4, 3},
+                             Support::Scoping::PerLayer));
 }
 
 TEST_F(Medium_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
 {
-    SA_EXPECT_OK(measure_settled(*engine, "fifty layers, no scope", widths_of(K_DEEP_LAYERS),
-                                 Support::Scoping::None));
-    SA_EXPECT_OK(measure_settled(*engine, "fifty layers, one scope per layer",
-                                 widths_of(K_DEEP_LAYERS), Support::Scoping::PerLayer));
+    SA_EXPECT_OK(run_settled(*engine, "fifty layers, no scope", widths_of(K_DEEP_LAYERS),
+                             Support::Scoping::None));
+    SA_EXPECT_OK(run_settled(*engine, "fifty layers, one scope per layer",
+                             widths_of(K_DEEP_LAYERS), Support::Scoping::PerLayer));
 }
 
 TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
@@ -555,24 +512,17 @@ TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
     for (int step = 0; step < K_WARM_STEPS; ++step)
         SA_EXPECT_OK(loop.step(options));
 
-    CostSum appears;
-    CostSum disappears;
     std::size_t recorded = 0;
     for (int round = 0; round < K_MEASURED_STEPS / 2; ++round)
     {
         options.extra_scope = true;
         SA_EXPECT_OK(loop.step(options));
-        appears.add(loop.session.last_cost());
         recorded += loop.session.last_cost().recorded;
 
         options.extra_scope = false;
         SA_EXPECT_OK(loop.step(options));
-        disappears.add(loop.session.last_cost());
         recorded += loop.session.last_cost().recorded;
     }
-
-    report("fifty layers, a scope appears", appears, loop.executor.region_count());
-    report("fifty layers, a scope disappears", disappears, loop.executor.region_count());
 
     // A renumbering records regions again without compiling them; none means it was not one.
     EXPECT_GT(recorded, 0u);

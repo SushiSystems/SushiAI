@@ -35,6 +35,7 @@
 
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
@@ -241,6 +242,7 @@ namespace SushiAI::Vision::Training
     void FreeAssignmentStage::assign(SushiRuntime::span<const FreeLevelViews> levels,
                                      const Detect::GroundTruthBatch& truth)
     {
+        SA_ZONE("host", "assign");
         SA_THROW_IF(truth.batch != batch_, "the truth holds {} images for a stage of {}",
                     truth.batch, batch_);
         join_levels(levels);

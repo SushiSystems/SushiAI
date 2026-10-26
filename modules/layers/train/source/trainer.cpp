@@ -28,8 +28,6 @@
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/train/trainer.hpp>
 
-#include <algorithm>
-#include <chrono>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -48,6 +46,8 @@
 #include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/profile/profile.hpp>
+#include <SushiAI/profile/timelines.hpp>
 #include <SushiAI/train/input_match.hpp>
 #include <SushiAI/train/parameter_groups.hpp>
 #include <SushiAI/train/role_match.hpp>
@@ -199,28 +199,6 @@ namespace SushiAI
                 text += SushiLog::format_text("final {}: {}\n", SushiLog::left(metric.name, 9),
                                                 describe_metric_value(metric));
             }
-            text += SushiLog::format_text(
-                "wall clock     : {} ms ({} ms/step)\n", SushiLog::fixed(duration_ms, 1),
-                SushiLog::fixed(steps ? duration_ms / static_cast<double>(steps) : 0.0, 2));
-
-            if (node_timings.empty())
-            {
-                text += "per-node timing: none recorded (create the Runtime with "
-                        "RuntimeConfig::profiling to collect it)\n";
-                return text;
-            }
-
-            text += "per-node timing:\n";
-            for (const SushiRuntime::NodeTiming& timing : node_timings)
-            {
-                text += SushiLog::format_text(
-                    "  [{}] {} x{} device {} ms  host {} ms\n",
-                    SushiLog::right(timing.plan_index, 3), SushiLog::left(timing.name, 24),
-                    SushiLog::left(timing.invocations, 6),
-                    SushiLog::right(SushiLog::fixed(timing.device_ms, 3), 8),
-                    SushiLog::right(SushiLog::fixed(timing.host_ms, 3), 8));
-            }
-
             return text;
         }
 
@@ -368,24 +346,37 @@ namespace SushiAI
             SA_TRY(check_feed(batch.inputs, inputs, "inputs"));
 
             // No task is recorded here, so the objective may write its leaves on the host.
-            SA_TRY(objective_->feed(batch, binding_.leaves, *pool_));
+            {
+                SA_ZONE("host", "feed");
+                SA_TRY(objective_->feed(batch, binding_.leaves, *pool_));
+            }
 
             // The minibatch inputs are copied into the fixed address buffer the plan reads.
-            SA_TRY(SushiAI::Detail::record_and_run(*engine_,
-                                                    [&](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::BLASOps blas(recorder);
-                blas.copy(batch.inputs, inputs);
-                return Status();
-            }));
+                SA_ZONE("copy", "input");
+                SA_TRY(SushiAI::Detail::record_and_run(*engine_,
+                                                        [&](SushiBLAS::TaskRecorder& recorder)
+                {
+                    SushiBLAS::BLASOps blas(recorder);
+                    blas.copy(batch.inputs, inputs);
+                    return Status();
+                }));
+            }
 
             // The step replays the plan and steps a per-step optimizer itself.
-            SA_TRY(step_->run());
+            {
+                SA_ZONE("device", "run");
+                SA_TRY(step_->run());
+            }
 
             StepMetrics result;
-            result.loss = current_loss();
+            {
+                SA_ZONE("host", "loss");
+                result.loss = current_loss();
+            }
             if (options_.track_metrics)
             {
+                SA_ZONE("host", "measure");
                 const StepView view{batch, result.loss,
                                     SushiRuntime::span<const StepOutput>(outputs_.data(),
                                                                          outputs_.size())};
@@ -396,70 +387,6 @@ namespace SushiAI
 
             return result;
         }
-
-        namespace
-        {
-            /**
-             * @brief Returns the row of @p totals that carries @p plan_index, or null.
-             * @param row Where the row sits when @p totals keeps the order of the step's rows.
-             */
-            [[nodiscard]] SushiRuntime::NodeTiming* find_total(RunReport::NodeTimings& totals,
-                                                               std::size_t row,
-                                                               std::size_t plan_index) noexcept
-            {
-                if (row < totals.size() && totals[row].plan_index == plan_index)
-                    return &totals[row];
-
-                const auto found = std::find_if(totals.begin(), totals.end(),
-                                                [plan_index](const SushiRuntime::NodeTiming& total)
-                {
-                    return total.plan_index == plan_index;
-                });
-                return found == totals.end() ? nullptr : &*found;
-            }
-
-            /**
-             * @brief Adds the timing rows of one step to the totals of a run, by plan index.
-             * @param totals Empty, or the rows of earlier runs of the same plan.
-             * @param step Rows of one run of that plan.
-             * @return Success; OutOfMemory when the first rows could not be copied;
-             *         Incompatible when @p step holds a row @p totals has no row for.
-             */
-            [[nodiscard]] Status add_node_timings(RunReport::NodeTimings& totals,
-                                                  const RunReport::NodeTimings& step)
-            {
-                if (totals.empty())
-                {
-                    return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
-                    {
-                        totals = step;
-                        return Status();
-                    });
-                }
-
-                SA_FAIL_IF(totals.size() != step.size(), StatusCode::Incompatible,
-                           "A step reported {} node timing rows but the steps before it "
-                           "reported {}, so the rows cannot be summed",
-                           step.size(), totals.size());
-
-                for (std::size_t row = 0; row < step.size(); ++row)
-                {
-                    SushiRuntime::NodeTiming* total =
-                        find_total(totals, row, step[row].plan_index);
-                    SA_FAIL_IF(total == nullptr, StatusCode::Incompatible,
-                               "A step reported a node timing for plan index {}, which the "
-                               "steps before it did not report",
-                               step[row].plan_index);
-
-                    total->invocations += step[row].invocations;
-                    total->device_ms += step[row].device_ms;
-                    total->host_ms += step[row].host_ms;
-                }
-
-                return Status();
-            }
-
-        } // namespace
 
         Result<RunReport> Trainer::fit(const Data::Dataset& dataset)
         {
@@ -474,10 +401,7 @@ namespace SushiAI
             RunReport report;
             report.operations_per_step = step_->step().operation_count();
 
-            // A plan index names a node of one plan, so the sum holds for one compile.
-            const std::size_t compiles = step_->step().compile_count();
-
-            const auto started = std::chrono::steady_clock::now();
+            SA_ZONE("train", "fit");
 
             // One Batch for the run, so a dataset that builds its batches reuses the tensors.
             Data::Batch batch;
@@ -487,7 +411,11 @@ namespace SushiAI
                 Data::begin_epoch(dataset, epoch);
                 for (std::size_t index = 0; index < dataset.batch_count(); ++index)
                 {
-                    SA_TRY(dataset.read(index, batch));
+                    Profile::mark_period(Profile::Timeline::TrainStep);
+                    {
+                        SA_ZONE("data", "read");
+                        SA_TRY(dataset.read(index, batch));
+                    }
                     SA_TRY_ASSIGN(const StepMetrics metrics, run_step(batch));
 
                     if (first)
@@ -498,23 +426,8 @@ namespace SushiAI
                     report.last_loss = metrics.loss;
                     report.last_metrics = metrics.metrics;
                     ++report.steps;
-
-                    if (options_.profile)
-                    {
-                        SA_FAIL_IF(step_->step().compile_count() != compiles,
-                                   StatusCode::Incompatible,
-                                   "The step was compiled again during fit(), compile {} after "
-                                   "compile {}, so its node timings name another plan",
-                                   step_->step().compile_count(), compiles);
-                        SA_TRY(add_node_timings(report.node_timings,
-                                                step_->step().last_report().node_timings));
-                    }
                 }
             }
-
-            const auto finished = std::chrono::steady_clock::now();
-            report.duration_ms =
-                std::chrono::duration<double, std::milli>(finished - started).count();
 
             report.compile_count = step_->step().compile_count();
             return report;

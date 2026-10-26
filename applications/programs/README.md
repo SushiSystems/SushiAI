@@ -15,8 +15,8 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 
 | File | Command |
 | --- | --- |
-| `train.cpp` | `sushiai train <train.json>` |
-| `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json>` |
+| `train.cpp` | `sushiai train <train.json> [--profile <profile.json>]` |
+| `inference.cpp` | `sushiai inference <model.json> <model.sushi> <eval.json> [--profile <profile.json>]` |
 | `import.cpp` | `sushiai import <format> <files...> --output <directory> [--force]` |
 | `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
@@ -29,6 +29,9 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epochs`: the epoch, schedule and report loop the trainer run and the cluster run share, and `is_reported_epoch`, the cadence the vision run prints at |
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
+| `profile_arguments.hpp`, `profile_arguments.cpp` | `read_profile_arguments`: takes the `--profile <config>` pair out of a command line, wherever it stands |
+| `profile_session.hpp`, `profile_session.cpp` | `ProfileSession` and `end_profiled_run`: reads a SushiProfiler configuration, starts a session over the runtime, binds the `train.step` and `inference.batch` timelines and, on `close()`, stops the session and hands the record to its writers; compiled when `SA_ENABLE_PROFILER` is on |
+| `profile_session_none.cpp` | `ProfileSession::open` refuses and names `SA_ENABLE_PROFILER`; compiled when it is off |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
 | `domains_vision.cpp` | The vision rows, the `anchor` and `anchor_free` runs and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
 | `domains_vision_none.cpp` | No row; compiled when it is off |
@@ -197,11 +200,19 @@ the epochs of this run from 1.
 A checkpoint whose run state has no progress records is refused as `resume` and loads as
 `weights`; `modules/layers/io/README.md` has the message.
 
-### Why it takes no flags
+### Why it takes one flag
 
 `applications/examples/source/demo_mlp.cpp` is the flag-driven program, and its flags are a contract the test
-suite pins. In `train.cpp` every knob lives in the configuration file, because a knob that
-exists in two places drifts.
+suite pins. In `train.cpp` every knob of the run lives in the configuration file, because a knob that
+exists in two places drifts. The one flag is `--profile <profile.json>`, which says how to measure
+the run and not what the run is. Without it no session opens, no record is written and
+`mark_period` does nothing.
+
+With it, `train.cpp` opens a `ProfileSession` right after the engine, so the runtime and the
+engine outlive it, and ends it after the run, whether the run succeeded or not. A path that does
+not exist, holds bad JSON or an unknown key stops the program before the first step and names the
+file. A run that fails still writes its record, and its own failure is what the program reports.
+`docs/guides/PROFILING.md` shows a configuration and how to read the record.
 
 ### The metric belongs to the objective
 
@@ -228,7 +239,9 @@ forward-only step and fails unless that one was compiled exactly once.
 
 The data file is one of the three positional arguments. The architecture file describes a
 model and carries no data block, so without the data file there would be nothing to run on.
-An optional flag that always errors when omitted would misstate what is optional.
+An optional flag that always errors when omitted would misstate what is optional. The one flag
+is `--profile <profile.json>`, which `train.cpp` takes too; it opens a `ProfileSession` over
+the run and marks one `inference.batch` period per batch.
 
 ### Forward pass only
 

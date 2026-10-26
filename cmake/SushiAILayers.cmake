@@ -28,6 +28,8 @@ set(SUSHIAI_TIER_LIBRARY
 # <tier>/<module>, so two domains may each have a `blocks` or a `datasets`.
 set(SUSHIAI_MODULE_TIERS
     log                  core
+    profile              core
+    profile_records      core
     failure              core
     dtype                core
     hash                 core

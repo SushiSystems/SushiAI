@@ -65,7 +65,18 @@ From `CMakeLists.txt`: `PUBLIC_DEPENDS config core data graph nn optim` and
 headers also include `SushiBLAS/engine/engine.hpp`, `SushiBLAS/tensor/tensor.hpp`,
 `SushiRuntime/core/span.hpp` and `SushiRuntime/sushiruntime.hpp`, which reach the module through
 `failure`, `dtype`, `shape`, `seam` as external public
-dependencies.
+dependencies. `profile`, and SushiProfiler with it, is linked privately for the zones of
+`trainer.cpp` and `evaluation_step.cpp`; no header includes it.
+
+## Zones and the step mark
+
+`Trainer::fit` opens the zone `train.fit`, marks one `train.step` period before the read of each
+batch, and times `data.read`. `run_step` times `host.feed`, `copy.input`, `device.run`, `host.loss`
+and `host.measure`; `EvaluationStep::run` times its copy and its replay as `copy.input` and
+`device.run`. `TrainingStep` and `EvaluationStep` name their graphs `train.lead`, `train.step` and
+`eval.step`. `RunReport` and `TrainerOptions` hold no timing: a run's time is read from a
+profiling record, as `docs/guides/PROFILING.md` says. `fit` marks no end of the last step; a
+caller that wants the last period in a record marks once more.
 
 ## Public entry points
 

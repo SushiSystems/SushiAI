@@ -680,3 +680,17 @@ The callback runs once and sees the update 7 it was handed.
 
 A callback that throws `std::runtime_error` yields a failed status whose message contains the
 text of the exception.
+
+## test_free_training_step.cpp
+
+Suites: `Medium_FreeTrainingStep`, `Medium_FreeTrainingZones`.
+
+The `Medium_FreeTrainingZones` case, compiled only when `SA_ENABLE_PROFILER` is on, runs one anchor-free step of the two-level model under a
+SushiProfiler session that follows `train.step`, and reads the record.
+
+### AStepPutsReadbackAssignAndLossInItsPeriod
+
+The test opens a period, runs the step, and opens a second period, which ends the first. The
+record holds one period, and its zones are exactly `copy.input`, `device.run`, `host.assign`,
+`host.loss` and `host.readback`, each in the group its name starts with. The case skips itself
+when `SA_PROFILE_LEVEL` is 0.

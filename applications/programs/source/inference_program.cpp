@@ -39,6 +39,8 @@
 #include <SushiAI/config/data_fit.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
+#include <SushiAI/profile/profile.hpp>
+#include <SushiAI/profile/timelines.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiLog/text/text_format.hpp>
@@ -94,7 +96,11 @@ namespace SushiAI
             Data::Batch batch;
             for (std::size_t b = 0; b < dataset.batch_count(); ++b)
             {
-                SA_TRY(dataset.read(b, batch));
+                Profile::mark_period(Profile::Timeline::InferenceBatch);
+                {
+                    SA_ZONE("data", "read");
+                    SA_TRY(dataset.read(b, batch));
+                }
                 SA_TRY(run.step.run(batch.inputs));
 
                 const Data::BatchTarget* const target =
@@ -185,7 +191,10 @@ namespace SushiAI
                        model_path.string(), published.size());
 
             SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-            SA_TRY(IO::load_checkpoint(checkpoint_path, state));
+            {
+                SA_ZONE("io", "checkpoint");
+                SA_TRY(IO::load_checkpoint(checkpoint_path, state));
+            }
 
             Graph::TensorPool pool(engine);
             SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,

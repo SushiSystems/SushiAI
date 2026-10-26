@@ -41,6 +41,7 @@
 #include <SushiAI/optim/rate_schedule.hpp>
 #include <SushiAI/optim/run_schedule.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiBLAS/core/version.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiLog/text/text_format.hpp>
@@ -198,8 +199,11 @@ namespace SushiAI
 
             if (!spec.checkpoint.empty())
             {
-                SA_TRY(IO::save_run_checkpoint(spec.checkpoint, setup->state(), *optimizer,
-                                               summary.progress));
+                {
+                    SA_ZONE("io", "checkpoint");
+                    SA_TRY(IO::save_run_checkpoint(spec.checkpoint, setup->state(), *optimizer,
+                                                   summary.progress));
+                }
                 std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                      spec.checkpoint.string(),
                                                      learnable_scalars(setup->state()));

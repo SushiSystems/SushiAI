@@ -27,6 +27,8 @@
 
 #include <SushiAI/graph/lowering.hpp>
 
+#include <string>
+
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -73,6 +75,10 @@ namespace SushiAI
                             "unlowered.hpp.",
                             Ops::name_of(node.op), id);
 
+                // The origin is built once per record() and never on a run.
+                const std::string origin = origin_prefix_ + std::to_string(id) + ":"
+                                           + std::string(Ops::name_of(node.op));
+                const SushiBLAS::TaskRecorder::OriginScope scope = recorder_->origin(origin);
                 const LoweringContext context(*recorder_, *stream_, *pool_, graph, id, *selector_,
                                               selections_, emitted_, preludes_);
                 const Status recorded = ::SushiAI::Detail::guard(

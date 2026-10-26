@@ -13,6 +13,7 @@ the manual.
 | [Models and packaging](architecture/MODELS_AND_PACKAGING.md) | The model file, its driver, the registries, checkpoints and packaging |
 | [CLI guide](guides/CLI_GUIDE.md) | The `sa` commands that build, test, run and diagnose |
 | [Running models](guides/RUNNING_MODELS.md) | `sushiai train`, `inference`, `import` and `tokenize` |
+| [Profiling a run](guides/PROFILING.md) | `--profile` on `train` and `inference`, what a record holds and `sa profile` |
 | [Demo](guides/DEMO.md) | What `sa demo mlp` prints and what each number means |
 | [Integration guide](guides/INTEGRATION.md) | Consuming SushiAI from another CMake project |
 | [Model file](guides/MODEL_FILE.md) | The JSON model description, version 2, and the upgrade from version 1 |

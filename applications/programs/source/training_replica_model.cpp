@@ -44,6 +44,7 @@
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
 
 #include "training_cluster_section.hpp"
@@ -253,13 +254,21 @@ namespace SushiAI
             enter_epoch(rows.epoch);
             const Data::RowRange range{static_cast<std::int64_t>(rows.rows.first - first),
                                        static_cast<std::int64_t>(rows.rows.count)};
-            SA_TRY(dataset.read_rows(static_cast<std::size_t>(rows.batch_index), range, part_));
+            {
+                SA_ZONE("data", "read");
+                SA_TRY(dataset.read_rows(static_cast<std::size_t>(rows.batch_index), range,
+                                         part_));
+            }
 
             // No task is recorded here, so the objective may write its leaves on the host.
             const Train::TrainingGraph& built = setup_->built();
-            SA_TRY(setup_->objective().feed(part_, built.leaves, setup_->pool()));
+            {
+                SA_ZONE("host", "feed");
+                SA_TRY(setup_->objective().feed(part_, built.leaves, setup_->pool()));
+            }
 
             SushiBLAS::Tensor& inputs = setup_->pool().tensor(built.spec.inputs);
+            SA_ZONE("copy", "input");
             return SushiAI::Detail::record_and_run(*engine_,
                                                    [&](SushiBLAS::TaskRecorder& recorder)
             {

@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/late_count_hold.hpp>
@@ -57,17 +58,17 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Lowers the nodes @p nodes of @p graph into a step and compiles it.
+                 * @brief Lowers the nodes @p nodes of @p graph, then @p trailing, and compiles.
                  * @param engine Must outlive the step, as must @p pool and @p trailing.
-                 * @param trailing Records extra work behind the graph's.
                  * @param selector Picks the form of a fusible node; null selects by device.
                  * @param nodes The nodes the step is made of; every node by default.
-                 * @return The step, or the first refusal from lowering, recording or compilation.
+                 * @param label Names the runtime graph; empty leaves it unnamed.
+                 * @return The step, or the first refusal of lowering, recording or compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
                     StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr,
-                    NodeRange nodes = {});
+                    NodeRange nodes = {}, std::string_view label = {});
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
@@ -148,8 +149,7 @@ namespace SushiAI
 
                 /**
                  * @brief Returns the report the last run() of a step that holds work refilled.
-                 * @return An empty report marked failed after a run() that failed; one with no
-                 *         node timing before the first run(), and without profiling.
+                 * @return An empty report marked failed after a run() that failed.
                  */
                 [[nodiscard]] const SushiRuntime::RunReport& last_report() const noexcept
                 {

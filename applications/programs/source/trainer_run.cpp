@@ -38,6 +38,7 @@
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/train/metrics.hpp>
 #include <SushiAI/train/trainer.hpp>
 
@@ -93,7 +94,10 @@ namespace SushiAI
                 };
                 steps.run_step = [&](std::size_t index) -> Status
                 {
-                    SA_TRY(run.dataset.read(index, batch));
+                    {
+                        SA_ZONE("data", "read");
+                        SA_TRY(run.dataset.read(index, batch));
+                    }
                     SA_TRY_ASSIGN(last, trainer->run_step(batch));
                     return Status();
                 };

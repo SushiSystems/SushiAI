@@ -87,13 +87,11 @@ A session traces one step at a time.
 
 Suites: `Medium_EagerStepCost`.
 
-Prints the host cost of an eager step and asserts only that the measured steps were the kind it
-claims to measure.
+Checks that the steps of a settled eager loop are the kind a cost reading would need: unchanged
+ones build and record no region. The time of an eager step is read from the `eager.*` zones of a
+profiling record; `StepCost` keeps the region counts only.
 
-This file needs an engine. Each row it prints starts with `[eager step cost]` and gives the mean
-over the measured steps, in microseconds, of the three host stages `StepCost` separates
-(partition, plan, compile), their sum, and the whole step beside them. The numbers are read off
-a run; none is asserted and none is recorded in this page.
+This file needs an engine.
 
 `K_WARM_STEPS`, 3, run before the measured ones so every region is recorded. `K_MEASURED_STEPS`
 is 20. `K_RATE` is 1e-6 so that fifty RELU layers stay finite for the length of the run.
@@ -101,12 +99,12 @@ is 20. `K_RATE` is 1e-6 so that fifty RELU layers stay finite for the length of 
 
 ## AnUnchangedStepOfTheTwoLayerModel, AnUnchangedStepOfAFiftyLayerModel
 
-`measure_settled` runs a loop with no scope and with one scope per layer. It returns
+`run_settled` runs a loop with no scope and with one scope per layer. It returns
 `Incompatible` when a measured step built or recorded a region, since that step would not be an
 unchanged one.
 
 ## AScopeThatAppearsAndDisappears
 
 A fifty-layer loop with one scope per layer alternates a step with a scope "extra" and a step
-without it, ten times each, and prints the two means. The case fails when no region was recorded
-again, because the steps would then not have been renumberings.
+without it, ten times each. The case fails when no region was recorded again, because the
+steps would then not have been renumberings.

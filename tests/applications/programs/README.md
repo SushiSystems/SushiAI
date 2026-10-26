@@ -79,3 +79,57 @@ Trains the `tiny_yolo` fixture, two convolutions and one anchor head over four 1
 for two steps through the `anchor` run row, then reports its checkpoint through the
 `anchor_detection` inference row. [`source/test_anchor_run.md`](source/test_anchor_run.md)
 describes each case.
+
+## source/test_profile_session.cpp
+
+Suites: `Medium_ProfileSession`, in `sushiai_programs_tests`.
+
+Each case opens `ProfileSession` on the shared runtime with a configuration written to a scratch
+folder. The good configuration follows `train.step` for two periods and writes `run.sprec.json`
+there.
+
+### AMissingConfigNamesTheFile
+
+`open` on a path that does not exist fails with `FileNotFound`, and the message names the file.
+
+### ABadJsonNamesTheFile
+
+A file whose JSON ends early fails with `InvalidDescription` naming the file.
+
+### AnUnknownKeyNamesTheFile
+
+A configuration with the key `bogus_key` fails with `InvalidDescription`; the message names the file
+and the key.
+
+### ARunThatFailsStillWritesItsRecord
+
+Three `train.step` marks run under the session, and `end_profiled_run` is given a `DeviceFailed`
+status. It returns that status, not the result of the close, and the record file holds two
+periods.
+
+### ADroppedSessionStillWritesItsRecord
+
+A session that goes out of scope without `close()`, as it does when an exception leaves the run,
+writes a record of two periods.
+
+### ASecondCloseSucceeds
+
+Two `close()` calls both succeed, and the record is the one the first wrote.
+
+## source/test_profile_arguments.cpp
+
+Suites: `Small_ProfileArguments`, in `sushiai_programs_tests`.
+
+### ALineWithoutTheFlagIsKept
+
+`train.json` alone comes back as the one positional argument, with no configuration.
+
+### ThePairIsTakenOutWhereverItStands
+
+`--profile p.json` before, between and after three positional arguments leaves the three in order
+and reads `p.json`.
+
+### AFlagWithNoPathOrGivenTwiceIsRefused
+
+A trailing `--profile`, a `--profile` followed by another flag and two `--profile` pairs each fail
+with `InvalidDescription`, the first two with "needs the path" and the last with "given twice".

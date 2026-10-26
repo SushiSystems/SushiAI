@@ -34,7 +34,6 @@
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
@@ -98,8 +97,6 @@ namespace SushiAI
             /** @brief Asks the objective for its metrics after every step, a host read each. */
             bool track_metrics = true;
 
-            /** @brief Sums the runtime's per-node timings; needs a runtime built with profiling. */
-            bool profile = false;
 
             /** @brief Whether to fold the optimizer's update into the compiled step. */
             OptimizerPlacement optimizer_placement = OptimizerPlacement::InPlan;
@@ -154,18 +151,6 @@ namespace SushiAI
             /** @brief The last step's metrics; empty when metric tracking is off. */
             Metrics last_metrics;
 
-            /** @brief Wall-clock time spent inside fit(). */
-            double duration_ms = 0.0;
-
-            /** @brief Names the per-node timing rows of a SushiRuntime run report. */
-            using NodeTimings = std::vector<SushiRuntime::NodeTiming>;
-
-            /**
-             * @brief Per-node timings summed over the steps, one row per plan index; empty
-             *        unless the runtime profiles.
-             */
-            NodeTimings node_timings;
-
             /** @brief A multi-line human-readable summary. */
             std::string to_string() const;
         };
@@ -210,9 +195,8 @@ namespace SushiAI
                  * @brief Runs @c options.epochs passes over @p dataset.
                  * @param dataset The batches to train on.
                  * @return The run's summary, or InvalidDescription for an empty dataset, or
-                 *         Incompatible for another batch size or for node timings of another
-                 *         plan, or the failure of match_input(), of match_roles() for the roles
-                 *         the objective reads, or of a step.
+                 *         Incompatible for another batch size, or the failure of match_input(),
+                 *         of match_roles() for the roles the objective reads, or of a step.
                  */
                 [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset);
 

@@ -31,6 +31,7 @@
 #include <SushiAI/io/checkpoint.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
 #include <SushiAI/nn/init.hpp>
+#include <SushiAI/profile/profile.hpp>
 
 namespace SushiAI
 {
@@ -54,13 +55,17 @@ namespace SushiAI
             if (!spec.resume.empty())
             {
                 IO::RunProgress saved;
-                SA_TRY(IO::load_run_checkpoint(spec.resume, state, optimizer, &saved));
+                {
+                    SA_ZONE("io", "checkpoint");
+                    SA_TRY(IO::load_run_checkpoint(spec.resume, state, optimizer, &saved));
+                }
                 SA_TRY(IO::check_run_seed(saved, progress.seed, spec.resume.string()));
                 progress = saved;
             }
             else if (!spec.weights.empty())
             {
                 // A weight file supplies every parameter and buffer, so no initialiser runs.
+                SA_ZONE("io", "checkpoint");
                 SA_TRY(IO::load_checkpoint(spec.weights, state));
             }
             else

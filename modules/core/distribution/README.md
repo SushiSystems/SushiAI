@@ -230,7 +230,8 @@ as `InvalidDescription`.
 `ReplicaStep::make()` creates a `SushiRuntime::Runtime` with `replica_runtime_config()`: one
 pool thread, not pinned, the default device filter. It owns the runtime through a
 `unique_ptr`, so the address the `SushiBLAS::Engine` over it holds does not move, and destroys,
-in order, the compiled step, the accumulator, the model, the engine and the runtime.
+in order, the compiled step, the accumulator, the model, the engine and the runtime. The step's
+graph is labelled `replica.step`.
 
 A registered kernel runs inside a graph run of the runtime that serves it, and SushiRuntime
 refuses a nested run of that runtime (`docs/design/LAYERED_EXECUTION/README.md` in SushiRuntime,

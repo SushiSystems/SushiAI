@@ -60,12 +60,12 @@ steps          : 128
 ops per step   : 25
 loss           : 1.791759 -> 0.000380
 final accuracy : 100.00%
-wall clock     : 2122.9 ms (16.58 ms/step)
-per-node timing: none recorded (build the RuntimeContext with RuntimeSettings::profiling to collect it)
 ----------------------------------------------------------------
   compiles: 1  <- one lowering, one compile, 128 replays.
 ================================================================
 ```
+
+The run report prints no wall clock and no per-node timing: SushiAI keeps no timing of its own. The wall-clock figures further down were taken when the report still printed one. A run's time is read from a profiling record; [`PROFILING.md`](PROFILING.md) says how to write one.
 
 `1.791759` is `ln 6` to the last digit: the exact uniform-prior loss a
 zero-initialised classifier must start at. **`compiles: 1`** is the claim the

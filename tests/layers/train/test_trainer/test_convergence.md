@@ -49,12 +49,6 @@ about the ordinary case.
 One step of SGD at a rate of 0.1 over a `Linear` of 4 features and 3 classes. Each element of the
 first parameter after the step equals its value before minus 0.1 times its gradient, within 1e-6.
 
-## ProfilingOnAnUnprofiledContextReportsNothingRatherThanZeroes
-
-The shared test runtime is created without `RuntimeConfig::profiling`, so the runtime records
-no timing. The report has to say that. A table of zeroes would read as if the work took no
-time.
-
 ## ADisconnectedParameterIsRejectedRatherThanSilentlySkipped
 
 The test fakes a parameter that no gradient reaches. It stands in for a layer wired into the

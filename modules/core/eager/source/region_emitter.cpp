@@ -28,6 +28,8 @@
 
 #include <SushiAI/eager/region_emitter.hpp>
 
+#include <string>
+
 #include <SushiBLAS/engine/task_recorder.hpp>
 
 #include <SushiAI/seam/seam.hpp>
@@ -39,9 +41,10 @@ namespace SushiAI
     {
         RegionEmitter::RegionEmitter(SushiBLAS::Engine& engine, const RegionProgram& program,
                                      Graph::TensorPool& pool,
-                                     const Graph::FusionSelector* selector) noexcept
+                                     const Graph::FusionSelector* selector,
+                                     RegionID region) noexcept
             : engine_(&engine), program_(&program), pool_(&pool), selector_(selector),
-              late_counts_(engine.runtime())
+              region_(region), late_counts_(engine.runtime())
         {
 
         }
@@ -57,6 +60,8 @@ namespace SushiAI
                 Graph::DeviceFusionSelector::for_engine(*engine_);
             Graph::Lowering lowering(tasks, engine_->rng(), *pool_,
                                      selector_ != nullptr ? *selector_ : device);
+            if (region_ != K_NO_REGION_ID)
+                lowering.set_origin_prefix("r" + std::to_string(region_) + "/");
 
             // record() throws for a graph that mixes layouts; the guard turns that into a status.
             Status recorded = ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Record, [&]()

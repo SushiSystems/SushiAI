@@ -28,6 +28,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <utility>
 #include <vector>
 #include <SushiBLAS/engine/rng_stream.hpp>
@@ -72,7 +73,22 @@ namespace SushiAI
                 }
 
                 /**
+                 * @brief Sets the text that opens the origin of every node the next record()
+                 *        records; empty by default.
+                 *
+                 * A node's origin is `<prefix><node id>:<operation name>`. A caller that lowers
+                 * several graphs into one runtime graph gives each its own prefix, so equal node
+                 * ids do not share an origin.
+                 */
+                void set_origin_prefix(std::string prefix) noexcept
+                {
+                    origin_prefix_ = std::move(prefix);
+                }
+
+                /**
                  * @brief Records the nodes of @p graph that @p nodes names, in node order.
+                 *
+                 * Every task a node records carries the origin of that node.
                  * @return Success, or the first refusal, annotated with the node's operation;
                  *         InvalidDescription for a range that ends before it starts or
                  *         behind the last node.
@@ -117,6 +133,9 @@ namespace SushiAI
 
                 /** @brief The fusion decisions of the last record(), in execution order. */
                 std::vector<FusionSelection> selections_;
+
+                /** @brief The text that opens each origin label. */
+                std::string origin_prefix_;
 
                 /** @brief The number of tasks the last record() recorded. */
                 std::size_t emitted_ = 0;

@@ -34,7 +34,10 @@
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiRuntime/core/span.hpp>
 #include "cluster_training.hpp"
+#include "profile_arguments.hpp"
+#include "profile_session.hpp"
 #include "training_program.hpp"
 
 namespace sb = SushiBLAS;
@@ -45,12 +48,15 @@ namespace
     constexpr std::string_view K_USAGE =
         "sushiai train - train a model described by a JSON configuration.\n"
         "\n"
-        "Usage: sushiai train <train.json>\n"
+        "Usage: sushiai train <train.json> [--profile <profile.json>]\n"
         "\n"
         "  train.json names the architecture file, the objective, the data, the\n"
         "  optimizer, the epoch count, the seed, the weights to start from or the\n"
         "  checkpoint to resume, and where to write the checkpoint. The model, weights,\n"
         "  resume and checkpoint paths resolve against its own directory.\n"
+        "\n"
+        "  --profile starts a SushiProfiler session from profile.json for the run and\n"
+        "  writes the record that file names, whether the run succeeds or not.\n"
         "\n"
         "  A file with a 'cluster' section makes this program the master: it trains over\n"
         "  the replicas the section names, each served by `sushiai_worker` on its machine.\n"
@@ -62,25 +68,37 @@ namespace
      */
     [[nodiscard]] sa::Status run(int argc, char** argv)
     {
-        if (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
+        SA_TRY_ASSIGN(const sa::Apps::ProfileArguments arguments,
+                      sa::Apps::read_profile_arguments(
+                          SushiRuntime::span<const char* const>(argv + 1, argc - 1)));
+        if (arguments.positional.size() == 1
+            && (arguments.positional[0] == "-h" || arguments.positional[0] == "--help"))
         {
             std::cout << K_USAGE;
             return sa::Status();
         }
 
-        SA_FAIL_IF(argc != 2, sa::StatusCode::InvalidDescription,
-                   "usage: sushiai train <train.json>");
+        SA_FAIL_IF(arguments.positional.size() != 1, sa::StatusCode::InvalidDescription,
+                   "usage: sushiai train <train.json> [--profile <profile.json>]");
+        const std::string& spec_path = arguments.positional[0];
 
-        const sa::Config::TrainSpec spec = sa::Config::load_train(argv[1]);
+        const sa::Config::TrainSpec spec = sa::Config::load_train(spec_path);
 
         SA_TRY_ASSIGN(const sr::RuntimeConfig runtime_config,
                       sa::Apps::training_runtime_config(spec));
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime(runtime_config));
         sb::Engine engine(runtime);
 
-        SA_TRY(sa::Apps::run_training_file(argv[1], spec, engine));
+        // The session opens after the engine and closes before it, so both outlive it.
+        std::unique_ptr<sa::Apps::ProfileSession> profile;
+        if (arguments.config)
+        {
+            SA_TRY_ASSIGN(profile, sa::Apps::ProfileSession::open(*arguments.config, runtime));
+        }
 
-        return sa::Status();
+        const sa::Result<sa::Apps::TrainingOutcome> trained =
+            sa::Apps::run_training_file(spec_path, spec, engine);
+        return sa::Apps::end_profiled_run(profile, trained.status());
     }
 } // namespace
 

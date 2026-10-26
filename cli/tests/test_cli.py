@@ -22,13 +22,13 @@ from typer.testing import CliRunner
 from sushicore.root_options import version_line
 from sushiai import cli
 from sushiai import console as console_module
-from sushiai.services import project
+from sushiai.services import profiler, project
 
 pytestmark = pytest.mark.medium
 
 K_VISIBLE_COMMANDS = [
     "build", "clean", "config", "demo mlp", "docs", "docs bundle", "doctor", "env", "import",
-    "inference", "link", "run", "setup", "test", "tokenize", "train", "unlink",
+    "inference", "link", "profile", "run", "setup", "test", "tokenize", "train", "unlink",
 ]
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 K_BROKEN_TOML = "tool = [\n"
@@ -180,3 +180,48 @@ def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(monke
     monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
     written = Path(_doxyfile_value("OUTPUT_DIRECTORY", "")) / _doxyfile_value("XML_OUTPUT", "xml")
     assert cli._api_source().xml_dir == tmp_path / written
+
+
+@pytest.mark.parametrize("command, target, positional", [
+    ("train", "sushiai_train", ["train.json"]),
+    ("inference", "sushiai_inference", ["model.json", "model.sushi", "eval.json"]),
+])
+def test_train_forwards_profile(monkeypatch, command, target, positional):
+    """`--profile <config>` reaches the program whole, wherever it stands on the line."""
+    forwarded = []
+    monkeypatch.setattr(
+        project, "run_app", lambda name, title, args: forwarded.append((name, list(args))) or 0)
+    runner = CliRunner()
+
+    after = runner.invoke(cli.app, [command, *positional, "--profile", "profile.json"])
+    before = runner.invoke(cli.app, [command, "--profile", "profile.json", *positional])
+
+    assert after.exit_code == 0 and before.exit_code == 0, after.output + before.output
+    assert forwarded == [
+        (target, [*positional, "--profile", "profile.json"]),
+        (target, ["--profile", "profile.json", *positional]),
+    ]
+
+
+def test_profile_runs_sp(monkeypatch, tmp_path):
+    """`sa profile <args>` runs `sp <args>` from the project root and returns its exit code."""
+    ran = []
+    runner = SimpleNamespace(run=lambda command, cwd, env: ran.append((command, cwd)) or 3)
+    monkeypatch.setattr(profiler, "_RUNNER", runner)
+    monkeypatch.setattr(profiler.shutil, "which", lambda name: f"/tools/{name}")
+    monkeypatch.setattr(profiler, "find_project_root", lambda: tmp_path)
+
+    result = CliRunner().invoke(cli.app, ["profile", "record", "show", "run.sprec.json"])
+
+    assert result.exit_code == 3, result.output
+    assert ran == [(["/tools/sp", "record", "show", "run.sprec.json"], tmp_path)]
+
+
+def test_profile_without_sp_says_to_install_it(monkeypatch):
+    """A machine with no `sp` on the path gets one error line that names SushiProfiler."""
+    monkeypatch.setattr(profiler.shutil, "which", lambda name: None)
+
+    result = CliRunner().invoke(cli.app, ["profile", "record", "show", "run.sprec.json"])
+
+    assert result.exit_code == 1
+    assert "SushiProfiler" in K_ANSI_ESCAPE.sub("", result.output)

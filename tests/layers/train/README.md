@@ -29,6 +29,7 @@ Each test file has a page beside it that says what its cases pin.
 | `test_trainer/test_resilience.cpp` | [`test_trainer/test_resilience.md`](test_trainer/test_resilience.md) |
 | `test_trainer/test_mixed_precision.cpp` | [`test_trainer/test_mixed_precision.md`](test_trainer/test_mixed_precision.md) |
 | `test_trainer/test_compile_once.cpp` | [`test_trainer/test_compile_once.md`](test_trainer/test_compile_once.md) |
+| `test_trainer/test_zones.cpp` | [`test_trainer/test_zones.md`](test_trainer/test_zones.md) |
 | `test_trainer/test_determinism.cpp` | [`test_trainer/test_determinism.md`](test_trainer/test_determinism.md) |
 | `test_trainer/test_fused_optimizer.cpp` | [`test_trainer/test_fused_optimizer.md`](test_trainer/test_fused_optimizer.md) |
 | `test_trainer/test_fusion_numerics.cpp` | [`test_trainer/test_fusion_numerics.md`](test_trainer/test_fusion_numerics.md) |

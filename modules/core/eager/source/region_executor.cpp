@@ -29,6 +29,8 @@
 #include <SushiAI/eager/region_executor.hpp>
 
 #include <cstddef>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -43,6 +45,12 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Holds the label of the graph that composes the regions of a step. */
+            constexpr std::string_view K_GRAPH_LABEL = "eager.step";
+
+            /** @brief Holds the origin of the tasks the trailing recorder adds. */
+            constexpr std::string_view K_TRAILING_ORIGIN = "step.trailing";
+
             /** @brief Returns the refusal @p recorder kept as a Status, or success. */
             [[nodiscard]] Status refusal_of(const SushiRuntime::Recorder& recorder)
             {
@@ -98,7 +106,7 @@ namespace SushiAI
                                                RegionProgram compiled, SharedStorage placed,
                                                const Graph::FusionSelector* selector)
             : id(region), program(std::move(compiled)), shared(std::move(placed)), pool(engine),
-              emitter(engine, program, pool, selector)
+              emitter(engine, program, pool, selector, region)
         {
 
         }
@@ -108,7 +116,7 @@ namespace SushiAI
             : engine_(&engine), selector_(selector), trailing_counts_(engine.runtime()),
               graph_(engine.runtime().dynamic_graph())
         {
-
+            graph_.set_label(std::string(K_GRAPH_LABEL));
         }
 
         RegionExecutor::~RegionExecutor() = default;
@@ -238,6 +246,7 @@ namespace SushiAI
             SushiBLAS::TaskRecorder tasks(target->recorder(), engine_->scratch_pool(),
                                           trailing_counts_, engine_->mode());
             const Graph::StepRecording recording(tasks, target->recorder());
+            const SushiBLAS::TaskRecorder::OriginScope origin = tasks.origin(K_TRAILING_ORIGIN);
             SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(recording));
             SA_TRY(refusal_of(target->recorder()));
 

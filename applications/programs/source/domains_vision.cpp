@@ -48,6 +48,8 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_state.hpp>
+#include <SushiAI/profile/profile.hpp>
+#include <SushiAI/profile/timelines.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
@@ -487,16 +489,26 @@ namespace SushiAI
                 Data::Batch batch;
                 for (std::size_t b = 0; b < run.dataset.batch_count(); ++b)
                 {
-                    SA_TRY(run.dataset.read(b, batch));
+                    Profile::mark_period(Profile::Timeline::InferenceBatch);
+                    {
+                        SA_ZONE("data", "read");
+                        SA_TRY(run.dataset.read(b, batch));
+                    }
                     SA_TRY(run.step.run(batch.inputs));
-                    decode_batch(task, heads, input, rows, boxes, scores);
+                    {
+                        SA_ZONE("eval", "decode");
+                        decode_batch(task, heads, input, rows, boxes, scores);
+                    }
 
-                    Vision::Detect::select_nms_detections(
-                        boxes, scores,
-                        Vision::Detect::PredictionShape{
-                            run.dataset.batch_size(), static_cast<std::int64_t>(rows),
-                            task.num_classes},
-                        config, detections);
+                    {
+                        SA_ZONE("eval", "nms");
+                        Vision::Detect::select_nms_detections(
+                            boxes, scores,
+                            Vision::Detect::PredictionShape{
+                                run.dataset.batch_size(), static_cast<std::int64_t>(rows),
+                                task.num_classes},
+                            config, detections);
+                    }
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
                         const std::size_t count = count_confident(detections[image], K_SCORE_THRESHOLD);
@@ -506,7 +518,11 @@ namespace SushiAI
 
                     if (labelled)
                     {
-                        SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        {
+                            SA_ZONE("host", "feed");
+                            SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        }
+                        SA_ZONE("eval", "ap");
                         Vision::Detect::add_batch(metric, detections, truth);
                     }
                 }
@@ -643,15 +659,25 @@ namespace SushiAI
                 Data::Batch batch;
                 for (std::size_t b = 0; b < run.dataset.batch_count(); ++b)
                 {
-                    SA_TRY(run.dataset.read(b, batch));
+                    Profile::mark_period(Profile::Timeline::InferenceBatch);
+                    {
+                        SA_ZONE("data", "read");
+                        SA_TRY(run.dataset.read(b, batch));
+                    }
                     SA_TRY(run.step.run(batch.inputs));
-                    decoder.decode(levels, boxes, scores);
+                    {
+                        SA_ZONE("eval", "decode");
+                        decoder.decode(levels, boxes, scores);
+                    }
 
-                    Vision::Detect::select_nms_detections(
-                        boxes, scores,
-                        Vision::Detect::PredictionShape{
-                            batch_size, static_cast<std::int64_t>(anchors), facts.classes},
-                        config, detections);
+                    {
+                        SA_ZONE("eval", "nms");
+                        Vision::Detect::select_nms_detections(
+                            boxes, scores,
+                            Vision::Detect::PredictionShape{
+                                batch_size, static_cast<std::int64_t>(anchors), facts.classes},
+                            config, detections);
+                    }
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
                         const std::size_t count =
@@ -662,7 +688,11 @@ namespace SushiAI
 
                     if (labelled)
                     {
-                        SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        {
+                            SA_ZONE("host", "feed");
+                            SA_TRY(Vision::Training::truth_from_roles(batch, truth));
+                        }
+                        SA_ZONE("eval", "ap");
                         Vision::Detect::add_batch(metric, detections, truth);
                     }
                 }

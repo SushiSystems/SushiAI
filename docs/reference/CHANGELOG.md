@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- 2026-10-26 — build: Added the options `SA_ENABLE_PROFILER` (on) and `SA_PROFILE_LEVEL` (2), written into a generated `profile_config.hpp`, and found SushiProfiler as a package (`cmake/Profiler.cmake`).
+- 2026-10-26 — profile: Added the `profile` module: the `SA_ZONE` macro family over SushiProfiler, the step and batch timelines and `mark_period` (`profile.hpp`).
+- 2026-10-26 — profile: Added `TimelineBinding`, which points `mark_period` at the open session's timelines (`timeline_binding.hpp`).
+- 2026-10-26 — profile_records: Added the test-support module that writes a profiling configuration, follows a timeline and maps the zones of a record period to their groups (`profile_records.hpp`).
+- 2026-10-26 — train: Removed `TrainerOptions::profile`; a profiling session of the program replaces it (`trainer.hpp`).
+- 2026-10-26 — train: Removed `RunReport::NodeTimings` and `RunReport::node_timings`; the `roofline` analysis of a profiling record replaces them (`trainer.hpp`).
+- 2026-10-26 — train: Removed `RunReport::duration_ms` and the wall-clock and per-node lines of `RunReport::to_string`; the `train.fit` zone replaces them (`trainer.hpp`).
+- 2026-10-26 — train: Dropped the SushiRuntime umbrella include from the trainer header (`trainer.hpp`).
+- 2026-10-26 — train: Made `Trainer::fit` and `run_step` mark one `train.step` period per step and time its data, host, copy and device zones (`trainer.cpp`).
+- 2026-10-26 — train: Made `EvaluationStep` time its input copy and its device run (`evaluation_step.cpp`).
+- 2026-10-26 — eager: Removed the five stage times of `StepCost` and the private stopwatch; the `eager.*` zones replace them and the region counts stay (`session.hpp`).
+- 2026-10-26 — graph: Added the `label` parameter of `CompiledStep::compile`, which names the runtime graph, and the zones `compile.lower` and `compile.runtime` (`compiled_step.hpp`).
+- 2026-10-26 — graph: Gave each recorded node the origin `<node id>:<operation>` and the trailing work `step.trailing`, and added `Lowering::set_origin_prefix` (`lowering.hpp`).
+- 2026-10-26 — eager: Labelled the executor's graph `eager.step` and gave each region's nodes the origin prefix `r<id>/` through a region parameter of `RegionEmitter` (`region_emitter.hpp`).
+- 2026-10-26 — training: Labelled the runtime graph of each compiled step with its role, such as `train.step` or `eval.step` (`training_step.cpp`).
+- 2026-10-26 — vision: Marked one `train.step` period per step in the anchor and anchor-free loops and timed their read, host and device phases (`anchor_training_loop.cpp`, `free_training_step.cpp`).
+- 2026-10-26 — programs: Added `--profile <config>` to `sushiai train` and `sushiai inference`, which starts a SushiProfiler session over the run and writes its record even when the run fails (`profile_session.hpp`).
+- 2026-10-26 — programs: Timed the cluster master's step and the replica model's feed with the zones of a single-device run (`cluster_run.cpp`, `training_replica_model.cpp`).
+- 2026-10-26 — cli: Added `sa profile`, which runs SushiProfiler's `sp`, and documented the profile flag of the train and inference commands (`cli/sushiai/services/profiler.py`).
+- 2026-10-26 — examples: Stopped `demo_mlp` summing `duration_ms` (`demo_mlp.cpp`).
+- 2026-10-26 — guides: Added the profiling guide and took the wall clock out of the demo output and the demo descriptions (`docs/guides/PROFILING.md`).
+- 2026-10-26 — tests: Deleted the profiling test of an unprofiled context and the printed rows of the eager step cost test (`test_convergence.cpp`, `test_session.cpp`).
+- 2026-10-26 — tests: Put the profiler suite of the anchor-free step test under `SA_ENABLE_PROFILER` (`test_free_training_step.cpp`).
 - 2026-10-26 — deps: Upgraded sushicore to 0.9.5 and moved the Sushi library pins to `[sushisystems.<name>]` tables (`cli/sushistack.deps.toml`).
 - 2026-10-26 — agent: Designed the stack's one profiler, SushiProfiler, which the owner approved; SushiAI's share is its phases P5 and P6 (`docs/agent/2026_10_26_PROFILER/SPEC.md`).
 - 2026-10-26 — training: Trained the one-to-one copy of an anchor-free head beside the one-to-many copy, mixed by `one_to_many_weight_start` and `one_to_many_weight_end` that fall from 0.8 to 0.1 over the run (`free_branch_weights.hpp`).

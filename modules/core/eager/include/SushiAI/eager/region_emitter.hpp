@@ -37,6 +37,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/region_program.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>
@@ -56,11 +57,13 @@ namespace SushiAI
                 /**
                  * @brief Binds the emitter to the program it records and the pool it fills.
                  * @param selector Picks the form of a fused node; null selects by device.
+                 * @param region The region the program belongs to; its id opens the origin of
+                 *        every node, so regions of one graph keep their nodes apart.
                  * @pre Every argument outlives the emitter.
                  */
                 RegionEmitter(SushiBLAS::Engine& engine, const RegionProgram& program,
-                              Graph::TensorPool& pool,
-                              const Graph::FusionSelector* selector) noexcept;
+                              Graph::TensorPool& pool, const Graph::FusionSelector* selector,
+                              RegionID region = K_NO_REGION_ID) noexcept;
 
                 RegionEmitter(const RegionEmitter&) = delete;
                 RegionEmitter& operator=(const RegionEmitter&) = delete;
@@ -118,6 +121,9 @@ namespace SushiAI
 
                 /// @brief The caller's selector, or null to select by device.
                 const Graph::FusionSelector* selector_;
+
+                /// @brief The region of the program, or K_NO_REGION_ID.
+                RegionID region_;
 
                 /// @brief Keeps the late-count tasks of the last emit() while the emitter lives.
                 SushiBLAS::LateCountHold late_counts_;

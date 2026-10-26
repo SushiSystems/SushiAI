@@ -111,8 +111,8 @@ programs' order in section 6 gives.
 | --- | --- |
 | `data` | `read`: every `dataset.read` in the loops of section 1 |
 | `host` | `feed`: `objective_->feed` (`trainer.cpp:371`) and the truth-from-roles calls; `readback`: `outputs_view_` (`anchor_training_step.cpp:217-219`), `floats_of` and `widen` (`free_training_step.cpp:310-311`, `:376-377`); `assign`: `feed_deltas`, `branch.stage.assign`, `build_target_leaves`; `loss`: `current_loss`, `measure_terms`; `measure`: `objective_->measure` |
-| `copy` | `input`: every `blas.copy` of a batch into its input buffer |
-| `device` | `run`: `step_->run()`, `training_->run`, `run.step.run` |
+| `copy` | `input`: every `blas.copy` of a batch into its input buffer, in the trainer, `EvaluationStep::run_in_order`, the anchor and anchor-free steps and the replica model |
+| `device` | `run`: `step_->run()` of the trainer, the cluster master and `EvaluationStep::run_in_order`, and `training_->run` of the detector steps |
 | `optim` | `schedule`: `learning_rate` and `apply_step_schedule` |
 | `eval` | `decode`, `nms`, `ap`: `decode_batch` or `decoder.decode`, `select_nms_detections`, `add_batch` |
 | `io` | `checkpoint`: `save_run_checkpoint`, `IO::load_checkpoint` |
@@ -157,10 +157,12 @@ These are breaking changes to public names, made without a deprecation release (
   (`training_step.cpp:166-175`), `EvaluationStep` gives `eval.step` (`evaluation_step.cpp:192`),
   `ReplicaStep` gives `replica.step` (`replica_step.cpp:125`); the last two pass `nodes`
   explicitly. Callers that pass no label (the tests) keep compiling. The eager `RegionExecutor`
-  labels its graph `eager.region.<n>`, `n` its region index, before its first run.
+  labels its one `DynamicGraph` `eager.step` before its first run.
 - `Lowering::record` opens `recorder_->origin(label)` around each rule call, `label` being
-  `<node id>:<op name>` with the op name from `Ops::name_of`; the eager path gets the same through
-  `region_emitter.cpp`.
+  `<prefix><node id>:<op name>` with the op name from `Ops::name_of`; the prefix is empty unless
+  `Lowering::set_origin_prefix` set it. The eager `RegionEmitter` sets `r<region id>/`, because each
+  region's graph numbers its nodes from 0 and one `DynamicGraph` holds every region. The eager
+  trailing recorder opens the origin `step.trailing`, as `CompiledStep` does.
 - `CompiledStep::compile` opens `recorder_.origin("step.trailing")` around
   `trailing->record_into_step`, so the optimizer, gradient exchange and carries are named.
 - Labels are built once per compile and never on a run.
@@ -234,5 +236,8 @@ No public header of SushiAI includes a `profile` header or a SushiProfiler heade
 ## 9. Not in this work
 
 - P6, the YOLOv5n write-up, runs after the build.
-- The distributed path's timing (`cluster_run.cpp`) has the zones of its own loop only; SushiRuntime
-  times the distributed layer in its own later phase.
+- The distributed path carries the zones of the single-device path: the cluster master marks
+  `train.step` through `run_epochs` and times `device.run` in `cluster_run.cpp`, and the replica
+  model times `data.read`, `host.feed` and `copy.input` in `training_replica_model.cpp`. A worker
+  runs no session, so its zones record nothing there. SushiRuntime times the distributed layer in
+  its own later phase.

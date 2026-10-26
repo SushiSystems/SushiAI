@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -56,6 +57,7 @@
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/optim/sgd.hpp>
+#include <SushiAI/profile/profile_config.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
@@ -70,6 +72,14 @@
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
 #include <SushiAI/vision/training/free_training_step.hpp>
+
+#if SA_ENABLE_PROFILER
+#include <SushiProfiler/registry/registry.hpp>
+#include <SushiProfiler/session/session.hpp>
+#include <SushiAI/profile/timeline_binding.hpp>
+#include <SushiAI/profile/timelines.hpp>
+#include <SushiAI/profile_records/profile_records.hpp>
+#endif
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
@@ -88,6 +98,10 @@ using Vision::Training::FreeTrainingStep;
 namespace
 {
     class Medium_FreeTrainingStep : public SaTest::EngineTest {};
+
+#if SA_ENABLE_PROFILER
+    class Medium_FreeTrainingZones : public SaTest::EngineTest {};
+#endif
 
     /** @brief Holds the images per step. */
     constexpr std::int64_t K_BATCH = 2;
@@ -426,3 +440,40 @@ TEST_F(Medium_FreeTrainingStep, ALabelOutsideTheClassesIsRefused)
 
     SA_EXPECT_FAILURE(model.step->run(inputs, truth), StatusCode::InvalidDescription, "row 1");
 }
+
+#if SA_ENABLE_PROFILER
+/** @brief Tests that one step's host phases and device run fall in the period that opened it. */
+TEST_F(Medium_FreeTrainingZones, AStepPutsReadbackAssignAndLossInItsPeriod)
+{
+    if (SA_PROFILE_LEVEL < 1)
+        GTEST_SKIP() << "the build compiles every zone away";
+    TwoLevelCase model;
+    model.prepare(*engine);
+    ASSERT_TRUE(model.ready);
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
+    const GroundTruthBatch truth = make_truth();
+
+    const SushiProfiler::Registry registry;
+    SushiProfiler::SessionStart started = SushiProfiler::Session::start(
+        SaTest::following_timeline("train.step", 0U, 1U), registry);
+    ASSERT_TRUE(started.ok()) << started.error;
+    SushiProfiler::Session& session = *started.session;
+    {
+        const Profile::TimelineBinding binding(session);
+        Profile::mark_period(Profile::Timeline::TrainStep);
+        SA_EXPECT_OK(model.step->run(inputs, truth));
+
+        // The next mark ends the period; a period with no end mark is not kept.
+        Profile::mark_period(Profile::Timeline::TrainStep);
+    }
+    const SushiProfiler::SessionStop stopped = session.stop();
+
+    ASSERT_EQ(stopped.record.periods.size(), 1u);
+    const std::map<std::string, std::string> groups =
+        SaTest::zones_of(stopped.record, stopped.record.periods[0]);
+    const std::map<std::string, std::string> expected = {
+        {"copy.input", "copy"},     {"device.run", "device"}, {"host.assign", "host"},
+        {"host.loss", "host"},      {"host.readback", "host"}};
+    EXPECT_EQ(groups, expected);
+}
+#endif

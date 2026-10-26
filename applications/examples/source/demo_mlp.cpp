@@ -734,7 +734,6 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             run.last_metrics = epoch_report.last_metrics;
             run.operations_per_step = epoch_report.operations_per_step;
             run.steps += epoch_report.steps;
-            run.duration_ms += epoch_report.duration_ms;
 
             trajectory += SushiLog::format_text(
                 "  epoch {}/{} loss {} -> {}   accuracy {}%\n",

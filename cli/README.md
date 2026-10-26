@@ -98,6 +98,14 @@ module contributes only the directories to prune, and it does not spell them out
 They are the sibling checkouts `PROFILE` already names, because a module that builds a
 dependency in-tree must not offer that dependency's executables as its own.
 
+## services/profiler.py
+
+`sa profile <args>` runs `sp <args>` from the project root and returns its exit code. `sp` is
+SushiProfiler's own command line, which reads the records `sa train --profile` and
+`sa inference --profile` write, so SushiAI repeats none of its commands. The arguments are
+forwarded verbatim, `--help` included. When `sp` is not on the path the command prints one error
+line that names SushiProfiler and where to get it, and returns 1.
+
 ## services/project.py
 
 ### Build policy

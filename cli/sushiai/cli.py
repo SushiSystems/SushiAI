@@ -24,6 +24,7 @@ from sushicore.typer_help import help_group
 from . import console
 from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
+from .services import profiler as profiler_svc
 from .services import project as project_svc
 from .services.diag import DIAGNOSTICS
 from .services.project import BuildType, Suite
@@ -235,15 +236,18 @@ def demo_mlp(ctx: typer.Context) -> None:
 @app.command(
     "train",
     rich_help_panel=K_MODELS,
-    epilog="sa train applications/examples/heavy_mlp/train.json",
+    epilog="sa train applications/examples/heavy_mlp/train.json\n"
+           "sa train train.json --profile profile.json",
     context_settings=K_FORWARDING,
 )
 def train(ctx: typer.Context) -> None:
     """Train a model described by a JSON configuration.
 
-    Usage: sa train <train.json>. The configuration names the architecture
-    file, the objective, the data, the optimizer, the epoch count and where to
-    write the checkpoint; paths inside it resolve against its own directory.
+    Usage: sa train <train.json> [--profile <profile.json>]. The configuration
+    names the architecture file, the objective, the data, the optimizer, the
+    epoch count and where to write the checkpoint; paths inside it resolve
+    against its own directory. --profile records the run with SushiProfiler
+    as the profile configuration says; `sa profile` reads the record.
     Arguments are forwarded verbatim to the program, --help included once it
     is built.
     """
@@ -255,16 +259,18 @@ def train(ctx: typer.Context) -> None:
     "inference",
     rich_help_panel=K_MODELS,
     epilog="sa inference applications/examples/heavy_mlp/model.json model.sushi "
-           "applications/examples/heavy_mlp/eval.json",
+           "applications/examples/heavy_mlp/eval.json\n"
+           "sa inference model.json model.sushi eval.json --profile profile.json",
     context_settings=K_FORWARDING,
 )
 def inference(ctx: typer.Context) -> None:
     """Evaluate a trained checkpoint over a dataset.
 
-    Usage: sa inference <model.json> <model.sushi> <eval.json>. The data is a
-    positional argument because the architecture file carries no data block.
-    Arguments are forwarded verbatim to the program, --help included once it
-    is built.
+    Usage: sa inference <model.json> <model.sushi> <eval.json> [--profile
+    <profile.json>]. The data is a positional argument because the
+    architecture file carries no data block. --profile records the run with
+    SushiProfiler. Arguments are forwarded verbatim to the program, --help
+    included once it is built.
     """
     _show_page_while_unbuilt(ctx, K_INFERENCE_TARGET)
     raise typer.Exit(
@@ -308,6 +314,26 @@ def tokenize(ctx: typer.Context) -> None:
     _show_page_while_unbuilt(ctx, K_TOKENIZE_TARGET)
     raise typer.Exit(
         project_svc.run_app(K_TOKENIZE_TARGET, "SushiAI Tokenize", list(ctx.args)))
+
+
+@app.command(
+    "profile",
+    rich_help_panel=K_MODELS,
+    epilog="sa profile record show build/profiles/run.sprec.json\n"
+           "sa profile record compare before.sprec.json after.sprec.json",
+    context_settings=K_FORWARDING,
+)
+def profile(ctx: typer.Context) -> None:
+    """Read a profiling record with SushiProfiler's `sp`.
+
+    Usage: sa profile <args>, which runs `sp <args>` from the project root.
+    `sa train --profile` and `sa inference --profile` write the records. When
+    `sp` is not on the path the command says where to install it. Arguments
+    are forwarded verbatim, --help included.
+    """
+    if K_HELP_FLAG in ctx.args and not profiler_svc.is_installed():
+        typer.echo(ctx.get_help())
+    raise typer.Exit(profiler_svc.run_profiler(list(ctx.args)))
 
 
 register_diagnostic_commands(app, DIAGNOSTICS, program=PROFILE.program, panel=K_DIAGNOSTICS)

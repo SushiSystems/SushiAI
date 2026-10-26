@@ -33,6 +33,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/optim/optimizer.hpp>
+#include <SushiAI/profile/profile.hpp>
+#include <SushiAI/profile/timelines.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/free_branch_weights.hpp>
 #include <SushiAI/vision/training/detection_run_check.hpp>
@@ -84,15 +86,25 @@ namespace SushiAI::Vision::Training
             for (std::size_t batch_index = first; batch_index < dataset.batch_count();
                  ++batch_index)
             {
-                SA_TRY(dataset.read(batch_index, batch));
-                SA_TRY(truth_from_roles(batch, truth));
+                Profile::mark_period(Profile::Timeline::TrainStep);
+                {
+                    SA_ZONE("data", "read");
+                    SA_TRY(dataset.read(batch_index, batch));
+                }
+                {
+                    SA_ZONE("host", "feed");
+                    SA_TRY(truth_from_roles(batch, truth));
+                }
 
                 FreeProgress progress;
                 progress.epoch = epoch;
                 progress.batch = batch_index;
-                progress.rate = options.schedule != nullptr
-                              ? Optim::apply_step_schedule(*options.schedule, optimizer)
-                              : optimizer.learning_rate();
+                {
+                    SA_ZONE("optim", "schedule");
+                    progress.rate = options.schedule != nullptr
+                                  ? Optim::apply_step_schedule(*options.schedule, optimizer)
+                                  : optimizer.learning_rate();
+                }
 
                 SA_TRY_ASSIGN(progress.terms, step.run(batch.inputs, truth));
                 progress.iteration = static_cast<std::int64_t>(optimizer.step_count());

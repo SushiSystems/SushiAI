@@ -42,6 +42,7 @@
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
@@ -305,15 +306,19 @@ namespace SushiAI::Vision::Training
         {
             for (Branch& branch : branches_)
             {
-                for (std::size_t level = 0; level < branch.views.size(); ++level)
                 {
-                    branch.views[level].boxes = floats_of(*branch.ports[level * 2]);
-                    branch.views[level].scores = floats_of(*branch.ports[level * 2 + 1]);
+                    SA_ZONE("host", "readback");
+                    for (std::size_t level = 0; level < branch.views.size(); ++level)
+                    {
+                        branch.views[level].boxes = floats_of(*branch.ports[level * 2]);
+                        branch.views[level].scores = floats_of(*branch.ports[level * 2 + 1]);
+                    }
                 }
                 branch.stage.assign(SushiRuntime::span<const FreeLevelViews>(
                                         branch.views.data(), branch.views.size()),
                                     truth);
 
+                SA_ZONE("host", "assign");
                 for (std::size_t leaf = 0; leaf < branch.leaves.size(); ++leaf)
                 {
                     SushiBLAS::Tensor* const tensor = branch.leaves[leaf];
@@ -373,8 +378,11 @@ namespace SushiAI::Vision::Training
         for (std::size_t level = 0; level < facts.levels.size(); ++level)
         {
             LevelDoubles& host = doubles_;
-            widen(*branch.ports[level * 2], host.boxes);
-            widen(*branch.ports[level * 2 + 1], host.scores);
+            {
+                SA_ZONE("host", "readback");
+                widen(*branch.ports[level * 2], host.boxes);
+                widen(*branch.ports[level * 2 + 1], host.scores);
+            }
             for (std::vector<double>* field :
                  {&host.target_scores, &host.box_mask, &host.normalized_weight, &host.target_boxes,
                   &host.target_distances, &host.l1_scale, &host.safe_boxes,
@@ -422,7 +430,10 @@ namespace SushiAI::Vision::Training
                         break;
                 }
                 if (target != nullptr)
+                {
+                    SA_ZONE("host", "readback");
                     widen(*branch.leaves[leaf], *target);
+                }
             }
 
             const FreeLevelLossArrays arrays{
@@ -453,22 +464,27 @@ namespace SushiAI::Vision::Training
         SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
         SA_TRY(check_truth(truth));
 
-        SA_TRY(::SushiAI::Detail::record_and_run(
-            *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
         {
-            SushiBLAS::BLASOps blas(recorder);
-            blas.copy(inputs, *input_);
-            return Status();
-        }));
+            SA_ZONE("copy", "input");
+            SA_TRY(::SushiAI::Detail::record_and_run(
+                *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
+            {
+                SushiBLAS::BLASOps blas(recorder);
+                blas.copy(inputs, *input_);
+                return Status();
+            }));
+        }
 
         // The ports are read before the rest of the step may reuse their storage.
         FreeLossTerms terms;
+        SA_ZONE("device", "run");
         SA_TRY(training_->run([this, &truth, &terms]() -> Status
         {
             SA_TRY(feed_leaves(truth));
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Execute,
                                             [this, &terms]() -> Status
             {
+                SA_ZONE("host", "loss");
                 terms = measure_terms();
                 return Status();
             });

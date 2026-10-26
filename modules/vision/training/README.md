@@ -212,6 +212,12 @@ The head shapes come from `Train::list_output_shapes` over the probe graph, whic
 
 ## The loop
 
+`run_anchor_training` and `run_free_training` mark one `train.step` period before the read of each
+batch and time `data.read`, `host.feed` for the truth of a batch and `optim.schedule` for the rate.
+The steps add `copy.input`, `device.run` and `host.readback`, `host.assign` and `host.loss` for
+their host stage; `FreeAssignmentStage::assign` is `host.assign`. The module names `profile`
+privately.
+
 `run_anchor_training(step, dataset, options)` drives an `AnchorTrainingStep` for
 `options.epochs` passes. It is a second loop beside `Train::Trainer`, which stays the loop of
 every objective that a batch alone can feed: `Trainer::run_step` asks the objective to fill its

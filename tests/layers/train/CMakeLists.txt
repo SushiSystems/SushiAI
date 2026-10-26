@@ -6,6 +6,14 @@
 
 # The test program of the module train; see cmake/SushiAITestProgram.cmake.
 
+# The zone test reads a profiling record, so it is built only with the profiler.
+set(SUSHIAI_TRAIN_TEST_PROFILED)
+set(SUSHIAI_TRAIN_TEST_PROFILED_DEPENDS)
+if(SA_ENABLE_PROFILER)
+    list(APPEND SUSHIAI_TRAIN_TEST_PROFILED test_trainer/test_zones.cpp)
+    list(APPEND SUSHIAI_TRAIN_TEST_PROFILED_DEPENDS profile_records)
+endif()
+
 sushiai_add_test_program(OWNER train
     SOURCES
         test_batch_role.cpp
@@ -46,9 +54,15 @@ sushiai_add_test_program(OWNER train
         test_trainer/test_token_feed.cpp
         test_training_graph.cpp
         test_training_step.cpp
+        ${SUSHIAI_TRAIN_TEST_PROFILED}
     DEPENDS
         classifier_objective
         failure_expectations
         sample_models
         seeded_noise
-        tensor_values)
+        tensor_values
+        ${SUSHIAI_TRAIN_TEST_PROFILED_DEPENDS}
+    LINKS
+        ${SA_PROFILER_LINKS}
+    INCLUDES
+        "${SA_PROFILE_GENERATED_INCLUDE}")

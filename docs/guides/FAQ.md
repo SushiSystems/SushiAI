@@ -74,7 +74,7 @@ gives a one-script quick start and the plain CMake invocation for building witho
 ## How do I run a first training run?
 
 Run `sa demo mlp` after a build. It trains a two-layer MLP end to end and prints the compile
-count, the loss per epoch, the final accuracy and the wall clock. `sa demo mlp --help` prints
+count, the loss per epoch and the final accuracy. `sa demo mlp --help` prints
 the full flag list.
 
 The demo trains on MNIST when the training split's two IDX files are under `data/mnist`, or

@@ -20,6 +20,13 @@ if(SA_BUILD_LANGUAGE)
 endif()
 
 # The cluster tests exist in a distributed build; any other build has none.
+set(SUSHIAI_PROGRAM_TEST_PROFILED)
+set(SUSHIAI_PROGRAM_TEST_PROFILED_DEPENDS)
+if(SA_ENABLE_PROFILER)
+    list(APPEND SUSHIAI_PROGRAM_TEST_PROFILED source/test_profile_session.cpp)
+    list(APPEND SUSHIAI_PROGRAM_TEST_PROFILED_DEPENDS profile_records)
+endif()
+
 set(SUSHIAI_PROGRAM_TEST_CLUSTER)
 set(SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS)
 if(SA_ENABLE_DISTRIBUTED)
@@ -47,6 +54,8 @@ sushiai_add_test_program(APPLICATION programs
         source/test_trainer_run.cpp
         source/test_training_run.cpp
         source/test_training_setup.cpp
+        source/test_profile_arguments.cpp
+        ${SUSHIAI_PROGRAM_TEST_PROFILED}
         ${SUSHIAI_PROGRAM_TEST_CLUSTER}
         ${SUSHIAI_PROGRAM_TEST_SOURCES}
     DEPENDS
@@ -54,8 +63,10 @@ sushiai_add_test_program(APPLICATION programs
         failure_expectations
         scratch_files
         ${SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS}
+        ${SUSHIAI_PROGRAM_TEST_PROFILED_DEPENDS}
     LINKS
-        ${SUSHIAI_PROGRAM_TEST_LINKS})
+        ${SUSHIAI_PROGRAM_TEST_LINKS}
+        ${SA_PROFILER_LINKS})
 
 # --- The `sushiai train` / `sushiai inference` smoke tests ---
 # Two separate tests, not one chained round trip: a single test that trained

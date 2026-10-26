@@ -29,6 +29,8 @@
 
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
+#include <SushiAI/profile/profile.hpp>
+#include <SushiAI/profile/timelines.hpp>
 
 namespace SushiAI
 {
@@ -48,8 +50,12 @@ namespace SushiAI
                     epoch == 1 ? static_cast<std::size_t>(run.start.batch) : 0;
                 for (std::size_t index = first; index < batches; ++index)
                 {
+                    Profile::mark_period(Profile::Timeline::TrainStep);
                     if (run.schedule != nullptr)
+                    {
+                        SA_ZONE("optim", "schedule");
                         Optim::apply_step_schedule(*run.schedule, run.optimizer);
+                    }
 
                     SA_TRY(steps.run_step(index));
                 }

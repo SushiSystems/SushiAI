@@ -181,7 +181,7 @@ namespace SushiAI
              */
             bool requires_grad = false;
 
-            /** @brief A short label carried into the runtime's profiling report. */
+            /** @brief A short label that diagnostics and error messages name the value by. */
             std::string_view debug_name{};
         };
 

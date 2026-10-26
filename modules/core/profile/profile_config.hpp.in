@@ -1,0 +1,34 @@
+/**************************************************************************/
+/* profile_config.hpp.in                                                  */
+/**************************************************************************/
+/*                          This file is part of:                         */
+/*                                 SushiAI                                */
+/*                 https://github.com/SushiSystems/SushiAI                */
+/*                         https://sushisystems.io                        */
+/**************************************************************************/
+/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */
+/*                                                                        */
+/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */
+/* "License"); you may not use this file except in compliance with the    */
+/* License. You may obtain a copy of the License at                       */
+/*                                                                        */
+/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */
+/*                                                                        */
+/* Noncommercial use is free. Commercial use requires a separate licence  */
+/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */
+/* "as is", without warranty of any kind.                                 */
+/**************************************************************************/
+
+/**
+ * @file profile_config.hpp.in
+ * @brief Declares the profiler settings the build chose, for profile.hpp alone to read.
+ * @author Mustafa Garip
+ */
+
+#pragma once
+
+/// @brief 1 when SushiProfiler is linked and the SA_ZONE family records, 0 when it compiles away.
+#define SA_ENABLE_PROFILER @SA_PROFILE_ENABLED_VALUE@
+
+/// @brief The compile-time ceiling of the SA_ZONE family; 0 removes every site.
+#define SA_PROFILE_LEVEL @SA_PROFILE_LEVEL@

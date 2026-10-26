@@ -42,6 +42,7 @@
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/train/feed.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/training/detection_truth_check.hpp>
@@ -211,12 +212,16 @@ namespace SushiAI::Vision::Training
         return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                         [this, &truth]() -> Status
         {
+            SA_ZONE("host", "assign");
             const std::vector<AnchorHead>& heads = objective_.heads();
-            for (std::size_t head = 0; head < heads.size(); ++head)
             {
-                const SushiBLAS::Tensor& output = *heads_[head];
-                outputs_view_[head] = SushiRuntime::span<const float>(
-                    output.data_as<float>(), static_cast<std::size_t>(output.num_elements));
+                SA_ZONE("host", "readback");
+                for (std::size_t head = 0; head < heads.size(); ++head)
+                {
+                    const SushiBLAS::Tensor& output = *heads_[head];
+                    outputs_view_[head] = SushiRuntime::span<const float>(
+                        output.data_as<float>(), static_cast<std::size_t>(output.num_elements));
+                }
             }
 
             SA_TRY_ASSIGN(cost_,
@@ -250,16 +255,22 @@ namespace SushiAI::Vision::Training
         SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
         SA_TRY(check_truth(truth));
 
-        SA_TRY(::SushiAI::Detail::record_and_run(
-            *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
         {
-            SushiBLAS::BLASOps blas(recorder);
-            blas.copy(inputs, *input_);
-            return Status();
-        }));
+            SA_ZONE("copy", "input");
+            SA_TRY(::SushiAI::Detail::record_and_run(
+                *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
+            {
+                SushiBLAS::BLASOps blas(recorder);
+                blas.copy(inputs, *input_);
+                return Status();
+            }));
+        }
 
         // The deltas come from the heads of the pass the rest of the step differentiates.
-        SA_TRY(training_->run([this, &truth]() { return feed_deltas(truth); }));
+        {
+            SA_ZONE("device", "run");
+            SA_TRY(training_->run([this, &truth]() { return feed_deltas(truth); }));
+        }
 
         return cost_;
     }

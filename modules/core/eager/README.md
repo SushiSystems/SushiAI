@@ -79,9 +79,11 @@ the tensors `Session::gradient` returns is applied without this module depending
 6. The session allocates the created slots, copies the feeds, and hands a `StepWork` to the
    executor, which drops, records and builds regions and runs the dynamic graph once.
 
-`StepCost` holds the host time of stages 2, 4 and 5 and of the whole flush for the last step.
-`tests/core/eager/test_session.cpp` prints them for a settled loop and for a
-renumbering.
+`StepCost` holds the number of regions the last step kept, recorded again, built and dropped.
+The time of the stages is in a profiling record: `Session::run` opens the zones `eager.flush`,
+`eager.partition`, `eager.plan`, `eager.compile` and `eager.execute`, and `docs/guides/PROFILING.md`
+says how to write and read one. The glue between the partition and the plan, `place_leaves` and
+`find_boundaries`, shows as the self time of `eager.flush`.
 
 ## Notes on the units
 
@@ -352,7 +354,8 @@ selections of the last call, and counts its calls, which is how a test shows tha
 recorded once.
 
 SushiRuntime's `Region` hands out its `Recorder` through `Region::recorder`, and the emitter
-records on that.
+records on that. Given its region id, the emitter gives `Lowering` the origin prefix `r<id>/`, so
+the nodes of two regions in one runtime graph keep distinct origins.
 
 ### step_executor.hpp
 
@@ -371,6 +374,9 @@ enough to test the session's decisions.
 It first drops every key that leaves: the regions the step does not have, the old key of every
 region it records or builds, and the trailing region when its key or its recorder changed. It
 then installs the recorded and the built regions in ascending key order.
+
+The executor labels its `DynamicGraph` `eager.step`, and the trailing work it records carries the
+origin `step.trailing`.
 
 Each live region owns its program, a `Graph::TensorPool` and its emitter. A region recorded
 under a new key gets a new pool and keeps its program. The pool of a dropped region is destroyed

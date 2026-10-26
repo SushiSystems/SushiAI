@@ -41,6 +41,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/train/training_step.hpp>
 
 #include "epoch_loop.hpp"
@@ -153,6 +154,7 @@ namespace SushiAI
             EpochSteps steps;
             steps.run_step = [&built](std::size_t)
             {
+                SA_ZONE("device", "run");
                 return built.step->run();
             };
             steps.report = [&loss](std::int64_t epoch, std::int64_t epochs)

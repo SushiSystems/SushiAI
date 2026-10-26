@@ -28,17 +28,25 @@
 #include <SushiAI/graph/compiled_step.hpp>
 
 #include <cstdint>
+#include <string>
 #include <utility>
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
 #include <SushiAI/graph/lowering.hpp>
+#include <SushiAI/profile/profile.hpp>
 
 namespace SushiAI
 {
     namespace Graph
     {
+        namespace
+        {
+            /** @brief Holds the origin of the tasks the trailing recorder adds. */
+            constexpr std::string_view K_TRAILING_ORIGIN = "step.trailing";
+        } // namespace
+
         CompiledStep::CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing)
             : trailing_(trailing), late_counts_(engine.runtime()), graph_(engine.runtime().graph()),
               recorder_(graph_.recorder(), engine.scratch_pool(), late_counts_, engine.mode())
@@ -76,7 +84,8 @@ namespace SushiAI
 
         Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
             SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
-            StepRecorder* trailing, const FusionSelector* selector, NodeRange nodes)
+            StepRecorder* trailing, const FusionSelector* selector, NodeRange nodes,
+            std::string_view label)
         {
             SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
                        "This graph holds a refused operation and cannot be compiled; the builder "
@@ -92,7 +101,11 @@ namespace SushiAI
             Lowering lowering(step->recorder_, engine.rng(), pool,
                               selector ? *selector : device);
 
-            Status recorded = lowering.record(graph, nodes);
+            Status recorded;
+            {
+                SA_ZONE("compile", "lower");
+                recorded = lowering.record(graph, nodes);
+            }
             step->operations_ = lowering.emitted_operations();
 
             const Status copied = SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate,
@@ -108,6 +121,8 @@ namespace SushiAI
             if (recorded.is_ok() && trailing)
             {
                 const StepRecording recording(step->recorder_, step->graph_.recorder());
+                const SushiBLAS::TaskRecorder::OriginScope origin =
+                    step->recorder_.origin(K_TRAILING_ORIGIN);
                 const Result<std::size_t> trailed = trailing->record_into_step(recording);
                 if (trailed.has_value())
                     step->operations_ += trailed.value();
@@ -122,6 +137,16 @@ namespace SushiAI
             step->empty_ = tasks.node_count() == 0;
             SA_TRY(step->add_replay_hooks(lowering.take_preludes()));
 
+            // The first plan copies the label, so it is set before graph_.compile().
+            if (!label.empty())
+            {
+                SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
+                {
+                    step->graph_.set_label(std::string(label));
+                    return Status();
+                }));
+            }
+
             // An empty step is never compiled, so a refused recording is read here and only here.
             if (const SushiRuntime::Error* refused = tasks.refusal())
                 return SushiAI::Detail::status_of_error(*refused,
@@ -130,6 +155,7 @@ namespace SushiAI
             // compile() refuses a graph with no task; past the read above it fails for the plan.
             if (!step->empty_)
             {
+                SA_ZONE("compile", "runtime");
                 const SushiRuntime::Result<void> compiled = step->graph_.compile();
                 if (!compiled)
                     return SushiAI::Detail::status_of_error(compiled.error(),

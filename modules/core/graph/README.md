@@ -16,7 +16,8 @@ across graphs, and `Traced` carries a traced value or the failure that stopped t
 ## Depends on
 
 The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation` as a
-public dependency. It declares no private dependency.
+public dependency. It names `profile` privately, for the `compile` zones of `compiled_step.cpp`,
+and SushiProfiler with it; no header of the module includes either.
 
 ## Public entry points
 
@@ -145,6 +146,24 @@ the whole graph. A range that ends before it starts or behind the last node is
 so the second reads what the first left in the pool and what the host wrote there between
 the two runs. Each step has its own run count and its own preludes. `Train::TrainingStep`
 uses this to stop a step for work on the host.
+
+## Labels and origins
+
+`CompiledStep::compile` takes a last parameter, `label`, which it gives to its runtime graph
+before the graph compiles, so the first plan carries it. The steps name themselves: `train.lead`
+and `train.step` in `TrainingStep`, `eval.step` in `EvaluationStep`, `replica.step` in
+`ReplicaStep`. A caller that passes none leaves the graph unnamed.
+
+`Lowering::record` opens an origin scope around each rule: every task a node records carries
+`<node id>:<operation name>` as its origin, and the scope ends with the rule, so a node that
+records nothing, such as a view, leaves no origin open for the next. `Lowering::set_origin_prefix`
+puts text before that label; the eager `RegionEmitter` gives each region `r<id>/`, because each
+region's graph numbers its nodes from 0. `CompiledStep::compile` records the trailing recorder,
+the optimizer, the gradient exchange and the carried state, under the origin `step.trailing`.
+The profiling record groups device spans by label and origin; see
+`docs/guides/PROFILING.md`. Labels are built when a step compiles and never on a run.
+
+The two stages of `compile` are zones, `compile.lower` and `compile.runtime`.
 
 ## Host work before each replay
 

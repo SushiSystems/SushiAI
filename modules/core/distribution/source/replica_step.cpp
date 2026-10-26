@@ -30,6 +30,7 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
+#include <string_view>
 #include <utility>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -47,6 +48,9 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Holds the label of the graph that runs one replica's step. */
+            constexpr std::string_view K_STEP_LABEL = "replica.step";
+
             /** @brief Returns the FNV-1a hash of the words, each read little-endian. */
             [[nodiscard]] std::uint64_t hash_words(const std::array<std::uint64_t, 3>& words)
             {
@@ -124,7 +128,9 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(*step->engine_,
                                                                     step->model_->graph(),
-                                                                    step->model_->pool()));
+                                                                    step->model_->pool(),
+                                                                    nullptr, nullptr, {},
+                                                                    K_STEP_LABEL));
             return Result<std::unique_ptr<ReplicaStep>>(std::move(step));
         }
 

@@ -1,7 +1,7 @@
 # tests/core/graph/test_compiled_step.cpp
 
 
-Suites: `Medium_CompiledStep`.
+Suites: `Medium_CompiledStep`, `Medium_CompiledStepAttribution`.
 
 Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node range of `CompiledStep::compile` in
 `modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.
@@ -46,3 +46,34 @@ after the second step the tripled value holds 30 four times.
 
 A range that ends one node behind the last fails with `InvalidDescription` and "does not lie
 in a graph", and the range [1, 0) with `InvalidDescription` and "[1, 0)".
+
+## Attribution
+
+The `Medium_CompiledStepAttribution` cases test the label and the node origins
+`CompiledStep::compile` gives its runtime graph. Each adds a `SushiRuntime::RunObserver` to the
+runtime before it compiles, runs the step once and reads the `NodeTable` of the observation. The
+step is a relu, a reshape and a relu over a leaf of 8 elements; the reshape is a view and records
+no task. A case that needs trailing work gives the step a recorder that copies the first
+activation over the leaf.
+
+### EveryTaskOfANodeCarriesItsOrigin
+
+No row of the table has an empty origin, and each origin is `<node id>:<operation name>` of a
+node of the graph. Both relu nodes appear, and `step.trailing` does not.
+
+### TwoStepsHaveTwoLabels
+
+Two steps of the same graph, so with equal node indices, are compiled with the labels
+`first.step` and `second.step` and run in turn. The two tables carry their own label, their graph
+ids differ and are not 0, and the origins of the two tables are equal, so only the graph keeps
+the rows apart.
+
+### TheOptimizerCarriesTheTrailingOrigin
+
+With a trailing recorder, exactly one row carries the origin `step.trailing` and none has an
+empty origin.
+
+### AViewLeavesNoOriginOpen
+
+No row carries the origin of the reshape node, none has an empty origin, and the second relu
+carries its own origin, so the origin a view's rule opened was closed again.

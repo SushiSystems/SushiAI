@@ -72,6 +72,7 @@ several checkouts at once. Run `sa config` to see what the CLI resolved.
 | `sushiai inference` | Evaluate a trained checkpoint over a dataset |
 | `sushiai import` | Write a model of another framework as a model, a weight and a training file |
 | `sushiai tokenize` | Learn a byte-pair vocabulary from a corpus, or encode a corpus with one |
+| `sa profile` | Read a profiling record with SushiProfiler's `sp`; `sa train --profile` and `sa inference --profile` write one |
 | `sa config` | Show the resolved configuration |
 | `sa env` | Show the environment your builds run under |
 | `sa setup` | Provision the dependencies and write the tool paths |
@@ -344,8 +345,7 @@ device-resident value rather than a graph attribute buys.
 `sa demo mlp` runs `sushiai_demo_mlp` (`applications/examples/source/demo_mlp.cpp`) from the repo
 root, so a relative data path such as the demo's `data/mnist` default means
 the same thing wherever you invoked `sa` from. It trains an MLP end to end and
-reports the compile count, the per-epoch loss trajectory, the final accuracy
-and the wall clock. See
+reports the compile count, the per-epoch loss trajectory and the final accuracy. See
 [DEMO.md](DEMO.md) for real output.
 
 Two deliberate choices:
@@ -359,7 +359,7 @@ Two deliberate choices:
   to forget. `sa demo --help` still lists the available demos. Until the demo
   is built there is nothing to forward to, so `sa demo mlp --help` prints `sa`'s
   own page and then says to run `sa build`. `sa train` and `sa inference` do
-  the same.
+  the same, and `sa profile` does it while `sp` is not on the path.
 
 ## `sushiai train`, `inference`, `import` and `tokenize`
 

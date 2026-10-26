@@ -8,6 +8,10 @@
 # A module is added by its folder and one line here.
 
 add_subdirectory(log)
+add_subdirectory(profile)
+if(SA_ENABLE_PROFILER)
+    add_subdirectory(profile_records)
+endif()
 add_subdirectory(failure)
 add_subdirectory(dtype)
 add_subdirectory(hash)

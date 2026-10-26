@@ -26,6 +26,7 @@ project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 # TARGET-guards onto the same target instead of re-adding it (see
 # cmake/Runtime.cmake's header comment).
 include(Log)      # SUSHILOG_DIR from the CLI -> SushiLog::SushiLog
+include(Profiler) # SA_ENABLE_PROFILER, SA_PROFILE_LEVEL -> SushiProfiler::SushiProfiler
 # Training over several machines needs the distributed layers of the runtime and of SushiBLAS too.
 # The distribution module's target carries SA_DISTRIBUTED to whatever links it.
 option(SA_ENABLE_DISTRIBUTED "Build modules/core/distribution/, training over several machines" OFF)

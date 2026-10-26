@@ -249,6 +249,10 @@ the output rather than of what the model was trained to minimise. It is
 reported only when the model's output width matches the dataset's class count,
 because otherwise the two are not comparable and a number would be fiction.
 
+### Profiling a run
+
+Both commands take `--profile <profile.json>`, which records the run with SushiProfiler. The flag measures the run and changes nothing in it. [`PROFILING.md`](PROFILING.md) has the configuration and how to read the record.
+
 ### Exit codes and output
 
 Both exit `0` on success and non-zero on any configuration or runtime error,

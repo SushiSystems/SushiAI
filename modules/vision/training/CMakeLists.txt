@@ -44,5 +44,6 @@ sushiai_add_module(NAME training TIER vision
         source/shape_ratio_head_delta_rule.cpp
         source/truth_from_roles.cpp
     PUBLIC_DEPENDS config data dtype failure graph nn optim shape train vision/detect vision/segment
-    PRIVATE_DEPENDS execution seam
-    EXTERNAL_PUBLIC SushiRuntime::core)
+    PRIVATE_DEPENDS execution seam profile
+    EXTERNAL_PUBLIC SushiRuntime::core
+    EXTERNAL_PRIVATE_LINKS ${SA_PROFILER_LINKS})

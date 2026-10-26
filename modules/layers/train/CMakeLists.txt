@@ -34,6 +34,6 @@ sushiai_add_module(NAME train TIER layers
         source/trainer.cpp
         source/training_step.cpp
     PUBLIC_DEPENDS config data dtype failure graph nn optim seam shape
-    PRIVATE_DEPENDS autograd execution
+    PRIVATE_DEPENDS autograd execution profile
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core
-    EXTERNAL_PRIVATE_LINKS SushiLog::text)
+    EXTERNAL_PRIVATE_LINKS SushiLog::text ${SA_PROFILER_LINKS})

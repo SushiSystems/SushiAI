@@ -30,6 +30,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -41,6 +42,12 @@ namespace SushiAI
     {
         namespace
         {
+            /** @brief Holds the label of the graph that runs the nodes before a host stage. */
+            constexpr std::string_view K_LEAD_LABEL = "train.lead";
+
+            /** @brief Holds the label of the graph that runs the training step. */
+            constexpr std::string_view K_STEP_LABEL = "train.step";
+
             /**
              * @brief Checks that an optimizer recorded into the step can be replayed unchanged.
              * @return Success, or InvalidDescription when the placement is InPlan and the
@@ -166,14 +173,16 @@ namespace SushiAI
                 SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> lead,
                               Graph::CompiledStep::compile(engine, graph, pool, nullptr,
                                                            options.fusion_selector,
-                                                           Graph::NodeRange{0, cut}));
+                                                           Graph::NodeRange{0, cut},
+                                                           K_LEAD_LABEL));
                 step->lead_ = std::move(lead);
                 rest.first = cut;
             }
 
             SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> compiled,
                           Graph::CompiledStep::compile(engine, graph, pool, trailing,
-                                                       options.fusion_selector, rest));
+                                                       options.fusion_selector, rest,
+                                                       K_STEP_LABEL));
             step->step_ = std::move(compiled);
 
             return std::move(step);

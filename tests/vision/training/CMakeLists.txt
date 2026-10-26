@@ -6,6 +6,12 @@
 
 # The test program of the module vision/training; see cmake/SushiAITestProgram.cmake.
 
+# The profiler suite of test_free_training_step.cpp reads a record; its helpers come with the profiler.
+set(SUSHIAI_VISION_TRAINING_PROFILED_DEPENDS)
+if(SA_ENABLE_PROFILER)
+    list(APPEND SUSHIAI_VISION_TRAINING_PROFILED_DEPENDS profile_records)
+endif()
+
 sushiai_add_test_program(OWNER vision/training
     SOURCES
         test_anchor_bias_init.cpp
@@ -42,4 +48,9 @@ sushiai_add_test_program(OWNER vision/training
         failure_expectations
         seeded_noise
         tensor_values
-        vision/blocks)
+        vision/blocks
+        ${SUSHIAI_VISION_TRAINING_PROFILED_DEPENDS}
+    LINKS
+        ${SA_PROFILER_LINKS}
+    INCLUDES
+        "${SA_PROFILE_GENERATED_INCLUDE}")

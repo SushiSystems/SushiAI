@@ -33,11 +33,19 @@ else()
     set(SUSHIAI_PROGRAM_CLUSTER source/cluster_training_none.cpp)
 endif()
 
+# A profiler build opens a SushiProfiler session for --profile; any other build refuses the flag.
+if(SA_ENABLE_PROFILER)
+    set(SUSHIAI_PROGRAM_PROFILE source/profile_session.cpp)
+else()
+    set(SUSHIAI_PROGRAM_PROFILE source/profile_session_none.cpp)
+endif()
+
 # What the programs share: the registries and the runs and reports they name.
 set(SUSHIAI_PROGRAM_SHARED
     source/registries.cpp source/epoch_loop.cpp source/trainer_run.cpp source/training_run.cpp
     source/inference_run.cpp source/run_start.cpp source/training_setup.cpp
     source/training_program.cpp source/inference_program.cpp
+    source/profile_arguments.cpp ${SUSHIAI_PROGRAM_PROFILE}
     ${SUSHIAI_PROGRAM_CLUSTER} ${SUSHIAI_PROGRAM_DOMAINS})
 
 # The shared sources are compiled once, into a library the programs and the program tests link.
@@ -45,6 +53,10 @@ set(SUSHIAI_PROGRAM_SHARED
 add_library(sushiai_program_shared STATIC ${SUSHIAI_PROGRAM_SHARED})
 target_include_directories(sushiai_program_shared PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/source")
 target_link_libraries(sushiai_program_shared PUBLIC sushiai)
+# The programs mark periods and own the profiling session: profile.hpp, its generated settings and
+# SushiProfiler, all private to the programs.
+target_include_directories(sushiai_program_shared PRIVATE "${SA_PROFILE_GENERATED_INCLUDE}")
+target_link_libraries(sushiai_program_shared PRIVATE ${SA_PROFILER_LINKS})
 if(SA_BUILD_VISION)
     target_link_libraries(sushiai_program_shared PUBLIC sushiai_vision)
 endif()

@@ -28,7 +28,6 @@
 
 #include <SushiAI/eager/session.hpp>
 
-#include <chrono>
 #include <utility>
 
 #include <SushiBLAS/blas/blas.hpp>
@@ -40,6 +39,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/profile/profile.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/eager/step.hpp>
 
@@ -51,27 +51,6 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Measures the host time between two points of a flush. */
-            class Stopwatch final
-            {
-                public:
-                    /** @brief Returns the nanoseconds since the last lap, or since construction. */
-                    [[nodiscard]] std::uint64_t lap() noexcept
-                    {
-                        const std::chrono::steady_clock::time_point now =
-                            std::chrono::steady_clock::now();
-                        const std::uint64_t elapsed = static_cast<std::uint64_t>(
-                            std::chrono::duration_cast<std::chrono::nanoseconds>(now - last_)
-                                .count());
-                        last_ = now;
-                        return elapsed;
-                    }
-
-                private:
-                    /// @brief The time of the last lap.
-                    std::chrono::steady_clock::time_point last_ = std::chrono::steady_clock::now();
-            };
-
             /** @brief Counts the regions of @p plan by the action taken for each. */
             void count_actions(const StepPlan& plan, StepCost& cost) noexcept
             {
@@ -335,8 +314,7 @@ namespace SushiAI
 
         Status Session::run(const StepTrace& trace)
         {
-            Stopwatch total;
-            Stopwatch stage;
+            SA_ZONE("eager", "flush");
             StepCost cost;
 
             SA_FAIL_IF(trace.graph.has_refusal(), StatusCode::InvalidDescription,
@@ -348,14 +326,13 @@ namespace SushiAI
                           ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record,
                                                          [&]()
             {
+                SA_ZONE("eager", "partition");
                 return partitioner_->assign(
                     graph,
                     SushiRuntime::span<const Segment>(trace.segments.data(),
                                                       trace.segments.size()),
                     trace.provenance);
             }));
-            cost.partition_ns = stage.lap();
-
             std::vector<StorageID> preset;
             SA_TRY(place_leaves(trace, preset));
 
@@ -375,11 +352,15 @@ namespace SushiAI
             Result<StepPlan> planned = ::SushiAI::Detail::guard_value(
                 ::SushiAI::Detail::SeamPhase::Record, [&]()
             {
-                StepPlan plan = table_.plan(
-                    graph, partition, boundaries,
-                    SushiRuntime::span<const StorageID>(preset.data(), preset.size()));
-                cost.plan_ns = stage.lap();
+                StepPlan plan = [&]()
+                {
+                    SA_ZONE("eager", "plan");
+                    return table_.plan(
+                        graph, partition, boundaries,
+                        SushiRuntime::span<const StorageID>(preset.data(), preset.size()));
+                }();
 
+                SA_ZONE("eager", "compile");
                 work.regions.resize(plan.regions.size());
                 for (std::size_t region = 0; region < plan.regions.size(); ++region)
                 {
@@ -389,7 +370,6 @@ namespace SushiAI
                             compile_region(graph, partition, plan.regions[region].key,
                                            boundaries.regions[region], options_.program);
                 }
-                cost.compile_ns = stage.lap();
                 return plan;
             });
             if (!planned.has_value())
@@ -398,34 +378,34 @@ namespace SushiAI
             StepPlan plan = std::move(planned).value();
             count_actions(plan, cost);
 
-            Status ran;
-            for (const SlotRecord& record : plan.created)
             {
-                ran = bank_.allocate(record.id, record.shape, record.dtype);
+                SA_ZONE("eager", "execute");
+                Status ran;
+                for (const SlotRecord& record : plan.created)
+                {
+                    ran = bank_.allocate(record.id, record.shape, record.dtype);
+                    if (!ran.is_ok())
+                        return recover(ran);
+                }
+
+                ran = prepare_storage(trace, preset);
                 if (!ran.is_ok())
                     return recover(ran);
+
+                work.dropped = plan.dropped;
+                work.storage_of_value = SushiRuntime::span<const StorageID>(
+                    plan.storage_of_value.data(), plan.storage_of_value.size());
+                work.trailing = trace.trailing;
+                work.trailing_key = partition.optimizer_key;
+                work.run_index = steps_;
+
+                ran = executor_->execute(work, bank_);
+                if (!ran.is_ok())
+                    return recover(ran);
+
+                for (StorageID id : plan.released)
+                    bank_.release(id);
             }
-
-            ran = prepare_storage(trace, preset);
-            if (!ran.is_ok())
-                return recover(ran);
-
-            work.dropped = plan.dropped;
-            work.storage_of_value = SushiRuntime::span<const StorageID>(
-                plan.storage_of_value.data(), plan.storage_of_value.size());
-            work.trailing = trace.trailing;
-            work.trailing_key = partition.optimizer_key;
-            work.run_index = steps_;
-
-            ran = executor_->execute(work, bank_);
-            if (!ran.is_ok())
-                return recover(ran);
-
-            for (StorageID id : plan.released)
-                bank_.release(id);
-
-            cost.execute_ns = stage.lap();
-            cost.total_ns = total.lap();
 
             plan_ = std::move(plan);
             cost_ = cost;

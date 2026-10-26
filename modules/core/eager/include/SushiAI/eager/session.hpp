@@ -92,14 +92,9 @@ namespace SushiAI
             Graph::StepRecorder* trailing = nullptr; /**< The update behind the step, or null. */
         };
 
-        /** @brief Holds what the host spent on the last step, in nanoseconds, and what it did. */
+        /** @brief Holds what the session did with the regions of the last step. */
         struct StepCost
         {
-            std::uint64_t partition_ns = 0; /**< Assigning each node a region key. */
-            std::uint64_t plan_ns = 0;      /**< Finding boundaries and comparing signatures. */
-            std::uint64_t compile_ns = 0;   /**< Running the passes over the built regions. */
-            std::uint64_t execute_ns = 0;   /**< Feeding, recording and running the step. */
-            std::uint64_t total_ns = 0;     /**< The whole flush. */
             std::size_t kept = 0;           /**< Regions that ran as recorded. */
             std::size_t recorded = 0;       /**< Regions recorded again under another key. */
             std::size_t built = 0;          /**< Regions compiled and recorded. */

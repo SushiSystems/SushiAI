@@ -142,3 +142,16 @@ The failure is not an exception the caller sees; `stdout` silently comes back as
 `test_sushiai_inference_loads_the_checkpoint_train_wrote` runs the training command itself
 before it runs inference. The training test is what writes the checkpoint, and running it
 again removes the dependence on pytest's collection order.
+
+## test_cli.py, profiling
+
+`test_train_forwards_profile` replaces `project.run_app` and invokes `sa train` and `sa inference`
+with `--profile profile.json` before and after the positional arguments. It asserts that the
+program receives the line unchanged, because both commands forward verbatim and the flag belongs
+to the program.
+
+`test_profile_runs_sp` replaces the runner and `shutil.which` of `services/profiler.py`, so it
+needs no `sp`. It asserts that `sa profile record show run.sprec.json` runs
+`sp record show run.sprec.json` from the project root and returns the exit code of `sp`.
+`test_profile_without_sp_says_to_install_it` makes `which` find nothing and asserts an exit code of
+1 and an error line that names SushiProfiler.
