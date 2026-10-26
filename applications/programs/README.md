@@ -91,7 +91,8 @@ to build.
 
 ### The steps
 
-1. Load the training file and the model file it names.
+1. Load the training file and the model file it names, and create the folder of its
+   `checkpoint`, so a run that cannot write the checkpoint fails before it trains.
 2. Fill the registries and build the dataset of the `data` block.
 3. Build the model and trace it once without a loss (`build_probe_graph`), which gives the
    shape of every published output and needs no engine.

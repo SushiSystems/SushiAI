@@ -145,6 +145,24 @@ TEST_F(Medium_AnchorRun, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
     EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
 }
 
+/** @brief Tests that a checkpoint in a folder that does not exist yet is written there. */
+TEST_F(Medium_AnchorRun, TheRunCreatesTheFolderOfItsCheckpoint)
+{
+    const std::filesystem::path folder =
+        std::filesystem::temp_directory_path() / "sushiai_anchor_run_new_folder";
+    std::error_code ignored;
+    std::filesystem::remove_all(folder, ignored);
+    const std::filesystem::path checkpoint = folder / "nested" / "trained.sushi";
+
+    testing::internal::CaptureStdout();
+    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint);
+    const std::string printed = testing::internal::GetCapturedStdout();
+
+    EXPECT_TRUE(trained.has_value()) << trained.status().message() << printed;
+    EXPECT_TRUE(std::filesystem::exists(checkpoint));
+    std::filesystem::remove_all(folder, ignored);
+}
+
 /** @brief Tests that the anchor report reads the checkpoint the run wrote, over every image. */
 TEST_F(Medium_AnchorRun, TheAnchorReportReadsTheCheckpointOfTheRun)
 {

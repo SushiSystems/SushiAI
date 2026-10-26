@@ -29,6 +29,7 @@
 #include "training_program.hpp"
 
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -85,6 +86,24 @@ namespace SushiAI
                     return describe_schedule(held);
                 }, *schedule);
             }
+
+            /**
+             * @brief Creates the folder the checkpoint of @p spec is written to, so a run that
+             *        cannot write it fails before it trains.
+             */
+            [[nodiscard]] Status prepare_checkpoint_folder(const Config::TrainSpec& spec)
+            {
+                const std::filesystem::path folder = spec.checkpoint.parent_path();
+                if (spec.checkpoint.empty() || folder.empty())
+                    return Status();
+
+                std::error_code failure;
+                std::filesystem::create_directories(folder, failure);
+                SA_FAIL_IF(failure, StatusCode::InvalidFile,
+                           "could not create '{}', the folder of the checkpoint: {}",
+                           folder.string(), failure.message());
+                return Status();
+            }
         } // namespace
 
         Result<TrainingOutcome> run_training_file(std::string_view origin,
@@ -92,6 +111,7 @@ namespace SushiAI
                                                   SushiBLAS::Engine& engine)
         {
             SA_TRY(Config::check_start(spec, origin));
+            SA_TRY(prepare_checkpoint_folder(spec));
             const Config::ModelSpec model_spec = Config::load_model(spec.model_path);
 
             // Everything below is picked by string, not by type; see the programs README.

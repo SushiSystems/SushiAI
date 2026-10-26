@@ -19,6 +19,11 @@ write only the checkpoint, under the temporary directory.
 One epoch of two batches of two images is two updates. The optimizer has taken 2 steps, the run
 reports one compile, and the checkpoint file exists.
 
+## TheRunCreatesTheFolderOfItsCheckpoint
+
+The checkpoint is named two folders deep under a temporary folder that does not exist. The run
+trains, and the checkpoint file exists afterwards; the test removes the folder.
+
 ## TheAnchorReportReadsTheCheckpointOfTheRun
 
 A run is trained as above, and the report loads its checkpoint. The report names one head and two
