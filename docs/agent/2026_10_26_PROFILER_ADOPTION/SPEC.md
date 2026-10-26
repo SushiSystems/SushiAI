@@ -1,11 +1,10 @@
 # SushiAI on SushiProfiler: specification
 
-**Status:** Open — 2026-10-26; rewritten after review, under its second review, no code yet
+**Status:** Open — 2026-10-26; reviewed twice, no code yet
 **Implements:** PROFILING#P1, PROFILING#P2, PROFILING#P3, PROFILING#P4, PROFILING#P5
 
 The topic is `docs/design/PROFILING/README.md`; its Decision table holds the rulings. This page
-fixes the interfaces and what each changes. A first review returned "rewrite needed"; its findings
-are answered in place below.
+fixes the interfaces and what each changes.
 
 ## 1. What this rests on
 
@@ -59,7 +58,9 @@ Consumers name it in `PRIVATE_DEPENDS`, never `PUBLIC_DEPENDS`.
 | `SA_ZONE_FINE(group, stage)` | The same at level 2 |
 | `SA_COUNTER(name, unit, op, value)`, `SA_VALUE(name, unit, value)` | `SP_COUNTER_AT` and `SP_VALUE_AT` at level 1 |
 
-Under `SA_ENABLE_PROFILER` 0 every macro expands to nothing.
+Under `SA_ENABLE_PROFILER` 0 every macro expands to nothing. Both settings come from
+`<SushiAI/profile/profile_config.hpp>`, which the build generates with `configure_file` and which
+only `profile.hpp` and `timelines.cpp` include; nothing is defined on the command line.
 
 `<SushiAI/profile/timelines.hpp>`:
 
@@ -93,6 +94,9 @@ class TimelineBinding final
         ~TimelineBinding();
 };
 ```
+
+`ProfileSession` holds its binding in a `std::optional<TimelineBinding>`, so `close()` can drop it
+before it stops the session.
 
 `source/timelines.cpp` holds one `std::atomic<SushiProfiler::PeriodTimeline*>` per timeline,
 null while unbound; `mark_period` loads it with acquire order and marks when it is not null. A
@@ -205,9 +209,12 @@ class ProfileSession final
 
 - `cli/sushistack.deps.toml`: `[sushisystems.sushiprofiler]` pinned to v0.2.0; `depends_on` gains
   `sushiprofiler`.
-- Options `SA_ENABLE_PROFILER` (ON) and `SA_PROFILE_LEVEL` (2) are compile definitions of the
-  `profile` module only, `PUBLIC` on it, so they reach the modules that name it and no other; a
-  change of level rebuilds those sources and nothing else.
+- Options `SA_ENABLE_PROFILER` (ON) and `SA_PROFILE_LEVEL` (2) are written into the generated
+  `profile_config.hpp`, never into compile definitions, so a change of level rebuilds the sources
+  that include `profile.hpp` and nothing else.
+- `SushiProfiler::SushiProfiler` is an `EXTERNAL_PRIVATE_LINKS` entry of `profile` and of every
+  module that names `profile` (their sources expand the `SP_` macros), and of `programs`. It is
+  never `EXTERNAL_PUBLIC`, so the tier libraries do not export it to installed consumers.
 - `cmake/Profiler.cmake`: `find_package(SushiProfiler CONFIG REQUIRED)` when `SA_ENABLE_PROFILER`
   is ON.
 - The package consumption of SushiLog, SushiRuntime and SushiBLAS is task O5 of SushiCore's
@@ -218,7 +225,7 @@ class ProfileSession final
 | Change | What rebuilds |
 | --- | --- |
 | A zone added in a `.cpp` | That file |
-| `profile.hpp` or `SA_PROFILE_LEVEL` | The sources of the modules that name `profile` |
+| `profile.hpp`, `profile_config.hpp` or `SA_PROFILE_LEVEL` | The sources that include `profile.hpp` |
 | `timeline_binding.hpp` | `profile_session.cpp` and `timelines.cpp` |
 | A SushiRuntime or SushiBLAS `.cpp` | Nothing in SushiAI compiles; the executables relink |
 
