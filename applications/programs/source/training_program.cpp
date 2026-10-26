@@ -87,6 +87,18 @@ namespace SushiAI
                 }, *schedule);
             }
 
+            /** @brief Returns how many learnable scalars the parameters of @p state hold. */
+            [[nodiscard]] std::int64_t learnable_scalars(const NN::ModelState& state)
+            {
+                std::int64_t total = 0;
+                for (const NN::StateEntry& entry : state.entries())
+                {
+                    if (entry.kind == NN::StateKind::Parameter)
+                        total += entry.shape.num_elements();
+                }
+                return total;
+            }
+
             /**
              * @brief Creates the folder the checkpoint of @p spec is written to, so a run that
              *        cannot write it fails before it trains.
@@ -149,7 +161,7 @@ namespace SushiAI
                       << SushiLog::format_text(
                              "Model      : {} ({} layers, {} learnable scalars)\n",
                              spec.model_path.string(), model.size(),
-                             NN::parameter_elements(model))
+                             learnable_scalars(setup->state()))
                       << SushiLog::format_text("Weights    : {}\n", describe_start(spec))
                       << SushiLog::format_text("Objective  : {}\n", setup->objective().name())
                       << SushiLog::format_text("Data       : {} ({} x {})\n",
@@ -190,7 +202,7 @@ namespace SushiAI
                                                summary.progress));
                 std::cout << SushiLog::format_text("wrote {} ({} scalars)\n",
                                                      spec.checkpoint.string(),
-                                                     NN::parameter_elements(model));
+                                                     learnable_scalars(setup->state()));
             }
 
             return TrainingOutcome{summary, optimizer->step_count()};

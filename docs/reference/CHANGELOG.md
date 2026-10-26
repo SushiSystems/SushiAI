@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-26 — nn: Made the state walk refuse a const module at compile time, which found no `walk_state` and yielded nothing, and `sushiai train` count its learnable scalars from the model state, which it reported as 0 (`module.hpp`).
 - 2026-10-26 — programs: Made `sushiai train` create the folder of its checkpoint before it trains, so a run that cannot write it fails first (`training_program.cpp`).
 - 2026-10-26 — autograd: Fixed a gradient that a fan-out sum wrote into while another value still read it, as the one gradient `ADD` hands both operands; the first two parts of a shared sum now add into a new buffer (`differentiator.cpp`).
 - 2026-10-26 — tests: Made the registration test expect the anchor-free objective, and the anchor factory test refuse the second of two heads that disagree on their size form (`test_registration.cpp`).

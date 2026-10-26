@@ -637,6 +637,10 @@ namespace SushiAI
         template<typename M>
         void walk_state(M& module, std::string_view prefix, const StateVisitor& visitor)
         {
+            static_assert(!std::is_const_v<M>,
+                          "The state walk hands out mutable parameters and buffers, and a const "
+                          "module would find no walk_state() and yield nothing. Pass the module "
+                          "itself, not a const reference to it.");
             if constexpr (Detail::HasStateWalk<M>::value)
             {
                 module.walk_state(prefix, visitor);

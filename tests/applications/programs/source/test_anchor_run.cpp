@@ -143,6 +143,8 @@ TEST_F(Medium_AnchorRun, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
     EXPECT_EQ(trained.value().optimizer_steps, K_STEPS) << printed;
     EXPECT_EQ(trained.value().summary.compile_count, 1u) << printed;
     EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
+    EXPECT_EQ(printed.find(" 0 learnable scalars"), std::string::npos) << printed;
+    EXPECT_EQ(printed.find("(0 scalars)"), std::string::npos) << printed;
 }
 
 /** @brief Tests that a checkpoint in a folder that does not exist yet is written there. */

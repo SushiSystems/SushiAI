@@ -17,7 +17,8 @@ write only the checkpoint, under the temporary directory.
 ## TheAnchorRowTrainsTwoStepsAndWritesACheckpoint
 
 One epoch of two batches of two images is two updates. The optimizer has taken 2 steps, the run
-reports one compile, and the checkpoint file exists.
+reports one compile, the checkpoint file exists, and neither the header nor the checkpoint line
+counts zero learnable scalars.
 
 ## TheRunCreatesTheFolderOfItsCheckpoint
 
