@@ -39,7 +39,7 @@ namespace SushiAI
         {
             public:
                 /** @brief Removes any file a previous run left under @p name. */
-                explicit ScratchFile(const char* name)
+                explicit ScratchFile(const char* name) noexcept
                     : path_(std::filesystem::temp_directory_path() / name)
                 {
                     std::error_code ignored;
