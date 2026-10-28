@@ -81,7 +81,7 @@ namespace SushiAI
             SushiBLAS::Engine& engine,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
         /**
          * @brief Builds an SGD optimizer from configuration attributes.
@@ -95,7 +95,7 @@ namespace SushiAI
             SushiBLAS::Engine& engine,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
         /** @brief Every optimizer a configuration file may name. */
         inline constexpr std::array<OptimizerEntry, 2> K_OPTIMIZER_REGISTRY = {
@@ -116,7 +116,7 @@ namespace SushiAI
             std::string_view type,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

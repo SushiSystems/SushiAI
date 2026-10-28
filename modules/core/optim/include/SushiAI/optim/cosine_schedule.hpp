@@ -70,7 +70,7 @@ namespace SushiAI
          *         ends before the warm-up does, or a final rate that is negative, not a
          *         number or above base_rate.
          */
-        [[nodiscard]] Status validate_cosine_schedule(const CosineSchedule& schedule);
+        [[nodiscard]] Status validate_cosine_schedule(const CosineSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

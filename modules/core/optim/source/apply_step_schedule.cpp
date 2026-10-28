@@ -33,7 +33,7 @@ namespace SushiAI
 {
     namespace Optim
     {
-        double apply_step_schedule(const RateSchedule& schedule, Optimizer& optimizer)
+        double apply_step_schedule(const RateSchedule& schedule, Optimizer& optimizer) noexcept
         {
             return std::visit([&optimizer](const auto& held)
             {

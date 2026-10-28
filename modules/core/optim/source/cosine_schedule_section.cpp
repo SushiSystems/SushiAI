@@ -103,7 +103,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<CosineSchedule> read_cosine_schedule_section(const Config::Value& section)
+        Result<CosineSchedule> read_cosine_schedule_section(const Config::Value& section) noexcept
         {
             CosineSchedule result;
             SA_TRY(Detail::read_fields(section, K_COSINE_SCHEDULE_TYPE, K_FIELDS, result));
@@ -111,7 +111,7 @@ namespace SushiAI
             return result;
         }
 
-        Result<Config::Value> write_cosine_schedule_section(const CosineSchedule& schedule)
+        Result<Config::Value> write_cosine_schedule_section(const CosineSchedule& schedule) noexcept
         {
             SA_TRY(validate_section(schedule));
             return Detail::write_fields(K_COSINE_SCHEDULE_TYPE, K_FIELDS, schedule);

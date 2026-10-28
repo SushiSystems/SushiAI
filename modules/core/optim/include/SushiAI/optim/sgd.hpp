@@ -90,7 +90,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SGD>> make(
                     SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
-                    SGDOptions options = {});
+                    SGDOptions options = {}) noexcept;
 
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override

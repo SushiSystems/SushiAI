@@ -74,7 +74,7 @@ namespace SushiAI
          *         a negative warm-up length, a warm-up power that is negative or not a
          *         number, or steps that do not strictly ascend.
          */
-        [[nodiscard]] Status validate_step_schedule(const StepSchedule& schedule);
+        [[nodiscard]] Status validate_step_schedule(const StepSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

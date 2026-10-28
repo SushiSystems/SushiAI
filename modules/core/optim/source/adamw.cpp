@@ -129,7 +129,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<AdamW>> AdamW::make(SushiBLAS::Engine& engine,
                                                    std::vector<ParameterSlot> parameters,
-                                                   AdamWOptions options)
+                                                   AdamWOptions options) noexcept
         {
             SA_TRY(validate_slots(parameters));
 
@@ -239,7 +239,7 @@ namespace SushiAI
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
-        const SushiBLAS::Tensor& AdamW::first_moment(std::size_t index) const
+        const SushiBLAS::Tensor& AdamW::first_moment(std::size_t index) const noexcept
         {
             SA_FATAL_IF(index >= state_.size(),
                         "This AdamW updates {} parameters; there is no moment {}",
@@ -247,7 +247,7 @@ namespace SushiAI
             return state_[index].first;
         }
 
-        const SushiBLAS::Tensor& AdamW::second_moment(std::size_t index) const
+        const SushiBLAS::Tensor& AdamW::second_moment(std::size_t index) const noexcept
         {
             SA_FATAL_IF(index >= state_.size(),
                         "This AdamW updates {} parameters; there is no moment {}",

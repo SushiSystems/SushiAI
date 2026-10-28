@@ -167,7 +167,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<StepSchedule> read_step_schedule_section(const Config::Value& section)
+        Result<StepSchedule> read_step_schedule_section(const Config::Value& section) noexcept
         {
             StepSchedule result;
             SA_TRY(Detail::read_fields(section, K_STEP_SCHEDULE_TYPE, K_FIELDS, result));
@@ -175,7 +175,7 @@ namespace SushiAI
             return result;
         }
 
-        Result<Config::Value> write_step_schedule_section(const StepSchedule& schedule)
+        Result<Config::Value> write_step_schedule_section(const StepSchedule& schedule) noexcept
         {
             SA_TRY(validate_section(schedule));
             return Detail::write_fields(K_STEP_SCHEDULE_TYPE, K_FIELDS, schedule);

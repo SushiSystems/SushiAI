@@ -58,7 +58,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientClip>> make(
                     SushiBLAS::Engine& engine, DType dtype, std::size_t gradient_count,
-                    double max_norm);
+                    double max_norm) noexcept;
 
                 ~GradientClip() = default;
 
@@ -76,14 +76,14 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<std::size_t> record(
                     SushiBLAS::TaskRecorder& recorder,
-                    const std::vector<SushiBLAS::Tensor*>& gradients);
+                    const std::vector<SushiBLAS::Tensor*>& gradients) noexcept;
 
                 /**
                  * @brief Writes the norm and the gradients' scale into device memory.
                  * @param inverse_loss_scale What a stored gradient is multiplied by to give the
                  *        true one; 1 without loss scaling.
                  */
-                void before_replay(float inverse_loss_scale);
+                void before_replay(float inverse_loss_scale) noexcept;
 
                 /** @brief Returns the one-element factor the updates read. */
                 [[nodiscard]] const SushiBLAS::Tensor& scale() const noexcept { return scale_; }
@@ -95,13 +95,13 @@ namespace SushiAI
                  * @brief Sets the norm the next replay clips to.
                  * @pre @p max_norm is positive and finite; any other value stops the process.
                  */
-                void set_max_norm(double max_norm);
+                void set_max_norm(double max_norm) noexcept;
 
                 /**
                  * @brief Reads from the host the factor the last replay applied.
                  * @pre The replay has been waited on; before the first one the factor is 1.
                  */
-                [[nodiscard]] double applied_scale() const;
+                [[nodiscard]] double applied_scale() const noexcept;
 
                 /** @brief Returns how many gradients the norm is taken over. */
                 [[nodiscard]] std::size_t gradient_count() const noexcept

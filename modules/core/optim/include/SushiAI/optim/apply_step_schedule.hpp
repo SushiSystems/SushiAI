@@ -44,7 +44,7 @@ namespace SushiAI
          * @return The rate set: schedule.rate_at(optimizer.step_count() + 1).
          */
         template<typename Schedule>
-        double apply_step_schedule(const Schedule& schedule, Optimizer& optimizer)
+        double apply_step_schedule(const Schedule& schedule, Optimizer& optimizer) noexcept
         {
             // Updates are numbered from 1, and step_count() counts the ones applied.
             const std::int64_t iteration = static_cast<std::int64_t>(optimizer.step_count()) + 1;
@@ -59,7 +59,7 @@ namespace SushiAI
          * @pre As the form over one schedule type.
          * @return The rate set: rate_at(schedule, optimizer.step_count() + 1).
          */
-        double apply_step_schedule(const RateSchedule& schedule, Optimizer& optimizer);
+        double apply_step_schedule(const RateSchedule& schedule, Optimizer& optimizer) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

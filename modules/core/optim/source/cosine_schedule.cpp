@@ -66,7 +66,7 @@ namespace SushiAI
             return final_rate + (base_rate - final_rate) * weight;
         }
 
-        Status validate_cosine_schedule(const CosineSchedule& schedule)
+        Status validate_cosine_schedule(const CosineSchedule& schedule) noexcept
         {
             SA_FAIL_IF(schedule.warmup_iterations < 0, StatusCode::InvalidDescription,
                        "a warm-up of {} iterations is negative", schedule.warmup_iterations);

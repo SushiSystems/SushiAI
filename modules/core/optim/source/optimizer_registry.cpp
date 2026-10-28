@@ -119,7 +119,7 @@ namespace SushiAI
         Result<std::unique_ptr<Optimizer>> make_adamw(SushiBLAS::Engine& engine,
                                                       std::vector<ParameterSlot> parameters,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_ADAMW_KEYS)));
 
@@ -149,7 +149,7 @@ namespace SushiAI
         Result<std::unique_ptr<Optimizer>> make_sgd(SushiBLAS::Engine& engine,
                                                     std::vector<ParameterSlot> parameters,
                                                     const Config::Value& attributes,
-                                                    std::string_view context)
+                                                    std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_SGD_KEYS)));
 
@@ -183,7 +183,7 @@ namespace SushiAI
                                                           std::string_view type,
                                                           std::vector<ParameterSlot> parameters,
                                                           const Config::Value& attributes,
-                                                          std::string_view context)
+                                                          std::string_view context) noexcept
         {
             SA_TRY_ASSIGN(const OptimizerEntry& entry,
                           Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type"));

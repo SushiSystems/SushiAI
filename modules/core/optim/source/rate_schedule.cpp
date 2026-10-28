@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace Optim
     {
-        double rate_at(const RateSchedule& schedule, std::int64_t iteration)
+        double rate_at(const RateSchedule& schedule, std::int64_t iteration) noexcept
         {
             return std::visit([iteration](const auto& held)
             {
@@ -42,7 +42,7 @@ namespace SushiAI
             }, schedule);
         }
 
-        double base_rate_of(const RateSchedule& schedule)
+        double base_rate_of(const RateSchedule& schedule) noexcept
         {
             return std::visit([](const auto& held)
             {
@@ -65,7 +65,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status validate_rate_schedule(const RateSchedule& schedule)
+        Status validate_rate_schedule(const RateSchedule& schedule) noexcept
         {
             return std::visit([](const auto& held)
             {

@@ -106,7 +106,7 @@ namespace SushiAI
         Result<std::unique_ptr<GradientClip>> GradientClip::make(SushiBLAS::Engine& engine,
                                                                  DType dtype,
                                                                  std::size_t gradient_count,
-                                                                 double max_norm)
+                                                                 double max_norm) noexcept
         {
             SA_FAIL_IF(gradient_count == 0, StatusCode::InvalidDescription,
                        "A gradient clip needs at least one gradient to take a norm over");
@@ -153,7 +153,7 @@ namespace SushiAI
         }
 
         Result<std::size_t> GradientClip::record(SushiBLAS::TaskRecorder& recorder,
-                                                 const std::vector<SushiBLAS::Tensor*>& gradients)
+                                                 const std::vector<SushiBLAS::Tensor*>& gradients) noexcept
         {
             SA_FATAL_IF(gradients.size() != norm_views_.size(),
                         "This gradient clip takes a norm over {} gradients but was handed {}",
@@ -201,7 +201,7 @@ namespace SushiAI
             });
         }
 
-        void GradientClip::before_replay(float inverse_loss_scale)
+        void GradientClip::before_replay(float inverse_loss_scale) noexcept
         {
             std::array<float, K_SCALAR_COUNT> values{};
             values[K_MAX_NORM] = static_cast<float>(max_norm_);
@@ -210,7 +210,7 @@ namespace SushiAI
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
         }
 
-        void GradientClip::set_max_norm(double max_norm)
+        void GradientClip::set_max_norm(double max_norm) noexcept
         {
             SA_FATAL_IF(!is_usable_norm(max_norm),
                         "A clip norm of {} is not positive and finite", max_norm);
@@ -218,7 +218,7 @@ namespace SushiAI
             max_norm_ = max_norm;
         }
 
-        double GradientClip::applied_scale() const
+        double GradientClip::applied_scale() const noexcept
         {
             return scale_.dtype == DType::Float64
                  ? scale_.data_as<double>()[0]

@@ -49,7 +49,7 @@ namespace SushiAI
          *         left out or not above zero, or for what read_rate_schedule_section refuses.
          */
         [[nodiscard]] Result<std::optional<RateSchedule>> read_rate_schedule(
-            const Config::Value& schedule, const Config::Value& optimizer_attributes);
+            const Config::Value& schedule, const Config::Value& optimizer_attributes) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

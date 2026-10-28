@@ -102,7 +102,7 @@ namespace SushiAI
          * @param slots The slots to check, in the order they will be updated.
          * @return Success, or an InvalidDescription status naming the first failing slot.
          */
-        [[nodiscard]] Status validate_slots(SushiRuntime::span<const ParameterSlot> slots);
+        [[nodiscard]] Status validate_slots(SushiRuntime::span<const ParameterSlot> slots) noexcept;
 
         /**
          * @class Optimizer
@@ -122,7 +122,7 @@ namespace SushiAI
                  * @brief Applies one update step standalone to every registered parameter.
                  * @return Success, or the status of the recording or the run that failed.
                  */
-                [[nodiscard]] Status step();
+                [[nodiscard]] Status step() noexcept;
 
                 /**
                  * @brief Indicates whether the recorded update survives graph replays unchanged.
@@ -144,13 +144,13 @@ namespace SushiAI
                  * @return Tensors that share this optimizer's storage and the scalars as they
                  *         are now, or the failure of the allocation of the lists.
                  */
-                [[nodiscard]] Result<RunState> run_state();
+                [[nodiscard]] Result<RunState> run_state() noexcept;
 
                 /**
                  * @brief Refuses run state that an optimizer of another type wrote.
                  * @return Incompatible, naming @p owner and type_name(), unless they are equal.
                  */
-                [[nodiscard]] Status check_state_owner(std::string_view owner) const;
+                [[nodiscard]] Status check_state_owner(std::string_view owner) const noexcept;
 
                 /**
                  * @brief Restores the scalars of run_state(), strictly in both directions.
@@ -158,7 +158,7 @@ namespace SushiAI
                  * @return Incompatible, naming the scalar, for one that is missing, surplus,
                  *         repeated or of the other kind, and for a value that cannot be held.
                  */
-                [[nodiscard]] Status restore_scalars(SushiRuntime::span<const StateScalar> scalars);
+                [[nodiscard]] Status restore_scalars(SushiRuntime::span<const StateScalar> scalars) noexcept;
 
                 /** @brief Returns the step size the next update applies. */
                 [[nodiscard]] virtual double learning_rate() const noexcept = 0;
@@ -168,7 +168,7 @@ namespace SushiAI
                  * @param rate Read by the next replay, compiled or not; a rate that is
                  *             negative or not finite stops the process.
                  */
-                void set_learning_rate(double rate);
+                void set_learning_rate(double rate) noexcept;
 
                 /** @brief The parameters, for inspection. */
                 const std::vector<ParameterSlot>& parameters() const noexcept
@@ -182,7 +182,7 @@ namespace SushiAI
                  * @return Success, or an InvalidDescription status if the scaler cannot be
                  *         attached to this optimizer.
                  */
-                [[nodiscard]] Status set_loss_scaler(LossScaler* scaler);
+                [[nodiscard]] Status set_loss_scaler(LossScaler* scaler) noexcept;
 
                 /** @brief The scaler attached to this optimizer, or null. */
                 LossScaler* loss_scaler() const noexcept { return scaler_; }
@@ -194,14 +194,14 @@ namespace SushiAI
                  *         finite, for a separate update kernel, for no parameter, or for
                  *         gradients of more than one element type; or the allocation's failure.
                  */
-                [[nodiscard]] Status enable_gradient_clip(double max_norm);
+                [[nodiscard]] Status enable_gradient_clip(double max_norm) noexcept;
 
                 /**
                  * @brief Sets the norm the next update is clipped to.
                  * @pre enable_gradient_clip() succeeded, and @p max_norm is positive and
                  *      finite; either broken stops the process.
                  */
-                void set_clip_norm(double max_norm);
+                void set_clip_norm(double max_norm) noexcept;
 
                 /** @brief The clip of this optimizer's gradients, or null when it has none. */
                 const GradientClip* gradient_clip() const noexcept { return clip_.get(); }

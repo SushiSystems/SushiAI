@@ -43,7 +43,7 @@ namespace SushiAI
          *         what the reader of that type refuses.
          */
         [[nodiscard]] Result<RateSchedule> read_rate_schedule_section(
-            const Config::Value& section);
+            const Config::Value& section) noexcept;
 
         /**
          * @brief Writes @p schedule as the schedule section of a training file.
@@ -51,7 +51,7 @@ namespace SushiAI
          *         or what the writer of that type refuses.
          */
         [[nodiscard]] Result<Config::Value> write_rate_schedule_section(
-            const RateSchedule& schedule);
+            const RateSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

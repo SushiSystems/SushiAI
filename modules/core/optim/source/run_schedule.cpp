@@ -37,7 +37,7 @@ namespace SushiAI
     namespace Optim
     {
         Result<std::optional<RateSchedule>> read_rate_schedule(
-            const Config::Value& schedule, const Config::Value& optimizer_attributes)
+            const Config::Value& schedule, const Config::Value& optimizer_attributes) noexcept
         {
             if (schedule.is_null())
                 return std::optional<RateSchedule>();

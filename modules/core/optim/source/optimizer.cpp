@@ -83,7 +83,7 @@ namespace SushiAI
             }
         }
 
-        Status validate_slots(SushiRuntime::span<const ParameterSlot> slots)
+        Status validate_slots(SushiRuntime::span<const ParameterSlot> slots) noexcept
         {
             for (const ParameterSlot& slot : slots)
             {
@@ -116,7 +116,7 @@ namespace SushiAI
 
         }
 
-        Status Optimizer::set_loss_scaler(LossScaler* scaler)
+        Status Optimizer::set_loss_scaler(LossScaler* scaler) noexcept
         {
             SA_FAIL_IF(scaler != nullptr && !is_replay_invariant(),
                        StatusCode::InvalidDescription,
@@ -137,7 +137,7 @@ namespace SushiAI
             return Status();
         }
 
-        void Optimizer::set_learning_rate(double rate)
+        void Optimizer::set_learning_rate(double rate) noexcept
         {
             // The comparison is false for a NaN, which is refused with the negative rates.
             SA_FATAL_IF(!(rate >= 0.0) || !std::isfinite(rate),
@@ -146,7 +146,7 @@ namespace SushiAI
             store_learning_rate(rate);
         }
 
-        Result<RunState> Optimizer::run_state()
+        Result<RunState> Optimizer::run_state() noexcept
         {
             RunState state;
             SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
@@ -169,7 +169,7 @@ namespace SushiAI
             return std::move(state);
         }
 
-        Status Optimizer::check_state_owner(std::string_view owner) const
+        Status Optimizer::check_state_owner(std::string_view owner) const noexcept
         {
             SA_FAIL_IF(owner != type_name(), StatusCode::Incompatible,
                        "the run state was written by a '{}' optimizer, and this optimizer is "
@@ -177,7 +177,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status Optimizer::restore_scalars(SushiRuntime::span<const StateScalar> scalars)
+        Status Optimizer::restore_scalars(SushiRuntime::span<const StateScalar> scalars) noexcept
         {
             SA_TRY_ASSIGN(const RunState own, run_state());
 
@@ -222,7 +222,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status Optimizer::enable_gradient_clip(double max_norm)
+        Status Optimizer::enable_gradient_clip(double max_norm) noexcept
         {
             SA_FATAL_IF(in_compiled_step_,
                         "This optimizer's update is already recorded into a compiled step; a "
@@ -249,7 +249,7 @@ namespace SushiAI
             return Status();
         }
 
-        void Optimizer::set_clip_norm(double max_norm)
+        void Optimizer::set_clip_norm(double max_norm) noexcept
         {
             SA_FATAL_IF(clip_ == nullptr,
                         "This optimizer has no gradient clip; enable_gradient_clip() records "
@@ -329,7 +329,7 @@ namespace SushiAI
             return record_all(recording.tasks());
         }
 
-        Status Optimizer::step()
+        Status Optimizer::step() noexcept
         {
             SA_FATAL_IF(in_compiled_step_,
                         "This optimizer's update is already recorded into a compiled step, "

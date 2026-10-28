@@ -48,7 +48,7 @@ namespace SushiAI
          *         validate_cosine_schedule refuses.
          */
         [[nodiscard]] Result<CosineSchedule> read_cosine_schedule_section(
-            const Config::Value& section);
+            const Config::Value& section) noexcept;
 
         /**
          * @brief Writes a CosineSchedule as the schedule section of a training file.
@@ -56,7 +56,7 @@ namespace SushiAI
          *         for a rate that is not finite and for what validate_cosine_schedule refuses.
          */
         [[nodiscard]] Result<Config::Value> write_cosine_schedule_section(
-            const CosineSchedule& schedule);
+            const CosineSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

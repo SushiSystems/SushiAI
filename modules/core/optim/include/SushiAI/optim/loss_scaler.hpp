@@ -95,7 +95,7 @@ namespace SushiAI
                  *         growth is below one or backoff is not in (0, 1], or when the growth
                  *         interval is zero.
                  */
-                [[nodiscard]] static Result<LossScaleState> make(LossScaleOptions options = {});
+                [[nodiscard]] static Result<LossScaleState> make(LossScaleOptions options = {}) noexcept;
 
                 /**
                  * @brief Folds one step's verdict into the state.
@@ -109,7 +109,7 @@ namespace SushiAI
                  * @return Incompatible for a scale that is no power of two within the bounds
                  *         of the options, and for a count at or above the growth interval.
                  */
-                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps);
+                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps) noexcept;
 
                 /** @brief The scale the next step will run at. */
                 double scale() const noexcept { return scale_; }
@@ -179,7 +179,7 @@ namespace SushiAI
                     SushiBLAS::Engine& engine,
                     SushiBLAS::Tensor factor,
                     std::size_t parameter_count,
-                    LossScaleOptions options = {});
+                    LossScaleOptions options = {}) noexcept;
 
                 ~LossScaler() = default;
 
@@ -196,12 +196,12 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<std::size_t> record_screens(
                     SushiBLAS::TaskRecorder& recorder,
-                    const std::vector<SushiBLAS::Tensor*>& gradients);
+                    const std::vector<SushiBLAS::Tensor*>& gradients) noexcept;
 
                 /**
                  * @brief Publishes current step scale into device memory before replay.
                  */
-                void before_replay();
+                void before_replay() noexcept;
 
                 /**
                  * @brief Reads the screens back and advances the state machine.
@@ -210,13 +210,13 @@ namespace SushiAI
                  * boundary, after the device has been waited on - so it adds no
                  * synchronisation the loop was not already paying.
                  */
-                void after_replay();
+                void after_replay() noexcept;
 
                 /**
                  * @brief Sets the scale and the clean-step count a saved run left off at.
                  * @return What LossScaleState::restore returns.
                  */
-                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps);
+                [[nodiscard]] Status restore(double scale, std::uint64_t good_steps) noexcept;
 
                 /**
                  * @brief Returns pointer to device non-finite count buffer for gating.
@@ -249,7 +249,7 @@ namespace SushiAI
                 const LossScaleState& state() const noexcept { return state_; }
 
                 /** @brief A one-line summary for a run report. */
-                std::string to_string() const;
+                std::string to_string() const noexcept;
 
             private:
                 /**

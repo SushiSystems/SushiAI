@@ -48,7 +48,7 @@ namespace SushiAI
          *         finite, or what validate_step_schedule refuses.
          */
         [[nodiscard]] Result<StepSchedule> read_step_schedule_section(
-            const Config::Value& section);
+            const Config::Value& section) noexcept;
 
         /**
          * @brief Writes a StepSchedule as the schedule section of a training file.
@@ -57,7 +57,7 @@ namespace SushiAI
          *         validate_step_schedule refuses.
          */
         [[nodiscard]] Result<Config::Value> write_step_schedule_section(
-            const StepSchedule& schedule);
+            const StepSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

@@ -44,16 +44,16 @@ namespace SushiAI
          * @brief Returns the learning rate @p schedule gives update @p iteration.
          * @pre The schedule held passed its own validation; a negative iteration is fatal.
          */
-        [[nodiscard]] double rate_at(const RateSchedule& schedule, std::int64_t iteration);
+        [[nodiscard]] double rate_at(const RateSchedule& schedule, std::int64_t iteration) noexcept;
 
         /** @brief Returns the base_rate of the schedule @p schedule holds. */
-        [[nodiscard]] double base_rate_of(const RateSchedule& schedule);
+        [[nodiscard]] double base_rate_of(const RateSchedule& schedule) noexcept;
 
         /**
          * @brief Checks the schedule @p schedule holds with the validation of its own type.
          * @return What validate_step_schedule or validate_cosine_schedule returns.
          */
-        [[nodiscard]] Status validate_rate_schedule(const RateSchedule& schedule);
+        [[nodiscard]] Status validate_rate_schedule(const RateSchedule& schedule) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

@@ -114,7 +114,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<RateSchedule> read_rate_schedule_section(const Config::Value& section)
+        Result<RateSchedule> read_rate_schedule_section(const Config::Value& section) noexcept
         {
             SA_TRY_ASSIGN(const std::string type, stated_type(section));
 
@@ -131,7 +131,7 @@ namespace SushiAI
             return found->read(section);
         }
 
-        Result<Config::Value> write_rate_schedule_section(const RateSchedule& schedule)
+        Result<Config::Value> write_rate_schedule_section(const RateSchedule& schedule) noexcept
         {
             return std::visit([](const auto& held)
             {

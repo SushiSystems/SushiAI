@@ -55,7 +55,7 @@ namespace SushiAI
                  *         allocate_tensor returns.
                  */
                 [[nodiscard]] static Result<StepScalars> make(SushiBLAS::Engine& engine,
-                                                              std::size_t count);
+                                                              std::size_t count) noexcept;
 
                 StepScalars(const StepScalars&) = delete;
                 StepScalars& operator=(const StepScalars&) = delete;
@@ -77,7 +77,7 @@ namespace SushiAI
                  * @brief Overwrites buffer contents from the host before replay.
                  * @pre @p values holds exactly count() elements; a mismatch stops the process.
                  */
-                void write(SushiRuntime::span<const float> values);
+                void write(SushiRuntime::span<const float> values) noexcept;
 
                 /** @brief How many scalars the buffer holds. */
                 std::size_t count() const noexcept { return count_; }

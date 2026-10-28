@@ -41,7 +41,7 @@ namespace SushiAI
 {
     namespace Optim
     {
-        Result<StepScalars> StepScalars::make(SushiBLAS::Engine& engine, std::size_t count)
+        Result<StepScalars> StepScalars::make(SushiBLAS::Engine& engine, std::size_t count) noexcept
         {
             SA_FAIL_IF(count == 0, StatusCode::InvalidDescription,
                        "A step-scalar buffer needs at least one slot");
@@ -61,7 +61,7 @@ namespace SushiAI
 
         }
 
-        void StepScalars::write(SushiRuntime::span<const float> values)
+        void StepScalars::write(SushiRuntime::span<const float> values) noexcept
         {
             SA_FATAL_IF(values.size() != count_,
                         "This step-scalar buffer holds {} slots but {} values were written",

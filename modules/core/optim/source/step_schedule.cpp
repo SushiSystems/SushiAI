@@ -61,7 +61,7 @@ namespace SushiAI
             return rate;
         }
 
-        Status validate_step_schedule(const StepSchedule& schedule)
+        Status validate_step_schedule(const StepSchedule& schedule) noexcept
         {
             SA_FAIL_IF(schedule.steps.size() != schedule.scales.size(),
                        StatusCode::InvalidDescription,

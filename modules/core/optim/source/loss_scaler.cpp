@@ -77,7 +77,7 @@ namespace SushiAI
             }
         }
 
-        Result<LossScaleState> LossScaleState::make(LossScaleOptions options)
+        Result<LossScaleState> LossScaleState::make(LossScaleOptions options) noexcept
         {
             // Validate all scale bounds and factors are powers of two.
             SA_FAIL_IF(!is_power_of_two(options.initial), StatusCode::InvalidDescription,
@@ -119,7 +119,7 @@ namespace SushiAI
 
         }
 
-        Status LossScaleState::restore(double scale, std::uint64_t good_steps)
+        Status LossScaleState::restore(double scale, std::uint64_t good_steps) noexcept
         {
             SA_FAIL_IF(!is_power_of_two(scale) || scale < options_.minimum ||
                            scale > options_.maximum,
@@ -171,7 +171,7 @@ namespace SushiAI
         Result<std::unique_ptr<LossScaler>> LossScaler::make(SushiBLAS::Engine& engine,
                                                              SushiBLAS::Tensor factor,
                                                              std::size_t parameter_count,
-                                                             LossScaleOptions options)
+                                                             LossScaleOptions options) noexcept
         {
             SA_FAIL_IF(factor.num_elements != 1, StatusCode::InvalidDescription,
                        "A loss scaler's factor must be a single element; got {}",
@@ -222,7 +222,7 @@ namespace SushiAI
 
         Result<std::size_t> LossScaler::record_screens(
             SushiBLAS::TaskRecorder& recorder,
-            const std::vector<SushiBLAS::Tensor*>& gradients)
+            const std::vector<SushiBLAS::Tensor*>& gradients) noexcept
         {
             SA_FATAL_IF(gradients.size() != count_,
                         "This loss scaler screens {} gradients but was handed {}; the gate's "
@@ -245,17 +245,17 @@ namespace SushiAI
             });
         }
 
-        void LossScaler::before_replay()
+        void LossScaler::before_replay() noexcept
         {
             factor_.data_as<float>()[0] = static_cast<float>(state_.scale());
         }
 
-        Status LossScaler::restore(double scale, std::uint64_t good_steps)
+        Status LossScaler::restore(double scale, std::uint64_t good_steps) noexcept
         {
             return state_.restore(scale, good_steps);
         }
 
-        void LossScaler::after_replay()
+        void LossScaler::after_replay() noexcept
         {
             // Check global non-finite count across all screened parameter buffers.
             bool overflow = false;
@@ -265,7 +265,7 @@ namespace SushiAI
             state_.observe(overflow);
         }
 
-        std::string LossScaler::to_string() const
+        std::string LossScaler::to_string() const noexcept
         {
             // Format loss scale metrics reporting overflowed steps, backoffs, and growths.
             return SushiLog::format_text(

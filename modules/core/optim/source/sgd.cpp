@@ -216,7 +216,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<SGD>> SGD::make(SushiBLAS::Engine& engine,
                                                std::vector<ParameterSlot> parameters,
-                                               SGDOptions options)
+                                               SGDOptions options) noexcept
         {
             SA_TRY(validate_slots(parameters));
 

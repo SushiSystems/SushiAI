@@ -91,7 +91,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<AdamW>> make(
                     SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
-                    AdamWOptions options = {});
+                    AdamWOptions options = {}) noexcept;
 
                 /** @brief True when the update is fused, and therefore replayable. */
                 bool is_replay_invariant() const noexcept override
@@ -123,7 +123,7 @@ namespace SushiAI
                  * @return First moment tensor reference.
                  * @pre index is less than parameter_count(); a larger index stops the process.
                  */
-                const SushiBLAS::Tensor& first_moment(std::size_t index) const;
+                const SushiBLAS::Tensor& first_moment(std::size_t index) const noexcept;
 
                 /**
                  * @brief Parameter @p index's second moment, v.
@@ -131,7 +131,7 @@ namespace SushiAI
                  * @return Its second moment.
                  * @pre index is less than parameter_count(); a larger index stops the process.
                  */
-                const SushiBLAS::Tensor& second_moment(std::size_t index) const;
+                const SushiBLAS::Tensor& second_moment(std::size_t index) const noexcept;
 
             protected:
                 /** @brief Stores @p rate as the step size of the options. */
