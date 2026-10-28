@@ -218,7 +218,7 @@ TEST(Small_BlockC2psa, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C2PSA block = make_row10();
 
-    EXPECT_EQ(block.output_shape(Shape{20, 20, 256}), (Shape{20, 20, 256}));
+    EXPECT_EQ(block.output_shape(Shape{20, 20, 256}).value(), (Shape{20, 20, 256}));
 }
 
 /**

@@ -206,8 +206,8 @@ TEST(Small_AnchorObjective, AModelWithoutAHeadIsRefusedNamingTheHead)
                       StatusCode::InvalidDescription, "head.1");
 }
 
-/** @brief Tests that a head whose shape differs from the declared one throws both shapes. */
-TEST(Small_AnchorObjective, AHeadOfAnotherShapeThrowsNamingBothShapes)
+/** @brief Tests that a head whose shape differs from the declared one is refused, naming both. */
+TEST(Small_AnchorObjective, AHeadOfAnotherShapeIsRefusedNamingBothShapes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -221,8 +221,8 @@ TEST(Small_AnchorObjective, AHeadOfAnotherShapeThrowsNamingBothShapes)
     SA_EXPECT_OK(outputs.add("head.0", builder.parameter(Shape{2, 4, 4, 21}, "fine")));
     SA_EXPECT_OK(outputs.add("head.1", builder.parameter(Shape{2, 2, 2, 14}, "coarse")));
 
-    SA_EXPECT_ERROR((void)objective.loss(builder, graph, outputs, leaves), "[2, 4, 4, 14]",
-                    "[2, 4, 4, 21]");
+    SA_EXPECT_FAILURE(objective.loss(builder, graph, outputs, leaves),
+                      StatusCode::InvalidDescription, "[2, 4, 4, 14]", "[2, 4, 4, 21]");
 }
 
 /** @brief Tests that the cost is the field-by-field sum of the two heads' costs, to 1e-12. */

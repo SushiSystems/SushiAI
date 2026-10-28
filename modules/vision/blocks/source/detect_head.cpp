@@ -246,7 +246,8 @@ namespace SushiAI
                     return read;
 
                 for (Graph::ValueID& feature : read)
-                    feature = trace.builder().stop_gradient(feature);
+                    feature =
+                        trace.value_or_fail(trace.builder().stop_gradient(feature), feature);
 
                 return read;
             }
@@ -301,16 +302,25 @@ namespace SushiAI
                 return branches;
             }
 
-            /** @brief Lists the box and score shapes of the first copy of @p branches. */
+            /**
+             * @brief Lists the box and score shapes of the first copy of @p branches.
+             * @return The first failure of a branch's output_shape(); the lists then hold the
+             *         shapes of the levels before it.
+             */
             template<typename ClassType>
-            void collect_shapes(DetectBranches<ClassType>& branches, NN::ShapeSpan levels,
-                                std::vector<Shape>& boxes, std::vector<Shape>& scores)
+            [[nodiscard]] Status collect_shapes(DetectBranches<ClassType>& branches,
+                                                NN::ShapeSpan levels, std::vector<Shape>& boxes,
+                                                std::vector<Shape>& scores)
             {
                 for (std::size_t level = 0; level < levels.size(); ++level)
                 {
-                    boxes.push_back(branches.cv2[level].output_shape(levels[level]));
-                    scores.push_back(branches.cv3[level].output_shape(levels[level]));
+                    SA_TRY_ASSIGN(Shape box, branches.cv2[level].output_shape(levels[level]));
+                    SA_TRY_ASSIGN(Shape score, branches.cv3[level].output_shape(levels[level]));
+                    boxes.push_back(std::move(box));
+                    scores.push_back(std::move(score));
                 }
+
+                return Status();
             }
 
             /** @brief Traces the one-to-many copy, then the one-to-one copy when @p end2end. */
@@ -376,28 +386,32 @@ namespace SushiAI
             const HeadPlan plan{levels, classes, norm, options, box_width, box_channels,
                                 class_width};
 
-            return NN::Detail::bridge_throwing([&]()
+            // The block constructors still refuse their settings by throwing.
+            SA_TRY_ASSIGN(Branches branches, NN::Detail::bridge_throwing([&plan, &options]()
             {
-                Branches branches =
-                    options.class_branch == ClassBranchStyle::Plain
-                        ? Branches(build_branches<PlainClassBranch>(plan))
-                        : Branches(build_branches<ClassBranch>(plan));
-                std::vector<Shape> boxes;
-                std::vector<Shape> scores;
-                boxes.reserve(levels.size());
-                scores.reserve(levels.size());
-                std::visit([&](auto& built) { collect_shapes(built, levels, boxes, scores); },
-                           branches);
+                return options.class_branch == ClassBranchStyle::Plain
+                           ? Branches(build_branches<PlainClassBranch>(plan))
+                           : Branches(build_branches<ClassBranch>(plan));
+            }));
 
-                std::vector<NN::Port> ports;
-                ports.reserve(2 * (boxes.size() + scores.size()));
-                append_copy_ports(ports, K_DETECT_ONE_TO_MANY, boxes, scores);
-                if (options.end2end)
-                    append_copy_ports(ports, K_DETECT_ONE_TO_ONE, boxes, scores);
+            std::vector<Shape> boxes;
+            std::vector<Shape> scores;
+            boxes.reserve(levels.size());
+            scores.reserve(levels.size());
+            const Status shaped = std::visit([&](auto& built)
+            {
+                return collect_shapes(built, levels, boxes, scores);
+            }, branches);
+            SA_TRY(shaped);
 
-                return std::unique_ptr<DetectHead>(new DetectHead(
-                    std::move(branches), std::move(ports), levels.size(), options.end2end));
-            });
+            std::vector<NN::Port> ports;
+            ports.reserve(2 * (boxes.size() + scores.size()));
+            append_copy_ports(ports, K_DETECT_ONE_TO_MANY, boxes, scores);
+            if (options.end2end)
+                append_copy_ports(ports, K_DETECT_ONE_TO_ONE, boxes, scores);
+
+            return std::unique_ptr<DetectHead>(new DetectHead(
+                std::move(branches), std::move(ports), levels.size(), options.end2end));
         }
 
         DetectHead::DetectHead(Branches branches, std::vector<NN::Port> ports,
@@ -412,24 +426,16 @@ namespace SushiAI
                                    std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(NN::Detail::require_input_count(inputs, level_count_));
-            const Result<std::vector<Graph::ValueID>> traced =
-                NN::Detail::bridge_throwing([this, &trace, &inputs]()
+            std::vector<Graph::ValueID> results;
+            results.reserve(ports_.size());
+            std::visit([&](auto& built)
             {
-                std::vector<Graph::ValueID> results;
-                results.reserve(ports_.size());
-                std::visit([&](auto& built)
-                {
-                    trace_branches(built, end2end_, trace, inputs, results);
-                }, branches_);
+                trace_branches(built, end2end_, trace, inputs, results);
+            }, branches_);
 
-                return results;
-            });
-
-            // A failure a layer recorded is the cause of whatever it threw afterwards.
             SA_TRY(trace.status());
-            SA_TRY(traced);
 
-            outputs.insert(outputs.end(), traced.value().begin(), traced.value().end());
+            outputs.insert(outputs.end(), results.begin(), results.end());
             return Status();
         }
 

@@ -147,23 +147,26 @@ namespace SushiAI::Vision::Training
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
-        const Graph::ValueID one_to_many =
-            branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToMany);
+        SA_TRY_ASSIGN(const Graph::ValueID one_to_many,
+                      branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToMany));
         if (!facts_.has_one_to_one)
             return one_to_many;
 
-        const Graph::ValueID one_to_one =
-            branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToOne);
-        return builder.add(
-            builder.mul(one_to_many, leaves.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE)),
-            builder.mul(one_to_one, leaves.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE)));
+        SA_TRY_ASSIGN(const Graph::ValueID one_to_one,
+                      branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToOne));
+        SA_TRY_ASSIGN(const Graph::ValueID total,
+                      builder.add(
+                          builder.mul(one_to_many, leaves.at(K_FREE_ONE_TO_MANY_WEIGHT_ROLE)),
+                          builder.mul(one_to_one, leaves.at(K_FREE_ONE_TO_ONE_WEIGHT_ROLE))));
+
+        return total;
     }
 
-    Graph::ValueID FreeObjective::branch_loss(const Graph::GraphBuilder& builder,
-                                              const Graph::Graph& graph,
-                                              const NN::ModelOutputs& outputs,
-                                              const Train::ObjectiveLeaves& leaves,
-                                              FreeBranch branch) const
+    Result<Graph::ValueID> FreeObjective::branch_loss(const Graph::GraphBuilder& builder,
+                                                      const Graph::Graph& graph,
+                                                      const NN::ModelOutputs& outputs,
+                                                      const Train::ObjectiveLeaves& leaves,
+                                                      FreeBranch branch) const
     {
         FreeLossValues values;
         values.levels.resize(facts_.levels.size());
@@ -195,7 +198,10 @@ namespace SushiAI::Vision::Training
         if (facts_.reg_max > 1)
             values.projection = leaves.at(K_FREE_PROJECTION_ROLE);
 
-        return emit_free_detection_loss(builder, graph, facts_, values, gains_).total;
+        SA_TRY_ASSIGN(const FreeLossTermIDs terms,
+                      emit_free_detection_loss(builder, graph, facts_, values, gains_));
+
+        return terms.total;
     }
 
     std::string_view FreeObjective::name() const noexcept

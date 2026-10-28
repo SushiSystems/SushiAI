@@ -28,23 +28,21 @@
 #include <SushiAI/vision/training/head_delta_loss.hpp>
 
 #include <cstdint>
-
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI::Vision::Training
 {
-    Graph::ValueID emit_head_delta_loss(const Graph::GraphBuilder& builder, Graph::ValueID head,
-                                        Graph::ValueID delta, double scale)
+    Graph::Traced emit_head_delta_loss(const Graph::GraphBuilder& builder, Graph::ValueID head,
+                                       Graph::ValueID delta, double scale)
     {
-        const Graph::ValueID product = builder.mul(delta, head);
+        SA_TRY_ASSIGN(const Graph::ValueID product, builder.mul(delta, head));
 
         // By value: the emissions below can reallocate the graph's value vector.
         const std::int64_t elements = builder.graph().value(product).shape.num_elements();
 
-        const Graph::ValueID column = builder.reshape(product, Shape{elements, 1});
-        const Graph::ValueID sum = builder.sum_rows(column);
-
-        return builder.scale(sum, -scale);
+        return builder.scale(builder.sum_rows(builder.reshape(product, Shape{elements, 1})),
+                             -scale);
     }
 
 } // namespace SushiAI::Vision::Training

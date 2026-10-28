@@ -47,16 +47,18 @@ namespace SushiAI
         {
             const Graph::GraphBuilder& builder = trace.builder();
             const Graph::ValueID attended = NN::trace_layer(attn, trace, x);
-            const Graph::ValueID mixed = builder.add(x, attended);
+            const Graph::ValueID mixed = trace.value_or_fail(builder.add(x, attended), x);
             const Graph::ValueID fed = NN::trace_layer(ffn, trace, mixed);
 
-            return builder.add(mixed, fed);
+            return trace.value_or_fail(builder.add(mixed, fed), mixed);
         }
 
-        Shape PSABlock::output_shape(const Shape& input) const
+        Result<Shape> PSABlock::output_shape(const Shape& input) const
         {
             // attn and ffn each keep the per-sample shape, and each refuses a width it cannot read.
-            return ffn.output_shape(attn.output_shape(input));
+            SA_TRY_ASSIGN(const Shape attended, attn.output_shape(input));
+
+            return ffn.output_shape(attended);
         }
 
     } // namespace Vision::Blocks

@@ -294,18 +294,21 @@ namespace
         }
 
         /** @brief Traces the sum of @p x and the map. */
-        Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& input)
         {
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+
             // By value: declaring the parameter grows the value table.
             const Shape shape = builder.graph().value(x).shape;
-            const Graph::ValueID map =
-                logits.declare(builder, shape, NN::ParameterRole::Weight, 1, 1, "logits");
+            SA_TRY_ASSIGN(const Graph::ValueID map,
+                          logits.declare(builder, shape, NN::ParameterRole::Weight, 1, 1,
+                                         "logits"));
 
             return builder.add(x, map);
         }
 
         /** @brief Returns @p input, which the sum keeps. */
-        Shape output_shape(const Shape& input) const { return input; }
+        Result<Shape> output_shape(const Shape& input) const { return input; }
     };
 
     /** @brief Holds what one step left on the host. */

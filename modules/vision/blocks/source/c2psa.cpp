@@ -65,21 +65,24 @@ namespace SushiAI
             const Graph::GraphBuilder& builder = trace.builder();
             const Graph::ValueID stem = NN::trace_layer(cv1, trace, x);
 
-            const Graph::ValueID kept = builder.slice_channels(stem, 0, hidden);
-            Graph::ValueID chained = builder.slice_channels(stem, hidden, hidden);
+            const Graph::ValueID kept =
+                trace.value_or_fail(builder.slice_channels(stem, 0, hidden), stem);
+            Graph::ValueID chained =
+                trace.value_or_fail(builder.slice_channels(stem, hidden, hidden), stem);
             for (PSABlock& block : m)
                 chained = NN::trace_layer(block, trace, chained);
 
             const Graph::ValueID parts[] = {kept, chained};
-            return NN::trace_layer(
-                cv2, trace,
-                builder.concat_channels(SushiRuntime::span<const Graph::ValueID>(parts)));
+            const Graph::ValueID joined = trace.value_or_fail(
+                builder.concat_channels(SushiRuntime::span<const Graph::ValueID>(parts)), stem);
+
+            return NN::trace_layer(cv2, trace, joined);
         }
 
-        Shape C2PSA::output_shape(const Shape& input) const
+        Result<Shape> C2PSA::output_shape(const Shape& input) const
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
-            const Shape stem = cv1.output_shape(input);
+            SA_TRY_ASSIGN(const Shape stem, cv1.output_shape(input));
 
             return cv2.output_shape(Shape{stem[0], stem[1], cv2.conv.in_channels});
         }

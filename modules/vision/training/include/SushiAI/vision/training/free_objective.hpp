@@ -132,13 +132,13 @@ namespace SushiAI::Vision::Training
 
             /**
              * @brief Emits the loss of one copy of the head over its ports and its leaves.
-             * @return The id of the copy's `[1]` total.
+             * @return The id of the copy's `[1]` total; the failure of an emission the builder
+             *         refuses.
              */
-            Graph::ValueID branch_loss(const Graph::GraphBuilder& builder,
-                                       const Graph::Graph& graph,
-                                       const NN::ModelOutputs& outputs,
-                                       const Train::ObjectiveLeaves& leaves,
-                                       FreeBranch branch) const;
+            [[nodiscard]] Result<Graph::ValueID> branch_loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves,
+                FreeBranch branch) const;
 
             /// @brief Holds the levels, ports, reg_max and classes of the model.
             FreeModelFacts facts_;

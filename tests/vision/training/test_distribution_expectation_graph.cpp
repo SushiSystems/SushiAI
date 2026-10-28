@@ -90,7 +90,8 @@ TEST(Medium_DistributionExpectationGraph, OneBinReturnsTheBoxAndEmitsNothing)
     const ValueID box = builder.input(Shape{1, 2, 2, 4}, "box");
     const std::size_t before = graph.node_count();
 
-    const ValueID expected = emit_distribution_expectation(builder, graph, box, Graph::K_NO_VALUE);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID expected,
+                            emit_distribution_expectation(builder, graph, box, Graph::K_NO_VALUE));
 
     EXPECT_EQ(expected, box);
     EXPECT_EQ(graph.node_count(), before);
@@ -104,7 +105,8 @@ TEST(Medium_DistributionExpectationGraph, FourBinsGiveFourSidesFromOneSoftmaxAnd
     const ValueID box = builder.input(K_BOX_SHAPE, "box", DType::Float64);
     const ValueID projection = builder.input(Shape{K_BINS, 1}, "projection", DType::Float64);
 
-    const ValueID expected = emit_distribution_expectation(builder, graph, box, projection);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID expected,
+                            emit_distribution_expectation(builder, graph, box, projection));
 
     EXPECT_EQ(graph.value(expected).shape, (Shape{1, 1, 2, 4}));
     EXPECT_EQ(graph.value(expected).dtype, DType::Float64);
@@ -125,7 +127,8 @@ TEST_F(Medium_DistributionExpectationGraphEndToEnd, TheGraphAgreesWithTheHostDec
     const GraphBuilder builder(graph);
     const ValueID box = builder.input(K_BOX_SHAPE, "box");
     const ValueID projection = builder.input(Shape{K_BINS, 1}, "projection");
-    const ValueID expected = emit_distribution_expectation(builder, graph, box, projection);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID expected,
+                            emit_distribution_expectation(builder, graph, box, projection));
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));

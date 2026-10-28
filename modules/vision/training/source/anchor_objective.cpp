@@ -157,9 +157,15 @@ namespace SushiAI::Vision::Training
         {
             SA_TRY_ASSIGN(const Graph::ValueID head, outputs.at(heads_[index].output));
 
-            const Graph::ValueID term = emit_head_delta_loss(
-                builder, head, leaves.at(leaf_role(index)), scale);
-            total = index == 0 ? term : builder.add(total, term);
+            SA_TRY_ASSIGN(const Graph::ValueID term,
+                          emit_head_delta_loss(builder, head, leaves.at(leaf_role(index)), scale));
+            if (index == 0)
+            {
+                total = term;
+                continue;
+            }
+
+            SA_TRY_ASSIGN(total, builder.add(total, term));
         }
 
         return total;

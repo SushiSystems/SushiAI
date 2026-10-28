@@ -315,7 +315,7 @@ TEST(Small_BlockC3k2, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C3k2<Bottleneck> block = make_row2();
 
-    EXPECT_EQ(block.output_shape(Shape{160, 160, 32}), (Shape{160, 160, 64}));
+    EXPECT_EQ(block.output_shape(Shape{160, 160, 32}).value(), (Shape{160, 160, 64}));
 }
 
 /**
@@ -424,7 +424,7 @@ TEST(Small_BlockC3k2, Row6EmitsNineConvBlocksAndTwoConcats)
     EXPECT_EQ(list.updates().size(), 18u);
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 128}));
     expect_norm_options(graph, list, K_YOLO_NORM);
-    EXPECT_EQ(block.output_shape(Shape{40, 40, 128}), (Shape{40, 40, 128}));
+    EXPECT_EQ(block.output_shape(Shape{40, 40, 128}).value(), (Shape{40, 40, 128}));
 }
 
 /**

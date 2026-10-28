@@ -151,7 +151,7 @@ TEST(Small_BlockC3k, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C3k block(64, 96, 2, true, K_YOLO_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{5, 7, 64}), (Shape{5, 7, 96}));
+    EXPECT_EQ(block.output_shape(Shape{5, 7, 64}).value(), (Shape{5, 7, 96}));
 }
 
 /** @brief Tests that the block holds as many bottlenecks as the repeat count asks for. */
@@ -240,7 +240,7 @@ TEST(Small_BlockC3k, TheHiddenWidthIsHalfTheOutputWidthRoundedDown)
     EXPECT_EQ(block.cv3.conv.weight.shape(), (Shape{7, 1, 1, 6}));
     EXPECT_EQ(block.m[0].cv1.conv.weight.shape(), (Shape{3, 3, 3, 3}));
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 4, 7}));
-    EXPECT_EQ(block.output_shape(Shape{4, 4, 8}), (Shape{4, 4, 7}));
+    EXPECT_EQ(block.output_shape(Shape{4, 4, 8}).value(), (Shape{4, 4, 7}));
 }
 
 /**

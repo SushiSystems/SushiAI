@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -84,7 +85,7 @@ namespace SushiAI
              * @brief Computes the per-sample shape forward() produces, which is the input's.
              * @param input A per-sample [H, W, channels] shape.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(NN::TraceModule<PSABlock>, "PSABlock must satisfy the TraceModule contract");

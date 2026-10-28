@@ -93,20 +93,21 @@ namespace SushiAI
             for (int64_t index = 0; index < pools; ++index)
                 parts.push_back(NN::trace_layer(pool, trace, parts.back()));
 
-            const Graph::ValueID y = NN::trace_layer(
-                cv2, trace,
+            const Graph::ValueID joined = trace.value_or_fail(
                 builder.concat_channels(
-                    SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size())));
+                    SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size())),
+                parts.front());
+            const Graph::ValueID y = NN::trace_layer(cv2, trace, joined);
             if (!adds_input)
                 return y;
 
-            return builder.add(y, x);
+            return trace.value_or_fail(builder.add(y, x), y);
         }
 
-        Shape SPPF::output_shape(const Shape& input) const
+        Result<Shape> SPPF::output_shape(const Shape& input) const
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
-            const Shape narrowed = cv1.output_shape(input);
+            SA_TRY_ASSIGN(const Shape narrowed, cv1.output_shape(input));
 
             return cv2.output_shape(Shape{narrowed[0], narrowed[1], cv2.conv.in_channels});
         }

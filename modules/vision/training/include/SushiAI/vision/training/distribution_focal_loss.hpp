@@ -37,11 +37,11 @@ namespace SushiAI::Vision::Training
      *        over 4, is at least 2.
      * @param weights The leaf fill_distribution_weights() writes, of the shape and type of @p box.
      * @pre The shapes and the types are as stated; anything else stops the process.
-     * @return The id of a 1-element value.
+     * @return The id of a 1-element value; the failure of an emission the builder refuses.
      */
-    [[nodiscard]] Graph::ValueID emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
-                                                              const Graph::Graph& graph,
-                                                              Graph::ValueID box,
-                                                              Graph::ValueID weights);
+    [[nodiscard]] Graph::Traced emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
+                                                             const Graph::Graph& graph,
+                                                             Graph::ValueID box,
+                                                             Graph::ValueID weights);
 
 } // namespace SushiAI::Vision::Training

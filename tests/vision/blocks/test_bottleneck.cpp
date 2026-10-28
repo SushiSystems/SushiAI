@@ -151,7 +151,7 @@ TEST(Small_BlockBottleneck, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const Bottleneck block(16, 24, 8, true, K_YOLO_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{5, 7, 16}), (Shape{5, 7, 24}));
+    EXPECT_EQ(block.output_shape(Shape{5, 7, 16}).value(), (Shape{5, 7, 24}));
 }
 
 /**

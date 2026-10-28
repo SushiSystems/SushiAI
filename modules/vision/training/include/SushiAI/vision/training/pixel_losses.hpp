@@ -41,13 +41,13 @@ namespace SushiAI::Vision::Training
      * @param indices The INT32 [R] leaf fill_pixel_targets() writes.
      * @param weights The [R, 1] leaf it writes, of the type of @p logits.
      * @pre The shapes and the types are as stated; anything else stops the process.
-     * @return The id of a 1-element value.
+     * @return The id of a 1-element value; the failure of an emission the builder refuses.
      */
-    [[nodiscard]] Graph::ValueID emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
-                                                          const Graph::Graph& graph,
-                                                          Graph::ValueID logits,
-                                                          Graph::ValueID indices,
-                                                          Graph::ValueID weights);
+    [[nodiscard]] Graph::Traced emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
+                                                         const Graph::Graph& graph,
+                                                         Graph::ValueID logits,
+                                                         Graph::ValueID indices,
+                                                         Graph::ValueID weights);
 
     /** @brief Holds the five leaves fill_dice_targets() writes, as values of one graph. */
     struct DiceOperands
@@ -65,10 +65,10 @@ namespace SushiAI::Vision::Training
      * @param logits [R, C] scores of a real floating type, which the real operands share.
      * @pre The shapes and the types are as stated, and R * C fits INT32; anything else stops
      *      the process.
-     * @return The id of a 1-element value.
+     * @return The id of a 1-element value; the failure of an emission the builder refuses.
      */
-    [[nodiscard]] Graph::ValueID emit_soft_dice(const Graph::GraphBuilder& builder,
-                                                const Graph::Graph& graph, Graph::ValueID logits,
-                                                const DiceOperands& operands);
+    [[nodiscard]] Graph::Traced emit_soft_dice(const Graph::GraphBuilder& builder,
+                                               const Graph::Graph& graph, Graph::ValueID logits,
+                                               const DiceOperands& operands);
 
 } // namespace SushiAI::Vision::Training

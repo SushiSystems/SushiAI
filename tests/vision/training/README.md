@@ -27,10 +27,10 @@ root, whose shape is [1].
 
 `loss` over outputs that hold "head.0" alone returns an `InvalidDescription` status naming "head.1".
 
-### AHeadOfAnotherShapeThrowsNamingBothShapes
+### AHeadOfAnotherShapeIsRefusedNamingBothShapes
 
-`loss` over a "head.0" of the shape [2, 4, 4, 21] throws an error naming "[2, 4, 4, 14]" and
-"[2, 4, 4, 21]".
+`loss` over a "head.0" of the shape [2, 4, 4, 21] returns an `InvalidDescription` status naming
+"[2, 4, 4, 14]" and "[2, 4, 4, 21]".
 
 ### TheCostIsTheSumOverTheHeads
 
@@ -218,14 +218,14 @@ Over a `Float64` head and a `Float64` delta, the loss has the element type `Floa
 `Autograd::differentiate` of the loss with respect to the head does not throw and returns one
 gradient of the head's shape. The delta's `requires_grad` is false.
 
-### ADeltaOfAnotherShapeThrowsNamingBothShapes
+### ADeltaOfAnotherShapeIsRefusedNamingBothShapes
 
-A delta of the shape [2, 3, 3, 6] throws an error naming "MUL needs equally shaped operands",
-"[2, 3, 3, 6]" and "[2, 3, 3, 7]", and adds no node.
+A delta of the shape [2, 3, 3, 6] is refused with an `InvalidDescription` status naming
+"MUL needs equally shaped operands", "[2, 3, 3, 6]" and "[2, 3, 3, 7]", and adds no node.
 
-### ADeltaOfAnotherElementTypeThrowsNamingBothTypes
+### ADeltaOfAnotherElementTypeIsRefusedNamingBothTypes
 
-A `Float64` delta against a `Float32` head throws an error naming
+A `Float64` delta against a `Float32` head is refused with an `InvalidDescription` status naming
 "MUL needs operands of one element type", "float32" and "float64", and adds no node.
 
 Suites: `Medium_HeadDeltaLossEndToEnd`, in `sushiai_vision_training_tests`.

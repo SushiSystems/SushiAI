@@ -64,12 +64,14 @@ namespace SushiAI
             if (!adds_input)
                 return y;
 
-            return trace.builder().add(x, y);
+            return trace.value_or_fail(trace.builder().add(x, y), y);
         }
 
-        Shape Bottleneck::output_shape(const Shape& input) const
+        Result<Shape> Bottleneck::output_shape(const Shape& input) const
         {
-            return cv2.output_shape(cv1.output_shape(input));
+            SA_TRY_ASSIGN(const Shape hidden, cv1.output_shape(input));
+
+            return cv2.output_shape(hidden);
         }
 
         Result<std::unique_ptr<NN::Node>> make_bottleneck_node(NN::ShapeSpan inputs,

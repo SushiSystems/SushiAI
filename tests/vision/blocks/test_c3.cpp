@@ -171,7 +171,7 @@ TEST(Small_BlockC3, OutputShapeKeepsTheExtentsAndSetsTheWidth)
 {
     const C3 block(8, 12, 4, 2, true, 1, 3, K_TEST_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{5, 7, 8}), (Shape{5, 7, 12}));
+    EXPECT_EQ(block.output_shape(Shape{5, 7, 8}).value(), (Shape{5, 7, 12}));
 }
 
 /**

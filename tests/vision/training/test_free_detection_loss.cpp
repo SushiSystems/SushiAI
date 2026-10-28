@@ -203,13 +203,15 @@ namespace
                 level_ = level;
                 values_ = values;
 
+                // Every leaf above matches the facts it is declared from, so nothing is refused.
                 terms_ = Vision::Training::emit_free_detection_loss(
-                    builder, graph_, make_facts(reg_max), values, gains);
+                    builder, graph_, make_facts(reg_max), values, gains).value();
 
                 const std::vector<ValueID> wrt = {level.boxes, level.scores};
+                // The graph is fixed here, so a refusal is a defect: value() stops the test.
                 gradients_ = Autograd::differentiate(
                     graph_, terms_.total,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
                 Result<std::unique_ptr<CompiledStep>> compiled =
@@ -375,8 +377,9 @@ TEST(Small_FreeDetectionLoss, AlphaIsHeldAndTheBoxesAreSelected)
     values.levels.push_back(level);
     values.target_scores_sum = builder.input(Shape{1}, "tss", DType::Float64);
 
-    const FreeLossTermIDs terms = Vision::Training::emit_free_detection_loss(
-        builder, graph, make_facts(1), values, FreeLossGains{});
+    SA_ASSERT_OK_AND_ASSIGN(const FreeLossTermIDs terms,
+                            Vision::Training::emit_free_detection_loss(
+                                builder, graph, make_facts(1), values, FreeLossGains{}));
 
     EXPECT_EQ(graph.value(terms.total).shape, Shape{1});
     EXPECT_EQ(terms.distribution, Graph::K_NO_VALUE);

@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <string_view>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 
@@ -68,27 +69,25 @@ namespace SushiAI::Vision::Training
         }
     } // namespace
 
-    Graph::ValueID emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
-                                            const Graph::Graph& graph, Graph::ValueID logits,
-                                            Graph::ValueID indices, Graph::ValueID weights)
+    Graph::Traced emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
+                                           const Graph::Graph& graph, Graph::ValueID logits,
+                                           Graph::ValueID indices, Graph::ValueID weights)
     {
         const Shape shape = require_rows(graph, logits, "per-pixel cross entropy");
         const std::int64_t rows = shape[0];
         const std::int64_t classes = shape[1];
         require_operand(graph, logits, weights, Shape{rows, 1}, "weights");
 
-        const Graph::ValueID log_probabilities = builder.log_softmax(logits);
-
         // As a table of rows * classes single values, one index picks one log-probability.
-        const Graph::ValueID table =
-            builder.reshape(log_probabilities, Shape{rows * classes, 1});
-        const Graph::ValueID picked = builder.gather_rows(table, indices).value();
+        SA_TRY_ASSIGN(const Graph::ValueID table,
+                      builder.reshape(builder.log_softmax(logits), Shape{rows * classes, 1}));
+        SA_TRY_ASSIGN(const Graph::ValueID picked, builder.gather_rows(table, indices));
 
         return builder.scale(builder.sum_rows(builder.mul(picked, weights)), -1.0);
     }
 
-    Graph::ValueID emit_soft_dice(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                  Graph::ValueID logits, const DiceOperands& operands)
+    Graph::Traced emit_soft_dice(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                                 Graph::ValueID logits, const DiceOperands& operands)
     {
         const Shape shape = require_rows(graph, logits, "soft Dice");
         const std::int64_t rows = shape[0];
@@ -97,27 +96,32 @@ namespace SushiAI::Vision::Training
         require_operand(graph, logits, operands.class_pixels, Shape{classes}, "class_pixels");
         require_operand(graph, logits, operands.class_weights, Shape{classes}, "class_weights");
 
-        const Graph::ValueID probabilities = builder.softmax(logits);
+        SA_TRY_ASSIGN(const Graph::ValueID probabilities, builder.softmax(logits));
 
         // As a table of rows * classes single values, one index picks a pixel's own class.
-        const Graph::ValueID table = builder.reshape(probabilities, Shape{rows * classes, 1});
-        const Graph::ValueID picked = builder.gather_rows(table, operands.score_indices).value();
+        SA_TRY_ASSIGN(const Graph::ValueID table,
+                      builder.reshape(probabilities, Shape{rows * classes, 1}));
+        SA_TRY_ASSIGN(const Graph::ValueID picked,
+                      builder.gather_rows(table, operands.score_indices));
 
         // An ignored row is zeroed before the sum, so the class its index names gains nothing.
-        const Graph::ValueID hits = builder.reshape(
-            builder.scatter_add_rows(builder.mul(picked, operands.kept), operands.class_indices,
-                                     classes).value(),
-            Shape{classes});
+        SA_TRY_ASSIGN(const Graph::ValueID hits,
+                      builder.reshape(builder.scatter_add_rows(builder.mul(picked, operands.kept),
+                                                               operands.class_indices, classes),
+                                      Shape{classes}));
 
         // kept transposed times the probabilities sums each class over the kept rows alone.
-        const Graph::ValueID mass = builder.reshape(
-            builder.matmul(operands.kept, probabilities, true, false), Shape{classes});
-        const Graph::ValueID denominators = builder.add(
-            builder.add(mass, operands.class_pixels),
-            builder.constant_like(mass, K_DICE_EPSILON));
-        const Graph::ValueID ratios = builder.div(builder.scale(hits, 2.0), denominators);
-        const Graph::ValueID misses = builder.sub(builder.constant_like(ratios, 1.0), ratios);
-        const Graph::ValueID weighted = builder.mul(misses, operands.class_weights);
+        SA_TRY_ASSIGN(const Graph::ValueID mass,
+                      builder.reshape(builder.matmul(operands.kept, probabilities, true, false),
+                                      Shape{classes}));
+        SA_TRY_ASSIGN(const Graph::ValueID denominators,
+                      builder.add(builder.add(mass, operands.class_pixels),
+                                  builder.constant_like(mass, K_DICE_EPSILON)));
+        SA_TRY_ASSIGN(const Graph::ValueID ratios,
+                      builder.div(builder.scale(hits, 2.0), denominators));
+        SA_TRY_ASSIGN(const Graph::ValueID misses,
+                      builder.sub(builder.constant_like(ratios, 1.0), ratios));
+        SA_TRY_ASSIGN(const Graph::ValueID weighted, builder.mul(misses, operands.class_weights));
 
         return builder.sum_rows(builder.reshape(weighted, Shape{classes, 1}));
     }

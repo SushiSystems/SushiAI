@@ -28,6 +28,7 @@
 
 #include <vector>
 
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
@@ -70,17 +71,15 @@ namespace SushiAI::Vision::Training
     };
 
     /**
-     * @brief Emits the anchor-free detection loss over every level, a `[1]` root.
+     * @brief Emits the anchor-free loss over every level, a `[1]` root, or the first refusal.
      * @param facts Gives reg_max, the classes and the level count the values must match.
      * @param values The ports and the leaves FreeAssignmentStage declares, of one real type.
      * @param gains As validate_free_loss_gains() accepts them.
      * @pre The shapes, the types and the gains are as stated; anything else stops the process.
      * @see docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/PLAN.md, section 4.
      */
-    [[nodiscard]] FreeLossTermIDs emit_free_detection_loss(const Graph::GraphBuilder& builder,
-                                                           const Graph::Graph& graph,
-                                                           const FreeModelFacts& facts,
-                                                           const FreeLossValues& values,
-                                                           const FreeLossGains& gains);
+    [[nodiscard]] Result<FreeLossTermIDs> emit_free_detection_loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const FreeModelFacts& facts, const FreeLossValues& values, const FreeLossGains& gains);
 
 } // namespace SushiAI::Vision::Training

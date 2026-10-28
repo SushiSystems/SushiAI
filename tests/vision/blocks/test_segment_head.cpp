@@ -106,8 +106,8 @@ TEST(Small_BlockSegmentHead, OutputShapeScalesTheExtentsAndSetsTheClasses)
     const SegmentHead head(16, 8, 5, 4, K_NORM);
     const SegmentHead unscaled(16, 8, 5, 1, K_NORM);
 
-    EXPECT_EQ(head.output_shape(Shape{6, 10, 16}), (Shape{24, 40, 5}));
-    EXPECT_EQ(unscaled.output_shape(Shape{6, 10, 16}), (Shape{6, 10, 5}));
+    EXPECT_EQ(head.output_shape(Shape{6, 10, 16}).value(), (Shape{24, 40, 5}));
+    EXPECT_EQ(unscaled.output_shape(Shape{6, 10, 16}).value(), (Shape{6, 10, 5}));
 }
 
 /** @brief Tests that the trace is two convolutions, one norm, one SiLU and one upsample. */

@@ -80,15 +80,17 @@ namespace SushiAI
                 chained = NN::trace_layer(block, trace, chained);
 
             const Graph::ValueID parts[] = {chained, NN::trace_layer(cv2, trace, x)};
-            return NN::trace_layer(cv3, trace,
-                                   trace.builder().concat_channels(
-                                       SushiRuntime::span<const Graph::ValueID>(parts)));
+            const Graph::ValueID joined = trace.value_or_fail(
+                trace.builder().concat_channels(SushiRuntime::span<const Graph::ValueID>(parts)),
+                chained);
+
+            return NN::trace_layer(cv3, trace, joined);
         }
 
-        Shape C3k::output_shape(const Shape& input) const
+        Result<Shape> C3k::output_shape(const Shape& input) const
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
-            const Shape narrowed = cv1.output_shape(input);
+            SA_TRY_ASSIGN(const Shape narrowed, cv1.output_shape(input));
 
             return cv3.output_shape(Shape{narrowed[0], narrowed[1], cv3.conv.in_channels});
         }

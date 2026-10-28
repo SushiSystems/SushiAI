@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 
@@ -45,9 +46,9 @@ namespace SushiAI::Vision::Training
         constexpr std::int64_t K_MIN_BINS = 2;
     } // namespace
 
-    Graph::ValueID emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
-                                                const Graph::Graph& graph, Graph::ValueID box,
-                                                Graph::ValueID weights)
+    Graph::Traced emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
+                                               const Graph::Graph& graph, Graph::ValueID box,
+                                               Graph::ValueID weights)
     {
         // By value: the emissions below can reallocate the value vector.
         const Shape shape = graph.value(box).shape;
@@ -65,10 +66,10 @@ namespace SushiAI::Vision::Training
         // Channels side * bins + bin are row-major, so each row below is one side's bins.
         const std::int64_t bins = shape[3] / K_SIDES;
         const std::int64_t rows = shape[0] * shape[1] * shape[2] * K_SIDES;
-        const Graph::ValueID log_probabilities =
-            builder.log_softmax(builder.reshape(box, Shape{rows, bins}));
-        const Graph::ValueID weighted =
-            builder.mul(log_probabilities, builder.reshape(weights, Shape{rows, bins}));
+        SA_TRY_ASSIGN(const Graph::ValueID log_probabilities,
+                      builder.log_softmax(builder.reshape(box, Shape{rows, bins})));
+        SA_TRY_ASSIGN(const Graph::ValueID weighted,
+                      builder.mul(log_probabilities, builder.reshape(weights, Shape{rows, bins})));
 
         return builder.scale(builder.sum_rows(builder.reshape(weighted, Shape{rows * bins, 1})),
                              -1.0);

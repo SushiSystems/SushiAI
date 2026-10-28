@@ -90,15 +90,17 @@ namespace SushiAI::Vision::Training
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
         const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
-        const Graph::ValueID rows =
-            Detail::emit_pixel_rows(builder, graph, outputs, extents_, K_DICE_TYPE);
+        SA_TRY_ASSIGN(const Graph::ValueID rows,
+                      Detail::emit_pixel_rows(builder, graph, outputs, extents_, K_DICE_TYPE));
         const DiceOperands operands{leaves.at(K_DICE_SCORE_INDICES_LEAF),
                                     leaves.at(K_DICE_CLASS_INDICES_LEAF),
                                     leaves.at(K_DICE_KEPT_LEAF),
                                     leaves.at(K_DICE_CLASS_PIXELS_LEAF),
                                     leaves.at(K_DICE_CLASS_WEIGHTS_LEAF)};
 
-        return emit_soft_dice(builder, graph, rows, operands);
+        SA_TRY_ASSIGN(const Graph::ValueID loss, emit_soft_dice(builder, graph, rows, operands));
+
+        return loss;
     }
 
     Status DiceObjective::feed(const Data::Batch& batch, const Train::ObjectiveLeaves& leaves,

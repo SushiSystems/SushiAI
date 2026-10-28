@@ -95,7 +95,14 @@ shape-ratio loss as the cost. The shape-ratio rule takes logit heads whose `size
 
 `emit_head_delta_loss(builder, head, delta, scale)` emits `-scale * sum(delta * head)` as `MUL`,
 `RESHAPE`, `SUM_ROWS` and `SCALE`. `delta` is an input leaf, so the gradient at `head` is
-`-scale * delta` and the value of the root means nothing.
+`-scale * delta` and the value of the root means nothing. It returns a `Graph::Traced`: a `head`
+and a `delta` of different shapes or element types are refused by `MUL` as
+`InvalidDescription`, and nothing is emitted.
+
+`emit_distribution_expectation`, `emit_distribution_focal_loss`, `emit_pixel_cross_entropy` and
+`emit_soft_dice` also return a `Graph::Traced`, and `emit_free_detection_loss` a
+`Result<FreeLossTermIDs>`. Each still stops the process on operands that break its stated
+shapes; the failure they return is one the builder refused.
 
 ## The anchor objective
 
@@ -108,9 +115,8 @@ head carries the same batch.
 - `declare` adds one float32 leaf per head, shaped `[B, H, W, A * (5 + C)]`, under the role
   `delta.<output name>`.
 - `loss` adds `emit_head_delta_loss` over the heads with `scale = 1 / batch`. It returns an
-  `InvalidDescription` status when the model does not publish a head. A head of another shape
-  stops in the builder's `MUL`, which throws; the step that compiles the loss turns it into a
-  status.
+  `InvalidDescription` status when the model does not publish a head, and when the builder's
+  `MUL` refuses a head of another shape.
 - `measure_cost(deltas)` returns the `HeadCost` of every head summed field by field.
 - It keeps the default `feed`, which reports that the objective is fed by its own step, and it
   reports no metric through `measure`; `measure_cost` reports the cost of its heads instead.

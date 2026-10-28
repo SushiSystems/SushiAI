@@ -143,7 +143,7 @@ TEST(Small_BlockConvNorm, OutputShapeHalvesAnEvenExtentAtStrideTwo)
 {
     const Conv block(3, 16, 3, 2, K_YOLO_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{640, 640, 3}), (Shape{320, 320, 16}));
+    EXPECT_EQ(block.output_shape(Shape{640, 640, 3}).value(), (Shape{320, 320, 16}));
 }
 
 /** @brief Tests that a 1x1 Conv at stride 1 keeps H and W. */
@@ -151,7 +151,7 @@ TEST(Small_BlockConvNorm, OutputShapeOfAPointwiseBlockKeepsTheExtents)
 {
     const Conv block(32, 64, 1, 1, K_YOLO_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{7, 9, 32}), (Shape{7, 9, 64}));
+    EXPECT_EQ(block.output_shape(Shape{7, 9, 32}).value(), (Shape{7, 9, 64}));
 }
 
 /**
@@ -311,8 +311,8 @@ TEST(Small_BlockConvNorm, ADepthwiseOutputShapeKeepsTheWidth)
     const DWConv keeping(64, 64, 3, 1, K_YOLO_NORM);
     const DWConv halving(64, 64, 3, 2, K_YOLO_NORM);
 
-    EXPECT_EQ(keeping.output_shape(Shape{80, 80, 64}), (Shape{80, 80, 64}));
-    EXPECT_EQ(halving.output_shape(Shape{80, 80, 64}), (Shape{40, 40, 64}));
+    EXPECT_EQ(keeping.output_shape(Shape{80, 80, 64}).value(), (Shape{80, 80, 64}));
+    EXPECT_EQ(halving.output_shape(Shape{80, 80, 64}).value(), (Shape{40, 40, 64}));
 }
 
 /**

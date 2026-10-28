@@ -97,12 +97,14 @@ namespace
                 const GraphBuilder builder(graph_);
                 box_ = builder.parameter(K_BOX_SHAPE, "box", DType::Float64);
                 weights_ = builder.input(K_BOX_SHAPE, "weights", DType::Float64);
-                loss_ = emit_distribution_focal_loss(builder, graph_, box_, weights_);
+                // The box and the weights share one shape and type, so the builder accepts both.
+                loss_ = emit_distribution_focal_loss(builder, graph_, box_, weights_).value();
 
                 const std::vector<ValueID> wrt = {box_};
+                // The graph is fixed here, so a refusal is a defect: value() stops the test.
                 gradient_ = Autograd::differentiate(
                     graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
@@ -164,7 +166,8 @@ TEST(Medium_DistributionFocalLoss, TheLossIsOneValueFromOneLogSoftmax)
     const ValueID box = builder.input(K_BOX_SHAPE, "box", DType::Float64);
     const ValueID weights = builder.input(K_BOX_SHAPE, "weights", DType::Float64);
 
-    const ValueID loss = emit_distribution_focal_loss(builder, graph, box, weights);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            emit_distribution_focal_loss(builder, graph, box, weights));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);

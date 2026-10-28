@@ -172,7 +172,7 @@ TEST(Small_BlockPsaBlock, OutputShapeIsTheInputShape)
 {
     const PSABlock block(K_CHANNELS, K_HEADS, K_YOLO_NORM);
 
-    EXPECT_EQ(block.output_shape(Shape{20, 20, K_CHANNELS}), (Shape{20, 20, K_CHANNELS}));
+    EXPECT_EQ(block.output_shape(Shape{20, 20, K_CHANNELS}).value(), (Shape{20, 20, K_CHANNELS}));
 }
 
 /**

@@ -65,12 +65,13 @@ namespace SushiAI::Vision::Training::Detail
      * @brief Emits the only output of @p outputs viewed as [N * H * W, C] rows.
      * @pre @p outputs holds one value of the extents given; anything else stops the process,
      *      naming @p objective.
+     * @return The rows; the failure of the reshape if the builder refuses it.
      */
-    [[nodiscard]] Graph::ValueID emit_pixel_rows(const Graph::GraphBuilder& builder,
-                                                 const Graph::Graph& graph,
-                                                 const NN::ModelOutputs& outputs,
-                                                 const PixelExtents& extents,
-                                                 std::string_view objective);
+    [[nodiscard]] Graph::Traced emit_pixel_rows(const Graph::GraphBuilder& builder,
+                                                const Graph::Graph& graph,
+                                                const NN::ModelOutputs& outputs,
+                                                const PixelExtents& extents,
+                                                std::string_view objective);
 
     /**
      * @brief Returns the extents of the one [N, H, W, C] output of @p given.

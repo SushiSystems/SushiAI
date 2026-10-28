@@ -54,6 +54,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/lowering.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -975,10 +976,11 @@ namespace SushiAI
                 options.pinned =
                     SushiRuntime::span<const Graph::ValueID>(pinned.data(), pinned.size());
                 const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(graph);
-                const Graph::MemoryPlan plan = Graph::MemoryPlan::build(
-                    graph, options,
-                    SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(),
-                                                                    scratch.size()));
+                SA_ASSERT_OK_AND_ASSIGN(
+                    const Graph::MemoryPlan plan,
+                    Graph::MemoryPlan::build(graph, options,
+                                             SushiRuntime::span<const Graph::ScratchRequest>(
+                                                 scratch.data(), scratch.size())));
 
                 std::size_t own_bytes = 0;
                 for (std::size_t id = 0; id < plan.value_count(); ++id)

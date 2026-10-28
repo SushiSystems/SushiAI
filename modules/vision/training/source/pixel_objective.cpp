@@ -93,9 +93,9 @@ namespace SushiAI::Vision::Training::Detail
                                        Shape{extents.height, extents.width}, DType::Int32, 0};
     }
 
-    Graph::ValueID emit_pixel_rows(const Graph::GraphBuilder& builder,
-                                   const Graph::Graph& graph, const NN::ModelOutputs& outputs,
-                                   const PixelExtents& extents, std::string_view objective)
+    Graph::Traced emit_pixel_rows(const Graph::GraphBuilder& builder,
+                                  const Graph::Graph& graph, const NN::ModelOutputs& outputs,
+                                  const PixelExtents& extents, std::string_view objective)
     {
         const Result<Graph::ValueID> single = outputs.only();
         SA_FATAL_IF(!single.has_value(), "The {} objective reads one output: {}", objective,

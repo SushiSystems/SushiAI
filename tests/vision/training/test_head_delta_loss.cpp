@@ -94,7 +94,8 @@ TEST(Medium_HeadDeltaLoss, EmitsFourNodesEndingInAScaleOfOneElement)
     const ValueID delta = builder.input(head_shape(), "delta");
     const std::size_t leaves = graph.node_count();
 
-    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            emit_head_delta_loss(builder, head, delta, K_SCALE));
 
     ASSERT_EQ(op_names(graph, leaves), (std::vector<std::string>{
         "sushiai.mul",
@@ -128,7 +129,8 @@ TEST(Medium_HeadDeltaLoss, TheResultHasTheElementTypeOfTheHead)
     const ValueID head = builder.parameter(head_shape(), "head", DType::Float64);
     const ValueID delta = builder.input(head_shape(), "delta", DType::Float64);
 
-    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            emit_head_delta_loss(builder, head, delta, K_SCALE));
 
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);
 }
@@ -141,11 +143,11 @@ TEST(Medium_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
 
     const ValueID head = builder.parameter(head_shape(), "head");
     const ValueID delta = builder.input(head_shape(), "delta");
-    const ValueID loss = emit_head_delta_loss(builder, head, delta, K_SCALE);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            emit_head_delta_loss(builder, head, delta, K_SCALE));
 
     const std::vector<ValueID> wrt = {head};
-    std::vector<ValueID> gradients;
-    ASSERT_NO_THROW(gradients = Autograd::differentiate(
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
         graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
@@ -154,8 +156,8 @@ TEST(Medium_HeadDeltaLoss, TheResultIsARootAutogradDifferentiates)
     EXPECT_FALSE(graph.value(delta).requires_grad);
 }
 
-/** @brief Tests that a delta of another shape throws, naming MUL and both shapes. */
-TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
+/** @brief Tests that a delta of another shape is refused, naming MUL and both shapes. */
+TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeIsRefusedNamingBothShapes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -164,13 +166,14 @@ TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherShapeThrowsNamingBothShapes)
     const ValueID delta = builder.input(Shape{2, 3, 3, 6}, "delta");
     const std::size_t leaves = graph.node_count();
 
-    SA_EXPECT_ERROR((void)emit_head_delta_loss(builder, head, delta, K_SCALE),
-                    "MUL needs equally shaped operands", "[2, 3, 3, 6]", "[2, 3, 3, 7]");
+    SA_EXPECT_FAILURE(emit_head_delta_loss(builder, head, delta, K_SCALE),
+                      StatusCode::InvalidDescription, "MUL needs equally shaped operands",
+                      "[2, 3, 3, 6]", "[2, 3, 3, 7]");
     EXPECT_EQ(graph.node_count(), leaves);
 }
 
-/** @brief Tests that a delta of another element type throws, naming MUL and both types. */
-TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
+/** @brief Tests that a delta of another element type is refused, naming MUL and both types. */
+TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherElementTypeIsRefusedNamingBothTypes)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -179,8 +182,9 @@ TEST(Medium_HeadDeltaLoss, ADeltaOfAnotherElementTypeThrowsNamingBothTypes)
     const ValueID delta = builder.input(head_shape(), "delta", DType::Float64);
     const std::size_t leaves = graph.node_count();
 
-    SA_EXPECT_ERROR((void)emit_head_delta_loss(builder, head, delta, K_SCALE),
-                    "MUL needs operands of one element type", "float32", "float64");
+    SA_EXPECT_FAILURE(emit_head_delta_loss(builder, head, delta, K_SCALE),
+                      StatusCode::InvalidDescription, "MUL needs operands of one element type",
+                      "float32", "float64");
     EXPECT_EQ(graph.node_count(), leaves);
 }
 
@@ -217,11 +221,15 @@ namespace
 
             head = builder.parameter(shape, "head");
             delta = builder.input(shape, "delta");
-            loss = emit_head_delta_loss(builder, head, delta, K_ENGINE_SCALE);
+            // The head and the delta share one shape and type, so the builder accepts both.
+            loss = emit_head_delta_loss(builder, head, delta, K_ENGINE_SCALE).value();
 
             const std::vector<ValueID> wrt = {head};
+            // The graph is fixed here, so a refusal is a defect: value() stops the test.
             gradient = Autograd::differentiate(
-                graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                           graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()))
+                           .value()
+                           .at(0);
 
             SA_EXPECT_OK(pool.materialise_leaves(graph));
             Result<std::unique_ptr<CompiledStep>> compiled =

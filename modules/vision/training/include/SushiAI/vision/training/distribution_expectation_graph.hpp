@@ -37,11 +37,11 @@ namespace SushiAI::Vision::Training
      * @param projection The `[reg_max, 1]` leaf fill_distribution_projection() writes, of the
      *        type of @p box; unread, and may be K_NO_VALUE, when reg_max is 1.
      * @pre The shapes and the types are as stated; anything else stops the process.
-     * @return @p box itself when reg_max is 1.
+     * @return @p box itself when reg_max is 1; the failure of an emission the builder refuses.
      */
-    [[nodiscard]] Graph::ValueID emit_distribution_expectation(const Graph::GraphBuilder& builder,
-                                                               const Graph::Graph& graph,
-                                                               Graph::ValueID box,
-                                                               Graph::ValueID projection);
+    [[nodiscard]] Graph::Traced emit_distribution_expectation(const Graph::GraphBuilder& builder,
+                                                              const Graph::Graph& graph,
+                                                              Graph::ValueID box,
+                                                              Graph::ValueID projection);
 
 } // namespace SushiAI::Vision::Training

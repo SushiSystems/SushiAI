@@ -33,6 +33,7 @@
 
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/vision/training/distribution_expectation_graph.hpp>
 #include <SushiAI/vision/training/distribution_focal_loss.hpp>
@@ -41,6 +42,7 @@ namespace SushiAI::Vision::Training
 {
     namespace
     {
+        using Graph::Traced;
         using Graph::ValueID;
 
         /** @brief Names the rank of an NHWC port or leaf. */
@@ -64,10 +66,10 @@ namespace SushiAI::Vision::Training
         /** @brief Holds the four `[B, H, W, 1]` corner columns of a box value. */
         struct Corners
         {
-            ValueID x1 = Graph::K_NO_VALUE; /**< Left edge. */
-            ValueID y1 = Graph::K_NO_VALUE; /**< Top edge. */
-            ValueID x2 = Graph::K_NO_VALUE; /**< Right edge. */
-            ValueID y2 = Graph::K_NO_VALUE; /**< Bottom edge. */
+            Traced x1; /**< Left edge. */
+            Traced y1; /**< Top edge. */
+            Traced x2; /**< Right edge. */
+            Traced y2; /**< Bottom edge. */
         };
 
         /** @brief Stops the process unless @p id is @p expected of @p dtype; names it @p what. */
@@ -128,48 +130,54 @@ namespace SushiAI::Vision::Training
         }
 
         /** @brief Returns the sum of every element of @p x as a `[1]` value. */
-        ValueID sum_all(const Graph::GraphBuilder& builder, const Graph::Graph& graph, ValueID x)
+        Traced sum_all(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                       const Traced& traced)
         {
+            SA_TRY_ASSIGN(const ValueID x, traced);
             const std::int64_t count = graph.value(x).shape.num_elements();
             return builder.sum_rows(builder.reshape(x, Shape{count, 1}));
         }
 
         /** @brief Returns `max(0, x)` with no gradient at exactly 0, as torch's clamp_(0). */
-        ValueID clamp_at_zero(const Graph::GraphBuilder& builder, ValueID x)
+        Traced clamp_at_zero(const Graph::GraphBuilder& builder, const Traced& x)
         {
             return builder.maximum(builder.constant_like(x, 0.0), x);
         }
 
         /** @brief Returns `x * x`. */
-        ValueID square(const Graph::GraphBuilder& builder, ValueID x)
+        Traced square(const Graph::GraphBuilder& builder, const Traced& x)
         {
             return builder.mul(x, x);
         }
 
         /** @brief Returns `x + value`, the constant shaped like @p x. */
-        ValueID add_constant(const Graph::GraphBuilder& builder, ValueID x, double value)
+        Traced add_constant(const Graph::GraphBuilder& builder, const Traced& x, double value)
         {
             return builder.add(x, builder.constant_like(x, value));
         }
 
         /** @brief Splits a `[B, H, W, 4]` box value into its corner columns. */
-        Corners split_corners(const Graph::GraphBuilder& builder, ValueID box)
+        Corners split_corners(const Graph::GraphBuilder& builder, const Traced& box)
         {
             return Corners{builder.slice_channels(box, 0, 1), builder.slice_channels(box, 1, 1),
                            builder.slice_channels(box, 2, 1), builder.slice_channels(box, 3, 1)};
         }
 
         /** @brief Returns the `[B, H, W, 4]` x1 y1 x2 y2 of distances around anchor points. */
-        ValueID decode_boxes(const Graph::GraphBuilder& builder, ValueID distances,
-                             ValueID points)
+        Traced decode_boxes(const Graph::GraphBuilder& builder, const Traced& distances,
+                            ValueID points)
         {
-            const ValueID x = builder.slice_channels(points, 0, 1);
-            const ValueID y = builder.slice_channels(points, 1, 1);
-            const std::array<ValueID, K_BOX_VALUES> corners = {
-                builder.sub(x, builder.slice_channels(distances, 0, 1)),
-                builder.sub(y, builder.slice_channels(distances, 1, 1)),
-                builder.add(x, builder.slice_channels(distances, 2, 1)),
-                builder.add(y, builder.slice_channels(distances, 3, 1))};
+            const Traced x = builder.slice_channels(points, 0, 1);
+            const Traced y = builder.slice_channels(points, 1, 1);
+            SA_TRY_ASSIGN(const ValueID left,
+                          builder.sub(x, builder.slice_channels(distances, 0, 1)));
+            SA_TRY_ASSIGN(const ValueID top,
+                          builder.sub(y, builder.slice_channels(distances, 1, 1)));
+            SA_TRY_ASSIGN(const ValueID right,
+                          builder.add(x, builder.slice_channels(distances, 2, 1)));
+            SA_TRY_ASSIGN(const ValueID bottom,
+                          builder.add(y, builder.slice_channels(distances, 3, 1)));
+            const std::array<ValueID, K_BOX_VALUES> corners = {left, top, right, bottom};
             return builder.concat_channels(
                 SushiRuntime::span<const ValueID>(corners.data(), corners.size()));
         }
@@ -178,69 +186,69 @@ namespace SushiAI::Vision::Training
          * @brief Returns the `[B, H, W, 1]` CIoU of @p predicted against @p target.
          * @pre Every row of both is a box of positive height, so no division reads a zero.
          */
-        ValueID complete_iou(const Graph::GraphBuilder& builder, ValueID predicted,
-                             ValueID target)
+        Traced complete_iou(const Graph::GraphBuilder& builder, const Traced& predicted,
+                            ValueID target)
         {
             const Corners p = split_corners(builder, predicted);
             const Corners t = split_corners(builder, target);
 
-            const ValueID w1 = builder.sub(p.x2, p.x1);
-            const ValueID h1 = add_constant(builder, builder.sub(p.y2, p.y1), K_EPSILON);
-            const ValueID w2 = builder.sub(t.x2, t.x1);
-            const ValueID h2 = add_constant(builder, builder.sub(t.y2, t.y1), K_EPSILON);
+            const Traced w1 = builder.sub(p.x2, p.x1);
+            const Traced h1 = add_constant(builder, builder.sub(p.y2, p.y1), K_EPSILON);
+            const Traced w2 = builder.sub(t.x2, t.x1);
+            const Traced h2 = add_constant(builder, builder.sub(t.y2, t.y1), K_EPSILON);
 
-            const ValueID inter_w = clamp_at_zero(
+            const Traced inter_w = clamp_at_zero(
                 builder, builder.sub(builder.minimum(p.x2, t.x2), builder.maximum(p.x1, t.x1)));
-            const ValueID inter_h = clamp_at_zero(
+            const Traced inter_h = clamp_at_zero(
                 builder, builder.sub(builder.minimum(p.y2, t.y2), builder.maximum(p.y1, t.y1)));
-            const ValueID inter = builder.mul(inter_w, inter_h);
-            const ValueID area = builder.add(builder.mul(w1, h1), builder.mul(w2, h2));
-            const ValueID union_area = add_constant(builder, builder.sub(area, inter), K_EPSILON);
-            const ValueID iou = builder.div(inter, union_area);
+            const Traced inter = builder.mul(inter_w, inter_h);
+            const Traced area = builder.add(builder.mul(w1, h1), builder.mul(w2, h2));
+            const Traced union_area = add_constant(builder, builder.sub(area, inter), K_EPSILON);
+            const Traced iou = builder.div(inter, union_area);
 
-            const ValueID cw =
+            const Traced cw =
                 builder.sub(builder.maximum(p.x2, t.x2), builder.minimum(p.x1, t.x1));
-            const ValueID ch =
+            const Traced ch =
                 builder.sub(builder.maximum(p.y2, t.y2), builder.minimum(p.y1, t.y1));
-            const ValueID c2 = add_constant(
+            const Traced c2 = add_constant(
                 builder, builder.add(square(builder, cw), square(builder, ch)), K_EPSILON);
-            const ValueID dx =
+            const Traced dx =
                 builder.sub(builder.add(t.x1, t.x2), builder.add(p.x1, p.x2));
-            const ValueID dy =
+            const Traced dy =
                 builder.sub(builder.add(t.y1, t.y2), builder.add(p.y1, p.y2));
-            const ValueID rho2 = builder.scale(
+            const Traced rho2 = builder.scale(
                 builder.add(square(builder, dx), square(builder, dy)), K_QUARTER);
 
-            const ValueID angle = builder.sub(builder.atan(builder.div(w2, h2)),
-                                              builder.atan(builder.div(w1, h1)));
-            const ValueID v = builder.scale(square(builder, angle), K_ASPECT_FACTOR);
-            const ValueID alpha = builder.stop_gradient(builder.div(
+            const Traced angle = builder.sub(builder.atan(builder.div(w2, h2)),
+                                             builder.atan(builder.div(w1, h1)));
+            const Traced v = builder.scale(square(builder, angle), K_ASPECT_FACTOR);
+            const Traced alpha = builder.stop_gradient(builder.div(
                 v, add_constant(builder, builder.sub(v, iou), 1.0 + K_EPSILON)));
 
-            const ValueID penalty =
+            const Traced penalty =
                 builder.add(builder.div(rho2, c2), builder.mul(v, alpha));
             return builder.sub(iou, penalty);
         }
 
         /** @brief Returns `a + b`, or @p b alone when @p a is K_NO_VALUE. */
-        ValueID accumulate_term(const Graph::GraphBuilder& builder, ValueID a, ValueID b)
+        Traced accumulate_term(const Graph::GraphBuilder& builder, ValueID a, const Traced& b)
         {
             return a == Graph::K_NO_VALUE ? b : builder.add(a, b);
         }
 
         /** @brief Returns @p term times @p factor, added to @p total when it holds a value. */
-        ValueID add_gained(const Graph::GraphBuilder& builder, ValueID total, ValueID term,
-                           double factor)
+        Traced add_gained(const Graph::GraphBuilder& builder, ValueID total, ValueID term,
+                          double factor)
         {
             return accumulate_term(builder, total, builder.scale(term, factor));
         }
     } // namespace
 
-    FreeLossTermIDs emit_free_detection_loss(const Graph::GraphBuilder& builder,
-                                             const Graph::Graph& graph,
-                                             const FreeModelFacts& facts,
-                                             const FreeLossValues& values,
-                                             const FreeLossGains& gains)
+    Result<FreeLossTermIDs> emit_free_detection_loss(const Graph::GraphBuilder& builder,
+                                                     const Graph::Graph& graph,
+                                                     const FreeModelFacts& facts,
+                                                     const FreeLossValues& values,
+                                                     const FreeLossGains& gains)
     {
         SA_FATAL_IF(!validate_free_loss_gains(gains).is_ok(),
                     "The free detection loss reads gains validate_free_loss_gains() refuses");
@@ -269,45 +277,56 @@ namespace SushiAI::Vision::Training
         ValueID class_sum = Graph::K_NO_VALUE;
         for (const FreeLevelLossValues& level : values.levels)
         {
-            const ValueID cross_entropy = builder.sub(builder.softplus(level.scores),
-                                                      builder.mul(level.scores,
-                                                                  level.target_scores));
-            class_sum = accumulate_term(builder, class_sum, sum_all(builder, graph, cross_entropy));
+            const Traced cross_entropy = builder.sub(builder.softplus(level.scores),
+                                                     builder.mul(level.scores,
+                                                                 level.target_scores));
+            SA_TRY_ASSIGN(class_sum, accumulate_term(builder, class_sum,
+                                                     sum_all(builder, graph, cross_entropy)));
 
-            const ValueID distances =
+            const Traced distances =
                 emit_distribution_expectation(builder, graph, level.boxes, values.projection);
-            const ValueID guarded = builder.select(
+            const Traced guarded = builder.select(
                 level.box_mask, decode_boxes(builder, distances, level.anchor_points),
                 level.safe_boxes);
-            const ValueID ciou = complete_iou(builder, guarded, level.target_boxes);
-            const ValueID miss = builder.sub(builder.constant_like(ciou, 1.0), ciou);
-            const ValueID box_error = builder.mul(miss, level.normalized_weight);
-            terms.box = accumulate_term(builder, terms.box, sum_all(builder, graph, box_error));
+            const Traced ciou = complete_iou(builder, guarded, level.target_boxes);
+            const Traced miss = builder.sub(builder.constant_like(ciou, 1.0), ciou);
+            const Traced box_error = builder.mul(miss, level.normalized_weight);
+            SA_TRY_ASSIGN(terms.box, accumulate_term(builder, terms.box,
+                                                     sum_all(builder, graph, box_error)));
 
             if (facts.reg_max > 1)
-                terms.distribution = accumulate_term(
-                    builder, terms.distribution,
-                    emit_distribution_focal_loss(builder, graph, level.boxes,
-                                                 level.distribution_weights));
+            {
+                SA_TRY_ASSIGN(terms.distribution,
+                              accumulate_term(builder, terms.distribution,
+                                              emit_distribution_focal_loss(
+                                                  builder, graph, level.boxes,
+                                                  level.distribution_weights)));
+            }
 
             if (gains.l1_gain > 0.0f)
             {
-                const ValueID error = builder.mul(
+                const Traced error = builder.mul(
                     builder.abs(builder.sub(distances, level.target_distances)), level.l1_scale);
-                terms.l1 = accumulate_term(builder, terms.l1, sum_all(builder, graph, error));
+                SA_TRY_ASSIGN(terms.l1, accumulate_term(builder, terms.l1,
+                                                        sum_all(builder, graph, error)));
             }
         }
-        terms.classes = builder.div(class_sum, values.target_scores_sum);
+        SA_TRY_ASSIGN(terms.classes, builder.div(class_sum, values.target_scores_sum));
 
         const double images = static_cast<double>(batch);
         ValueID total = Graph::K_NO_VALUE;
-        total = add_gained(builder, total, terms.box, gains.box_gain * images);
-        total = add_gained(builder, total, terms.classes, gains.class_gain * images);
+        SA_TRY_ASSIGN(total, add_gained(builder, total, terms.box, gains.box_gain * images));
+        SA_TRY_ASSIGN(total,
+                      add_gained(builder, total, terms.classes, gains.class_gain * images));
         if (terms.distribution != Graph::K_NO_VALUE)
-            total = add_gained(builder, total, terms.distribution,
-                               gains.distribution_gain * images);
+        {
+            SA_TRY_ASSIGN(total, add_gained(builder, total, terms.distribution,
+                                            gains.distribution_gain * images));
+        }
         if (terms.l1 != Graph::K_NO_VALUE)
-            total = add_gained(builder, total, terms.l1, gains.l1_gain * images);
+        {
+            SA_TRY_ASSIGN(total, add_gained(builder, total, terms.l1, gains.l1_gain * images));
+        }
         terms.total = total;
         return terms;
     }

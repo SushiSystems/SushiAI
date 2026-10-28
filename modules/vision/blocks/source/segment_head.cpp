@@ -77,9 +77,12 @@ namespace SushiAI
             return NN::trace_layer(up, trace, x);
         }
 
-        Shape SegmentHead::output_shape(const Shape& input) const
+        Result<Shape> SegmentHead::output_shape(const Shape& input) const
         {
-            return up.output_shape(cv2.output_shape(cv1.output_shape(input)));
+            SA_TRY_ASSIGN(const Shape stem, cv1.output_shape(input));
+            SA_TRY_ASSIGN(const Shape masks, cv2.output_shape(stem));
+
+            return up.output_shape(masks);
         }
 
         Result<std::unique_ptr<NN::Node>> make_segment_head_node(NN::ShapeSpan inputs,

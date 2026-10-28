@@ -28,6 +28,7 @@
 
 #include <cstdint>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 
@@ -42,9 +43,9 @@ namespace SushiAI::Vision::Training
         constexpr std::int64_t K_SIDES = 4;
     } // namespace
 
-    Graph::ValueID emit_distribution_expectation(const Graph::GraphBuilder& builder,
-                                                 const Graph::Graph& graph, Graph::ValueID box,
-                                                 Graph::ValueID projection)
+    Graph::Traced emit_distribution_expectation(const Graph::GraphBuilder& builder,
+                                                const Graph::Graph& graph, Graph::ValueID box,
+                                                Graph::ValueID projection)
     {
         // By value: the emissions below can reallocate the value vector.
         const Shape shape = graph.value(box).shape;
@@ -63,9 +64,9 @@ namespace SushiAI::Vision::Training
 
         // Channels side * bins + bin are row-major, so each row below is one side's bins.
         const std::int64_t rows = shape[0] * shape[1] * shape[2] * K_SIDES;
-        const Graph::ValueID probabilities =
-            builder.softmax(builder.reshape(box, Shape{rows, bins}));
-        const Graph::ValueID expected = builder.matmul(probabilities, projection);
+        SA_TRY_ASSIGN(const Graph::ValueID probabilities,
+                      builder.softmax(builder.reshape(box, Shape{rows, bins})));
+        SA_TRY_ASSIGN(const Graph::ValueID expected, builder.matmul(probabilities, projection));
 
         return builder.reshape(expected, Shape{shape[0], shape[1], shape[2], K_SIDES});
     }

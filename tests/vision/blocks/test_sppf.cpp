@@ -155,8 +155,8 @@ TEST(Small_BlockSppf, OutputShapeKeepsTheExtentsAndSetsTheWidth)
     const SPPF row9(256, 256, 5, 3, true, K_YOLO_NORM);
     const SPPF widening(64, 96, 5, 3, true, K_YOLO_NORM);
 
-    EXPECT_EQ(row9.output_shape(Shape{20, 20, 256}), (Shape{20, 20, 256}));
-    EXPECT_EQ(widening.output_shape(Shape{5, 7, 64}), (Shape{5, 7, 96}));
+    EXPECT_EQ(row9.output_shape(Shape{20, 20, 256}).value(), (Shape{20, 20, 256}));
+    EXPECT_EQ(widening.output_shape(Shape{5, 7, 64}).value(), (Shape{5, 7, 96}));
 }
 
 /** @brief Tests that the pool is a stride-1 window of the kernel given, padded by half of it. */
@@ -170,7 +170,7 @@ TEST(Small_BlockSppf, ThePoolKeepsTheExtents)
     EXPECT_EQ(block.pool.geometry.stride_w, 1);
     EXPECT_EQ(block.pool.geometry.pad_top, 2);
     EXPECT_EQ(block.pool.geometry.pad_left, 2);
-    EXPECT_EQ(block.pool.output_shape(Shape{20, 20, 128}), (Shape{20, 20, 128}));
+    EXPECT_EQ(block.pool.output_shape(Shape{20, 20, 128}).value(), (Shape{20, 20, 128}));
 }
 
 /**

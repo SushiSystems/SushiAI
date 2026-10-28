@@ -37,11 +37,11 @@ namespace SushiAI::Vision::Training
      * @param builder Where the four nodes go: MUL, RESHAPE, SUM_ROWS and SCALE.
      * @param delta A leaf in the shape and element type of @p head; it takes no gradient.
      * @param scale The factor; the gradient at @p head is -scale * delta.
-     * @return The id of the [1] result, a SCALE node's first output.
-     * @throws Error If @p head and @p delta differ in shape or element type.
+     * @return The id of the [1] result, a SCALE node's first output; InvalidDescription if
+     *         @p head and @p delta differ in shape or element type.
      */
-    [[nodiscard]] Graph::ValueID emit_head_delta_loss(const Graph::GraphBuilder& builder,
-                                                      Graph::ValueID head, Graph::ValueID delta,
-                                                      double scale);
+    [[nodiscard]] Graph::Traced emit_head_delta_loss(const Graph::GraphBuilder& builder,
+                                                     Graph::ValueID head, Graph::ValueID delta,
+                                                     double scale);
 
 } // namespace SushiAI::Vision::Training

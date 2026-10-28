@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 2026-10-28 — vision: Breaking change: Made `output_shape(const Shape&)` of every block return `Result<Shape>`, passing on the first failure of a child (`blocks/include`).
+- 2026-10-28 — vision: Narrowed the throwing bridge of `DetectHead::create` to the block constructors and dropped it from `DetectHead::forward` (`detect_head.cpp`).
+- 2026-10-28 — training: Breaking change: Made `emit_head_delta_loss` return `Graph::Traced`, refusing a delta that `MUL` refuses as `InvalidDescription` in place of throwing (`head_delta_loss.hpp`).
+- 2026-10-28 — training: Breaking change: Made `emit_distribution_expectation` return `Graph::Traced` (`distribution_expectation_graph.hpp`).
+- 2026-10-28 — training: Breaking change: Made `emit_distribution_focal_loss` return `Graph::Traced` (`distribution_focal_loss.hpp`).
+- 2026-10-28 — training: Breaking change: Made `emit_pixel_cross_entropy` and `emit_soft_dice` return `Graph::Traced` (`pixel_losses.hpp`).
+- 2026-10-28 — training: Breaking change: Made `emit_free_detection_loss` return `Result<FreeLossTermIDs>` (`free_detection_loss.hpp`).
+- 2026-10-28 — blocks: Recorded a builder refusal inside a block's trace through `Trace::value_or_fail` (`attention.cpp`).
 - 2026-10-28 — language: Breaking change: Made `output_shape(const Shape&)` of every block return `Result<Shape>` (`blocks/include`).
 - 2026-10-28 — language: Breaking change: Made `ExpertProjection::mix` take `const Graph::Traced&` operands and return a `Graph::Traced`, refusing through `SA_REFUSE_IF` (`expert_projection.hpp`).
 - 2026-10-28 — language: Called the builder and `Parameter::declare` without the throwing bridge in the blocks and the two objectives (`blocks/source`, `next_token_objective.cpp`).

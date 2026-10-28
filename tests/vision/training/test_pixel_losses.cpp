@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -72,7 +73,8 @@ TEST(Small_VisionTrainingPixelLosses, TheCrossEntropyIsOneValueOfTheLogitsType)
     const Graph::ValueID indices = builder.input(Shape{K_ROWS}, "indices", DType::Int32);
     const Graph::ValueID weights = builder.input(Shape{K_ROWS, 1}, "weights", DType::Float64);
 
-    const Graph::ValueID loss = emit_pixel_cross_entropy(builder, graph, logits, indices, weights);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            emit_pixel_cross_entropy(builder, graph, logits, indices, weights));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);
@@ -94,7 +96,8 @@ TEST(Small_VisionTrainingPixelLosses, TheSoftDiceIsOneValueThatGathersAndScatter
     operands.class_pixels = builder.input(Shape{K_CLASSES}, "class_pixels");
     operands.class_weights = builder.input(Shape{K_CLASSES}, "class_weights");
 
-    const Graph::ValueID loss = emit_soft_dice(builder, graph, logits, operands);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            emit_soft_dice(builder, graph, logits, operands));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float32);
