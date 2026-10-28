@@ -54,7 +54,7 @@
 
 namespace SushiAI::Vision
 {
-    Status register_nodes(NN::NodeRegistry& registry)
+    Status register_nodes(NN::NodeRegistry& registry) noexcept
     {
         SA_TRY(registry.add(NN::NodeEntry{"conv", &Blocks::make_conv_node}));
         SA_TRY(registry.add(NN::NodeEntry{"bottleneck", &Blocks::make_bottleneck_node}));
@@ -70,7 +70,7 @@ namespace SushiAI::Vision
         return Status();
     }
 
-    Status register_datasets(Data::DatasetRegistry& registry)
+    Status register_datasets(Data::DatasetRegistry& registry) noexcept
     {
         SA_TRY(registry.add(Data::DatasetEntry{"mnist", &Datasets::make_mnist}));
         SA_TRY(registry.add(Data::DatasetEntry{Config::K_READER_DATA_TYPE,
@@ -79,7 +79,7 @@ namespace SushiAI::Vision
         return Status();
     }
 
-    Status register_objectives(Train::ObjectiveRegistry& registry)
+    Status register_objectives(Train::ObjectiveRegistry& registry) noexcept
     {
         SA_TRY(registry.add(Train::ObjectiveEntry{Detect::Anchor::K_ANCHOR_OBJECTIVE_TYPE,
                                                   &Training::make_anchor_objective}));
@@ -94,7 +94,7 @@ namespace SushiAI::Vision
         return Status();
     }
 
-    Status register_importers(IO::ImporterRegistry& registry)
+    Status register_importers(IO::ImporterRegistry& registry) noexcept
     {
         return registry.add(IO::ImporterEntry{Importers::K_DARKNET_FORMAT,
                                               &Importers::import_darknet_files});

@@ -64,7 +64,7 @@ namespace SushiAI::Vision
      * @param registry The registry that receives the eight rows.
      * @return Success, or the first failure of NodeRegistry::add().
      */
-    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);
+    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry) noexcept;
 
     /**
      * @brief Adds the "mnist" and "reader" dataset rows to @p registry, in that order.
@@ -72,7 +72,7 @@ namespace SushiAI::Vision
      *        Datasets::make_reader_dataset reads.
      * @return Success, or the first failure of DatasetRegistry::add().
      */
-    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry);
+    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry) noexcept;
 
     /**
      * @brief Adds the "anchor", "pixel_cross_entropy" and "dice" objective rows to
@@ -80,13 +80,13 @@ namespace SushiAI::Vision
      * @param registry The registry that receives the three rows.
      * @return Success, or the first failure of ObjectiveRegistry::add().
      */
-    [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry);
+    [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry) noexcept;
 
     /**
      * @brief Adds the "darknet" importer row to @p registry.
      * @param registry The registry that receives the row.
      * @return Success, or the first failure of ImporterRegistry::add().
      */
-    [[nodiscard]] Status register_importers(IO::ImporterRegistry& registry);
+    [[nodiscard]] Status register_importers(IO::ImporterRegistry& registry) noexcept;
 
 } // namespace SushiAI::Vision
