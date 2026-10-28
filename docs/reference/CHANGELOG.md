@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — decoder_models: Marked 2 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — datasets: Marked 10 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — blocks: Marked 49 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — training: Marked 58 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).

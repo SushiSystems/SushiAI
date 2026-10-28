@@ -110,7 +110,7 @@ namespace SushiAI
         })";
 
         /** @brief Returns the parsed K_DECODER_MODEL. */
-        [[nodiscard]] inline Config::ModelSpec decoder_spec()
+        [[nodiscard]] inline Config::ModelSpec decoder_spec() noexcept
         {
             return model_from(K_DECODER_MODEL);
         }
@@ -119,7 +119,7 @@ namespace SushiAI
          * @brief Builds the decoder @p spec describes from the rows of nn and of language.
          * @return The graph, or the failure of a register function or of build_model.
          */
-        [[nodiscard]] inline Result<NN::ModelGraph> build_decoder(const Config::ModelSpec& spec)
+        [[nodiscard]] inline Result<NN::ModelGraph> build_decoder(const Config::ModelSpec& spec) noexcept
         {
             NN::NodeRegistry registry;
             SA_TRY(NN::register_layers(registry));
