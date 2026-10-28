@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_vision.cpp                                                        */
+/* test_umbrella_reach.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file test_vision.cpp
+ * @file test_umbrella_reach.cpp
  * @brief Tests that the vision umbrella header alone reaches the units of several modules.
  * @author Mustafa Garip
  */
