@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — cli: Breaking change: Made sa build, test and run default to Debug in build/<name>-<type>, one tree per type, behind the memory gate, with --report and --jobs (`cli/sushiai/services/project.py`, `build_trees.py`).
+- 2026-10-28 — cli: Took the build type of the library packages from sushicore's `package_build_type`, so a Debug build links Release packages (`library_packages.py`).
 - 2026-10-26 — cli: Added `sa build --sycl-targets`, which passes `-D SB_SYCL_TARGETS=<list>` to the SushiBLAS package (`cli/sushiai/services/sycl_targets.py`).
 - 2026-10-26 — build: Took SushiRuntime as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIRUNTIME_DIR` (`cmake/Runtime.cmake`).
 - 2026-10-26 — build: Took SushiBLAS as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIBLAS_DIR` (`cmake/BLAS.cmake`).
