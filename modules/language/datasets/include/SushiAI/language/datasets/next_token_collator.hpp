@@ -57,7 +57,7 @@ namespace SushiAI::Language::Datasets
              *         [1, Text::K_MAX_VOCABULARY_SIZE].
              */
             [[nodiscard]] static Result<std::unique_ptr<NextTokenCollator>> make(
-                std::int64_t window_length, std::int32_t vocabulary_size);
+                std::int64_t window_length, std::int32_t vocabulary_size) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] std::int64_t window_length() const noexcept override;

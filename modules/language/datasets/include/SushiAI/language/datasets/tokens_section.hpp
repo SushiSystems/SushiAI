@@ -48,6 +48,6 @@ namespace SushiAI::Language::Datasets
      *         of the file's header or of TokenDataset::make.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_tokens_dataset(
-        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context);
+        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Datasets

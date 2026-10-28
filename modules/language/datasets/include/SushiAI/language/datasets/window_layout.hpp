@@ -56,7 +56,7 @@ namespace SushiAI::Language::Datasets
      *         layout out of its bounds.
      */
     [[nodiscard]] Result<std::uint64_t> count_windows(std::uint64_t token_count,
-                                                      const WindowLayout& layout);
+                                                      const WindowLayout& layout) noexcept;
 
     /**
      * @brief Returns the index of the first id a window reads.

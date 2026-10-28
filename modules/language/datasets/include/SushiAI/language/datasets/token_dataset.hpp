@@ -83,7 +83,7 @@ namespace SushiAI::Language::Datasets
              */
             [[nodiscard]] static Result<std::unique_ptr<TokenDataset>> make(
                 SushiBLAS::Engine& engine, std::filesystem::path file,
-                std::unique_ptr<const Collator> collator, TokenDatasetOptions options);
+                std::unique_ptr<const Collator> collator, TokenDatasetOptions options) noexcept;
 
             TokenDataset(const TokenDataset&) = delete;
             TokenDataset& operator=(const TokenDataset&) = delete;

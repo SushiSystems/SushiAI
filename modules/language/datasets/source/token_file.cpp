@@ -247,7 +247,7 @@ namespace SushiAI::Language::Datasets
 
     Status write_token_file(const std::filesystem::path& file,
                             SushiRuntime::span<const Text::TokenID> ids,
-                            std::int32_t vocabulary_size)
+                            std::int32_t vocabulary_size) noexcept
     {
         SA_FAIL_IF(!is_vocabulary_size(vocabulary_size), StatusCode::InvalidDescription,
                    "{}: a vocabulary of {} tokens; it has 1 to {}", K_WRITER, vocabulary_size,
@@ -271,7 +271,7 @@ namespace SushiAI::Language::Datasets
         }, file);
     }
 
-    Result<TokenFileHeader> read_token_file_header(const std::filesystem::path& file)
+    Result<TokenFileHeader> read_token_file_header(const std::filesystem::path& file) noexcept
     {
         return Detail::at_boundary(K_HEADER_READER, [&]() -> Result<TokenFileHeader>
         {
@@ -292,7 +292,7 @@ namespace SushiAI::Language::Datasets
     }
 
     Status read_token_range(std::istream& in, const TokenFileHeader& header, std::uint64_t first,
-                            SushiRuntime::span<Text::TokenID> ids)
+                            SushiRuntime::span<Text::TokenID> ids) noexcept
     {
         return Detail::at_boundary(K_RANGE_READER, [&]() -> Status
         {
@@ -301,7 +301,7 @@ namespace SushiAI::Language::Datasets
     }
 
     Status read_token_range(const std::filesystem::path& file, const TokenFileHeader& header,
-                            std::uint64_t first, SushiRuntime::span<Text::TokenID> ids)
+                            std::uint64_t first, SushiRuntime::span<Text::TokenID> ids) noexcept
     {
         return Detail::at_boundary(K_RANGE_READER, [&]() -> Status
         {

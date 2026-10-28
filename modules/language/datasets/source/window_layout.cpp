@@ -40,7 +40,7 @@ namespace SushiAI::Language::Datasets
         constexpr std::string_view K_UNIT = "count_windows";
     } // namespace
 
-    Result<std::uint64_t> count_windows(std::uint64_t token_count, const WindowLayout& layout)
+    Result<std::uint64_t> count_windows(std::uint64_t token_count, const WindowLayout& layout) noexcept
     {
         SA_FAIL_IF(layout.tokens < 1 || layout.tokens > K_MAX_WINDOW_TOKENS,
                    StatusCode::InvalidDescription, "{}: a window of {} tokens; it has 1 to {}",

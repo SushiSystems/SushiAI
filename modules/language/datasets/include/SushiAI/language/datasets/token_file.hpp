@@ -74,7 +74,7 @@ namespace SushiAI::Language::Datasets
      */
     [[nodiscard]] Status write_token_file(const std::filesystem::path& file,
                                           SushiRuntime::span<const Text::TokenID> ids,
-                                          std::int32_t vocabulary_size);
+                                          std::int32_t vocabulary_size) noexcept;
 
     /**
      * @brief Reads and checks the header of a token file of any version this build knows.
@@ -83,7 +83,7 @@ namespace SushiAI::Language::Datasets
      *         declares, or for a field out of bounds.
      */
     [[nodiscard]] Result<TokenFileHeader> read_token_file_header(
-        const std::filesystem::path& file);
+        const std::filesystem::path& file) noexcept;
 
     /**
      * @brief Reads the ids [first, first + ids.size()) of a token file from its stream.
@@ -95,7 +95,7 @@ namespace SushiAI::Language::Datasets
      */
     [[nodiscard]] Status read_token_range(std::istream& in, const TokenFileHeader& header,
                                           std::uint64_t first,
-                                          SushiRuntime::span<Text::TokenID> ids);
+                                          SushiRuntime::span<Text::TokenID> ids) noexcept;
 
     /**
      * @brief Opens a token file and reads the ids [first, first + ids.size()) of it.
@@ -104,5 +104,5 @@ namespace SushiAI::Language::Datasets
      */
     [[nodiscard]] Status read_token_range(const std::filesystem::path& file,
                                           const TokenFileHeader& header, std::uint64_t first,
-                                          SushiRuntime::span<Text::TokenID> ids);
+                                          SushiRuntime::span<Text::TokenID> ids) noexcept;
 } // namespace SushiAI::Language::Datasets

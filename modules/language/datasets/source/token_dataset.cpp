@@ -52,7 +52,7 @@ namespace SushiAI::Language::Datasets
 
     Result<std::unique_ptr<TokenDataset>> TokenDataset::make(
         SushiBLAS::Engine& engine, std::filesystem::path file,
-        std::unique_ptr<const Collator> collator, TokenDatasetOptions options)
+        std::unique_ptr<const Collator> collator, TokenDatasetOptions options) noexcept
     {
         SA_FAIL_IF(collator == nullptr, StatusCode::InvalidDescription,
                    "{}: '{}' has no collator", K_DATASET, options.name);

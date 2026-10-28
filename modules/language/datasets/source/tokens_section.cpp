@@ -57,7 +57,7 @@ namespace SushiAI::Language::Datasets
 
     Result<std::unique_ptr<Data::Dataset>> make_tokens_dataset(SushiBLAS::Engine& engine,
                                                                const Config::Value& section,
-                                                               std::string_view context)
+                                                               std::string_view context) noexcept
     {
         const Config::SectionReader reader(section, context);
         SA_TRY(reader.check_object());

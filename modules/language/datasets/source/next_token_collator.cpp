@@ -60,7 +60,7 @@ namespace SushiAI::Language::Datasets
     } // namespace
 
     Result<std::unique_ptr<NextTokenCollator>> NextTokenCollator::make(
-        std::int64_t window_length, std::int32_t vocabulary_size)
+        std::int64_t window_length, std::int32_t vocabulary_size) noexcept
     {
         SA_FAIL_IF(window_length < 1 || window_length > K_MAX_WINDOW_TOKENS - 1,
                    StatusCode::InvalidDescription,

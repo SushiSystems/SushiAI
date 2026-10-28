@@ -60,7 +60,7 @@ namespace SushiAI::Language::Datasets
     } // namespace
 
     Result<std::unique_ptr<PromptDataset>> PromptDataset::make(
-        SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids, std::int64_t window)
+        SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids, std::int64_t window) noexcept
     {
         SA_FAIL_IF(window < 1 || window > K_MAX_WINDOW_TOKENS, StatusCode::InvalidDescription,
                    "{}: a window of {} positions; it has 1 to {}", K_DATASET, window,
@@ -152,7 +152,7 @@ namespace SushiAI::Language::Datasets
 
     Result<std::unique_ptr<Data::Dataset>> make_prompt_dataset(SushiBLAS::Engine& engine,
                                                                const Config::Value& section,
-                                                               std::string_view context)
+                                                               std::string_view context) noexcept
     {
         const Config::SectionReader reader(section, context);
         SA_TRY(reader.check_object());

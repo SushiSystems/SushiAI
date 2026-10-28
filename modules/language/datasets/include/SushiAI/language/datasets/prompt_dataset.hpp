@@ -61,7 +61,7 @@ namespace SushiAI::Language::Datasets
              */
             [[nodiscard]] static Result<std::unique_ptr<PromptDataset>> make(
                 SushiBLAS::Engine& engine, const std::vector<Text::TokenID>& ids,
-                std::int64_t window);
+                std::int64_t window) noexcept;
 
             PromptDataset(const PromptDataset&) = delete;
             PromptDataset& operator=(const PromptDataset&) = delete;
@@ -128,6 +128,6 @@ namespace SushiAI::Language::Datasets
      *         of the vocabulary file, the encoder or PromptDataset::make.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_prompt_dataset(
-        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context);
+        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Datasets
