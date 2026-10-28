@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_language.cpp                                                      */
+/* test_umbrella_reach.cpp                                                */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -20,7 +20,7 @@
 /**************************************************************************/
 
 /**
- * @file test_language.cpp
+ * @file test_umbrella_reach.cpp
  * @brief Tests that the language umbrella header alone reaches the core and the domain.
  * @author Mustafa Garip
  */

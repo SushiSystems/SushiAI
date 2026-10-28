@@ -105,8 +105,11 @@ them with `monkeypatch`. `build` resolves packages, configures and compiles in o
 
 `SushiAI::Error`, `SA_THROW_IF`, `throw_expectations.hpp` and `NN::Detail::bridge_throwing` are
 deleted, and the public functions of the library modules carry `noexcept`. Nothing was built or
-run. The vision and language counterparts of the test need a list entry in each umbrella test's
-`CMakeLists.txt`.
+run. The vision and language counterparts of the test are written
+(`tests/vision/umbrella/test_vision/` and `tests/language/umbrella/test_language/`); the source
+list in each umbrella test's `CMakeLists.txt` must name `test_umbrella_reach.cpp` and
+`test_noexcept_surface.cpp` in the folder, and the build must compile them. The headers of the
+`darknet_*_cases` modules and `decoder_models` stay without an assertion.
 
 ### RW-12 Observe that a dropped recording releases storage and scratch
 - State: open

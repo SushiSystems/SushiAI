@@ -108,10 +108,14 @@ The mirror checker bars a test file that mirrors no header, so the umbrella test
 
 #### Open for the owner
 
-- The test covers the modules the `sushiai` library archives. The public functions of
-  `modules/vision` and `modules/language` carry `noexcept` but have no assertion, because their
-  test programs link other libraries and `tests/vision/umbrella/CMakeLists.txt` and
-  `tests/language/umbrella/CMakeLists.txt` would each need a list entry.
+- The vision and language counterparts are on disk: `tests/vision/umbrella/test_vision/
+  test_noexcept_surface.cpp` asserts 418 calls over 162 headers and `tests/language/umbrella/
+  test_language/test_noexcept_surface.cpp` 110 calls over 33. The umbrella tests moved into the
+  same folders as `test_umbrella_reach.cpp`, so each program's source list in
+  `tests/vision/umbrella/CMakeLists.txt` and `tests/language/umbrella/CMakeLists.txt` needs the
+  new paths. The headers of `darknet_forward_cases`, `darknet_import_cases`,
+  `darknet_training_cases` (41 functions) and `decoder_models` (2) are out of reach of those
+  include paths and have no assertion.
 - The single build confirms that every changed signature still compiles in the programs, the
   examples and the tests, which no one syntax-checked.
 

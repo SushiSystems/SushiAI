@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — tests: Added `test_noexcept_surface.cpp` to the vision and language umbrella tests, 418 and 110 `static_assert`s over the `noexcept` public functions of the two tiers (`test_vision/`, `test_language/`).
+- 2026-10-28 — tests: Moved the vision and language umbrella tests into `test_vision/` and `test_language/` as `test_umbrella_reach.cpp`, so the mirror checker accepts the second file.
 - 2026-10-28 — build: Fixed device units failing to compile by splitting each `SHELL:` group of the device options into its arguments, which a source's `COMPILE_OPTIONS` does not do (`SushiAISyclTarget.cmake`).
 - 2026-10-28 — cli: Pinned SushiRuntime v0.4.0 and SushiBLAS v0.1.0 in the dependency fragment, so `sa setup` fetches both and no sibling checkout is needed (`sushistack.deps.toml`).
 - 2026-10-28 — config: Breaking change: Resolved a data block's relative `root` or `directory` against the file's directory, which `parse_data` takes as `base` (`train_config.cpp`).
