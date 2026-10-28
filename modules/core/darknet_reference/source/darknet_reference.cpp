@@ -99,13 +99,14 @@ namespace SushiAI
                                std::string_view expected, std::string_view origin)
             {
                 SA_FAIL_IF(!root.has(key), StatusCode::InvalidFile, "{} has no '{}'", origin, key);
-                const Config::Value& value = root.at(key, origin);
+                SA_TRY_ASSIGN(const Config::Value& value, root.at(key, origin));
                 SA_FAIL_IF(value.kind() != Config::Kind::String, StatusCode::InvalidFile,
                            "'{}' of {} is a {}, not a string", key, origin,
                            Config::kind_name(value.kind()));
-                SA_FAIL_IF(value.as_string(origin) != expected, StatusCode::InvalidFile,
+                SA_TRY_ASSIGN(const std::string& text, value.as_string(origin));
+                SA_FAIL_IF(text != expected, StatusCode::InvalidFile,
                            "'{}' of {} is '{}', and the loader reads '{}' only", key, origin,
-                           value.as_string(origin), expected);
+                           text, expected);
 
                 return Status();
             }
@@ -120,19 +121,20 @@ namespace SushiAI
             {
                 SA_FAIL_IF(!root.has("shape"), StatusCode::InvalidFile, "{} has no 'shape'",
                            origin);
-                const Config::Value& shape = root.at("shape", origin);
+                SA_TRY_ASSIGN(const Config::Value& shape, root.at("shape", origin));
                 SA_FAIL_IF(shape.kind() != Config::Kind::Array, StatusCode::InvalidFile,
                            "'shape' of {} is a {}, not an array", origin,
                            Config::kind_name(shape.kind()));
 
                 std::int64_t count = 1;
                 extents.clear();
-                for (const Config::Value& entry : shape.as_array(origin))
+                SA_TRY_ASSIGN(const std::vector<Config::Value>& entries, shape.as_array(origin));
+                for (const Config::Value& entry : entries)
                 {
                     SA_FAIL_IF(entry.kind() != Config::Kind::Int, StatusCode::InvalidFile,
                                "'shape' of {} holds a {}, not a whole number", origin,
                                Config::kind_name(entry.kind()));
-                    const std::int64_t extent = entry.as_int(origin);
+                    SA_TRY_ASSIGN(const std::int64_t extent, entry.as_int(origin));
                     SA_FAIL_IF(extent < 0 || extent > K_MAX_ELEMENTS, StatusCode::InvalidFile,
                                "'shape' of {} holds the extent {}", origin, extent);
                     count *= extent;
@@ -253,7 +255,7 @@ namespace SushiAI
 
             const std::string origin = reference.description.string();
             DarknetTensor tensor;
-            tensor.description = Config::parse_json_file(reference.description);
+            SA_TRY_ASSIGN(tensor.description, Config::parse_json_file(reference.description));
             SA_TRY(expect_text(tensor.description, "dtype", "float32", origin));
             SA_TRY(expect_text(tensor.description, "byte_order", "little", origin));
             SA_TRY(read_extents(tensor.description, origin, tensor.extents));

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — darknet_reference: Read the manifest and the reference description through the `Result` of the config readers (`darknet_reference.cpp`).
 - 2026-10-28 — data: Read the optional whole numbers of a dataset section through the `Result` of `Value::as_int` (`dataset.cpp`).
 - 2026-10-28 — eager: Breaking change: Made `ScopePartitioner` stop the process for a graph it cannot cut, in place of throwing (`scope_partitioner.cpp`).
 - 2026-10-28 — eager: Breaking change: Made `ScopeTrace` and `RegionTable` stop the process for a misused scope, in place of throwing (`scope_trace.cpp`).
