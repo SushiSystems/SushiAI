@@ -31,7 +31,8 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
@@ -46,6 +47,8 @@ using SushiAI::Vision::Imaging::resize_nearest;
 
 namespace
 {
+    using SushiAI::StatusCode;
+    using SushiAI::Test::require_value;
     /** @brief Names the bytes of an image in HWC order. */
     using Bytes = std::vector<std::uint8_t>;
 
@@ -75,7 +78,7 @@ namespace
     {
         const Image image = make_image(source_size, 1, source);
         Image destination;
-        resize_bilinear(image.view(), size, destination);
+        SA_EXPECT_OK(resize_bilinear(image.view(), size, destination));
 
         EXPECT_EQ(destination.size(), size);
         EXPECT_EQ(destination.channels(), 1);
@@ -156,7 +159,7 @@ TEST(Small_ImagingResize, EachChannelIsInterpolatedOnItsOwn)
     const Image source = make_image(ImageSize{1, 2}, 3, Bytes{0, 40, 255, 100, 80, 3});
     Image destination;
 
-    resize_bilinear(source.view(), ImageSize{1, 4}, destination);
+    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{1, 4}, destination));
 
     // Channel 2 falls from 255 to 3: (765 + 3) / 4 is 192 and (255 + 9) / 4 is 66.
     const Bytes expected{0, 40, 255, 25, 50, 192, 75, 70, 66, 100, 80, 3};
@@ -177,7 +180,7 @@ TEST(Small_ImagingResize, AConstantImageStaysConstantWhenEnlarged)
     }
 
     Image destination;
-    resize_bilinear(source.view(), ImageSize{13, 23}, destination);
+    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{13, 23}, destination));
 
     ASSERT_EQ(destination.byte_count(), 13u * 23u * 3u);
 
@@ -195,7 +198,7 @@ TEST(Small_ImagingResize, AConstantImageStaysConstantWhenReduced)
     source.fill(201);
 
     Image destination;
-    resize_bilinear(source.view(), ImageSize{4, 5}, destination);
+    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{4, 5}, destination));
 
     ASSERT_EQ(destination.byte_count(), 20u);
 
@@ -259,7 +262,7 @@ TEST(Small_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
     Image destination(ImageSize{9, 9}, 1);
     destination.fill(77);
 
-    resize_bilinear(source.view(), ImageSize{2, 2}, destination);
+    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{2, 2}, destination));
 
     EXPECT_EQ(destination.size(), (ImageSize{2, 2}));
     EXPECT_EQ(destination.channels(), 3);
@@ -270,8 +273,9 @@ TEST(Small_ImagingResize, ResizeRejectsASourceWithoutPixels)
 {
     Image destination;
 
-    SA_EXPECT_ERROR(resize_bilinear(ImageView(), ImageSize{2, 2}, destination),
-                    "resize_bilinear", "source", "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(ImageView(), ImageSize{2, 2}, destination)),
+                    "resize_bilinear",
+                    "source", "no pixels");
 }
 
 TEST(Small_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
@@ -279,12 +283,15 @@ TEST(Small_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
     const Image source(ImageSize{2, 2}, 1);
     Image destination;
 
-    SA_EXPECT_ERROR(resize_bilinear(source.view(), ImageSize{0, 2}, destination),
-                    "resize_bilinear", "destination size", "0x2");
-    SA_EXPECT_ERROR(resize_bilinear(source.view(), ImageSize{2, -1}, destination),
-                    "resize_bilinear", "destination size", "2x-1");
-    SA_EXPECT_ERROR(resize_bilinear(source.view(), ImageSize{2, K_MAX_IMAGE_SIDE + 1}, destination),
-                    "resize_bilinear", "destination size", "2x16385");
+    SA_EXPECT_FAILURE(resize_bilinear(source.view(), ImageSize{0, 2}, destination),
+                      StatusCode::InvalidDescription, "resize_bilinear", "destination size", "0x2");
+    SA_EXPECT_FAILURE(resize_bilinear(source.view(), ImageSize{2, -1}, destination),
+                      StatusCode::InvalidDescription, "resize_bilinear", "destination size",
+                      "2x-1");
+    SA_EXPECT_FAILURE(resize_bilinear(source.view(), ImageSize{2, K_MAX_IMAGE_SIDE + 1},
+                                      destination),
+                      StatusCode::InvalidDescription, "resize_bilinear", "destination size",
+                      "2x16385");
 }
 
 TEST(Small_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
@@ -292,14 +299,18 @@ TEST(Small_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
 
-    SA_EXPECT_ERROR(resize_bilinear(ImageView(bytes.data(), ImageSize{0, 2}, 1), ImageSize{2, 2},
-                                    destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(ImageView(bytes.data(), ImageSize{0, 2}, 1),
+                                                      ImageSize{2, 2},
+                                    destination)),
                     "resize_bilinear", "source size", "0x2");
-    SA_EXPECT_ERROR(resize_bilinear(ImageView(bytes.data(), ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 1),
-                                    ImageSize{2, 2}, destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(ImageView(bytes.data(),
+                                                                ImageSize{2, K_MAX_IMAGE_SIDE + 1},
+                                                                1),
+                                    ImageSize{2, 2}, destination)),
                     "resize_bilinear", "source size", "2x16385");
-    SA_EXPECT_ERROR(resize_bilinear(ImageView(bytes.data(), ImageSize{2, 2}, 5), ImageSize{2, 2},
-                                    destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(ImageView(bytes.data(), ImageSize{2, 2}, 5),
+                                                      ImageSize{2, 2},
+                                    destination)),
                     "resize_bilinear", "source channel count", "5");
 }
 
@@ -308,8 +319,9 @@ TEST(Small_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
     Image image(ImageSize{2, 2}, 1);
     image.fill(9);
 
-    SA_EXPECT_ERROR(resize_bilinear(image.view(), ImageSize{4, 4}, image),
-                    "resize_bilinear", "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(image.view(), ImageSize{4, 4}, image)),
+                    "resize_bilinear",
+                    "destination holds the source's pixels");
 
     // The refusal comes before the reset, so the image is still the 2 by 2 source.
     EXPECT_EQ(image.size(), (ImageSize{2, 2}));
@@ -380,7 +392,7 @@ TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
     const Image source = make_image(ImageSize{2, 4}, 1, bytes);
     Image destination(ImageSize{3, 3}, 3);
 
-    resize_long_side(source.view(), 4, destination);
+    SA_EXPECT_OK(resize_long_side(source.view(), 4, destination));
 
     EXPECT_EQ(destination.size(), (ImageSize{2, 4}));
     EXPECT_EQ(destination.channels(), 1);
@@ -393,7 +405,7 @@ TEST(Small_ImagingResize, ResizeLongSideEnlargesToTheFittedSize)
     const Image source = make_image(ImageSize{1, 2}, 1, Bytes{0, 100});
     Image destination;
 
-    resize_long_side(source.view(), 4, destination);
+    SA_EXPECT_OK(resize_long_side(source.view(), 4, destination));
 
     // fit_long_side gives 2 by 4, and both rows are the enlarged row 0, 25, 75, 100.
     EXPECT_EQ(destination.size(), (ImageSize{2, 4}));
@@ -409,7 +421,7 @@ TEST(Small_ImagingResize, ResizeLongSideReducesToTheFittedSize)
     const Image source = make_image(ImageSize{4, 4}, 1, bytes);
     Image destination;
 
-    resize_long_side(source.view(), 2, destination);
+    SA_EXPECT_OK(resize_long_side(source.view(), 2, destination));
 
     EXPECT_EQ(destination.size(), (ImageSize{2, 2}));
     EXPECT_EQ(bytes_of(destination), (Bytes{36, 55, 115, 135}));
@@ -420,25 +432,27 @@ TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
     const Image source(ImageSize{2, 2}, 1);
     Image destination;
 
-    SA_EXPECT_ERROR(resize_long_side(source.view(), 0, destination), "resize_long_side", "0");
-    SA_EXPECT_ERROR(resize_long_side(source.view(), K_MAX_IMAGE_SIDE + 1, destination),
-                    "resize_long_side", "16385");
+    SA_EXPECT_FAILURE(resize_long_side(source.view(), 0, destination),
+                      StatusCode::InvalidDescription, "resize_long_side", "0");
+    SA_EXPECT_FAILURE(resize_long_side(source.view(), K_MAX_IMAGE_SIDE + 1, destination),
+                      StatusCode::InvalidDescription, "resize_long_side", "16385");
 }
 
 TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
 {
     Image destination;
 
-    SA_EXPECT_ERROR(resize_long_side(ImageView(), 640, destination),
-                    "resize_long_side", "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(), 640, destination)),
+                    "resize_long_side",
+                    "no pixels");
 }
 
 TEST(Small_ImagingResize, ResizeLongSideRejectsADestinationThatHoldsTheSource)
 {
     Image image(ImageSize{2, 4}, 1);
 
-    SA_EXPECT_ERROR(resize_long_side(image.view(), 4, image),
-                    "resize_long_side", "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(image.view(), 4, image)), "resize_long_side",
+                    "destination holds the source's pixels");
 }
 
 /** @brief Tests that both resizes refuse a view of some rows of the destination, unwritten. */
@@ -448,10 +462,11 @@ TEST(Small_ImagingResize, ResizesRejectAViewInsideTheDestination)
     image.fill(7);
     const ImageView lower_rows(image.row(1), ImageSize{2, 2}, 1);
 
-    SA_EXPECT_ERROR(resize_bilinear(lower_rows, ImageSize{4, 4}, image),
-                    "resize_bilinear", "destination holds the source's pixels");
-    SA_EXPECT_ERROR(resize_long_side(lower_rows, 8, image),
-                    "resize_long_side", "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(lower_rows, ImageSize{4, 4}, image)),
+                    "resize_bilinear",
+                    "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(lower_rows, 8, image)), "resize_long_side",
+                    "destination holds the source's pixels");
 
     EXPECT_EQ(image.size(), (ImageSize{3, 2}));
     EXPECT_EQ(bytes_of(image), (Bytes{7, 7, 7, 7, 7, 7}));
@@ -463,9 +478,11 @@ TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImage
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
 
-    SA_EXPECT_ERROR(resize_long_side(ImageView(bytes.data(), ImageSize{0, 2}, 1), 4, destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{0, 2}, 1),
+                                                       4, destination)),
                     "resize_long_side", "source size", "0x2");
-    SA_EXPECT_ERROR(resize_long_side(ImageView(bytes.data(), ImageSize{2, 2}, 5), 4, destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{2, 2}, 5),
+                                                       4, destination)),
                     "resize_long_side", "source channel count", "5");
 }
 
@@ -526,11 +543,13 @@ TEST(Small_ImagingResize, NearestRejectsABadSourceABadSizeAndAnAliasedDestinatio
     image.fill(9);
     Image destination;
 
-    SA_EXPECT_ERROR(resize_nearest(ImageView(), ImageSize{2, 2}, destination),
-                    "resize_nearest", "source", "no pixels");
-    SA_EXPECT_ERROR(resize_nearest(image.view(), ImageSize{0, 2}, destination),
+    SA_EXPECT_FATAL(static_cast<void>(resize_nearest(ImageView(), ImageSize{2, 2}, destination)),
+                    "resize_nearest",
+                    "source", "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_nearest(image.view(), ImageSize{0, 2}, destination)),
                     "Image::reset", "0x2");
-    SA_EXPECT_ERROR(resize_nearest(image.view(), ImageSize{4, 4}, image),
-                    "resize_nearest", "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(resize_nearest(image.view(), ImageSize{4, 4}, image)),
+                    "resize_nearest",
+                    "destination holds the source's pixels");
     EXPECT_EQ(bytes_of(image), (Bytes{9, 9, 9, 9}));
 }

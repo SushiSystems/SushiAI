@@ -29,13 +29,13 @@
 
 #include <algorithm>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
     void Detail::check_label_counts(std::size_t classes, std::size_t boxes, std::size_t polygons)
     {
-        SA_THROW_IF(classes != boxes || polygons != boxes,
+        SA_FATAL_IF(classes != boxes || polygons != boxes,
                     "LabelSet: {} classes, {} boxes and {} polygons do not describe the same "
                     "objects; the three counts must match",
                     classes, boxes, polygons);

@@ -11,9 +11,10 @@ directory of raw image files and label files is not declared in this module.
 
 `image_size` (640), `epochs` (100) and `close_mosaic` (10) come from `cfg/default.yaml:16`, `12`
 and `34`; `batch_size` (16) sizes the default partner source; `seed` (0, `cfg/default.yaml:29`)
-is the root of every sample's generator. The constructor calls `validate_training`, which passes
-`image_size` to `validate_mosaic_size`, checks the other fields and then calls
-`validate_mosaic`, `validate_affine`, `validate_hsv` and `validate_flip`.
+is the root of every sample's generator. `TrainingPipeline::make` calls `validate_training`, which passes `image_size` to
+`validate_mosaic_size`, checks the other fields and then calls `validate_mosaic`,
+`validate_affine`, `validate_hsv` and `validate_flip`. Each returns `InvalidDescription` for a
+value outside its range, and `make` returns the first of them.
 
 ## make_sample_random
 

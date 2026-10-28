@@ -30,7 +30,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 using SushiAI::Vision::Imaging::Image;
@@ -46,6 +46,7 @@ using SushiAI::Vision::Imaging::overlaps;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /**
      * @brief Writes the byte's own offset, modulo 251, into every byte of an image.
      * @param image Any image; an empty one is left alone.
@@ -122,23 +123,27 @@ TEST(Small_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
 
 TEST(Small_ImagingImage, ConstructionRejectsAHeightOutsideItsBounds)
 {
-    SA_EXPECT_ERROR(Image(ImageSize{0, 4}, 3), "Image:", "size of 0x4", "16384");
-    SA_EXPECT_ERROR(Image(ImageSize{-2, 4}, 3), "Image:", "size of -2x4");
-    SA_EXPECT_ERROR(Image(ImageSize{K_MAX_IMAGE_SIDE + 1, 4}, 3), "Image:", "size of 16385x4");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{0, 4}, 3)), "Image:", "size of 0x4", "16384");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{-2, 4}, 3)), "Image:", "size of -2x4");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{K_MAX_IMAGE_SIDE + 1, 4}, 3)), "Image:",
+                    "size of 16385x4");
 }
 
 TEST(Small_ImagingImage, ConstructionRejectsAWidthOutsideItsBounds)
 {
-    SA_EXPECT_ERROR(Image(ImageSize{4, 0}, 3), "Image:", "size of 4x0", "16384");
-    SA_EXPECT_ERROR(Image(ImageSize{4, -7}, 3), "Image:", "size of 4x-7");
-    SA_EXPECT_ERROR(Image(ImageSize{4, K_MAX_IMAGE_SIDE + 1}, 3), "Image:", "size of 4x16385");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 0}, 3)), "Image:", "size of 4x0", "16384");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, -7}, 3)), "Image:", "size of 4x-7");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, K_MAX_IMAGE_SIDE + 1}, 3)), "Image:",
+                    "size of 4x16385");
 }
 
 TEST(Small_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
 {
-    SA_EXPECT_ERROR(Image(ImageSize{4, 4}, 0), "Image:", "channel count of 0", "[1, 4]");
-    SA_EXPECT_ERROR(Image(ImageSize{4, 4}, -1), "Image:", "channel count of -1");
-    SA_EXPECT_ERROR(Image(ImageSize{4, 4}, K_MAX_CHANNELS + 1), "Image:", "channel count of 5");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 4}, 0)), "Image:", "channel count of 0",
+                    "[1, 4]");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 4}, -1)), "Image:", "channel count of -1");
+    SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 4}, K_MAX_CHANNELS + 1)), "Image:",
+                    "channel count of 5");
 }
 
 TEST(Small_ImagingImage, RowsStartOneRowOfBytesApart)
@@ -229,10 +234,13 @@ TEST(Small_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
 {
     Image image(ImageSize{2, 2}, 3);
 
-    SA_EXPECT_ERROR(image.reset(ImageSize{0, 2}, 3), "Image::reset", "size of 0x2");
-    SA_EXPECT_ERROR(image.reset(ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 3), "Image::reset",
+    SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{0, 2}, 3)), "Image::reset",
+                    "size of 0x2");
+    SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 3)),
+                    "Image::reset",
                     "size of 2x16385");
-    SA_EXPECT_ERROR(image.reset(ImageSize{2, 2}, 5), "Image::reset", "channel count of 5");
+    SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{2, 2}, 5)), "Image::reset",
+                    "channel count of 5");
 }
 
 TEST(Small_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
@@ -241,7 +249,7 @@ TEST(Small_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
     write_offsets(image);
     const std::uint8_t* allocation = image.data();
 
-    SA_EXPECT_ERROR(image.reset(ImageSize{4, 4}, 0), "channel count");
+    SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{4, 4}, 0)), "channel count");
 
     EXPECT_EQ(image.size(), (ImageSize{2, 3}));
     EXPECT_EQ(image.channels(), 3);
@@ -376,8 +384,8 @@ TEST(Small_ImagingImage, CheckSourceAcceptsAViewOfAnotherImage)
     const Image destination(ImageSize{5, 5}, 1);
     const Image unallocated;
 
-    EXPECT_NO_THROW(check_source(source.view(), destination, "caller"));
-    EXPECT_NO_THROW(check_source(source.view(), unallocated, "caller"));
+    check_source(source.view(), destination, "caller");
+    check_source(source.view(), unallocated, "caller");
 }
 
 /** @brief Tests that check_source names the caller and each of the four faults it finds. */
@@ -390,14 +398,17 @@ TEST(Small_ImagingImage, CheckSourceRejectsEachFaultUnderTheCallersName)
     const ImageView many_channels(other.data(), ImageSize{2, 2}, 5);
     const ImageView inner(image.row(2), ImageSize{2, 3}, 3);
 
-    SA_EXPECT_ERROR(check_source(ImageView(), image, "caller"), "caller:", "no pixels");
-    SA_EXPECT_ERROR(check_source(flat, image, "caller"), "caller:", "source size of 0x2");
-    SA_EXPECT_ERROR(check_source(oversized, image, "caller"), "caller:",
-                    "source size of 2x16385", "16384");
-    SA_EXPECT_ERROR(check_source(many_channels, image, "caller"), "caller:",
+    SA_EXPECT_FATAL(static_cast<void>(check_source(ImageView(), image, "caller")), "caller:",
+                    "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(check_source(flat, image, "caller")), "caller:",
+                    "source size of 0x2");
+    SA_EXPECT_FATAL(static_cast<void>(check_source(oversized, image, "caller")), "caller:",
+                    "source size of 2x16385",
+                    "16384");
+    SA_EXPECT_FATAL(static_cast<void>(check_source(many_channels, image, "caller")), "caller:",
                     "source channel count of 5", "[1, 4]");
-    SA_EXPECT_ERROR(check_source(image.view(), image, "caller"), "caller:",
+    SA_EXPECT_FATAL(static_cast<void>(check_source(image.view(), image, "caller")), "caller:",
                     "destination holds the source's pixels");
-    SA_EXPECT_ERROR(check_source(inner, image, "caller"), "caller:",
+    SA_EXPECT_FATAL(static_cast<void>(check_source(inner, image, "caller")), "caller:",
                     "destination holds the source's pixels");
 }

@@ -32,6 +32,8 @@
 #include <cstdint>
 #include <memory>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/affine.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>
 #include <SushiAI/vision/imaging/hsv.hpp>
@@ -79,12 +81,13 @@ namespace SushiAI::Vision::Imaging
             /**
              * @brief Loads one decoded image at its stored resolution with its labels.
              *
-             * The image has one channel or K_RGB_CHANNELS; a pipeline expands the first to
-             * the second. Throws Error when the image cannot be read. Callable from several
-             * threads at once when one source feeds several pipelines.
+             * The image has one channel or K_RGB_CHANNELS; a pipeline expands the first. Callable
+             * from several threads at once when one source feeds several pipelines.
              * @param index In [0, size()).
+             * @return Success, or the failure that kept the image from being read.
              */
-            virtual void load(std::size_t index, Image& image, FileLabels& labels) const = 0;
+            [[nodiscard]] virtual Status load(std::size_t index, Image& image,
+                                              FileLabels& labels) const = 0;
     };
 
     /** @brief Holds what the caller chooses about the training pipeline. */
@@ -146,12 +149,12 @@ namespace SushiAI::Vision::Imaging
                                         std::int32_t close_mosaic) noexcept;
 
     /**
-     * @brief Throws Error on a training setting outside its range.
+     * @brief Returns InvalidDescription for a training setting outside its range.
      *
      * image_size must pass validate_mosaic_size; epochs and batch_size above zero, close_mosaic
      * not below zero, then validate_mosaic, validate_affine, validate_hsv and validate_flip.
      */
-    void validate_training(const TrainingSettings& settings);
+    [[nodiscard]] Status validate_training(const TrainingSettings& settings);
 
     /**
      * @brief Returns the generator that makes every draw of one sample.
@@ -170,20 +173,26 @@ namespace SushiAI::Vision::Imaging
     {
         public:
             /**
-             * @brief Constructs a pipeline whose partners come from a RecentPartners source.
-             * @param source Must outlive the pipeline and hold at least one image.
-             * @param settings Copied; must pass validate_training, otherwise throws Error.
+             * @brief Builds a pipeline whose partners come from a RecentPartners source.
+             * @param source Must outlive the pipeline.
+             * @param settings Copied.
+             * @return The pipeline, or InvalidDescription for settings validate_training refuses
+             *         or a source that holds no image.
              */
-            TrainingPipeline(const SampleSource& source, const TrainingSettings& settings);
+            [[nodiscard]] static Result<TrainingPipeline> make(const SampleSource& source,
+                                                               const TrainingSettings& settings);
 
             /**
-             * @brief Constructs a pipeline that takes its mosaic partners from a given source.
-             * @param source Must outlive the pipeline and hold at least one image.
-             * @param settings Copied; must pass validate_training, otherwise throws Error.
-             * @param partners Not null; otherwise throws Error.
+             * @brief Builds a pipeline that takes its mosaic partners from a given source.
+             * @param source Must outlive the pipeline.
+             * @param settings Copied.
+             * @param partners The source of the mosaic partners; not null.
+             * @return The pipeline, or InvalidDescription for settings validate_training refuses
+             *         or a source that holds no image.
              */
-            TrainingPipeline(const SampleSource& source, const TrainingSettings& settings,
-                             std::unique_ptr<PartnerSource> partners);
+            [[nodiscard]] static Result<TrainingPipeline> make(
+                const SampleSource& source, const TrainingSettings& settings,
+                std::unique_ptr<PartnerSource> partners);
 
             /** @brief Forbids copying, which would share the source and duplicate the images. */
             TrainingPipeline(const TrainingPipeline&) = delete;
@@ -203,17 +212,22 @@ namespace SushiAI::Vision::Imaging
             /**
              * @brief Produces the sample of one index in one epoch.
              *
-             * Every draw comes from make_sample_random(settings().seed, epoch, index). The
-             * image is loaded, resized and made RGB; unless the epoch is closed, draw_mosaic
-             * runs and may compose a mosaic; then affine, colour jitter and flip are applied.
+             * Every draw comes from make_sample_random(settings().seed, epoch, index).
              * @param sample Receives the s by s image, its labels and the sizes of its own image.
+             * @return What the sample drew and planned, or the first failure on the way.
+             * @pre @p index is below the source's size and @p epoch is in [0, settings().epochs).
              */
-            TrainingTrace make_sample(std::size_t index, std::int32_t epoch, Sample& sample);
+            [[nodiscard]] Result<TrainingTrace> make_sample(std::size_t index, std::int32_t epoch,
+                                                            Sample& sample);
 
             /** @brief Returns the settings the pipeline was constructed with. */
             [[nodiscard]] const TrainingSettings& settings() const noexcept { return settings_; }
 
         private:
+            /** @brief Stores a source, settings and partners that make() has checked. */
+            TrainingPipeline(const SampleSource& source, const TrainingSettings& settings,
+                             std::unique_ptr<PartnerSource> partners) noexcept;
+
             /// @brief Points at the source, which the caller keeps alive.
             const SampleSource* source_ = nullptr;
 
@@ -250,11 +264,11 @@ namespace SushiAI::Vision::Imaging
     };
 
     /**
-     * @brief Throws Error on a validation setting outside its range.
+     * @brief Returns InvalidDescription for a validation setting outside its range.
      *
      * image_size must pass is_valid_side; then validate_letterbox.
      */
-    void validate_validation(const ValidationSettings& settings);
+    [[nodiscard]] Status validate_validation(const ValidationSettings& settings);
 
     /**
      * @brief Produces validation samples: load, then letterbox. It draws nothing.
@@ -265,11 +279,14 @@ namespace SushiAI::Vision::Imaging
     {
         public:
             /**
-             * @brief Constructs a pipeline over a source.
-             * @param source Must outlive the pipeline and hold at least one image.
-             * @param settings Copied; must pass validate_validation, otherwise throws Error.
+             * @brief Builds a pipeline over a source.
+             * @param source Must outlive the pipeline.
+             * @param settings Copied.
+             * @return The pipeline, or InvalidDescription for settings validate_validation
+             *         refuses or a source that holds no image.
              */
-            ValidationPipeline(const SampleSource& source, const ValidationSettings& settings);
+            [[nodiscard]] static Result<ValidationPipeline> make(
+                const SampleSource& source, const ValidationSettings& settings);
 
             /** @brief Forbids copying, which would share the source and duplicate the images. */
             ValidationPipeline(const ValidationPipeline&) = delete;
@@ -289,17 +306,22 @@ namespace SushiAI::Vision::Imaging
             /**
              * @brief Produces the sample of one index, letterboxed to a target size.
              *
-             * Loads the image, resizes it with resize_long_side, makes it RGB, converts its
-             * labels to pixels, then plans and applies the letterbox.
+             * Loads the image, converts its labels, then plans and applies the letterbox.
              * @param target The size of the result: s by s, or a plan_rectangular_batches shape.
-             * @return The letterbox plan, whose ratio, left and top map a prediction back.
+             * @return The letterbox plan, which maps a prediction back, or the first failure.
+             * @pre @p index is below the source's size.
              */
-            LetterboxPlan make_sample(std::size_t index, ImageSize target, Sample& sample);
+            [[nodiscard]] Result<LetterboxPlan> make_sample(std::size_t index, ImageSize target,
+                                                            Sample& sample);
 
             /** @brief Returns the settings the pipeline was constructed with. */
             [[nodiscard]] const ValidationSettings& settings() const noexcept { return settings_; }
 
         private:
+            /** @brief Stores a source and settings that make() has checked. */
+            ValidationPipeline(const SampleSource& source,
+                               const ValidationSettings& settings) noexcept;
+
             /// @brief Points at the source, which the caller keeps alive.
             const SampleSource* source_ = nullptr;
 

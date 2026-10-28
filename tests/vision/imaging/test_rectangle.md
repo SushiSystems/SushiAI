@@ -51,11 +51,11 @@ ceil(0.75 * 640 / 32 + 0.5) * 32 and ceil(20.5) * 32.
 
 ## RejectsSettingsAndSizesOutsideTheirRanges
 
-`validate_rectangle` throws for a batch size, a stride or an image size of 0 and for a pad that
-is negative or NaN. `plan_rectangular_batches` throws for an empty size list ("no image") and
+`validate_rectangle` returns `InvalidDescription` for a batch size, a stride or an image size of 0 and for a pad that
+is negative or NaN. `plan_rectangular_batches` returns `InvalidDescription` for an empty size list ("no image") and
 for a size of 0 by 500 ("image 2", "0x500"). Default settings pass.
 
 ## RejectsAShapeAboveTheImageBound
 
 An image size of `K_MAX_IMAGE_SIDE` with pad 0.5 gives a side above the bound, and the call
-throws with "batch side" and "16384".
+returns `InvalidDescription` with "batch side" and "16384".

@@ -32,7 +32,8 @@
 #include <initializer_list>
 #include <limits>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/hsv.hpp>
 
 using namespace SushiAI;
@@ -48,6 +49,7 @@ using Vision::Imaging::RGBPixel;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Counts the seeds, 0 to this minus one, that a statistical test draws from. */
     constexpr std::uint64_t K_SEED_COUNT = 10000;
 
@@ -117,7 +119,7 @@ TEST(Small_ImagingHsv, PlanDrawsHueThenSaturationThenValueAndNothingMore)
     Random random(7);
     Random replay(7);
 
-    const HSVPlan plan = Vision::Imaging::plan_hsv(settings, random);
+    const HSVPlan plan = require_value(Vision::Imaging::plan_hsv(settings, random));
 
     const float hue = replay.uniform(-1.0f, 1.0f) * settings.hue_gain;
     const float saturation = replay.uniform(-1.0f, 1.0f) * settings.saturation_gain;
@@ -139,7 +141,7 @@ TEST(Small_ImagingHsv, DrawnGainsStayInsideTheConfiguredRangesOverManySeeds)
     for (std::uint64_t seed = 0; seed < K_SEED_COUNT; ++seed)
     {
         Random random(seed);
-        const HSVPlan plan = Vision::Imaging::plan_hsv(settings, random);
+        const HSVPlan plan = require_value(Vision::Imaging::plan_hsv(settings, random));
 
         ASSERT_GE(plan.hue, -settings.hue_gain) << seed;
         ASSERT_LT(plan.hue, settings.hue_gain) << seed;
@@ -174,7 +176,7 @@ TEST(Small_ImagingHsv, ZeroGainsDrawThreeTimesAndGiveAZeroPlan)
 
     Random random(11);
     Random replay(11);
-    const HSVPlan plan = Vision::Imaging::plan_hsv(settings, random);
+    const HSVPlan plan = require_value(Vision::Imaging::plan_hsv(settings, random));
 
     EXPECT_EQ(plan.hue, 0.0f);
     EXPECT_EQ(plan.saturation, 0.0f);
@@ -192,8 +194,10 @@ TEST(Small_ImagingHsv, PlanRejectsANegativeGain)
     HSVSettings settings;
     settings.saturation_gain = -0.5f;
 
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_hsv(settings, random), "validate_hsv", "gain");
-    SA_EXPECT_ERROR(Vision::Imaging::validate_hsv(settings), "validate_hsv", "gain", "-0.5");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_hsv(settings, random), StatusCode::InvalidDescription,
+                      "validate_hsv", "gain");
+    SA_EXPECT_FAILURE(Vision::Imaging::validate_hsv(settings), StatusCode::InvalidDescription,
+                      "validate_hsv", "gain", "-0.5");
     EXPECT_EQ(random, Random(1)) << "a rejected plan makes no draw";
 }
 
@@ -203,11 +207,13 @@ TEST(Small_ImagingHsv, PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw)
 
     HSVSettings infinite;
     infinite.hue_gain = std::numeric_limits<float>::infinity();
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_hsv(infinite, random), "validate_hsv", "gain");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_hsv(infinite, random), StatusCode::InvalidDescription,
+                      "validate_hsv", "gain");
 
     HSVSettings not_a_number;
     not_a_number.value_gain = std::numeric_limits<float>::quiet_NaN();
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_hsv(not_a_number, random), "validate_hsv", "gain");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_hsv(not_a_number, random),
+                      StatusCode::InvalidDescription, "validate_hsv", "gain");
 
     EXPECT_EQ(random, Random(2));
 }
@@ -215,8 +221,9 @@ TEST(Small_ImagingHsv, PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw)
 TEST(Small_ImagingHsv, SourceWithoutPixelsIsRejected)
 {
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_hsv(Vision::Imaging::ImageView{}, HSVPlan{},
-                                               destination),
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_hsv(Vision::Imaging::ImageView{},
+                                                                 HSVPlan{},
+                                               destination)),
                     "apply_hsv", "no pixels");
 }
 
@@ -225,7 +232,8 @@ TEST(Small_ImagingHsv, DestinationThatIsTheSourceIsRejected)
     Image image = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180}});
     const HSVPlan plan{0.25f, 0.5f, 0.5f};
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_hsv(image.view(), plan, image), "apply_hsv",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_hsv(image.view(), plan, image)),
+                    "apply_hsv",
                     "destination holds the source's pixels");
     expect_rgb(pixel_at(image, 0), RGBPixel{12, 200, 99});
     expect_rgb(pixel_at(image, 1), RGBPixel{250, 3, 180});
@@ -238,7 +246,8 @@ TEST(Small_ImagingHsv, ViewInsideTheDestinationIsRejected)
     const Vision::Imaging::ImageView second_pixel(image.data() + 3, ImageSize{1, 1}, 3);
     const HSVPlan plan{0.25f, 0.5f, 0.5f};
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_hsv(second_pixel, plan, image), "apply_hsv",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_hsv(second_pixel, plan, image)),
+                    "apply_hsv",
                     "destination holds the source's pixels");
     EXPECT_EQ(image.size(), (ImageSize{1, 2}));
     expect_rgb(pixel_at(image, 0), RGBPixel{12, 200, 99});
@@ -374,11 +383,10 @@ TEST(Small_ImagingHsv, WhiteStaysWhiteUnderASaturationGain)
 
 TEST(Small_ImagingHsv, ZeroPlanIsTheIdentityOnGreysPrimariesAndSecondaries)
 {
-    const Image source = make_row({RGBPixel{0, 0, 0}, RGBPixel{255, 255, 255},
-                                   RGBPixel{37, 37, 37}, RGBPixel{255, 0, 0},
-                                   RGBPixel{0, 255, 0}, RGBPixel{0, 0, 255},
-                                   RGBPixel{255, 255, 0}, RGBPixel{0, 255, 255},
-                                   RGBPixel{255, 0, 255}});
+    const Image source =
+        make_row({RGBPixel{0, 0, 0}, RGBPixel{255, 255, 255}, RGBPixel{37, 37, 37},
+                  RGBPixel{255, 0, 0}, RGBPixel{0, 255, 0}, RGBPixel{0, 0, 255}, RGBPixel{255, 255,
+                  0}, RGBPixel{0, 255, 255}, RGBPixel{255, 0, 255}});
 
     Image destination;
     Vision::Imaging::apply_hsv(source.view(), HSVPlan{}, destination);
@@ -418,7 +426,7 @@ TEST(Small_ImagingHsv, PlanOfZeroGainsCopiesTheImage)
     for (std::uint64_t seed = 0; seed < 64; ++seed)
     {
         Random random(seed);
-        const HSVPlan plan = Vision::Imaging::plan_hsv(settings, random);
+        const HSVPlan plan = require_value(Vision::Imaging::plan_hsv(settings, random));
         Image destination;
         Vision::Imaging::apply_hsv(source.view(), plan, destination);
 
@@ -451,8 +459,8 @@ TEST(Small_ImagingHsv, ValidateAcceptsZeroGainsAndTheDefaults)
     zero.saturation_gain = 0.0f;
     zero.value_gain = 0.0f;
 
-    EXPECT_NO_THROW(Vision::Imaging::validate_hsv(zero));
-    EXPECT_NO_THROW(Vision::Imaging::validate_hsv(HSVSettings{}));
+    SA_EXPECT_OK(Vision::Imaging::validate_hsv(zero));
+    SA_EXPECT_OK(Vision::Imaging::validate_hsv(HSVSettings{}));
 }
 
 TEST(Small_ImagingHsv, RoundTripMovesNoLevelByMoreThanItsBound)
@@ -469,9 +477,9 @@ TEST(Small_ImagingHsv, RoundTripMovesNoLevelByMoreThanItsBound)
                 ASSERT_LT(hsv.hue, K_HUE_STEPS);
 
                 const RGBPixel back = Vision::Imaging::to_rgb(hsv);
-                const std::int32_t distances[] = {level_distance(back.red, pixel.red),
-                                                  level_distance(back.green, pixel.green),
-                                                  level_distance(back.blue, pixel.blue)};
+                const std::int32_t distances[] =
+                    {level_distance(back.red, pixel.red), level_distance(back.green, pixel.green),
+                     level_distance(back.blue, pixel.blue)};
                 for (std::int32_t distance : distances)
                     worst = distance > worst ? distance : worst;
             }
@@ -496,8 +504,8 @@ TEST(Small_ImagingHsv, ImageWithoutThreeChannelsIsCopiedUnchanged)
 
 TEST(Small_ImagingHsv, SamePlanGivesTheSameImageTwice)
 {
-    const Image source = make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180},
-                                   RGBPixel{77, 77, 80}});
+    const Image source =
+        make_row({RGBPixel{12, 200, 99}, RGBPixel{250, 3, 180}, RGBPixel{77, 77, 80}});
     const HSVPlan plan{0.01f, -0.3f, 0.2f};
 
     Image first;

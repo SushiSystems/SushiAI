@@ -100,11 +100,10 @@ namespace SushiAI::Vision::Imaging
                     views[i] = patches_[i].view();
                 }
 
-                MosaicPlan plan =
-                    plan_mosaic(settings_.mosaic, trace.mosaic, settings_.image_size, sizes);
+                SA_TRY_ASSIGN(MosaicPlan plan, plan_mosaic(settings_.mosaic, trace.mosaic,
+                                                           settings_.image_size, sizes));
                 plan.fill_value = void_value_;
-                apply_mosaic(views, plan, canvas_);
-                return Status();
+                return apply_mosaic(views, plan, canvas_);
             }));
             warp_source = canvas_.view();
         }

@@ -32,7 +32,7 @@ A default `Labels` is empty, has size 0 and has no class, box or polygon.
 ## ConstructorsRejectListsOfDifferentLengths
 
 Two classes with one box, one class with two boxes, two objects with one polygon, and no class
-with one box all throw with a message containing "LabelSet" and the two counts.
+with one box all fail with a message containing "LabelSet" and the two counts.
 
 ## SetWithoutPolygonsHoldsOneEmptyPolygonPerObject
 

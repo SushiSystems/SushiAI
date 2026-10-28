@@ -77,8 +77,8 @@ other in fewer than 1 percent of the plans, so each axis has its own draw.
 
 ## PlanRejectsSettingsAndSizesOutsideTheirRanges
 
-A scale half-range of 1, -0.1 or NaN and a translate half-range of 0.6 or -0.1 throw with
-"validate_affine" or the field name. A source of 0 by 16 and an output of 16 by 0 throw with
+A scale half-range of 1, -0.1 or NaN and a translate half-range of 0.6 or -0.1 fail with
+"validate_affine" or the field name. A source of 0 by 16 and an output of 16 by 0 fail with
 "plan_affine" and the size. No rejected call makes a draw, and the default settings pass.
 
 ## IdentityPlanLeavesTheImageUnchanged
@@ -118,7 +118,7 @@ A translation of (1000, -1000) leaves every output byte at the border value 9.
 
 ## ImageWarpRejectsAPlanItCannotApply
 
-`apply_affine` on an image throws for a plan made for another source size, a matrix with an
+`apply_affine` on an image stops the process for a plan made for another source size, a matrix with an
 off-diagonal term, a diagonal term of 0, a matrix scale that is not the plan's scale, an
 infinite translation, a source without pixels, a source of five channels, the destination as
 its own source and a view of two rows of the destination. The aliased image keeps its bytes.
@@ -155,7 +155,7 @@ A 4 px wide box is kept with the default filter and removed when the plan's `min
 
 ## BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans
 
-`apply_affine` on labels throws for an off-diagonal matrix term and for a matrix scale that is
+`apply_affine` on labels stops the process for an off-diagonal matrix term and for a matrix scale that is
 not the plan's scale.
 
 ## FiltersDefaultToTheBoxAndThePolygonAreaRatios

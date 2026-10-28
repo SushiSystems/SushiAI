@@ -34,7 +34,9 @@
 #include <utility>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include "bilinear.hpp"
 
@@ -56,25 +58,25 @@ namespace SushiAI::Vision::Imaging
         };
 
         /**
-         * @brief Throws Error unless the plan's matrix is the plan's scale and a translation.
+         * @brief Stops the process unless the plan's matrix is the plan's scale and a translation.
          * @param operation Names the calling function at the start of the message.
          */
         void check_matrix(const AffinePlan& plan, std::string_view operation)
         {
             const std::array<float, 6>& m = plan.matrix;
 
-            SA_THROW_IF(!(m[0] > 0.0f) || !(m[4] > 0.0f) || !std::isfinite(m[0]) ||
+            SA_FATAL_IF(!(m[0] > 0.0f) || !(m[4] > 0.0f) || !std::isfinite(m[0]) ||
                             !std::isfinite(m[4]),
                         "{}: the matrix scales must be finite and above zero; got {} and {}",
                         operation, m[0], m[4]);
-            SA_THROW_IF(m[0] != plan.scale || m[4] != plan.scale,
+            SA_FATAL_IF(m[0] != plan.scale || m[4] != plan.scale,
                         "{}: the matrix scales {} and {} must equal the plan's scale {}",
                         operation, m[0], m[4], plan.scale);
-            SA_THROW_IF(m[1] != 0.0f || m[3] != 0.0f,
+            SA_FATAL_IF(m[1] != 0.0f || m[3] != 0.0f,
                         "{}: the warp is a scale and a translation only; the matrix has "
                         "off-diagonal terms {} and {}",
                         operation, m[1], m[3]);
-            SA_THROW_IF(!std::isfinite(m[2]) || !std::isfinite(m[5]),
+            SA_FATAL_IF(!std::isfinite(m[2]) || !std::isfinite(m[5]),
                         "{}: the matrix needs a finite translation; got {} and {}", operation,
                         m[2], m[5]);
         }
@@ -161,25 +163,28 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    void validate_affine(const AffineSettings& settings)
+    Status validate_affine(const AffineSettings& settings)
     {
-        SA_THROW_IF(!(settings.scale >= 0.0f && settings.scale < 1.0f),
-                    "validate_affine: a scale half-range of {} is outside [0, 1)", settings.scale);
-        SA_THROW_IF(!(settings.translate >= 0.0f && settings.translate <= 0.5f),
-                    "validate_affine: a translate half-range of {} is outside [0, 0.5]",
-                    settings.translate);
+        SA_FAIL_IF(!(settings.scale >= 0.0f && settings.scale < 1.0f),
+                   StatusCode::InvalidDescription,
+                   "validate_affine: a scale half-range of {} is outside [0, 1)", settings.scale);
+        SA_FAIL_IF(!(settings.translate >= 0.0f && settings.translate <= 0.5f),
+                   StatusCode::InvalidDescription,
+                   "validate_affine: a translate half-range of {} is outside [0, 0.5]",
+                   settings.translate);
+        return Status();
     }
 
-    AffinePlan plan_affine(const AffineSettings& settings, ImageSize source, ImageSize output,
-                           Random& random)
+    Result<AffinePlan> plan_affine(const AffineSettings& settings, ImageSize source,
+                                   ImageSize output, Random& random)
     {
-        validate_affine(settings);
-        SA_THROW_IF(!is_valid_size(source),
-                    "plan_affine: a source size of {}x{} is outside [1, {}]", source.height,
-                    source.width, K_MAX_IMAGE_SIDE);
-        SA_THROW_IF(!is_valid_size(output),
-                    "plan_affine: an output size of {}x{} is outside [1, {}]", output.height,
-                    output.width, K_MAX_IMAGE_SIDE);
+        SA_TRY(validate_affine(settings));
+        SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
+                   "plan_affine: a source size of {}x{} is outside [1, {}]", source.height,
+                   source.width, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(output), StatusCode::InvalidDescription,
+                   "plan_affine: an output size of {}x{} is outside [1, {}]", output.height,
+                   output.width, K_MAX_IMAGE_SIDE);
 
         AffinePlan plan;
         plan.source = source;
@@ -201,16 +206,16 @@ namespace SushiAI::Vision::Imaging
         plan.matrix = {plan.scale, 0.0f, plan.scale * center_x + plan.translate_x,
                        0.0f, plan.scale, plan.scale * center_y + plan.translate_y};
 
-        return plan;
+        return Result<AffinePlan>(plan);
     }
 
     void apply_affine(ImageView source, const AffinePlan& plan, Image& destination)
     {
         check_source(source, destination, "apply_affine");
-        SA_THROW_IF(source.size() != plan.source,
+        SA_FATAL_IF(source.size() != plan.source,
                     "apply_affine: the plan was made for a {}x{} source; the image is {}x{}",
                     plan.source.height, plan.source.width, source.height(), source.width());
-        SA_THROW_IF(!is_valid_size(plan.output),
+        SA_FATAL_IF(!is_valid_size(plan.output),
                     "apply_affine: an output size of {}x{} is outside [1, {}]", plan.output.height,
                     plan.output.width, K_MAX_IMAGE_SIDE);
         check_matrix(plan, "apply_affine");

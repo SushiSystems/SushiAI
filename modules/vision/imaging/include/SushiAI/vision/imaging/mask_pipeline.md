@@ -34,9 +34,10 @@ consistent. Only the sample's own mask is compared with its image.
 | `OutOfMemory` | An allocation fails |
 | Any other | What `MaskSource::load` returns |
 
-The settings must be the ones the `TrainingPipeline` was constructed with. The calls into
+The settings must be the ones the `TrainingPipeline` was made with. The calls into
 `resize_nearest`, `plan_mosaic`, `apply_mosaic` and `apply_flip` run under `Detail::guard`,
-which stops the process for an `Error`: after the checks above, one of them throwing is a
+which turns an allocation that fails into `OutOfMemory`. A check of `resize_nearest`,
+`apply_mosaic` or `apply_flip` that fails after the checks above stops the process: it is a
 defect of this unit.
 
 Both units are in `test_imaging_mask_pipeline.cpp`. The mosaic test gives image `i` one box

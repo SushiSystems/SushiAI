@@ -63,11 +63,11 @@ The plan's `padding_value` is that of the settings, at the default and at 7.
 
 ## PlanRejectsASideThatIsNotPositive
 
-A source of 0 by 8 and a target of 8 by -1 throw with "plan_letterbox" and the size.
+A source of 0 by 8 and a target of 8 by -1 fail with "plan_letterbox" and the size.
 
 ## PlanRejectsASideAboveTheImageBound
 
-A source height and a target width of 16385 throw with the size and "16384".
+A source height and a target width of 16385 fail with the size and "16384".
 
 ## ValidateAcceptsEverySetting
 
@@ -76,7 +76,7 @@ defaults.
 
 ## PlanRejectsAResizedSideOfZeroPixels
 
-A 1 by 1000 source in an 8 by 8 target resizes to a height of 0, and the plan throws with "zero
+A 1 by 1000 source in an 8 by 8 target resizes to a height of 0, and the plan returns `InvalidDescription` with "zero
 pixels".
 
 ## ImageWithoutResizeKeepsItsPixelsInsideThePadding
@@ -106,11 +106,11 @@ to be flat, since a flat rectangle cannot tell a resize from a fill.
 
 ## SourceWithoutPixelsIsRejected
 
-`apply_letterbox` on a default view throws with "apply_letterbox" and "no pixels".
+`apply_letterbox` on a default view stops the process with "apply_letterbox" and "no pixels".
 
 ## DestinationThatIsTheSourceIsRejected
 
-`apply_letterbox` with the image as source and destination throws with "destination holds the
+`apply_letterbox` with the image as source and destination stops the process with "destination holds the
 source's pixels", and the image keeps its size.
 
 ## ViewInsideTheDestinationIsRejected
@@ -131,11 +131,11 @@ A destination that was 9 by 9 and filled with 255 becomes 4 by 6 with content 50
 
 ## ImageOfAnotherSizeThanThePlanIsRejected
 
-A 2 by 4 source with a plan made for 4 by 4 throws with "plan was made for".
+A 2 by 4 source with a plan made for 4 by 4 stops the process with "plan was made for".
 
 ## PlanWhosePaddingsDoNotTileTheTargetIsRejected
 
-A plan whose right padding is raised by 1 throws with "tile".
+A plan whose right padding is raised by 1 stops the process with "tile".
 
 ## BoxesMoveByTheRatioThenTheLeftAndTopPadding
 

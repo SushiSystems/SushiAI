@@ -35,7 +35,9 @@
 #include <system_error>
 #include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -75,46 +77,55 @@ namespace SushiAI::Vision::Imaging
         }
 
         /**
-         * @brief Throws Error unless four header fields describe an image this format can hold.
-         *
+         * @brief Checks that four header fields describe an image this format can hold.
          * The fields are compared as the unsigned words of the file, so no arithmetic runs on
          * a value before its range is known.
          * @param operation Names the calling function at the start of the message.
+         * @param code The code of a refusal: InvalidFile for fields read from a file,
+         *             InvalidDescription for the fields of an image about to be written.
          */
-        void check_layout(std::uint32_t height, std::uint32_t width, std::uint32_t channels,
-                          std::uint32_t order, std::string_view operation)
+        Status check_layout(std::uint32_t height, std::uint32_t width, std::uint32_t channels,
+                            std::uint32_t order, std::string_view operation, StatusCode code)
         {
-            SA_THROW_IF(!is_valid_side(height), "{}: the height {} is outside [1, {}]", operation,
-                        height, K_MAX_IMAGE_SIDE);
-            SA_THROW_IF(!is_valid_side(width), "{}: the width {} is outside [1, {}]", operation,
-                        width, K_MAX_IMAGE_SIDE);
-            SA_THROW_IF(order > K_LAST_CHANNEL_ORDER, "{}: the channel order {} is unknown",
-                        operation, order);
+            SA_FAIL_IF(!is_valid_side(height), code, "{}: the height {} is outside [1, {}]",
+                       operation, height, K_MAX_IMAGE_SIDE);
+            SA_FAIL_IF(!is_valid_side(width), code, "{}: the width {} is outside [1, {}]",
+                       operation, width, K_MAX_IMAGE_SIDE);
+            SA_FAIL_IF(order > K_LAST_CHANNEL_ORDER, code, "{}: the channel order {} is unknown",
+                       operation, order);
 
             const bool is_gray = order == static_cast<std::uint32_t>(ChannelOrder::Gray);
             const std::uint32_t expected = is_gray ? K_GRAY_FILE_CHANNELS : K_COLOR_FILE_CHANNELS;
 
-            SA_THROW_IF(channels != expected,
-                        "{}: the channel count {} does not fit channel order {}, which has {}",
-                        operation, channels, order, expected);
+            SA_FAIL_IF(channels != expected, code,
+                       "{}: the channel count {} does not fit channel order {}, which has {}",
+                       operation, channels, order, expected);
+            return Status();
         }
 
-        /** @brief Throws Error unless a header's fields describe an image this format can hold. */
-        void check_header(const RawImageHeader& header, std::string_view operation)
+        /** @brief Checks that a header's fields describe an image this format can hold. */
+        Status check_header(const RawImageHeader& header, std::string_view operation,
+                            StatusCode code)
         {
-            check_layout(static_cast<std::uint32_t>(header.size.height),
-                         static_cast<std::uint32_t>(header.size.width),
-                         static_cast<std::uint32_t>(header.channels),
-                         static_cast<std::uint32_t>(header.order), operation);
+            return check_layout(static_cast<std::uint32_t>(header.size.height),
+                                static_cast<std::uint32_t>(header.size.width),
+                                static_cast<std::uint32_t>(header.channels),
+                                static_cast<std::uint32_t>(header.order), operation, code);
         }
 
-        /** @brief Throws Error unless a view has pixels this format can hold in the given order. */
-        void check_image(ImageView image, ChannelOrder order, std::string_view operation)
+        /**
+         * @brief Checks that a view has pixels this format can hold in the given order.
+         * @return InvalidDescription for a size, a channel count or an order the format cannot
+         *         hold.
+         * @pre The view has pixels.
+         */
+        Status check_image(ImageView image, ChannelOrder order, std::string_view operation)
         {
-            SA_THROW_IF(image.data() == nullptr, "{}: the image to write has no pixels",
+            SA_FATAL_IF(image.data() == nullptr, "{}: the image to write has no pixels",
                         operation);
 
-            check_header(RawImageHeader{image.size(), image.channels(), order}, operation);
+            return check_header(RawImageHeader{image.size(), image.channels(), order}, operation,
+                                StatusCode::InvalidDescription);
         }
 
         /** @brief Swaps channels 0 and 2 of every pixel of a three-channel image. */
@@ -128,9 +139,9 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    void write_raw_image(std::ostream& out, ImageView image, ChannelOrder order)
+    Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order)
     {
-        check_image(image, order, "write_raw_image");
+        SA_TRY(check_image(image, order, "write_raw_image"));
 
         char header[K_RAW_IMAGE_HEADER_BYTES];
         store_u32(header + 0 * K_FIELD_BYTES, K_RAW_IMAGE_MAGIC);
@@ -144,18 +155,21 @@ namespace SushiAI::Vision::Imaging
         out.write(reinterpret_cast<const char*>(image.data()),
                   static_cast<std::streamsize>(image.byte_count()));
 
-        SA_THROW_IF(!out, "write_raw_image: the stream failed while {} bytes were written",
-                    K_RAW_IMAGE_HEADER_BYTES + image.byte_count());
+        SA_FAIL_IF(!out, StatusCode::InvalidFile,
+                   "write_raw_image: the stream failed while {} bytes were written",
+                   K_RAW_IMAGE_HEADER_BYTES + image.byte_count());
+        return Status();
     }
 
-    RawImageHeader read_raw_image_header(std::istream& in)
+    Result<RawImageHeader> read_raw_image_header(std::istream& in)
     {
         char bytes[K_RAW_IMAGE_HEADER_BYTES];
         in.read(bytes, static_cast<std::streamsize>(K_RAW_IMAGE_HEADER_BYTES));
 
-        SA_THROW_IF(in.gcount() != static_cast<std::streamsize>(K_RAW_IMAGE_HEADER_BYTES),
-                    "read_raw_image_header: the header ended after {} of {} bytes", in.gcount(),
-                    K_RAW_IMAGE_HEADER_BYTES);
+        SA_FAIL_IF(in.gcount() != static_cast<std::streamsize>(K_RAW_IMAGE_HEADER_BYTES),
+                   StatusCode::InvalidFile,
+                   "read_raw_image_header: the header ended after {} of {} bytes", in.gcount(),
+                   K_RAW_IMAGE_HEADER_BYTES);
 
         const std::uint32_t magic = load_u32(bytes + 0 * K_FIELD_BYTES);
         const std::uint32_t version = load_u32(bytes + 1 * K_FIELD_BYTES);
@@ -164,74 +178,80 @@ namespace SushiAI::Vision::Imaging
         const std::uint32_t channels = load_u32(bytes + 4 * K_FIELD_BYTES);
         const std::uint32_t order = load_u32(bytes + 5 * K_FIELD_BYTES);
 
-        SA_THROW_IF(magic != K_RAW_IMAGE_MAGIC,
-                    "read_raw_image_header: the magic word is {}, not {}; this is not a raw image "
-                    "file",
-                    magic, K_RAW_IMAGE_MAGIC);
-        SA_THROW_IF(version != K_RAW_IMAGE_VERSION,
-                    "read_raw_image_header: the file has format version {}; this build reads "
-                    "version {}",
-                    version, K_RAW_IMAGE_VERSION);
-        check_layout(height, width, channels, order, "read_raw_image_header");
+        SA_FAIL_IF(magic != K_RAW_IMAGE_MAGIC, StatusCode::InvalidFile,
+                   "read_raw_image_header: the magic word is {}, not {}; this is not a raw image "
+                   "file",
+                   magic, K_RAW_IMAGE_MAGIC);
+        SA_FAIL_IF(version != K_RAW_IMAGE_VERSION, StatusCode::InvalidFile,
+                   "read_raw_image_header: the file has format version {}; this build reads "
+                   "version {}",
+                   version, K_RAW_IMAGE_VERSION);
+        SA_TRY(check_layout(height, width, channels, order, "read_raw_image_header",
+                            StatusCode::InvalidFile));
 
         RawImageHeader header;
         header.size.height = static_cast<std::int32_t>(height);
         header.size.width = static_cast<std::int32_t>(width);
         header.channels = static_cast<std::int32_t>(channels);
         header.order = static_cast<ChannelOrder>(order);
-        return header;
+        return Result<RawImageHeader>(header);
     }
 
-    void read_raw_image_pixels(std::istream& in, const RawImageHeader& header, Image& destination)
+    Status read_raw_image_pixels(std::istream& in, const RawImageHeader& header,
+                                 Image& destination)
     {
-        check_header(header, "read_raw_image_pixels");
+        SA_TRY(check_header(header, "read_raw_image_pixels", StatusCode::InvalidFile));
         destination.reset(header.size, header.channels);
 
         const std::streamsize byte_count = static_cast<std::streamsize>(header.pixel_bytes());
         in.read(reinterpret_cast<char*>(destination.data()), byte_count);
 
-        SA_THROW_IF(in.gcount() != byte_count,
-                    "read_raw_image_pixels: the pixels ended after {} of {} bytes", in.gcount(),
-                    byte_count);
+        SA_FAIL_IF(in.gcount() != byte_count, StatusCode::InvalidFile,
+                   "read_raw_image_pixels: the pixels ended after {} of {} bytes", in.gcount(),
+                   byte_count);
 
         if (header.order == ChannelOrder::BGR)
             swap_red_and_blue(destination);
+
+        return Status();
     }
 
-    void write_raw_image_file(const std::filesystem::path& path, ImageView image,
-                              ChannelOrder order)
+    Status write_raw_image_file(const std::filesystem::path& path, ImageView image,
+                                ChannelOrder order)
     {
         // The image is checked before the open, so a rejected image truncates no file.
-        check_image(image, order, "write_raw_image_file");
+        SA_TRY(check_image(image, order, "write_raw_image_file"));
 
         std::ofstream out(path, std::ios::binary | std::ios::trunc);
-        SA_THROW_IF(!out.is_open(), "write_raw_image_file: cannot open '{}' for writing",
-                    path.u8string());
+        SA_FAIL_IF(!out.is_open(), StatusCode::InvalidFile,
+                   "write_raw_image_file: cannot open '{}' for writing", path.u8string());
 
-        write_raw_image(out, image, order);
+        SA_TRY(write_raw_image(out, image, order));
         out.flush();
-        SA_THROW_IF(!out, "write_raw_image_file: writing '{}' failed", path.u8string());
+        SA_FAIL_IF(!out, StatusCode::InvalidFile, "write_raw_image_file: writing '{}' failed",
+                   path.u8string());
+        return Status();
     }
 
-    void read_raw_image_file(const std::filesystem::path& path, Image& destination)
+    Status read_raw_image_file(const std::filesystem::path& path, Image& destination)
     {
         std::ifstream in(path, std::ios::binary);
-        SA_THROW_IF(!in.is_open(), "read_raw_image_file: cannot open '{}' for reading",
-                    path.u8string());
+        SA_FAIL_IF(!in.is_open(), StatusCode::FileNotFound,
+                   "read_raw_image_file: cannot open '{}' for reading", path.u8string());
 
         std::error_code status;
         const std::uintmax_t file_bytes = std::filesystem::file_size(path, status);
-        SA_THROW_IF(static_cast<bool>(status),
-                    "read_raw_image_file: cannot read the size of '{}': {}", path.u8string(),
-                    status.message());
+        SA_FAIL_IF(static_cast<bool>(status), StatusCode::InvalidFile,
+                   "read_raw_image_file: cannot read the size of '{}': {}", path.u8string(),
+                   status.message());
 
-        const RawImageHeader header = read_raw_image_header(in);
+        SA_TRY_ASSIGN(const RawImageHeader header, read_raw_image_header(in));
         const std::uintmax_t expected_bytes = K_RAW_IMAGE_HEADER_BYTES + header.pixel_bytes();
 
-        SA_THROW_IF(file_bytes != expected_bytes,
-                    "read_raw_image_file: '{}' holds {} bytes; its header declares {}",
-                    path.u8string(), file_bytes, expected_bytes);
+        SA_FAIL_IF(file_bytes != expected_bytes, StatusCode::InvalidFile,
+                   "read_raw_image_file: '{}' holds {} bytes; its header declares {}",
+                   path.u8string(), file_bytes, expected_bytes);
 
-        read_raw_image_pixels(in, header, destination);
+        return read_raw_image_pixels(in, header, destination);
     }
 } // namespace SushiAI::Vision::Imaging

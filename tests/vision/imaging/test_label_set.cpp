@@ -30,7 +30,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 
 using namespace SushiAI;
@@ -38,6 +38,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance of a pixel coordinate, in pixels. */
     constexpr float K_PIXEL_TOLERANCE = 1e-3f;
 
@@ -104,10 +105,12 @@ TEST(Small_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
 {
     const PixelBox box{0.0f, 0.0f, 1.0f, 1.0f};
 
-    SA_EXPECT_ERROR(Labels({1, 2}, {box}), "LabelSet", "2 classes", "1 boxes");
-    SA_EXPECT_ERROR(Labels({1}, {box, box}), "LabelSet", "1 classes", "2 boxes");
-    SA_EXPECT_ERROR(Labels({1, 2}, {box, box}, {Polygon{}}), "LabelSet", "1 polygons");
-    SA_EXPECT_ERROR(FileLabels({}, {NormalizedBox{}}), "LabelSet", "0 classes", "1 boxes");
+    SA_EXPECT_FATAL(static_cast<void>(Labels({1, 2}, {box})), "LabelSet", "2 classes", "1 boxes");
+    SA_EXPECT_FATAL(static_cast<void>(Labels({1}, {box, box})), "LabelSet", "1 classes", "2 boxes");
+    SA_EXPECT_FATAL(static_cast<void>(Labels({1, 2}, {box, box}, {Polygon{}})), "LabelSet",
+                    "1 polygons");
+    SA_EXPECT_FATAL(static_cast<void>(FileLabels({}, {NormalizedBox{}})), "LabelSet", "0 classes",
+                    "1 boxes");
 }
 
 /** @brief Tests that a set built from classes and boxes gives each object an empty polygon. */
@@ -167,9 +170,9 @@ TEST(Small_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
 /** @brief Tests that to_pixel_labels converts every box and keeps classes and order. */
 TEST(Small_ImagingLabelSet, ToPixelLabelsKeepsClassesAndOrder)
 {
-    const FileLabels labels({7, 2, 7}, {NormalizedBox{0.5f, 0.25f, 0.5f, 0.25f},
-                                        NormalizedBox{0.25f, 0.5f, 0.25f, 0.5f},
-                                        NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f}});
+    const FileLabels labels({7, 2, 7},
+                            {NormalizedBox{0.5f, 0.25f, 0.5f, 0.25f}, NormalizedBox{0.25f, 0.5f,
+                            0.25f, 0.5f}, NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f}});
 
     const Labels pixels = to_pixel_labels(labels, K_SIZE);
 

@@ -31,6 +31,8 @@
 #include <cstdint>
 #include <vector>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
@@ -75,20 +77,21 @@ namespace SushiAI::Vision::Imaging
     };
 
     /**
-     * @brief Throws Error unless the sizes are positive and the pad is finite and not negative.
+     * @brief Returns InvalidDescription unless the sizes are positive and the pad is finite and
+     *        not negative.
      *
      * image_size must pass is_valid_side; batch_size and stride must be above zero.
      */
-    void validate_rectangle(const RectangleSettings& settings);
+    [[nodiscard]] Status validate_rectangle(const RectangleSettings& settings);
 
     /**
      * @brief Sorts images by aspect ratio and gives each batch one shape, as set_rectangle.
      *
-     * The sort is stable on height / width in double. A batch's unit shape is (largest, 1)
-     * when its largest ratio is below 1, (1, 1 / smallest) when its smallest is above 1, else
-     * (1, 1); a side is ceil(unit * image_size / stride + pad) * stride (data/base.py:405-427).
-     * @param sizes The stored size of each image, by dataset index; none may be invalid.
+     * Stable on height / width in double; rectangle.md gives the shapes (data/base.py:405-427).
+     * @param sizes The stored size of each image, by dataset index.
+     * @return The batches, or InvalidDescription for settings validate_rectangle refuses, no
+     *         image, an invalid image size or a batch side outside [1, K_MAX_IMAGE_SIDE].
      */
-    [[nodiscard]] RectangularBatches plan_rectangular_batches(const std::vector<ImageSize>& sizes,
-                                                              const RectangleSettings& settings);
+    [[nodiscard]] Result<RectangularBatches> plan_rectangular_batches(
+        const std::vector<ImageSize>& sizes, const RectangleSettings& settings);
 } // namespace SushiAI::Vision::Imaging

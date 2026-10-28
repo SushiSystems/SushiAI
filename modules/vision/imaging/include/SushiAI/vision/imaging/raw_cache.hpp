@@ -33,6 +33,8 @@
 #include <iosfwd>
 #include <string_view>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
@@ -81,46 +83,50 @@ namespace SushiAI::Vision::Imaging
     /**
      * @brief Writes the header and the pixels of one image, field by field, little-endian.
      *
-     * Throws Error when the view is empty, when its channel count does not fit the order,
-     * when a side exceeds K_MAX_IMAGE_SIDE or when the stream fails.
+     * @return InvalidDescription when the view's channel count does not fit the order or a side
+     *         is outside [1, K_MAX_IMAGE_SIDE], or InvalidFile when the stream fails.
+     * @pre The view has pixels.
      * @param order The order the view's channels are in; the bytes are written as they are.
      */
-    void write_raw_image(std::ostream& out, ImageView image, ChannelOrder order);
+    [[nodiscard]] Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order);
 
     /**
      * @brief Reads and validates a header, allocating nothing.
      *
-     * Throws Error naming the cause on a short read, a wrong magic, a version other than
-     * the ones this build reads (the message names both versions), a side outside
-     * [1, K_MAX_IMAGE_SIDE], an unknown order, or a channel count that does not fit it.
+     * @return The header, or InvalidFile naming the cause on a short read, a wrong magic, a
+     *         version other than the ones this build reads (the message names both versions), a
+     *         side outside [1, K_MAX_IMAGE_SIDE], an unknown order, or a channel count that does
+     *         not fit it.
      */
-    [[nodiscard]] RawImageHeader read_raw_image_header(std::istream& in);
+    [[nodiscard]] Result<RawImageHeader> read_raw_image_header(std::istream& in);
 
     /**
      * @brief Reads the pixels that follow a header into an RGB or single-channel image.
      *
-     * A BGR file has channels 0 and 2 swapped as it is read. Throws Error when the stream
-     * ends before header.pixel_bytes() bytes.
+     * A BGR file has channels 0 and 2 swapped as it is read.
      * @param header The value read_raw_image_header returned for this stream.
      * @param destination Reset to the header's size and channels.
+     * @return InvalidFile when the stream ends before header.pixel_bytes() bytes.
      */
-    void read_raw_image_pixels(std::istream& in, const RawImageHeader& header,
-                               Image& destination);
+    [[nodiscard]] Status read_raw_image_pixels(std::istream& in, const RawImageHeader& header,
+                                               Image& destination);
 
     /**
      * @brief Writes one image to a file, replacing the file when it exists.
      *
-     * Throws Error on what write_raw_image rejects and when the file cannot be opened.
+     * @return What write_raw_image returns, or InvalidFile when the file cannot be opened.
      */
-    void write_raw_image_file(const std::filesystem::path& path, ImageView image,
-                              ChannelOrder order);
+    [[nodiscard]] Status write_raw_image_file(const std::filesystem::path& path, ImageView image,
+                                              ChannelOrder order);
 
     /**
      * @brief Reads one image file into an RGB or single-channel image.
      *
-     * Throws Error when the file cannot be opened, on what read_raw_image_header rejects,
-     * and when the file size is not K_RAW_IMAGE_HEADER_BYTES + pixel_bytes(). The size is
-     * checked before destination is reset.
+     * @return FileNotFound when the file cannot be opened, InvalidFile for what
+     *         read_raw_image_header rejects and when the file size is not
+     *         K_RAW_IMAGE_HEADER_BYTES + pixel_bytes(). The size is checked before destination
+     *         is reset.
      */
-    void read_raw_image_file(const std::filesystem::path& path, Image& destination);
+    [[nodiscard]] Status read_raw_image_file(const std::filesystem::path& path,
+                                             Image& destination);
 } // namespace SushiAI::Vision::Imaging

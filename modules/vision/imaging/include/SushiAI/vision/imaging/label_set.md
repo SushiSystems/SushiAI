@@ -4,7 +4,7 @@
 ## LabelSet, FileLabels, Labels
 
 `LabelSet<Box>` owns three lists of equal length: classes, boxes, polygons. The constructors
-throw when the lengths differ, `add` appends to all three and `keep_if` removes from all three,
+stop the process when the lengths differ, `add` appends to all three and `keep_if` removes from all three,
 so no transform checks the lengths. `box(i)` and `polygon(i)` give one entry for writing; no
 member changes one list's length alone.
 

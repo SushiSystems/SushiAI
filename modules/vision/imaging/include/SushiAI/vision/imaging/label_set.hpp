@@ -39,7 +39,7 @@
 /** @brief Holds the units of the imaging module that no caller names. */
 namespace SushiAI::Vision::Imaging::Detail
 {
-    /** @brief Throws Error unless a label set has one box and one polygon entry per class. */
+    /** @brief Stops the process unless a label set has one box and one polygon entry per class. */
     void check_label_counts(std::size_t classes, std::size_t boxes, std::size_t polygons);
 } // namespace SushiAI::Vision::Imaging::Detail
 

@@ -80,40 +80,40 @@ file's bytes.
 
 ## HeaderRejectsAWrongMagic
 
-A header that starts with the PNG signature bytes throws with "magic" and "not a raw image
+A header that starts with the PNG signature bytes returns `InvalidFile` with "magic" and "not a raw image
 file".
 
 ## HeaderRejectsANewerVersionAndNamesBoth
 
-Version 2 throws with "format version 2" and "reads version 1".
+Version 2 returns `InvalidFile` with "format version 2" and "reads version 1".
 
 ## HeaderRejectsVersionZero
 
-Version 0 throws with "format version 0" and "reads version 1".
+Version 0 returns `InvalidFile` with "format version 0" and "reads version 1".
 
 ## HeaderRejectsATruncatedHeader
 
-A stream of 23 bytes throws with "header ended" and "23 of 24".
+A stream of 23 bytes returns `InvalidFile` with "header ended" and "23 of 24".
 
 ## HeaderRejectsAnEmptyStream
 
-An empty stream throws with "header ended" and "0 of 24".
+An empty stream returns `InvalidFile` with "header ended" and "0 of 24".
 
 ## HeaderRejectsAZeroHeight
 
-A height of 0 throws with "height 0" and "16384".
+A height of 0 returns `InvalidFile` with "height 0" and "16384".
 
 ## HeaderRejectsAZeroWidth
 
-A width of 0 throws with "width 0" and "16384".
+A width of 0 returns `InvalidFile` with "width 0" and "16384".
 
 ## HeaderRejectsAHeightAboveTheLimit
 
-A height of 16385 throws with "height 16385".
+A height of 16385 returns `InvalidFile` with "height 16385".
 
 ## HeaderRejectsAWidthAboveTheLimit
 
-A width of 16385 throws with "width 16385".
+A width of 16385 returns `InvalidFile` with "width 16385".
 
 ## HeaderAcceptsBothSidesAtTheLimit
 
@@ -121,59 +121,59 @@ A 16384 by 16384 RGB header is accepted, and `pixel_bytes()` is 805306368.
 
 ## HeaderRejectsExtentsWhoseProductWouldOverflow
 
-Extents of 0xFFFFFFFF throw with "height 4294967295". The extent is checked before any product
+Extents of 0xFFFFFFFF fail with "height 4294967295". The extent is checked before any product
 is formed.
 
 ## HeaderRejectsAnExtentWithTheSignBitSet
 
-A width of 0x80000001 throws with "width 2147483649". The word is read as unsigned and is not
+A width of 0x80000001 returns `InvalidFile` with "width 2147483649". The word is read as unsigned and is not
 taken for a negative number.
 
 ## HeaderRejectsAnUnknownChannelOrder
 
-A channel order of 3 throws with "channel order 3" and "unknown".
+A channel order of 3 returns `InvalidFile` with "channel order 3" and "unknown".
 
 ## HeaderRejectsThreeChannelsInAGrayFile
 
-Three channels with order 0 throw with "channel count 3" and "channel order 0".
+Three channels with order 0 fail with "channel count 3" and "channel order 0".
 
 ## HeaderRejectsOneChannelInAnRGBFile
 
-One channel with order 1 throws with "channel count 1" and "channel order 1".
+One channel with order 1 returns `InvalidFile` with "channel count 1" and "channel order 1".
 
 ## HeaderRejectsFourChannels
 
-Four channels throw with "channel count 4".
+Four channels fail with "channel count 4".
 
 ## HeaderRejectsZeroChannels
 
-Zero channels with order 2 throw with "channel count 0" and "channel order 2".
+Zero channels with order 2 fail with "channel count 0" and "channel order 2".
 
 ## PixelsRejectAStreamThatEndsEarly
 
-A stream one byte short of its pixels throws with "pixels ended" and "11 of 12".
+A stream one byte short of its pixels returns `InvalidFile` with "pixels ended" and "11 of 12".
 
 ## PixelsRejectAHeaderTheReaderDidNotValidate
 
-`read_raw_image_pixels` given a hand-built header of height 0 throws with "height 0" and leaves
+`read_raw_image_pixels` given a hand-built header of height 0 returns `InvalidFile` with "height 0" and leaves
 the destination as it was.
 
 ## WriterRejectsAnEmptyView
 
-A default view throws with "no pixels" and nothing is written.
+A default view returns `InvalidDescription` with "no pixels" and nothing is written.
 
 ## WriterRejectsAChannelCountThatDoesNotFitTheOrder
 
-One channel with `RGB` or `BGR` and three channels with `Gray` throw with the channel count,
+One channel with `RGB` or `BGR` and three channels with `Gray` fail with the channel count,
 and nothing is written.
 
 ## WriterRejectsASideAboveTheLimit
 
-A view 16385 px wide throws with "width 16385" and nothing is written.
+A view 16385 px wide returns `InvalidDescription` with "width 16385" and nothing is written.
 
 ## WriterReportsAFailedStream
 
-Writing to a stream whose bad bit is set throws with "stream failed".
+Writing to a stream whose bad bit is set returns `InvalidFile` with "stream failed".
 
 ## ImageRoundTripsThroughAFile
 
@@ -187,38 +187,38 @@ reads back as the 1 by 1 image.
 
 ## FileWriterLeavesTheFileAloneWhenItRejectsTheImage
 
-A write that throws for its channel count leaves an existing four-byte file at four bytes. The
+A write that returns `InvalidDescription` for its channel count leaves an existing four-byte file at four bytes. The
 image is checked before the file is opened.
 
 ## FileWriterRejectsAPathItCannotOpen
 
-A path inside a directory that does not exist throws with "cannot open".
+A path inside a directory that does not exist returns `InvalidFile` with "cannot open".
 
 ## FileReaderRejectsAMissingFile
 
-A missing file throws with "cannot open" and the file name, and the destination is untouched.
+A missing file returns `FileNotFound` with "cannot open" and the file name, and the destination is untouched.
 
 ## FileReaderRejectsATruncatedHeader
 
-A file of 10 bytes throws with "header ended" and "10 of 24", and the destination is untouched.
+A file of 10 bytes returns `InvalidFile` with "header ended" and "10 of 24", and the destination is untouched.
 
 ## FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination
 
-A file one byte short throws with "holds 35 bytes" and "declares 36", and the destination is
+A file one byte short returns `InvalidFile` with "holds 35 bytes" and "declares 36", and the destination is
 untouched.
 
 ## FileReaderRejectsTrailingBytesBeforeResettingTheDestination
 
-A file with one byte after its pixels throws with "holds 37 bytes" and "declares 36", and the
+A file with one byte after its pixels returns `InvalidFile` with "holds 37 bytes" and "declares 36", and the
 destination is untouched.
 
 ## FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold
 
-A file that is only a header declaring 16384 by 16384 pixels throws with "holds 24 bytes" and
+A file that is only a header declaring 16384 by 16384 pixels returns `InvalidFile` with "holds 24 bytes" and
 "declares 805306392". The destination is untouched, so the reader compares the file size with
 the header before it allocates.
 
 ## FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination
 
-A file whose header has extents of 0xFFFFFFFF throws with "height 4294967295", and the
+A file whose header has extents of 0xFFFFFFFF returns `InvalidFile` with "height 4294967295", and the
 destination is untouched.

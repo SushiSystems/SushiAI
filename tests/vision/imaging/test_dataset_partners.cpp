@@ -33,17 +33,21 @@
 #include <initializer_list>
 #include <limits>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/recent_partners.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
+using SushiAI::Test::require_value;
 
 /** @brief Tests that the dataset source returns three index draws in draw order. */
 TEST(Small_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
 {
-    DatasetPartners partners(1000);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(1000));
+    DatasetPartners& partners = *partners_owner;
     Random random(20261007u);
     Random replica = random;
 
@@ -59,7 +63,9 @@ TEST(Small_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
 TEST(Small_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
 {
     const std::size_t dataset_size = 7;
-    DatasetPartners partners(dataset_size);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(dataset_size));
+    DatasetPartners& partners = *partners_owner;
     std::array<bool, 7> seen{};
 
     for (std::uint64_t seed = 0; seed < 300; ++seed)
@@ -79,8 +85,10 @@ TEST(Small_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
 /** @brief Tests that earlier calls do not change what the dataset source gives a generator. */
 TEST(Small_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
 {
-    DatasetPartners used(50);
-    DatasetPartners fresh(50);
+    const std::unique_ptr<DatasetPartners> used_owner = require_value(DatasetPartners::make(50));
+    DatasetPartners& used = *used_owner;
+    const std::unique_ptr<DatasetPartners> fresh_owner = require_value(DatasetPartners::make(50));
+    DatasetPartners& fresh = *fresh_owner;
     Random warm(9u);
     Random first(77u);
     Random second(77u);
@@ -95,13 +103,16 @@ TEST(Small_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
 TEST(Small_ImagingPartners, DatasetSourceRejectsSizesAndIndicesOutOfRange)
 {
     const std::size_t largest = std::numeric_limits<std::uint32_t>::max();
-    DatasetPartners partners(4);
+    const std::unique_ptr<DatasetPartners> partners_owner = require_value(DatasetPartners::make(4));
+    DatasetPartners& partners = *partners_owner;
     Random random(1u);
 
-    SA_EXPECT_ERROR(DatasetPartners(0), "DatasetPartners", "dataset size of 0");
-    SA_EXPECT_ERROR(DatasetPartners(largest + 1), "DatasetPartners", "dataset size");
-    EXPECT_NO_THROW(static_cast<void>(DatasetPartners(largest)));
-    SA_EXPECT_ERROR(static_cast<void>(partners.choose(4, random)), "DatasetPartners::choose",
+    SA_EXPECT_FAILURE(DatasetPartners::make(0), StatusCode::InvalidDescription, "DatasetPartners",
+                      "dataset size of 0");
+    SA_EXPECT_FAILURE(DatasetPartners::make(largest + 1), StatusCode::InvalidDescription,
+                      "DatasetPartners", "dataset size");
+    SA_EXPECT_OK(DatasetPartners::make(largest));
+    SA_EXPECT_FATAL(static_cast<void>(partners.choose(4, random)), "DatasetPartners::choose",
                     "index 4");
     EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
 }

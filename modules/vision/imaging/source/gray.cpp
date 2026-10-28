@@ -29,16 +29,17 @@
 
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
-    void expand_gray(ImageView source, Image& destination)
+    Status expand_gray(ImageView source, Image& destination)
     {
         check_source(source, destination, "expand_gray");
-        SA_THROW_IF(source.channels() != K_GRAY_CHANNELS,
-                    "expand_gray: the source has {} channels; a grey image has {}",
-                    source.channels(), K_GRAY_CHANNELS);
+        SA_FAIL_IF(source.channels() != K_GRAY_CHANNELS, StatusCode::InvalidDescription,
+                   "expand_gray: the source has {} channels; a grey image has {}",
+                   source.channels(), K_GRAY_CHANNELS);
 
         destination.reset(source.size(), K_RGB_CHANNELS);
 
@@ -52,5 +53,7 @@ namespace SushiAI::Vision::Imaging
             out[1] = *in;
             out[2] = *in;
         }
+
+        return Status();
     }
 } // namespace SushiAI::Vision::Imaging

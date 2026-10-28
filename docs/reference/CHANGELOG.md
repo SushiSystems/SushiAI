@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- 2026-10-28 — imaging: Breaking change: Made the `validate_*` functions return a `Status` (`affine.hpp`, `mosaic.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `plan_affine`, `plan_flip` and `plan_hsv` return a `Result` (`affine.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `plan_letterbox`, `plan_mosaic` and `draw_mosaic` return a `Result` (`mosaic.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `plan_rectangular_batches` and `parse_label_text` return a `Result` (`rectangle.hpp`, `labels.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `resize_bilinear`, `resize_long_side` and `expand_gray` return a `Status` (`resize.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `apply_mosaic` return a `Status` (`mosaic.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made the raw image readers and writers return a `Status` and `read_raw_image_header` a `Result` (`raw_cache.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `Image`, `check_source`, the `apply_*` functions and `LabelSet` stop the process for a handle that does not fit (`image.hpp`).
+- 2026-10-28 — imaging: Breaking change: Replaced the constructors of the partner sources and the two pipelines with `make`, which returns a `Result` (`pipeline.hpp`).
+- 2026-10-28 — imaging: Breaking change: Made `SampleSource::load` and `make_sample` report a failure through a `Status` or a `Result` (`pipeline.hpp`).
 - 2026-10-28 — detect: Breaking change: Made `match_detections` and `AveragePrecision::add_image` return a `Status` (`average_precision.hpp`).
 - 2026-10-28 — detect: Breaking change: Made `make_anchors` and `build_anchor_leaves` return a `Status` (`free/anchors.hpp`).
 - 2026-10-28 — detect: Breaking change: Made `join_level` and `split_level` return a `Status` (`free/level_rows.hpp`).

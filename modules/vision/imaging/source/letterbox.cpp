@@ -33,7 +33,9 @@
 #include <cstring>
 #include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include "bilinear.hpp"
 
@@ -75,16 +77,16 @@ namespace SushiAI::Vision::Imaging
         static_cast<void>(settings);
     }
 
-    LetterboxPlan plan_letterbox(const LetterboxSettings& settings, ImageSize source,
-                                 ImageSize target)
+    Result<LetterboxPlan> plan_letterbox(const LetterboxSettings& settings, ImageSize source,
+                                         ImageSize target)
     {
         validate_letterbox(settings);
-        SA_THROW_IF(!is_valid_size(source),
-                    "plan_letterbox: a source size of {}x{} is outside [1, {}]", source.height,
-                    source.width, K_MAX_IMAGE_SIDE);
-        SA_THROW_IF(!is_valid_size(target),
-                    "plan_letterbox: a target size of {}x{} is outside [1, {}]", target.height,
-                    target.width, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
+                   "plan_letterbox: a source size of {}x{} is outside [1, {}]", source.height,
+                   source.width, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(target), StatusCode::InvalidDescription,
+                   "plan_letterbox: a target size of {}x{} is outside [1, {}]", target.height,
+                   target.width, K_MAX_IMAGE_SIDE);
 
         double ratio = std::min(static_cast<double>(target.height) / source.height,
                                 static_cast<double>(target.width) / source.width);
@@ -99,10 +101,11 @@ namespace SushiAI::Vision::Imaging
         plan.resized.width = round_half_even(source.width * ratio);
         plan.padding_value = settings.padding_value;
 
-        SA_THROW_IF(plan.resized.height <= 0 || plan.resized.width <= 0,
-                    "plan_letterbox: a {}x{} source in a {}x{} target leaves a resized side of "
-                    "zero pixels",
-                    source.height, source.width, target.height, target.width);
+        SA_FAIL_IF(plan.resized.height <= 0 || plan.resized.width <= 0,
+                   StatusCode::InvalidDescription,
+                   "plan_letterbox: a {}x{} source in a {}x{} target leaves a resized side of "
+                   "zero pixels",
+                   source.height, source.width, target.height, target.width);
 
         const std::int32_t pad_height = target.height - plan.resized.height;
         const std::int32_t pad_width = target.width - plan.resized.width;
@@ -111,16 +114,16 @@ namespace SushiAI::Vision::Imaging
         plan.bottom = pad_height - plan.top;
         plan.left = pad_width / 2;
         plan.right = pad_width - plan.left;
-        return plan;
+        return Result<LetterboxPlan>(plan);
     }
 
     void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination)
     {
         check_source(source, destination, "apply_letterbox");
-        SA_THROW_IF(source.size() != plan.source,
+        SA_FATAL_IF(source.size() != plan.source,
                     "apply_letterbox: the plan was made for a {}x{} source; the image is {}x{}",
                     plan.source.height, plan.source.width, source.height(), source.width());
-        SA_THROW_IF(!is_tiling(plan),
+        SA_FATAL_IF(!is_tiling(plan),
                     "apply_letterbox: the resized size {}x{} and the paddings do not tile the "
                     "target {}x{}",
                     plan.resized.height, plan.resized.width, plan.target.height,

@@ -31,12 +31,14 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
 
 using SushiAI::Vision::Imaging::Random;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the seed of every statistical case in this file. */
     constexpr std::uint64_t K_SEED = 2026;
 

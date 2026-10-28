@@ -31,32 +31,37 @@
 #include <cstring>
 #include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
-    void validate_flip(const FlipSettings& settings)
+    Status validate_flip(const FlipSettings& settings)
     {
-        SA_THROW_IF(!(settings.probability >= 0.0f && settings.probability <= 1.0f),
-                    "validate_flip: a probability of {} is outside [0, 1]", settings.probability);
+        SA_FAIL_IF(!(settings.probability >= 0.0f && settings.probability <= 1.0f),
+                   StatusCode::InvalidDescription,
+                   "validate_flip: a probability of {} is outside [0, 1]", settings.probability);
+        return Status();
     }
 
-    FlipPlan plan_flip(const FlipSettings& settings, ImageSize source, Random& random)
+    Result<FlipPlan> plan_flip(const FlipSettings& settings, ImageSize source, Random& random)
     {
-        validate_flip(settings);
-        SA_THROW_IF(!is_valid_size(source), "plan_flip: a source size of {}x{} is outside [1, {}]",
-                    source.height, source.width, K_MAX_IMAGE_SIDE);
+        SA_TRY(validate_flip(settings));
+        SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
+                   "plan_flip: a source size of {}x{} is outside [1, {}]", source.height,
+                   source.width, K_MAX_IMAGE_SIDE);
 
         FlipPlan plan;
         plan.source = source;
         plan.is_flipped = random.bernoulli(settings.probability);
-        return plan;
+        return Result<FlipPlan>(plan);
     }
 
     void apply_flip(ImageView source, const FlipPlan& plan, Image& destination)
     {
         check_source(source, destination, "apply_flip");
-        SA_THROW_IF(source.size() != plan.source,
+        SA_FATAL_IF(source.size() != plan.source,
                     "apply_flip: the plan was made for a {}x{} source; the image is {}x{}",
                     plan.source.height, plan.source.width, source.height(), source.width());
 

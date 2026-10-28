@@ -31,7 +31,8 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/rectangle.hpp>
 
 using namespace SushiAI;
@@ -39,6 +40,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns seven image sizes with ratios below, at and above one, two of them equal. */
     std::vector<ImageSize> make_sizes()
     {
@@ -72,7 +74,7 @@ TEST(Small_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
 TEST(Small_ImagingRectangle, OrderRisesWithTheAspectRatioAndKeepsTies)
 {
     const RectangularBatches batches =
-        plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5));
+        require_value(plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5)));
 
     // Images 0 and 5 both have a ratio of 0.75 and stay in dataset order.
     EXPECT_EQ(batches.order, (std::vector<std::size_t>{6, 3, 0, 5, 2, 1, 4}));
@@ -85,14 +87,19 @@ TEST(Small_ImagingRectangle, ShapesMatchTheReferenceArithmetic)
     // data/base.py:405-427 run on these sizes with numpy gives the shapes below.
     const std::vector<ImageSize> sizes = make_sizes();
 
-    const RectangularBatches padded = plan_rectangular_batches(sizes, make_settings(3, 640, 0.5));
-    const RectangularBatches tight = plan_rectangular_batches(sizes, make_settings(2, 640, 0.0));
-    const RectangularBatches single = plan_rectangular_batches(sizes, make_settings(7, 320, 0.5));
+    const RectangularBatches padded =
+        require_value(plan_rectangular_batches(sizes, make_settings(3, 640, 0.5)));
+    const RectangularBatches tight =
+        require_value(plan_rectangular_batches(sizes, make_settings(2, 640, 0.0)));
+    const RectangularBatches single =
+        require_value(plan_rectangular_batches(sizes, make_settings(7, 320, 0.5)));
 
-    EXPECT_EQ(padded.shapes, (std::vector<ImageSize>{ImageSize{512, 672}, ImageSize{672, 672},
-                                                     ImageSize{672, 448}}));
-    EXPECT_EQ(tight.shapes, (std::vector<ImageSize>{ImageSize{448, 640}, ImageSize{480, 640},
-                                                    ImageSize{640, 640}, ImageSize{640, 448}}));
+    EXPECT_EQ(padded.shapes,
+              (std::vector<ImageSize>{ImageSize{512, 672}, ImageSize{672, 672}, ImageSize{672,
+              448}}));
+    EXPECT_EQ(tight.shapes,
+              (std::vector<ImageSize>{ImageSize{448, 640}, ImageSize{480, 640}, ImageSize{640, 640},
+              ImageSize{640, 448}}));
     EXPECT_EQ(single.shapes, (std::vector<ImageSize>{ImageSize{352, 352}}));
 }
 
@@ -100,7 +107,7 @@ TEST(Small_ImagingRectangle, ShapesMatchTheReferenceArithmetic)
 TEST(Small_ImagingRectangle, ShapeAtNamesTheBatchOfAPosition)
 {
     const RectangularBatches batches =
-        plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5));
+        require_value(plan_rectangular_batches(make_sizes(), make_settings(3, 640, 0.5)));
 
     ASSERT_EQ(batches.shapes.size(), 3u);
     EXPECT_EQ(batches.shape_at(0), (ImageSize{512, 672}));
@@ -115,7 +122,8 @@ TEST(Small_ImagingRectangle, EverySideIsAMultipleOfTheStride)
     RectangleSettings settings = make_settings(2, 600, 0.5);
     settings.stride = 64;
 
-    const RectangularBatches batches = plan_rectangular_batches(make_sizes(), settings);
+    const RectangularBatches batches =
+        require_value(plan_rectangular_batches(make_sizes(), settings));
 
     ASSERT_EQ(batches.shapes.size(), 4u);
     for (const ImageSize shape : batches.shapes)
@@ -131,7 +139,7 @@ TEST(Small_ImagingRectangle, EverySideIsAMultipleOfTheStride)
 TEST(Small_ImagingRectangle, OneWideImageGivesOneWideShape)
 {
     const RectangularBatches batches =
-        plan_rectangular_batches({ImageSize{480, 640}}, make_settings(32, 640, 0.5));
+        require_value(plan_rectangular_batches({ImageSize{480, 640}}, make_settings(32, 640, 0.5)));
 
     // ceil(0.75 * 640 / 32 + 0.5) * 32 = 16 * 32 and ceil(20.5) * 32 = 21 * 32.
     EXPECT_EQ(batches.order, (std::vector<std::size_t>{0}));
@@ -155,18 +163,24 @@ TEST(Small_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
     std::vector<ImageSize> flat = sizes;
     flat[2] = ImageSize{0, 500};
 
-    SA_EXPECT_ERROR(validate_rectangle(no_batch), "validate_rectangle", "batch_size of 0");
-    SA_EXPECT_ERROR(static_cast<void>(plan_rectangular_batches(sizes, no_batch)),
-                    "validate_rectangle", "batch_size");
-    SA_EXPECT_ERROR(validate_rectangle(no_stride), "validate_rectangle", "stride of 0");
-    SA_EXPECT_ERROR(validate_rectangle(no_size), "validate_rectangle", "image_size of 0");
-    SA_EXPECT_ERROR(validate_rectangle(negative_pad), "validate_rectangle", "pad");
-    SA_EXPECT_ERROR(validate_rectangle(undefined_pad), "validate_rectangle", "pad");
-    SA_EXPECT_ERROR(static_cast<void>(plan_rectangular_batches({}, RectangleSettings{})),
-                    "plan_rectangular_batches", "no image");
-    SA_EXPECT_ERROR(static_cast<void>(plan_rectangular_batches(flat, RectangleSettings{})),
-                    "plan_rectangular_batches", "image 2", "0x500");
-    EXPECT_NO_THROW(validate_rectangle(RectangleSettings{}));
+    SA_EXPECT_FAILURE(validate_rectangle(no_batch), StatusCode::InvalidDescription,
+                      "validate_rectangle", "batch_size of 0");
+    SA_EXPECT_FAILURE(plan_rectangular_batches(sizes, no_batch),
+                      StatusCode::InvalidDescription, "validate_rectangle", "batch_size");
+    SA_EXPECT_FAILURE(validate_rectangle(no_stride), StatusCode::InvalidDescription,
+                      "validate_rectangle", "stride of 0");
+    SA_EXPECT_FAILURE(validate_rectangle(no_size), StatusCode::InvalidDescription,
+                      "validate_rectangle", "image_size of 0");
+    SA_EXPECT_FAILURE(validate_rectangle(negative_pad), StatusCode::InvalidDescription,
+                      "validate_rectangle", "pad");
+    SA_EXPECT_FAILURE(validate_rectangle(undefined_pad), StatusCode::InvalidDescription,
+                      "validate_rectangle", "pad");
+    SA_EXPECT_FAILURE(plan_rectangular_batches({}, RectangleSettings{}),
+                      StatusCode::InvalidDescription, "plan_rectangular_batches", "no image");
+    SA_EXPECT_FAILURE(plan_rectangular_batches(flat, RectangleSettings{}),
+                      StatusCode::InvalidDescription, "plan_rectangular_batches", "image 2",
+                      "0x500");
+    SA_EXPECT_OK(validate_rectangle(RectangleSettings{}));
 }
 
 /** @brief Tests that a shape whose side would pass the image bound is refused. */
@@ -174,7 +188,7 @@ TEST(Small_ImagingRectangle, RejectsAShapeAboveTheImageBound)
 {
     RectangleSettings settings = make_settings(1, K_MAX_IMAGE_SIDE, 0.5);
 
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_rectangular_batches({ImageSize{100, 100}}, settings)),
-        "plan_rectangular_batches", "batch side", "16384");
+    SA_EXPECT_FAILURE(plan_rectangular_batches({ImageSize{100, 100}}, settings),
+                      StatusCode::InvalidDescription, "plan_rectangular_batches", "batch side",
+                      "16384");
 }

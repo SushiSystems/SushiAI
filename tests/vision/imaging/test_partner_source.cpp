@@ -30,6 +30,7 @@
 #include <memory>
 #include <tuple>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
 
@@ -37,6 +38,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the seed of every generator below. */
     constexpr std::uint64_t K_SEED = 20261016;
 

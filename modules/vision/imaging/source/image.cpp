@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <functional>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -39,16 +39,16 @@ namespace SushiAI::Vision::Imaging
         /**
          * @brief Returns the byte count of an image after checking its extents.
          *
-         * Throws Error when the size fails is_valid_size or the channel count fails
+         * Stops the process when the size fails is_valid_size or the channel count fails
          * is_valid_channel_count.
          * @param operation Names the calling function at the start of the message.
          */
         [[nodiscard]] std::size_t checked_byte_count(ImageSize size, std::int32_t channels,
                                                      std::string_view operation)
         {
-            SA_THROW_IF(!is_valid_size(size), "{}: a size of {}x{} is outside [1, {}]", operation,
+            SA_FATAL_IF(!is_valid_size(size), "{}: a size of {}x{} is outside [1, {}]", operation,
                         size.height, size.width, K_MAX_IMAGE_SIDE);
-            SA_THROW_IF(!is_valid_channel_count(channels),
+            SA_FATAL_IF(!is_valid_channel_count(channels),
                         "{}: a channel count of {} is outside [1, {}]", operation, channels,
                         K_MAX_CHANNELS);
 
@@ -97,14 +97,14 @@ namespace SushiAI::Vision::Imaging
 
     void check_source(ImageView source, const Image& destination, std::string_view operation)
     {
-        SA_THROW_IF(source.data() == nullptr, "{}: the source image has no pixels", operation);
-        SA_THROW_IF(!is_valid_size(source.size()),
+        SA_FATAL_IF(source.data() == nullptr, "{}: the source image has no pixels", operation);
+        SA_FATAL_IF(!is_valid_size(source.size()),
                     "{}: a source size of {}x{} is outside [1, {}]", operation, source.height(),
                     source.width(), K_MAX_IMAGE_SIDE);
-        SA_THROW_IF(!is_valid_channel_count(source.channels()),
+        SA_FATAL_IF(!is_valid_channel_count(source.channels()),
                     "{}: a source channel count of {} is outside [1, {}]", operation,
                     source.channels(), K_MAX_CHANNELS);
-        SA_THROW_IF(overlaps(source, destination),
+        SA_FATAL_IF(overlaps(source, destination),
                     "{}: the destination holds the source's pixels", operation);
     }
 } // namespace SushiAI::Vision::Imaging

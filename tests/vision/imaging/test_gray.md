@@ -24,11 +24,11 @@ channels, and every byte holds its pixel's grey level.
 
 ## ExpandRejectsASourceThatIsNotGrey
 
-Sources of three and of four channels throw with "expand_gray" and the channel count.
+Sources of three and of four channels fail with "expand_gray" and the channel count.
 `K_GRAY_CHANNELS` is 1.
 
 ## ExpandRejectsASourceWithoutPixelsAndOneInTheDestination
 
-An empty view throws with "no pixels". The destination's own view, and a view of two of its
-rows, throw with "destination holds the source's pixels". The image keeps its size, channel
+An empty view stops the process with "no pixels". The destination's own view, and a view of two of its
+rows, fail with "destination holds the source's pixels". The image keeps its size, channel
 count and bytes.

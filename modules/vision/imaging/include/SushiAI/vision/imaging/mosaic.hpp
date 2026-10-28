@@ -31,6 +31,8 @@
 #include <cstddef>
 #include <cstdint>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>
@@ -118,33 +120,33 @@ namespace SushiAI::Vision::Imaging
     /** @brief Holds the largest training size whose canvas of twice that side is an image. */
     inline constexpr std::int32_t K_MAX_MOSAIC_IMAGE_SIZE = K_MAX_IMAGE_SIDE / 2;
 
-    /** @brief Throws Error unless the probability is in [0, 1]. */
-    void validate_mosaic(const MosaicSettings& settings);
+    /** @brief Returns InvalidDescription unless the probability is in [0, 1]. */
+    [[nodiscard]] Status validate_mosaic(const MosaicSettings& settings);
 
-    /** @brief Throws Error unless image_size is in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
-    void validate_mosaic_size(std::int32_t image_size);
+    /** @brief Returns InvalidDescription unless image_size is in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
+    [[nodiscard]] Status validate_mosaic_size(std::int32_t image_size);
 
     /**
      * @brief Draws the three partners, the gate and the centre of one mosaic.
      *
-     * Three draws in partners.choose(index, random), made whatever the gate says. Then
+     * Three draws in partners.choose(index, random), made whatever the gate says; then
      * is_enabled = random.bernoulli(settings.probability). When enabled, center_y and center_x,
-     * each random.uniform(b, 2s - b) truncated toward zero, with s = image_size and
-     * b = (s + 1) / 2. Throws Error, before any draw, on a setting or an image_size out of range.
+     * each random.uniform(b, 2s - b) truncated toward zero, s = image_size, b = (s + 1) / 2.
+     * @return The draw, or what validate_mosaic and validate_mosaic_size return.
      */
-    [[nodiscard]] MosaicDraw draw_mosaic(const MosaicSettings& settings, std::int32_t image_size,
-                                         std::size_t index, PartnerSource& partners,
-                                         Random& random);
+    [[nodiscard]] Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings,
+                                                 std::int32_t image_size, std::size_t index,
+                                                 PartnerSource& partners, Random& random);
 
     /**
-     * @brief Places four patches around the drawn centre.
+     * @brief Places four patches, the sample then three partners, around the drawn centre.
      *
      * Each patch has the corner nearest the centre pinned to it and is cut by the canvas
-     * edge, by the reference's rectangles (data/augment.py:525-538). README.md, section
-     * mosaic.hpp, lists them.
-     * @param patch_sizes The sizes of patch 0, the sample itself, then the three partners.
+     * edge, by the reference's rectangles (data/augment.py:525-538). README.md lists them.
+     * @return The plan, or InvalidDescription for an image_size or a patch size out of range.
+     * @pre @p draw is enabled and its centre lies inside the canvas, as draw_mosaic leaves it.
      */
-    [[nodiscard]] MosaicPlan plan_mosaic(
+    [[nodiscard]] Result<MosaicPlan> plan_mosaic(
         const MosaicSettings& settings, const MosaicDraw& draw, std::int32_t image_size,
         const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes);
 
@@ -152,12 +154,12 @@ namespace SushiAI::Vision::Imaging
      * @brief Composes four patches on a canvas of 2s by 2s.
      *
      * The canvas is filled with plan.fill_value, then each patch's rectangle is copied to
-     * its canvas rectangle, patch 0 first. Nothing is resampled.
-     * @param patches Images of the sizes the plan was made for, all with the same channels.
-     * @param destination Reset to the canvas size; every patch must pass check_source.
+     * its canvas rectangle, patch 0 first. Nothing is resampled; each patch passes check_source.
+     * @return InvalidDescription when the patches do not share one channel count.
+     * @pre The plan holds a valid image_size; each placement fits its patch and the canvas.
      */
-    void apply_mosaic(const std::array<ImageView, K_MOSAIC_PATCHES>& patches,
-                      const MosaicPlan& plan, Image& destination);
+    [[nodiscard]] Status apply_mosaic(const std::array<ImageView, K_MOSAIC_PATCHES>& patches,
+                                      const MosaicPlan& plan, Image& destination);
 
     /**
      * @brief Joins the labels of four patches in canvas coordinates.

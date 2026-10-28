@@ -32,8 +32,8 @@ as in the reference. Values inside the tolerance are stored as they are; nothing
 The points are not resampled here: `resample_polygons` does that on each load, because 1000
 points for every object of a dataset would not fit in memory.
 
-Any failed check throws `Error`. The reference drops the image and counts it as corrupt
-(`data/utils.py:492-495`); the caller that builds a dataset decides the same here by catching.
+Any failed check returns `InvalidFile`. The reference drops the image and counts it as corrupt
+(`data/utils.py:492-495`); the caller that builds a dataset decides the same here from the status.
 
 Three rules are narrower or simpler than the reference:
 

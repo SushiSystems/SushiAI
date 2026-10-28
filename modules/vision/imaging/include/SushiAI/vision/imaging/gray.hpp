@@ -29,6 +29,7 @@
 
 #include <cstdint>
 
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
@@ -41,9 +42,9 @@ namespace SushiAI::Vision::Imaging
      * @brief Copies a one-channel image into three equal channels.
      *
      * Red, green and blue of a pixel each take its grey level, which is what the reference's
-     * colour load gives for a grey file (data/base.py:153). A source with another channel
-     * count throws Error.
+     * colour load gives for a grey file (data/base.py:153).
      * @param destination Reset to the source's size with K_RGB_CHANNELS; must pass check_source.
+     * @return InvalidDescription for a source of another channel count.
      */
-    void expand_gray(ImageView source, Image& destination);
+    [[nodiscard]] Status expand_gray(ImageView source, Image& destination);
 } // namespace SushiAI::Vision::Imaging

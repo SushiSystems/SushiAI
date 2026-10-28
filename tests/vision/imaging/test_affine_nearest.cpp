@@ -38,6 +38,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns a plan from @p size to itself that shifts by @p shift_x columns. */
     AffinePlan make_shift_plan(ImageSize size, float shift_x, std::uint8_t border)
     {

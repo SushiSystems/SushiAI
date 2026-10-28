@@ -27,9 +27,12 @@
 
 #pragma once
 
+#include <memory>
 #include <cstddef>
 #include <cstdint>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
 
@@ -47,15 +50,23 @@ namespace SushiAI::Vision::Imaging
     {
         public:
             /**
-             * @brief Constructs a source over a dataset.
-             * @param dataset_size The image count, in [1, 2^32 - 1]; otherwise throws Error.
+             * @brief Builds a source over a dataset.
+             * @param dataset_size The image count.
+             * @return The source, or InvalidDescription unless the count is in [1, 2^32 - 1].
              */
-            explicit DatasetPartners(std::size_t dataset_size);
+            [[nodiscard]] static Result<std::unique_ptr<DatasetPartners>> make(
+                std::size_t dataset_size);
 
-            /** @brief Returns three random.index(dataset size) draws, in draw order. */
+            /**
+             * @brief Returns three random.index(dataset size) draws, in draw order.
+             * @pre @p index is below the dataset size.
+             */
             [[nodiscard]] MosaicPartners choose(std::size_t index, Random& random) override;
 
         private:
+            /** @brief Stores a dataset size that make() has checked. */
+            explicit DatasetPartners(std::uint32_t dataset_size) noexcept;
+
             /// @brief Counts the images of the dataset.
             std::uint32_t dataset_size_ = 0;
     };

@@ -42,15 +42,15 @@ channels are constructed and report their byte counts.
 
 ## ConstructionRejectsAHeightOutsideItsBounds
 
-Heights of 0, -2 and 16385 throw with a message containing "Image:" and the size.
+Heights of 0, -2 and 16385 fail with a message containing "Image:" and the size.
 
 ## ConstructionRejectsAWidthOutsideItsBounds
 
-Widths of 0, -7 and 16385 throw with a message containing "Image:" and the size.
+Widths of 0, -7 and 16385 fail with a message containing "Image:" and the size.
 
 ## ConstructionRejectsAChannelCountOutsideItsBounds
 
-Channel counts of 0, -1 and 5 throw with a message containing "Image:" and the count; the
+Channel counts of 0, -1 and 5 fail with a message containing "Image:" and the count; the
 first also contains "[1, 4]".
 
 ## RowsStartOneRowOfBytesApart
@@ -87,12 +87,12 @@ one to 192 bytes, the count it was constructed with.
 
 ## ResetRejectsTheBoundsTheConstructorRejects
 
-`reset` throws for a height of 0, a width of 16385 and five channels, with a message
+`reset` stops the process for a height of 0, a width of 16385 and five channels, with a message
 containing "Image::reset".
 
 ## ARejectedResetLeavesTheImageAsItWas
 
-After a `reset` that throws, the image has its size, channel count, data pointer and bytes.
+After a `reset` that stops the process, the image has its size, channel count, data pointer and bytes.
 
 ## AViewOfAnImageDescribesTheSamePixels
 
@@ -142,5 +142,5 @@ destination.
 
 ## CheckSourceRejectsEachFaultUnderTheCallersName
 
-`check_source` throws with the caller's name as prefix for a view without pixels, a height of
+`check_source` stops the process with the caller's name as prefix for a view without pixels, a height of
 0, a width of 16385, five channels, the destination's own view and a view of two of its rows.

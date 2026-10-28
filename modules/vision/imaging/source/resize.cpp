@@ -33,7 +33,9 @@
 #include <cstring>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include "bilinear.hpp"
 
@@ -71,22 +73,23 @@ namespace SushiAI::Vision::Imaging
                          static_cast<std::int32_t>(std::min(width, limit))};
     }
 
-    void resize_bilinear(ImageView source, ImageSize size, Image& destination)
+    Status resize_bilinear(ImageView source, ImageSize size, Image& destination)
     {
         check_source(source, destination, "resize_bilinear");
-        SA_THROW_IF(!is_valid_size(size),
-                    "resize_bilinear: a destination size of {}x{} is outside [1, {}]", size.height,
-                    size.width, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_size(size), StatusCode::InvalidDescription,
+                   "resize_bilinear: a destination size of {}x{} is outside [1, {}]", size.height,
+                   size.width, K_MAX_IMAGE_SIDE);
 
         destination.reset(size, source.channels());
         Detail::resize_rows(source, size, destination.data(), destination.row_bytes());
+        return Status();
     }
 
     void resize_nearest(ImageView source, ImageSize size, Image& destination)
     {
         check_source(source, destination, "resize_nearest");
 
-        // reset() throws on a size outside the bounds of an image.
+        // reset() stops the process on a size outside the bounds of an image.
         destination.reset(size, source.channels());
 
         const std::size_t channels = static_cast<std::size_t>(source.channels());
@@ -111,11 +114,11 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    void resize_long_side(ImageView source, std::int32_t image_size, Image& destination)
+    Status resize_long_side(ImageView source, std::int32_t image_size, Image& destination)
     {
-        SA_THROW_IF(!is_valid_side(image_size),
-                    "resize_long_side: an image size of {} is outside [1, {}]", image_size,
-                    K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_side(image_size), StatusCode::InvalidDescription,
+                   "resize_long_side: an image size of {} is outside [1, {}]", image_size,
+                   K_MAX_IMAGE_SIDE);
         check_source(source, destination, "resize_long_side");
 
         const ImageSize fitted = fit_long_side(source.size(), image_size);
@@ -124,9 +127,10 @@ namespace SushiAI::Vision::Imaging
         if (fitted == source.size())
         {
             std::memcpy(destination.data(), source.data(), source.byte_count());
-            return;
+            return Status();
         }
 
         Detail::resize_rows(source, fitted, destination.data(), destination.row_bytes());
+        return Status();
     }
 } // namespace SushiAI::Vision::Imaging

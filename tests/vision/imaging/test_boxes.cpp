@@ -29,12 +29,14 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance of a pixel coordinate, in pixels. */
     constexpr float K_PIXEL_TOLERANCE = 1e-3f;
 

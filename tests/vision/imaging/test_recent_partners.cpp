@@ -33,7 +33,8 @@
 #include <initializer_list>
 #include <limits>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/recent_partners.hpp>
 
@@ -42,6 +43,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns the buffer a source would hold after the given indices, oldest first. */
     std::deque<std::size_t> buffer_after(RecentPartners& partners,
                                          std::initializer_list<std::size_t> indices)
@@ -62,7 +64,7 @@ TEST(Small_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
     EXPECT_EQ(recent_capacity(10000, 16), 128u);
     EXPECT_EQ(recent_capacity(10000, 200), 1000u);
     EXPECT_EQ(recent_capacity(1000, 125), 1000u);
-    EXPECT_EQ(RecentPartners(10000, 16).capacity(), 128u);
+    EXPECT_EQ(require_value(RecentPartners::make(10000, 16))->capacity(), 128u);
     EXPECT_EQ(K_RECENT_BATCHES, 8u);
     EXPECT_EQ(K_RECENT_LIMIT, 1000u);
 }
@@ -70,7 +72,9 @@ TEST(Small_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
 /** @brief Tests that the first sample's partners are the sample itself. */
 TEST(Small_ImagingPartners, RecentSourceGivesTheFirstSampleItselfThreeTimes)
 {
-    RecentPartners partners(100, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(100, 16));
+    RecentPartners& partners = *partners_owner;
     Random random(5u);
 
     const MosaicPartners chosen = partners.choose(42, random);
@@ -82,8 +86,10 @@ TEST(Small_ImagingPartners, RecentSourceGivesTheFirstSampleItselfThreeTimes)
 /** @brief Tests that an addition evicts the oldest index once the buffer reaches its capacity. */
 TEST(Small_ImagingPartners, RecentSourceEvictsTheOldestIndexAtCapacity)
 {
-    RecentPartners three(3, 16);
-    RecentPartners two(2, 16);
+    const std::unique_ptr<RecentPartners> three_owner = require_value(RecentPartners::make(3, 16));
+    RecentPartners& three = *three_owner;
+    const std::unique_ptr<RecentPartners> two_owner = require_value(RecentPartners::make(2, 16));
+    RecentPartners& two = *two_owner;
     ASSERT_EQ(three.capacity(), 3u);
     ASSERT_EQ(two.capacity(), 2u);
 
@@ -99,7 +105,9 @@ TEST(Small_ImagingPartners, RecentSourceEvictsTheOldestIndexAtCapacity)
 /** @brief Tests that an index already in the buffer is neither added again nor moved. */
 TEST(Small_ImagingPartners, RecentSourceDoesNotAddAnIndexItAlreadyHolds)
 {
-    RecentPartners partners(100, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(100, 16));
+    RecentPartners& partners = *partners_owner;
 
     EXPECT_EQ(buffer_after(partners, {7, 9, 7, 7, 9}), (std::deque<std::size_t>{7, 9}));
 }
@@ -107,7 +115,9 @@ TEST(Small_ImagingPartners, RecentSourceDoesNotAddAnIndexItAlreadyHolds)
 /** @brief Tests that a dataset of one image keeps its only index in the buffer. */
 TEST(Small_ImagingPartners, RecentSourceOfOneImageNeverEmptiesItsBuffer)
 {
-    RecentPartners partners(1, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(1, 16));
+    RecentPartners& partners = *partners_owner;
     Random random(3u);
 
     ASSERT_EQ(partners.capacity(), 1u);
@@ -119,7 +129,9 @@ TEST(Small_ImagingPartners, RecentSourceOfOneImageNeverEmptiesItsBuffer)
 /** @brief Tests that a long run leaves the capacity minus one most recent indices. */
 TEST(Small_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
 {
-    RecentPartners partners(1000, 2);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(1000, 2));
+    RecentPartners& partners = *partners_owner;
     Random random(8u);
     ASSERT_EQ(partners.capacity(), 16u);
 
@@ -134,7 +146,9 @@ TEST(Small_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
 /** @brief Tests that each partner is the buffer entry one index draw names, in draw order. */
 TEST(Small_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 {
-    RecentPartners partners(1000, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(1000, 16));
+    RecentPartners& partners = *partners_owner;
     Random warm(2u);
     for (std::size_t index = 100; index < 140; ++index)
         static_cast<void>(partners.choose(index, warm));
@@ -156,7 +170,9 @@ TEST(Small_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 /** @brief Tests that the recent source reaches every buffered index over many seeds. */
 TEST(Small_ImagingPartners, RecentSourceCoversItsBuffer)
 {
-    RecentPartners partners(100, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(100, 16));
+    RecentPartners& partners = *partners_owner;
     Random warm(4u);
     for (std::size_t index = 10; index < 15; ++index)
         static_cast<void>(partners.choose(index, warm));
@@ -180,13 +196,18 @@ TEST(Small_ImagingPartners, RecentSourceCoversItsBuffer)
 /** @brief Tests that the recent source refuses a size, a batch or an index out of range. */
 TEST(Small_ImagingPartners, RecentSourceRejectsSizesAndIndicesOutOfRange)
 {
-    RecentPartners partners(4, 16);
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(4, 16));
+    RecentPartners& partners = *partners_owner;
     Random random(1u);
 
-    SA_EXPECT_ERROR(RecentPartners(0, 16), "RecentPartners", "dataset size of 0");
-    SA_EXPECT_ERROR(RecentPartners(10, 0), "RecentPartners", "batch size of 0");
-    SA_EXPECT_ERROR(RecentPartners(10, -3), "RecentPartners", "batch size of -3");
-    SA_EXPECT_ERROR(static_cast<void>(partners.choose(4, random)), "RecentPartners::choose",
+    SA_EXPECT_FAILURE(RecentPartners::make(0, 16), StatusCode::InvalidDescription, "RecentPartners",
+                      "dataset size of 0");
+    SA_EXPECT_FAILURE(RecentPartners::make(10, 0), StatusCode::InvalidDescription, "RecentPartners",
+                      "batch size of 0");
+    SA_EXPECT_FAILURE(RecentPartners::make(10, -3), StatusCode::InvalidDescription,
+                      "RecentPartners", "batch size of -3");
+    SA_EXPECT_FATAL(static_cast<void>(partners.choose(4, random)), "RecentPartners::choose",
                     "index 4");
     EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
     EXPECT_TRUE(partners.recent().empty()) << "a rejected call changed the buffer";

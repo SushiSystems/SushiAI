@@ -31,7 +31,8 @@
 #include <initializer_list>
 #include <limits>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>
 
 using namespace SushiAI;
@@ -45,6 +46,7 @@ using Vision::Imaging::Random;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here. */
     constexpr float K_BOX_TOLERANCE = 1e-4f;
 
@@ -88,7 +90,8 @@ TEST(Small_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
     Random random(42);
     Random replay(42);
 
-    const FlipPlan plan = Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{480, 640}, random);
+    const FlipPlan plan =
+        require_value(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{480, 640}, random));
 
     EXPECT_EQ(plan.source, (ImageSize{480, 640}));
     EXPECT_EQ(plan.is_flipped, replay.bernoulli(FlipSettings{}.probability));
@@ -106,8 +109,10 @@ TEST(Small_ImagingFlip, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
     {
         Random first(seed);
         Random second(seed);
-        ASSERT_FALSE(Vision::Imaging::plan_flip(never, ImageSize{8, 8}, first).is_flipped) << seed;
-        ASSERT_TRUE(Vision::Imaging::plan_flip(always, ImageSize{8, 8}, second).is_flipped) << seed;
+        ASSERT_FALSE(require_value(Vision::Imaging::plan_flip(never, ImageSize{8, 8},
+                                                              first)).is_flipped) << seed;
+        ASSERT_TRUE(require_value(Vision::Imaging::plan_flip(always, ImageSize{8, 8},
+                                                             second)).is_flipped) << seed;
         ASSERT_EQ(first, second) << "both made one draw from seed " << seed;
     }
 }
@@ -118,7 +123,8 @@ TEST(Small_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheSeeds)
     for (std::uint64_t seed = 0; seed < K_SEED_COUNT; ++seed)
     {
         Random random(seed);
-        if (Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{8, 8}, random).is_flipped)
+        if (require_value(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{8, 8},
+                                                     random)).is_flipped)
             ++flipped;
     }
 
@@ -132,13 +138,14 @@ TEST(Small_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
     FlipSettings settings;
 
     settings.probability = 1.5f;
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
-                    "validate_flip", "probability", "1.5");
-    SA_EXPECT_ERROR(Vision::Imaging::validate_flip(settings), "validate_flip", "probability");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
+                      StatusCode::InvalidDescription, "validate_flip", "probability", "1.5");
+    SA_EXPECT_FAILURE(Vision::Imaging::validate_flip(settings), StatusCode::InvalidDescription,
+                      "validate_flip", "probability");
 
     settings.probability = -0.1f;
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
-                    "validate_flip", "probability");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
+                      StatusCode::InvalidDescription, "validate_flip", "probability");
     EXPECT_EQ(random, Random(1)) << "a rejected plan makes no draw";
 }
 
@@ -148,8 +155,8 @@ TEST(Small_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
     FlipSettings settings;
     settings.probability = std::numeric_limits<float>::quiet_NaN();
 
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
-                    "validate_flip", "probability");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
+                      StatusCode::InvalidDescription, "validate_flip", "probability");
     EXPECT_EQ(random, Random(3));
 }
 
@@ -157,10 +164,10 @@ TEST(Small_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
 {
     Random random(5);
 
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{0, 8}, random),
-                    "plan_flip", "source size", "0x8");
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{8, -2}, random),
-                    "plan_flip", "source size", "8x-2");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{0, 8}, random),
+                      StatusCode::InvalidDescription, "plan_flip", "source size", "0x8");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{8, -2}, random),
+                      StatusCode::InvalidDescription, "plan_flip", "source size", "8x-2");
     EXPECT_EQ(random, Random(5));
 }
 
@@ -169,7 +176,8 @@ TEST(Small_ImagingFlip, SourceWithoutPixelsIsRejected)
     const FlipPlan plan{ImageSize{2, 3}, true};
 
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_flip(Vision::Imaging::ImageView{}, plan, destination),
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(Vision::Imaging::ImageView{},
+                                                                  plan, destination)),
                     "apply_flip", "no pixels");
 }
 
@@ -179,7 +187,8 @@ TEST(Small_ImagingFlip, DestinationThatIsTheSourceIsRejected)
     const Image untouched = make_counted_image(ImageSize{2, 3}, 3);
     const FlipPlan plan{ImageSize{2, 3}, true};
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_flip(image.view(), plan, image), "apply_flip",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(image.view(), plan, image)),
+                    "apply_flip",
                     "destination holds the source's pixels");
     expect_same_image(image, untouched);
 }
@@ -192,7 +201,8 @@ TEST(Small_ImagingFlip, ViewInsideTheDestinationIsRejected)
     const Vision::Imaging::ImageView lower_rows(image.row(1), ImageSize{3, 3}, 3);
     const FlipPlan plan{ImageSize{3, 3}, true};
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_flip(lower_rows, plan, image), "apply_flip",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(lower_rows, plan, image)),
+                    "apply_flip",
                     "destination holds the source's pixels");
     expect_same_image(image, untouched);
 }
@@ -254,9 +264,11 @@ TEST(Small_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
     const FlipPlan taller{ImageSize{5, 3}, true};
 
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_flip(source.view(), wider, destination), "apply_flip",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(source.view(), wider,
+                                                                  destination)), "apply_flip",
                     "plan was made for a 2x4 source", "2x3");
-    SA_EXPECT_ERROR(Vision::Imaging::apply_flip(source.view(), taller, destination), "apply_flip",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(source.view(), taller,
+                                                                  destination)), "apply_flip",
                     "plan was made for a 5x3 source", "2x3");
 }
 
@@ -312,8 +324,7 @@ TEST(Small_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
     Labels labels;
     labels.add(2, PixelBox{100.0f, 50.0f, 300.0f, 200.0f},
                Vision::Imaging::Polygon{Vision::Imaging::Point{100.0f, 50.0f},
-                                        Vision::Imaging::Point{300.0f, 60.0f},
-                                        Vision::Imaging::Point{150.5f, 200.0f}});
+               Vision::Imaging::Point{300.0f, 60.0f}, Vision::Imaging::Point{150.5f, 200.0f}});
     labels.add(3, PixelBox{0.0f, 0.0f, 10.0f, 10.0f});
 
     const Labels mirrored = Vision::Imaging::apply_flip(labels, plan);
@@ -336,7 +347,7 @@ TEST(Small_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
     Labels labels;
     labels.add(2, PixelBox{100.0f, 50.0f, 300.0f, 200.0f},
                Vision::Imaging::Polygon{Vision::Imaging::Point{100.0f, 50.0f},
-                                        Vision::Imaging::Point{300.0f, 60.0f}});
+               Vision::Imaging::Point{300.0f, 60.0f}});
 
     const Labels same = Vision::Imaging::apply_flip(labels, plan);
 
@@ -353,7 +364,7 @@ TEST(Small_ImagingFlip, ValidateAcceptsZeroAndOne)
     FlipSettings always;
     always.probability = 1.0f;
 
-    EXPECT_NO_THROW(Vision::Imaging::validate_flip(never));
-    EXPECT_NO_THROW(Vision::Imaging::validate_flip(always));
-    EXPECT_NO_THROW(Vision::Imaging::validate_flip(FlipSettings{}));
+    SA_EXPECT_OK(Vision::Imaging::validate_flip(never));
+    SA_EXPECT_OK(Vision::Imaging::validate_flip(always));
+    SA_EXPECT_OK(Vision::Imaging::validate_flip(FlipSettings{}));
 }

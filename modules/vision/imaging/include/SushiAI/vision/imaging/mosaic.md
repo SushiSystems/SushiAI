@@ -6,9 +6,8 @@
 `mosaic` is 1.0 (`cfg/default.yaml:126`); the canvas fill is 114 (`data/augment.py:611`).
 
 `validate_mosaic_size` owns the rule that the 2s canvas is a valid image: `image_size` is in
-[1, `K_MAX_MOSAIC_IMAGE_SIZE`], which is `K_MAX_IMAGE_SIDE / 2`. `draw_mosaic`, `plan_mosaic`,
-both `apply_mosaic` overloads and `validate_training` call it, so its message opens with
-`validate_mosaic_size:` whoever the caller is.
+[1, `K_MAX_MOSAIC_IMAGE_SIZE`], which is `K_MAX_IMAGE_SIDE / 2`. `draw_mosaic`, `plan_mosaic`, both `apply_mosaic` overloads and `validate_training` call it, so
+its message opens with `validate_mosaic_size:` whoever the caller is.
 
 Draws, in order: the three partners through the `PartnerSource`, the gate, `center_y`,
 `center_x`. The reference draws the gate first (`data/augment.py:340`) and the partners after

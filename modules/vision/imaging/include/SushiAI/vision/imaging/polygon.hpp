@@ -68,8 +68,8 @@ namespace SushiAI::Vision::Imaging
      *
      * The first vertex is appended to close the outline of m points. With m below count the
      * result is the m points merged in order with count - m positions spread evenly over
-     * [0, m - 1]; otherwise it is count such positions. A polygon of count vertices or of
-     * none is returned unchanged; a count of zero throws Error. README.md has the rest.
+     * [0, m - 1]; otherwise count such positions. A polygon of count or no vertices is unchanged.
+     * @pre @p count is at least 1.
      */
     [[nodiscard]] Polygon resample_polygon(const Polygon& polygon, std::size_t count);
 

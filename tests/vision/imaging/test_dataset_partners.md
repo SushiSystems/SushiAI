@@ -35,7 +35,7 @@ same index and seed.
 ## DatasetSourceRejectsSizesAndIndicesOutOfRange
 
 A dataset size of 0 and one above the largest `uint32` throw, and the largest `uint32` is
-accepted. `choose(4)` on a dataset of 4 throws with "index 4" and makes no draw.
+accepted. `choose(4)` on a dataset of 4 fails with "index 4" and makes no draw.
 
 ## RecentCapacityIsTheSmallestOfItsThreeBounds
 

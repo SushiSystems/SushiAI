@@ -30,6 +30,8 @@
 #include <cstdint>
 #include <string_view>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
@@ -45,12 +47,13 @@ namespace SushiAI::Vision::Imaging
     inline constexpr float K_LABEL_COORDINATE_SLACK = 0.01f;
 
     /**
-     * @brief Parses the text of one label file, throwing Error on anything the reference rejects.
+     * @brief Parses the text of one label file, refusing anything the reference rejects.
      *
-     * A file holds box rows only or polygon rows only. A polygon row gives the box around
-     * its points and keeps them, in file order, as the object's polygon
-     * (data/utils.py:446-450). README.md, section labels.hpp, lists every check.
+     * A file holds box rows only or polygon rows only. A polygon row gives the box around its
+     * points and keeps them (data/utils.py:446-450). README.md lists every check.
      * @param class_count The dataset's class count; every class id must be below it.
+     * @return The labels, or InvalidFile naming the line and the cause.
      */
-    [[nodiscard]] FileLabels parse_label_text(std::string_view text, std::int32_t class_count);
+    [[nodiscard]] Result<FileLabels> parse_label_text(std::string_view text,
+                                                      std::int32_t class_count);
 } // namespace SushiAI::Vision::Imaging

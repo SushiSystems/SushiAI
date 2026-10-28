@@ -30,8 +30,10 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -46,50 +48,54 @@ namespace SushiAI::Vision::Imaging
         /**
          * @brief Returns one side of a batch shape, a whole number of strides.
          *
-         * The side is ceil(unit * image_size / stride + pad) * stride in double. Throws Error
-         * when it is outside [1, K_MAX_IMAGE_SIDE].
+         * The side is ceil(unit * image_size / stride + pad) * stride in double.
          * @param unit The side as a fraction of the long side, in (0, 1].
+         * @return The side, or InvalidDescription when it is outside [1, K_MAX_IMAGE_SIDE].
          */
-        [[nodiscard]] std::int32_t batch_side(double unit, const RectangleSettings& settings)
+        [[nodiscard]] Result<std::int32_t> batch_side(double unit,
+                                                      const RectangleSettings& settings)
         {
             const double strides =
                 std::ceil(unit * settings.image_size / settings.stride + settings.pad);
             const double side = strides * settings.stride;
 
-            SA_THROW_IF(!(side >= 1.0 && side <= K_MAX_IMAGE_SIDE),
-                        "plan_rectangular_batches: a batch side of {} is outside [1, {}]", side,
-                        K_MAX_IMAGE_SIDE);
+            SA_FAIL_IF(!(side >= 1.0 && side <= K_MAX_IMAGE_SIDE), StatusCode::InvalidDescription,
+                       "plan_rectangular_batches: a batch side of {} is outside [1, {}]", side,
+                       K_MAX_IMAGE_SIDE);
 
             return static_cast<std::int32_t>(side);
         }
     } // namespace
 
-    void validate_rectangle(const RectangleSettings& settings)
+    Status validate_rectangle(const RectangleSettings& settings)
     {
-        SA_THROW_IF(!is_valid_side(settings.image_size),
-                    "validate_rectangle: an image_size of {} is outside [1, {}]",
-                    settings.image_size, K_MAX_IMAGE_SIDE);
-        SA_THROW_IF(settings.batch_size <= 0,
-                    "validate_rectangle: a batch_size of {} is not above zero",
-                    settings.batch_size);
-        SA_THROW_IF(settings.stride <= 0, "validate_rectangle: a stride of {} is not above zero",
-                    settings.stride);
-        SA_THROW_IF(!(std::isfinite(settings.pad) && settings.pad >= 0.0),
-                    "validate_rectangle: a pad of {} is not a finite number at or above zero",
-                    settings.pad);
+        SA_FAIL_IF(!is_valid_side(settings.image_size), StatusCode::InvalidDescription,
+                   "validate_rectangle: an image_size of {} is outside [1, {}]",
+                   settings.image_size, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(settings.batch_size <= 0, StatusCode::InvalidDescription,
+                   "validate_rectangle: a batch_size of {} is not above zero",
+                   settings.batch_size);
+        SA_FAIL_IF(settings.stride <= 0, StatusCode::InvalidDescription,
+                   "validate_rectangle: a stride of {} is not above zero", settings.stride);
+        SA_FAIL_IF(!(std::isfinite(settings.pad) && settings.pad >= 0.0),
+                   StatusCode::InvalidDescription,
+                   "validate_rectangle: a pad of {} is not a finite number at or above zero",
+                   settings.pad);
+        return Status();
     }
 
-    RectangularBatches plan_rectangular_batches(const std::vector<ImageSize>& sizes,
-                                                const RectangleSettings& settings)
+    Result<RectangularBatches> plan_rectangular_batches(const std::vector<ImageSize>& sizes,
+                                                        const RectangleSettings& settings)
     {
-        validate_rectangle(settings);
-        SA_THROW_IF(sizes.empty(), "plan_rectangular_batches: the dataset holds no image");
+        SA_TRY(validate_rectangle(settings));
+        SA_FAIL_IF(sizes.empty(), StatusCode::InvalidDescription,
+                   "plan_rectangular_batches: the dataset holds no image");
 
         for (std::size_t i = 0; i < sizes.size(); ++i)
         {
-            SA_THROW_IF(!is_valid_size(sizes[i]),
-                        "plan_rectangular_batches: image {} has a size of {}x{}, outside [1, {}]",
-                        i, sizes[i].height, sizes[i].width, K_MAX_IMAGE_SIDE);
+            SA_FAIL_IF(!is_valid_size(sizes[i]), StatusCode::InvalidDescription,
+                       "plan_rectangular_batches: image {} has a size of {}x{}, outside [1, {}]",
+                       i, sizes[i].height, sizes[i].width, K_MAX_IMAGE_SIDE);
         }
 
         RectangularBatches batches;
@@ -118,10 +124,11 @@ namespace SushiAI::Vision::Imaging
             else if (smallest > 1.0)
                 unit_width = 1.0 / smallest;
 
-            batches.shapes.push_back(ImageSize{batch_side(unit_height, settings),
-                                               batch_side(unit_width, settings)});
+            SA_TRY_ASSIGN(const std::int32_t height, batch_side(unit_height, settings));
+            SA_TRY_ASSIGN(const std::int32_t width, batch_side(unit_width, settings));
+            batches.shapes.push_back(ImageSize{height, width});
         }
 
-        return batches;
+        return Result<RectangularBatches>(std::move(batches));
     }
 } // namespace SushiAI::Vision::Imaging

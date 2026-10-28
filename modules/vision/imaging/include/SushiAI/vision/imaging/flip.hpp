@@ -27,6 +27,8 @@
 
 #pragma once
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
@@ -51,24 +53,25 @@ namespace SushiAI::Vision::Imaging
         bool is_flipped = false;
     };
 
-    /** @brief Throws Error unless the probability is in [0, 1]. */
-    void validate_flip(const FlipSettings& settings);
+    /** @brief Returns InvalidDescription unless the probability is in [0, 1]. */
+    [[nodiscard]] Status validate_flip(const FlipSettings& settings);
 
     /**
      * @brief Draws whether to flip an image of the given size.
      *
-     * One draw: is_flipped = random.bernoulli(settings.probability). Throws Error, before
-     * any draw, on what validate_flip rejects and on a size that fails is_valid_size.
+     * One draw: is_flipped = random.bernoulli(settings.probability).
+     * @return The plan, or InvalidDescription, before any draw, for what validate_flip rejects
+     *         and for a size that fails is_valid_size.
      */
-    [[nodiscard]] FlipPlan plan_flip(const FlipSettings& settings, ImageSize source,
-                                     Random& random);
+    [[nodiscard]] Result<FlipPlan> plan_flip(const FlipSettings& settings, ImageSize source,
+                                             Random& random);
 
     /**
      * @brief Copies an image, mirrored left to right when the plan says so.
      *
      * A flipped destination column x holds source column width - 1 - x, channels in the
-     * same order. Without a flip the pixels are copied unchanged. Throws Error unless
-     * source.size() is plan.source.
+     * same order. Without a flip the pixels are copied unchanged.
+     * @pre source.size() is plan.source.
      * @param destination Reset to the source's size and channels; must pass check_source.
      */
     void apply_flip(ImageView source, const FlipPlan& plan, Image& destination);

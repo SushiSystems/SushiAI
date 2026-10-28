@@ -37,7 +37,7 @@ upgrade from yet.
 `read_raw_image_file` also compares the file size with `24 + height * width * channels` before
 it resets the destination, so a truncated or padded file costs no allocation. The stream form,
 `read_raw_image_pixels`, cannot know a stream's length; its allocation is bounded by
-`K_MAX_IMAGE_SIDE` and it throws when the stream ends early.
+`K_MAX_IMAGE_SIDE` and it returns `InvalidFile` when the stream ends early.
 
 The reader returns the module's order. A `BGR` file has channels 0 and 2 swapped as it is read,
 so a cache written from OpenCV-ordered pixels is usable without rewriting it. A `Gray` file is

@@ -30,24 +30,29 @@
 #include <algorithm>
 #include <limits>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
     namespace
     {
-        /** @brief Returns the buffer length after checking the two arguments it comes from. */
-        [[nodiscard]] std::size_t checked_capacity(std::size_t dataset_size,
-                                                   std::int32_t batch_size)
+        /**
+         * @brief Checks the two arguments the buffer length comes from.
+         * @return InvalidDescription for a dataset size outside [1, 2^32 - 1] or a batch size
+         *         that is not above zero.
+         */
+        [[nodiscard]] Status check_arguments(std::size_t dataset_size, std::int32_t batch_size)
         {
-            SA_THROW_IF(dataset_size == 0 ||
-                            dataset_size > std::numeric_limits<std::uint32_t>::max(),
-                        "RecentPartners: a dataset size of {} is outside [1, {}]", dataset_size,
-                        std::numeric_limits<std::uint32_t>::max());
-            SA_THROW_IF(batch_size <= 0, "RecentPartners: a batch size of {} is not above zero",
-                        batch_size);
-
-            return recent_capacity(dataset_size, batch_size);
+            SA_FAIL_IF(dataset_size == 0 ||
+                           dataset_size > std::numeric_limits<std::uint32_t>::max(),
+                       StatusCode::InvalidDescription,
+                       "RecentPartners: a dataset size of {} is outside [1, {}]", dataset_size,
+                       std::numeric_limits<std::uint32_t>::max());
+            SA_FAIL_IF(batch_size <= 0, StatusCode::InvalidDescription,
+                       "RecentPartners: a batch size of {} is not above zero", batch_size);
+            return Status();
         }
     } // namespace
 
@@ -58,14 +63,23 @@ namespace SushiAI::Vision::Imaging
     }
 
     RecentPartners::RecentPartners(std::size_t dataset_size, std::int32_t batch_size)
-        : capacity_(checked_capacity(dataset_size, batch_size)), is_recent_(dataset_size, false)
+        : capacity_(recent_capacity(dataset_size, batch_size)), is_recent_(dataset_size, false)
     {
 
     }
 
+    Result<std::unique_ptr<RecentPartners>> RecentPartners::make(std::size_t dataset_size,
+                                                                 std::int32_t batch_size)
+    {
+        SA_TRY(check_arguments(dataset_size, batch_size));
+
+        std::unique_ptr<RecentPartners> partners(new RecentPartners(dataset_size, batch_size));
+        return Result<std::unique_ptr<RecentPartners>>(std::move(partners));
+    }
+
     MosaicPartners RecentPartners::choose(std::size_t index, Random& random)
     {
-        SA_THROW_IF(index >= is_recent_.size(),
+        SA_FATAL_IF(index >= is_recent_.size(),
                     "RecentPartners::choose: sample index {} is outside a dataset of {} images",
                     index, is_recent_.size());
 

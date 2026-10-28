@@ -19,6 +19,6 @@ image that never allocated is unspecified; test `allocated_bytes() == 0` instead
 ## overlaps, check_source
 
 `overlaps(view, image)` is true when the view's bytes and the image's allocation share a byte.
-`check_source(source, destination, operation)` throws, in this order, when the source has no
-pixels, a size `is_valid_size` rejects, a channel count outside [1, 4], or an overlap with the
-destination.
+`check_source(source, destination, operation)` stops the process, in this order, when the source
+has no pixels, a size `is_valid_size` rejects, a channel count outside [1, 4], or an overlap with
+the destination. A view is a handle: the code that makes one from a file tests it first.

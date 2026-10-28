@@ -34,13 +34,16 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/affine.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::StatusCode;
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance, in pixels, of a box edge or a matrix term. */
     constexpr float K_PIXEL_TOLERANCE = 1e-3f;
 
@@ -131,8 +134,8 @@ TEST(Small_ImagingAffine, ZeroRangesPutTheSourceCentreOnTheOutputCentre)
     settings.translate = 0.0f;
     Random random(11);
 
-    const AffinePlan plan = plan_affine(settings, ImageSize{1200, 1000}, ImageSize{480, 640},
-                                        random);
+    const AffinePlan plan =
+        require_value(plan_affine(settings, ImageSize{1200, 1000}, ImageSize{480, 640}, random));
 
     // By hand: scale 1, T = (320, 240), C = (-500, -600), so M = [1 0 -180; 0 1 -360].
     EXPECT_NEAR(plan.scale, 1.0f, K_PIXEL_TOLERANCE);
@@ -153,7 +156,7 @@ TEST(Small_ImagingAffine, MatrixEqualsTranslationTimesScaleTimesCentre)
     Random random(2026);
     Random replay = random;
 
-    const AffinePlan plan = plan_affine(settings, source, output, random);
+    const AffinePlan plan = require_value(plan_affine(settings, source, output, random));
 
     const float scale = replay.uniform(0.5f, 1.5f);
     const float translate_x = replay.uniform(0.5f - 0.1f, 0.5f + 0.1f) * 480.0f;
@@ -181,8 +184,8 @@ TEST(Small_ImagingAffine, PlanConsumesExactlyThreeDraws)
     Random random(5);
     Random replay = random;
 
-    const AffinePlan plan = plan_affine(AffineSettings{}, ImageSize{64, 64}, ImageSize{32, 32},
-                                        random);
+    const AffinePlan plan =
+        require_value(plan_affine(AffineSettings{}, ImageSize{64, 64}, ImageSize{32, 32}, random));
     static_cast<void>(plan);
 
     for (int draw = 0; draw < 3; ++draw)
@@ -199,7 +202,8 @@ TEST(Small_ImagingAffine, PlanCarriesSizesBorderValueAndFilter)
     settings.filter.min_area_ratio = 0.25f;
     Random random(3);
 
-    const AffinePlan plan = plan_affine(settings, ImageSize{20, 30}, ImageSize{8, 12}, random);
+    const AffinePlan plan =
+        require_value(plan_affine(settings, ImageSize{20, 30}, ImageSize{8, 12}, random));
 
     EXPECT_TRUE(plan.source == (ImageSize{20, 30}));
     EXPECT_TRUE(plan.output == (ImageSize{8, 12}));
@@ -234,7 +238,7 @@ TEST(Small_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
 
         for (int repeat = 0; repeat < 100; ++repeat, ++count)
         {
-            const AffinePlan plan = plan_affine(settings, source, output, random);
+            const AffinePlan plan = require_value(plan_affine(settings, source, output, random));
 
             ASSERT_GE(plan.scale, 0.5f);
             ASSERT_LT(plan.scale, 1.5f);
@@ -283,37 +287,40 @@ TEST(Small_ImagingAffine, PlanRejectsSettingsAndSizesOutsideTheirRanges)
 
     AffineSettings wide_scale;
     wide_scale.scale = 1.0f;
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(wide_scale, size, size, random)),
-                    "validate_affine", "scale");
-    SA_EXPECT_ERROR(validate_affine(wide_scale), "validate_affine", "scale half-range of 1");
+    SA_EXPECT_FAILURE(plan_affine(wide_scale, size, size, random),
+                      StatusCode::InvalidDescription, "validate_affine", "scale");
+    SA_EXPECT_FAILURE(validate_affine(wide_scale), StatusCode::InvalidDescription,
+                      "validate_affine", "scale half-range of 1");
 
     AffineSettings wide_translate;
     wide_translate.translate = 0.6f;
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(wide_translate, size, size, random)),
-                    "validate_affine", "translate");
-    SA_EXPECT_ERROR(validate_affine(wide_translate), "validate_affine", "translate half-range");
+    SA_EXPECT_FAILURE(plan_affine(wide_translate, size, size, random),
+                      StatusCode::InvalidDescription, "validate_affine", "translate");
+    SA_EXPECT_FAILURE(validate_affine(wide_translate), StatusCode::InvalidDescription,
+                      "validate_affine", "translate half-range");
 
     AffineSettings negative_scale;
     negative_scale.scale = -0.1f;
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(negative_scale, size, size, random)), "scale");
+    SA_EXPECT_FAILURE(plan_affine(negative_scale, size, size, random),
+                      StatusCode::InvalidDescription, "scale");
 
     AffineSettings unordered_scale;
     unordered_scale.scale = std::numeric_limits<float>::quiet_NaN();
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(unordered_scale, size, size, random)),
-                    "scale");
+    SA_EXPECT_FAILURE(plan_affine(unordered_scale, size, size, random),
+                      StatusCode::InvalidDescription, "scale");
 
     AffineSettings negative_translate;
     negative_translate.translate = -0.1f;
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(negative_translate, size, size, random)),
-                    "translate");
+    SA_EXPECT_FAILURE(plan_affine(negative_translate, size, size, random),
+                      StatusCode::InvalidDescription, "translate");
 
     const AffineSettings settings;
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(settings, ImageSize{0, 16}, size, random)),
-                    "plan_affine", "source size of 0x16");
-    SA_EXPECT_ERROR(static_cast<void>(plan_affine(settings, size, ImageSize{16, 0}, random)),
-                    "plan_affine", "output size of 16x0");
+    SA_EXPECT_FAILURE(plan_affine(settings, ImageSize{0, 16}, size, random),
+                      StatusCode::InvalidDescription, "plan_affine", "source size of 0x16");
+    SA_EXPECT_FAILURE(plan_affine(settings, size, ImageSize{16, 0}, random),
+                      StatusCode::InvalidDescription, "plan_affine", "output size of 16x0");
     EXPECT_TRUE(random == Random(1)) << "a rejected plan made a draw";
-    EXPECT_NO_THROW(validate_affine(settings));
+    SA_EXPECT_OK(validate_affine(settings));
 }
 
 TEST(Small_ImagingAffine, IdentityPlanLeavesTheImageUnchanged)
@@ -323,7 +330,7 @@ TEST(Small_ImagingAffine, IdentityPlanLeavesTheImageUnchanged)
     settings.translate = 0.0f;
     const ImageSize size{5, 7};
     Random random(9);
-    const AffinePlan plan = plan_affine(settings, size, size, random);
+    const AffinePlan plan = require_value(plan_affine(settings, size, size, random));
     const Image source = make_pattern_image(size, 3);
 
     Image destination;
@@ -341,10 +348,10 @@ TEST(Small_ImagingAffine, IdentityPlanLeavesBoxesUnchanged)
     settings.translate = 0.0f;
     const ImageSize size{480, 640};
     Random random(9);
-    const AffinePlan plan = plan_affine(settings, size, size, random);
-    const Labels labels = make_labels({{10.0f, 20.0f, 110.0f, 220.0f},
-                                       {0.0f, 0.0f, 640.0f, 480.0f},
-                                       {300.5f, 100.25f, 340.75f, 150.5f}});
+    const AffinePlan plan = require_value(plan_affine(settings, size, size, random));
+    const Labels labels =
+        make_labels({{10.0f, 20.0f, 110.0f, 220.0f}, {0.0f, 0.0f, 640.0f, 480.0f},
+                     {300.5f, 100.25f, 340.75f, 150.5f}});
 
     const Labels warped = apply_affine(labels, plan);
 
@@ -398,10 +405,8 @@ TEST(Small_ImagingAffine, ScaleByTwoInterpolatesAndFadesIntoTheBorder)
     apply_affine(source.view(), plan, destination);
 
     // Odd coordinates fall halfway between two neighbours; index 2 of the source is border.
-    const std::vector<std::uint8_t> expected{20, 40, 60, 80,
-                                             30, 50, 70, 85,
-                                             40, 60, 80, 90,
-                                             70, 80, 90, 95};
+    const std::vector<std::uint8_t> expected{20, 40, 60, 80, 30, 50, 70, 85, 40, 60, 80, 90, 70, 80,
+                                             90, 95};
 
     ASSERT_TRUE(destination.size() == (ImageSize{4, 4}));
     EXPECT_EQ(bytes_of(destination), expected);
@@ -457,48 +462,54 @@ TEST(Small_ImagingAffine, ImageWarpRejectsAPlanItCannotApply)
     Image destination;
 
     const AffinePlan other_size = make_plan(ImageSize{4, 5}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
-    SA_EXPECT_ERROR(apply_affine(source.view(), other_size, destination), "apply_affine",
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(source.view(), other_size, destination)),
+                    "apply_affine",
                     "plan was made for a 4x5 source", "4x4");
 
     AffinePlan rotated = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
     rotated.matrix[1] = 0.5f;
-    SA_EXPECT_ERROR(apply_affine(source.view(), rotated, destination), "off-diagonal");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(source.view(), rotated, destination)),
+                    "off-diagonal");
 
     AffinePlan flat = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
     flat.matrix[0] = 0.0f;
-    SA_EXPECT_ERROR(apply_affine(source.view(), flat, destination), "above zero");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(source.view(), flat, destination)),
+                    "above zero");
 
     AffinePlan other_scale = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 2.0f, 0.0f, 0.0f);
     other_scale.scale = 1.0f;
-    SA_EXPECT_ERROR(apply_affine(source.view(), other_scale, destination), "plan's scale");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(source.view(), other_scale, destination)),
+                    "plan's scale");
 
     AffinePlan unbounded = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
     unbounded.matrix[2] = std::numeric_limits<float>::infinity();
-    SA_EXPECT_ERROR(apply_affine(source.view(), unbounded, destination), "finite translation");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(source.view(), unbounded, destination)),
+                    "finite translation");
 
     const AffinePlan plain = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
-    SA_EXPECT_ERROR(apply_affine(ImageView(), plain, destination), "pixels");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(ImageView(), plain, destination)), "pixels");
 
     const std::vector<std::uint8_t> five_channels(4 * 4 * 5, 0);
     const ImageView wide(five_channels.data(), ImageSize{4, 4}, 5);
-    SA_EXPECT_ERROR(apply_affine(wide, plain, destination), "channel count");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(wide, plain, destination)), "channel count");
 
     Image aliased = make_pattern_image(ImageSize{4, 4}, 1);
     const AffinePlan same_size = make_plan(ImageSize{4, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
-    SA_EXPECT_ERROR(apply_affine(aliased.view(), same_size, aliased), "apply_affine",
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(aliased.view(), same_size, aliased)),
+                    "apply_affine",
                     "destination holds the source's pixels");
 
     const ImageView lower_rows(aliased.row(2), ImageSize{2, 4}, 1);
     const AffinePlan two_rows = make_plan(ImageSize{2, 4}, ImageSize{4, 4}, 1.0f, 0.0f, 0.0f);
-    SA_EXPECT_ERROR(apply_affine(lower_rows, two_rows, aliased), "apply_affine",
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(lower_rows, two_rows, aliased)), "apply_affine",
                     "destination holds the source's pixels");
     EXPECT_EQ(bytes_of(aliased), bytes_of(make_pattern_image(ImageSize{4, 4}, 1)));
 }
 
 TEST(Small_ImagingAffine, TranslationMovesBoxesByTheOffset)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 30.0f,
-                                      -10.0f);
+    const AffinePlan plan =
+        make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 30.0f, -10.0f);
 
     const Labels warped = apply_affine(make_labels({{10.0f, 20.0f, 50.0f, 60.0f}}), plan);
 
@@ -508,8 +519,8 @@ TEST(Small_ImagingAffine, TranslationMovesBoxesByTheOffset)
 
 TEST(Small_ImagingAffine, ScaleMultipliesBoxCornersBeforeTheOffset)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 200}, 2.0f, 10.0f,
-                                      -20.0f);
+    const AffinePlan plan =
+        make_plan(ImageSize{100, 100}, ImageSize{100, 200}, 2.0f, 10.0f, -20.0f);
 
     const Labels warped = apply_affine(make_labels({{5.0f, 20.0f, 25.0f, 40.0f}}), plan);
 
@@ -519,8 +530,8 @@ TEST(Small_ImagingAffine, ScaleMultipliesBoxCornersBeforeTheOffset)
 
 TEST(Small_ImagingAffine, WarpedBoxIsTheHullOfItsFourWarpedCorners)
 {
-    const AffinePlan plan = make_plan(ImageSize{400, 400}, ImageSize{100, 100}, 0.5f, -20.0f,
-                                      30.0f);
+    const AffinePlan plan =
+        make_plan(ImageSize{400, 400}, ImageSize{100, 100}, 0.5f, -20.0f, 30.0f);
     const PixelBox box{100.0f, 20.0f, 200.0f, 120.0f};
     const std::array<std::array<float, 2>, 4> corners{{{box.x1, box.y1}, {box.x2, box.y2},
                                                        {box.x1, box.y2}, {box.x2, box.y1}}};
@@ -546,15 +557,13 @@ TEST(Small_ImagingAffine, WarpedBoxIsTheHullOfItsFourWarpedCorners)
 
 TEST(Small_ImagingAffine, BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f,
-                                      0.0f);
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f, 0.0f);
 
     // Each box is 40 by 40; after the shift its width inside the output is 10, 5, 3, 2, 0.
-    const Labels labels = make_labels({{10.0f, 10.0f, 50.0f, 50.0f},
-                                       {15.0f, 10.0f, 55.0f, 50.0f},
-                                       {17.0f, 10.0f, 57.0f, 50.0f},
-                                       {18.0f, 10.0f, 58.0f, 50.0f},
-                                       {30.0f, 10.0f, 70.0f, 50.0f}});
+    const Labels labels =
+        make_labels({{10.0f, 10.0f, 50.0f, 50.0f}, {15.0f, 10.0f, 55.0f, 50.0f},
+                     {17.0f, 10.0f, 57.0f, 50.0f}, {18.0f, 10.0f, 58.0f, 50.0f}, {30.0f, 10.0f,
+                     70.0f, 50.0f}});
 
     const Labels warped = apply_affine(labels, plan);
 
@@ -568,16 +577,15 @@ TEST(Small_ImagingAffine, BoxesAreClippedThenFilteredAndSurvivorsKeepTheirOrder)
 TEST(Small_ImagingAffine, FilterComparesAgainstTheSourceBoxTimesTheScale)
 {
     // A 40 by 40 box becomes 10 by 10: ratio 1 against the scaled box, 0.0625 against the raw.
-    const AffinePlan shrink = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 0.25f, 0.0f,
-                                        0.0f);
+    const AffinePlan shrink =
+        make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 0.25f, 0.0f, 0.0f);
     const Labels shrunk = apply_affine(make_labels({{40.0f, 40.0f, 80.0f, 80.0f}}), shrink);
 
     ASSERT_EQ(shrunk.size(), 1u);
     expect_box_near(shrunk.boxes()[0], PixelBox{10.0f, 10.0f, 20.0f, 20.0f});
 
     // A 20 by 20 box becomes 40 by 40 and keeps 3 by 40: ratio 0.075 scaled, 0.3 against raw.
-    const AffinePlan grow = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 77.0f,
-                                      0.0f);
+    const AffinePlan grow = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 77.0f, 0.0f);
     const Labels grown = apply_affine(make_labels({{10.0f, 10.0f, 30.0f, 30.0f}}), grow);
 
     EXPECT_TRUE(grown.is_empty());
@@ -597,18 +605,15 @@ TEST(Small_ImagingAffine, BoxWarpUsesThePlansFilter)
 
 TEST(Small_ImagingAffine, BoxWarpRejectsARotatedMatrixAndAScaleThatIsNotThePlans)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 0.0f,
-                                      0.0f);
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 0.0f, 0.0f);
 
     AffinePlan rotated = plan;
     rotated.matrix[3] = 0.25f;
-    SA_EXPECT_ERROR(static_cast<void>(apply_affine(make_labels({}), rotated)), "off-diagonal");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(make_labels({}), rotated)), "off-diagonal");
 
-    AffinePlan other_scale = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 0.0f,
-                                       0.0f);
+    AffinePlan other_scale = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 0.0f, 0.0f);
     other_scale.scale = 1.0f;
-    SA_EXPECT_ERROR(static_cast<void>(apply_affine(make_labels({}), other_scale)),
-                    "plan's scale");
+    SA_EXPECT_FATAL(static_cast<void>(apply_affine(make_labels({}), other_scale)), "plan's scale");
 }
 
 /** @brief Tests that the settings and the plan default to the 0.10 and the 0.01 area ratios. */
@@ -616,7 +621,8 @@ TEST(Small_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
 {
     Random random(4u);
     const AffineSettings settings;
-    const AffinePlan plan = plan_affine(settings, ImageSize{8, 8}, ImageSize{8, 8}, random);
+    const AffinePlan plan =
+        require_value(plan_affine(settings, ImageSize{8, 8}, ImageSize{8, 8}, random));
 
     EXPECT_NEAR(settings.filter.min_area_ratio, 0.10f, 1e-7f);
     EXPECT_NEAR(settings.polygon_filter.min_area_ratio, 0.01f, 1e-7f);
@@ -628,8 +634,7 @@ TEST(Small_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
 /** @brief Tests that every vertex of a polygon is scaled, then moved by the matrix translation. */
 TEST(Small_ImagingAffine, PolygonVerticesAreScaledThenTranslated)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 10.0f,
-                                      -5.0f);
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 2.0f, 10.0f, -5.0f);
     Labels labels;
     labels.add(6, PixelBox{5.0f, 10.0f, 25.0f, 30.0f},
                Polygon{Point{5.0f, 10.0f}, Point{25.0f, 12.0f}, Point{15.0f, 30.0f}});
@@ -720,8 +725,7 @@ TEST(Small_ImagingAffine, WarpedPolygonStaysInsideTheOutputWhenACrossingRoundsOu
 TEST(Small_ImagingAffine, PolygonObjectIsFilteredAtTheLowerAreaRatio)
 {
     // The 40 by 40 box keeps 3 by 40 inside the output: an area ratio of 0.075.
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f,
-                                      0.0f);
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 80.0f, 0.0f);
     const PixelBox box{17.0f, 10.0f, 57.0f, 50.0f};
     Labels with_polygon;
     with_polygon.add(3, box,
@@ -755,8 +759,7 @@ TEST(Small_ImagingAffine, PolygonWarpUsesThePlansPolygonFilter)
 /** @brief Tests that a polygon the warp moves out of the output drops its object. */
 TEST(Small_ImagingAffine, PolygonOutsideTheOutputDropsItsObject)
 {
-    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 500.0f,
-                                      0.0f);
+    const AffinePlan plan = make_plan(ImageSize{100, 100}, ImageSize{100, 100}, 1.0f, 500.0f, 0.0f);
     Labels labels;
     labels.add(0, PixelBox{10.0f, 10.0f, 50.0f, 50.0f},
                Polygon{Point{10.0f, 10.0f}, Point{50.0f, 10.0f}, Point{30.0f, 50.0f}});

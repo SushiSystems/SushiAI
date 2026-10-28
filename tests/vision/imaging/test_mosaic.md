@@ -149,17 +149,17 @@ Four empty label sets join to an empty one.
 
 ## DrawRejectsANonPositiveSizeBeforeAnyDraw
 
-Image sizes of 0 and -4 throw with "validate_mosaic_size" and the value, and the generator is
+Image sizes of 0 and -4 fail with "validate_mosaic_size" and the value, and the generator is
 unchanged.
 
 ## PlanRejectsADisabledDrawAndAnEmptyPatch
 
-`plan_mosaic` throws for a disabled draw ("not enabled"), for a patch of height 0 ("patch 2")
+`plan_mosaic` fails for a disabled draw ("not enabled"), for a patch of height 0 ("patch 2")
 and for a centre column of 17 on a 16 px canvas ("centre").
 
 ## ApplyRejectsPatchesThePlanWasNotMadeFor
 
-`apply_mosaic` throws for a one-channel patch among three-channel ones ("patch 1", "channels")
+`apply_mosaic` fails for a one-channel patch among three-channel ones ("patch 1", "channels")
 and for a patch of another size than the plan's ("patch 3").
 
 ## DrawnCentreIsWhereTheFourColoursMeet
@@ -170,12 +170,12 @@ yellow. The draw and the plan therefore agree on which coordinate is the row.
 
 ## DrawRejectsAProbabilityOutsideZeroToOne
 
-Probabilities of 1.5, -0.25 and NaN throw with "validate_mosaic" and "probability", the
+Probabilities of 1.5, -0.25 and NaN fail with "validate_mosaic" and "probability", the
 default settings pass `validate_mosaic`, and the generator is unchanged.
 
 ## DrawRejectsASizeWhoseCanvasIsTooLarge
 
-An image size of 8193, whose canvas would exceed `K_MAX_IMAGE_SIDE`, throws with "image_size of
+An image size of 8193, whose canvas would exceed `K_MAX_IMAGE_SIDE`, returns `InvalidDescription` with "image_size of
 8193" and "[1, 8192]". An image size of 8192 is accepted.
 
 ## DrawAsksThePartnerSourceForEverySample
@@ -191,26 +191,26 @@ the object without a polygon still has none.
 
 ## PlanRejectsASizeOutOfRangeAndAPatchSideAboveTheLimit
 
-`plan_mosaic` throws for an image size of 0 and of 8193 ("image_size") and for a patch height
+`plan_mosaic` returns `InvalidDescription` for an image size of 0 and of 8193 ("image_size") and for a patch height
 of 16385 ("patch 1").
 
 ## ApplyRejectsAPlanWithoutAValidSizeForPixelsAndForLabels
 
-Both forms of `apply_mosaic` throw with "image_size" for a default plan and for one whose image
+Both forms of `apply_mosaic` fail with "image_size" for a default plan and for one whose image
 size is 8193.
 
 ## ApplyRejectsAPatchWithoutPixels
 
-A default view as patch 2 throws with "apply_mosaic: patch 2" and "no pixels".
+A default view as patch 2 stops the process with "apply_mosaic: patch 2" and "no pixels".
 
 ## ApplyRejectsAPatchThatLiesAnywhereInTheDestination
 
-A patch that views the start of the destination, and one that views its row 20, throw with
+A patch that views the start of the destination, and one that views its row 20, fail with
 "destination holds the source's pixels" under the patch's number. The destination keeps its
 40 by 40 size and its bytes.
 
 ## ApplyRejectsAPlacementOutsideTheCanvasAndOneThatResamples
 
-A placement whose `canvas_x2` is 17 throws with "patch 1" and "outside a canvas". A placement
-whose patch span is one pixel narrower than its canvas span throws with "patch 3" and
+A placement whose `canvas_x2` is 17 stops the process with "patch 1" and "outside a canvas". A placement
+whose patch span is one pixel narrower than its canvas span stops the process with "patch 3" and
 "resamples nothing".

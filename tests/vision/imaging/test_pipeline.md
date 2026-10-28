@@ -182,7 +182,7 @@ With `FixedPartners` of 4, 4, 0 the trace holds those partners and the source re
 
 ## TrainingRejectsEverySettingOutOfRangeAtConstruction
 
-Constructing a `TrainingPipeline` throws for an image size of 0 or 8193, 0 epochs, a
+Constructing a `TrainingPipeline` returns `InvalidDescription` for an image size of 0 or 8193, 0 epochs, a
 `close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of
 1, a negative HSV gain and a NaN flip probability, each under the name of the validator that
 found it. No rejected construction loads an image, and `validate_training` accepts the test
@@ -190,12 +190,12 @@ settings.
 
 ## TrainingRejectsAnEmptySourceAndANullPartnerSource
 
-An empty source throws with "TrainingPipeline" and "no image", with or without a partner
-source. A null partner source throws with "partner source is null".
+An empty source fails with "TrainingPipeline" and "no image", with or without a partner
+source. A null partner source fails with "partner source is null".
 
 ## TrainingRejectsIndicesAndEpochsOutsideTheirRange
 
-`make_sample` throws for index 5 of five images and for epochs -1 and 100 of 100.
+`make_sample` stops the process for index 5 of five images and for epochs -1 and 100 of 100.
 
 ## TrainingExpandsAGreyImageToRGB
 
@@ -209,7 +209,7 @@ three-channel 32 by 32 sample that equals `compose_from_trace`.
 
 ## TrainingRejectsAnImageOfFourChannels
 
-A four-channel image throws from `make_sample` with "4 channels" and "image 0".
+A four-channel image returns `InvalidFile` from `make_sample` with "4 channels" and "image 0".
 
 ## TrainingCarriesAPolygonAndTakesTheBoxFromIt
 
@@ -250,5 +250,5 @@ the loaded image, becomes (8, 12).
 
 ## ValidationRejectsSettingsAndIndicesOutsideTheirRange
 
-Constructing a `ValidationPipeline` throws for an image size of 0 ("validate_validation") and
-for an empty source ("no image"). `make_sample` throws for index 9 of five images.
+Constructing a `ValidationPipeline` fails for an image size of 0 ("validate_validation") and
+for an empty source ("no image"). `make_sample` fails for index 9 of five images.

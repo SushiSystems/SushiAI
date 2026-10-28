@@ -29,7 +29,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 
 using namespace SushiAI;
@@ -37,6 +38,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns an image whose byte at offset i is 17 * i + 3 modulo 256. */
     Image make_counted(ImageSize size, std::int32_t channels)
     {
@@ -54,7 +56,7 @@ TEST(Small_ImagingGray, ExpandCopiesEachLevelIntoThreeChannels)
     const Image gray = make_counted(ImageSize{3, 5}, 1);
     Image color;
 
-    expand_gray(gray.view(), color);
+    SA_EXPECT_OK(expand_gray(gray.view(), color));
 
     ASSERT_EQ(color.size(), (ImageSize{3, 5}));
     ASSERT_EQ(color.channels(), K_RGB_CHANNELS);
@@ -76,7 +78,7 @@ TEST(Small_ImagingGray, ExpandRewritesAReusedDestination)
     Image color(ImageSize{9, 9}, 4);
     color.fill(255);
 
-    expand_gray(gray.view(), color);
+    SA_EXPECT_OK(expand_gray(gray.view(), color));
 
     ASSERT_EQ(color.size(), (ImageSize{2, 2}));
     ASSERT_EQ(color.channels(), 3);
@@ -91,8 +93,10 @@ TEST(Small_ImagingGray, ExpandRejectsASourceThatIsNotGrey)
     const Image four = make_counted(ImageSize{2, 2}, 4);
     Image destination;
 
-    SA_EXPECT_ERROR(expand_gray(color.view(), destination), "expand_gray", "3 channels");
-    SA_EXPECT_ERROR(expand_gray(four.view(), destination), "expand_gray", "4 channels");
+    SA_EXPECT_FAILURE(expand_gray(color.view(), destination), StatusCode::InvalidDescription,
+                      "expand_gray", "3 channels");
+    SA_EXPECT_FAILURE(expand_gray(four.view(), destination), StatusCode::InvalidDescription,
+                      "expand_gray", "4 channels");
     EXPECT_EQ(K_GRAY_CHANNELS, 1);
 }
 
@@ -103,10 +107,10 @@ TEST(Small_ImagingGray, ExpandRejectsASourceWithoutPixelsAndOneInTheDestination)
     const Image untouched = make_counted(ImageSize{4, 2}, 1);
     const ImageView lower_rows(image.row(1), ImageSize{2, 2}, 1);
 
-    SA_EXPECT_ERROR(expand_gray(ImageView(), image), "expand_gray", "no pixels");
-    SA_EXPECT_ERROR(expand_gray(image.view(), image), "expand_gray",
+    SA_EXPECT_FATAL(static_cast<void>(expand_gray(ImageView(), image)), "expand_gray", "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(expand_gray(image.view(), image)), "expand_gray",
                     "destination holds the source's pixels");
-    SA_EXPECT_ERROR(expand_gray(lower_rows, image), "expand_gray",
+    SA_EXPECT_FATAL(static_cast<void>(expand_gray(lower_rows, image)), "expand_gray",
                     "destination holds the source's pixels");
 
     ASSERT_EQ(image.size(), (ImageSize{4, 2}));

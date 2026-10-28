@@ -30,7 +30,9 @@
 #include <string_view>
 #include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/recent_partners.hpp>
@@ -62,46 +64,49 @@ namespace SushiAI::Vision::Imaging
 
         /**
          * @brief Loads one image, resizes its long side, makes it RGB and converts its labels.
-         *
-         * Follows the reference's get_image_and_label (data/base.py:445): the polygons are
-         * resampled, then the labels are converted with the resized size.
          * @param loaded Receives the resized image with K_RGB_CHANNELS.
          * @param owner Names the calling function at the start of the message.
+         * @return The labels and the decoded size; the failure of the load or the resize;
+         *         InvalidFile for a source that returned no pixels or a bad channel count.
+         * @pre @p index is below source.size().
          */
-        [[nodiscard]] LoadedLabels load_resized(const SampleSource& source, std::size_t index,
-                                                std::int32_t image_size, LoadScratch scratch,
-                                                Image& loaded, std::string_view owner)
+        [[nodiscard]] Result<LoadedLabels> load_resized(const SampleSource& source,
+                                                        std::size_t index,
+                                                        std::int32_t image_size,
+                                                        LoadScratch scratch, Image& loaded,
+                                                        std::string_view owner)
         {
-            SA_THROW_IF(index >= source.size(),
+            SA_FATAL_IF(index >= source.size(),
                         "{}: sample index {} is outside a source of {} images", owner, index,
                         source.size());
 
             FileLabels file_labels;
-            source.load(index, scratch.decoded, file_labels);
+            SA_TRY(source.load(index, scratch.decoded, file_labels));
 
             const std::int32_t channels = scratch.decoded.channels();
-            SA_THROW_IF(!is_valid_size(scratch.decoded.size()),
-                        "{}: the source returned no pixels for image {}", owner, index);
-            SA_THROW_IF(channels != K_GRAY_CHANNELS && channels != K_RGB_CHANNELS,
-                        "{}: the source returned {} channels for image {}; a detection image "
-                        "has {} or {}",
-                        owner, channels, index, K_GRAY_CHANNELS, K_RGB_CHANNELS);
+            SA_FAIL_IF(!is_valid_size(scratch.decoded.size()), StatusCode::InvalidFile,
+                       "{}: the source returned no pixels for image {}", owner, index);
+            SA_FAIL_IF(channels != K_GRAY_CHANNELS && channels != K_RGB_CHANNELS,
+                       StatusCode::InvalidFile,
+                       "{}: the source returned {} channels for image {}; a detection image "
+                       "has {} or {}",
+                       owner, channels, index, K_GRAY_CHANNELS, K_RGB_CHANNELS);
 
             if (channels == K_GRAY_CHANNELS)
             {
-                resize_long_side(scratch.decoded.view(), image_size, scratch.gray);
-                expand_gray(scratch.gray.view(), loaded);
+                SA_TRY(resize_long_side(scratch.decoded.view(), image_size, scratch.gray));
+                SA_TRY(expand_gray(scratch.gray.view(), loaded));
             }
             else
             {
-                resize_long_side(scratch.decoded.view(), image_size, loaded);
+                SA_TRY(resize_long_side(scratch.decoded.view(), image_size, loaded));
             }
 
             LoadedLabels result;
             result.original_size = scratch.decoded.size();
             result.labels =
                 to_pixel_labels(resample_polygons(std::move(file_labels)), loaded.size());
-            return result;
+            return Result<LoadedLabels>(std::move(result));
         }
 
         /**
@@ -109,21 +114,24 @@ namespace SushiAI::Vision::Imaging
          * @param own_labels Pixel labels of patches[0], which already holds the sample's image.
          * @param canvas Receives the 2s by 2s mosaic.
          * @param owner Names the calling function at the start of the message.
-         * @return The joined labels in canvas coordinates.
+         * @return The joined labels in canvas coordinates, or the first failure of a partner's
+         *         load, of the plan or of the canvas.
          */
-        [[nodiscard]] Labels compose_mosaic(const SampleSource& source,
-                                            const MosaicSettings& settings,
-                                            const MosaicDraw& draw, std::int32_t image_size,
-                                            Labels own_labels, LoadScratch scratch,
-                                            std::array<Image, K_MOSAIC_PATCHES>& patches,
-                                            Image& canvas, std::string_view owner)
+        [[nodiscard]] Result<Labels> compose_mosaic(const SampleSource& source,
+                                                    const MosaicSettings& settings,
+                                                    const MosaicDraw& draw,
+                                                    std::int32_t image_size, Labels own_labels,
+                                                    LoadScratch scratch,
+                                                    std::array<Image, K_MOSAIC_PATCHES>& patches,
+                                                    Image& canvas, std::string_view owner)
         {
             std::array<Labels, K_MOSAIC_PATCHES> patch_labels;
             patch_labels[0] = std::move(own_labels);
             for (std::size_t i = 1; i < K_MOSAIC_PATCHES; ++i)
             {
-                LoadedLabels partner = load_resized(source, draw.partners[i - 1], image_size,
-                                                    scratch, patches[i], owner);
+                SA_TRY_ASSIGN(LoadedLabels partner,
+                              load_resized(source, draw.partners[i - 1], image_size, scratch,
+                                           patches[i], owner));
                 patch_labels[i] = std::move(partner.labels);
             }
 
@@ -135,9 +143,10 @@ namespace SushiAI::Vision::Imaging
                 patch_views[i] = patches[i].view();
             }
 
-            const MosaicPlan plan = plan_mosaic(settings, draw, image_size, patch_sizes);
-            apply_mosaic(patch_views, plan, canvas);
-            return apply_mosaic(patch_labels, plan);
+            SA_TRY_ASSIGN(const MosaicPlan plan,
+                          plan_mosaic(settings, draw, image_size, patch_sizes));
+            SA_TRY(apply_mosaic(patch_views, plan, canvas));
+            return Result<Labels>(apply_mosaic(patch_labels, plan));
         }
     } // namespace
 
@@ -147,22 +156,22 @@ namespace SushiAI::Vision::Imaging
         return epoch >= epochs - close_mosaic;
     }
 
-    void validate_training(const TrainingSettings& settings)
+    Status validate_training(const TrainingSettings& settings)
     {
-        validate_mosaic_size(settings.image_size);
-        SA_THROW_IF(settings.epochs <= 0,
-                    "validate_training: an epoch count of {} is not above zero", settings.epochs);
-        SA_THROW_IF(settings.close_mosaic < 0,
-                    "validate_training: a close_mosaic of {} is below zero",
-                    settings.close_mosaic);
-        SA_THROW_IF(settings.batch_size <= 0,
-                    "validate_training: a batch_size of {} is not above zero",
-                    settings.batch_size);
+        SA_TRY(validate_mosaic_size(settings.image_size));
+        SA_FAIL_IF(settings.epochs <= 0, StatusCode::InvalidDescription,
+                   "validate_training: an epoch count of {} is not above zero", settings.epochs);
+        SA_FAIL_IF(settings.close_mosaic < 0, StatusCode::InvalidDescription,
+                   "validate_training: a close_mosaic of {} is below zero",
+                   settings.close_mosaic);
+        SA_FAIL_IF(settings.batch_size <= 0, StatusCode::InvalidDescription,
+                   "validate_training: a batch_size of {} is not above zero",
+                   settings.batch_size);
 
-        validate_mosaic(settings.mosaic);
-        validate_affine(settings.affine);
-        validate_hsv(settings.hsv);
-        validate_flip(settings.flip);
+        SA_TRY(validate_mosaic(settings.mosaic));
+        SA_TRY(validate_affine(settings.affine));
+        SA_TRY(validate_hsv(settings.hsv));
+        return validate_flip(settings.flip);
     }
 
     Random make_sample_random(std::uint64_t seed, std::int32_t epoch, std::size_t index) noexcept
@@ -173,35 +182,51 @@ namespace SushiAI::Vision::Imaging
     }
 
     TrainingPipeline::TrainingPipeline(const SampleSource& source,
-                                       const TrainingSettings& settings)
-        : source_(&source), settings_(settings)
-    {
-        validate_training(settings_);
-        SA_THROW_IF(source.size() == 0, "TrainingPipeline: the source holds no image");
-
-        partners_ = std::make_unique<RecentPartners>(source.size(), settings_.batch_size);
-    }
-
-    TrainingPipeline::TrainingPipeline(const SampleSource& source,
                                        const TrainingSettings& settings,
-                                       std::unique_ptr<PartnerSource> partners)
+                                       std::unique_ptr<PartnerSource> partners) noexcept
         : source_(&source), settings_(settings), partners_(std::move(partners))
     {
-        validate_training(settings_);
-        SA_THROW_IF(source.size() == 0, "TrainingPipeline: the source holds no image");
-        SA_THROW_IF(partners_ == nullptr, "TrainingPipeline: the partner source is null");
+
     }
 
-    TrainingTrace TrainingPipeline::make_sample(std::size_t index, std::int32_t epoch,
-                                                Sample& sample)
+    Result<TrainingPipeline> TrainingPipeline::make(const SampleSource& source,
+                                                    const TrainingSettings& settings)
+    {
+        SA_TRY(validate_training(settings));
+        SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
+                   "TrainingPipeline: the source holds no image");
+
+        SA_TRY_ASSIGN(std::unique_ptr<RecentPartners> recent,
+                      RecentPartners::make(source.size(), settings.batch_size));
+        std::unique_ptr<PartnerSource> partners = std::move(recent);
+
+        return make(source, settings, std::move(partners));
+    }
+
+    Result<TrainingPipeline> TrainingPipeline::make(const SampleSource& source,
+                                                    const TrainingSettings& settings,
+                                                    std::unique_ptr<PartnerSource> partners)
+    {
+        SA_TRY(validate_training(settings));
+        SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
+                   "TrainingPipeline: the source holds no image");
+        SA_FATAL_IF(partners == nullptr, "TrainingPipeline: the partner source is null");
+
+        return Result<TrainingPipeline>(
+            TrainingPipeline(source, settings, std::move(partners)));
+    }
+
+    Result<TrainingTrace> TrainingPipeline::make_sample(std::size_t index, std::int32_t epoch,
+                                                        Sample& sample)
     {
         const std::string_view owner = "TrainingPipeline::make_sample";
-        SA_THROW_IF(epoch < 0 || epoch >= settings_.epochs,
+        SA_FATAL_IF(epoch < 0 || epoch >= settings_.epochs,
                     "{}: epoch {} is outside a run of {} epochs", owner, epoch, settings_.epochs);
 
         const std::int32_t side = settings_.image_size;
         const LoadScratch scratch{decoded_, gray_};
-        LoadedLabels own = load_resized(*source_, index, side, scratch, patches_[0], owner);
+        SA_TRY_ASSIGN(LoadedLabels own,
+                      load_resized(*source_, index, side, scratch, patches_[0], owner));
         sample.original_size = own.original_size;
         sample.loaded_size = patches_[0].size();
 
@@ -210,61 +235,77 @@ namespace SushiAI::Vision::Imaging
         TrainingTrace trace;
         trace.is_mosaic_closed = is_mosaic_closed(epoch, settings_.epochs, settings_.close_mosaic);
         if (!trace.is_mosaic_closed)
-            trace.mosaic = draw_mosaic(settings_.mosaic, side, index, *partners_, random);
+        {
+            SA_TRY_ASSIGN(trace.mosaic,
+                          draw_mosaic(settings_.mosaic, side, index, *partners_, random));
+        }
 
         Labels labels = std::move(own.labels);
         ImageView warp_source = patches_[0].view();
         if (trace.mosaic.is_enabled)
         {
-            labels = compose_mosaic(*source_, settings_.mosaic, trace.mosaic, side,
-                                    std::move(labels), scratch, patches_, first_, owner);
+            SA_TRY_ASSIGN(labels,
+                          compose_mosaic(*source_, settings_.mosaic, trace.mosaic, side,
+                                         std::move(labels), scratch, patches_, first_, owner));
             warp_source = first_.view();
         }
 
-        trace.affine =
-            plan_affine(settings_.affine, warp_source.size(), ImageSize{side, side}, random);
+        SA_TRY_ASSIGN(trace.affine, plan_affine(settings_.affine, warp_source.size(),
+                                                ImageSize{side, side}, random));
         apply_affine(warp_source, trace.affine, second_);
         labels = apply_affine(labels, trace.affine);
 
         // first_ is free here: the warp has already read the canvas it held.
-        trace.hsv = plan_hsv(settings_.hsv, random);
+        SA_TRY_ASSIGN(trace.hsv, plan_hsv(settings_.hsv, random));
         apply_hsv(second_.view(), trace.hsv, first_);
 
-        trace.flip = plan_flip(settings_.flip, first_.size(), random);
+        SA_TRY_ASSIGN(trace.flip, plan_flip(settings_.flip, first_.size(), random));
         apply_flip(first_.view(), trace.flip, sample.image);
         sample.labels = apply_flip(labels, trace.flip);
-        return trace;
+        return Result<TrainingTrace>(trace);
     }
 
-    void validate_validation(const ValidationSettings& settings)
+    Status validate_validation(const ValidationSettings& settings)
     {
-        SA_THROW_IF(!is_valid_side(settings.image_size),
-                    "validate_validation: an image_size of {} is outside [1, {}]",
-                    settings.image_size, K_MAX_IMAGE_SIDE);
+        SA_FAIL_IF(!is_valid_side(settings.image_size), StatusCode::InvalidDescription,
+                   "validate_validation: an image_size of {} is outside [1, {}]",
+                   settings.image_size, K_MAX_IMAGE_SIDE);
 
         validate_letterbox(settings.letterbox);
+        return Status();
     }
 
     ValidationPipeline::ValidationPipeline(const SampleSource& source,
-                                           const ValidationSettings& settings)
+                                           const ValidationSettings& settings) noexcept
         : source_(&source), settings_(settings)
     {
-        validate_validation(settings_);
-        SA_THROW_IF(source.size() == 0, "ValidationPipeline: the source holds no image");
+
     }
 
-    LetterboxPlan ValidationPipeline::make_sample(std::size_t index, ImageSize target,
-                                                  Sample& sample)
+    Result<ValidationPipeline> ValidationPipeline::make(const SampleSource& source,
+                                                        const ValidationSettings& settings)
     {
-        LoadedLabels own = load_resized(*source_, index, settings_.image_size,
-                                        LoadScratch{decoded_, gray_}, loaded_,
-                                        "ValidationPipeline::make_sample");
+        SA_TRY(validate_validation(settings));
+        SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
+                   "ValidationPipeline: the source holds no image");
+
+        return Result<ValidationPipeline>(ValidationPipeline(source, settings));
+    }
+
+    Result<LetterboxPlan> ValidationPipeline::make_sample(std::size_t index, ImageSize target,
+                                                          Sample& sample)
+    {
+        SA_TRY_ASSIGN(LoadedLabels own,
+                      load_resized(*source_, index, settings_.image_size,
+                                   LoadScratch{decoded_, gray_}, loaded_,
+                                   "ValidationPipeline::make_sample"));
         sample.original_size = own.original_size;
         sample.loaded_size = loaded_.size();
 
-        const LetterboxPlan plan = plan_letterbox(settings_.letterbox, loaded_.size(), target);
+        SA_TRY_ASSIGN(const LetterboxPlan plan,
+                      plan_letterbox(settings_.letterbox, loaded_.size(), target));
         apply_letterbox(loaded_.view(), plan, sample.image);
         sample.labels = apply_letterbox(own.labels, plan);
-        return plan;
+        return Result<LetterboxPlan>(plan);
     }
 } // namespace SushiAI::Vision::Imaging

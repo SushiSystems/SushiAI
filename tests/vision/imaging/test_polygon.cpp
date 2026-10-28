@@ -29,7 +29,7 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/polygon.hpp>
 
 using namespace SushiAI;
@@ -37,6 +37,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance of a resampled coordinate of magnitude up to 4. */
     constexpr float K_POINT_TOLERANCE = 1e-6f;
 
@@ -162,7 +163,7 @@ TEST(Small_ImagingPolygon, ResampleToAThousandPointsKeepsTheOutline)
 /** @brief Tests that a count of zero is refused. */
 TEST(Small_ImagingPolygon, ResampleRejectsACountOfZero)
 {
-    SA_EXPECT_ERROR(static_cast<void>(resample_polygon(make_triangle(), 0)), "resample_polygon",
+    SA_EXPECT_FATAL(static_cast<void>(resample_polygon(make_triangle(), 0)), "resample_polygon",
                     "point count of 0");
 }
 

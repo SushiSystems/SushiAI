@@ -59,15 +59,15 @@ The byte 0x1f separates fields, alone or repeated.
 
 ## RejectsARowOfFourColumns
 
-A row of four columns throws with "parse_label_text: line 1", "5 columns" and "this row has 4".
+A row of four columns returns `InvalidFile` with "parse_label_text: line 1", "5 columns" and "this row has 4".
 
 ## RejectsARowOfSixColumns
 
-A row of six columns throws with "5 columns" and "this row has 6".
+A row of six columns returns `InvalidFile` with "5 columns" and "this row has 6".
 
 ## RejectsARowOfOneColumn
 
-A row of one column throws with "this row has 1".
+A row of one column returns `InvalidFile` with "this row has 1".
 
 ## NamesTheLineOfTheRejectedRow
 
@@ -75,31 +75,31 @@ A short row after one row and one blank line is reported as "line 3". Blank line
 
 ## RejectsAFieldThatIsNotANumber
 
-The field "abc" throws with "'abc'" and "not a number".
+The field "abc" returns `InvalidFile` with "'abc'" and "not a number".
 
 ## RejectsAFieldWithCharactersAfterTheNumber
 
-The field "0.5x" throws with "'0.5x'".
+The field "0.5x" returns `InvalidFile` with "'0.5x'".
 
 ## RejectsADecimalComma
 
-The field "0,5" throws with "'0,5'".
+The field "0,5" returns `InvalidFile` with "'0,5'".
 
 ## RejectsADoubledSign
 
-The field "+-0.5" throws with "'+-0.5'".
+The field "+-0.5" returns `InvalidFile` with "'+-0.5'".
 
 ## RejectsNotANumberAndInfinity
 
-The fields "nan", "inf" and "1e999" each throw with the field quoted.
+The fields "nan", "inf" and "1e999" each fail with the field quoted.
 
 ## RejectsAFiniteValueAboveTheFloatRange
 
-The field "1e39", finite as a double and not as a float, throws with "not a finite number".
+The field "1e39", finite as a double and not as a float, returns `InvalidFile` with "not a finite number".
 
 ## RejectsANonzeroValueBelowTheSmallestNormalDouble
 
-The fields "1e-310" and "1e-999" throw with the field quoted.
+The fields "1e-310" and "1e-999" fail with the field quoted.
 
 ## AcceptsZeroAndTheSmallestNormalDouble
 
@@ -107,11 +107,11 @@ The fields "1e-310" and "1e-999" throw with the field quoted.
 
 ## RejectsACoordinateBelowTheTolerance
 
-Values of -0.02 and -0.5 throw with "negative".
+Values of -0.02 and -0.5 fail with "negative".
 
 ## RejectsACoordinateAboveTheTolerance
 
-Values of 1.02 and 640 throw with "above". The second is a pixel value in a file that must hold
+Values of 1.02 and 640 fail with "above". The second is a pixel value in a file that must hold
 fractions.
 
 ## StoresACoordinateInsideTheToleranceUnclipped
@@ -124,15 +124,15 @@ Values of 1.01 and -0.01 are accepted and stored as they are.
 
 ## RejectsANegativeClass
 
-Class -1 throws with "class" and "negative".
+Class -1 returns `InvalidFile` with "class" and "negative".
 
 ## RejectsAClassWithAFraction
 
-Class 1.5 throws with "class" and "whole number".
+Class 1.5 returns `InvalidFile` with "class" and "whole number".
 
 ## RejectsAClassAtOrAboveTheClassCount
 
-Class 80 of 80 throws with "out of range" and "80 classes", and class 1 of 1 with "1 classes".
+Class 80 of 80 returns `InvalidFile` with "out of range" and "80 classes", and class 1 of 1 with "1 classes".
 
 ## AcceptsTheLastClass
 
@@ -170,20 +170,20 @@ The five points of the earlier case give the box (0.5, 0.375, 0.75, 0.5).
 
 ## RejectsABoxRowInAPolygonFile
 
-A box row after a polygon row throws with "line 2" and "polygon".
+A box row after a polygon row returns `InvalidFile` with "line 2" and "polygon".
 
 ## RejectsAPolygonRowWithAHalfPoint
 
-A polygon row of eight columns throws with "polygon" and "this row has 8".
+A polygon row of eight columns returns `InvalidFile` with "polygon" and "this row has 8".
 
 ## RejectsAPolygonRowOfFewerThanThreePoints
 
-A row of three columns in a polygon file throws with "line 2", "three points" and "this row
+A row of three columns in a polygon file returns `InvalidFile` with "line 2", "three points" and "this row
 has 3".
 
 ## RejectsAPolygonWhoseBoxLeavesTheImage
 
-A polygon with a vertex at x = 1.5 throws with "above".
+A polygon with a vertex at x = 1.5 returns `InvalidFile` with "above".
 
 ## RemovesARepeatedPolygonAndKeepsOneWithTheSameBox
 

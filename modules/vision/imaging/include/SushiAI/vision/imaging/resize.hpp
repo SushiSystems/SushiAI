@@ -29,6 +29,7 @@
 
 #include <cstdint>
 
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 
 /** @brief Holds the host-side 8-bit image transforms of the detection data pipeline. */
@@ -52,10 +53,10 @@ namespace SushiAI::Vision::Imaging
      *
      * Destination column x reads source position (x + 0.5) * (source width / width) - 0.5,
      * clamped to the edge columns; rows likewise. The kernel does not widen on a reduction.
-     * @param size Must pass is_valid_size; otherwise throws Error.
      * @param destination Reset to size with the source's channels; must pass check_source.
+     * @return InvalidDescription unless @p size passes is_valid_size.
      */
-    void resize_bilinear(ImageView source, ImageSize size, Image& destination);
+    [[nodiscard]] Status resize_bilinear(ImageView source, ImageSize size, Image& destination);
 
     /**
      * @brief Resizes an image by giving each pixel the source pixel its centre falls in.
@@ -71,8 +72,9 @@ namespace SushiAI::Vision::Imaging
      * @brief Resizes an image to fit_long_side(source.size(), image_size).
      *
      * When that size equals the source's, the pixels are copied unchanged.
-     * @param image_size Must pass is_valid_side; otherwise throws Error.
      * @param destination Reset to the fitted size; must pass check_source.
+     * @return InvalidDescription unless @p image_size passes is_valid_side.
      */
-    void resize_long_side(ImageView source, std::int32_t image_size, Image& destination);
+    [[nodiscard]] Status resize_long_side(ImageView source, std::int32_t image_size,
+                                          Image& destination);
 } // namespace SushiAI::Vision::Imaging

@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/affine_nearest.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
@@ -44,6 +45,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the byte the tests give a pixel no mask covers. */
     constexpr std::uint8_t K_VOID = 255;
 
@@ -93,12 +95,14 @@ namespace
 
             [[nodiscard]] std::size_t size() const noexcept override { return sizes_.size(); }
 
-            void load(std::size_t index, Image& image, FileLabels& labels) const override
+            [[nodiscard]] Status load(std::size_t index, Image& image,
+                                      FileLabels& labels) const override
             {
                 image = uniform(sizes_[index], K_RGB_CHANNELS, 90);
                 labels = FileLabels();
                 labels.add(static_cast<std::int32_t>(index),
                            NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f});
+                return Status();
             }
 
         private:
@@ -227,8 +231,8 @@ TEST(Small_ImagingAffineNearest, RefusesWhatItCannotWarp)
                                            make_plan(ImageSize{3, 3}, size, 1.0f, 0.0f, 0.0f),
                                            warped),
                       StatusCode::Incompatible, "3x3", "2x2");
-    SA_EXPECT_FAILURE(apply_affine_nearest(source.view(),
-                                           make_plan(size, size, 1.0f, 0.0f, 0.0f), source),
+    SA_EXPECT_FAILURE(apply_affine_nearest(source.view(), make_plan(size, size, 1.0f, 0.0f, 0.0f),
+                                           source),
                       StatusCode::InvalidDescription, "share pixels");
 
     AffinePlan sheared = make_plan(size, size, 1.0f, 0.0f, 0.0f);
@@ -251,9 +255,11 @@ TEST(Small_ImagingMaskPipeline, AFlippedSampleHasItsMaskMirrored)
     TrainingSettings settings = identity_settings(K_SIDE);
     settings.flip.probability = 1.0f;
 
-    TrainingPipeline pipeline(images, settings, std::make_unique<DatasetPartners>(1));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(images, settings,
+                                             require_value(DatasetPartners::make(1))));
     Sample sample;
-    const TrainingTrace trace = pipeline.make_sample(0, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
     ASSERT_TRUE(trace.flip.is_flipped);
     ASSERT_FALSE(trace.mosaic.is_enabled);
 
@@ -288,7 +294,9 @@ TEST(Small_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
     settings.image_size = K_SIDE;
     settings.seed = K_SEED;
 
-    TrainingPipeline pipeline(images, settings, std::make_unique<DatasetPartners>(4));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(images, settings,
+                                             require_value(DatasetPartners::make(4))));
     TrainingMaskPipeline mask_pipeline(masks, settings, K_VOID);
 
     std::size_t compared = 0;
@@ -297,7 +305,7 @@ TEST(Small_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
         for (std::size_t index = 0; index < 4; ++index)
         {
             Sample sample;
-            const TrainingTrace trace = pipeline.make_sample(index, epoch, sample);
+            const TrainingTrace trace = require_value(pipeline.make_sample(index, epoch, sample));
             ASSERT_TRUE(trace.mosaic.is_enabled);
 
             Image mask;
@@ -340,9 +348,11 @@ TEST(Small_ImagingMaskPipeline, RefusesAMaskItCannotReplay)
 
     WholeImageSource images;
     images.add(size);
-    TrainingPipeline pipeline(images, settings, std::make_unique<DatasetPartners>(1));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(images, settings,
+                                             require_value(DatasetPartners::make(1))));
     Sample sample;
-    const TrainingTrace trace = pipeline.make_sample(0, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
     Image mask;
 
     MemoryMasks colour;

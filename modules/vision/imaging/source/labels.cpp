@@ -36,7 +36,8 @@
 #include <system_error>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -134,8 +135,8 @@ namespace SushiAI::Vision::Imaging
             return table;
         }
 
-        /** @brief Parses one whole field as a finite decimal number, throwing Error otherwise. */
-        [[nodiscard]] float parse_field(std::string_view field, std::size_t line)
+        /** @brief Parses one whole field as a finite decimal number; InvalidFile otherwise. */
+        [[nodiscard]] Result<float> parse_field(std::string_view field, std::size_t line)
         {
             std::string_view digits = field;
 
@@ -148,15 +149,17 @@ namespace SushiAI::Vision::Imaging
             const char* const end = digits.data() + digits.size();
             const std::from_chars_result result = std::from_chars(digits.data(), end, value);
 
-            SA_THROW_IF(result.ec != std::errc() || result.ptr != end,
-                        "parse_label_text: line {}: the field '{}' is not a number", line, field);
-            SA_THROW_IF(value != 0.0 && std::fabs(value) < K_SMALLEST_NORMAL,
-                        "parse_label_text: line {}: the field '{}' is below the smallest normal "
-                        "number",
-                        line, field);
-            SA_THROW_IF(!std::isfinite(value) || std::fabs(value) > K_LARGEST_FLOAT,
-                        "parse_label_text: line {}: the field '{}' is not a finite number", line,
-                        field);
+            SA_FAIL_IF(result.ec != std::errc() || result.ptr != end, StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the field '{}' is not a number", line, field);
+            SA_FAIL_IF(value != 0.0 && std::fabs(value) < K_SMALLEST_NORMAL,
+                       StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the field '{}' is below the smallest normal "
+                       "number",
+                       line, field);
+            SA_FAIL_IF(!std::isfinite(value) || std::fabs(value) > K_LARGEST_FLOAT,
+                       StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the field '{}' is not a finite number", line,
+                       field);
 
             return static_cast<float>(value);
         }
@@ -170,27 +173,29 @@ namespace SushiAI::Vision::Imaging
             });
         }
 
-        /** @brief Throws Error when a row's field count does not fit the kind of its file. */
-        void check_field_count(const Row& row, bool is_polygon)
+        /** @brief Returns InvalidFile when a row's field count does not fit its file's kind. */
+        Status check_field_count(const Row& row, bool is_polygon)
         {
             const std::size_t box_fields = static_cast<std::size_t>(K_BOX_ROW_FIELDS);
             const std::size_t polygon_fields = static_cast<std::size_t>(K_POLYGON_ROW_MIN_FIELDS);
 
             if (!is_polygon)
             {
-                SA_THROW_IF(row.count != box_fields,
-                            "parse_label_text: line {}: a box row has {} columns; this row has "
-                            "{}",
-                            row.line, box_fields, row.count);
-                return;
+                SA_FAIL_IF(row.count != box_fields, StatusCode::InvalidFile,
+                           "parse_label_text: line {}: a box row has {} columns; this row has "
+                           "{}",
+                           row.line, box_fields, row.count);
+                return Status();
             }
 
-            SA_THROW_IF(row.count == box_fields,
-                        "parse_label_text: line {}: a box row in a file of polygon rows", row.line);
-            SA_THROW_IF(row.count < polygon_fields || row.count % 2 == 0,
-                        "parse_label_text: line {}: a polygon row has a class and at least three "
-                        "points, an odd count of at least {} columns; this row has {}",
-                        row.line, polygon_fields, row.count);
+            SA_FAIL_IF(row.count == box_fields, StatusCode::InvalidFile,
+                       "parse_label_text: line {}: a box row in a file of polygon rows", row.line);
+            SA_FAIL_IF(row.count < polygon_fields || row.count % 2 == 0,
+                       StatusCode::InvalidFile,
+                       "parse_label_text: line {}: a polygon row has a class and at least three "
+                       "points, an odd count of at least {} columns; this row has {}",
+                       row.line, polygon_fields, row.count);
+            return Status();
         }
 
         /**
@@ -239,37 +244,39 @@ namespace SushiAI::Vision::Imaging
             return polygon;
         }
 
-        /** @brief Throws Error when one of a box's four values lies outside the tolerance. */
-        void check_box(const NormalizedBox& box, std::size_t line)
+        /** @brief Returns InvalidFile when one of a box's four values is outside the tolerance. */
+        Status check_box(const NormalizedBox& box, std::size_t line)
         {
             const float lower = -K_LABEL_COORDINATE_SLACK;
             const float upper = 1.0f + K_LABEL_COORDINATE_SLACK;
 
             for (float value : {box.x_center, box.y_center, box.width, box.height})
             {
-                SA_THROW_IF(value > upper,
-                            "parse_label_text: line {}: the coordinate {} is above {}; "
-                            "coordinates are fractions of the image",
-                            line, value, upper);
-                SA_THROW_IF(value < lower,
-                            "parse_label_text: line {}: the coordinate {} is negative", line,
-                            value);
+                SA_FAIL_IF(value > upper, StatusCode::InvalidFile,
+                           "parse_label_text: line {}: the coordinate {} is above {}; "
+                           "coordinates are fractions of the image",
+                           line, value, upper);
+                SA_FAIL_IF(value < lower, StatusCode::InvalidFile,
+                           "parse_label_text: line {}: the coordinate {} is negative", line,
+                           value);
             }
+            return Status();
         }
 
-        /** @brief Returns a row's class id, throwing Error unless it is a whole number in range. */
-        [[nodiscard]] std::int32_t class_of_row(float value, std::int32_t class_count,
-                                                std::size_t line)
+        /** @brief Returns a row's class id; InvalidFile unless it is a whole number in range. */
+        [[nodiscard]] Result<std::int32_t> class_of_row(float value, std::int32_t class_count,
+                                                        std::size_t line)
         {
-            SA_THROW_IF(value < -K_LABEL_COORDINATE_SLACK,
-                        "parse_label_text: line {}: the class {} is negative", line, value);
-            SA_THROW_IF(std::trunc(value) != value,
-                        "parse_label_text: line {}: the class {} is not a whole number", line,
-                        value);
-            SA_THROW_IF(static_cast<double>(value) >= static_cast<double>(class_count),
-                        "parse_label_text: line {}: the class {} is out of range; the dataset "
-                        "has {} classes",
-                        line, value, class_count);
+            SA_FAIL_IF(value < -K_LABEL_COORDINATE_SLACK, StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the class {} is negative", line, value);
+            SA_FAIL_IF(std::trunc(value) != value, StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the class {} is not a whole number", line,
+                       value);
+            SA_FAIL_IF(static_cast<double>(value) >= static_cast<double>(class_count),
+                       StatusCode::InvalidFile,
+                       "parse_label_text: line {}: the class {} is out of range; the dataset "
+                       "has {} classes",
+                       line, value, class_count);
 
             return static_cast<std::int32_t>(value);
         }
@@ -286,7 +293,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    FileLabels parse_label_text(std::string_view text, std::int32_t class_count)
+    Result<FileLabels> parse_label_text(std::string_view text, std::int32_t class_count)
     {
         const RowTable table = split_rows(text);
         const bool is_polygon = is_polygon_file(table.rows);
@@ -296,10 +303,14 @@ namespace SushiAI::Vision::Imaging
 
         for (const Row& row : table.rows)
         {
-            check_field_count(row, is_polygon);
+            SA_TRY(check_field_count(row, is_polygon));
 
             for (std::size_t i = 0; i < row.count; ++i)
-                values.push_back(parse_field(table.fields[row.first + i], row.line));
+            {
+                SA_TRY_ASSIGN(const float parsed,
+                              parse_field(table.fields[row.first + i], row.line));
+                values.push_back(parsed);
+            }
         }
 
         FileLabels labels;
@@ -311,9 +322,10 @@ namespace SushiAI::Vision::Imaging
         for (const Row& row : table.rows)
         {
             const float* const fields = values.data() + row.first;
-            const std::int32_t class_id = class_of_row(fields[0], class_count, row.line);
+            SA_TRY_ASSIGN(const std::int32_t class_id,
+                          class_of_row(fields[0], class_count, row.line));
             const NormalizedBox box = box_of_row(fields, row.count, is_polygon);
-            check_box(box, row.line);
+            SA_TRY(check_box(box, row.line));
 
             const bool is_repeat = std::any_of(kept.begin(), kept.end(), [&](const Row& earlier)
             {
@@ -326,6 +338,6 @@ namespace SushiAI::Vision::Imaging
             labels.add(class_id, box, is_polygon ? polygon_of_row(fields, row.count) : Polygon{});
         }
 
-        return labels;
+        return Result<FileLabels>(std::move(labels));
     }
 } // namespace SushiAI::Vision::Imaging

@@ -32,7 +32,8 @@
 #include <cstddef>
 #include <cstring>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -80,24 +81,26 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    void validate_hsv(const HSVSettings& settings)
+    Status validate_hsv(const HSVSettings& settings)
     {
-        SA_THROW_IF(!is_gain(settings.hue_gain) || !is_gain(settings.saturation_gain) ||
-                        !is_gain(settings.value_gain),
-                    "validate_hsv: every gain must be finite and not negative; got hue {}, "
-                    "saturation {}, value {}",
-                    settings.hue_gain, settings.saturation_gain, settings.value_gain);
+        SA_FAIL_IF(!is_gain(settings.hue_gain) || !is_gain(settings.saturation_gain) ||
+                       !is_gain(settings.value_gain),
+                   StatusCode::InvalidDescription,
+                   "validate_hsv: every gain must be finite and not negative; got hue {}, "
+                   "saturation {}, value {}",
+                   settings.hue_gain, settings.saturation_gain, settings.value_gain);
+        return Status();
     }
 
-    HSVPlan plan_hsv(const HSVSettings& settings, Random& random)
+    Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random)
     {
-        validate_hsv(settings);
+        SA_TRY(validate_hsv(settings));
 
         HSVPlan plan;
         plan.hue = random.uniform(-1.0f, 1.0f) * settings.hue_gain;
         plan.saturation = random.uniform(-1.0f, 1.0f) * settings.saturation_gain;
         plan.value = random.uniform(-1.0f, 1.0f) * settings.value_gain;
-        return plan;
+        return Result<HSVPlan>(plan);
     }
 
     bool is_hsv_identity(const HSVPlan& plan) noexcept

@@ -29,6 +29,7 @@
 
 #include <cstdint>
 
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 
@@ -89,18 +90,18 @@ namespace SushiAI::Vision::Imaging
      * In double: ratio = min(target.height / source.height, target.width / source.width),
      * capped at 1 unless scale_up. Each resized side is side * ratio rounded half to even.
      * The padding of an axis is split in two; an odd one puts its extra pixel below or right.
-     * Throws Error unless both sizes pass is_valid_size and both resized sides are positive.
+     * @return The plan, or InvalidDescription unless both sizes are valid and both sides positive.
      */
-    [[nodiscard]] LetterboxPlan plan_letterbox(const LetterboxSettings& settings,
-                                               ImageSize source, ImageSize target);
+    [[nodiscard]] Result<LetterboxPlan> plan_letterbox(const LetterboxSettings& settings,
+                                                       ImageSize source, ImageSize target);
 
     /**
      * @brief Resizes an image to plan.resized and pads it to plan.target.
      *
      * The resize is the kernel of resize_bilinear and is skipped when plan.resized equals
      * the source size. The resized image starts at row plan.top and column plan.left; every
-     * other byte is plan.padding_value. Throws Error unless source.size() is plan.source.
-     * @param destination Reset to plan.target; must pass check_source.
+     * other byte is plan.padding_value.
+     * @pre source.size() is plan.source and the plan tiles its target; check_source passes.
      */
     void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination);
 

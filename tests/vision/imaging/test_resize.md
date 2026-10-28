@@ -86,20 +86,20 @@ A destination that was 9 by 9 with one channel becomes 2 by 2 with the source's 
 
 ## ResizeRejectsASourceWithoutPixels
 
-`resize_bilinear` on a default view throws with "resize_bilinear", "source" and "no pixels".
+`resize_bilinear` on a default view stops the process with "resize_bilinear", "source" and "no pixels".
 
 ## ResizeRejectsASizeOutsideTheImageBounds
 
-Destination sizes of 0 by 2, 2 by -1 and 2 by 16385 throw with "destination size" and the size.
+Destination sizes of 0 by 2, 2 by -1 and 2 by 16385 fail with "destination size" and the size.
 
 ## ResizeRejectsASourceWithExtentsOutsideTheImageBounds
 
-A source view of 0 by 2, of 2 by 16385 and of five channels throws with "source size" or
+A source view of 0 by 2, of 2 by 16385 and of five channels stops the process with "source size" or
 "source channel count".
 
 ## ResizeRejectsADestinationThatHoldsTheSource
 
-`resize_bilinear` with the image as source and destination throws with "destination holds the
+`resize_bilinear` with the image as source and destination stops the process with "destination holds the
 source's pixels". The image is still 2 by 2 with its bytes, so the refusal comes before the
 reset.
 
@@ -146,15 +146,15 @@ The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 
 
 ## ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds
 
-Image sizes of 0 and 16385 throw with "resize_long_side" and the value.
+Image sizes of 0 and 16385 fail with "resize_long_side" and the value.
 
 ## ResizeLongSideRejectsASourceWithoutPixels
 
-A default view throws with "resize_long_side" and "no pixels".
+A default view stops the process with "resize_long_side" and "no pixels".
 
 ## ResizeLongSideRejectsADestinationThatHoldsTheSource
 
-The image as source and destination throws with "destination holds the source's pixels".
+The image as source and destination stops the process with "destination holds the source's pixels".
 
 ## ResizesRejectAViewInsideTheDestination
 
@@ -163,7 +163,7 @@ the image keeps its size and its bytes.
 
 ## ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds
 
-A source view of 0 by 2 and one of five channels throw with "source size" and "source channel
+A source view of 0 by 2 and one of five channels fail with "source size" and "source channel
 count".
 
 ## NearestRepeatsEachPixelWhenEnlarged
@@ -186,7 +186,7 @@ was 9 by 9 with one channel, gives a 2 by 2 image of three channels holding that
 
 ## NearestRejectsABadSourceABadSizeAndAnAliasedDestination
 
-`resize_nearest` raises an error for an empty view ("resize_nearest", "source", "no pixels"),
+`resize_nearest` stops the process for an empty view ("resize_nearest", "source", "no pixels"),
 for a size of 0 by 2 ("Image::reset", "0x2") and for a destination that is the source image
 ("resize_nearest", "destination holds the source's pixels"). The source still holds its four
 bytes of 9.

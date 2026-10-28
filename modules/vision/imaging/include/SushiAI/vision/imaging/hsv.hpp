@@ -30,6 +30,8 @@
 #include <array>
 #include <cstdint>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
 
@@ -104,17 +106,18 @@ namespace SushiAI::Vision::Imaging
         std::array<std::uint8_t, 256> value{};
     };
 
-    /** @brief Throws Error unless each of the three gains is finite and not negative. */
-    void validate_hsv(const HSVSettings& settings);
+    /** @brief Returns InvalidDescription unless each gain is finite and not negative. */
+    [[nodiscard]] Status validate_hsv(const HSVSettings& settings);
 
     /**
      * @brief Draws the three gains of one jitter.
      *
      * Three draws, in the order hue, saturation, value: each is
      * random.uniform(-1.0f, 1.0f) multiplied in float by its gain. The draws are made even
-     * when a gain is zero. Throws Error, before any draw, on what validate_hsv rejects.
+     * when a gain is zero.
+     * @return The plan, or what validate_hsv returns, before any draw.
      */
-    [[nodiscard]] HSVPlan plan_hsv(const HSVSettings& settings, Random& random);
+    [[nodiscard]] Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random);
 
     /**
      * @brief Reports whether a plan changes no pixel: all three of its gains are zero.

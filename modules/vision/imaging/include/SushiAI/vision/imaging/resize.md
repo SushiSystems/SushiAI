@@ -43,8 +43,8 @@ source does not hold, which is what an image of class indices needs. Destination
 source column `floor((x + 0.5) * source.width / width)`, computed in 64-bit integers as
 `(2x + 1) * source.width / (2 * width)` and capped at the last column; rows likewise. The
 function has no reference: the label pipeline of the reference carries polygons, not masks. It
-throws through `check_source` and through `Image::reset`, which is where a size outside the
-bounds of an image is refused. `Datasets::fit_mask` computes the same index with its own
+stops the process through `check_source` and through `Image::reset`, which is where a size
+outside the bounds of an image is refused. `Datasets::fit_mask` computes the same index with its own
 kernel, because it writes into a region of a letterboxed mask.
 
 ## resize_long_side

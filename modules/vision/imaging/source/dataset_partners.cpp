@@ -29,33 +29,44 @@
 
 #include <limits>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
     namespace
     {
         /** @brief Returns a dataset size as the 32-bit count Random::index takes. */
-        [[nodiscard]] std::uint32_t checked_dataset_size(std::size_t dataset_size)
+        [[nodiscard]] Result<std::uint32_t> checked_dataset_size(std::size_t dataset_size)
         {
-            SA_THROW_IF(dataset_size == 0 ||
-                            dataset_size > std::numeric_limits<std::uint32_t>::max(),
-                        "DatasetPartners: a dataset size of {} is outside [1, {}]", dataset_size,
-                        std::numeric_limits<std::uint32_t>::max());
+            SA_FAIL_IF(dataset_size == 0 ||
+                           dataset_size > std::numeric_limits<std::uint32_t>::max(),
+                       StatusCode::InvalidDescription,
+                       "DatasetPartners: a dataset size of {} is outside [1, {}]", dataset_size,
+                       std::numeric_limits<std::uint32_t>::max());
 
             return static_cast<std::uint32_t>(dataset_size);
         }
     } // namespace
 
-    DatasetPartners::DatasetPartners(std::size_t dataset_size)
-        : dataset_size_(checked_dataset_size(dataset_size))
+    DatasetPartners::DatasetPartners(std::uint32_t dataset_size) noexcept
+        : dataset_size_(dataset_size)
     {
 
     }
 
+    Result<std::unique_ptr<DatasetPartners>> DatasetPartners::make(std::size_t dataset_size)
+    {
+        SA_TRY_ASSIGN(const std::uint32_t checked, checked_dataset_size(dataset_size));
+
+        std::unique_ptr<DatasetPartners> partners(new DatasetPartners(checked));
+        return Result<std::unique_ptr<DatasetPartners>>(std::move(partners));
+    }
+
     MosaicPartners DatasetPartners::choose(std::size_t index, Random& random)
     {
-        SA_THROW_IF(index >= dataset_size_,
+        SA_FATAL_IF(index >= dataset_size_,
                     "DatasetPartners::choose: sample index {} is outside a dataset of {} images",
                     index, dataset_size_);
 

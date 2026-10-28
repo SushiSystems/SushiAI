@@ -29,7 +29,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
@@ -43,6 +44,7 @@ using Vision::Imaging::PixelBox;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here. */
     constexpr float K_BOX_TOLERANCE = 1e-4f;
 
@@ -88,8 +90,8 @@ namespace
 
 TEST(Small_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
 {
-    const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{50, 200}, ImageSize{100, 100});
+    const LetterboxPlan plan = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{50, 200}, ImageSize{100, 100}));
 
     EXPECT_DOUBLE_EQ(plan.ratio, 0.5);
     EXPECT_EQ(plan.resized, (ImageSize{25, 100}));
@@ -103,8 +105,8 @@ TEST(Small_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
 
 TEST(Small_ImagingLetterbox, TallImageIsPaddedLeftAndRightWithTheOddColumnRight)
 {
-    const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});
+    const LetterboxPlan plan = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100}));
 
     EXPECT_DOUBLE_EQ(plan.ratio, 0.5);
     EXPECT_EQ(plan.resized, (ImageSize{100, 25}));
@@ -117,7 +119,8 @@ TEST(Small_ImagingLetterbox, TallImageIsPaddedLeftAndRightWithTheOddColumnRight)
 TEST(Small_ImagingLetterbox, ExactFitHasRatioOneAndNoPadding)
 {
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64}, ImageSize{64, 64});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64},
+                                                      ImageSize{64, 64}));
 
     EXPECT_DOUBLE_EQ(plan.ratio, 1.0);
     EXPECT_EQ(plan.resized, (ImageSize{64, 64}));
@@ -128,7 +131,8 @@ TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
 {
     LetterboxSettings settings;
     const LetterboxPlan padded =
-        Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40}, ImageSize{80, 80});
+        require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40},
+                                                      ImageSize{80, 80}));
 
     EXPECT_DOUBLE_EQ(padded.ratio, 1.0);
     EXPECT_EQ(padded.resized, (ImageSize{20, 40}));
@@ -139,7 +143,8 @@ TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
 
     settings.scale_up = true;
     const LetterboxPlan enlarged =
-        Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40}, ImageSize{80, 80});
+        require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40},
+                                                      ImageSize{80, 80}));
 
     EXPECT_DOUBLE_EQ(enlarged.ratio, 2.0);
     EXPECT_EQ(enlarged.resized, (ImageSize{40, 80}));
@@ -153,9 +158,11 @@ TEST(Small_ImagingLetterbox, ResizedSideRoundsAHalfToTheEvenInteger)
 {
     // 5 * 0.5 is 2.5 and 7 * 0.5 is 3.5; half to even gives 2 and 4.
     const LetterboxPlan down =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{5, 8}, ImageSize{4, 4});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{5, 8},
+                                                      ImageSize{4, 4}));
     const LetterboxPlan up =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{7, 8}, ImageSize{4, 4});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{7, 8},
+                                                      ImageSize{4, 4}));
 
     EXPECT_EQ(down.resized, (ImageSize{2, 4}));
     EXPECT_EQ(down.top, 1);
@@ -168,8 +175,8 @@ TEST(Small_ImagingLetterbox, ResizedSideRoundsAHalfToTheEvenInteger)
 TEST(Small_ImagingLetterbox, RectangularStrideTargetPadsOnlyTheShortAxis)
 {
     // 512 is the stride-32 batch height of a 480x640 image: ceil(480 / 32 + 0.5) * 32.
-    const LetterboxPlan plan = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{480, 640}, ImageSize{512, 640});
+    const LetterboxPlan plan = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{480, 640}, ImageSize{512, 640}));
 
     EXPECT_DOUBLE_EQ(plan.ratio, 1.0);
     EXPECT_EQ(plan.resized, (ImageSize{480, 640}));
@@ -183,23 +190,25 @@ TEST(Small_ImagingLetterbox, PlanCopiesThePaddingValueOfTheSettings)
 {
     LetterboxSettings settings;
     EXPECT_EQ(
-        Vision::Imaging::plan_letterbox(settings, ImageSize{8, 8}, ImageSize{8, 8}).padding_value,
+        require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{8, 8},
+                                                      ImageSize{8, 8})).padding_value,
         settings.padding_value);
 
     settings.padding_value = 7;
     EXPECT_EQ(
-        Vision::Imaging::plan_letterbox(settings, ImageSize{8, 8}, ImageSize{8, 8}).padding_value,
+        require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{8, 8},
+                                                      ImageSize{8, 8})).padding_value,
         7);
 }
 
 TEST(Small_ImagingLetterbox, PlanRejectsASideThatIsNotPositive)
 {
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{0, 8},
-                                                  ImageSize{8, 8}),
-                    "plan_letterbox", "source size of 0x8");
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
-                                                  ImageSize{8, -1}),
-                    "plan_letterbox", "target size of 8x-1");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{0, 8},
+                                                      ImageSize{8, 8}),
+                      StatusCode::InvalidDescription, "plan_letterbox", "source size of 0x8");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
+                                                      ImageSize{8, -1}),
+                      StatusCode::InvalidDescription, "plan_letterbox", "target size of 8x-1");
 }
 
 /** @brief Tests that the plan refuses a side above the largest an image may have. */
@@ -207,12 +216,14 @@ TEST(Small_ImagingLetterbox, PlanRejectsASideAboveTheImageBound)
 {
     const std::int32_t above = Vision::Imaging::K_MAX_IMAGE_SIDE + 1;
 
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{above, 8},
-                                                  ImageSize{8, 8}),
-                    "plan_letterbox", "source size of 16385x8", "16384");
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
-                                                  ImageSize{8, above}),
-                    "plan_letterbox", "target size of 8x16385", "16384");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{above, 8},
+                                                      ImageSize{8, 8}),
+                      StatusCode::InvalidDescription, "plan_letterbox", "source size of 16385x8",
+                      "16384");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
+                                                      ImageSize{8, above}),
+                      StatusCode::InvalidDescription, "plan_letterbox", "target size of 8x16385",
+                      "16384");
 }
 
 /** @brief Tests that validate_letterbox accepts the extremes of both fields. */
@@ -222,23 +233,24 @@ TEST(Small_ImagingLetterbox, ValidateAcceptsEverySetting)
     settings.scale_up = true;
     settings.padding_value = 255;
 
-    EXPECT_NO_THROW(Vision::Imaging::validate_letterbox(settings));
-    EXPECT_NO_THROW(Vision::Imaging::validate_letterbox(LetterboxSettings{}));
+    Vision::Imaging::validate_letterbox(settings);
+    Vision::Imaging::validate_letterbox(LetterboxSettings{});
 }
 
 TEST(Small_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
 {
     // 1 * (8 / 1000) is 0.008, which rounds to a height of zero.
-    SA_EXPECT_ERROR((void)Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{1, 1000},
-                                                  ImageSize{8, 8}),
-                    "plan_letterbox", "zero pixels");
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{1, 1000},
+                                                      ImageSize{8, 8}),
+                      StatusCode::InvalidDescription, "plan_letterbox", "zero pixels");
 }
 
 TEST(Small_ImagingLetterbox, ImageWithoutResizeKeepsItsPixelsInsideThePadding)
 {
     const Image source = make_counted_image(ImageSize{2, 4}, 3, 1);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{4, 6}));
     ASSERT_EQ(plan.top, 1);
     ASSERT_EQ(plan.left, 1);
 
@@ -263,7 +275,8 @@ TEST(Small_ImagingLetterbox, ExactFitCopiesEveryPixel)
 {
     const Image source = make_counted_image(ImageSize{6, 6}, 3, 9);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), source.size());
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      source.size()));
 
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -278,7 +291,8 @@ TEST(Small_ImagingLetterbox, WideImageIsResizedThenPaddedWithTheFillValue)
     // A flat image stays flat under bilinear weights that sum to one.
     const Image source = make_flat_image(ImageSize{50, 200}, 3, 200);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{100, 100});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{100, 100}));
 
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -293,7 +307,8 @@ TEST(Small_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
     settings.padding_value = 7;
     const Image source = make_flat_image(ImageSize{200, 50}, 1, 33);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(settings, source.size(), ImageSize{100, 100});
+        require_value(Vision::Imaging::plan_letterbox(settings, source.size(),
+                                                      ImageSize{100, 100}));
 
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -307,13 +322,14 @@ TEST(Small_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
 {
     const Image source = make_counted_image(ImageSize{50, 200}, 3, 0);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{100, 100});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{100, 100}));
     ASSERT_EQ(plan.resized, (ImageSize{25, 100}));
     ASSERT_EQ(plan.top, 37);
     ASSERT_EQ(plan.left, 0);
 
     Image expected;
-    Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected);
+    SA_EXPECT_OK(Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected));
 
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -343,11 +359,13 @@ TEST(Small_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
 TEST(Small_ImagingLetterbox, SourceWithoutPixelsIsRejected)
 {
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4}, ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
+                                                      ImageSize{4, 6}));
 
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_letterbox(Vision::Imaging::ImageView{}, plan,
-                                                     destination),
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(Vision::Imaging::ImageView{},
+                                                                       plan,
+                                                     destination)),
                     "apply_letterbox", "no pixels");
 }
 
@@ -355,9 +373,11 @@ TEST(Small_ImagingLetterbox, DestinationThatIsTheSourceIsRejected)
 {
     Image image = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, image.size(), ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, image.size(),
+                                                      ImageSize{4, 6}));
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_letterbox(image.view(), plan, image), "apply_letterbox",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(image.view(), plan, image)),
+                    "apply_letterbox",
                     "destination holds the source's pixels");
     EXPECT_EQ(image.size(), (ImageSize{2, 4}));
 }
@@ -368,9 +388,11 @@ TEST(Small_ImagingLetterbox, ViewInsideTheDestinationIsRejected)
     Image image = make_flat_image(ImageSize{3, 4}, 3, 50);
     const Vision::Imaging::ImageView lower_rows(image.row(1), ImageSize{2, 4}, 3);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4}, ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
+                                                      ImageSize{4, 6}));
 
-    SA_EXPECT_ERROR(Vision::Imaging::apply_letterbox(lower_rows, plan, image), "apply_letterbox",
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(lower_rows, plan, image)),
+                    "apply_letterbox",
                     "destination holds the source's pixels");
     EXPECT_EQ(image.size(), (ImageSize{3, 4}));
     EXPECT_EQ(image.row(2)[0], 50);
@@ -381,14 +403,15 @@ TEST(Small_ImagingLetterbox, ResizedContentBesideSidePaddingEqualsTheBilinearRes
 {
     const Image source = make_counted_image(ImageSize{200, 50}, 3, 0);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{100, 101});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{100, 101}));
     ASSERT_EQ(plan.resized, (ImageSize{100, 25}));
     ASSERT_EQ(plan.top, 0);
     ASSERT_EQ(plan.left, 38);
     ASSERT_EQ(plan.right, 38);
 
     Image expected;
-    Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected);
+    SA_EXPECT_OK(Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected));
 
     Image destination = make_flat_image(ImageSize{120, 120}, 3, 255);
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -412,7 +435,8 @@ TEST(Small_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{4, 6}));
 
     Image destination = make_flat_image(ImageSize{9, 9}, 3, 255);
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
@@ -425,10 +449,12 @@ TEST(Small_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{4, 4}, ImageSize{8, 8});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{4, 4},
+                                                      ImageSize{8, 8}));
 
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_letterbox(source.view(), plan, destination),
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(source.view(), plan,
+                                                                       destination)),
                     "apply_letterbox", "plan was made for");
 }
 
@@ -436,20 +462,22 @@ TEST(Small_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(), ImageSize{4, 6});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
+                                                      ImageSize{4, 6}));
     plan.right += 1;
 
     Image destination;
-    SA_EXPECT_ERROR(Vision::Imaging::apply_letterbox(source.view(), plan, destination),
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(source.view(), plan,
+                                                                       destination)),
                     "apply_letterbox", "tile");
 }
 
 TEST(Small_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
 {
-    const LetterboxPlan tall = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});
-    const LetterboxPlan wide = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{50, 200}, ImageSize{100, 100});
+    const LetterboxPlan tall = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100}));
+    const LetterboxPlan wide = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{50, 200}, ImageSize{100, 100}));
 
     const Labels labels({3, 7}, {PixelBox{10.0f, 20.0f, 30.0f, 40.0f},
                                  PixelBox{0.0f, 0.0f, 50.0f, 200.0f}});
@@ -479,7 +507,8 @@ TEST(Small_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
 TEST(Small_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
 {
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{20, 40}, ImageSize{80, 80});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{20, 40},
+                                                      ImageSize{80, 80}));
 
     const Labels labels({1, 2}, {PixelBox{-8.0f, -4.0f, 100.0f, 90.0f},
                                  PixelBox{5.0f, 5.0f, 5.0f, 5.0f}});
@@ -499,7 +528,8 @@ TEST(Small_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
 TEST(Small_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
 {
     const LetterboxPlan plan =
-        Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64}, ImageSize{64, 64});
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{64, 64},
+                                                      ImageSize{64, 64}));
 
     const Labels labels({0}, {PixelBox{1.5f, 2.5f, 60.25f, 63.0f}});
 
@@ -514,15 +544,14 @@ TEST(Small_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
 /** @brief Tests that a polygon moves by the ratio, then by the left and top padding. */
 TEST(Small_ImagingLetterbox, PolygonMovesByTheRatioThenTheLeftAndTopPadding)
 {
-    const LetterboxPlan tall = Vision::Imaging::plan_letterbox(
-        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100});
+    const LetterboxPlan tall = require_value(Vision::Imaging::plan_letterbox(
+        LetterboxSettings{}, ImageSize{200, 50}, ImageSize{100, 100}));
     ASSERT_EQ(tall.left, 37);
     ASSERT_EQ(tall.top, 0);
     Labels labels;
     labels.add(3, PixelBox{10.0f, 20.0f, 30.0f, 40.0f},
                Vision::Imaging::Polygon{Vision::Imaging::Point{10.0f, 20.0f},
-                                        Vision::Imaging::Point{30.0f, 40.0f},
-                                        Vision::Imaging::Point{-4.0f, 210.0f}});
+               Vision::Imaging::Point{30.0f, 40.0f}, Vision::Imaging::Point{-4.0f, 210.0f}});
     labels.add(7, PixelBox{0.0f, 0.0f, 50.0f, 200.0f});
 
     const Labels moved = Vision::Imaging::apply_letterbox(labels, tall);

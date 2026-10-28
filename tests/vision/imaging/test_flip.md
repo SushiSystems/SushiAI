@@ -44,25 +44,25 @@ With the default settings the flip frequency over 10000 seeds is 0.5 within
 
 ## PlanRejectsAProbabilityOutsideZeroToOne
 
-Probabilities of 1.5 and -0.1 throw with a message containing "validate_flip" and
+Probabilities of 1.5 and -0.1 fail with a message containing "validate_flip" and
 "probability", and the generator is unchanged.
 
 ## PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw
 
-A NaN probability throws and the generator is unchanged.
+A NaN probability returns `InvalidDescription` and the generator is unchanged.
 
 ## PlanRejectsASideThatIsNotPositiveBeforeAnyDraw
 
-Sizes of 0 by 8 and 8 by -2 throw with a message containing "plan_flip", "source size" and the
+Sizes of 0 by 8 and 8 by -2 fail with a message containing "plan_flip", "source size" and the
 size, and the generator is unchanged.
 
 ## SourceWithoutPixelsIsRejected
 
-`apply_flip` on a default `ImageView` throws with "apply_flip" and "no pixels".
+`apply_flip` on a default `ImageView` stops the process with "apply_flip" and "no pixels".
 
 ## DestinationThatIsTheSourceIsRejected
 
-`apply_flip` with the image as both source and destination throws with "destination holds the
+`apply_flip` with the image as both source and destination stops the process with "destination holds the
 source's pixels", and the image is unchanged.
 
 ## ViewInsideTheDestinationIsRejected
@@ -87,7 +87,7 @@ flips.
 
 ## ImageOfAnotherSizeThanThePlanIsRejected
 
-A 2 by 3 source with a plan for 2 by 4 or for 5 by 3 throws with a message naming the plan's
+A 2 by 3 source with a plan for 2 by 4 or for 5 by 3 stops the process with a message naming the plan's
 size and "2x3".
 
 ## FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder

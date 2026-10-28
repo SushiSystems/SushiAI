@@ -4,11 +4,9 @@ The host-side data pipeline of the YOLO26 programme: label parsing, the raw imag
 letterbox, mosaic, random affine, HSV jitter and horizontal flip, composed into a training
 pipeline and a validation pipeline. Everything works on `uint8` pixels and `float` boxes in host
 memory. Nothing here reaches an engine, SYCL or a third-party library, so every unit is tested
-without a device. The module depends on `failure`, `seam` for `Error` and `SA_THROW_IF` and on the
-C++
-standard library. `affine_nearest.hpp` and `mask_pipeline.hpp` return a `Status` and include
-`<SushiAI/failure/status.hpp>`, so `failure`, `seam` has to become a public dependency;
-`modules/vision/imaging/CMakeLists.txt` still declares it private.
+without a device. The module depends on `failure`, on `seam` for the allocation guard of
+`TrainingMaskPipeline` and on the C++ standard library. Its public headers return a `Status` or
+a `Result` and include `<SushiAI/failure/status.hpp>` and `<SushiAI/failure/result.hpp>`.
 
 Each header has one source under `modules/vision/imaging/source/` and one test file under
 `tests/vision/imaging/`, named `test_<header>.cpp` and compiled into
@@ -61,11 +59,11 @@ are integer arithmetic with positions computed in `double`. The library is built
 platform.
 
 **Transform shape.** Each transform has a settings struct the caller fills, a `validate_`
-function that throws on a setting out of range, a plan struct that holds everything the
+function that returns `InvalidDescription` for a setting out of range, a plan struct that holds everything the
 transform will do, a `plan_` function that calls `validate_`, then makes every random draw, and
 `apply_` functions that are pure: one for the image, one for the labels. A test checks the
 draws by reading the plan, and replays a transform by passing the same plan twice. A pipeline
-calls every `validate_` in its constructor, so a bad setting fails on the caller's thread before
+calls every `validate_` in its `make`, so a bad setting is refused on the caller's thread before
 any image is loaded.
 
 Three transforms differ from that shape, each for a stated reason. `plan_letterbox` takes no
@@ -86,16 +84,21 @@ buffers for a whole epoch; the two exceptions are the tap tables of the resize a
 one small vector per axis and per call.
 
 **A plan and its image.** A plan made for an image holds that image's size as `source`, and its
-image `apply_` throws unless the view has exactly that size: `AffinePlan`, `FlipPlan` and
+image `apply_` stops the process unless the view has exactly that size: `AffinePlan`, `FlipPlan` and
 `LetterboxPlan` do. `MosaicPlan` holds a placement per patch and checks each against its patch.
 `HSVPlan` holds three gains and fits any image.
 
-**Errors.** `SA_THROW_IF` with `SushiAI::Error`. Every message opens with the name of the public
-function that was called, a colon and a space: `apply_flip: `, `Image::reset: `,
+**Errors.** A check on the content of a description returns a `Status`: a setting or a plan
+out of range, a file that is not what its header says, a source that returns no pixels. A check
+on a handle or on call order stops the process through `SA_FATAL_IF`: a view that fails
+`check_source`, a plan applied to an image of another size, an index outside a source, an
+`Image` of a size outside the bounds. Every message opens with the name of the public function
+that was called, a colon and a space: `apply_flip: `, `Image::reset: `,
 `TrainingPipeline::make_sample: `, and `Image: ` for a constructor. A setting rejected through a
 `plan_` function carries the `validate_` name. A size is printed as `{height}x{width}`. One
-predicate, `is_valid_size`, holds the [1, `K_MAX_IMAGE_SIDE`] rule. The programme's later wave
-turns these throws into status values.
+predicate, `is_valid_size`, holds the [1, `K_MAX_IMAGE_SIDE`] rule. `DatasetPartners`,
+`RecentPartners`, `TrainingPipeline` and `ValidationPipeline` have a private constructor and a
+static `make` that returns a `Result`, because a constructor cannot return a status.
 
 ## image.hpp
 

@@ -30,7 +30,7 @@
 #include <algorithm>
 #include <initializer_list>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI::Vision::Imaging
 {
@@ -189,7 +189,7 @@ namespace SushiAI::Vision::Imaging
 
     Polygon resample_polygon(const Polygon& polygon, std::size_t count)
     {
-        SA_THROW_IF(count == 0, "resample_polygon: a point count of 0 leaves no polygon");
+        SA_FATAL_IF(count == 0, "resample_polygon: a point count of 0 leaves no polygon");
 
         if (polygon.empty() || polygon.size() == count)
             return polygon;

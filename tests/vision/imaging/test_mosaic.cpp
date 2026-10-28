@@ -33,7 +33,8 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
 
@@ -42,6 +43,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the training size of the small mosaics below; the canvas is 16 by 16. */
     constexpr std::int32_t K_SIDE = 8;
 
@@ -61,8 +63,8 @@ namespace
     constexpr std::int32_t K_LOW_CENTER_Y = 11;
 
     /** @brief Holds the patch sizes used with the low centre. */
-    constexpr PatchSizes K_LOW_SIZES = {ImageSize{8, 8}, ImageSize{6, 8}, ImageSize{8, 4},
-                                        ImageSize{8, 8}};
+    constexpr PatchSizes K_LOW_SIZES =
+        {ImageSize{8, 8}, ImageSize{6, 8}, ImageSize{8, 4}, ImageSize{8, 8}};
 
     /** @brief Holds data/augment.py:525-538 worked by hand for the low centre. */
     constexpr Placements K_LOW_PLACEMENTS = {
@@ -78,8 +80,8 @@ namespace
     constexpr std::int32_t K_HIGH_CENTER_Y = 6;
 
     /** @brief Holds the patch sizes used with the high centre. */
-    constexpr PatchSizes K_HIGH_SIZES = {ImageSize{8, 8}, ImageSize{8, 8}, ImageSize{8, 8},
-                                         ImageSize{8, 8}};
+    constexpr PatchSizes K_HIGH_SIZES =
+        {ImageSize{8, 8}, ImageSize{8, 8}, ImageSize{8, 8}, ImageSize{8, 8}};
 
     /** @brief Holds data/augment.py:525-538 worked by hand for the high centre. */
     constexpr Placements K_HIGH_PLACEMENTS = {
@@ -141,9 +143,9 @@ namespace
     }
 
     /** @brief Counts the canvas bytes that differ from the patch byte the placements name. */
-    std::size_t count_wrong_bytes(const Image& canvas,
-                                  const std::array<Image, K_MOSAIC_PATCHES>& patches,
-                                  const Placements& placements, std::uint8_t fill_value)
+    std::size_t count_wrong_bytes(const Image& canvas, const std::array<Image,
+                                  K_MOSAIC_PATCHES>& patches, const Placements& placements,
+                                  std::uint8_t fill_value)
     {
         std::size_t wrong = 0;
         for (std::int32_t y = 0; y < canvas.height(); ++y)
@@ -250,11 +252,13 @@ TEST(Small_ImagingMosaic, DrawMakesPartnersThenGateThenRowThenColumn)
 {
     const std::int32_t side = 640;
     const std::size_t pool = 1000;
-    DatasetPartners partners(pool);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(pool));
+    DatasetPartners& partners = *partners_owner;
     Random random(20261007u);
     Random replica = random;
 
-    const MosaicDraw draw = draw_mosaic(MosaicSettings{}, side, 0, partners, random);
+    const MosaicDraw draw = require_value(draw_mosaic(MosaicSettings{}, side, 0, partners, random));
 
     const std::uint32_t first = replica.index(static_cast<std::uint32_t>(pool));
     const std::uint32_t second = replica.index(static_cast<std::uint32_t>(pool));
@@ -277,11 +281,13 @@ TEST(Small_ImagingMosaic, DisabledDrawMakesFourDrawsAndLeavesTheFieldsZero)
 {
     MosaicSettings settings;
     settings.probability = 0.0f;
-    DatasetPartners partners(50);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(50));
+    DatasetPartners& partners = *partners_owner;
     Random random(7u);
     Random replica = random;
 
-    const MosaicDraw draw = draw_mosaic(settings, 640, 0, partners, random);
+    const MosaicDraw draw = require_value(draw_mosaic(settings, 640, 0, partners, random));
 
     for (std::int32_t i = 0; i < 4; ++i)
         static_cast<void>(replica.next_u64());
@@ -304,11 +310,15 @@ TEST(Small_ImagingMosaic, CentreStaysInTheReferenceRangeOverManySeeds)
     std::int32_t largest = 0;
     double sum = 0.0;
 
-    DatasetPartners partners(100);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(100));
+
+    DatasetPartners& partners = *partners_owner;
     for (std::uint64_t seed = 0; seed < seeds; ++seed)
     {
         Random random(seed);
-        const MosaicDraw draw = draw_mosaic(MosaicSettings{}, side, 0, partners, random);
+        const MosaicDraw draw =
+            require_value(draw_mosaic(MosaicSettings{}, side, 0, partners, random));
 
         ASSERT_TRUE(draw.is_enabled) << "seed " << seed;
         for (const std::int32_t center : {draw.center_x, draw.center_y})
@@ -331,11 +341,13 @@ TEST(Small_ImagingMosaic, CentreOfAnOddSizeUsesTheFlooredBorder)
 {
     // -5 // 2 is -3 in the reference, so the range is int(uniform(3, 7)): 3 to 6.
     std::array<bool, 8> seen{};
-    DatasetPartners partners(3);
+    const std::unique_ptr<DatasetPartners> partners_owner = require_value(DatasetPartners::make(3));
+    DatasetPartners& partners = *partners_owner;
     for (std::uint64_t seed = 0; seed < 400; ++seed)
     {
         Random random(seed);
-        const MosaicDraw draw = draw_mosaic(MosaicSettings{}, 5, 0, partners, random);
+        const MosaicDraw draw =
+            require_value(draw_mosaic(MosaicSettings{}, 5, 0, partners, random));
 
         ASSERT_GE(draw.center_x, 3);
         ASSERT_LE(draw.center_x, 6);
@@ -351,11 +363,14 @@ TEST(Small_ImagingMosaic, PartnersCoverThePoolAndNeverLeaveIt)
 {
     const std::size_t pool = 7;
     std::array<bool, 7> seen{};
-    DatasetPartners partners(pool);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(pool));
+    DatasetPartners& partners = *partners_owner;
     for (std::uint64_t seed = 0; seed < 300; ++seed)
     {
         Random random(seed);
-        const MosaicDraw draw = draw_mosaic(MosaicSettings{}, 640, 0, partners, random);
+        const MosaicDraw draw =
+            require_value(draw_mosaic(MosaicSettings{}, 640, 0, partners, random));
 
         for (const std::size_t partner : draw.partners)
         {
@@ -374,12 +389,14 @@ TEST(Small_ImagingMosaic, GateOpensWithItsProbability)
     settings.probability = 0.25f;
     const std::uint64_t seeds = 4000;
     std::uint64_t enabled = 0;
-    DatasetPartners partners(10);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(10));
+    DatasetPartners& partners = *partners_owner;
 
     for (std::uint64_t seed = 0; seed < seeds; ++seed)
     {
         Random random(seed);
-        if (draw_mosaic(settings, 640, 0, partners, random).is_enabled)
+        if (require_value(draw_mosaic(settings, 640, 0, partners, random)).is_enabled)
             ++enabled;
     }
 
@@ -389,8 +406,8 @@ TEST(Small_ImagingMosaic, GateOpensWithItsProbability)
 
 TEST(Small_ImagingMosaic, PlanCutsPatchesAtTheLeftAndBottomEdges)
 {
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
 
     EXPECT_EQ(plan.image_size, K_SIDE);
     expect_placements(plan, K_LOW_PLACEMENTS);
@@ -398,8 +415,8 @@ TEST(Small_ImagingMosaic, PlanCutsPatchesAtTheLeftAndBottomEdges)
 
 TEST(Small_ImagingMosaic, PlanCutsPatchesAtTheTopAndRightEdges)
 {
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_HIGH_CENTER_X, K_HIGH_CENTER_Y), K_SIDE, K_HIGH_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_HIGH_CENTER_X, K_HIGH_CENTER_Y), K_SIDE, K_HIGH_SIZES));
 
     expect_placements(plan, K_HIGH_PLACEMENTS);
 }
@@ -409,11 +426,13 @@ TEST(Small_ImagingMosaic, PlanCarriesTheFillValueOfTheSettings)
     MosaicSettings settings;
     settings.fill_value = 9;
 
-    const MosaicPlan plan = plan_mosaic(
-        settings, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        settings, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
 
     EXPECT_EQ(plan.fill_value, 9);
-    EXPECT_EQ(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE, K_LOW_SIZES).fill_value, 114);
+    EXPECT_EQ(require_value(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE,
+                                        K_LOW_SIZES)).fill_value,
+              114);
 }
 
 TEST(Small_ImagingMosaic, CanvasIsTwiceTheSizeAndFilledWhereNoPatchLands)
@@ -421,11 +440,11 @@ TEST(Small_ImagingMosaic, CanvasIsTwiceTheSizeAndFilledWhereNoPatchLands)
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_constant(K_LOW_SIZES[0], 255, 0, 0), make_constant(K_LOW_SIZES[1], 0, 255, 0),
         make_constant(K_LOW_SIZES[2], 0, 0, 255), make_constant(K_LOW_SIZES[3], 255, 255, 0)};
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     Image canvas;
 
-    apply_mosaic(view_all(patches), plan, canvas);
+    SA_EXPECT_OK(apply_mosaic(view_all(patches), plan, canvas));
 
     ASSERT_EQ(canvas.height(), 2 * K_SIDE);
     ASSERT_EQ(canvas.width(), 2 * K_SIDE);
@@ -446,11 +465,11 @@ TEST(Small_ImagingMosaic, EachColourLandsInItsQuadrantAroundTheCentre)
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_constant(K_LOW_SIZES[0], 255, 0, 0), make_constant(K_LOW_SIZES[1], 0, 255, 0),
         make_constant(K_LOW_SIZES[2], 0, 0, 255), make_constant(K_LOW_SIZES[3], 255, 255, 0)};
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     Image canvas;
 
-    apply_mosaic(view_all(patches), plan, canvas);
+    SA_EXPECT_OK(apply_mosaic(view_all(patches), plan, canvas));
 
     ASSERT_EQ(canvas.size(), (ImageSize{2 * K_SIDE, 2 * K_SIDE}));
     EXPECT_EQ(pixel_at(canvas, K_LOW_CENTER_X - 1, K_LOW_CENTER_Y - 1), red);
@@ -467,11 +486,11 @@ TEST(Small_ImagingMosaic, CutPatchesKeepThePixelsNearestTheCentre)
         make_textured(K_HIGH_SIZES[2], 120), make_textured(K_HIGH_SIZES[3], 180)};
     MosaicSettings settings;
     settings.fill_value = 3;
-    const MosaicPlan plan = plan_mosaic(
-        settings, make_draw(K_HIGH_CENTER_X, K_HIGH_CENTER_Y), K_SIDE, K_HIGH_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        settings, make_draw(K_HIGH_CENTER_X, K_HIGH_CENTER_Y), K_SIDE, K_HIGH_SIZES));
     Image canvas;
 
-    apply_mosaic(view_all(patches), plan, canvas);
+    SA_EXPECT_OK(apply_mosaic(view_all(patches), plan, canvas));
 
     ASSERT_EQ(canvas.size(), (ImageSize{2 * K_SIDE, 2 * K_SIDE}));
     EXPECT_EQ(count_wrong_bytes(canvas, patches, K_HIGH_PLACEMENTS, 3), 0u);
@@ -482,12 +501,12 @@ TEST(Small_ImagingMosaic, ApplyOverwritesWhatTheDestinationHeld)
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_textured(K_LOW_SIZES[0], 5), make_textured(K_LOW_SIZES[1], 6),
         make_textured(K_LOW_SIZES[2], 7), make_textured(K_LOW_SIZES[3], 8)};
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     Image canvas(ImageSize{40, 40}, 3);
     canvas.fill(200);
 
-    apply_mosaic(view_all(patches), plan, canvas);
+    SA_EXPECT_OK(apply_mosaic(view_all(patches), plan, canvas));
 
     ASSERT_EQ(canvas.size(), (ImageSize{2 * K_SIDE, 2 * K_SIDE}));
     EXPECT_EQ(count_wrong_bytes(canvas, patches, K_LOW_PLACEMENTS, 114), 0u);
@@ -499,9 +518,10 @@ TEST(Small_ImagingMosaic, LabelsAreShiftedJoinedInPatchOrderClippedAndPruned)
     plan.image_size = K_SIDE;
     plan.placements = K_LOW_PLACEMENTS;
     std::array<Labels, K_MOSAIC_PATCHES> labels;
-    labels[0] = Labels({3, 1, 2}, {PixelBox{4.0f, 1.0f, 7.0f, 5.0f},
-                                   PixelBox{0.0f, 2.0f, 3.0f, 6.0f},
-                                   PixelBox{1.0f, 0.0f, 5.0f, 2.0f}});
+    labels[0] =
+        Labels({3, 1, 2},
+               {PixelBox{4.0f, 1.0f, 7.0f, 5.0f}, PixelBox{0.0f, 2.0f, 3.0f, 6.0f}, PixelBox{1.0f,
+               0.0f, 5.0f, 2.0f}});
     labels[1] = Labels({7}, {PixelBox{1.0f, 1.0f, 2.0f, 3.0f}});
     labels[3] = Labels({5}, {PixelBox{2.0f, 2.0f, 6.0f, 7.0f}});
 
@@ -530,13 +550,15 @@ TEST(Small_ImagingMosaic, LabelsOfFourBackgroundPatchesAreEmpty)
 
 TEST(Small_ImagingMosaic, DrawRejectsANonPositiveSizeBeforeAnyDraw)
 {
-    DatasetPartners partners(10);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(10));
+    DatasetPartners& partners = *partners_owner;
     Random random(1u);
 
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(MosaicSettings{}, 0, 0, partners, random)),
-                    "validate_mosaic_size", "image_size of 0");
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(MosaicSettings{}, -4, 0, partners, random)),
-                    "validate_mosaic_size", "image_size of -4");
+    SA_EXPECT_FAILURE(draw_mosaic(MosaicSettings{}, 0, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic_size", "image_size of 0");
+    SA_EXPECT_FAILURE(draw_mosaic(MosaicSettings{}, -4, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic_size", "image_size of -4");
     EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
 }
 
@@ -545,21 +567,20 @@ TEST(Small_ImagingMosaic, PlanRejectsADisabledDrawAndAnEmptyPatch)
     PatchSizes sizes = K_LOW_SIZES;
     sizes[2] = ImageSize{0, 4};
 
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_mosaic(MosaicSettings{}, MosaicDraw{}, K_SIDE, K_LOW_SIZES)),
-        "not enabled");
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE, sizes)),
-        "patch 2");
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(17, 8), K_SIDE, K_LOW_SIZES)),
-        "centre");
+    SA_EXPECT_FATAL(static_cast<void>(plan_mosaic(MosaicSettings{}, MosaicDraw{}, K_SIDE,
+                                                  K_LOW_SIZES)),
+                    "not enabled");
+    SA_EXPECT_FAILURE(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE, sizes),
+                      StatusCode::InvalidDescription, "patch 2");
+    SA_EXPECT_FATAL(static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(17, 8), K_SIDE,
+                                                  K_LOW_SIZES)),
+                    "centre");
 }
 
 TEST(Small_ImagingMosaic, ApplyRejectsPatchesThePlanWasNotMadeFor)
 {
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_constant(K_LOW_SIZES[0], 1, 1, 1), make_constant(K_LOW_SIZES[1], 2, 2, 2),
         make_constant(K_LOW_SIZES[2], 3, 3, 3), make_constant(K_LOW_SIZES[3], 4, 4, 4)};
@@ -569,11 +590,12 @@ TEST(Small_ImagingMosaic, ApplyRejectsPatchesThePlanWasNotMadeFor)
 
     std::array<ImageView, K_MOSAIC_PATCHES> mixed = view_all(patches);
     mixed[1] = gray.view();
-    SA_EXPECT_ERROR(apply_mosaic(mixed, plan, canvas), "patch 1", "channels");
+    SA_EXPECT_FAILURE(apply_mosaic(mixed, plan, canvas), StatusCode::InvalidDescription, "patch 1",
+                      "channels");
 
     std::array<ImageView, K_MOSAIC_PATCHES> shrunk = view_all(patches);
     shrunk[3] = small.view();
-    SA_EXPECT_ERROR(apply_mosaic(shrunk, plan, canvas), "patch 3");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(shrunk, plan, canvas)), "patch 3");
 }
 
 TEST(Small_ImagingMosaic, DrawnCentreIsWhereTheFourColoursMeet)
@@ -587,17 +609,20 @@ TEST(Small_ImagingMosaic, DrawnCentreIsWhereTheFourColoursMeet)
         make_constant(full, 255, 0, 0), make_constant(full, 0, 255, 0),
         make_constant(full, 0, 0, 255), make_constant(full, 255, 255, 0)};
 
-    DatasetPartners partners(4);
+    const std::unique_ptr<DatasetPartners> partners_owner = require_value(DatasetPartners::make(4));
+
+    DatasetPartners& partners = *partners_owner;
     for (std::uint64_t seed = 0; seed < 32; ++seed)
     {
         SCOPED_TRACE(::testing::Message() << "seed " << seed);
         Random random(seed);
-        const MosaicDraw draw = draw_mosaic(MosaicSettings{}, K_SIDE, 0, partners, random);
+        const MosaicDraw draw =
+            require_value(draw_mosaic(MosaicSettings{}, K_SIDE, 0, partners, random));
         const MosaicPlan plan =
-            plan_mosaic(MosaicSettings{}, draw, K_SIDE, {full, full, full, full});
+            require_value(plan_mosaic(MosaicSettings{}, draw, K_SIDE, {full, full, full, full}));
         Image canvas;
 
-        apply_mosaic(view_all(patches), plan, canvas);
+        SA_EXPECT_OK(apply_mosaic(view_all(patches), plan, canvas));
 
         // int(uniform(4, 12)) at s = 8 keeps the centre and its left and upper neighbours inside.
         ASSERT_GE(draw.center_x, 4);
@@ -614,7 +639,9 @@ TEST(Small_ImagingMosaic, DrawnCentreIsWhereTheFourColoursMeet)
 
 TEST(Small_ImagingMosaic, DrawRejectsAProbabilityOutsideZeroToOne)
 {
-    DatasetPartners partners(10);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(10));
+    DatasetPartners& partners = *partners_owner;
     Random random(1u);
     MosaicSettings above;
     above.probability = 1.5f;
@@ -623,27 +650,31 @@ TEST(Small_ImagingMosaic, DrawRejectsAProbabilityOutsideZeroToOne)
     MosaicSettings undefined;
     undefined.probability = std::numeric_limits<float>::quiet_NaN();
 
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(above, 640, 0, partners, random)),
-                    "validate_mosaic", "probability of 1.5");
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(below, 640, 0, partners, random)),
-                    "validate_mosaic", "probability");
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(undefined, 640, 0, partners, random)),
-                    "validate_mosaic", "probability");
-    SA_EXPECT_ERROR(validate_mosaic(above), "validate_mosaic", "probability");
-    EXPECT_NO_THROW(validate_mosaic(MosaicSettings{}));
+    SA_EXPECT_FAILURE(draw_mosaic(above, 640, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic", "probability of 1.5");
+    SA_EXPECT_FAILURE(draw_mosaic(below, 640, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic", "probability");
+    SA_EXPECT_FAILURE(draw_mosaic(undefined, 640, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic", "probability");
+    SA_EXPECT_FAILURE(validate_mosaic(above), StatusCode::InvalidDescription, "validate_mosaic",
+                      "probability");
+    SA_EXPECT_OK(validate_mosaic(MosaicSettings{}));
     EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
 }
 
 TEST(Small_ImagingMosaic, DrawRejectsASizeWhoseCanvasIsTooLarge)
 {
-    DatasetPartners partners(10);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(10));
+    DatasetPartners& partners = *partners_owner;
     Random random(1u);
 
-    SA_EXPECT_ERROR(static_cast<void>(draw_mosaic(MosaicSettings{}, K_MAX_IMAGE_SIDE / 2 + 1, 0,
-                                                  partners, random)),
-                    "validate_mosaic_size", "image_size of 8193", "[1, 8192]");
+    SA_EXPECT_FAILURE(draw_mosaic(MosaicSettings{}, K_MAX_IMAGE_SIDE / 2 + 1, 0, partners, random),
+                      StatusCode::InvalidDescription, "validate_mosaic_size", "image_size of 8193",
+                      "[1, 8192]");
     EXPECT_TRUE(
-        draw_mosaic(MosaicSettings{}, K_MAX_IMAGE_SIDE / 2, 0, partners, random).is_enabled);
+        require_value(draw_mosaic(MosaicSettings{}, K_MAX_IMAGE_SIDE / 2, 0, partners,
+        random)).is_enabled);
 }
 
 /** @brief Tests that draw_mosaic asks the partner source once per call, gate open or closed. */
@@ -654,8 +685,9 @@ TEST(Small_ImagingMosaic, DrawAsksThePartnerSourceForEverySample)
     RecordingPartners partners;
     Random random(3u);
 
-    const MosaicDraw open_draw = draw_mosaic(MosaicSettings{}, 640, 17, partners, random);
-    const MosaicDraw closed_draw = draw_mosaic(closed, 640, 23, partners, random);
+    const MosaicDraw open_draw =
+        require_value(draw_mosaic(MosaicSettings{}, 640, 17, partners, random));
+    const MosaicDraw closed_draw = require_value(draw_mosaic(closed, 640, 23, partners, random));
 
     EXPECT_EQ(partners.indices(), (std::vector<std::size_t>{17, 23}));
     ASSERT_TRUE(open_draw.is_enabled);
@@ -701,15 +733,13 @@ TEST(Small_ImagingMosaic, PlanRejectsASizeOutOfRangeAndAPatchSideAboveTheLimit)
     PatchSizes sizes = K_LOW_SIZES;
     sizes[1] = ImageSize{K_MAX_IMAGE_SIDE + 1, 8};
 
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(0, 0), 0, K_LOW_SIZES)),
-        "image_size");
-    SA_EXPECT_ERROR(static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(8, 8),
-                                                  K_MAX_IMAGE_SIDE / 2 + 1, K_LOW_SIZES)),
-                    "image_size");
-    SA_EXPECT_ERROR(
-        static_cast<void>(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE, sizes)),
-        "patch 1");
+    SA_EXPECT_FAILURE(plan_mosaic(MosaicSettings{}, make_draw(0, 0), 0, K_LOW_SIZES),
+                      StatusCode::InvalidDescription, "image_size");
+    SA_EXPECT_FAILURE(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_MAX_IMAGE_SIDE / 2 + 1,
+                                  K_LOW_SIZES),
+                      StatusCode::InvalidDescription, "image_size");
+    SA_EXPECT_FAILURE(plan_mosaic(MosaicSettings{}, make_draw(8, 8), K_SIDE, sizes),
+                      StatusCode::InvalidDescription, "patch 1");
 }
 
 TEST(Small_ImagingMosaic, ApplyRejectsAPlanWithoutAValidSizeForPixelsAndForLabels)
@@ -723,16 +753,18 @@ TEST(Small_ImagingMosaic, ApplyRejectsAPlanWithoutAValidSizeForPixelsAndForLabel
     oversized.image_size = K_MAX_IMAGE_SIDE / 2 + 1;
     Image canvas;
 
-    SA_EXPECT_ERROR(apply_mosaic(view_all(patches), MosaicPlan{}, canvas), "image_size");
-    SA_EXPECT_ERROR(apply_mosaic(view_all(patches), oversized, canvas), "image_size");
-    SA_EXPECT_ERROR(static_cast<void>(apply_mosaic(labels, MosaicPlan{})), "image_size");
-    SA_EXPECT_ERROR(static_cast<void>(apply_mosaic(labels, oversized)), "image_size");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(view_all(patches), MosaicPlan{}, canvas)),
+                    "image_size");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(view_all(patches), oversized, canvas)),
+                    "image_size");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(labels, MosaicPlan{})), "image_size");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(labels, oversized)), "image_size");
 }
 
 TEST(Small_ImagingMosaic, ApplyRejectsAPatchWithoutPixels)
 {
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_constant(K_LOW_SIZES[0], 1, 1, 1), make_constant(K_LOW_SIZES[1], 2, 2, 2),
         make_constant(K_LOW_SIZES[2], 3, 3, 3), make_constant(K_LOW_SIZES[3], 4, 4, 4)};
@@ -740,13 +772,14 @@ TEST(Small_ImagingMosaic, ApplyRejectsAPatchWithoutPixels)
     views[2] = ImageView();
     Image canvas;
 
-    SA_EXPECT_ERROR(apply_mosaic(views, plan, canvas), "apply_mosaic: patch 2", "no pixels");
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(views, plan, canvas)), "apply_mosaic: patch 2",
+                    "no pixels");
 }
 
 TEST(Small_ImagingMosaic, ApplyRejectsAPatchThatLiesAnywhereInTheDestination)
 {
-    const MosaicPlan plan = plan_mosaic(
-        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES);
+    const MosaicPlan plan = require_value(plan_mosaic(
+        MosaicSettings{}, make_draw(K_LOW_CENTER_X, K_LOW_CENTER_Y), K_SIDE, K_LOW_SIZES));
     const std::array<Image, K_MOSAIC_PATCHES> patches = {
         make_constant(K_LOW_SIZES[0], 1, 1, 1), make_constant(K_LOW_SIZES[1], 2, 2, 2),
         make_constant(K_LOW_SIZES[2], 3, 3, 3), make_constant(K_LOW_SIZES[3], 4, 4, 4)};
@@ -755,12 +788,12 @@ TEST(Small_ImagingMosaic, ApplyRejectsAPatchThatLiesAnywhereInTheDestination)
 
     std::array<ImageView, K_MOSAIC_PATCHES> whole = view_all(patches);
     whole[0] = ImageView(canvas.data(), K_LOW_SIZES[0], 3);
-    SA_EXPECT_ERROR(apply_mosaic(whole, plan, canvas), "apply_mosaic: patch 0",
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(whole, plan, canvas)), "apply_mosaic: patch 0",
                     "destination holds the source's pixels");
 
     std::array<ImageView, K_MOSAIC_PATCHES> inner = view_all(patches);
     inner[2] = ImageView(canvas.row(20), K_LOW_SIZES[2], 3);
-    SA_EXPECT_ERROR(apply_mosaic(inner, plan, canvas), "apply_mosaic: patch 2",
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(inner, plan, canvas)), "apply_mosaic: patch 2",
                     "destination holds the source's pixels");
 
     EXPECT_EQ(canvas.size(), (ImageSize{40, 40})) << "a rejected call reset the destination";
@@ -782,8 +815,8 @@ TEST(Small_ImagingMosaic, ApplyRejectsAPlacementOutsideTheCanvasAndOneThatResamp
     narrower.placements[3].patch_x2 = 7;
     Image canvas;
 
-    SA_EXPECT_ERROR(apply_mosaic(view_all(patches), outside, canvas), "patch 1",
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(view_all(patches), outside, canvas)), "patch 1",
                     "outside a canvas");
-    SA_EXPECT_ERROR(apply_mosaic(view_all(patches), narrower, canvas), "patch 3",
+    SA_EXPECT_FATAL(static_cast<void>(apply_mosaic(view_all(patches), narrower, canvas)), "patch 3",
                     "resamples nothing");
 }

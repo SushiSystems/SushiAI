@@ -36,7 +36,8 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
@@ -47,6 +48,7 @@ using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the training size of the tests; a mosaic canvas is 64 by 64. */
     constexpr std::int32_t K_SIDE = 32;
 
@@ -74,11 +76,13 @@ namespace
             [[nodiscard]] std::size_t size() const noexcept override { return images_.size(); }
 
             /** @brief Copies one image and its labels out and records the index. */
-            void load(std::size_t index, Image& image, FileLabels& labels) const override
+            [[nodiscard]] Status load(std::size_t index, Image& image,
+                                      FileLabels& labels) const override
             {
                 loads_.push_back(index);
                 image = images_[index];
                 labels = labels_[index];
+                return Status();
             }
 
             /** @brief Returns the indices loaded so far, in call order. */
@@ -210,7 +214,7 @@ namespace
     /** @brief Returns a partner source that draws from every image of a source. */
     std::unique_ptr<PartnerSource> whole_dataset(const MemorySource& source)
     {
-        return std::make_unique<DatasetPartners>(source.size());
+        return require_value(DatasetPartners::make(source.size()));
     }
 
     /** @brief Reports whether two images have the same size, channels and bytes. */
@@ -274,17 +278,17 @@ namespace
     {
         Image decoded;
         FileLabels file_labels;
-        source.load(index, decoded, file_labels);
+        SA_EXPECT_OK(source.load(index, decoded, file_labels));
 
         if (decoded.channels() == K_GRAY_CHANNELS)
         {
             Image gray;
-            resize_long_side(decoded.view(), K_SIDE, gray);
-            expand_gray(gray.view(), patch);
+            SA_EXPECT_OK(resize_long_side(decoded.view(), K_SIDE, gray));
+            SA_EXPECT_OK(expand_gray(gray.view(), patch));
         }
         else
         {
-            resize_long_side(decoded.view(), K_SIDE, patch);
+            SA_EXPECT_OK(resize_long_side(decoded.view(), K_SIDE, patch));
         }
 
         return to_pixel_labels(resample_polygons(file_labels), patch.size());
@@ -310,12 +314,11 @@ namespace
             for (std::size_t i = 1; i < K_MOSAIC_PATCHES; ++i)
                 patch_labels[i] = load_patch(source, trace.mosaic.partners[i - 1], patches[i]);
 
-            const MosaicPlan plan = plan_mosaic(
+            const MosaicPlan plan = require_value(plan_mosaic(
                 settings.mosaic, trace.mosaic, settings.image_size,
-                {patches[0].size(), patches[1].size(), patches[2].size(), patches[3].size()});
-            apply_mosaic({patches[0].view(), patches[1].view(), patches[2].view(),
-                          patches[3].view()},
-                         plan, canvas);
+                {patches[0].size(), patches[1].size(), patches[2].size(), patches[3].size()}));
+            SA_EXPECT_OK(apply_mosaic({patches[0].view(), patches[1].view(), patches[2].view(),
+                                       patches[3].view()}, plan, canvas));
             labels = apply_mosaic(patch_labels, plan);
         }
 
@@ -377,18 +380,24 @@ TEST(Small_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.seed = 41;
-    TrainingPipeline pipeline(source, settings, whole_dataset(source));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, settings, whole_dataset(source)));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(2, 5, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(2, 5, sample));
 
     Random replica = make_sample_random(41u, 5, 2);
-    DatasetPartners partners(source.size());
-    const MosaicDraw mosaic = draw_mosaic(settings.mosaic, K_SIDE, 2, partners, replica);
-    const AffinePlan affine = plan_affine(settings.affine, ImageSize{2 * K_SIDE, 2 * K_SIDE},
-                                          ImageSize{K_SIDE, K_SIDE}, replica);
-    const HSVPlan hsv = plan_hsv(settings.hsv, replica);
-    const FlipPlan flip = plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica);
+    const std::unique_ptr<DatasetPartners> partners_owner =
+        require_value(DatasetPartners::make(source.size()));
+    DatasetPartners& partners = *partners_owner;
+    const MosaicDraw mosaic =
+        require_value(draw_mosaic(settings.mosaic, K_SIDE, 2, partners, replica));
+    const AffinePlan affine =
+        require_value(plan_affine(settings.affine, ImageSize{2 * K_SIDE, 2 * K_SIDE},
+                                  ImageSize{K_SIDE, K_SIDE}, replica));
+    const HSVPlan hsv = require_value(plan_hsv(settings.hsv, replica));
+    const FlipPlan flip =
+        require_value(plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica));
 
     EXPECT_FALSE(trace.is_mosaic_closed);
     ASSERT_TRUE(trace.mosaic.is_enabled);
@@ -408,14 +417,14 @@ TEST(Small_ImagingPipeline, TrainingLoadsTheSampleThenItsPartnersInDrawOrder)
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.seed = 8;
-    TrainingPipeline pipeline(source, settings, whole_dataset(source));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, settings, whole_dataset(source)));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(3, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(3, 0, sample));
 
-    const std::vector<std::size_t> expected = {3, trace.mosaic.partners[0],
-                                               trace.mosaic.partners[1],
-                                               trace.mosaic.partners[2]};
+    const std::vector<std::size_t> expected =
+        {3, trace.mosaic.partners[0], trace.mosaic.partners[1], trace.mosaic.partners[2]};
     EXPECT_EQ(source.loads(), expected);
 }
 
@@ -425,7 +434,8 @@ TEST(Small_ImagingPipeline, TrainingAppliesItsPlansInTheReferenceOrder)
     MemorySource source;
     fill_source(source);
     const TrainingSettings settings = make_settings();
-    TrainingPipeline pipeline(source, settings, whole_dataset(source));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, settings, whole_dataset(source)));
 
     for (std::int32_t epoch = 0; epoch < 2; ++epoch)
     {
@@ -434,7 +444,7 @@ TEST(Small_ImagingPipeline, TrainingAppliesItsPlansInTheReferenceOrder)
             SCOPED_TRACE(::testing::Message() << "epoch " << epoch << ", index " << index);
             Sample sample;
 
-            const TrainingTrace trace = pipeline.make_sample(index, epoch, sample);
+            const TrainingTrace trace = require_value(pipeline.make_sample(index, epoch, sample));
             const Sample expected = compose_from_trace(source, settings, index, trace);
 
             EXPECT_TRUE(images_match(sample.image, expected.image));
@@ -454,13 +464,15 @@ TEST(Small_ImagingPipeline, TrainingAppliesAForcedFlipAndSkipsAForbiddenOne)
     TrainingSettings never = make_settings();
     never.seed = 77;
     never.flip.probability = 0.0f;
-    TrainingPipeline flipping(source, always, whole_dataset(source));
-    TrainingPipeline plain(source, never, whole_dataset(source));
+    TrainingPipeline flipping =
+        require_value(TrainingPipeline::make(source, always, whole_dataset(source)));
+    TrainingPipeline plain =
+        require_value(TrainingPipeline::make(source, never, whole_dataset(source)));
     Sample flipped;
     Sample straight;
 
-    const TrainingTrace flipped_trace = flipping.make_sample(0, 0, flipped);
-    const TrainingTrace straight_trace = plain.make_sample(0, 0, straight);
+    const TrainingTrace flipped_trace = require_value(flipping.make_sample(0, 0, flipped));
+    const TrainingTrace straight_trace = require_value(plain.make_sample(0, 0, straight));
 
     ASSERT_TRUE(flipped_trace.flip.is_flipped);
     ASSERT_FALSE(straight_trace.flip.is_flipped);
@@ -486,10 +498,10 @@ TEST(Small_ImagingPipeline, TrainingProducesTheTrainingSizeAndTheSizesOfItsOwnIm
 {
     MemorySource source;
     fill_source(source);
-    TrainingPipeline pipeline(source, make_settings());
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, make_settings()));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(0, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
 
     EXPECT_EQ(sample.image.size(), (ImageSize{K_SIDE, K_SIDE}));
     EXPECT_EQ(sample.image.channels(), K_RGB_CHANNELS);
@@ -519,10 +531,11 @@ TEST(Small_ImagingPipeline, MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrain
     {
         SCOPED_TRACE(::testing::Message() << "seed " << seed);
         settings.seed = seed;
-        TrainingPipeline pipeline(source, settings, whole_dataset(source));
+        TrainingPipeline pipeline =
+            require_value(TrainingPipeline::make(source, settings, whole_dataset(source)));
         Sample sample;
 
-        const TrainingTrace trace = pipeline.make_sample(0, 0, sample);
+        const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
 
         // The warp shows canvas columns and rows 16 to 48, so the centre lands at centre - 16.
         ASSERT_TRUE(trace.mosaic.is_enabled);
@@ -563,16 +576,18 @@ TEST(Small_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
     settings.epochs = 10;
     settings.close_mosaic = 3;
     settings.seed = 12;
-    TrainingPipeline pipeline(source, settings);
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(0, 7, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 7, sample));
 
     Random replica = make_sample_random(12u, 7, 0);
-    const AffinePlan affine = plan_affine(settings.affine, ImageSize{16, 32},
-                                          ImageSize{K_SIDE, K_SIDE}, replica);
-    const HSVPlan hsv = plan_hsv(settings.hsv, replica);
-    const FlipPlan flip = plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica);
+    const AffinePlan affine =
+        require_value(plan_affine(settings.affine, ImageSize{16, 32}, ImageSize{K_SIDE, K_SIDE},
+                                  replica));
+    const HSVPlan hsv = require_value(plan_hsv(settings.hsv, replica));
+    const FlipPlan flip =
+        require_value(plan_flip(settings.flip, ImageSize{K_SIDE, K_SIDE}, replica));
 
     EXPECT_TRUE(trace.is_mosaic_closed);
     EXPECT_FALSE(trace.mosaic.is_enabled);
@@ -596,10 +611,10 @@ TEST(Small_ImagingPipeline, SampleWithoutMosaicKeepsTheBoxOfItsOwnImage)
     settings.close_mosaic = 3;
     settings.affine.scale = 0.0f;
     settings.affine.translate = 0.0f;
-    TrainingPipeline pipeline(source, settings);
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(0, 7, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 7, sample));
 
     // The box (8, 4, 24, 12) of the 16 by 32 image moves down by 8 and mirrors onto itself.
     ASSERT_FALSE(trace.mosaic.is_enabled);
@@ -619,10 +634,10 @@ TEST(Small_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
     TrainingSettings settings = make_settings();
     settings.epochs = 10;
     settings.close_mosaic = 3;
-    TrainingPipeline pipeline(source, settings);
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(0, 6, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 6, sample));
 
     EXPECT_FALSE(trace.is_mosaic_closed);
     EXPECT_TRUE(trace.mosaic.is_enabled);
@@ -637,10 +652,10 @@ TEST(Small_ImagingPipeline, ClosedGateInAnOpenEpochWarpsTheLoadedImage)
     TrainingSettings settings = make_settings();
     settings.mosaic.probability = 0.0f;
     settings.seed = 3;
-    TrainingPipeline pipeline(source, settings);
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(2, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(2, 0, sample));
 
     EXPECT_FALSE(trace.is_mosaic_closed);
     EXPECT_FALSE(trace.mosaic.is_enabled);
@@ -660,17 +675,19 @@ TEST(Small_ImagingPipeline, SampleDependsOnTheSeedTheEpochAndTheIndexAlone)
     settings.seed = 2026;
     TrainingSettings other_settings = make_settings();
     other_settings.seed = 2027;
-    TrainingPipeline pipeline(source, settings, whole_dataset(source));
-    TrainingPipeline other_pipeline(source, other_settings, whole_dataset(source));
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, settings, whole_dataset(source)));
+    TrainingPipeline other_pipeline =
+        require_value(TrainingPipeline::make(source, other_settings, whole_dataset(source)));
     Sample first;
     Sample other_seed;
     Sample other_epoch;
     Sample again;
 
-    const TrainingTrace first_trace = pipeline.make_sample(1, 0, first);
-    const TrainingTrace seed_trace = other_pipeline.make_sample(1, 0, other_seed);
-    const TrainingTrace epoch_trace = pipeline.make_sample(1, 1, other_epoch);
-    const TrainingTrace again_trace = pipeline.make_sample(1, 0, again);
+    const TrainingTrace first_trace = require_value(pipeline.make_sample(1, 0, first));
+    const TrainingTrace seed_trace = require_value(other_pipeline.make_sample(1, 0, other_seed));
+    const TrainingTrace epoch_trace = require_value(pipeline.make_sample(1, 1, other_epoch));
+    const TrainingTrace again_trace = require_value(pipeline.make_sample(1, 0, again));
 
     EXPECT_TRUE(images_match(again.image, first.image));
     expect_same_labels(again.labels, first.labels);
@@ -687,17 +704,19 @@ TEST(Small_ImagingPipeline, EarlierSamplesDoNotShiftTheDrawsOfALaterOne)
 {
     MemorySource source;
     fill_source(source);
-    TrainingPipeline used(source, make_settings(), whole_dataset(source));
-    TrainingPipeline fresh(source, make_settings(), whole_dataset(source));
+    TrainingPipeline used =
+        require_value(TrainingPipeline::make(source, make_settings(), whole_dataset(source)));
+    TrainingPipeline fresh =
+        require_value(TrainingPipeline::make(source, make_settings(), whole_dataset(source)));
     Sample warm;
     Sample from_used;
     Sample from_fresh;
 
     // A mosaic sample makes six draws more than a sample of a closed epoch.
-    static_cast<void>(used.make_sample(4, 0, warm));
-    static_cast<void>(used.make_sample(2, 95, warm));
-    const TrainingTrace used_trace = used.make_sample(0, 0, from_used);
-    const TrainingTrace fresh_trace = fresh.make_sample(0, 0, from_fresh);
+    SA_EXPECT_OK(used.make_sample(4, 0, warm));
+    SA_EXPECT_OK(used.make_sample(2, 95, warm));
+    const TrainingTrace used_trace = require_value(used.make_sample(0, 0, from_used));
+    const TrainingTrace fresh_trace = require_value(fresh.make_sample(0, 0, from_fresh));
 
     EXPECT_TRUE(images_match(from_used.image, from_fresh.image));
     expect_same_labels(from_used.labels, from_fresh.labels);
@@ -712,11 +731,11 @@ TEST(Small_ImagingPipeline, DefaultPartnersComeFromTheImagesThePipelineLoaded)
 {
     MemorySource source;
     fill_source(source);
-    TrainingPipeline pipeline(source, make_settings());
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, make_settings()));
     Sample sample;
 
-    const TrainingTrace first = pipeline.make_sample(3, 0, sample);
-    const TrainingTrace second = pipeline.make_sample(1, 0, sample);
+    const TrainingTrace first = require_value(pipeline.make_sample(3, 0, sample));
+    const TrainingTrace second = require_value(pipeline.make_sample(1, 0, sample));
 
     EXPECT_EQ(first.mosaic.partners, (MosaicPartners{3, 3, 3}));
     for (const std::size_t partner : second.mosaic.partners)
@@ -728,11 +747,11 @@ TEST(Small_ImagingPipeline, GivenPartnerSourceChoosesThePartners)
 {
     MemorySource source;
     fill_source(source);
-    TrainingPipeline pipeline(source, make_settings(),
-                              std::make_unique<FixedPartners>(MosaicPartners{4, 4, 0}));
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, make_settings(),
+                              std::make_unique<FixedPartners>(MosaicPartners{4, 4, 0})));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(2, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(2, 0, sample));
 
     ASSERT_TRUE(trace.mosaic.is_enabled);
     EXPECT_EQ(trace.mosaic.partners, (MosaicPartners{4, 4, 0}));
@@ -763,22 +782,28 @@ TEST(Small_ImagingPipeline, TrainingRejectsEverySettingOutOfRangeAtConstruction)
     TrainingSettings bad_flip = make_settings();
     bad_flip.flip.probability = std::numeric_limits<float>::quiet_NaN();
 
-    SA_EXPECT_ERROR(TrainingPipeline(source, no_size), "validate_mosaic_size",
-                    "image_size of 0");
-    SA_EXPECT_ERROR(TrainingPipeline(source, large_size), "validate_mosaic_size",
-                    "image_size of 8193", "[1, 8192]");
-    SA_EXPECT_ERROR(TrainingPipeline(source, no_epochs), "validate_training", "epoch count");
-    SA_EXPECT_ERROR(TrainingPipeline(source, negative_close), "validate_training",
-                    "close_mosaic of -1");
-    SA_EXPECT_ERROR(TrainingPipeline(source, no_batch), "validate_training", "batch_size of 0");
-    SA_EXPECT_ERROR(TrainingPipeline(source, bad_mosaic), "validate_mosaic", "probability");
-    SA_EXPECT_ERROR(TrainingPipeline(source, bad_affine), "validate_affine", "scale");
-    SA_EXPECT_ERROR(TrainingPipeline(source, bad_hsv), "validate_hsv", "gain");
-    SA_EXPECT_ERROR(TrainingPipeline(source, bad_flip), "validate_flip", "probability");
-    SA_EXPECT_ERROR(TrainingPipeline(source, bad_flip, whole_dataset(source)), "validate_flip",
-                    "probability");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, no_size), StatusCode::InvalidDescription,
+                      "validate_mosaic_size", "image_size of 0");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, large_size), StatusCode::InvalidDescription,
+                      "validate_mosaic_size", "image_size of 8193", "[1, 8192]");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, no_epochs), StatusCode::InvalidDescription,
+                      "validate_training", "epoch count");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, negative_close),
+                      StatusCode::InvalidDescription, "validate_training", "close_mosaic of -1");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, no_batch), StatusCode::InvalidDescription,
+                      "validate_training", "batch_size of 0");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, bad_mosaic), StatusCode::InvalidDescription,
+                      "validate_mosaic", "probability");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, bad_affine), StatusCode::InvalidDescription,
+                      "validate_affine", "scale");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, bad_hsv), StatusCode::InvalidDescription,
+                      "validate_hsv", "gain");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, bad_flip), StatusCode::InvalidDescription,
+                      "validate_flip", "probability");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(source, bad_flip, whole_dataset(source)),
+                      StatusCode::InvalidDescription, "validate_flip", "probability");
     EXPECT_TRUE(source.loads().empty()) << "a rejected construction loaded an image";
-    EXPECT_NO_THROW(validate_training(make_settings()));
+    SA_EXPECT_OK(validate_training(make_settings()));
 }
 
 /** @brief Tests that an empty source and a null partner source are refused at construction. */
@@ -788,10 +813,12 @@ TEST(Small_ImagingPipeline, TrainingRejectsAnEmptySourceAndANullPartnerSource)
     fill_source(source);
     MemorySource empty;
 
-    SA_EXPECT_ERROR(TrainingPipeline(empty, make_settings()), "TrainingPipeline", "no image");
-    SA_EXPECT_ERROR(TrainingPipeline(empty, make_settings(), whole_dataset(source)),
-                    "TrainingPipeline", "no image");
-    SA_EXPECT_ERROR(TrainingPipeline(source, make_settings(), nullptr), "TrainingPipeline",
+    SA_EXPECT_FAILURE(TrainingPipeline::make(empty, make_settings()),
+                      StatusCode::InvalidDescription, "TrainingPipeline", "no image");
+    SA_EXPECT_FAILURE(TrainingPipeline::make(empty, make_settings(), whole_dataset(source)),
+                      StatusCode::InvalidDescription, "TrainingPipeline", "no image");
+    SA_EXPECT_FATAL(static_cast<void>(TrainingPipeline::make(source, make_settings(), nullptr)),
+                    "TrainingPipeline",
                     "partner source is null");
 }
 
@@ -800,14 +827,14 @@ TEST(Small_ImagingPipeline, TrainingRejectsIndicesAndEpochsOutsideTheirRange)
 {
     MemorySource source;
     fill_source(source);
-    TrainingPipeline pipeline(source, make_settings());
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, make_settings()));
     Sample sample;
 
-    SA_EXPECT_ERROR(static_cast<void>(pipeline.make_sample(5, 0, sample)),
+    SA_EXPECT_FATAL(static_cast<void>(require_value(pipeline.make_sample(5, 0, sample))),
                     "TrainingPipeline::make_sample", "index 5");
-    SA_EXPECT_ERROR(static_cast<void>(pipeline.make_sample(0, -1, sample)),
+    SA_EXPECT_FATAL(static_cast<void>(require_value(pipeline.make_sample(0, -1, sample))),
                     "TrainingPipeline::make_sample", "epoch -1");
-    SA_EXPECT_ERROR(static_cast<void>(pipeline.make_sample(0, 100, sample)),
+    SA_EXPECT_FATAL(static_cast<void>(require_value(pipeline.make_sample(0, 100, sample))),
                     "TrainingPipeline::make_sample", "epoch 100");
 }
 
@@ -816,10 +843,11 @@ TEST(Small_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 77), FileLabels{});
-    TrainingPipeline pipeline(source, make_still_settings());
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, make_still_settings()));
     Sample sample;
 
-    static_cast<void>(pipeline.make_sample(0, 0, sample));
+    SA_EXPECT_OK(pipeline.make_sample(0, 0, sample));
 
     ASSERT_EQ(sample.image.size(), (ImageSize{K_SIDE, K_SIDE}));
     ASSERT_EQ(sample.image.channels(), K_RGB_CHANNELS);
@@ -837,11 +865,11 @@ TEST(Small_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
     source.add(make_constant(ImageSize{K_SIDE, K_SIDE}, 200, 10, 90), FileLabels{});
     source.add(make_flat(ImageSize{16, K_SIDE}, 1, 220), FileLabels{});
     const TrainingSettings settings = make_settings();
-    TrainingPipeline pipeline(source, settings,
-                              std::make_unique<FixedPartners>(MosaicPartners{1, 2, 0}));
+    TrainingPipeline pipeline = require_value(TrainingPipeline::make(source, settings,
+                              std::make_unique<FixedPartners>(MosaicPartners{1, 2, 0})));
     Sample sample;
 
-    const TrainingTrace trace = pipeline.make_sample(0, 0, sample);
+    const TrainingTrace trace = require_value(pipeline.make_sample(0, 0, sample));
 
     ASSERT_TRUE(trace.mosaic.is_enabled);
     EXPECT_EQ(sample.image.channels(), K_RGB_CHANNELS);
@@ -855,11 +883,13 @@ TEST(Small_ImagingPipeline, TrainingRejectsAnImageOfFourChannels)
 {
     MemorySource source;
     source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 4, 9), FileLabels{});
-    TrainingPipeline pipeline(source, make_still_settings());
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, make_still_settings()));
     Sample sample;
 
-    SA_EXPECT_ERROR(static_cast<void>(pipeline.make_sample(0, 0, sample)),
-                    "TrainingPipeline::make_sample", "4 channels", "image 0");
+    SA_EXPECT_FAILURE(pipeline.make_sample(0, 0, sample),
+                      StatusCode::InvalidFile, "TrainingPipeline::make_sample", "4 channels",
+                      "image 0");
 }
 
 /** @brief Tests that a polygon label is resampled, carried through and bounds its box. */
@@ -870,10 +900,11 @@ TEST(Small_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
     labels.add(5, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f},
                Polygon{Point{0.25f, 0.25f}, Point{0.75f, 0.25f}, Point{0.5f, 0.75f}});
     source.add(make_textured(ImageSize{K_SIDE, K_SIDE}, 5), labels);
-    TrainingPipeline pipeline(source, make_still_settings());
+    TrainingPipeline pipeline =
+        require_value(TrainingPipeline::make(source, make_still_settings()));
     Sample sample;
 
-    static_cast<void>(pipeline.make_sample(0, 0, sample));
+    SA_EXPECT_OK(pipeline.make_sample(0, 0, sample));
 
     // The still settings map the 32 by 32 image onto itself, so the triangle stays put.
     ASSERT_EQ(sample.labels.size(), 1u);
@@ -895,10 +926,11 @@ TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
                one_object(4, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}));
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    const LetterboxPlan plan = pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample);
+    const LetterboxPlan plan =
+        require_value(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
 
     EXPECT_EQ(sample.original_size, (ImageSize{8, 16}));
     EXPECT_EQ(sample.loaded_size, (ImageSize{16, 32}));
@@ -939,10 +971,10 @@ TEST(Small_ImagingPipeline, ValidationMovesBoxesByThePaddingWithoutClipping)
                one_object(4, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}));
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    static_cast<void>(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
+    SA_EXPECT_OK(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
 
     // On the loaded 16 by 32 image the box is (8, 4, 24, 12); the top padding adds 8 to y.
     ASSERT_EQ(sample.labels.size(), 1u);
@@ -960,10 +992,10 @@ TEST(Small_ImagingPipeline, ValidationIntoARectangularTargetAddsNoPadding)
     source.add(make_textured(ImageSize{16, 32}, 17), FileLabels{});
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    const LetterboxPlan plan = pipeline.make_sample(0, ImageSize{16, 32}, sample);
+    const LetterboxPlan plan = require_value(pipeline.make_sample(0, ImageSize{16, 32}, sample));
 
     EXPECT_EQ(plan.top + plan.bottom + plan.left + plan.right, 0);
     EXPECT_TRUE(images_match(sample.image, make_textured(ImageSize{16, 32}, 17)));
@@ -977,14 +1009,14 @@ TEST(Small_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
     fill_source(source);
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample first;
     Sample between;
     Sample again;
 
-    static_cast<void>(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, first));
-    static_cast<void>(pipeline.make_sample(2, ImageSize{K_SIDE, K_SIDE}, between));
-    static_cast<void>(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, again));
+    SA_EXPECT_OK(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, first));
+    SA_EXPECT_OK(pipeline.make_sample(2, ImageSize{K_SIDE, K_SIDE}, between));
+    SA_EXPECT_OK(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, again));
 
     EXPECT_TRUE(images_match(again.image, first.image));
     expect_same_labels(again.labels, first.labels);
@@ -998,10 +1030,10 @@ TEST(Small_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
     source.add(make_flat(ImageSize{8, 16}, 1, 61), FileLabels{});
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    static_cast<void>(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
+    SA_EXPECT_OK(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
 
     ASSERT_EQ(sample.image.size(), (ImageSize{K_SIDE, K_SIDE}));
     ASSERT_EQ(sample.image.channels(), K_RGB_CHANNELS);
@@ -1024,10 +1056,10 @@ TEST(Small_ImagingPipeline, ValidationCarriesAPolygonThroughTheLetterbox)
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30), labels);
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    static_cast<void>(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
+    SA_EXPECT_OK(pipeline.make_sample(0, ImageSize{K_SIDE, K_SIDE}, sample));
 
     // On the loaded 16 by 32 image the first vertex is (8, 4); the top padding adds 8 to y.
     ASSERT_EQ(sample.labels.size(), 1u);
@@ -1046,14 +1078,16 @@ TEST(Small_ImagingPipeline, ValidationRejectsSettingsAndIndicesOutsideTheirRange
     no_size.image_size = 0;
     ValidationSettings settings;
     settings.image_size = K_SIDE;
-    ValidationPipeline pipeline(source, settings);
+    ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));
     Sample sample;
 
-    SA_EXPECT_ERROR(ValidationPipeline(source, no_size), "validate_validation",
-                    "image_size of 0");
-    SA_EXPECT_ERROR(ValidationPipeline(empty, settings), "ValidationPipeline", "no image");
-    SA_EXPECT_ERROR(
-        static_cast<void>(pipeline.make_sample(9, ImageSize{K_SIDE, K_SIDE}, sample)),
-        "ValidationPipeline::make_sample", "index 9");
-    EXPECT_NO_THROW(validate_validation(settings));
+    SA_EXPECT_FAILURE(ValidationPipeline::make(source, no_size), StatusCode::InvalidDescription,
+                      "validate_validation", "image_size of 0");
+    SA_EXPECT_FAILURE(ValidationPipeline::make(empty, settings), StatusCode::InvalidDescription,
+                      "ValidationPipeline", "no image");
+    SA_EXPECT_FATAL(static_cast<void>(require_value(pipeline.make_sample(9,
+                                                                         ImageSize{K_SIDE, K_SIDE},
+                                                                         sample))),
+                    "ValidationPipeline::make_sample", "index 9");
+    SA_EXPECT_OK(validate_validation(settings));
 }

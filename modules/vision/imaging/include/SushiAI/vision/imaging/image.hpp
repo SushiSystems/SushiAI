@@ -172,8 +172,8 @@ namespace SushiAI::Vision::Imaging
 
             /**
              * @brief Constructs an image with every byte zero.
-             * @param size Both sides in [1, K_MAX_IMAGE_SIDE]; otherwise throws Error.
-             * @param channels In [1, K_MAX_CHANNELS]; otherwise throws Error.
+             * @pre @p size passes is_valid_size and @p channels passes is_valid_channel_count; a
+             *      size read from a file or a caller is tested with them first.
              */
             Image(ImageSize size, std::int32_t channels);
 
@@ -182,7 +182,8 @@ namespace SushiAI::Vision::Imaging
              *        the allocation is large enough.
              *
              * The pixel values afterwards are unspecified, and every view made before the
-             * call is invalid. Throws Error on the bounds the constructor checks.
+             * call is invalid.
+             * @pre The bounds of the constructor hold.
              */
             void reset(ImageSize size, std::int32_t channels);
 
@@ -261,7 +262,7 @@ namespace SushiAI::Vision::Imaging
     [[nodiscard]] bool overlaps(ImageView view, const Image& image) noexcept;
 
     /**
-     * @brief Throws Error unless a view can be read while a destination image is written.
+     * @brief Stops the process unless a view can be read while a destination image is written.
      *
      * In this order: the view has pixels, its size passes is_valid_size, its channel count
      * passes is_valid_channel_count, and overlaps(source, destination) is false. This is

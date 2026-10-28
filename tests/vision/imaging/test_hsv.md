@@ -52,7 +52,7 @@ The draw count does not depend on the settings.
 
 ## PlanRejectsANegativeGain
 
-A saturation gain of -0.5 throws with "validate_hsv" and "gain", and the generator is
+A saturation gain of -0.5 returns `InvalidDescription` with "validate_hsv" and "gain", and the generator is
 unchanged.
 
 ## PlanRejectsAGainThatIsNotFiniteBeforeAnyDraw
@@ -61,11 +61,11 @@ An infinite hue gain and a NaN value gain throw, and the generator is unchanged.
 
 ## SourceWithoutPixelsIsRejected
 
-`apply_hsv` on a default view throws with "apply_hsv" and "no pixels".
+`apply_hsv` on a default view stops the process with "apply_hsv" and "no pixels".
 
 ## DestinationThatIsTheSourceIsRejected
 
-`apply_hsv` with the image as source and destination throws with "destination holds the
+`apply_hsv` with the image as source and destination stops the process with "destination holds the
 source's pixels", and both pixels are unchanged.
 
 ## ViewInsideTheDestinationIsRejected

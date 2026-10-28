@@ -30,6 +30,8 @@
 #include <array>
 #include <cstdint>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
@@ -88,8 +90,8 @@ namespace SushiAI::Vision::Imaging
         CandidateFilter polygon_filter = make_polygon_filter();
     };
 
-    /** @brief Throws Error unless scale is in [0, 1) and translate is in [0, 0.5]. */
-    void validate_affine(const AffineSettings& settings);
+    /** @brief Returns InvalidDescription unless scale is in [0, 1) and translate is in [0, 0.5]. */
+    [[nodiscard]] Status validate_affine(const AffineSettings& settings);
 
     /**
      * @brief Draws one scale and one translation and builds the forward matrix.
@@ -97,17 +99,18 @@ namespace SushiAI::Vision::Imaging
      * Three draws in order: scale from [1 - s, 1 + s), then translate_x and translate_y, each
      * from [0.5 - t, 0.5 + t) times the output width or height. In float, m[0] = m[4] = scale,
      * m[2] = scale * (-source.width / 2.0f) + translate_x, and m[5] likewise with height and y.
-     * Throws Error, before any draw, on what validate_affine or is_valid_size rejects.
+     * @return The plan, or InvalidDescription for what validate_affine or is_valid_size rejects.
      */
-    [[nodiscard]] AffinePlan plan_affine(const AffineSettings& settings, ImageSize source,
-                                         ImageSize output, Random& random);
+    [[nodiscard]] Result<AffinePlan> plan_affine(const AffineSettings& settings,
+                                                 ImageSize source, ImageSize output,
+                                                 Random& random);
 
     /**
      * @brief Warps an image into plan.output by bilinear interpolation.
      *
      * Output pixel (x, y) reads source position ((x - m[2]) / m[0], (y - m[5]) / m[4]) in
-     * double; a neighbour outside the source counts as plan.border_value. Throws Error unless
-     * source.size() is plan.source and the matrix is the plan's scale and a translation.
+     * double; a neighbour outside the source counts as plan.border_value.
+     * @pre source.size() is plan.source, plan.output is a valid size, the matrix is the plan's.
      * @param destination Reset to plan.output; must pass check_source.
      */
     void apply_affine(ImageView source, const AffinePlan& plan, Image& destination);

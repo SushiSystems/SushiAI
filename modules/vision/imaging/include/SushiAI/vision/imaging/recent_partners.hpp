@@ -30,8 +30,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <vector>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
 
@@ -63,11 +66,14 @@ namespace SushiAI::Vision::Imaging
     {
         public:
             /**
-             * @brief Constructs a source with an empty buffer.
-             * @param dataset_size The image count, in [1, 2^32 - 1]; otherwise throws Error.
-             * @param batch_size The training batch size, above zero; otherwise throws Error.
+             * @brief Builds a source with an empty buffer.
+             * @param dataset_size The image count.
+             * @param batch_size The training batch size.
+             * @return The source, or InvalidDescription unless the count is in [1, 2^32 - 1] and
+             *         the batch size is above zero.
              */
-            RecentPartners(std::size_t dataset_size, std::int32_t batch_size);
+            [[nodiscard]] static Result<std::unique_ptr<RecentPartners>> make(
+                std::size_t dataset_size, std::int32_t batch_size);
 
             /**
              * @brief Records the sample as loaded, then draws three entries of the buffer.
@@ -75,16 +81,20 @@ namespace SushiAI::Vision::Imaging
              * An index already in the buffer is not added again. After an addition, the
              * oldest entry leaves when the buffer holds more than one entry and at least
              * capacity() of them. Each partner is recent()[random.index(recent().size())].
+             * @pre @p index is below the dataset size.
              */
             [[nodiscard]] MosaicPartners choose(std::size_t index, Random& random) override;
 
             /** @brief Returns the buffer, oldest index first. */
             [[nodiscard]] const std::deque<std::size_t>& recent() const noexcept { return recent_; }
 
-            /** @brief Returns recent_capacity of the constructor's arguments. */
+            /** @brief Returns recent_capacity of the arguments make() was given. */
             [[nodiscard]] std::size_t capacity() const noexcept { return capacity_; }
 
         private:
+            /** @brief Stores arguments that make() has checked. */
+            RecentPartners(std::size_t dataset_size, std::int32_t batch_size);
+
             /// @brief Holds the length at which an addition evicts the oldest entry.
             std::size_t capacity_ = 0;
 

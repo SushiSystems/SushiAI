@@ -63,7 +63,7 @@ bounds (0.1, 0.2, 0.7, 0.9).
 
 ## ResampleRejectsACountOfZero
 
-A count of 0 throws with "resample_polygon" and "point count of 0".
+A count of 0 stops the process with "resample_polygon" and "point count of 0".
 
 ## MapScalesThenTranslatesEachAxis
 
