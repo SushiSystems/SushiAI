@@ -505,7 +505,7 @@ namespace SushiAI
             }
         } // namespace
 
-        std::vector<DarknetParityModel> list_darknet_parity_models()
+        std::vector<DarknetParityModel> list_darknet_parity_models() noexcept
         {
             const float low = K_LOW_THRESH;
             const float normal = K_DEFAULT_THRESH;
@@ -523,7 +523,7 @@ namespace SushiAI
             };
         }
 
-        DarknetParityModel find_darknet_parity_model(std::string_view stem)
+        DarknetParityModel find_darknet_parity_model(std::string_view stem) noexcept
         {
             const std::vector<DarknetParityModel> models = list_darknet_parity_models();
             const auto found = std::find_if(models.begin(), models.end(),
@@ -536,7 +536,7 @@ namespace SushiAI
             return *found;
         }
 
-        std::string name_darknet_layer(std::int64_t layer, std::string_view kind)
+        std::string name_darknet_layer(std::int64_t layer, std::string_view kind) noexcept
         {
             const std::string index = std::to_string(layer);
             const std::size_t zeros =
@@ -545,13 +545,13 @@ namespace SushiAI
             return "layer_" + std::string(zeros, '0') + index + "_" + std::string(kind);
         }
 
-        std::string name_observed_layer(std::int64_t layer)
+        std::string name_observed_layer(std::int64_t layer) noexcept
         {
             return "layer." + std::to_string(layer);
         }
 
         std::string find_missing_darknet_file(std::string_view stem, std::string_view run,
-                                              SushiRuntime::span<const std::string> names)
+                                              SushiRuntime::span<const std::string> names) noexcept
         {
             for (const std::string_view extension : {".cfg", ".weights"})
             {
@@ -571,20 +571,20 @@ namespace SushiAI
             return std::string();
         }
 
-        Result<DarknetTensor> load_darknet_reference(std::string_view run, std::string_view name)
+        Result<DarknetTensor> load_darknet_reference(std::string_view run, std::string_view name) noexcept
         {
             return load_darknet_tensor(find_darknet_reference(run, name));
         }
 
         Result<DarknetModel> translate_darknet_text(std::string_view text,
-                                                    DarknetNormalisation normalisation)
+                                                    DarknetNormalisation normalisation) noexcept
         {
             SA_TRY_ASSIGN(const DarknetConfig config,
                           Vision::Importers::parse_darknet_config(text, K_TEXT_ORIGIN));
             return translate(config, normalisation);
         }
 
-        Result<DarknetConfig> load_darknet_config_file(std::string_view stem)
+        Result<DarknetConfig> load_darknet_config_file(std::string_view stem) noexcept
         {
             const DarknetFile file = find_darknet_file(std::string(stem) + ".cfg");
             SA_FAIL_IF(!file.found, StatusCode::FileNotFound, "{}", file.reason);
@@ -593,13 +593,13 @@ namespace SushiAI
         }
 
         Result<DarknetModel> translate_darknet_file(std::string_view stem,
-                                                    DarknetNormalisation normalisation)
+                                                    DarknetNormalisation normalisation) noexcept
         {
             SA_TRY_ASSIGN(const DarknetConfig config, load_darknet_config_file(stem));
             return translate(config, normalisation);
         }
 
-        std::vector<std::int64_t> sources_of_row(const DarknetModel& model, std::int64_t row)
+        std::vector<std::int64_t> sources_of_row(const DarknetModel& model, std::int64_t row) noexcept
         {
             const std::int64_t rows = static_cast<std::int64_t>(model.spec.layers.size());
             SA_FATAL_IF(row < 0 || row >= rows, "row {} is asked of a model of {} rows", row, rows);
@@ -613,7 +613,7 @@ namespace SushiAI
         }
 
         Result<DarknetForwardRun> run_darknet_forward(SushiBLAS::Engine& engine,
-                                                      const DarknetForwardRequest& request)
+                                                      const DarknetForwardRequest& request) noexcept
         {
             SA_TRY_ASSIGN(const DarknetTensor input,
                           load_darknet_reference(request.run, K_DARKNET_INPUT));
@@ -629,7 +629,7 @@ namespace SushiAI
             return Result<DarknetForwardRun>(std::move(run));
         }
 
-        const std::vector<float>* find_output(const DarknetForwardRun& run, std::string_view name)
+        const std::vector<float>* find_output(const DarknetForwardRun& run, std::string_view name) noexcept
         {
             const auto found = run.outputs.find(name);
             return found == run.outputs.end() ? nullptr : &found->second;
@@ -637,7 +637,7 @@ namespace SushiAI
 
         ToleranceGap measure_gap(SushiRuntime::span<const float> actual,
                                  SushiRuntime::span<const float> reference, double absolute,
-                                 double relative)
+                                 double relative) noexcept
         {
             SA_FATAL_IF(actual.size() != reference.size(), "{} values are measured against {}",
                         actual.size(), reference.size());
@@ -662,7 +662,7 @@ namespace SushiAI
         ::testing::AssertionResult within_tolerance(std::string_view what,
                                                     SushiRuntime::span<const float> actual,
                                                     SushiRuntime::span<const float> reference,
-                                                    double absolute, double relative)
+                                                    double absolute, double relative) noexcept
         {
             if (actual.size() != reference.size())
                 return ::testing::AssertionFailure() << what << ": " << actual.size()
@@ -683,7 +683,7 @@ namespace SushiAI
         }
 
         std::vector<float> compute_yolo_output(SushiRuntime::span<const float> head,
-                                               const HeadOptions& options)
+                                               const HeadOptions& options) noexcept
         {
             SA_FATAL_IF(options.num_classes < 1, "a head of {} classes is activated",
                         options.num_classes);
@@ -713,7 +713,7 @@ namespace SushiAI
             return output;
         }
 
-        std::string find_missing_parity_file(const DarknetParityCase& parity)
+        std::string find_missing_parity_file(const DarknetParityCase& parity) noexcept
         {
             std::vector<std::string> names{std::string(K_DARKNET_INPUT),
                                            std::string(K_DARKNET_DETECTIONS)};
@@ -747,7 +747,7 @@ namespace SushiAI
                 GTEST_SKIP() << missing;
         }
 
-        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity)
+        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
@@ -782,7 +782,7 @@ namespace SushiAI
             }
         }
 
-        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity)
+        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
@@ -815,7 +815,7 @@ namespace SushiAI
             }
         }
 
-        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity)
+        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
@@ -880,7 +880,7 @@ namespace SushiAI
             }
         }
 
-        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity)
+        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun folded,

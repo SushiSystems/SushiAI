@@ -73,22 +73,22 @@ namespace SushiAI
         };
 
         /** @brief Lists the six models REPORT sections 6, 12 and 14 hold reference runs of. */
-        [[nodiscard]] std::vector<DarknetParityModel> list_darknet_parity_models();
+        [[nodiscard]] std::vector<DarknetParityModel> list_darknet_parity_models() noexcept;
 
         /**
          * @brief Returns the row of list_darknet_parity_models whose stem is @p stem.
          * @pre The table has such a row; a stem it lacks stops the process.
          */
-        [[nodiscard]] DarknetParityModel find_darknet_parity_model(std::string_view stem);
+        [[nodiscard]] DarknetParityModel find_darknet_parity_model(std::string_view stem) noexcept;
 
         /**
          * @brief Returns the reference name of layer @p layer, such as "layer_016_yolo".
          * @param kind The part after the index: the section type, or "yolo_input".
          */
-        [[nodiscard]] std::string name_darknet_layer(std::int64_t layer, std::string_view kind);
+        [[nodiscard]] std::string name_darknet_layer(std::int64_t layer, std::string_view kind) noexcept;
 
         /** @brief Returns the name a forward run publishes the observed layer @p layer under. */
-        [[nodiscard]] std::string name_observed_layer(std::int64_t layer);
+        [[nodiscard]] std::string name_observed_layer(std::int64_t layer) noexcept;
 
         /**
          * @brief Looks for the cfg and the weights of @p stem and for @p names in @p run.
@@ -96,11 +96,11 @@ namespace SushiAI
          */
         [[nodiscard]] std::string find_missing_darknet_file(
             std::string_view stem, std::string_view run,
-            SushiRuntime::span<const std::string> names);
+            SushiRuntime::span<const std::string> names) noexcept;
 
         /** @brief Loads the reference tensor @p name of the run folder @p run. */
         [[nodiscard]] Result<DarknetTensor> load_darknet_reference(std::string_view run,
-                                                                   std::string_view name);
+                                                                   std::string_view name) noexcept;
 
         /**
          * @brief Translates the cfg text @p text, parsed under the origin "test.cfg".
@@ -108,14 +108,14 @@ namespace SushiAI
          */
         [[nodiscard]] Result<Vision::Importers::DarknetModel> translate_darknet_text(
             std::string_view text, Vision::Importers::DarknetNormalisation normalisation =
-                                       Vision::Importers::DarknetNormalisation::Separate);
+                                       Vision::Importers::DarknetNormalisation::Separate) noexcept;
 
         /**
          * @brief Loads the sections of `<stem>.cfg` of the reference data directory.
          * @return The sections; FileNotFound naming the file; or the failure of the parse.
          */
         [[nodiscard]] Result<Vision::Importers::DarknetConfig> load_darknet_config_file(
-            std::string_view stem);
+            std::string_view stem) noexcept;
 
         /**
          * @brief Translates `<stem>.cfg` of the reference data directory.
@@ -123,14 +123,14 @@ namespace SushiAI
          *         translation.
          */
         [[nodiscard]] Result<Vision::Importers::DarknetModel> translate_darknet_file(
-            std::string_view stem, Vision::Importers::DarknetNormalisation normalisation);
+            std::string_view stem, Vision::Importers::DarknetNormalisation normalisation) noexcept;
 
         /**
          * @brief Returns the rows that row @p row of @p model reads, in the order it reads them.
          * @pre @p row is a row of the model; another index stops the process.
          */
         [[nodiscard]] std::vector<std::int64_t> sources_of_row(
-            const Vision::Importers::DarknetModel& model, std::int64_t row);
+            const Vision::Importers::DarknetModel& model, std::int64_t row) noexcept;
 
         /** @brief Names one forward pass: the model, its form, its input and what is observed. */
         struct DarknetForwardRequest
@@ -168,11 +168,11 @@ namespace SushiAI
          *         Incompatible for an observed layer the file lacks or an input of another shape.
          */
         [[nodiscard]] Result<DarknetForwardRun> run_darknet_forward(
-            SushiBLAS::Engine& engine, const DarknetForwardRequest& request);
+            SushiBLAS::Engine& engine, const DarknetForwardRequest& request) noexcept;
 
         /** @brief Returns the output @p name of @p run, or null when the run published none. */
         [[nodiscard]] const std::vector<float>* find_output(const DarknetForwardRun& run,
-                                                            std::string_view name);
+                                                            std::string_view name) noexcept;
 
         /** @brief Holds the largest difference of a comparison and how many values fail it. */
         struct ToleranceGap
@@ -188,7 +188,7 @@ namespace SushiAI
          */
         [[nodiscard]] ToleranceGap measure_gap(SushiRuntime::span<const float> actual,
                                                SushiRuntime::span<const float> reference,
-                                               double absolute, double relative);
+                                               double absolute, double relative) noexcept;
 
         /**
          * @brief Checks @p actual against @p reference and prints the largest difference measured.
@@ -196,7 +196,7 @@ namespace SushiAI
          */
         [[nodiscard]] ::testing::AssertionResult within_tolerance(
             std::string_view what, SushiRuntime::span<const float> actual,
-            SushiRuntime::span<const float> reference, double absolute, double relative);
+            SushiRuntime::span<const float> reference, double absolute, double relative) noexcept;
 
         /**
          * @brief Returns the [yolo] output SPEC 4.4 states for the head @p head under @p options.
@@ -208,7 +208,7 @@ namespace SushiAI
          */
         [[nodiscard]] std::vector<float> compute_yolo_output(
             SushiRuntime::span<const float> head,
-            const Vision::Detect::Anchor::HeadOptions& options);
+            const Vision::Detect::Anchor::HeadOptions& options) noexcept;
 
         /** @brief Holds the bounds a parity suite measures a model against (SPEC 6.3). */
         struct DarknetParityBounds
@@ -241,7 +241,7 @@ namespace SushiAI
          * @brief Looks for every file the four parity checks of @p parity read.
          * @return Why the first of them is missing, or an empty string when all are found.
          */
-        [[nodiscard]] std::string find_missing_parity_file(const DarknetParityCase& parity);
+        [[nodiscard]] std::string find_missing_parity_file(const DarknetParityCase& parity) noexcept;
 
         /** @brief Runs on an engine, and skips every case when a file of its model is missing. */
         class DarknetParityTest : public EngineTest
@@ -261,13 +261,13 @@ namespace SushiAI
          * @brief Checks every published head of the folded model against the dumped raw head of
          *        each run, within the head bounds, and prints the largest difference.
          */
-        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity);
+        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks compute_yolo_output over each head of the folded model against the dumped
          *        [yolo] layer of each run, within the head bounds.
          */
-        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity);
+        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks decode, threshold and suppression over the folded heads against the
@@ -277,13 +277,13 @@ namespace SushiAI
          * Every decision within the threshold margin is printed. The reference's objectness
          * column has no counterpart in a library row and is not compared.
          */
-        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity);
+        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks the heads of the Separate model against those of the Folded model, within
          *        the head bounds relative to the folded value.
          */
-        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity);
+        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
 
     } // namespace Test
 } // namespace SushiAI
