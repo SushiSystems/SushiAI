@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
@@ -41,7 +42,6 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/optimizer_registry.hpp>
@@ -291,10 +291,9 @@ TEST_F(Medium_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
 
 TEST_F(Medium_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(datasets, *engine, "rings",
+    SA_EXPECT_FAILURE(Data::make_dataset(datasets, *engine, "rings",
                                  attributes_from(R"({"batch_sizes": 16})"), "data"),
-        "data", "'batch_sizes'", "'batch_size'");
+        StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
 }
 
 TEST_F(Medium_Registries, ANonPositiveRingsExtentIsRefused)
@@ -334,25 +333,23 @@ TEST_F(Medium_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
 
 TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 {
-    SA_EXPECT_ERROR(
-        (void)Optim::make_optimizer(*engine, "lion", {}, attributes_from("{}"), "optimizer"),
-        "lion", "optimizer type", "'adamw'", "'sgd'");
+    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "lion", {}, attributes_from("{}"),
+                                            "optimizer"),
+                      StatusCode::InvalidDescription, "lion", "optimizer type", "'adamw'", "'sgd'");
 }
 
 TEST_F(Medium_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
     // "momentum" is SGD's key, not AdamW's; see tests/core/data/README.md.
-    SA_EXPECT_ERROR(
-        (void)Optim::make_optimizer(*engine, "adamw", {},
+    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"momentum": 0.9})"), "optimizer"),
-        "optimizer", "'momentum'", "'beta1'");
+        StatusCode::InvalidDescription, "optimizer", "'momentum'", "'beta1'");
 }
 
 TEST_F(Medium_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
 {
     // "kernel" is not an accepted config key; see tests/core/data/README.md.
-    SA_EXPECT_ERROR(
-        (void)Optim::make_optimizer(*engine, "adamw", {},
+    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {},
                                     attributes_from(R"({"kernel": "separate"})"), "optimizer"),
-        "'kernel'");
+        StatusCode::InvalidDescription, "'kernel'");
 }

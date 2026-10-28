@@ -67,13 +67,13 @@ namespace SushiAI
             /**
              * @brief Reads an optional whole number from a dataset's attributes.
              * @param attributes The dataset's keys.
-             * @param key Which one.
-             * @param prefix What to call this dataset in a diagnostic.
+             * @param key Which one; @p prefix names this dataset in a diagnostic.
              * @param fallback Returned when @p key is absent.
-             * @return The value, or @p fallback.
+             * @return The value, or @p fallback; InvalidDescription for a value that is no whole
+             *         number.
              */
-            int64_t read_int(const Config::Value& attributes, std::string_view key,
-                             const std::string& prefix, int64_t fallback)
+            Result<int64_t> read_int(const Config::Value& attributes, std::string_view key,
+                                     const std::string& prefix, int64_t fallback)
             {
                 const Config::Value spelled = Config::Value::integer(fallback);
                 return attributes.at_or(key, spelled)
@@ -86,10 +86,10 @@ namespace SushiAI
              * @param key Which one.
              * @param prefix What to call this dataset in a diagnostic.
              * @param fallback Returned when @p key is absent.
-             * @return The value, or @p fallback.
+             * @return The value, or @p fallback; InvalidDescription for a value that is no number.
              */
-            double read_real(const Config::Value& attributes, std::string_view key,
-                             const std::string& prefix, double fallback)
+            Result<double> read_real(const Config::Value& attributes, std::string_view key,
+                                     const std::string& prefix, double fallback)
             {
                 const Config::Value spelled = Config::Value::real(fallback);
                 return attributes.at_or(key, spelled)
@@ -325,23 +325,26 @@ namespace SushiAI
                                                     const Config::Value& attributes,
                                                     std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_RINGS_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_RINGS_KEYS)));
 
             RingsOptions options;
             const std::string prefix(context);
 
-            options.batch_size = read_int(attributes, "batch_size", prefix, options.batch_size);
-            options.batches = read_int(attributes, "batches", prefix, options.batches);
-            options.classes = read_int(attributes, "classes", prefix, options.classes);
-            options.distractor_features =
-                read_int(attributes, "distractors", prefix, options.distractor_features);
-            options.ring_width = read_real(attributes, "ring_width", prefix, options.ring_width);
-            options.position_noise =
-                read_real(attributes, "position_noise", prefix, options.position_noise);
+            SA_TRY_ASSIGN(options.batch_size,
+                          read_int(attributes, "batch_size", prefix, options.batch_size));
+            SA_TRY_ASSIGN(options.batches, read_int(attributes, "batches", prefix, options.batches));
+            SA_TRY_ASSIGN(options.classes, read_int(attributes, "classes", prefix, options.classes));
+            SA_TRY_ASSIGN(options.distractor_features,
+                          read_int(attributes, "distractors", prefix, options.distractor_features));
+            SA_TRY_ASSIGN(options.ring_width,
+                          read_real(attributes, "ring_width", prefix, options.ring_width));
+            SA_TRY_ASSIGN(options.position_noise,
+                          read_real(attributes, "position_noise", prefix, options.position_noise));
 
             // Reinterpreting the signed integer preserves arbitrary 64-bit seed patterns.
-            options.seed = static_cast<std::uint64_t>(
-                read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
+            SA_TRY_ASSIGN(const int64_t seed,
+                          read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
+            options.seed = static_cast<std::uint64_t>(seed);
 
             SA_TRY_ASSIGN(std::unique_ptr<Dataset> dataset, Rings::make(engine, options));
             return std::move(dataset);

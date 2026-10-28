@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — data: Read the optional whole numbers of a dataset section through the `Result` of `Value::as_int` (`dataset.cpp`).
 - 2026-10-28 — eager: Breaking change: Made `ScopePartitioner` stop the process for a graph it cannot cut, in place of throwing (`scope_partitioner.cpp`).
 - 2026-10-28 — eager: Breaking change: Made `ScopeTrace` and `RegionTable` stop the process for a misused scope, in place of throwing (`scope_trace.cpp`).
 - 2026-10-28 — eager: Added `ScopeTrace::is_legal_scope_name`, so a caller tests a scope name before it opens a scope (`scope_trace.hpp`).
