@@ -44,7 +44,7 @@
 
 namespace SushiAI::Language
 {
-    Status register_nodes(NN::NodeRegistry& registry)
+    Status register_nodes(NN::NodeRegistry& registry) noexcept
     {
         SA_TRY(registry.add(NN::NodeEntry{"position_embedding",
                                           &Blocks::make_position_embedding_node}));
@@ -61,7 +61,7 @@ namespace SushiAI::Language
                                                 &Blocks::make_language_head_node});
     }
 
-    Status register_datasets(Data::DatasetRegistry& registry)
+    Status register_datasets(Data::DatasetRegistry& registry) noexcept
     {
         SA_TRY(registry.add(Data::DatasetEntry{Datasets::K_TOKENS_DATA_TYPE,
                                                &Datasets::make_tokens_dataset}));
@@ -70,7 +70,7 @@ namespace SushiAI::Language
                                                &Datasets::make_prompt_dataset});
     }
 
-    Status register_objectives(Train::ObjectiveRegistry& registry)
+    Status register_objectives(Train::ObjectiveRegistry& registry) noexcept
     {
         SA_TRY(registry.add(Train::ObjectiveEntry{Training::K_NEXT_TOKEN_OBJECTIVE_TYPE,
                                                   &Training::make_next_token_objective}));

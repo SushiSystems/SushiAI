@@ -54,18 +54,18 @@ namespace SushiAI::Language
      *        and moe_feed_forward as node rows, then language_head as a linked node row.
      * @return InvalidDescription when @p registry already holds one of the six types.
      */
-    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry);
+    [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry) noexcept;
 
     /**
      * @brief Adds the tokens row and the prompt row.
      * @return InvalidDescription when @p registry already holds one of the two types.
      */
-    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry);
+    [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry) noexcept;
 
     /**
      * @brief Adds the next_token row and the expert_balance row.
      * @return InvalidDescription when @p registry already holds one of the two types.
      */
-    [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry);
+    [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry) noexcept;
 
 } // namespace SushiAI::Language
