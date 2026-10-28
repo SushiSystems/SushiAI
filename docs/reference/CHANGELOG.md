@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — seam: Made `guard_value` over a call that returns `Result<T>` return `Result<T>`, so a returned failure and a thrown one come back alike (`seam.hpp`).
 - 2026-10-28 — autograd: Breaking change: Made `differentiate` return `Result<std::vector<Graph::ValueID>>`, refusing a graph that holds a refusal and returning the first failure a rule observed (`backward.hpp`).
 - 2026-10-28 — autograd: Made the tape's index checks stop the process in place of throwing (`tape.cpp`).
 - 2026-10-28 — autograd: Made the contribution checks stop the process in place of throwing (`differentiator.cpp`).

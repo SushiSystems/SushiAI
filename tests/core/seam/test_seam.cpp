@@ -122,6 +122,25 @@ TEST(Small_Seam, GuardValueReturnsTheStatusOfWhatTheCallThrew)
     EXPECT_EQ(result.status().code(), StatusCode::OutOfMemory);
 }
 
+TEST(Small_Seam, GuardValueFlattensAResultTheCallReturns)
+{
+    const Result<int> held = guard_value(SeamPhase::Record, []()
+    {
+        return Result<int>(7);
+    });
+    ASSERT_TRUE(held.has_value());
+    EXPECT_EQ(held.value(), 7);
+
+    const Result<int> failed = guard_value(SeamPhase::Record, []() -> Result<int>
+    {
+        return Status::from_message(StatusCode::InvalidDescription, []()
+        {
+            return std::string("refused here");
+        });
+    });
+    SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "refused here");
+}
+
 TEST(Small_Seam, UnsupportedExecutionIsUnsupportedThoughItIsAnInvalidArgument)
 {
     SA_EXPECT_FAILURE(

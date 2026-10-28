@@ -77,13 +77,34 @@ namespace SushiAI
         template<typename Call>
         [[nodiscard]] Status guard(SeamPhase phase, Call&& call) noexcept;
 
+        /** @brief Names T itself; the specialisation below names U for a Result<U>. */
+        template<typename T>
+        struct GuardedValue
+        {
+            using Type = T; /**< The value a guard_value result holds. */
+        };
+
+        /** @brief Names U for a call that returns Result<U>, so the two failures merge. */
+        template<typename T>
+        struct GuardedValue<Result<T>>
+        {
+            using Type = T; /**< The value a guard_value result holds. */
+        };
+
+        /** @brief Names the Result that guard_value returns for a call of type @p Call. */
+        template<typename Call>
+        using GuardedResult = Result<typename GuardedValue<
+            std::decay_t<decltype(std::declval<Call>()())>>::Type>;
+
         /**
          * @brief Runs @p call and returns its value, or the Status of what it threw.
-         * @param call Called once with no argument; returns a value, not a Status.
+         * @param call Called once with no argument; returns a value or a Result, not a Status.
+         * @return A Result<T> for a call returning T or Result<T>; a returned failure and a
+         *         thrown one come back the same way.
          */
         template<typename Call>
         [[nodiscard]] auto guard_value(SeamPhase phase, Call&& call) noexcept
-            -> Result<std::decay_t<decltype(std::forward<Call>(call)())>>;
+            -> GuardedResult<Call>;
 
         template<typename Call>
         Status guard(SeamPhase phase, Call&& call) noexcept
@@ -99,8 +120,7 @@ namespace SushiAI
         }
 
         template<typename Call>
-        auto guard_value(SeamPhase phase, Call&& call) noexcept
-            -> Result<std::decay_t<decltype(std::forward<Call>(call)())>>
+        auto guard_value(SeamPhase phase, Call&& call) noexcept -> GuardedResult<Call>
         {
             try
             {

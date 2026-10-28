@@ -28,6 +28,11 @@ A success passes through `guard`, and a failure Status returns with its code and
 
 A `std::bad_alloc` thrown by the call becomes a failed `Result` of code `OutOfMemory`.
 
+### GuardValueFlattensAResultTheCallReturns
+
+A call that returns `Result<int>` gives `Result<int>`, not a nested `Result`: a held 7 comes back
+as 7, and a returned `InvalidDescription` comes back with its message.
+
 ### UnsupportedExecutionIsUnsupportedThoughItIsAnInvalidArgument
 
 `SushiBLAS::UnsupportedExecution` derives from `std::invalid_argument`, and it maps to
