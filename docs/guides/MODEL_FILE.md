@@ -187,10 +187,10 @@ A `ModelSpec` filled in code is checked as a parsed one is. Both builders treat 
 | Version | Version key | Release | What changed |
 | --- | --- | --- | --- |
 | 1 | `sushiai_model` | Before 0.1.0, untagged | The first format: `input.features` and a chain of `layers` |
-| 2 | `format_version` | Unreleased | `input.shape` replaces `input.features`; adds `from`, `defaults` and `outputs`; the version key becomes `format_version` |
+| 2 | `format_version` | v0.1.0 | `input.shape` replaces `input.features`; adds `from`, `defaults` and `outputs`; the version key becomes `format_version` |
 
-`task` joined version 2 after its other keys, and the version number did not change, because
-version 2 is in no release. A file without `task` reads as it did. A build from before the key
+`task` joined version 2 after its other keys, before version 2 shipped in v0.1.0, so the version
+number did not change. A file without `task` reads as it did. A build from before the key
 refuses a file that carries it: the reader refuses every top-level key it does not know, so
 that build reports `task` as an unknown key.
 

@@ -76,8 +76,8 @@ A record has one layout in both sections and in both versions:
 
 | Version | Shipped in | Layout |
 | --- | --- | --- |
-| 1 | Unreleased | A header of 12 bytes, magic, version and M, then M records |
-| 2 | Unreleased | The table above: R joins the header, and the run-state section follows the model records. The four progress records joined the section before version 2 shipped, so the number did not change |
+| 1 | Before 0.1.0, untagged | A header of 12 bytes, magic, version and M, then M records |
+| 2 | v0.1.0 | The table above: R joins the header, and the run-state section follows the model records. The four progress records joined the section before version 2 shipped, so the number did not change |
 
 `CheckpointReader::open` reads either header and upgrades a version 1 header in memory to one
 with R of 0, so a version 1 file reads as model state with no run state. `CheckpointWriter`
