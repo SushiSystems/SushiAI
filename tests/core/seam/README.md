@@ -84,10 +84,6 @@ different versions of the wire protocol.
 step that names it breaks the contract of the pool. The case checks the report with
 `SA_EXPECT_FATAL`.
 
-### ErrorOfAHostUnitIsFatalWithItsText
-
-A `SushiAI::Error` thrown while recording stops the process, and the report carries its text.
-
 ### BadAllocIsOutOfMemoryInEveryPhase
 
 `std::bad_alloc` maps to `OutOfMemory` in each of the three phases.

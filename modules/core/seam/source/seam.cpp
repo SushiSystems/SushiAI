@@ -33,7 +33,6 @@
 #include <string>
 #include <utility>
 #include <SushiBLAS/core/errors.hpp>
-#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {
@@ -60,20 +59,6 @@ namespace SushiAI
                     return StatusCode::OutOfMemory;
 
                 return StatusCode::DeviceFailed;
-            }
-
-            /**
-             * @brief Returns the Status of a std::runtime_error, by its dynamic type.
-             *
-             * Stops the process for a SushiAI::Error.
-             */
-            [[nodiscard]] Status status_of_runtime_error(const std::runtime_error& error,
-                                                         SeamPhase phase) noexcept
-            {
-                if (dynamic_cast<const Error*>(&error) != nullptr)
-                    SA_FATAL("{}", error.what());
-
-                return failure_of(untyped_code(phase), error.what());
             }
 
         } // namespace
@@ -131,7 +116,7 @@ namespace SushiAI
             }
             catch (const std::runtime_error& error)
             {
-                return status_of_runtime_error(error, phase);
+                return failure_of(untyped_code(phase), error.what());
             }
             catch (const std::bad_alloc& error)
             {

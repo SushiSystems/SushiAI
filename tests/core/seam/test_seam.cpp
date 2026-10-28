@@ -38,7 +38,6 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/errors.hpp>
 #include <SushiRuntime/core/error.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -234,13 +233,6 @@ TEST(Small_Seam, RuntimeDanglingResourceIsFatal)
         (void)status_of_error(runtime_failure(ErrorCode::DanglingResource, "freed"),
                               SeamPhase::Execute),
         "SushiRuntime reported DanglingResource", "freed");
-}
-
-TEST(Small_Seam, ErrorOfAHostUnitIsFatalWithItsText)
-{
-    SA_EXPECT_FATAL(
-        (void)status_of_throw(SeamPhase::Record, SushiAI::Error("value 9 is out of range")),
-        "value 9 is out of range");
 }
 
 TEST(Small_Seam, BadAllocIsOutOfMemoryInEveryPhase)
