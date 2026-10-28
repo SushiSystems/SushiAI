@@ -55,6 +55,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
     constexpr double K_EXACT_TOLERANCE = 1e-15;
 
@@ -129,7 +130,7 @@ namespace
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value attributes_of(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Expects @p options on every BATCHNORM2D node of @p graph and every update. */

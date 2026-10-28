@@ -85,12 +85,13 @@ namespace SushiAI
                 if (!attributes.has("inner"))
                     return fallback;
 
-                const Config::Value& stated = attributes.at("inner", context);
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at("inner", context));
                 SA_FAIL_IF(stated.kind() != Config::Kind::String, StatusCode::InvalidDescription,
                            "{} 'inner' must be a string, but it is {}", context,
                            Config::kind_name(stated.kind()));
 
-                return std::string_view(stated.as_string("inner"));
+                SA_TRY_ASSIGN(const std::string& name, stated.as_string("inner"));
+                return std::string_view(name);
             }
 
             /**

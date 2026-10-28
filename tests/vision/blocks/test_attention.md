@@ -63,10 +63,10 @@ products, and the result has the shape [2, 4, 4, 128].
 
 ## AWidthTheHeadCountDoesNotDivideIsRefused
 
-`Attention(100, 3)` throws an error naming "head count divides", "100 channels" and "3 heads".
-`Attention(128, 0)` throws one naming "128 channels" and "0 heads".
+`Attention(100, 3)` stops the process naming "head count divides", "100 channels" and "3 heads".
+`Attention(128, 0)` stops the process one naming "128 channels" and "0 heads".
 
 ## OneChannelPerHeadIsRefused
 
-`Attention(2, 2)` throws an error naming "at least 2 channels per head", "2 channels" and
+`Attention(2, 2)` stops the process naming "at least 2 channels per head", "2 channels" and
 "2 heads".

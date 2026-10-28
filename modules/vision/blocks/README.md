@@ -139,8 +139,9 @@ its result head by head into queries, keys and values. `head_dim` is `channels /
 `key_dim` is `head_dim / 2`. Each head scales its queries by `1 / sqrt(key_dim)`, multiplies them
 with its keys transposed, takes the softmax over the last axis and multiplies the result with its
 values. The heads are joined, `pe`, a 3x3 `DWConvLinear` over the values of all heads, is added,
-and `proj`, a `ConvLinear`, is traced over the sum. The constructor throws on a width the head
-count does not divide, or on fewer than two channels per head. It has no factory of its own.
+and `proj`, a `ConvLinear`, is traced over the sum. The constructor stops the process on a
+width the head count does not divide, or on fewer than two channels per head; a width read from
+a document is checked before the call. It has no factory of its own.
 
 ### psa_block.hpp
 

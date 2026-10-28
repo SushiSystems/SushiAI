@@ -55,6 +55,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the epsilon and the momentum every case hands to its norms. */
     constexpr NormOptions K_TEST_NORM{1e-3, 0.03};
 
@@ -126,7 +127,7 @@ namespace
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value attributes_of(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Expects @p options on every BATCHNORM2D node of @p graph and every update. */

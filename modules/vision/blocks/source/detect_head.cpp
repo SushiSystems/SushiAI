@@ -33,7 +33,6 @@
 #include <variant>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include "block_attributes.hpp"
 
 namespace SushiAI
@@ -184,13 +183,13 @@ namespace SushiAI
                 if (!attributes.has(K_CLASS_BRANCH_KEY))
                     return ClassBranchStyle::Depthwise;
 
-                const Config::Value& value = attributes.at(K_CLASS_BRANCH_KEY, context);
+                SA_TRY_ASSIGN(const Config::Value& value, attributes.at(K_CLASS_BRANCH_KEY, context));
                 SA_FAIL_IF(value.kind() != Config::Kind::String, StatusCode::InvalidDescription,
                            "{} '{}' must be \"{}\" or \"{}\", but it is {}", context,
                            K_CLASS_BRANCH_KEY, K_DEPTHWISE, K_PLAIN,
                            Config::kind_name(value.kind()));
 
-                const std::string& form = value.as_string(K_CLASS_BRANCH_KEY);
+                SA_TRY_ASSIGN(const std::string& form, value.as_string(K_CLASS_BRANCH_KEY));
                 if (form == K_DEPTHWISE)
                     return ClassBranchStyle::Depthwise;
 
@@ -386,13 +385,9 @@ namespace SushiAI
             const HeadPlan plan{levels, classes, norm, options, box_width, box_channels,
                                 class_width};
 
-            // The block constructors still refuse their settings by throwing.
-            SA_TRY_ASSIGN(Branches branches, NN::Detail::bridge_throwing([&plan, &options]()
-            {
-                return options.class_branch == ClassBranchStyle::Plain
-                           ? Branches(build_branches<PlainClassBranch>(plan))
-                           : Branches(build_branches<ClassBranch>(plan));
-            }));
+            Branches branches = options.class_branch == ClassBranchStyle::Plain
+                                    ? Branches(build_branches<PlainClassBranch>(plan))
+                                    : Branches(build_branches<ClassBranch>(plan));
 
             std::vector<Shape> boxes;
             std::vector<Shape> scores;

@@ -64,9 +64,10 @@ namespace SushiAI
 
             /**
              * @brief Builds the three convolutions over the width and the head count given.
-             * @param channels A positive multiple of @p head_count with two or more channels
-             *                 per head; the constructor throws otherwise.
+             * @param channels The width of the input and of the output.
              * @param norm The epsilon and the momentum of the three normalisations.
+             * @pre @p channels is a positive multiple of @p head_count with two or more channels
+             *      per head; a width read from a document is checked before this call.
              */
             Attention(int64_t channels, int64_t head_count, NN::NormOptions norm);
 

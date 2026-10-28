@@ -55,6 +55,7 @@ using Vision::Blocks::SegmentHead;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the epsilon and the momentum the tests give every normalisation. */
     constexpr NormOptions K_NORM{1e-3, 0.03};
 
@@ -151,9 +152,9 @@ TEST(Small_BlockSegmentHead, StateIsListedUnderCv1AndCv2)
 TEST(Small_BlockSegmentHead, TheFactoryBuildsTheRow)
 {
     const Shape input{4, 4, 16};
-    const Config::Value stated = Config::parse_json(
-        R"({"classes": 5, "hidden": 8, "scale": 2})", "<test>");
-    const Config::Value bare = Config::parse_json(R"({"classes": 5})", "<test>");
+    const Config::Value stated = require_value(Config::parse_json(
+        R"({"classes": 5, "hidden": 8, "scale": 2})", "<test>"));
+    const Config::Value bare = require_value(Config::parse_json(R"({"classes": 5})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Node> node,
                             Vision::Blocks::make_segment_head_node(one_input(input), stated,
@@ -181,10 +182,11 @@ TEST(Small_BlockSegmentHead, TheFactoryBuildsTheRow)
 TEST(Small_BlockSegmentHead, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{4, 4, 16};
-    const Config::Value unknown = Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>");
-    const Config::Value no_classes = Config::parse_json(R"({"scale": 2})", "<test>");
+    const Config::Value unknown =
+        require_value(Config::parse_json(R"({"classes": 5, "mode": 1})", "<test>"));
+    const Config::Value no_classes = require_value(Config::parse_json(R"({"scale": 2})", "<test>"));
     const Config::Value zero_scale =
-        Config::parse_json(R"({"classes": 5, "scale": 0})", "<test>");
+        require_value(Config::parse_json(R"({"classes": 5, "scale": 0})", "<test>"));
 
     SA_EXPECT_FAILURE(
         Vision::Blocks::make_segment_head_node(one_input(input), unknown, K_CONTEXT),

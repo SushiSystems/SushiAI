@@ -38,7 +38,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -59,6 +58,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
     constexpr double K_EXACT_TOLERANCE = 1e-15;
 
@@ -133,7 +133,7 @@ namespace
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value attributes_of(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
 } // namespace
@@ -344,8 +344,8 @@ TEST(Small_BlockConvNorm, DepthwiseStateMatchesTheManifestPositionalConvolution)
 /** @brief Tests that a DWConv over unequal widths is refused, naming both widths. */
 TEST(Small_BlockConvNorm, ADepthwiseBlockRefusesUnequalWidths)
 {
-    SA_EXPECT_ERROR(static_cast<void>(DWConv(16, 32, 3, 1, K_YOLO_NORM)),
-                    "keeps its channel count", "in=16", "out=32");
+    SA_EXPECT_FATAL(static_cast<void>(DWConv(16, 32, 3, 1, K_YOLO_NORM)), "keeps its channel count",
+                    "in=16", "out=32");
 }
 
 /** @brief Tests that an untraced block yields no state, since nothing is declared yet. */

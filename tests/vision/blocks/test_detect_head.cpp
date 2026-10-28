@@ -60,6 +60,7 @@ using Vision::Blocks::DetectOptions;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};
 
@@ -191,7 +192,7 @@ namespace
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value attributes_of(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Lists the per-sample [side, side, width] shape of each level. */

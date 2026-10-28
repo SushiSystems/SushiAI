@@ -29,4 +29,4 @@ weight and `ffn.1` a [128, 1, 1, 256] weight.
 
 ## AWidthTheHeadCountDoesNotDivideThrows
 
-`PSABlock(100, 3)` throws an error naming "head count divides", "100 channels" and "3 heads".
+`PSABlock(100, 3)` stops the process naming "head count divides", "100 channels" and "3 heads".

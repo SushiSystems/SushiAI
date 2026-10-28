@@ -60,12 +60,12 @@ namespace SushiAI
                 if (!attributes.has(K_PADDING_KEY))
                     return kernel / 2;
 
-                const Config::Value& value = attributes.at(K_PADDING_KEY, context);
+                SA_TRY_ASSIGN(const Config::Value& value, attributes.at(K_PADDING_KEY, context));
                 SA_FAIL_IF(value.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
                            "{} '{}' must be a whole number, but it is {}", context, K_PADDING_KEY,
                            Config::kind_name(value.kind()));
 
-                const int64_t padding = value.as_int(K_PADDING_KEY);
+                SA_TRY_ASSIGN(const int64_t padding, value.as_int(K_PADDING_KEY));
                 SA_FAIL_IF(padding < 0, StatusCode::InvalidDescription,
                            "{} '{}' must be zero or more, but it is {}", context, K_PADDING_KEY,
                            padding);

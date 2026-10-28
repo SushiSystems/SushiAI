@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — blocks: Breaking change: Made the `Attention` constructor stop the process for a width its head count does not divide (`attention.hpp`).
 - 2026-10-28 — umbrella: Dropped the include of `nn/throwing_bridge.hpp` (`SushiAI.hpp`).
 - 2026-10-28 — train: Dropped the include of the throwing bridge from the step builders (`steps.hpp`).
 - 2026-10-28 — nn: Breaking change: Made every layer factory and `build_layer_stack` return a `Result` (`layer_registry.hpp`).

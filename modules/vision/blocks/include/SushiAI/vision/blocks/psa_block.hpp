@@ -57,8 +57,8 @@ namespace SushiAI
 
             /**
              * @brief Builds the attention and the feed-forward pair over @p channels.
-             * @param channels The width of the input and of the output; the constructor throws
-             *                 on a width Attention refuses.
+             * @param channels The width of the input and of the output; Attention's
+             *                 precondition on the width holds for it.
              * @param heads The head count the attention splits @p channels into.
              * @param norm The epsilon and the momentum of every normalisation.
              */

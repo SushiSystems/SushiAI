@@ -35,7 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -247,6 +247,6 @@ TEST(Small_BlockPsaBlock, StateMatchesManifestRow10Block)
 /** @brief Tests that a width the head count does not divide throws, as Attention refuses it. */
 TEST(Small_BlockPsaBlock, AWidthTheHeadCountDoesNotDivideThrows)
 {
-    SA_EXPECT_ERROR(static_cast<void>(PSABlock(100, 3, K_YOLO_NORM)), "head count divides",
+    SA_EXPECT_FATAL(static_cast<void>(PSABlock(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
 }

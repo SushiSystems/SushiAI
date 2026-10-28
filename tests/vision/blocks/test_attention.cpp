@@ -35,7 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/batch_norm2d.hpp>
@@ -455,15 +455,15 @@ TEST(Small_BlockAttention, AnEvaluationTraceFoldsTheThreeNorms)
 /** @brief Tests that a width the head count does not divide is refused, naming both. */
 TEST(Small_BlockAttention, AWidthTheHeadCountDoesNotDivideIsRefused)
 {
-    SA_EXPECT_ERROR(static_cast<void>(Attention(100, 3, K_YOLO_NORM)), "head count divides",
+    SA_EXPECT_FATAL(static_cast<void>(Attention(100, 3, K_YOLO_NORM)), "head count divides",
                     "100 channels", "3 heads");
-    SA_EXPECT_ERROR(static_cast<void>(Attention(128, 0, K_YOLO_NORM)), "head count divides",
+    SA_EXPECT_FATAL(static_cast<void>(Attention(128, 0, K_YOLO_NORM)), "head count divides",
                     "128 channels", "0 heads");
 }
 
 /** @brief Tests that one channel per head is refused, since it leaves no key channel. */
 TEST(Small_BlockAttention, OneChannelPerHeadIsRefused)
 {
-    SA_EXPECT_ERROR(static_cast<void>(Attention(2, 2, K_YOLO_NORM)),
-                    "at least 2 channels per head", "2 channels", "2 heads");
+    SA_EXPECT_FATAL(static_cast<void>(Attention(2, 2, K_YOLO_NORM)), "at least 2 channels per head",
+                    "2 channels", "2 heads");
 }

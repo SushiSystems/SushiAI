@@ -48,16 +48,16 @@ namespace SushiAI
 
             /**
              * @brief Returns channels / head_count, the value width of one head.
-             * @param channels Must be positive, a multiple of @p head_count, and hold
-             *                 Detail::K_SMALLEST_HEAD_WIDTH channels per head; others throw.
+             * @pre @p channels is positive, a multiple of @p head_count, and holds
+             *      Detail::K_SMALLEST_HEAD_WIDTH channels per head; make_c2psa_node checks it.
              */
             [[nodiscard]] int64_t divide_into_heads(int64_t channels, int64_t head_count)
             {
-                SA_THROW_IF(channels <= 0 || head_count <= 0 || channels % head_count != 0,
+                SA_FATAL_IF(channels <= 0 || head_count <= 0 || channels % head_count != 0,
                             "Attention needs a positive width that its head count divides; got "
                             "{} channels and {} heads",
                             channels, head_count);
-                SA_THROW_IF(channels / head_count < Detail::K_SMALLEST_HEAD_WIDTH,
+                SA_FATAL_IF(channels / head_count < Detail::K_SMALLEST_HEAD_WIDTH,
                             "Attention needs at least {} channels per head, because the key "
                             "width is half of them; got {} channels and {} heads",
                             Detail::K_SMALLEST_HEAD_WIDTH, channels, head_count);

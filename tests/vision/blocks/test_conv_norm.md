@@ -108,7 +108,7 @@ After a training trace of `DWConvLinear(128, 128, 3, 1)`, the state walk under
 
 ## ADepthwiseBlockRefusesUnequalWidths
 
-Constructing `DWConv(16, 32, 3, 1)` raises an error holding "keeps its channel count",
+Constructing `DWConv(16, 32, 3, 1)` stops the process with a message holding "keeps its channel count",
 "in=16" and "out=32".
 
 ## AnUntracedBlockYieldsNoState
