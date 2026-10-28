@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — model_text: Marked 4 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — graph: Marked 207 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — failure_expectations: Marked 6 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — engine_fixture: Marked 2 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).

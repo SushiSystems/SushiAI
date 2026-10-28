@@ -59,7 +59,7 @@ namespace SushiAI
          * @brief Parses @p text as the attributes of one row, read from "<test>".
          * @return The parsed value, or InvalidFile when @p text is not valid JSON.
          */
-        [[nodiscard]] inline Result<Config::Value> try_attributes_from(std::string_view text)
+        [[nodiscard]] inline Result<Config::Value> try_attributes_from(std::string_view text) noexcept
         {
             return Config::parse_json(text, "<test>");
         }
@@ -68,7 +68,7 @@ namespace SushiAI
          * @brief Parses @p text as a model file, read from "<test>".
          * @return The spec, or the failure of the parse.
          */
-        [[nodiscard]] inline Result<Config::ModelSpec> try_model_from(std::string_view text)
+        [[nodiscard]] inline Result<Config::ModelSpec> try_model_from(std::string_view text) noexcept
         {
             Result<Config::Value> root = Config::parse_json(text, "<test>");
             if (!root.has_value())
@@ -83,7 +83,7 @@ namespace SushiAI
          * @pre @p text is valid JSON; a fixture a test wrote is, and a test of a refusal calls
          *      try_attributes_from().
          */
-        [[nodiscard]] inline Config::Value attributes_from(std::string_view text)
+        [[nodiscard]] inline Config::Value attributes_from(std::string_view text) noexcept
         {
             Result<Config::Value> parsed = try_attributes_from(text);
             if (!parsed.has_value())
@@ -97,7 +97,7 @@ namespace SushiAI
          * @brief Parses @p text as a model file, read from "<test>".
          * @pre @p text is a valid model file; a test of a refusal calls try_model_from().
          */
-        [[nodiscard]] inline Config::ModelSpec model_from(std::string_view text)
+        [[nodiscard]] inline Config::ModelSpec model_from(std::string_view text) noexcept
         {
             Result<Config::ModelSpec> parsed = try_model_from(text);
             if (!parsed.has_value())
