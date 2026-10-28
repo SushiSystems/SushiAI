@@ -303,7 +303,7 @@ namespace SushiAI
                  * @return InvalidDescription in Evaluation mode, where nothing is recorded.
                  */
                 [[nodiscard]] Status update(Buffer& target, Graph::ValueID source,
-                                            double momentum, double source_scale) const;
+                                            double momentum, double source_scale) const noexcept;
 
                 /** @brief Reports whether carrying() built this trace. */
                 [[nodiscard]] bool is_carrying() const noexcept;
@@ -316,7 +316,7 @@ namespace SushiAI
                  *         trace is not a carrying one.
                  */
                 [[nodiscard]] Result<Graph::ValueID> feed(std::string_view name, Shape shape,
-                                                          DType dtype) const;
+                                                          DType dtype) const noexcept;
 
                 /**
                  * @brief Declares the leaf of a value the step carries between runs.
@@ -326,7 +326,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<Graph::ValueID> carried_leaf(Shape shape,
                                                                   std::string_view debug_name,
-                                                                  DType dtype) const;
+                                                                  DType dtype) const noexcept;
 
                 /**
                  * @brief Asks that @p leaf hold @p next after each run.
@@ -337,7 +337,7 @@ namespace SushiAI
                  *         trace is not a carrying one.
                  */
                 [[nodiscard]] Status carry(Graph::ValueID leaf, Graph::ValueID next,
-                                           double initial_value = 0.0) const;
+                                           double initial_value = 0.0) const noexcept;
 
                 /**
                  * @brief Names the sink host_table() hands its tables to.
@@ -356,7 +356,7 @@ namespace SushiAI
                 [[nodiscard]] Result<Graph::ValueID> host_table(Shape shape,
                                                                 std::string_view debug_name,
                                                                 DType dtype,
-                                                                std::vector<double> values) const;
+                                                                std::vector<double> values) const noexcept;
 
             private:
                 /** @brief Binds the parts; every sink a form does not have is null. */
@@ -542,7 +542,7 @@ namespace SushiAI
          * @return The id of the layer's result; meaningless once trace.status() holds a failure.
          */
         template<typename L>
-        Graph::ValueID trace_layer(L& layer, const Trace& trace, Graph::ValueID x)
+        Graph::ValueID trace_layer(L& layer, const Trace& trace, Graph::ValueID x) noexcept
         {
             static_assert(!Detail::HasHalfModalPair<L>,
                           "A layer has one of trace_training and trace_evaluation and lacks "
@@ -601,7 +601,7 @@ namespace SushiAI
          */
         template<typename L>
         Graph::ValueID trace_layer_incremental(L& layer, const Trace& trace, Graph::ValueID x,
-                                               const Shape& sample)
+                                               const Shape& sample) noexcept
         {
             static_assert(IncrementalModule<L>,
                           "A layer traced one slice at a time needs forward_incremental("

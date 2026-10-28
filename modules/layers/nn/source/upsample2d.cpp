@@ -61,7 +61,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced Upsample2d::forward(const Graph::GraphBuilder& builder,
-                                          const Graph::Traced& input) const
+                                          const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -74,7 +74,7 @@ namespace SushiAI
             return builder.upsample2d(x, scale, scale);
         }
 
-        Result<Shape> Upsample2d::output_shape(const Shape& input) const
+        Result<Shape> Upsample2d::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::SpatialExtents scaled, scale_extents(*this, input));
 

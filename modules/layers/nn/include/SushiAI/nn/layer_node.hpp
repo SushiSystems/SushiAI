@@ -49,7 +49,7 @@ namespace SushiAI
                  * @brief Takes ownership of @p layer and declares the one port it produces.
                  * @param layer The layer to present; a null pointer is fatal.
                  */
-                explicit LayerNode(std::unique_ptr<Layer> layer);
+                explicit LayerNode(std::unique_ptr<Layer> layer) noexcept;
 
                 /**
                  * @brief Traces the layer through the trace's builder and appends its result.

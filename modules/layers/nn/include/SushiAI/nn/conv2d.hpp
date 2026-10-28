@@ -67,7 +67,7 @@ namespace SushiAI
             Parameter bias{};
 
             /** @brief Lists this layer's parameters for the generic walk. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     field("weight", &Conv2d::weight),
@@ -82,7 +82,7 @@ namespace SushiAI
              * @return A layer with dilation 1 whose geometry output_shape() and forward() check.
              */
             [[nodiscard]] static Conv2d same_padded(int64_t in_channels, int64_t out_channels,
-                                                    int64_t kernel, int64_t stride);
+                                                    int64_t kernel, int64_t stride) noexcept;
 
             /**
              * @brief Traces the convolution, declaring its parameters on the first call.
@@ -91,7 +91,7 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input);
+                                  const Graph::Traced& input) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -99,7 +99,7 @@ namespace SushiAI
              * @return The per-sample [out_h, out_w, out_channels] shape, or
              *         InvalidDescription for a geometry or a shape the window does not fit.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<Conv2d>, "Conv2d must satisfy the Module contract");

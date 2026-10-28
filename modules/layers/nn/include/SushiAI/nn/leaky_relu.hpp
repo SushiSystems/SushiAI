@@ -45,7 +45,7 @@ namespace SushiAI
             double slope = 0.01;
 
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -56,14 +56,14 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @return The shape of @p input, which the activation keeps, or
              *         InvalidDescription for a slope the layer refuses.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<LeakyReLU>, "LeakyReLU must satisfy the Module contract");

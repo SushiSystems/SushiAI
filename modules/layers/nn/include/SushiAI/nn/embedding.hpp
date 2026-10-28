@@ -66,7 +66,7 @@ namespace SushiAI
             ParameterInit weight_init = ParameterInit::normal(K_EMBEDDING_DEVIATION);
 
             /** @brief Lists this layer's parameter for the state walk. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     field("weight", &Embedding::weight),
@@ -79,21 +79,21 @@ namespace SushiAI
              * @return The [..., embedding_dim] result's id, or @p indices after trace.fail()
              *         when @p indices or this layer's description does not fit.
              */
-            Graph::ValueID forward(const Trace& trace, Graph::ValueID indices);
+            Graph::ValueID forward(const Trace& trace, Graph::ValueID indices) noexcept;
 
             /**
              * @brief Traces forward() over the newest indices, as a row reads no other index.
              * @param sample Not read.
              */
             Graph::ValueID forward_incremental(const Trace& trace, Graph::ValueID indices,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /**
              * @brief Returns @p input with embedding_dim appended as its last extent.
              * @param input The per-sample shape of the indices.
              * @pre @p input has a rank of at most K_MAX_RANK - 2; a higher rank is fatal.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(TraceModule<Embedding>, "Embedding must satisfy the TraceModule contract");
@@ -114,7 +114,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_embedding_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

@@ -61,7 +61,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced AvgPool2d::forward(const Graph::GraphBuilder& builder,
-                                         const Graph::Traced& input) const
+                                         const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -79,7 +79,7 @@ namespace SushiAI
             return builder.avgpool2d(x, geometry);
         }
 
-        Result<Shape> AvgPool2d::output_shape(const Shape& input) const
+        Result<Shape> AvgPool2d::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::SpatialExtents out, fit_window(*this, input));
 

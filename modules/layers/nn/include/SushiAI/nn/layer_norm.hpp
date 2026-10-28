@@ -62,7 +62,7 @@ namespace SushiAI
             Parameter bias{};
 
             /** @brief Lists this layer's two parameters for the state walk. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     field("weight", &LayerNorm::weight),
@@ -77,20 +77,20 @@ namespace SushiAI
              * @return The normalised value's id, or @p x after trace.fail() when @p x or this
              *         layer's description does not fit.
              */
-            Graph::ValueID forward(const Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces forward() over the newest slice, as a row reads no other row.
              * @param sample Not read.
              */
             Graph::ValueID forward_incremental(const Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /**
              * @brief Returns the per-sample shape forward() produces, which is @p input.
              * @param input Any shape; forward() refuses one whose last extent is not dim.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(TraceModule<LayerNorm>, "LayerNorm must satisfy the TraceModule contract");
@@ -104,7 +104,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or the key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_layer_norm_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

@@ -32,12 +32,12 @@ namespace SushiAI
     namespace NN
     {
         Graph::Traced SiLU::forward(const Graph::GraphBuilder& builder,
-                                    const Graph::Traced& input) const
+                                    const Graph::Traced& input) const noexcept
         {
             return builder.silu(input);
         }
 
-        Result<Shape> SiLU::output_shape(const Shape& input) const
+        Result<Shape> SiLU::output_shape(const Shape& input) const noexcept
         {
             return input;
         }

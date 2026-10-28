@@ -50,7 +50,7 @@ namespace SushiAI
                               "growing the list keeps each child's state identity.");
 
                 /** @brief Appends @p child; its name is the index it lands on. */
-                void push_back(T child)
+                void push_back(T child) noexcept
                 {
                     children_.push_back(std::move(child));
                 }
@@ -65,7 +65,7 @@ namespace SushiAI
                  * @brief Returns the child at @p index.
                  * @pre index < size().
                  */
-                [[nodiscard]] T& operator[](std::size_t index)
+                [[nodiscard]] T& operator[](std::size_t index) noexcept
                 {
                     SA_FATAL_IF(index >= children_.size(),
                                 "ModuleList index {} is out of range; the list holds {} children",
@@ -77,7 +77,7 @@ namespace SushiAI
                  * @brief Returns the child at @p index, read-only.
                  * @pre index < size().
                  */
-                [[nodiscard]] const T& operator[](std::size_t index) const
+                [[nodiscard]] const T& operator[](std::size_t index) const noexcept
                 {
                     SA_FATAL_IF(index >= children_.size(),
                                 "ModuleList index {} is out of range; the list holds {} children",
@@ -114,7 +114,7 @@ namespace SushiAI
                  * @param visitor Called as visitor(std::size_t index, T& child).
                  */
                 template<typename Fn>
-                void visit_children(Fn&& visitor)
+                void visit_children(Fn&& visitor) noexcept
                 {
                     for (std::size_t index = 0; index < children_.size(); ++index)
                         visitor(index, children_[index]);

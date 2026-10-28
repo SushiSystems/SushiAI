@@ -57,7 +57,7 @@ namespace SushiAI
                  * @return InvalidDescription for an empty or a duplicate name; the set is
                  *         unchanged on failure.
                  */
-                [[nodiscard]] Status add(std::string name, Graph::ValueID id);
+                [[nodiscard]] Status add(std::string name, Graph::ValueID id) noexcept;
 
                 /**
                  * @brief Returns the value published under @p name.

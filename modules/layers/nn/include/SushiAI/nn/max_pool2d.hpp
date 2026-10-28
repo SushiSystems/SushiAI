@@ -52,7 +52,7 @@ namespace SushiAI
             int64_t trailing_pad_w = 0;
 
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -64,7 +64,7 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -72,7 +72,7 @@ namespace SushiAI
              * @return The per-sample [out_h, out_w, C] shape, or InvalidDescription for
              *         a geometry or a shape the window does not fit.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<MaxPool2d>, "MaxPool2d must satisfy the Module contract");

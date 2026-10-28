@@ -104,7 +104,7 @@ namespace SushiAI
 
         } // namespace
 
-        ModelGraph::ModelGraph(Shape input_sample) : input_sample_(input_sample)
+        ModelGraph::ModelGraph(Shape input_sample) noexcept : input_sample_(input_sample)
         {
 
         }
@@ -115,7 +115,7 @@ namespace SushiAI
         }
 
         Result<NodeRef> ModelGraph::add(std::string name, std::unique_ptr<Node> node,
-                                        SushiRuntime::span<const NodeRef> from)
+                                        SushiRuntime::span<const NodeRef> from) noexcept
         {
             SA_FATAL_IF(node == nullptr, "a null node was added to a model graph as '{}'", name);
             SA_FATAL_IF(node->ports().empty(),
@@ -143,7 +143,7 @@ namespace SushiAI
             return NodeRef(index, 0);
         }
 
-        Result<NodeRef> ModelGraph::port(NodeRef of, std::string_view name) const
+        Result<NodeRef> ModelGraph::port(NodeRef of, std::string_view name) const noexcept
         {
             SA_TRY(SA_ANNOTATE(require_source(of), "the lookup of port '{}'", name));
             SA_FAIL_IF(of.is_input(), StatusCode::InvalidDescription,
@@ -165,7 +165,7 @@ namespace SushiAI
             });
         }
 
-        Status ModelGraph::output(std::string name, NodeRef from)
+        Status ModelGraph::output(std::string name, NodeRef from) noexcept
         {
             SA_FAIL_IF(name.empty(), StatusCode::InvalidDescription,
                        "a model output needs a name; the model publishes {} outputs",
@@ -178,7 +178,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status ModelGraph::output_ports(NodeRef of)
+        Status ModelGraph::output_ports(NodeRef of) noexcept
         {
             SA_TRY(SA_ANNOTATE(require_source(of), "the publication of a node's ports"));
             SA_FAIL_IF(of.is_input(), StatusCode::InvalidDescription,
@@ -201,7 +201,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<ModelOutputs> ModelGraph::trace(const Trace& trace, Graph::ValueID input)
+        Result<ModelOutputs> ModelGraph::trace(const Trace& trace, Graph::ValueID input) noexcept
         {
             const Graph::Graph& graph = trace.builder().graph();
             SA_FATAL_IF(input >= graph.value_count(),
@@ -216,7 +216,7 @@ namespace SushiAI
         }
 
         Result<ModelOutputs> ModelGraph::trace_incremental(const Trace& trace,
-                                                           Graph::ValueID input)
+                                                           Graph::ValueID input) noexcept
         {
             const Graph::Graph& graph = trace.builder().graph();
             SA_FATAL_IF(input >= graph.value_count(),
@@ -290,18 +290,18 @@ namespace SushiAI
             return published;
         }
 
-        Graph::ValueID ModelGraph::forward(const Trace& trace, Graph::ValueID input)
+        Graph::ValueID ModelGraph::forward(const Trace& trace, Graph::ValueID input) noexcept
         {
             return trace.value_or_fail(trace_single_output(*this, trace, input), input);
         }
 
         Graph::ValueID ModelGraph::forward_incremental(const Trace& trace, Graph::ValueID input,
-                                                       const Shape&)
+                                                       const Shape&) noexcept
         {
             return trace.value_or_fail(trace_single_incremental(*this, trace, input), input);
         }
 
-        Result<Shape> ModelGraph::output_shape(const Shape&) const
+        Result<Shape> ModelGraph::output_shape(const Shape&) const noexcept
         {
             SA_FAIL_IF(outputs_.size() != 1, StatusCode::InvalidDescription,
                        "a model graph has a single output shape only with exactly one model "
@@ -311,7 +311,7 @@ namespace SushiAI
             return shape_of(outputs_.front().second);
         }
 
-        void ModelGraph::walk_state(std::string_view prefix, const StateVisitor& visitor)
+        void ModelGraph::walk_state(std::string_view prefix, const StateVisitor& visitor) noexcept
         {
             for (const Entry& entry : entries_)
                 entry.node->walk_state(Detail::join(prefix, entry.name), visitor);
@@ -322,7 +322,7 @@ namespace SushiAI
             return entries_.size();
         }
 
-        const Shape& ModelGraph::shape_of(NodeRef ref) const
+        const Shape& ModelGraph::shape_of(NodeRef ref) const noexcept
         {
             const Status known = require_source(ref);
             SA_FATAL_IF(!known.is_ok(), "ModelGraph::shape_of was given an unknown ref: {}",
@@ -334,7 +334,7 @@ namespace SushiAI
             return entries_[ref.node()].node->ports()[ref.port()].shape;
         }
 
-        Node& ModelGraph::node(std::size_t index) const
+        Node& ModelGraph::node(std::size_t index) const noexcept
         {
             SA_FATAL_IF(index >= entries_.size(),
                         "ModelGraph::node was asked for node {}; the graph holds {} nodes", index,

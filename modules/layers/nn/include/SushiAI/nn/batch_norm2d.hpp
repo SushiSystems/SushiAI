@@ -81,7 +81,7 @@ namespace SushiAI
             BatchNorm2d(int64_t channels, NormOptions options) noexcept;
 
             /** @brief Lists this layer's parameters and buffers for the state walk. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     field("weight", &BatchNorm2d::weight),
@@ -98,7 +98,7 @@ namespace SushiAI
              * @return The normalised value's id, or @p x after trace.fail() when @p x or this
              *         layer's description does not fit.
              */
-            Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x);
+            Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces BATCHNORM_FOLD over the running statistics, then CHANNEL_AFFINE.
@@ -106,13 +106,13 @@ namespace SushiAI
              * @return The normalised value's id, or @p x after trace.fail() when @p x or this
              *         layer's description does not fit.
              */
-            Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x);
+            Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Returns the per-sample shape either form produces, which is @p input.
              * @param input Any shape; a trace form refuses one that is not [H, W, channels].
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(ModalModule<BatchNorm2d>,
@@ -124,7 +124,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_batch_norm2d_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Returns (1 - momentum) * running + momentum * source_scale * batch.

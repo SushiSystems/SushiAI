@@ -47,7 +47,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced LeakyReLU::forward(const Graph::GraphBuilder& builder,
-                                         const Graph::Traced& input) const
+                                         const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
             SA_TRY(builder.observe(check_slope(*this)));
@@ -55,7 +55,7 @@ namespace SushiAI
             return builder.leaky_relu(x, slope);
         }
 
-        Result<Shape> LeakyReLU::output_shape(const Shape& input) const
+        Result<Shape> LeakyReLU::output_shape(const Shape& input) const noexcept
         {
             SA_TRY(check_slope(*this));
 

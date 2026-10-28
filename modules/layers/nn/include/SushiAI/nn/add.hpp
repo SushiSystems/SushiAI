@@ -56,7 +56,7 @@ namespace SushiAI
                  * @return The node, or InvalidDescription when @p inputs does not hold exactly two
                  *         shapes, an input is not rank 3, or the two inputs differ.
                  */
-                [[nodiscard]] static Result<std::unique_ptr<Add>> create(ShapeSpan inputs);
+                [[nodiscard]] static Result<std::unique_ptr<Add>> create(ShapeSpan inputs) noexcept;
 
                 /**
                  * @brief Emits one K_ADD over the two @p inputs and appends its result.
@@ -95,7 +95,7 @@ namespace SushiAI
          *         fit Add::create().
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_add_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

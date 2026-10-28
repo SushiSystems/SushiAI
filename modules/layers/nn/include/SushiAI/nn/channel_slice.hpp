@@ -55,7 +55,7 @@ namespace SushiAI
             int64_t count = 0;
 
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -67,7 +67,7 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -75,7 +75,7 @@ namespace SushiAI
              * @return The per-sample [H, W, count] shape, or InvalidDescription for a
              *         slice that does not fit @p input.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<ChannelSlice>, "ChannelSlice must satisfy the Module contract");

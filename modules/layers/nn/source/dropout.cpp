@@ -68,7 +68,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueID Dropout::trace_training(const Trace& trace, Graph::ValueID x)
+        Graph::ValueID Dropout::trace_training(const Trace& trace, Graph::ValueID x) noexcept
         {
             const Status checked = check_rate(rate);
             if (!checked.is_ok())
@@ -92,19 +92,19 @@ namespace SushiAI
             return masked.value().output;
         }
 
-        Graph::ValueID Dropout::trace_evaluation(const Trace& trace, Graph::ValueID x)
+        Graph::ValueID Dropout::trace_evaluation(const Trace& trace, Graph::ValueID x) noexcept
         {
             return pass_through(*this, trace, x);
         }
 
-        Result<Shape> Dropout::output_shape(const Shape& input) const
+        Result<Shape> Dropout::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<Node>> make_dropout_node(ShapeSpan inputs,
                                                         const Config::Value& attributes,
-                                                        std::string_view context)
+                                                        std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_DROPOUT_KEYS),
                                                context));

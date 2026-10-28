@@ -250,21 +250,21 @@ namespace SushiAI
 
         } // namespace
 
-        Status NodeRegistry::add(const NodeEntry& row)
+        Status NodeRegistry::add(const NodeEntry& row) noexcept
         {
             SA_TRY(require_new_type(*this, row));
 
             return append_row(nodes_, row);
         }
 
-        Status NodeRegistry::add(const LayerEntry& row)
+        Status NodeRegistry::add(const LayerEntry& row) noexcept
         {
             SA_TRY(require_new_type(*this, row));
 
             return append_row(layers_, row);
         }
 
-        Status NodeRegistry::add(const LinkedNodeEntry& row)
+        Status NodeRegistry::add(const LinkedNodeEntry& row) noexcept
         {
             SA_TRY(require_new_type(*this, row));
 
@@ -304,7 +304,7 @@ namespace SushiAI
         Result<std::unique_ptr<Node>> make_node(const NodeRegistry& registry,
                                                 std::string_view type, ShapeSpan inputs,
                                                 const Config::Value& attributes,
-                                                std::string_view context, const BuiltRows& above)
+                                                std::string_view context, const BuiltRows& above) noexcept
         {
             const NodeEntry* const node = registry.find_node(type);
             if (node != nullptr)
@@ -329,7 +329,7 @@ namespace SushiAI
         }
 
         Result<ModelGraph> build_model(const NodeRegistry& registry,
-                                       const Config::ModelSpec& model)
+                                       const Config::ModelSpec& model) noexcept
         {
             SA_FAIL_IF(model.layers.empty(), StatusCode::InvalidDescription,
                        "the model declares no layers, so it describes no model");

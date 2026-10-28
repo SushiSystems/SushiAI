@@ -183,14 +183,14 @@ namespace SushiAI
                  * @brief Wraps a module instance with the per-sample shape it produces.
                  * @param output_shape Must equal what @p layer traces, batch axis excluded.
                  */
-                LayerAdapter(L layer, Shape output_shape)
+                LayerAdapter(L layer, Shape output_shape) noexcept
                     : layer_(std::move(layer)), output_shape_(output_shape) {}
 
                 /**
                  * @brief Wraps a module instance that produces a rank-1 feature vector.
                  * @param output_features Must be positive; the shape becomes [output_features].
                  */
-                LayerAdapter(L layer, int64_t output_features)
+                LayerAdapter(L layer, int64_t output_features) noexcept
                     : LayerAdapter(std::move(layer), Shape{output_features}) {}
 
                 Graph::Traced forward(const Graph::GraphBuilder& builder,

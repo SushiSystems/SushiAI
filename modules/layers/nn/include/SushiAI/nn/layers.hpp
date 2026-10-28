@@ -68,7 +68,7 @@ namespace SushiAI
             ParameterInit weight_init = ParameterInit::fan_scaled();
 
             /** @brief This layer's parameters, for the generic walk. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     field("weight", &Linear::weight),
@@ -84,7 +84,7 @@ namespace SushiAI
              *         InvalidDescription for non-positive feature counts or an input whose
              *         inner extent is not in_features.
              */
-            Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& input);
+            Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& input) noexcept;
 
             /**
              * @brief Returns the per-sample shape forward() produces, [out_features].
@@ -92,7 +92,7 @@ namespace SushiAI
              * @return [out_features], or InvalidDescription for non-positive feature counts or
              *         another @p input.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         /**
@@ -102,7 +102,7 @@ namespace SushiAI
         struct ReLU
         {
             /** @brief No parameters. */
-            static constexpr auto fields() { return std::tuple<>{}; }
+            static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
             /**
              * @brief Traces the activation.
@@ -111,13 +111,13 @@ namespace SushiAI
              * @return The result, or the failure of @p input.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const
+                                  const Graph::Traced& input) const noexcept
             {
                 return builder.relu(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 return input;
             }
@@ -130,7 +130,7 @@ namespace SushiAI
         struct GELU
         {
             /** @brief No parameters. */
-            static constexpr auto fields() { return std::tuple<>{}; }
+            static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
             /**
              * @brief Traces the activation.
@@ -139,13 +139,13 @@ namespace SushiAI
              * @return The result, or the failure of @p input.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const
+                                  const Graph::Traced& input) const noexcept
             {
                 return builder.gelu(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 return input;
             }
@@ -158,7 +158,7 @@ namespace SushiAI
         struct Tanh
         {
             /** @brief No parameters. */
-            static constexpr auto fields() { return std::tuple<>{}; }
+            static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
             /**
              * @brief Traces the activation.
@@ -167,13 +167,13 @@ namespace SushiAI
              * @return The result, or the failure of @p input.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const
+                                  const Graph::Traced& input) const noexcept
             {
                 return builder.tanh(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 return input;
             }
@@ -186,7 +186,7 @@ namespace SushiAI
         struct Sigmoid
         {
             /** @brief No parameters. */
-            static constexpr auto fields() { return std::tuple<>{}; }
+            static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
             /**
              * @brief Traces the activation.
@@ -195,13 +195,13 @@ namespace SushiAI
              * @return The result, or the failure of @p input.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const
+                                  const Graph::Traced& input) const noexcept
             {
                 return builder.sigmoid(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 return input;
             }
@@ -243,10 +243,10 @@ namespace SushiAI
                  * @brief Constructs from the layers themselves.
                  * @param layers The layers, in application order; moved in.
                  */
-                constexpr explicit Sequential(Ls... layers) : layers_(std::move(layers)...) {}
+                constexpr explicit Sequential(Ls... layers) noexcept : layers_(std::move(layers)...) {}
 
                 /** @brief No parameters of its own; the children own them all. */
-                static constexpr auto fields() { return std::tuple<>{}; }
+                static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
                 /**
                  * @brief Traces every layer in order; exists only when every layer is a Module.
@@ -259,7 +259,7 @@ namespace SushiAI
                 template<bool Enabled = true,
                          std::enable_if_t<Enabled && (Module<Ls> && ...), int> = 0>
                 Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                      const Graph::Traced& input)
+                                      const Graph::Traced& input) noexcept
                 {
                     Graph::Traced x = input;
                     std::apply([&](auto&... layer) { ((x = layer.forward(builder, x)), ...); },
@@ -274,7 +274,7 @@ namespace SushiAI
                  * @return The last layer's result; meaningless once trace.status() holds a
                  *         failure. The first refusing layer records it and no later layer runs.
                  */
-                Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
+                Graph::ValueID forward(const Trace& trace, Graph::ValueID x) noexcept
                 {
                     std::apply([&](auto&... layer)
                     {
@@ -292,7 +292,7 @@ namespace SushiAI
                 template<bool Enabled = true,
                          std::enable_if_t<
                              Enabled && (Detail::HasOutputShapeOfInput<Ls>::value && ...), int> = 0>
-                Result<Shape> output_shape(const Shape& input) const
+                Result<Shape> output_shape(const Shape& input) const noexcept
                 {
                     return output_shape_from<0>(input);
                 }
@@ -302,7 +302,7 @@ namespace SushiAI
                  * @param visitor Called as visitor(std::size_t index, auto& child).
                  */
                 template<typename Fn>
-                void visit_children(Fn&& visitor)
+                void visit_children(Fn&& visitor) noexcept
                 {
                     visit_children_impl(visitor, std::index_sequence_for<Ls...>{});
                 }

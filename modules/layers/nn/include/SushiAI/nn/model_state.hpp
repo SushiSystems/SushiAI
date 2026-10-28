@@ -116,7 +116,7 @@ namespace SushiAI
                  */
                 template<typename M>
                 [[nodiscard]] static Result<ModelState> create(SushiBLAS::Engine& engine, M& model,
-                                                               std::string_view prefix = {});
+                                                               std::string_view prefix = {}) noexcept;
 
                 /**
                  * @brief Allocates one tensor per entry, in the order given.
@@ -127,7 +127,7 @@ namespace SushiAI
                  *         an identity, or the failure of an allocation.
                  */
                 [[nodiscard]] static Result<ModelState> from_entries(
-                    SushiBLAS::Engine& engine, std::vector<StateEntry> entries);
+                    SushiBLAS::Engine& engine, std::vector<StateEntry> entries) noexcept;
 
                 /** @brief Takes the tensors and the indexes of @p other. */
                 ModelState(ModelState&& other) noexcept;
@@ -151,7 +151,7 @@ namespace SushiAI
                  * @return Incompatible when a leaf has no entry, or differs in shape or dtype.
                  */
                 [[nodiscard]] Status attach(const Graph::Graph& graph,
-                                            Graph::TensorPool& pool) const;
+                                            Graph::TensorPool& pool) const noexcept;
 
                 /** @brief Returns every entry, in the order the walk or from_entries gave them. */
                 [[nodiscard]] SushiRuntime::span<const StateEntry> entries() const noexcept;
@@ -160,13 +160,13 @@ namespace SushiAI
                  * @brief Returns the tensor of the entry named @p name.
                  * @return The tensor this state owns, or InvalidDescription naming @p name.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(std::string_view name);
+                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(std::string_view name) noexcept;
 
                 /**
                  * @brief Returns the tensor of the entry with identity @p state.
                  * @return The tensor this state owns, or InvalidDescription for an unknown state.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(Graph::StateID state);
+                [[nodiscard]] Result<SushiBLAS::Tensor*> tensor(Graph::StateID state) noexcept;
 
             private:
                 /** @brief Starts empty; only the factories and moves build a state. */
@@ -201,7 +201,7 @@ namespace SushiAI
 
         template<typename M>
         Result<ModelState> ModelState::create(SushiBLAS::Engine& engine, M& model,
-                                              std::string_view prefix)
+                                              std::string_view prefix) noexcept
         {
             std::vector<StateEntry> entries;
             auto on_parameter = [&entries](const std::string& name, Parameter& parameter)

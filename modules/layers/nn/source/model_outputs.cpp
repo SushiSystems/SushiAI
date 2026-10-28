@@ -69,7 +69,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status ModelOutputs::add(std::string name, Graph::ValueID id)
+        Status ModelOutputs::add(std::string name, Graph::ValueID id) noexcept
         {
             SA_FATAL_IF(id == Graph::K_NO_VALUE,
                         "a model output named '{}' was added with no value", name);

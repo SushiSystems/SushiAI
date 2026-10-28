@@ -112,18 +112,18 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueID Embedding::forward(const Trace& trace, Graph::ValueID indices)
+        Graph::ValueID Embedding::forward(const Trace& trace, Graph::ValueID indices) noexcept
         {
             return trace.value_or_fail(trace_gather(*this, trace, indices), indices);
         }
 
         Graph::ValueID Embedding::forward_incremental(const Trace& trace, Graph::ValueID indices,
-                                                      const Shape&)
+                                                      const Shape&) noexcept
         {
             return forward(trace, indices);
         }
 
-        Result<Shape> Embedding::output_shape(const Shape& input) const
+        Result<Shape> Embedding::output_shape(const Shape& input) const noexcept
         {
             SA_FATAL_IF(input.rank() > K_MAX_SAMPLE_RANK,
                         "Embedding::output_shape was given {}; a per-sample index has a rank of "
@@ -148,7 +148,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Node>> make_embedding_node(ShapeSpan inputs,
                                                           const Config::Value& attributes,
-                                                          std::string_view context)
+                                                          std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_EMBEDDING_KEYS),
                                                context));

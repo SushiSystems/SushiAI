@@ -50,7 +50,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<std::unique_ptr<Add>> Add::create(ShapeSpan inputs)
+        Result<std::unique_ptr<Add>> Add::create(ShapeSpan inputs) noexcept
         {
             SA_FAIL_IF(inputs.size() != K_OPERAND_COUNT, StatusCode::InvalidDescription,
                        "add takes {} inputs and was given {}", K_OPERAND_COUNT, inputs.size());
@@ -104,7 +104,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Node>> make_add_node(ShapeSpan inputs,
                                                     const Config::Value& attributes,
-                                                    std::string_view context)
+                                                    std::string_view context) noexcept
         {
             SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
                        "{} has the unknown key '{}'; an add row takes no key", context,

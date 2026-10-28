@@ -46,7 +46,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<std::unique_ptr<Concat>> Concat::create(ShapeSpan inputs)
+        Result<std::unique_ptr<Concat>> Concat::create(ShapeSpan inputs) noexcept
         {
             SA_FAIL_IF(inputs.empty(), StatusCode::InvalidDescription,
                        "concat needs at least one input and was given none");
@@ -105,7 +105,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Node>> make_concat_node(ShapeSpan inputs,
                                                        const Config::Value& attributes,
-                                                       std::string_view context)
+                                                       std::string_view context) noexcept
         {
             SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
                        "{} has the unknown key '{}'; a concat row takes no key", context,

@@ -35,7 +35,7 @@ namespace SushiAI
     namespace NN
     {
         Graph::Traced Flatten::forward(const Graph::GraphBuilder& builder,
-                                       const Graph::Traced& input) const
+                                       const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -55,7 +55,7 @@ namespace SushiAI
             return builder.reshape(x, Shape{batch, value.shape.num_elements() / batch});
         }
 
-        Result<Shape> Flatten::output_shape(const Shape& input) const
+        Result<Shape> Flatten::output_shape(const Shape& input) const noexcept
         {
             SA_FAIL_IF(input.rank() < 1, StatusCode::InvalidDescription,
                        "Flatten needs a per-sample shape of rank 1 or more; got {}",

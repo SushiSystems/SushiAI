@@ -61,7 +61,7 @@ namespace SushiAI
                  * @brief Returns the node of row @p index.
                  * @pre index < size(); anything else is fatal.
                  */
-                [[nodiscard]] Node& node(std::size_t index) const;
+                [[nodiscard]] Node& node(std::size_t index) const noexcept;
 
             private:
                 /** @brief Points at the graph the rows were added to; null views no row. */

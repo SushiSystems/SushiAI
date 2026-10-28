@@ -59,7 +59,7 @@ namespace SushiAI
         } // namespace
 
         DepthwiseConv2d DepthwiseConv2d::same_padded(int64_t in_channels, int64_t out_channels,
-                                                     int64_t kernel, int64_t stride)
+                                                     int64_t kernel, int64_t stride) noexcept
         {
             SA_FATAL_IF(in_channels != out_channels,
                         "DepthwiseConv2d keeps its channel count; got in={} and out={}",
@@ -78,7 +78,7 @@ namespace SushiAI
         }
 
         Graph::Traced DepthwiseConv2d::forward(const Graph::GraphBuilder& builder,
-                                               const Graph::Traced& input)
+                                               const Graph::Traced& input) noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -105,7 +105,7 @@ namespace SushiAI
             return builder.depthwise_conv2d(x, w, geometry);
         }
 
-        Result<Shape> DepthwiseConv2d::output_shape(const Shape& input) const
+        Result<Shape> DepthwiseConv2d::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::SpatialExtents out, fit_window(*this, input));
 

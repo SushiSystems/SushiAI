@@ -76,7 +76,7 @@ namespace SushiAI
                  * @return The node, or the failure of the layer's output_shape() over @p input.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ModuleNode>> create(L layer,
-                                                                                const Shape& input)
+                                                                                const Shape& input) noexcept
                 {
                     SA_TRY_ASSIGN(const Shape produced, layer.output_shape(input));
 

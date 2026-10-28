@@ -50,7 +50,7 @@ namespace SushiAI
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
                                   const Graph::Traced& logits,
-                                  const Graph::Traced& one_hot) const
+                                  const Graph::Traced& one_hot) const noexcept
             {
                 return builder.nll_loss(builder.log_softmax(logits), one_hot);
             }

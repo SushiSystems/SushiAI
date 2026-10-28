@@ -205,7 +205,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID BatchNorm2d::trace_training(const Trace& trace, Graph::ValueID x)
+        Graph::ValueID BatchNorm2d::trace_training(const Trace& trace, Graph::ValueID x) noexcept
         {
             SA_FATAL_IF(trace.mode() != TraceMode::Training,
                         "BatchNorm2d::trace_training was given an evaluation trace; trace_layer "
@@ -214,19 +214,19 @@ namespace SushiAI
             return trace.value_or_fail(trace_batch_statistics(*this, trace, x), x);
         }
 
-        Graph::ValueID BatchNorm2d::trace_evaluation(const Trace& trace, Graph::ValueID x)
+        Graph::ValueID BatchNorm2d::trace_evaluation(const Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_running_statistics(*this, trace, x), x);
         }
 
-        Result<Shape> BatchNorm2d::output_shape(const Shape& input) const
+        Result<Shape> BatchNorm2d::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<Node>> make_batch_norm2d_node(ShapeSpan inputs,
                                                              const Config::Value& attributes,
-                                                             std::string_view context)
+                                                             std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_BATCH_NORM2D_KEYS),
                                                context));

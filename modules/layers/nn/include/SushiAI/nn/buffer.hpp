@@ -116,7 +116,7 @@ namespace SushiAI
                  *         three arguments differs; the first description is kept then.
                  */
                 [[nodiscard]] Status define(Shape shape, double initial_value,
-                                            DType dtype = DType::Float32)
+                                            DType dtype = DType::Float32) noexcept
                 {
                     if (defined_)
                     {
@@ -144,7 +144,7 @@ namespace SushiAI
                  * @return The leaf of this buffer in builder.graph().
                  * @pre define() has been called; an undefined buffer is fatal.
                  */
-                Graph::ValueID read(const Graph::GraphBuilder& builder, std::string_view debug_name)
+                Graph::ValueID read(const Graph::GraphBuilder& builder, std::string_view debug_name) noexcept
                 {
                     SA_FATAL_IF(!defined_,
                                 "Buffer '{}' is read before define() has fixed its shape",

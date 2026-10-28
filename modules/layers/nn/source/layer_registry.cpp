@@ -334,7 +334,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_linear(const Shape& input,
                                                    const Config::Value& attributes,
-                                                   std::string_view context)
+                                                   std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_LINEAR_KEYS)));
 
@@ -354,35 +354,35 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_gelu(const Shape& input,
                                                  const Config::Value& attributes,
-                                                 std::string_view context)
+                                                 std::string_view context) noexcept
         {
             return make_keyless<GELU>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_relu(const Shape& input,
                                                  const Config::Value& attributes,
-                                                 std::string_view context)
+                                                 std::string_view context) noexcept
         {
             return make_keyless<ReLU>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_tanh(const Shape& input,
                                                  const Config::Value& attributes,
-                                                 std::string_view context)
+                                                 std::string_view context) noexcept
         {
             return make_keyless<Tanh>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_sigmoid(const Shape& input,
                                                     const Config::Value& attributes,
-                                                    std::string_view context)
+                                                    std::string_view context) noexcept
         {
             return make_keyless<Sigmoid>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_leaky_relu(const Shape& input,
                                                        const Config::Value& attributes,
-                                                       std::string_view context)
+                                                       std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_LEAKY_RELU_KEYS)));
 
@@ -394,7 +394,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_unflatten(const Shape& input,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_UNFLATTEN_KEYS)));
 
@@ -408,7 +408,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_conv2d(const Shape& input,
                                                    const Config::Value& attributes,
-                                                   std::string_view context)
+                                                   std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_CONV2D_KEYS)));
 
@@ -438,7 +438,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_maxpool2d(const Shape& input,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_MAXPOOL2D_KEYS)));
 
@@ -456,7 +456,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_avgpool2d(const Shape& input,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_AVGPOOL2D_KEYS)));
 
@@ -467,21 +467,21 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_global_avgpool(const Shape& input,
                                                            const Config::Value& attributes,
-                                                           std::string_view context)
+                                                           std::string_view context) noexcept
         {
             return make_keyless<GlobalAvgPool>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_flatten(const Shape& input,
                                                     const Config::Value& attributes,
-                                                    std::string_view context)
+                                                    std::string_view context) noexcept
         {
             return make_keyless<Flatten>(input, attributes, context);
         }
 
         Result<std::unique_ptr<Layer>> make_upsample(const Shape& input,
                                                      const Config::Value& attributes,
-                                                     std::string_view context)
+                                                     std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_UPSAMPLE_KEYS)));
 
@@ -493,12 +493,12 @@ namespace SushiAI
 
         Result<std::unique_ptr<Layer>> make_silu(const Shape& input,
                                                  const Config::Value& attributes,
-                                                 std::string_view context)
+                                                 std::string_view context) noexcept
         {
             return make_keyless<SiLU>(input, attributes, context);
         }
 
-        Status register_layers(NodeRegistry& registry)
+        Status register_layers(NodeRegistry& registry) noexcept
         {
             SA_TRY(registry.add(LayerEntry{"linear", &make_linear}));
             SA_TRY(registry.add(LayerEntry{"gelu", &make_gelu}));
@@ -527,7 +527,7 @@ namespace SushiAI
         }
 
         Result<LayerStack> build_layer_stack(const NodeRegistry& registry,
-                                             const Config::ModelSpec& model)
+                                             const Config::ModelSpec& model) noexcept
         {
             SA_FAIL_IF(!publishes_last_row_only(model), StatusCode::InvalidDescription,
                        "the model's 'outputs' publishes something other than the whole of its "

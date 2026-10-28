@@ -65,7 +65,7 @@ namespace SushiAI
          * @return Success, or the seam's failure of the recording.
          */
         [[nodiscard]] Status constant(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                      double value);
+                                      double value) noexcept;
 
         /**
          * @brief Records a fill of @p tensor from N(0, deviation^2).
@@ -74,7 +74,7 @@ namespace SushiAI
          *         finite, or the seam's failure of the recording.
          */
         [[nodiscard]] Status normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                    double deviation);
+                                    double deviation) noexcept;
 
         /**
          * @brief Records a fill of @p tensor from N(0, (gain / sqrt(fan_in))^2).
@@ -84,7 +84,7 @@ namespace SushiAI
          *         failure of the recording.
          */
         [[nodiscard]] Status kaiming_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                            int64_t fan_in, double gain);
+                                            int64_t fan_in, double gain) noexcept;
 
         /**
          * @brief Records a fill of @p tensor uniformly on [-b, b] with b = gain * sqrt(3 / fan_in).
@@ -95,7 +95,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status kaiming_uniform(SushiBLAS::RandomOps& random,
                                              SushiBLAS::Tensor& tensor, int64_t fan_in,
-                                             double gain);
+                                             double gain) noexcept;
 
         /**
          * @brief Records a fill of @p tensor from N(0, (gain * sqrt(2 / (fan_in + fan_out)))^2).
@@ -105,7 +105,7 @@ namespace SushiAI
          *         the seam's failure of the recording.
          */
         [[nodiscard]] Status xavier_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                           int64_t fan_in, int64_t fan_out, double gain);
+                                           int64_t fan_in, int64_t fan_out, double gain) noexcept;
 
         /**
          * @brief Records a uniform fill of @p tensor on [-a, a].
@@ -116,14 +116,14 @@ namespace SushiAI
          *         the seam's failure of the recording.
          */
         [[nodiscard]] Status xavier_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                                            int64_t fan_in, int64_t fan_out, double gain);
+                                            int64_t fan_in, int64_t fan_out, double gain) noexcept;
 
         /**
          * @brief Records a fill of @p tensor with zeros.
          * @param random The view that records the fill.
          * @return Success, or the seam's failure of the recording.
          */
-        [[nodiscard]] Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor);
+        [[nodiscard]] Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor) noexcept;
 
         /**
          * @enum InitFamily
@@ -185,7 +185,7 @@ namespace SushiAI
          * @return Success, or the failure of a fill or of the run.
          */
         [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, ModelState& state,
-                                        const InitPolicy& policy = {});
+                                        const InitPolicy& policy = {}) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

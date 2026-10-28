@@ -154,7 +154,7 @@ namespace SushiAI
                                                              int64_t fan_in,
                                                              int64_t fan_out,
                                                              std::string_view debug_name,
-                                                             DType dtype = DType::Float32)
+                                                             DType dtype = DType::Float32) noexcept
                 {
                     return declare_described(builder, shape, Detail::init_of(role), role,
                                              fan_in, fan_out, debug_name, dtype);
@@ -175,7 +175,7 @@ namespace SushiAI
                                                              int64_t fan_in,
                                                              int64_t fan_out,
                                                              std::string_view debug_name,
-                                                             DType dtype = DType::Float32)
+                                                             DType dtype = DType::Float32) noexcept
                 {
                     return declare_described(builder, shape, init, role, fan_in, fan_out,
                                              debug_name, dtype);
@@ -375,7 +375,7 @@ namespace SushiAI
                  * @param name The parameter's dotted name.
                  * @param parameter The parameter itself.
                  */
-                void operator()(const std::string& name, Parameter& parameter) const
+                void operator()(const std::string& name, Parameter& parameter) const noexcept
                 {
                     invoke_(target_, name, parameter);
                 }
@@ -528,13 +528,13 @@ namespace SushiAI
                 }
 
                 /** @brief Hands one named parameter to the parameter callable. */
-                void parameter(const std::string& name, Parameter& parameter) const
+                void parameter(const std::string& name, Parameter& parameter) const noexcept
                 {
                     invoke_parameter_(parameter_target_, name, parameter);
                 }
 
                 /** @brief Hands one named buffer to the buffer callable. */
-                void buffer(const std::string& name, Buffer& buffer) const
+                void buffer(const std::string& name, Buffer& buffer) const noexcept
                 {
                     invoke_buffer_(buffer_target_, name, buffer);
                 }
@@ -562,7 +562,7 @@ namespace SushiAI
          * @param prefix Dotted prefix the names of this module's state hang under.
          */
         template<typename M>
-        void walk_state(M& module, std::string_view prefix, const StateVisitor& visitor);
+        void walk_state(M& module, std::string_view prefix, const StateVisitor& visitor) noexcept;
 
         namespace Detail
         {
@@ -638,7 +638,7 @@ namespace SushiAI
         inline constexpr bool ModuleContainer = Detail::IsModuleContainer<T>::value;
 
         template<typename M>
-        void walk_state(M& module, std::string_view prefix, const StateVisitor& visitor)
+        void walk_state(M& module, std::string_view prefix, const StateVisitor& visitor) noexcept
         {
             static_assert(!std::is_const_v<M>,
                           "The state walk hands out mutable parameters and buffers, and a const "
@@ -687,7 +687,7 @@ namespace SushiAI
          * @param visitor Called as visitor(const std::string& name, Parameter&).
          */
         template<typename M, typename Fn>
-        void for_each_parameter(M& module, std::string_view prefix, Fn&& visitor)
+        void for_each_parameter(M& module, std::string_view prefix, Fn&& visitor) noexcept
         {
             const Detail::IgnoredState ignored;
             const StateVisitor parameters_only(visitor, ignored);
@@ -700,7 +700,7 @@ namespace SushiAI
          * @param visitor Called as visitor(const std::string& name, Parameter&).
          */
         template<typename M, typename Fn>
-        void for_each_parameter(M& module, Fn&& visitor)
+        void for_each_parameter(M& module, Fn&& visitor) noexcept
         {
             for_each_parameter(module, std::string_view{}, std::forward<Fn>(visitor));
         }
@@ -712,7 +712,7 @@ namespace SushiAI
          * @param visitor Called as visitor(const std::string& name, Buffer&).
          */
         template<typename M, typename Fn>
-        void for_each_buffer(M& module, std::string_view prefix, Fn&& visitor)
+        void for_each_buffer(M& module, std::string_view prefix, Fn&& visitor) noexcept
         {
             const Detail::IgnoredState ignored;
             const StateVisitor buffers_only(ignored, visitor);
@@ -725,7 +725,7 @@ namespace SushiAI
          * @param visitor Called as visitor(const std::string& name, Buffer&).
          */
         template<typename M, typename Fn>
-        void for_each_buffer(M& module, Fn&& visitor)
+        void for_each_buffer(M& module, Fn&& visitor) noexcept
         {
             for_each_buffer(module, std::string_view{}, std::forward<Fn>(visitor));
         }
@@ -736,7 +736,7 @@ namespace SushiAI
          * @return How many parameters the walk yields.
          */
         template<typename M>
-        std::size_t parameter_count(M& module)
+        std::size_t parameter_count(M& module) noexcept
         {
             std::size_t count = 0;
             for_each_parameter(module, [&count](const std::string&, Parameter&) { ++count; });
@@ -749,7 +749,7 @@ namespace SushiAI
          * @return How many buffers the walk yields.
          */
         template<typename M>
-        std::size_t buffer_count(M& module)
+        std::size_t buffer_count(M& module) noexcept
         {
             std::size_t count = 0;
             for_each_buffer(module, [&count](const std::string&, Buffer&) { ++count; });
@@ -762,7 +762,7 @@ namespace SushiAI
          * @return How many learnable scalars the model holds.
          */
         template<typename M>
-        int64_t parameter_elements(M& module)
+        int64_t parameter_elements(M& module) noexcept
         {
             int64_t total = 0;
             for_each_parameter(module, [&total](const std::string&, Parameter& parameter)

@@ -198,7 +198,7 @@ namespace SushiAI
         }
 
         Status Trace::update(Buffer& target, Graph::ValueID source, double momentum,
-                             double source_scale) const
+                             double source_scale) const noexcept
         {
             const std::size_t value_count = builder_->graph().value_count();
             SA_FATAL_IF(!target.declared(),
@@ -219,7 +219,7 @@ namespace SushiAI
             return carried_ != nullptr;
         }
 
-        Result<Graph::ValueID> Trace::feed(std::string_view name, Shape shape, DType dtype) const
+        Result<Graph::ValueID> Trace::feed(std::string_view name, Shape shape, DType dtype) const noexcept
         {
             SA_FAIL_IF(fed_ == nullptr, StatusCode::InvalidDescription,
                        "the leaf '{}' was declared in a trace that feeds the model input alone; "
@@ -245,7 +245,7 @@ namespace SushiAI
         }
 
         Result<Graph::ValueID> Trace::carried_leaf(Shape shape, std::string_view debug_name,
-                                                   DType dtype) const
+                                                   DType dtype) const noexcept
         {
             SA_FAIL_IF(carried_ == nullptr, StatusCode::InvalidDescription,
                        "the carried value '{}' was declared in a trace whose step keeps "
@@ -255,7 +255,7 @@ namespace SushiAI
             return builder_->input(shape, debug_name, dtype);
         }
 
-        Status Trace::carry(Graph::ValueID leaf, Graph::ValueID next, double initial_value) const
+        Status Trace::carry(Graph::ValueID leaf, Graph::ValueID next, double initial_value) const noexcept
         {
             const Graph::Graph& graph = builder_->graph();
             const std::size_t value_count = graph.value_count();
@@ -292,7 +292,7 @@ namespace SushiAI
         }
 
         Result<Graph::ValueID> Trace::host_table(Shape shape, std::string_view debug_name,
-                                                 DType dtype, std::vector<double> values) const
+                                                 DType dtype, std::vector<double> values) const noexcept
         {
             SA_FAIL_IF(tables_ == nullptr, StatusCode::InvalidDescription,
                        "the host table '{}' was declared in a trace no step fills tables for; "

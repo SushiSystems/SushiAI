@@ -70,7 +70,7 @@ namespace SushiAI
         } // namespace
 
         Conv2d Conv2d::same_padded(int64_t in_channels, int64_t out_channels, int64_t kernel,
-                                   int64_t stride)
+                                   int64_t stride) noexcept
         {
             Conv2d layer;
             layer.in_channels = in_channels;
@@ -87,7 +87,7 @@ namespace SushiAI
         }
 
         Graph::Traced Conv2d::forward(const Graph::GraphBuilder& builder,
-                                      const Graph::Traced& input)
+                                      const Graph::Traced& input) noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -126,7 +126,7 @@ namespace SushiAI
             return builder.conv2d(x, w, b, geometry);
         }
 
-        Result<Shape> Conv2d::output_shape(const Shape& input) const
+        Result<Shape> Conv2d::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::SpatialExtents out, fit_window(*this, input));
 

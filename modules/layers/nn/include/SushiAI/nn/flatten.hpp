@@ -42,7 +42,7 @@ namespace SushiAI
         struct Flatten
         {
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -54,7 +54,7 @@ namespace SushiAI
              *         of @p input, or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -62,7 +62,7 @@ namespace SushiAI
              * @return The rank-1 shape holding the element count of @p input, or
              *         InvalidDescription for a rank-0 @p input.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<Flatten>, "Flatten must satisfy the Module contract");

@@ -54,7 +54,7 @@ namespace SushiAI
                  *            factory is fatal.
                  * @return InvalidDescription when a node row or a layer row holds the type.
                  */
-                [[nodiscard]] Status add(const NodeEntry& row);
+                [[nodiscard]] Status add(const NodeEntry& row) noexcept;
 
                 /**
                  * @brief Appends a layer row.
@@ -62,7 +62,7 @@ namespace SushiAI
                  *            factory is fatal.
                  * @return InvalidDescription when a node row or a layer row holds the type.
                  */
-                [[nodiscard]] Status add(const LayerEntry& row);
+                [[nodiscard]] Status add(const LayerEntry& row) noexcept;
 
                 /**
                  * @brief Appends a linked node row, whose factory reads the rows above its own.
@@ -70,7 +70,7 @@ namespace SushiAI
                  *            factory is fatal.
                  * @return InvalidDescription when a row of any kind holds the type.
                  */
-                [[nodiscard]] Status add(const LinkedNodeEntry& row);
+                [[nodiscard]] Status add(const LinkedNodeEntry& row) noexcept;
 
                 /** @brief Returns the node row of @p type, or null when none holds it. */
                 [[nodiscard]] const NodeEntry* find_node(std::string_view type) const noexcept;
@@ -124,7 +124,7 @@ namespace SushiAI
                                                               ShapeSpan inputs,
                                                               const Config::Value& attributes,
                                                               std::string_view context,
-                                                              const BuiltRows& above = {});
+                                                              const BuiltRows& above = {}) noexcept;
 
         /**
          * @brief Builds the graph @p model describes, naming each row by its index.
@@ -135,7 +135,7 @@ namespace SushiAI
          *         first row or output that does not fit.
          */
         [[nodiscard]] Result<ModelGraph> build_model(const NodeRegistry& registry,
-                                                     const Config::ModelSpec& model);
+                                                     const Config::ModelSpec& model) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

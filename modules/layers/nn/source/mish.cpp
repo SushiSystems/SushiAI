@@ -32,14 +32,14 @@ namespace SushiAI
     namespace NN
     {
         Graph::Traced Mish::forward(const Graph::GraphBuilder& builder,
-                                    const Graph::Traced& input) const
+                                    const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
             return builder.mul(x, builder.tanh(builder.softplus(x)));
         }
 
-        Result<Shape> Mish::output_shape(const Shape& input) const
+        Result<Shape> Mish::output_shape(const Shape& input) const noexcept
         {
             return input;
         }

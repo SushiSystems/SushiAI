@@ -49,7 +49,7 @@ namespace SushiAI
             int64_t scale = 2;
 
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -61,7 +61,7 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -69,7 +69,7 @@ namespace SushiAI
              * @return The per-sample [H * scale, W * scale, C] shape, or
              *         InvalidDescription for a scale or a shape the layer refuses.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<Upsample2d>, "Upsample2d must satisfy the Module contract");

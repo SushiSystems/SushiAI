@@ -54,7 +54,7 @@ namespace SushiAI
 
         } // namespace
 
-        LayerNode::LayerNode(std::unique_ptr<Layer> layer)
+        LayerNode::LayerNode(std::unique_ptr<Layer> layer) noexcept
             : layer_(std::move(layer)), port_(port_of(layer_.get()))
         {
 

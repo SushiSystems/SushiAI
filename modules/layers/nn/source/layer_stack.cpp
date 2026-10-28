@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace NN
     {
-        void LayerStack::push(std::unique_ptr<Layer> layer)
+        void LayerStack::push(std::unique_ptr<Layer> layer) noexcept
         {
             SA_FATAL_IF(layer == nullptr,
                         "a null layer was pushed onto a LayerStack at index {}",
@@ -43,7 +43,7 @@ namespace SushiAI
         }
 
         Graph::Traced LayerStack::forward(const Graph::GraphBuilder& builder,
-                                          const Graph::Traced& input)
+                                          const Graph::Traced& input) noexcept
         {
             SA_TRY(input);
             SA_REFUSE_IF(builder, layers_.empty(),
@@ -59,33 +59,33 @@ namespace SushiAI
             return traced;
         }
 
-        void LayerStack::walk_parameters(std::string_view prefix, const ParameterVisitor& visitor)
+        void LayerStack::walk_parameters(std::string_view prefix, const ParameterVisitor& visitor) noexcept
         {
             // Invariant: Traverses parameters by index matching Sequential naming.
             for (std::size_t i = 0; i < layers_.size(); ++i)
                 layers_[i]->walk_parameters(Detail::join(prefix, std::to_string(i)), visitor);
         }
 
-        int64_t LayerStack::output_features() const
+        int64_t LayerStack::output_features() const noexcept
         {
             SA_FATAL_IF(layers_.empty(),
                         "this LayerStack holds no layers, so it has no output width");
             return layers_.back()->output_features();
         }
 
-        Shape LayerStack::output_shape() const
+        Shape LayerStack::output_shape() const noexcept
         {
             SA_FATAL_IF(layers_.empty(),
                         "this LayerStack holds no layers, so it has no output shape");
             return layers_.back()->output_shape();
         }
 
-        Result<Shape> LayerStack::output_shape(const Shape&) const
+        Result<Shape> LayerStack::output_shape(const Shape&) const noexcept
         {
             return output_shape();
         }
 
-        Layer& LayerStack::layer(std::size_t index) const
+        Layer& LayerStack::layer(std::size_t index) const noexcept
         {
             SA_FATAL_IF(index >= layers_.size(),
                         "layer {} is out of range; this LayerStack holds {}",

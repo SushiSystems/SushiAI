@@ -64,10 +64,10 @@ namespace SushiAI
                  * @param layer The layer; ownership is taken.
                  * @pre @p layer is not null; a null entry would trace as a silent identity.
                  */
-                void push(std::unique_ptr<Layer> layer);
+                void push(std::unique_ptr<Layer> layer) noexcept;
 
                 /** @brief No parameters of its own; the layers own them all. */
-                static constexpr auto fields() { return std::tuple<>{}; }
+                static constexpr auto fields() noexcept { return std::tuple<>{}; }
 
                 /**
                  * @brief Traces every layer in order.
@@ -78,14 +78,14 @@ namespace SushiAI
                  *         otherwise make the model the identity function.
                  */
                 Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                      const Graph::Traced& input);
+                                      const Graph::Traced& input) noexcept;
 
                 /**
                  * @brief Applies visitor to every declared parameter with index prefix.
                  * @param prefix Parameter name prefix for hierarchy traversal.
                  * @param visitor Callback invoked once per declared parameter.
                  */
-                void walk_parameters(std::string_view prefix, const ParameterVisitor& visitor);
+                void walk_parameters(std::string_view prefix, const ParameterVisitor& visitor) noexcept;
 
                 /** @brief How many layers the stack holds. */
                 std::size_t size() const noexcept { return layers_.size(); }
@@ -98,13 +98,13 @@ namespace SushiAI
                  * @return The last layer's output width.
                  * @pre The stack holds at least one layer.
                  */
-                int64_t output_features() const;
+                int64_t output_features() const noexcept;
 
                 /**
                  * @brief Returns the last layer's per-sample output shape, batch axis excluded.
                  * @pre The stack holds at least one layer.
                  */
-                Shape output_shape() const;
+                Shape output_shape() const noexcept;
 
                 /**
                  * @brief Returns output_shape(), in the form a layer type gives it.
@@ -113,7 +113,7 @@ namespace SushiAI
                  * @return output_shape(); a stack that exists cannot fail.
                  * @pre The stack holds at least one layer.
                  */
-                Result<Shape> output_shape(const Shape& input) const;
+                Result<Shape> output_shape(const Shape& input) const noexcept;
 
                 /**
                  * @brief The layer at @p index, for a test that wants to inspect it.
@@ -121,7 +121,7 @@ namespace SushiAI
                  * @return The layer; owned by the stack.
                  * @pre @p index is in [0, size()).
                  */
-                Layer& layer(std::size_t index) const;
+                Layer& layer(std::size_t index) const noexcept;
 
             private:
                 std::vector<std::unique_ptr<Layer>> layers_;

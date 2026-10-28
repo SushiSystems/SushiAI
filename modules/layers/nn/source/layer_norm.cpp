@@ -97,25 +97,25 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueID LayerNorm::forward(const Trace& trace, Graph::ValueID x)
+        Graph::ValueID LayerNorm::forward(const Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_normalised(*this, trace, x), x);
         }
 
         Graph::ValueID LayerNorm::forward_incremental(const Trace& trace, Graph::ValueID x,
-                                                      const Shape&)
+                                                      const Shape&) noexcept
         {
             return forward(trace, x);
         }
 
-        Result<Shape> LayerNorm::output_shape(const Shape& input) const
+        Result<Shape> LayerNorm::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<Node>> make_layer_norm_node(ShapeSpan inputs,
                                                            const Config::Value& attributes,
-                                                           std::string_view context)
+                                                           std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_LAYER_NORM_KEYS),
                                                context));

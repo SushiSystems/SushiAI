@@ -52,7 +52,7 @@ namespace SushiAI
                  * @return The node, or InvalidDescription when @p inputs is empty, an input is
                  *         not rank 3, or two inputs disagree on H or W.
                  */
-                [[nodiscard]] static Result<std::unique_ptr<Concat>> create(ShapeSpan inputs);
+                [[nodiscard]] static Result<std::unique_ptr<Concat>> create(ShapeSpan inputs) noexcept;
 
                 /**
                  * @brief Emits one CONCAT_CHANNELS over @p inputs and appends its result.
@@ -89,7 +89,7 @@ namespace SushiAI
          *         fit Concat::create().
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_concat_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

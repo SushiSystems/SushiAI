@@ -34,7 +34,7 @@ namespace SushiAI
     namespace NN
     {
         Graph::Traced GlobalAvgPool::forward(const Graph::GraphBuilder& builder,
-                                             const Graph::Traced& input) const
+                                             const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -46,7 +46,7 @@ namespace SushiAI
             return builder.spatial_mean(x);
         }
 
-        Result<Shape> GlobalAvgPool::output_shape(const Shape& input) const
+        Result<Shape> GlobalAvgPool::output_shape(const Shape& input) const noexcept
         {
             SA_FAIL_IF(input.rank() != 3, StatusCode::InvalidDescription,
                        "GlobalAvgPool needs a per-sample shape of [H, W, C]; got {}",

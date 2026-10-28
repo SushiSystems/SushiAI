@@ -42,7 +42,7 @@ namespace SushiAI
         struct Identity
         {
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -52,13 +52,13 @@ namespace SushiAI
              * @return @p input itself, or the failure of @p input.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @return The shape of @p input, which the layer keeps.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<Identity>, "Identity must satisfy the Module contract");

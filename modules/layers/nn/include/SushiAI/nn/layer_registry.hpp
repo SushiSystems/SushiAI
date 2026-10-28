@@ -77,7 +77,7 @@ namespace SushiAI
          *         unknown, "units" is absent, or it is not positive.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_linear(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a @c GELU, which takes no keys at all.
@@ -87,30 +87,30 @@ namespace SushiAI
          * @return The layer, or InvalidDescription when any key is present.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_gelu(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Builds a @c ReLU, which takes no key. */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_relu(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Builds a @c Tanh, which takes no key. */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_tanh(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Builds a @c Sigmoid, which takes no key. */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_sigmoid(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Builds a @c LeakyReLU from an optional "slope", 0.01 when absent. */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_leaky_relu(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds an @c Unflatten from "height", "width" and "channels", all required.
          * @param input The predecessor's per-sample shape; must be [height * width * channels].
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_unflatten(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a @c Conv2d from "filters" and "kernel", with optional "stride",
@@ -120,7 +120,7 @@ namespace SushiAI
          *        or a two-entry [h, w] array.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_conv2d(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a @c MaxPool2d from "kernel", with optional "stride" and "padding".
@@ -129,7 +129,7 @@ namespace SushiAI
          *        two-entry [h, w] array.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_maxpool2d(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds an @c AvgPool2d from "kernel", with optional "stride" and "padding".
@@ -138,39 +138,39 @@ namespace SushiAI
          *        two-entry [h, w] array.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_avgpool2d(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a @c GlobalAvgPool, which takes no key.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_global_avgpool(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a @c Flatten, which takes no key.
          * @param input The predecessor's per-sample shape, of rank 1 or more.
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_flatten(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds an @c Upsample2d from an optional "scale", 2 when absent.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_upsample(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Builds a @c SiLU, which takes no key. */
         [[nodiscard]] Result<std::unique_ptr<Layer>> make_silu(
-            const Shape& input, const Config::Value& attributes, std::string_view context);
+            const Shape& input, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Adds the sixteen layer types, then the node types batchnorm2d, concat, add,
          *        embedding, layernorm and dropout.
          * @return InvalidDescription when @p registry already holds one of the twenty-two types.
          */
-        [[nodiscard]] Status register_layers(NodeRegistry& registry);
+        [[nodiscard]] Status register_layers(NodeRegistry& registry) noexcept;
 
         /**
          * @brief Builds the whole layer stack, chaining each layer's per-sample shape.
@@ -181,7 +181,7 @@ namespace SushiAI
          *         invalid, or @p model is no chain.
          */
         [[nodiscard]] Result<LayerStack> build_layer_stack(const NodeRegistry& registry,
-                                                           const Config::ModelSpec& model);
+                                                           const Config::ModelSpec& model) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

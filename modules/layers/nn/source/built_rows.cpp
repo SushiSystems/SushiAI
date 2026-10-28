@@ -44,7 +44,7 @@ namespace SushiAI
             return graph_ == nullptr ? 0 : graph_->size();
         }
 
-        Node& BuiltRows::node(std::size_t index) const
+        Node& BuiltRows::node(std::size_t index) const noexcept
         {
             SA_FATAL_IF(index >= size(), "BuiltRows::node was asked for row {}; {} rows are above",
                         index, size());

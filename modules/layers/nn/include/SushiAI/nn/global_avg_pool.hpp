@@ -42,7 +42,7 @@ namespace SushiAI
         struct GlobalAvgPool
         {
             /** @brief Lists this layer's parameters, of which there are none. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -54,7 +54,7 @@ namespace SushiAI
              *         or InvalidDescription for an input the layer refuses.
              */
             Graph::Traced forward(const Graph::GraphBuilder& builder,
-                                  const Graph::Traced& input) const;
+                                  const Graph::Traced& input) const noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
@@ -62,7 +62,7 @@ namespace SushiAI
              * @return The per-sample [C] shape, or InvalidDescription for an @p input
              *         that is not rank 3.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(Module<GlobalAvgPool>, "GlobalAvgPool must satisfy the Module contract");

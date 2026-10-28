@@ -127,7 +127,7 @@ namespace SushiAI
                  * @brief Starts a graph with no node over one input.
                  * @param input_sample The per-sample shape of the input, batch axis excluded.
                  */
-                explicit ModelGraph(Shape input_sample);
+                explicit ModelGraph(Shape input_sample) noexcept;
 
                 /** @brief Takes the nodes and outputs of @p other, which is left with none. */
                 ModelGraph(ModelGraph&& other) noexcept = default;
@@ -156,7 +156,7 @@ namespace SushiAI
                  *         source or a wrong source count; the graph is unchanged then.
                  */
                 [[nodiscard]] Result<NodeRef> add(std::string name, std::unique_ptr<Node> node,
-                                                  SushiRuntime::span<const NodeRef> from);
+                                                  SushiRuntime::span<const NodeRef> from) noexcept;
 
                 /**
                  * @brief Appends a Traceable layer that reads one value, wrapped in a ModuleNode.
@@ -165,27 +165,27 @@ namespace SushiAI
                  *         the failure of the layer's output_shape() over the source's shape.
                  */
                 template<typename L>
-                [[nodiscard]] Result<NodeRef> add(std::string name, L layer, NodeRef from);
+                [[nodiscard]] Result<NodeRef> add(std::string name, L layer, NodeRef from) noexcept;
 
                 /**
                  * @brief Selects the port named @p name of the node @p of belongs to.
                  * @return InvalidDescription listing the node's ports when none has that name,
                  *         or when @p of is the input or is not held by this graph.
                  */
-                [[nodiscard]] Result<NodeRef> port(NodeRef of, std::string_view name) const;
+                [[nodiscard]] Result<NodeRef> port(NodeRef of, std::string_view name) const noexcept;
 
                 /**
                  * @brief Publishes the value @p from names as the model output @p name.
                  * @return InvalidDescription for an empty or duplicate name or an unknown source.
                  */
-                [[nodiscard]] Status output(std::string name, NodeRef from);
+                [[nodiscard]] Status output(std::string name, NodeRef from) noexcept;
 
                 /**
                  * @brief Publishes every port of the node @p of belongs to, under the port's name.
                  * @return InvalidDescription when a name is taken, or @p of is the input or
                  *         unknown; no port is published then.
                  */
-                [[nodiscard]] Status output_ports(NodeRef of);
+                [[nodiscard]] Status output_ports(NodeRef of) noexcept;
 
                 /**
                  * @brief Traces every node in the order added and returns the published outputs.
@@ -194,14 +194,14 @@ namespace SushiAI
                  *         declared per-sample shape, a node refuses its inputs, or no output
                  *         is published. Nodes traced before the failure stay in the graph.
                  */
-                [[nodiscard]] Result<ModelOutputs> trace(const Trace& trace, Graph::ValueID input);
+                [[nodiscard]] Result<ModelOutputs> trace(const Trace& trace, Graph::ValueID input) noexcept;
 
                 /**
                  * @brief Traces the graph and returns its single published output.
                  * @return The output's id, or @p input after trace.fail() when trace() fails
                  *         or the graph does not publish exactly one output.
                  */
-                Graph::ValueID forward(const Trace& trace, Graph::ValueID input);
+                Graph::ValueID forward(const Trace& trace, Graph::ValueID input) noexcept;
 
                 /**
                  * @brief Traces the incremental form of every node in the order added; no
@@ -212,7 +212,7 @@ namespace SushiAI
                  *         incremental form, or the failure of a node.
                  */
                 [[nodiscard]] Result<ModelOutputs> trace_incremental(const Trace& trace,
-                                                                     Graph::ValueID input);
+                                                                     Graph::ValueID input) noexcept;
 
                 /**
                  * @brief Traces the incremental form and returns its single published output.
@@ -221,7 +221,7 @@ namespace SushiAI
                  *         trace_incremental() fails or one output is not what is published.
                  */
                 Graph::ValueID forward_incremental(const Trace& trace, Graph::ValueID input,
-                                                   const Shape& sample);
+                                                   const Shape& sample) noexcept;
 
                 /**
                  * @brief Returns the per-sample shape forward() produces.
@@ -230,16 +230,16 @@ namespace SushiAI
                  * @return The shape of the single published output, or InvalidDescription
                  *         naming the output count when the graph does not publish exactly one.
                  */
-                Result<Shape> output_shape(const Shape& input) const;
+                Result<Shape> output_shape(const Shape& input) const noexcept;
 
                 /**
                  * @brief Hands the state of every node to @p visitor, in the order added.
                  * @param prefix Dotted prefix; a node's state hangs under "<prefix>.<name>".
                  */
-                void walk_state(std::string_view prefix, const StateVisitor& visitor);
+                void walk_state(std::string_view prefix, const StateVisitor& visitor) noexcept;
 
                 /** @brief Lists no state of its own; the nodes hold all of it. */
-                static constexpr auto fields()
+                static constexpr auto fields() noexcept
                 {
                     return std::tuple<>{};
                 }
@@ -251,13 +251,13 @@ namespace SushiAI
                  * @brief Returns the per-sample shape of the value @p ref names.
                  * @pre @p ref came from this graph; an unknown ref is fatal.
                  */
-                [[nodiscard]] const Shape& shape_of(NodeRef ref) const;
+                [[nodiscard]] const Shape& shape_of(NodeRef ref) const noexcept;
 
                 /**
                  * @brief Returns the node at @p index.
                  * @pre index < size(); anything else is fatal.
                  */
-                [[nodiscard]] Node& node(std::size_t index) const;
+                [[nodiscard]] Node& node(std::size_t index) const noexcept;
 
             private:
                 /** @brief Holds one node with its name and what it reads. */
@@ -325,7 +325,7 @@ namespace SushiAI
                       "ModelGraph must satisfy the TraceModule contract so it nests as a layer");
 
         template<typename L>
-        Result<NodeRef> ModelGraph::add(std::string name, L layer, NodeRef from)
+        Result<NodeRef> ModelGraph::add(std::string name, L layer, NodeRef from) noexcept
         {
             SA_TRY(require_free_name(name));
             SA_TRY(SA_ANNOTATE(require_source(from), "node '{}'", name));

@@ -51,7 +51,7 @@ namespace SushiAI
             double rate = 0.0;
 
             /** @brief Lists no state: the layer has no parameter and no buffer. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -62,16 +62,16 @@ namespace SushiAI
              * @return The masked value, or @p x at a rate of 0 and after trace.fail() when the
              *         rate is outside [0, 1) or the emitter refuses @p x.
              */
-            Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x);
+            Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Returns @p x and emits no node, as dropout does outside training.
              * @return @p x, after trace.fail() when rate is outside [0, 1).
              */
-            Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x);
+            Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x) noexcept;
 
             /** @brief Returns the per-sample shape either form produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(ModalModule<Dropout>, "Dropout must satisfy the ModalModule contract");
@@ -83,7 +83,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or the key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<Node>> make_dropout_node(
-            ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace NN
 } // namespace SushiAI

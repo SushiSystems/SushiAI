@@ -54,7 +54,7 @@ namespace SushiAI
             return 1.0;
         }
 
-        Status constant(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double value)
+        Status constant(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double value) noexcept
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Record, [&]() -> Status
             {
@@ -63,7 +63,7 @@ namespace SushiAI
             });
         }
 
-        Status normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double deviation)
+        Status normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor, double deviation) noexcept
         {
             // The comparison is false for a NaN, which is refused with the other values.
             SA_FAIL_IF(!(deviation > 0.0) || !std::isfinite(deviation),
@@ -79,7 +79,7 @@ namespace SushiAI
         }
 
         Status kaiming_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                              int64_t fan_in, double gain)
+                              int64_t fan_in, double gain) noexcept
         {
             SA_FAIL_IF(fan_in <= 0, StatusCode::InvalidDescription,
                        "Kaiming initialisation needs a positive fan-in; got {}", fan_in);
@@ -93,7 +93,7 @@ namespace SushiAI
         }
 
         Status kaiming_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                               int64_t fan_in, double gain)
+                               int64_t fan_in, double gain) noexcept
         {
             SA_FAIL_IF(fan_in <= 0, StatusCode::InvalidDescription,
                        "Kaiming initialisation needs a positive fan-in; got {}", fan_in);
@@ -108,7 +108,7 @@ namespace SushiAI
         }
 
         Status xavier_normal(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                             int64_t fan_in, int64_t fan_out, double gain)
+                             int64_t fan_in, int64_t fan_out, double gain) noexcept
         {
             SA_FAIL_IF(fan_in + fan_out <= 0, StatusCode::InvalidDescription,
                        "Xavier initialisation needs positive fans; got {} and {}", fan_in, fan_out);
@@ -123,7 +123,7 @@ namespace SushiAI
         }
 
         Status xavier_uniform(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor,
-                              int64_t fan_in, int64_t fan_out, double gain)
+                              int64_t fan_in, int64_t fan_out, double gain) noexcept
         {
             SA_FAIL_IF(fan_in + fan_out <= 0, StatusCode::InvalidDescription,
                        "Xavier initialisation needs positive fans; got {} and {}", fan_in, fan_out);
@@ -136,7 +136,7 @@ namespace SushiAI
             });
         }
 
-        Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor)
+        Status zeros(SushiBLAS::RandomOps& random, SushiBLAS::Tensor& tensor) noexcept
         {
             return constant(random, tensor, 0.0);
         }
@@ -174,7 +174,7 @@ namespace SushiAI
             }
         }
 
-        Status initialize(SushiBLAS::Engine& engine, ModelState& state, const InitPolicy& policy)
+        Status initialize(SushiBLAS::Engine& engine, ModelState& state, const InitPolicy& policy) noexcept
         {
             const SushiRuntime::span<const StateEntry> entries = state.entries();
 

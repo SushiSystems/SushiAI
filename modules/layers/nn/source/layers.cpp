@@ -47,7 +47,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced Linear::forward(const Graph::GraphBuilder& builder,
-                                      const Graph::Traced& input)
+                                      const Graph::Traced& input) noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
             SA_TRY(builder.observe(check_features(*this)));
@@ -80,7 +80,7 @@ namespace SushiAI
             return y;
         }
 
-        Result<Shape> Linear::output_shape(const Shape& input) const
+        Result<Shape> Linear::output_shape(const Shape& input) const noexcept
         {
             SA_TRY(check_features(*this));
             SA_FAIL_IF(input.rank() != 1 || input[0] != in_features, StatusCode::InvalidDescription,

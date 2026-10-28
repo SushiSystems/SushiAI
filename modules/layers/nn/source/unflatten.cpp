@@ -59,7 +59,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced Unflatten::forward(const Graph::GraphBuilder& builder,
-                                         const Graph::Traced& input) const
+                                         const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
             SA_TRY(builder.observe(check_extents(*this)));
@@ -81,7 +81,7 @@ namespace SushiAI
             return builder.reshape(x, Shape{value.shape[0], height, width, channels});
         }
 
-        Result<Shape> Unflatten::output_shape(const Shape& input) const
+        Result<Shape> Unflatten::output_shape(const Shape& input) const noexcept
         {
             SA_TRY(check_extents(*this));
             const int64_t elements = count_sample_elements(*this);

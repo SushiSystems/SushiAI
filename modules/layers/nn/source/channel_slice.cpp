@@ -64,7 +64,7 @@ namespace SushiAI
         } // namespace
 
         Graph::Traced ChannelSlice::forward(const Graph::GraphBuilder& builder,
-                                            const Graph::Traced& input) const
+                                            const Graph::Traced& input) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID x, input);
 
@@ -77,7 +77,7 @@ namespace SushiAI
             return builder.slice_channels(x, offset, count);
         }
 
-        Result<Shape> ChannelSlice::output_shape(const Shape& input) const
+        Result<Shape> ChannelSlice::output_shape(const Shape& input) const noexcept
         {
             SA_TRY(check_range(*this, input));
 

@@ -74,7 +74,7 @@ namespace SushiAI
         } // namespace Detail
 
         Result<ModelState> ModelState::from_entries(SushiBLAS::Engine& engine,
-                                                    std::vector<StateEntry> entries)
+                                                    std::vector<StateEntry> entries) noexcept
         {
             ModelState state;
             SA_TRY(state.index_entries(entries));
@@ -122,7 +122,7 @@ namespace SushiAI
 
         ModelState::~ModelState() = default;
 
-        Status ModelState::attach(const Graph::Graph& graph, Graph::TensorPool& pool) const
+        Status ModelState::attach(const Graph::Graph& graph, Graph::TensorPool& pool) const noexcept
         {
             std::vector<std::size_t> positions;
             SA_TRY(match_leaves(graph, positions));
@@ -140,7 +140,7 @@ namespace SushiAI
             return SushiRuntime::span<const StateEntry>(entries_.data(), entries_.size());
         }
 
-        Result<SushiBLAS::Tensor*> ModelState::tensor(std::string_view name)
+        Result<SushiBLAS::Tensor*> ModelState::tensor(std::string_view name) noexcept
         {
             const auto found = SushiAI::Detail::guard_value(
                 SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -157,7 +157,7 @@ namespace SushiAI
             return &tensors_[position->second];
         }
 
-        Result<SushiBLAS::Tensor*> ModelState::tensor(Graph::StateID state)
+        Result<SushiBLAS::Tensor*> ModelState::tensor(Graph::StateID state) noexcept
         {
             const auto position = by_state_.find(state);
             SA_FAIL_IF(position == by_state_.end(), StatusCode::InvalidDescription,
