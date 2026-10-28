@@ -107,16 +107,7 @@ namespace SushiAI
         Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::load(
             const Config::TrainSpec& spec)
         {
-            Config::ModelSpec model_spec;
-            try
-            {
-                model_spec = Config::load_model(spec.model_path);
-            }
-            catch (const std::exception& error)
-            {
-                SA_FAIL_IF(true, StatusCode::InvalidDescription, "{}", error.what());
-            }
-
+            SA_TRY_ASSIGN(Config::ModelSpec model_spec, Config::load_model(spec.model_path));
             SA_TRY_ASSIGN(Registries registries, compose_registries());
             return make(std::move(registries), spec, std::move(model_spec));
         }

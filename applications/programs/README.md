@@ -21,6 +21,13 @@ them with, and [`docs/guides/CLI_GUIDE.md`](../../docs/guides/CLI_GUIDE.md) docu
 | `sushiai_worker.cpp` | `sushiai_worker <train.json> --master host:port --name <worker> [flags]`, built only when `SA_ENABLE_DISTRIBUTED` is on |
 | `tokenize.cpp` | `sushiai tokenize train <corpus> --vocabulary-size <N> --output <vocab.savb>` and `sushiai tokenize encode <corpus> --vocabulary <vocab.savb> --output <corpus.satk>` |
 
+A program ends in one of three ways. A run that succeeds exits with 0. A run that returns a
+`Status` prints `sushiai <program> failed: <message>` and a second line, `  kind: <code>`, to
+standard error and exits with 1. A check of a handle, a call order or a state prints
+`sushiai: fatal: <message>` and aborts. Only `sushiai_worker` catches an exception: it exits
+with `WorkerExitCode::InternalError` for one a sibling library throws, because its exit codes are
+the ones SushiRuntime's worker agent defines.
+
 | File | Holds |
 | --- | --- |
 | `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report and importer rows a program looks up, and `compose_registries`, which fills them |

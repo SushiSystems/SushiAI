@@ -29,7 +29,6 @@
 #include <charconv>
 #include <cstdint>
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -319,20 +318,11 @@ namespace
 /** @brief Runs the tokenizer driver and returns its exit code. */
 int main(int argc, char** argv)
 {
-    try
-    {
-        const Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "sushiai tokenize failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "sushiai tokenize failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "sushiai tokenize failed: " << status.message() << "\n"
+              << "  kind: " << SushiAI::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

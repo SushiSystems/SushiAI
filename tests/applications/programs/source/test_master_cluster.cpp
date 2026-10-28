@@ -38,6 +38,8 @@
 #include <SushiRuntime/distributed/in_process_transport.hpp>
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiRuntime/distributed/worker_agent.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/execution/execution.hpp>
@@ -48,6 +50,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 } // namespace
@@ -94,7 +97,8 @@ namespace
                 {"worker": "left", "rows": 1, "micro_batch": 1, )" + a + R"(},
                 {"worker": "right", "rows": 1, "micro_batch": 1, )" + b + R"(}
             ]})";
-        return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
+        return Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
+                                                  ".")
             .value();
     }
 
@@ -181,7 +185,8 @@ TEST(Medium_MasterCluster, RefusesAnAttachTimeoutThatIsNotPositive)
         "replicas": [{"worker": "master", "rows": 1, "micro_batch": 1, "if_absent": "fail"}]})";
 
     SA_EXPECT_FAILURE(
-        Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".").status(),
+        Distribution::ClusterSection::read(
+            SushiAI::Test::require_value(Config::parse_json(text, "<test>")), ".").status(),
         StatusCode::InvalidDescription, "attach_timeout_ms");
 }
 
@@ -263,7 +268,8 @@ TEST(Medium_MasterCluster, AMasterAloneAwaitsNoWorkerAndDoesNotFail)
             {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"}
         ]})";
     const Distribution::ClusterSection section =
-        Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".").value();
+        Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
+                                           ".").value();
     Fabric fabric;
 
     EXPECT_TRUE(Apps::awaited_workers(section).empty());

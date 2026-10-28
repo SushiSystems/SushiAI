@@ -26,16 +26,16 @@
  * @see applications/examples/README.md, "demo_mlp.cpp".
  */
 
+#include <charconv>
 #include <cstdint>
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
@@ -165,18 +165,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     [[nodiscard]] sa::Result<int64_t> parse_int(std::string_view flag, const std::string& text)
     {
         long long parsed = 0;
-        bool is_whole = false;
-
-        try
-        {
-            std::size_t consumed = 0;
-            parsed = std::stoll(text, &consumed);
-            is_whole = consumed == text.size();
-        }
-        catch (const std::logic_error&)
-        {
-            // Malformed and out-of-range input share the one message below.
-        }
+        const char* const end = text.data() + text.size();
+        const std::from_chars_result result = std::from_chars(text.data(), end, parsed);
+        const bool is_whole = result.ec == std::errc() && result.ptr == end;
 
         SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
                    "{} expects a whole number, got '{}'", flag, text);
@@ -193,18 +184,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                                                        const std::string& text)
     {
         unsigned long long parsed = 0;
-        bool is_whole = false;
-
-        try
-        {
-            std::size_t consumed = 0;
-            parsed = std::stoull(text, &consumed);
-            is_whole = consumed == text.size();
-        }
-        catch (const std::logic_error&)
-        {
-            // As above: malformed and out-of-range read the same to the user.
-        }
+        const char* const end = text.data() + text.size();
+        const std::from_chars_result result = std::from_chars(text.data(), end, parsed);
+        const bool is_whole = result.ec == std::errc() && result.ptr == end;
 
         SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
                    "{} expects an unsigned number, got '{}'", flag, text);
@@ -220,18 +202,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
     [[nodiscard]] sa::Result<double> parse_real(std::string_view flag, const std::string& text)
     {
         double parsed = 0.0;
-        bool is_whole = false;
-
-        try
-        {
-            std::size_t consumed = 0;
-            parsed = std::stod(text, &consumed);
-            is_whole = consumed == text.size();
-        }
-        catch (const std::logic_error&)
-        {
-            // As above: malformed and out-of-range read the same to the user.
-        }
+        const char* const end = text.data() + text.size();
+        const std::from_chars_result result = std::from_chars(text.data(), end, parsed);
+        const bool is_whole = result.ec == std::errc() && result.ptr == end;
 
         SA_FAIL_IF(!is_whole, sa::StatusCode::InvalidDescription,
                    "{} expects a number, got '{}'", flag, text);
@@ -824,20 +797,11 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 /** @brief Runs the demo and returns its exit code. */
 int main(int argc, char** argv)
 {
-    try
-    {
-        const sa::Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "sa demo mlp failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const sa::Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "sa demo mlp failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "sa demo mlp failed: " << status.message() << "\n"
+              << "  kind: " << sa::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

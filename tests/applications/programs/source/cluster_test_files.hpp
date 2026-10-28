@@ -31,6 +31,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
@@ -115,10 +116,11 @@ namespace SushiAI::Apps::ClusterTest
                 written << K_MODEL;
             }
 
-            spec = Config::parse_train(
-                Config::parse_json(training_file(model_file.path(), listen), "<test>"),
-                "<test>", model_file.path().parent_path());
-            model_spec = Config::load_model(spec.model_path);
+            spec = Test::require_value(Config::parse_train(
+                Test::require_value(Config::parse_json(training_file(model_file.path(), listen),
+                                                 "<test>")),
+                "<test>", model_file.path().parent_path()));
+            model_spec = Test::require_value(Config::load_model(spec.model_path));
         }
 
         /** @brief Returns the checked cluster section of the training file. */

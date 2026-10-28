@@ -33,6 +33,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
@@ -47,6 +48,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 
@@ -111,8 +113,9 @@ namespace
     /** @brief Parses @p text as a training file beside the architecture file of @p files. */
     Config::TrainSpec read_spec(const ClusterTestFiles& files, const std::string& text)
     {
-        return Config::parse_train(Config::parse_json(text, "<test>"), "<test>",
-                                   files.model_file.path().parent_path());
+        return require_value(Config::parse_train(require_value(Config::parse_json(text, "<test>")),
+                                                 "<test>",
+                                   files.model_file.path().parent_path()));
     }
 
     /** @brief Returns @p text with its one @p from replaced by @p to. */

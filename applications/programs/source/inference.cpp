@@ -27,7 +27,6 @@
  */
 
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -84,8 +83,8 @@ namespace
         const std::filesystem::path checkpoint_path = arguments.positional[1];
         const std::filesystem::path data_path = arguments.positional[2];
 
-        const sa::Config::ModelSpec model_spec = sa::Config::load_model(model_path);
-        const sa::Config::DataSpec data_spec = sa::Config::load_data(data_path);
+        SA_TRY_ASSIGN(const sa::Config::ModelSpec model_spec, sa::Config::load_model(model_path));
+        SA_TRY_ASSIGN(const sa::Config::DataSpec data_spec, sa::Config::load_data(data_path));
 
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
@@ -107,20 +106,11 @@ namespace
 /** @brief Runs the inference driver and returns its exit code. */
 int main(int argc, char** argv)
 {
-    try
-    {
-        const sa::Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "sushiai inference failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const sa::Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "sushiai inference failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "sushiai inference failed: " << status.message() << "\n"
+              << "  kind: " << sa::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

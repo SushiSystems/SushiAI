@@ -75,15 +75,8 @@ namespace
     [[nodiscard]] SushiAI::Result<std::unique_ptr<SushiAI::Distribution::ReplicaKernel>>
     build_kernel(const std::string& spec_path, const std::string& name)
     {
-        SushiAI::Config::TrainSpec spec;
-        try
-        {
-            spec = SushiAI::Config::load_train(spec_path);
-        }
-        catch (const std::exception& error)
-        {
-            SA_FAIL_IF(true, SushiAI::StatusCode::InvalidDescription, "{}", error.what());
-        }
+        SA_TRY_ASSIGN(const SushiAI::Config::TrainSpec spec,
+                      SushiAI::Config::load_train(spec_path));
 
         SA_FAIL_IF(spec.cluster.is_null(), SushiAI::StatusCode::InvalidDescription,
                    "'{}' has no 'cluster' section, so it names no replica to serve",

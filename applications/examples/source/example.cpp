@@ -153,20 +153,11 @@ namespace
 /** @brief Runs the example and returns its exit code. */
 int main(int argc, char** argv)
 {
-    try
-    {
-        const sa::Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "SushiAI example failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const sa::Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "SushiAI example failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "SushiAI example failed: " << status.message() << "\n"
+              << "  kind: " << sa::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

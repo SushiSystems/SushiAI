@@ -106,7 +106,8 @@ namespace SushiAI
              */
             [[nodiscard]] Status start_anchor_biases(PreparedRun& run)
             {
-                const Config::ModelSpec model = Config::load_model(run.spec.model_path);
+                SA_TRY_ASSIGN(const Config::ModelSpec model,
+                              Config::load_model(run.spec.model_path));
                 SA_TRY_ASSIGN(const Vision::Detect::Anchor::AnchorTask task,
                               Vision::Detect::Anchor::read_anchor_task(run.given.task));
                 SA_TRY_ASSIGN(const std::vector<Vision::Training::AnchorBiasHead> heads,
@@ -502,12 +503,12 @@ namespace SushiAI
 
                     {
                         SA_ZONE("eval", "nms");
-                        Vision::Detect::select_nms_detections(
+                        SA_TRY(Vision::Detect::select_nms_detections(
                             boxes, scores,
                             Vision::Detect::PredictionShape{
                                 run.dataset.batch_size(), static_cast<std::int64_t>(rows),
                                 task.num_classes},
-                            config, detections);
+                            config, detections));
                     }
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {
@@ -673,11 +674,11 @@ namespace SushiAI
 
                     {
                         SA_ZONE("eval", "nms");
-                        Vision::Detect::select_nms_detections(
+                        SA_TRY(Vision::Detect::select_nms_detections(
                             boxes, scores,
                             Vision::Detect::PredictionShape{
                                 batch_size, static_cast<std::int64_t>(anchors), facts.classes},
-                            config, detections);
+                            config, detections));
                     }
                     for (std::size_t image = 0; image < detections.size(); ++image)
                     {

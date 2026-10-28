@@ -207,8 +207,9 @@ namespace SushiAI
             };
             if (tasked)
             {
-                const std::string& task =
-                    model_spec.task.at("type", "the task section").as_string("the task type");
+                SA_TRY_ASSIGN(const Config::Value& stated,
+                              model_spec.task.at("type", "the task section"));
+                SA_TRY_ASSIGN(const std::string& task, stated.as_string("the task type"));
                 SA_TRY(report_inference(registries.inferences, task, prepared));
             }
             else

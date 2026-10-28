@@ -125,7 +125,8 @@ namespace SushiAI
         {
             SA_TRY(Config::check_start(spec, origin));
             SA_TRY(prepare_checkpoint_folder(spec));
-            const Config::ModelSpec model_spec = Config::load_model(spec.model_path);
+            SA_TRY_ASSIGN(const Config::ModelSpec model_spec,
+                          Config::load_model(spec.model_path));
 
             // Everything below is picked by string, not by type; see the programs README.
 

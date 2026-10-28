@@ -27,6 +27,7 @@
 
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/config/value.hpp>
 
 #include "cluster_test_files.hpp"
@@ -34,6 +35,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 } // namespace

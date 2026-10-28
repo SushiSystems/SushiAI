@@ -32,6 +32,7 @@
 #include <filesystem>
 #include <string>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
@@ -89,8 +90,9 @@ namespace SushiAI::Apps::TinyYoloTest
     /** @brief Returns the parsed training file, which writes its checkpoint to @p checkpoint. */
     inline Config::TrainSpec training_spec(const std::filesystem::path& checkpoint)
     {
-        return Config::parse_train(Config::parse_json(training_text(checkpoint), "<test>"),
-                                   "<test>", fixture_directory());
+        const Config::Value root =
+            Test::require_value(Config::parse_json(training_text(checkpoint), "<test>"));
+        return Test::require_value(Config::parse_train(root, "<test>", fixture_directory()));
     }
 
     /**
@@ -112,10 +114,11 @@ namespace SushiAI::Apps::TinyYoloTest
                                      const std::filesystem::path& checkpoint)
     {
         const std::filesystem::path model_path = fixture_directory() / "model.json";
-        const Config::ModelSpec model_spec = Config::load_model(model_path);
-        const Config::DataSpec data_spec = Config::parse_data(
-            Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}", "<test>"),
-            "<test>");
+        const Config::ModelSpec model_spec = Test::require_value(Config::load_model(model_path));
+        const Config::DataSpec data_spec = Test::require_value(Config::parse_data(
+            Test::require_value(Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}",
+                                             "<test>")),
+            "<test>"));
         return run_inference_file(model_path, checkpoint, model_spec, data_spec, engine);
     }
 } // namespace SushiAI::Apps::TinyYoloTest

@@ -28,7 +28,6 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <iostream>
 #include <string>
@@ -134,9 +133,13 @@ namespace
         return request;
     }
 
-    /** @brief Prints what was read, the files written and every note of the import. */
-    void print_report(const ImportRequest& request, const sa::IO::ImportedModel& imported,
-                      const sa::IO::WrittenImport& written)
+    /**
+     * @brief Prints what was read, the files written and every note of the import.
+     * @return InvalidDescription when the model's task section states no string type.
+     */
+    [[nodiscard]] sa::Status print_report(const ImportRequest& request,
+                                          const sa::IO::ImportedModel& imported,
+                                          const sa::IO::WrittenImport& written)
     {
         std::cout << "sushiai import\n"
                   << "----------------------------------------------------------------\n"
@@ -144,11 +147,14 @@ namespace
         for (const std::filesystem::path& file : request.files)
             std::cout << SushiLog::format_text("Input      : {}\n", file.string());
 
-        const std::string task =
-            imported.model.task.is_null()
-                ? std::string("no task")
-                : "task " + imported.model.task.at("type", "the task section")
-                                .as_string("the task type");
+        std::string task = "no task";
+        if (!imported.model.task.is_null())
+        {
+            SA_TRY_ASSIGN(const sa::Config::Value& stated,
+                          imported.model.task.at("type", "the task section"));
+            SA_TRY_ASSIGN(const std::string& type, stated.as_string("the task type"));
+            task = "task " + type;
+        }
         std::cout << SushiLog::format_text("Model      : {} rows, {} outputs, {}\n",
                                              imported.model.layers.size(),
                                              imported.model.outputs.size(), task)
@@ -169,6 +175,8 @@ namespace
             written.files.back().string());
         if (imported.weights.empty())
             std::cout << "  - no weights were given, so a run initialises the model\n";
+
+        return sa::Status();
     }
 
     /**
@@ -194,28 +202,18 @@ namespace
                       sa::IO::write_imported_model(imported, request.output,
                                                    request.existing));
 
-        print_report(request, imported, written);
-        return sa::Status();
+        return print_report(request, imported, written);
     }
 } // namespace
 
 /** @brief Runs the import driver and returns its exit code. */
 int main(int argc, char** argv)
 {
-    try
-    {
-        const sa::Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "sushiai import failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const sa::Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "sushiai import failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "sushiai import failed: " << status.message() << "\n"
+              << "  kind: " << sa::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

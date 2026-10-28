@@ -27,6 +27,7 @@
 
 #include <string>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -35,6 +36,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
 
     /** @brief Holds the members of a replica that falls back to the master. */
@@ -68,7 +70,9 @@ namespace
     /** @brief Parses @p text as a training file. */
     Config::TrainSpec spec_of(const std::string& text)
     {
-        return Config::parse_train(Config::parse_json(text, "<test>"), "<test>", ".");
+        return require_value(Config::parse_train(require_value(Config::parse_json(text, "<test>")),
+                                                 "<test>",
+                                   "."));
     }
 }
 

@@ -38,6 +38,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 

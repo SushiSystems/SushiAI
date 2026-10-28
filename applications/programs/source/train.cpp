@@ -27,7 +27,6 @@
  */
 
 #include <cstdlib>
-#include <exception>
 #include <iostream>
 #include <string>
 #include <string_view>
@@ -82,7 +81,7 @@ namespace
                    "usage: sushiai train <train.json> [--profile <profile.json>]");
         const std::string& spec_path = arguments.positional[0];
 
-        const sa::Config::TrainSpec spec = sa::Config::load_train(spec_path);
+        SA_TRY_ASSIGN(const sa::Config::TrainSpec spec, sa::Config::load_train(spec_path));
 
         SA_TRY_ASSIGN(const sr::RuntimeConfig runtime_config,
                       sa::Apps::training_runtime_config(spec));
@@ -104,20 +103,11 @@ namespace
 
 int main(int argc, char** argv)
 {
-    try
-    {
-        const sa::Status status = run(argc, argv);
-        if (!status.is_ok())
-        {
-            std::cerr << "sushiai train failed: " << status.message() << "\n";
-            return EXIT_FAILURE;
-        }
-
+    const sa::Status status = run(argc, argv);
+    if (status.is_ok())
         return EXIT_SUCCESS;
-    }
-    catch (const std::exception& error)
-    {
-        std::cerr << "sushiai train failed: " << error.what() << "\n";
-        return EXIT_FAILURE;
-    }
+
+    std::cerr << "sushiai train failed: " << status.message() << "\n"
+              << "  kind: " << sa::status_code_name(status.code()) << "\n";
+    return EXIT_FAILURE;
 }

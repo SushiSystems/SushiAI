@@ -31,6 +31,7 @@
 #include <SushiLog/log/log_calls.hpp>
 #include <SushiLog/log/log_level.hpp>
 #include <SushiLog/log/log_record.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
@@ -41,6 +42,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using namespace SushiAI;
 
     /** @brief Returns the section of a master and the workers "left" (local), "right" (wait). */
@@ -53,7 +55,8 @@ namespace
                 {"worker": "right", "rows": 1, "micro_batch": 1, "if_absent": "wait",
                  "wait_ms": 250}
             ]})";
-        return Distribution::ClusterSection::read(Config::parse_json(text, "<test>"), ".")
+        return Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
+                                                  ".")
             .value();
     }
 

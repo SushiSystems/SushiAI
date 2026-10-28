@@ -40,6 +40,8 @@
 #include "registries.hpp"
 #include "tiny_yolo_files.hpp"
 #include "training_setup.hpp"
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
@@ -151,7 +153,7 @@ TEST_F(Medium_TrainingProgram, AFreshAnchorRunStartsTheObjectnessAndClassBiasesF
     ASSERT_TRUE(trained.has_value()) << trained.status().message();
 
     const Config::ModelSpec model_spec =
-        Config::load_model(TinyYolo::fixture_directory() / "model.json");
+        SaTest::require_value(Config::load_model(TinyYolo::fixture_directory() / "model.json"));
     const Config::TrainSpec spec = TinyYolo::training_spec(checkpoint.path());
     const Apps::Registries registries = Apps::compose_registries().value();
     const std::unique_ptr<Apps::TrainingSetup> setup =
