@@ -268,11 +268,11 @@ def test_a_program_runs_under_the_recorded_run_dirs(parts, monkeypatch):
 
 def test_the_consumer_runs_without_the_package_folders_on_its_path():
     cfg = SimpleNamespace(is_windows=True, resolved_vcpkg=lambda root: "", vcpkg_triplet="x")
-    env = {"PATH": os.pathsep.join(["C:/pkg/bin", "C:/other"])}
+    env = {"PATH": os.pathsep.join(["pkg/bin", "other"])}
 
-    stripped = project._consumer_run_env(cfg, Path("."), env, ["C:/pkg/bin"])
+    stripped = project._consumer_run_env(cfg, Path("."), env, ["pkg/bin"])
 
-    assert stripped["PATH"] == "C:/other"
+    assert stripped["PATH"] == "other"
 
 
 def test_sycl_targets_go_to_the_blas_package_alone(parts):

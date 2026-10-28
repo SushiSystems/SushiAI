@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-29 — cli: Wrote the consumer-path test with paths that hold no drive colon, so it passes where the path separator is `:` (`tests/test_library_packages.py`).
 - 2026-10-29 — ci: Installed the CLI before the checkers so they find sushicore (`.github/workflows/ci.yml`).
 - 2026-10-29 — cli: Imported `configure_arguments` from sushicore where the build calls it, and listed sushicore's `backlog` and `design` groups in the command-list tests (`services/project.py`).
 - 2026-10-29 — general: Tagged the first release, v0.1.0 (RW-1, `e08c75e5`).
