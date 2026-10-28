@@ -51,7 +51,7 @@ namespace SushiAI::Language::Generation
 
     Result<std::unique_ptr<WindowGenerator>> WindowGenerator::make(SushiBLAS::Engine& engine,
                                                                   Train::EvaluationStep& step,
-                                                                  std::string_view output)
+                                                                  std::string_view output) noexcept
     {
         SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, step.output(output));
         SA_FAIL_IF(logits->rank != K_LOGITS_RANK || logits->shape[0] != 1 ||

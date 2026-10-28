@@ -57,7 +57,7 @@ namespace SushiAI::Language::Generation
 
     Result<std::unique_ptr<CachedGenerator>> CachedGenerator::make(
         SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output,
-        const CachedStepLeaves& leaves)
+        const CachedStepLeaves& leaves) noexcept
     {
         SA_FAIL_IF(!step.carries_state(), StatusCode::InvalidDescription,
                    "{}: the step keeps nothing between runs; it reads a step traced with "

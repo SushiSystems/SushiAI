@@ -37,7 +37,7 @@
 
 namespace SushiAI::Language::Generation
 {
-    Result<std::unique_ptr<NucleusSampler>> NucleusSampler::make(double mass, double temperature)
+    Result<std::unique_ptr<NucleusSampler>> NucleusSampler::make(double mass, double temperature) noexcept
     {
         SA_FAIL_IF(!(mass > 0.0) || !(mass <= 1.0), StatusCode::InvalidDescription,
                    "the '{}' sampler was given the mass {}; it is above 0 and at most 1",

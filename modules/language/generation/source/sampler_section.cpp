@@ -154,7 +154,7 @@ namespace SushiAI::Language::Generation
     } // namespace
 
     Result<std::unique_ptr<Sampler>> make_sampler(const Config::Value& section,
-                                                  std::string_view context)
+                                                  std::string_view context) noexcept
     {
         const Config::SectionReader reader(section, context);
         SA_TRY(reader.check_object());

@@ -47,7 +47,7 @@ namespace SushiAI::Language::Generation
              *         and finite.
              */
             [[nodiscard]] static Result<std::unique_ptr<TemperatureSampler>> make(
-                double temperature);
+                double temperature) noexcept;
 
             /** @brief Returns K_TEMPERATURE_SAMPLER. */
             [[nodiscard]] std::string_view name() const noexcept override;

@@ -62,7 +62,7 @@ namespace SushiAI::Language::Generation
              *         not [1, T, V] float32, or the failure of the allocation.
              */
             [[nodiscard]] static Result<std::unique_ptr<WindowGenerator>> make(
-                SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output);
+                SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output) noexcept;
 
             WindowGenerator(const WindowGenerator&) = delete;
             WindowGenerator& operator=(const WindowGenerator&) = delete;

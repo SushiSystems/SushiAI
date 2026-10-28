@@ -65,7 +65,7 @@ namespace SushiAI::Language::Generation
     } // namespace
 
     Result<GenerationTask> read_generation_task(const Config::Value& task,
-                                                std::string_view context)
+                                                std::string_view context) noexcept
     {
         const Config::SectionReader reader(task, context);
         SA_TRY(reader.check_object());

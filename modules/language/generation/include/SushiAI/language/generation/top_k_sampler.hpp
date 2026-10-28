@@ -49,7 +49,7 @@ namespace SushiAI::Language::Generation
              *         @p temperature is positive and finite.
              */
             [[nodiscard]] static Result<std::unique_ptr<TopKSampler>> make(std::int64_t k,
-                                                                           double temperature);
+                                                                           double temperature) noexcept;
 
             /** @brief Returns K_TOP_K_SAMPLER. */
             [[nodiscard]] std::string_view name() const noexcept override;

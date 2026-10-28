@@ -111,7 +111,7 @@ namespace SushiAI::Language::Generation
              */
             [[nodiscard]] static Result<std::unique_ptr<CachedGenerator>> make(
                 SushiBLAS::Engine& engine, Train::EvaluationStep& step, std::string_view output,
-                const CachedStepLeaves& leaves);
+                const CachedStepLeaves& leaves) noexcept;
 
             CachedGenerator(const CachedGenerator&) = delete;
             CachedGenerator& operator=(const CachedGenerator&) = delete;

@@ -35,7 +35,7 @@
 
 namespace SushiAI::Language::Generation
 {
-    Result<std::unique_ptr<TemperatureSampler>> TemperatureSampler::make(double temperature)
+    Result<std::unique_ptr<TemperatureSampler>> TemperatureSampler::make(double temperature) noexcept
     {
         SA_TRY(Detail::check_temperature(temperature, K_TEMPERATURE_SAMPLER));
 

@@ -51,7 +51,7 @@ namespace SushiAI::Language::Generation
              *         @p temperature is positive and finite.
              */
             [[nodiscard]] static Result<std::unique_ptr<NucleusSampler>> make(
-                double mass, double temperature);
+                double mass, double temperature) noexcept;
 
             /** @brief Returns K_NUCLEUS_SAMPLER. */
             [[nodiscard]] std::string_view name() const noexcept override;

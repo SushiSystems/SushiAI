@@ -38,7 +38,7 @@
 
 namespace SushiAI::Language::Generation
 {
-    Result<std::unique_ptr<TopKSampler>> TopKSampler::make(std::int64_t k, double temperature)
+    Result<std::unique_ptr<TopKSampler>> TopKSampler::make(std::int64_t k, double temperature) noexcept
     {
         SA_FAIL_IF(k < 1, StatusCode::InvalidDescription,
                    "the '{}' sampler was asked to keep {} tokens; it keeps at least one",

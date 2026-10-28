@@ -76,6 +76,6 @@ namespace SushiAI::Language::Generation
      * @return The task, or InvalidDescription naming the key that does not fit.
      */
     [[nodiscard]] Result<GenerationTask> read_generation_task(const Config::Value& task,
-                                                              std::string_view context);
+                                                              std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Generation

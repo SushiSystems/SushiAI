@@ -47,6 +47,6 @@ namespace SushiAI::Language::Generation
      *         fit; an unknown type lists the four.
      */
     [[nodiscard]] Result<std::unique_ptr<Sampler>> make_sampler(const Config::Value& section,
-                                                                std::string_view context);
+                                                                std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Generation
