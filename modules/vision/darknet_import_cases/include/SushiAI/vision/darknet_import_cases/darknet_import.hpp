@@ -67,7 +67,7 @@ namespace SushiAI
          * @return The run; FileNotFound naming a missing file; or the failure of the parse, the
          *         translation, the read or the import. Nothing is written to disk.
          */
-        [[nodiscard]] Result<DarknetImportRun> import_darknet_stem(std::string_view stem);
+        [[nodiscard]] Result<DarknetImportRun> import_darknet_stem(std::string_view stem) noexcept;
 
         /**
          * @brief Copies each tensor into the state entry of its name, strictly in both ways.
@@ -75,19 +75,19 @@ namespace SushiAI
          *         stated twice, and an entry no tensor supplies.
          */
         [[nodiscard]] Status fill_imported_state(
-            SushiRuntime::span<const IO::ImportedTensor> tensors, NN::ModelState& state);
+            SushiRuntime::span<const IO::ImportedTensor> tensors, NN::ModelState& state) noexcept;
 
         /**
          * @brief Checks that the imported rows, outputs and task equal those of the translation:
          *        the model file text without its task, then the task read back field by field.
          */
-        void check_imported_rows(const DarknetImportRun& run);
+        void check_imported_rows(const DarknetImportRun& run) noexcept;
 
         /**
          * @brief Checks that a state built and filled from the imported model holds the bytes
          *        of the state store_darknet_weights fills from the translation, entry by entry.
          */
-        void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run);
+        void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run) noexcept;
 
         /**
          * @brief Writes the import of @p run into @p directory and checks that the written
@@ -96,7 +96,7 @@ namespace SushiAI
          * @param directory Absent or empty; the three files are written into it.
          */
         void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
-                                  const std::filesystem::path& directory);
+                                  const std::filesystem::path& directory) noexcept;
 
         /** @brief Imports the model its parameter names; skips when a file of it is missing. */
         class DarknetImportTest : public EngineTest,

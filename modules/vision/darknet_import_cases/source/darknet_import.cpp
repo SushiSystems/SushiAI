@@ -129,7 +129,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<DarknetImportRun> import_darknet_stem(std::string_view stem)
+        Result<DarknetImportRun> import_darknet_stem(std::string_view stem) noexcept
         {
             DarknetImportRun run;
             SA_TRY_ASSIGN(run.config, load_darknet_config_file(stem));
@@ -146,7 +146,7 @@ namespace SushiAI
         }
 
         Status fill_imported_state(SushiRuntime::span<const IO::ImportedTensor> tensors,
-                                   NN::ModelState& state)
+                                   NN::ModelState& state) noexcept
         {
             std::unordered_set<std::string_view> supplied;
             for (const IO::ImportedTensor& tensor : tensors)
@@ -184,7 +184,7 @@ namespace SushiAI
             return Status();
         }
 
-        void check_imported_rows(const DarknetImportRun& run)
+        void check_imported_rows(const DarknetImportRun& run) noexcept
         {
             Config::ModelSpec rows = run.imported.model;
             rows.task = Config::Value();
@@ -218,7 +218,7 @@ namespace SushiAI
             }
         }
 
-        void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run)
+        void check_imported_weights(SushiBLAS::Engine& engine, const DarknetImportRun& run) noexcept
         {
             SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph direct_graph, build_graph(run.model.spec));
             SA_ASSERT_OK_AND_ASSIGN(NN::ModelState direct,
@@ -236,7 +236,7 @@ namespace SushiAI
         }
 
         void check_written_import(SushiBLAS::Engine& engine, const DarknetImportRun& run,
-                                  const std::filesystem::path& directory)
+                                  const std::filesystem::path& directory) noexcept
         {
             SA_ASSERT_OK_AND_ASSIGN(const IO::WrittenImport written,
                                     IO::write_imported_model(run.imported, directory,
