@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — build: Fixed device units failing to compile by splitting each `SHELL:` group of the device options into its arguments, which a source's `COMPILE_OPTIONS` does not do (`SushiAISyclTarget.cmake`).
 - 2026-10-28 — cli: Pinned SushiRuntime v0.4.0 and SushiBLAS v0.1.0 in the dependency fragment, so `sa setup` fetches both and no sibling checkout is needed (`sushistack.deps.toml`).
 - 2026-10-28 — config: Breaking change: Resolved a data block's relative `root` or `directory` against the file's directory, which `parse_data` takes as `base` (`train_config.cpp`).
 - 2026-10-28 — examples: Named the dataset folders from each example's directory, `../../../datasets/coco128` and `../../../data/mnist` (`train.json`).

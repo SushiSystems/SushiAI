@@ -59,9 +59,20 @@ function(sushiai_apply_sycl target)
 
     if(ARG_DEVICE_SOURCES)
         get_target_property(device_compile SushiBLAS::device_code INTERFACE_COMPILE_OPTIONS)
+        # A source's COMPILE_OPTIONS does not expand SHELL: groups, so each group becomes its
+        # arguments here.
+        set(source_options "")
+        foreach(option IN LISTS device_compile K_SUSHIAI_DEVICE_OPTIMISATION)
+            if(option MATCHES "^SHELL:(.*)$")
+                separate_arguments(group NATIVE_COMMAND "${CMAKE_MATCH_1}")
+                list(APPEND source_options ${group})
+            else()
+                list(APPEND source_options "${option}")
+            endif()
+        endforeach()
         add_sycl_to_target(TARGET ${target} SOURCES ${ARG_DEVICE_SOURCES})
         set_source_files_properties(${ARG_DEVICE_SOURCES}
             DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
-            PROPERTIES COMPILE_OPTIONS "${device_compile};${K_SUSHIAI_DEVICE_OPTIMISATION}")
+            PROPERTIES COMPILE_OPTIONS "${source_options}")
     endif()
 endfunction()
