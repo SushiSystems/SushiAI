@@ -73,7 +73,7 @@ namespace SushiAI
          * @param file_name The file's name, with its extension.
          * @return The path, or the reason for a skip.
          */
-        [[nodiscard]] DarknetFile find_darknet_file(std::string_view file_name);
+        [[nodiscard]] DarknetFile find_darknet_file(std::string_view file_name) noexcept;
 
         /**
          * @brief Locates `references/<model>/<name>.json` and the `.bin` beside it.
@@ -82,7 +82,7 @@ namespace SushiAI
          * @return The two paths, or the reason for a skip.
          */
         [[nodiscard]] DarknetReference find_darknet_reference(std::string_view model,
-                                                              std::string_view name);
+                                                              std::string_view name) noexcept;
 
         /**
          * @brief Reads one reference tensor and moves a `CHW` feature map to `HWC`.
@@ -91,7 +91,7 @@ namespace SushiAI
          *         is not a list of whole numbers, or a `.bin` whose byte count differs from the
          *         shape's; Unsupported for an `order` other than `CHW` over three axes.
          */
-        [[nodiscard]] Result<DarknetTensor> load_darknet_tensor(const DarknetReference& reference);
+        [[nodiscard]] Result<DarknetTensor> load_darknet_tensor(const DarknetReference& reference) noexcept;
 
     } // namespace Test
 } // namespace SushiAI

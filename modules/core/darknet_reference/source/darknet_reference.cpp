@@ -227,12 +227,12 @@ namespace SushiAI
             }
         } // namespace
 
-        DarknetFile find_darknet_file(std::string_view file_name)
+        DarknetFile find_darknet_file(std::string_view file_name) noexcept
         {
             return locate(std::filesystem::path(file_name));
         }
 
-        DarknetReference find_darknet_reference(std::string_view model, std::string_view name)
+        DarknetReference find_darknet_reference(std::string_view model, std::string_view name) noexcept
         {
             const std::filesystem::path folder =
                 std::filesystem::path(K_REFERENCE_FOLDER) / std::filesystem::path(model);
@@ -249,7 +249,7 @@ namespace SushiAI
             return reference;
         }
 
-        Result<DarknetTensor> load_darknet_tensor(const DarknetReference& reference)
+        Result<DarknetTensor> load_darknet_tensor(const DarknetReference& reference) noexcept
         {
             SA_FAIL_IF(!reference.found, StatusCode::FileNotFound, "{}", reference.reason);
 
