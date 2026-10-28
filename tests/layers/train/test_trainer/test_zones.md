@@ -12,7 +12,8 @@ SushiProfiler session that follows `train.step`, and reads the record the sessio
 
 `fit` runs two steps with `TimelineBinding` in place. The test then marks a third period, which
 ends the second; a period without its end mark is not kept. The record holds two periods, and
-each holds exactly the zones `data.read`, `host.feed`, `copy.input`, `device.run`, `host.loss`
-and `host.measure`, each in the group its name starts with. The case skips itself when
+each holds exactly the SushiAI zones `data.read`, `host.feed`, `copy.input`, `device.run`, `host.loss`
+and `host.measure`, each in the group its name starts with, and at least one zone of group `Runtime`, which
+SushiRuntime records while it runs the step. The case skips itself when
 `SA_PROFILE_LEVEL` is 0. The `train.fit` zone opens before the first period, so no period holds
 it.

@@ -82,6 +82,8 @@ nothing.
 | U4 | `trainer.hpp` drops `<SushiRuntime/sushiruntime.hpp>`; each includer names what it uses | Build time: every includer of the header stops reading the runtime umbrella |
 | U5 | D18 is closed: the distributed loop and the replica model carry the zones and the `train.step` mark of the single-device path | The same groups on both paths, so one record layout reads both |
 | U6 | The mirror findings for `free_training_loop.hpp`, `inference_program.hpp` and `training_program.hpp` predate this work and stay | Their tests are not part of this adoption |
+| U7 | Zone tests compare `sushiai_zones_of`, which keeps the groups of SPEC section 3 (`K_SUSHIAI_ZONE_GROUPS` in `profile_records.hpp`); the trainer test also asserts that each period holds a zone of group `Runtime` | Since the packages, SushiRuntime and SushiBLAS record their own zones into the same session, which is what the stack-wide adoption wants; a test of SushiAI's zones states SushiAI's, and one assertion pins that the libraries' zones reach a SushiAI run |
+| U8 | The attribution tests compile their chain on a pool that adopted `MemoryPlan::build` with `reuse` off, and the trailing case materialises the first activation before binding `CopyBack` to it | Without a plan the reshape owns a buffer and records a copy under its origin, so "a view records nothing" was not what ran; `TensorPool::tensor` on the unmaterialised activation stopped the process (`tensor_pool.cpp:119`) |
 | D18 | (closed by U5) The distributed loop (`cluster_run.cpp`) and `training_replica_model.cpp` keep no zone and no mark | SPEC section 9 leaves the distributed path's timing to SushiRuntime |
 
 ## What the first build must confirm

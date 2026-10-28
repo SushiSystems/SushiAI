@@ -28,6 +28,9 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -72,6 +75,35 @@ namespace SushiAI
                 }
             }
             return zones;
+        }
+
+        /** @brief Holds the zone groups SushiAI's own sites use, as SA_ZONE names them. */
+        inline constexpr std::array<std::string_view, 10> K_SUSHIAI_ZONE_GROUPS = {
+            "compile", "copy", "data", "device", "eager", "eval", "host", "io", "optim", "train"};
+
+        /** @brief Returns the zones of @p period whose group is one of @p groups. */
+        template<std::size_t Count>
+        std::map<std::string, std::string> zones_in_groups(
+            const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period,
+            const std::array<std::string_view, Count>& groups)
+        {
+            std::map<std::string, std::string> kept;
+            for (const auto& [name, group] : zones_of(record, period))
+            {
+                if (std::find(groups.begin(), groups.end(), group) != groups.end())
+                    kept.emplace(name, group);
+            }
+            return kept;
+        }
+
+        /**
+         * @brief Returns the zones of @p period that SushiAI's own sites ran, leaving out the
+         *        zones of the libraries below it, such as the groups "Runtime" and "BLAS".
+         */
+        inline std::map<std::string, std::string> sushiai_zones_of(
+            const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period)
+        {
+            return zones_in_groups(record, period, K_SUSHIAI_ZONE_GROUPS);
         }
 
         /** @brief Writes @p text to @p path, making the folder that holds it. */

@@ -27,9 +27,11 @@
  */
 
 #include <cstddef>
+#include <array>
 #include <cstdint>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiProfiler/registry/registry.hpp>
@@ -114,6 +116,13 @@ TEST_F(Medium_TrainerZones, AFitOfTwoStepsWritesTwoPeriodsWithTheirGroups)
     const std::map<std::string, std::string> expected = {
         {"data.read", "data"},   {"host.feed", "host"},    {"copy.input", "copy"},
         {"device.run", "device"}, {"host.loss", "host"},   {"host.measure", "host"}};
+    // SushiRuntime's own zones of the step's run land in the same period.
+    const std::array<std::string_view, 1> runtime = {"Runtime"};
     for (const SushiProfiler::PeriodRecord& period : stopped.record.periods)
-        EXPECT_EQ(SaTest::zones_of(stopped.record, period), expected) << "period " << period.index;
+    {
+        EXPECT_EQ(SaTest::sushiai_zones_of(stopped.record, period), expected)
+            << "period " << period.index;
+        EXPECT_FALSE(SaTest::zones_in_groups(stopped.record, period, runtime).empty())
+            << "period " << period.index;
+    }
 }

@@ -28,7 +28,10 @@
 
 #include <SushiAI/profile_records/profile_records.hpp>
 
+#include <cstdint>
 #include <filesystem>
+#include <map>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiProfiler/config/profiler_config.hpp>
 #include <SushiAI/scratch_files/scratch_directory.hpp>
@@ -68,6 +71,33 @@ TEST(Small_ProfileRecords, ZonesOfMapsEachSiteNameToItsGroup)
 
     const std::map<std::string, std::string> expected = {{"data.read", "data"},
                                                          {"host.feed", "host"}};
+    EXPECT_EQ(zones, expected);
+}
+
+/** @brief Tests that sushiai_zones_of keeps SushiAI's groups and leaves out the libraries'. */
+TEST(Small_ProfileRecords, SushiAIZonesOfLeavesOutTheLibraryGroups)
+{
+    SushiProfiler::RunRecord record;
+    record.sites.resize(4);
+    record.sites[1].name = "device.run";
+    record.sites[1].group = "device";
+    record.sites[2].name = "chain.wait";
+    record.sites[2].group = "Runtime";
+    record.sites[3].name = "blas.record";
+    record.sites[3].group = "BLAS";
+    SushiProfiler::PeriodRecord period;
+    SushiProfiler::ZoneTree tree;
+    for (std::uint32_t site = 1U; site <= 3U; ++site)
+    {
+        SushiProfiler::ZoneNode node;
+        node.site = site;
+        tree.nodes.push_back(node);
+    }
+    period.zones.push_back(tree);
+
+    const std::map<std::string, std::string> zones = SaTest::sushiai_zones_of(record, period);
+
+    const std::map<std::string, std::string> expected = {{"device.run", "device"}};
     EXPECT_EQ(zones, expected);
 }
 
