@@ -33,10 +33,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # The sibling refs a pre-merge build checks out. docs/reference/KNOWN_ISSUES.md says why
-  # SushiBLAS is not yet pinned to a tag.
-  SUSHIRUNTIME_REF: main
-  SUSHIBLAS_REF: main
+  # The sibling release tags a pre-merge build checks out.
+  SUSHIRUNTIME_REF: v0.5.0
+  SUSHIBLAS_REF: v0.1.0
   SUSHILOG_REF: v0.2.3
   SUSHIPROFILER_REF: v0.3.2
   CCACHE_DIR: ${{ github.workspace }}/.ccache

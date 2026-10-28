@@ -13,8 +13,8 @@ permissions:
   contents: read
 
 env:
-  SUSHIRUNTIME_REF: main
-  SUSHIBLAS_REF: main
+  SUSHIRUNTIME_REF: v0.5.0
+  SUSHIBLAS_REF: v0.1.0
   SUSHILOG_REF: v0.2.3
   SUSHIPROFILER_REF: v0.3.2
   # The OpenCL CPU JIT vectorizer crashes on one SushiBLAS kernel; see SushiBLAS's KNOWN_ISSUES.md.
