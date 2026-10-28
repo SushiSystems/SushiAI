@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Segment
 
     Status rasterise_outlines(SushiRuntime::span<const ClassOutline> outlines,
                               Imaging::ImageSize size, std::uint8_t background,
-                              Imaging::Image& mask)
+                              Imaging::Image& mask) noexcept
     {
         SA_FAIL_IF(!Imaging::is_valid_size(size), StatusCode::InvalidDescription,
                    "{}: a mask of {} by {} pixels is outside the bounds of an image", K_UNIT,

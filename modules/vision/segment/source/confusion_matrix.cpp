@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Segment
         }
     } // namespace
 
-    Result<ConfusionMatrix> ConfusionMatrix::make(std::int32_t classes)
+    Result<ConfusionMatrix> ConfusionMatrix::make(std::int32_t classes) noexcept
     {
         SA_FAIL_IF(classes < 1 || classes > K_MAX_CONFUSION_CLASSES,
                    StatusCode::InvalidDescription,
@@ -67,7 +67,7 @@ namespace SushiAI::Vision::Segment
 
     Status ConfusionMatrix::add(SushiRuntime::span<const std::int32_t> predicted,
                                 SushiRuntime::span<const std::int32_t> truth,
-                                std::int32_t ignore_index)
+                                std::int32_t ignore_index) noexcept
     {
         SA_FAIL_IF(predicted.size() != truth.size(), StatusCode::Incompatible,
                    "{}: {} predicted classes against {} true classes; one of each per pixel",
@@ -97,7 +97,7 @@ namespace SushiAI::Vision::Segment
         return Status();
     }
 
-    Status ConfusionMatrix::merge(const ConfusionMatrix& other)
+    Status ConfusionMatrix::merge(const ConfusionMatrix& other) noexcept
     {
         SA_FAIL_IF(other.classes_ != classes_, StatusCode::Incompatible,
                    "{}: a matrix of {} classes cannot take the counts of one of {}", K_UNIT,

@@ -138,7 +138,7 @@ namespace SushiAI::Vision::Segment
     } // namespace
 
     Status fill_outline(SushiRuntime::span<const Imaging::Polygon> parts, std::uint8_t value,
-                        Imaging::Image& mask)
+                        Imaging::Image& mask) noexcept
     {
         SA_FAIL_IF(mask.channels() != K_MASK_CHANNELS || !Imaging::is_valid_size(mask.size()),
                    StatusCode::InvalidDescription,

@@ -55,6 +55,6 @@ namespace SushiAI::Vision::Segment
      */
     [[nodiscard]] Status rasterise_outlines(SushiRuntime::span<const ClassOutline> outlines,
                                             Imaging::ImageSize size, std::uint8_t background,
-                                            Imaging::Image& mask);
+                                            Imaging::Image& mask) noexcept;
 
 } // namespace SushiAI::Vision::Segment

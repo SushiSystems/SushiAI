@@ -45,6 +45,6 @@ namespace SushiAI::Vision::Segment
      * @return InvalidDescription for an unsized mask, several channels or a vertex not finite.
      */
     [[nodiscard]] Status fill_outline(SushiRuntime::span<const Imaging::Polygon> parts,
-                                      std::uint8_t value, Imaging::Image& mask);
+                                      std::uint8_t value, Imaging::Image& mask) noexcept;
 
 } // namespace SushiAI::Vision::Segment

@@ -54,7 +54,7 @@ namespace SushiAI::Vision::Segment
              * @return The matrix; InvalidDescription for a count outside
              *         [1, K_MAX_CONFUSION_CLASSES]; OutOfMemory when it cannot be allocated.
              */
-            [[nodiscard]] static Result<ConfusionMatrix> make(std::int32_t classes);
+            [[nodiscard]] static Result<ConfusionMatrix> make(std::int32_t classes) noexcept;
 
             /**
              * @brief Counts every pixel whose true class is not @p ignore_index.
@@ -65,13 +65,13 @@ namespace SushiAI::Vision::Segment
              */
             [[nodiscard]] Status add(SushiRuntime::span<const std::int32_t> predicted,
                                      SushiRuntime::span<const std::int32_t> truth,
-                                     std::int32_t ignore_index);
+                                     std::int32_t ignore_index) noexcept;
 
             /**
              * @brief Adds every count of @p other to this matrix.
              * @return Incompatible, with the counts unchanged, for another class count.
              */
-            [[nodiscard]] Status merge(const ConfusionMatrix& other);
+            [[nodiscard]] Status merge(const ConfusionMatrix& other) noexcept;
 
             /** @brief Sets every count to zero. */
             void clear() noexcept;
