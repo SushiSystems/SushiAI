@@ -9,6 +9,5 @@
 sushiai_add_test_program(OWNER failure_expectations
     SOURCES
         test_status_expectations.cpp
-        test_throw_expectations.cpp
     DEPENDS
         failure_expectations)

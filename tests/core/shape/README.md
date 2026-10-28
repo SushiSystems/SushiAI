@@ -104,8 +104,8 @@ mismatch debuggable. So each case names the values the message must still carry 
 extents that disagree, the operation that has no rule, the dtype that cannot be served) and
 fails when one of them goes missing.
 
-`modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp`
-defines SA_EXPECT_ERROR.
+`modules/core/failure_expectations/include/SushiAI/failure_expectations/status_expectations.hpp`
+defines `SA_EXPECT_FAILURE`, which compares the code and the message.
 
 The cases fall into five groups, in file order:
 

@@ -8,7 +8,7 @@ does at the edges of what it can. The happy path belongs to `test_forward.cpp` a
 `test_training.cpp`. This file makes three other claims.
 
 1. Every device-lane precondition fails loudly and names the actual problem.
-   `modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp` explains why the message is asserted and not only the throw.
+   `modules/core/failure_expectations/include/SushiAI/failure_expectations/status_expectations.hpp` asserts the message and not only the code.
 2. Degenerate and boundary extents produce right answers and not off-by-one ones: one sample,
    one feature, one class, exactly the GEMM register-block edge and exactly one past it. Index
    arithmetic breaks here or nowhere.

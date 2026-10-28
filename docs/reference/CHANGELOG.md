@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — failure_expectations: Breaking change: Removed `SA_EXPECT_ERROR`, `capture_error` and `error_names` with `throw_expectations.hpp`; tests assert a status or a fatal stop.
 - 2026-10-28 — failure: Breaking change: Removed `Error` and `SA_THROW_IF`; a failure is a status, a result or a fatal stop (`error.hpp`).
 - 2026-10-28 — tools: Dropped every converted row of the contract class table; two rows of the boundary throws remain (`site_classes.tsv`).
 - 2026-10-28 — applications: Breaking change: Removed the `try` block from the `main` of four programs; a failure prints a `kind:` line (`train.cpp`).
