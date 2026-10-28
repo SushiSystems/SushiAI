@@ -123,7 +123,7 @@ namespace SushiAI
 
     Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                               SushiRuntime::span<const int64_t> dims,
-                                              DType dtype)
+                                              DType dtype) noexcept
     {
         // checked_element_count validates positive extents and non-overflowing product.
         SA_TRY_ASSIGN(const int64_t elements, checked_element_count(dims));
@@ -146,7 +146,7 @@ namespace SushiAI
 
     Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                               const Shape& shape,
-                                              DType dtype)
+                                              DType dtype) noexcept
     {
         const SushiRuntime::span<const int64_t> dims(shape.data(),
                                                      static_cast<std::size_t>(shape.rank()));
@@ -154,7 +154,7 @@ namespace SushiAI
     }
 
     Result<SushiBLAS::Tensor> allocate_like(SushiBLAS::Engine& engine,
-                                            const SushiBLAS::Tensor& like)
+                                            const SushiBLAS::Tensor& like) noexcept
     {
         SA_FATAL_IF(like.num_elements <= 0, "Cannot allocate a tensor shaped like an empty one");
 
@@ -174,7 +174,7 @@ namespace SushiAI
     }
 
     Result<SushiRuntime::sushi_ptr<SushiBLAS::Storage>> allocate_arena(SushiBLAS::Engine& engine,
-                                                                       std::size_t bytes)
+                                                                       std::size_t bytes) noexcept
     {
         // Arena requests must allocate at least one byte.
         SA_FATAL_IF(bytes == 0,
@@ -192,7 +192,7 @@ namespace SushiAI
                                   const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
                                   std::size_t byte_offset,
                                   const Shape& shape,
-                                  DType dtype)
+                                  DType dtype) noexcept
     {
         SA_FATAL_IF(!arena, "Cannot view into a null arena");
 

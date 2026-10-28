@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — allocation: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (`allocation.hpp`).
 - 2026-10-28 — shape: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (`shape.hpp`, `tensor_shape.hpp`).
 - 2026-10-28 — docs: Replaced the passages that said the library throws `SushiAI::Error` with the status and fatal contract (`ARCHITECTURE.md`, `INTEGRATION.md`, `FAQ.md`).
 - 2026-10-28 — tools: Changed `check_contract.py` to fail on any use of `SA_THROW_IF`, `SushiAI::Error` or the removed headers in the library, the programs and the tests; dropped the ratchet and the bridge count (`check_contract.py`).

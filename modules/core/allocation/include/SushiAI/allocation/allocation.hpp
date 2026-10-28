@@ -47,7 +47,7 @@ namespace SushiAI
      */
     [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                                             SushiRuntime::span<const int64_t> dims,
-                                                            DType dtype = DType::Float32);
+                                                            DType dtype = DType::Float32) noexcept;
 
     /**
      * @brief Allocates a tensor of @p shape with its own Storage.
@@ -59,7 +59,7 @@ namespace SushiAI
      */
     [[nodiscard]] Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                                             const Shape& shape,
-                                                            DType dtype = DType::Float32);
+                                                            DType dtype = DType::Float32) noexcept;
 
     /**
      * @brief Allocates a tensor with @p like's extents, dtype, and layout.
@@ -70,7 +70,7 @@ namespace SushiAI
      *         overload returns.
      */
     [[nodiscard]] Result<SushiBLAS::Tensor> allocate_like(SushiBLAS::Engine& engine,
-                                                          const SushiBLAS::Tensor& like);
+                                                          const SushiBLAS::Tensor& like) noexcept;
 
     /**
      * @brief Allocates one arena buffer for memory planning.
@@ -80,7 +80,7 @@ namespace SushiAI
      */
     [[nodiscard]] Result<SushiRuntime::sushi_ptr<SushiBLAS::Storage>> allocate_arena(
         SushiBLAS::Engine& engine,
-        std::size_t bytes);
+        std::size_t bytes) noexcept;
 
     /**
      * @brief Returns a tensor view into @p arena at @p byte_offset.
@@ -94,6 +94,6 @@ namespace SushiAI
         const SushiRuntime::sushi_ptr<SushiBLAS::Storage>& arena,
         std::size_t byte_offset,
         const Shape& shape,
-        DType dtype);
+        DType dtype) noexcept;
 
 } // namespace SushiAI
