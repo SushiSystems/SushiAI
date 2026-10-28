@@ -51,7 +51,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Returns the directory SA_TEST_FIXTURE_DIR names, or an empty string. */
-        inline std::string fixture_directory()
+        inline std::string fixture_directory() noexcept
         {
 #ifdef SA_TEST_FIXTURE_DIR
             return SA_TEST_FIXTURE_DIR;
@@ -70,19 +70,19 @@ namespace SushiAI
             std::vector<unsigned char> payload; /**< Element bytes, row-major, little-endian. */
 
             /** @brief Returns the elements of a float32 tensor. */
-            [[nodiscard]] std::vector<float> floats() const
+            [[nodiscard]] std::vector<float> floats() const noexcept
             {
                 return elements<float>(DType::Float32);
             }
 
             /** @brief Returns the elements of an int32 tensor. */
-            [[nodiscard]] std::vector<std::int32_t> int32s() const
+            [[nodiscard]] std::vector<std::int32_t> int32s() const noexcept
             {
                 return elements<std::int32_t>(DType::Int32);
             }
 
             /** @brief Returns the elements of an int64 tensor. */
-            [[nodiscard]] std::vector<std::int64_t> int64s() const
+            [[nodiscard]] std::vector<std::int64_t> int64s() const noexcept
             {
                 return elements<std::int64_t>(DType::Int64);
             }
@@ -112,7 +112,7 @@ namespace SushiAI
         {
             public:
                 /** @brief Opens @p file_name, a path below the fixture directory, and indexes its records. */
-                explicit ReferenceFile(std::string_view file_name)
+                explicit ReferenceFile(std::string_view file_name) noexcept
                 {
                     const std::string directory = fixture_directory();
                     if (directory.empty())
@@ -155,7 +155,7 @@ namespace SushiAI
                 }
 
                 /** @brief Reads the tensor named @p tensor_name, or reports that it is absent. */
-                [[nodiscard]] ReferenceTensor read(std::string_view tensor_name)
+                [[nodiscard]] ReferenceTensor read(std::string_view tensor_name) noexcept
                 {
                     ReferenceTensor tensor;
                     if (!present_)
@@ -243,7 +243,7 @@ namespace SushiAI
          */
         inline ::testing::AssertionResult near_reference(SushiRuntime::span<const float> actual,
                                                          SushiRuntime::span<const float> reference,
-                                                         float tolerance)
+                                                         float tolerance) noexcept
         {
             if (actual.size() != reference.size())
                 return ::testing::AssertionFailure() << actual.size() << " values against "
@@ -284,7 +284,7 @@ namespace SushiAI
          */
         template <typename Actual, typename Reference>
         ::testing::AssertionResult equal_reference(const std::vector<Actual>& actual,
-                                                   const std::vector<Reference>& reference)
+                                                   const std::vector<Reference>& reference) noexcept
         {
             if (actual.size() != reference.size())
                 return ::testing::AssertionFailure() << actual.size() << " values against "
