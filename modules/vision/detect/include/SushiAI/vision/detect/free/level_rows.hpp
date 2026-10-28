@@ -52,8 +52,8 @@ namespace SushiAI
          * @brief Copies one level's `[B, n, C]` rows into their place in a `[B, A, C]` array.
          * @param level `[B, H, W, C]` read as `[B, n, C]`.
          * @param joined `[B, A, C]`; only the level's rows are written.
-         * @return InvalidDescription when the level does not fit its anchors.
-         * @pre @p level and @p joined hold the sizes @p placement gives.
+         * @return InvalidDescription when the level does not fit its anchors, or when
+         *         @p level and @p joined do not hold the sizes @p placement gives.
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] Status join_level(SushiRuntime::span<const float> level,
@@ -64,8 +64,8 @@ namespace SushiAI
          * @brief Copies one level's rows out of a `[B, A, C]` array into `[B, n, C]`.
          * @param joined `[B, A, C]`.
          * @param level Receives `[B, n, C]`, which is `[B, H, W, C]` in row-major order.
-         * @return InvalidDescription when the level does not fit its anchors.
-         * @pre @p joined and @p level hold the sizes @p placement gives.
+         * @return InvalidDescription when the level does not fit its anchors, or when
+         *         @p joined and @p level do not hold the sizes @p placement gives.
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] Status split_level(SushiRuntime::span<const float> joined,

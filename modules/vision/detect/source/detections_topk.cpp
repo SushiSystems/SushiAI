@@ -67,13 +67,14 @@ namespace SushiAI
             const std::size_t batch = static_cast<std::size_t>(shape.batch);
             const std::size_t anchors = static_cast<std::size_t>(shape.anchors);
             const std::size_t classes = static_cast<std::size_t>(shape.num_classes);
-            SA_FATAL_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
-                            scores.size() != batch * anchors * classes ||
-                            detections.size() != batch * kept * K_DETECTION_VALUES,
-                        "a top-k postprocess needs [{}, {}, 4] boxes, [{}, {}, {}] scores and "
-                        "[{}, {}, 6] detections; got {}, {} and {} values",
-                        batch, anchors, batch, anchors, classes, batch, kept, boxes.size(),
-                        scores.size(), detections.size());
+            SA_FAIL_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
+                           scores.size() != batch * anchors * classes ||
+                           detections.size() != batch * kept * K_DETECTION_VALUES,
+                       StatusCode::InvalidDescription,
+                       "a top-k postprocess needs [{}, {}, 4] boxes, [{}, {}, {}] scores and "
+                       "[{}, {}, 6] detections; got {}, {} and {} values",
+                       batch, anchors, batch, anchors, classes, batch, kept, boxes.size(),
+                       scores.size(), detections.size());
 
             std::vector<float> best(anchors);
             std::vector<float> gathered(kept * classes);

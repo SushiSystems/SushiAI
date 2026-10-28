@@ -52,8 +52,8 @@ namespace SushiAI
 
             /**
              * @brief Returns the element counts of @p placement.
-             * @return InvalidDescription when the level does not fit its anchors.
-             * @pre @p level_size and @p joined_size are the sizes the placement gives.
+             * @return InvalidDescription when the level does not fit its anchors or
+             *         @p level_size or @p joined_size is not the size the placement gives.
              */
             Result<LevelExtents> check_placement(const LevelPlacement& placement,
                                                  std::size_t level_size,
@@ -79,12 +79,13 @@ namespace SushiAI
                 extents.offset =
                     static_cast<std::size_t>(placement.anchor_offset * placement.channels);
 
-                SA_FATAL_IF(level_size != extents.batch * extents.level_image ||
-                                joined_size != extents.batch * extents.joined_image,
-                            "the placement needs {} level values and {} joined values; got {} "
-                            "and {}",
-                            extents.batch * extents.level_image,
-                            extents.batch * extents.joined_image, level_size, joined_size);
+                SA_FAIL_IF(level_size != extents.batch * extents.level_image ||
+                               joined_size != extents.batch * extents.joined_image,
+                           StatusCode::InvalidDescription,
+                           "the placement needs {} level values and {} joined values; got {} "
+                           "and {}",
+                           extents.batch * extents.level_image,
+                           extents.batch * extents.joined_image, level_size, joined_size);
                 return extents;
             }
         } // namespace

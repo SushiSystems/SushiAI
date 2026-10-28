@@ -55,8 +55,8 @@ namespace SushiAI
          * @param boxes `[B, A, 4]` x1 y1 x2 y2; @p scores `[B, A, C]` probabilities, no NaN.
          * @param max_detections Limit on rows per image; K_MAX_DETECTIONS in the reference.
          * @param detections Receives `[B, k, 6]`, highest score first, k from count_top_detections.
-         * @return InvalidDescription for an extent or a limit below 1.
-         * @pre The spans hold the sizes the shape and the limit give.
+         * @return InvalidDescription for an extent or a limit below 1, or for a span that
+         *         does not hold the size the shape and the limit give.
          */
         [[nodiscard]] Status select_top_detections(SushiRuntime::span<const float> boxes,
                                                    SushiRuntime::span<const float> scores,

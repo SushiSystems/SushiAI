@@ -227,9 +227,10 @@ neither depends on the other.
 The free functions follow one rule. A caller-allocated output span whose size the caller computes from the same extents is a precondition: `elementwise_iou`,
 `pairwise_iou`, `xyxy_to_xywh`, `decode_xyxy`, `scale_points` and the like stop the process on a
 wrong size. An array or an extent that a model or a dataset supplies is content: `count_anchors`,
-`make_anchors`, `build_anchor_leaves`, `join_level`, `build_target_leaves`, `pad_ground_truth`,
-`select_nms_detections`, `select_top_detections`, `keep_confident_detections`, `match_detections`,
-`AveragePrecision::add_image` and `TaskAlignedAssigner::assign` return a `Status`, and
+`make_anchors`, `build_anchor_leaves`, `join_level`, `split_level`, `build_target_leaves`,
+`pad_ground_truth`, `select_nms_detections`, `select_top_detections`,
+`keep_confident_detections`, `match_detections`, `AveragePrecision::add_image` and
+`TaskAlignedAssigner::assign` return a `Status`, and
 `TaskAlignedAssigner::make`, `count_top_detections` and `integrate_precision` a `Result`.
 
 ## The anchor part

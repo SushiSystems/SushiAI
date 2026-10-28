@@ -67,8 +67,8 @@ namespace SushiAI
          * @brief Writes each anchor's cell centre in grid units and its stride.
          * @param points Receives `[A, 2]` as x then y, levels in order, row-major in a level.
          * @param strides Receives `[A]`.
-         * @return InvalidDescription for a level count_anchors() refuses.
-         * @pre @p points and @p strides hold [A, 2] and [A] values.
+         * @return InvalidDescription for a level count_anchors() refuses, or when @p points
+         *         and @p strides do not hold [A, 2] and [A] values.
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] Status make_anchors(SushiRuntime::span<const FeatureLevel> levels,

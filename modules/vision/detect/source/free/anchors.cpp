@@ -59,9 +59,10 @@ namespace SushiAI
         {
             SA_TRY_ASSIGN(const std::int64_t anchor_count, count_anchors(levels));
             const std::size_t count = static_cast<std::size_t>(anchor_count);
-            SA_FATAL_IF(points.size() != count * K_POINT_VALUES || strides.size() != count,
-                        "make_anchors needs {} point values and {} strides; got {} and {}",
-                        count * K_POINT_VALUES, count, points.size(), strides.size());
+            SA_FAIL_IF(points.size() != count * K_POINT_VALUES || strides.size() != count,
+                       StatusCode::InvalidDescription,
+                       "make_anchors needs {} point values and {} strides; got {} and {}",
+                       count * K_POINT_VALUES, count, points.size(), strides.size());
 
             std::size_t anchor = 0;
             for (const FeatureLevel& level : levels)

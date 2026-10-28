@@ -429,9 +429,10 @@ namespace SushiAI
         {
             SA_TRY(check_image(detections, truth_boxes, truth_classes));
             const std::size_t count = detections.size() / K_DETECTION_VALUES;
-            SA_FATAL_IF(correct.size() != count * K_IOU_THRESHOLD_COUNT,
-                        "the match flags of {} detections need {} values; got {}", count,
-                        count * K_IOU_THRESHOLD_COUNT, correct.size());
+            SA_FAIL_IF(correct.size() != count * K_IOU_THRESHOLD_COUNT,
+                       StatusCode::InvalidDescription,
+                       "the match flags of {} detections need {} values; got {}", count,
+                       count * K_IOU_THRESHOLD_COUNT, correct.size());
             mark_matches(detections, truth_boxes, truth_classes, correct.data());
             return Status();
         }
