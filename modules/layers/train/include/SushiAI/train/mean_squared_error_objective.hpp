@@ -60,7 +60,7 @@ namespace SushiAI
                  *         another element type.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<MeanSquaredErrorObjective>> make(
-                    std::int64_t batch, std::int64_t width, DType dtype = DType::Float32);
+                    std::int64_t batch, std::int64_t width, DType dtype = DType::Float32) noexcept;
 
                 /** @brief Declares the [N, K] "targets" leaf and requires float32 [N, K] values. */
                 void declare(const Graph::GraphBuilder& builder,
@@ -127,7 +127,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_mean_squared_error(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

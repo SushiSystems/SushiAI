@@ -115,7 +115,7 @@ namespace SushiAI
          * @return InvalidDescription for a batch that is not positive or a sample of
          *         K_MAX_RANK extents.
          */
-        [[nodiscard]] Result<Shape> batch_shape(int64_t batch, const Shape& sample);
+        [[nodiscard]] Result<Shape> batch_shape(int64_t batch, const Shape& sample) noexcept;
 
         /**
          * @brief Appends the source of every update to both lists.
@@ -123,7 +123,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status retain(const NN::BufferUpdateList& updates,
                                     std::vector<Graph::ValueID>& observed,
-                                    std::vector<Graph::ValueID>& pinned);
+                                    std::vector<Graph::ValueID>& pinned) noexcept;
 
         /**
          * @brief Writes the values of every table into its leaf, on the host.
@@ -132,7 +132,7 @@ namespace SushiAI
          *         tensor of as many elements as its table holds.
          */
         [[nodiscard]] Status fill_host_tables(const NN::HostTableList& tables,
-                                              Graph::TensorPool& pool);
+                                              Graph::TensorPool& pool) noexcept;
 
         namespace Detail
         {
@@ -263,7 +263,7 @@ namespace SushiAI
         [[nodiscard]] Result<TrainingGraph> build_training_graph(M& model,
                                                                  const Objective& objective,
                                                                  const Shape& batch_shape,
-                                                                 GraphOptions options = {})
+                                                                 GraphOptions options = {}) noexcept
         {
             TrainingGraph built;
             const Graph::GraphBuilder builder(built.graph);
@@ -295,7 +295,7 @@ namespace SushiAI
          */
         template<typename M>
         [[nodiscard]] Result<TracedStep> build_probe_graph(M& model, const Shape& batch_shape,
-                                                           GraphOptions options = {})
+                                                           GraphOptions options = {}) noexcept
         {
             TracedStep step;
             const Graph::GraphBuilder builder(step.graph);
@@ -321,7 +321,7 @@ namespace SushiAI
          */
         template<typename M>
         [[nodiscard]] Result<TracedStep> build_evaluation_graph(M& model, const Shape& batch_shape,
-                                                                GraphOptions options = {})
+                                                                GraphOptions options = {}) noexcept
         {
             TracedStep step;
             const Graph::GraphBuilder builder(step.graph);
@@ -379,7 +379,7 @@ namespace SushiAI
          */
         template<typename M>
         [[nodiscard]] Result<TracedStep> build_carrying_graph(M& model, const Shape& batch_shape,
-                                                              GraphOptions options = {})
+                                                              GraphOptions options = {}) noexcept
         {
             return Detail::build_carrying(batch_shape, options,
                                           [&model](const NN::Trace& trace, Graph::ValueID input)
@@ -398,7 +398,7 @@ namespace SushiAI
         template<typename M>
         [[nodiscard]] Result<TracedStep> build_incremental_graph(M& model,
                                                                  const Shape& slice_shape,
-                                                                 GraphOptions options = {})
+                                                                 GraphOptions options = {}) noexcept
         {
             return Detail::build_carrying(slice_shape, options,
                                           [&model](const NN::Trace& trace, Graph::ValueID input)
@@ -416,7 +416,7 @@ namespace SushiAI
         [[nodiscard]] Result<TrainingGraph> build_classifier(
             M& module, int64_t batch, int64_t features, int64_t classes,
             DType dtype = DType::Float32, Graph::FusionOptions fusion = {},
-            const Graph::PrecisionPolicy* precision = nullptr, bool loss_scaling = false)
+            const Graph::PrecisionPolicy* precision = nullptr, bool loss_scaling = false) noexcept
         {
             const CrossEntropyObjective objective(batch, classes, dtype);
 

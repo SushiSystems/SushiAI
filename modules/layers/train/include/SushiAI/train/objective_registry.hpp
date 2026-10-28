@@ -75,7 +75,7 @@ namespace SushiAI
                  *            factory is fatal.
                  * @return InvalidDescription when a row holds the type.
                  */
-                [[nodiscard]] Status add(const ObjectiveEntry& row);
+                [[nodiscard]] Status add(const ObjectiveEntry& row) noexcept;
 
                 /** @brief Returns the row of @p type, or null when none holds it. */
                 [[nodiscard]] const ObjectiveEntry* find(std::string_view type) const noexcept;
@@ -97,7 +97,7 @@ namespace SushiAI
          * @param registry The registry the rows join.
          * @return Success, or InvalidDescription when one of the five types is already held.
          */
-        [[nodiscard]] Status register_objectives(ObjectiveRegistry& registry);
+        [[nodiscard]] Status register_objectives(ObjectiveRegistry& registry) noexcept;
 
         /**
          * @brief Builds the objective named @p type from the rows of @p registry.
@@ -112,7 +112,7 @@ namespace SushiAI
             std::string_view type,
             const ObjectiveContext& given,
             const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

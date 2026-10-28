@@ -76,7 +76,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status fill_dense_targets(const SushiBLAS::Tensor& values, SushiBLAS::Tensor& targets)
+        Status fill_dense_targets(const SushiBLAS::Tensor& values, SushiBLAS::Tensor& targets) noexcept
         {
             SA_TRY(require_copyable(values, targets));
             copy_checked(values, targets);
@@ -84,7 +84,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status fill_binary_targets(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& targets)
+        Status fill_binary_targets(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& targets) noexcept
         {
             SA_TRY(require_copyable(labels, targets));
 

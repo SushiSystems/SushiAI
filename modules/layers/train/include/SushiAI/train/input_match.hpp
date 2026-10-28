@@ -44,7 +44,7 @@ namespace SushiAI
          *         InvalidDescription for a leaf of rank 0.
          */
         [[nodiscard]] Result<Data::InputDescription> describe_input_leaf(
-            const Graph::Value& leaf);
+            const Graph::Value& leaf) noexcept;
 
         /**
          * @brief Checks that @p dataset publishes its input as @p required describes it.
@@ -53,7 +53,7 @@ namespace SushiAI
          *         per-sample shape on both sides.
          */
         [[nodiscard]] Status match_input(const Data::InputDescription& required,
-                                         const Data::Dataset& dataset);
+                                         const Data::Dataset& dataset) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

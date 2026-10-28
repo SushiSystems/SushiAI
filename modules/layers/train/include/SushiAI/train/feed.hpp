@@ -44,7 +44,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status check_feed(const SushiBLAS::Tensor& source,
                                         const SushiBLAS::Tensor& destination,
-                                        std::string_view what);
+                                        std::string_view what) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

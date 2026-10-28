@@ -64,7 +64,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<MultiLabelObjective>> make(
                     std::int64_t batch, std::int64_t classes,
-                    double threshold = K_DEFAULT_THRESHOLD, DType dtype = DType::Float32);
+                    double threshold = K_DEFAULT_THRESHOLD, DType dtype = DType::Float32) noexcept;
 
                 /** @brief Declares the [N, C] "targets" leaf and requires float32 [N, C] labels. */
                 void declare(const Graph::GraphBuilder& builder,
@@ -134,7 +134,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_multi_label(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

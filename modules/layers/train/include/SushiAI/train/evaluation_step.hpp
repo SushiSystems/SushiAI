@@ -88,7 +88,7 @@ namespace SushiAI
                     SushiBLAS::Engine& engine, const TracedStep& traced,
                     const NN::ModelState& state, Graph::TensorPool& pool,
                     const Graph::FusionSelector* selector = nullptr,
-                    const Graph::TensorPool* lender = nullptr);
+                    const Graph::TensorPool* lender = nullptr) noexcept;
 
                 /** @brief Deleted: a step holds one compiled plan and is not copied. */
                 EvaluationStep(const EvaluationStep&) = delete;
@@ -112,7 +112,7 @@ namespace SushiAI
                  * @return Success, Incompatible from check_feed() or for a step that is fed
                  *         further leaves, or the failure of the copy or of the replay.
                  */
-                [[nodiscard]] Status run(const SushiBLAS::Tensor& inputs);
+                [[nodiscard]] Status run(const SushiBLAS::Tensor& inputs) noexcept;
 
                 /**
                  * @brief Copies one tensor into each input leaf, then replays the plan.
@@ -122,7 +122,7 @@ namespace SushiAI
                  * @return Success, Incompatible for another count or from check_feed(), or the
                  *         failure of a copy or of the replay.
                  */
-                [[nodiscard]] Status run_in_order(FeedSpan feeds);
+                [[nodiscard]] Status run_in_order(FeedSpan feeds) noexcept;
 
                 /**
                  * @brief Copies each tensor into the leaf it names, then replays the plan.
@@ -130,7 +130,7 @@ namespace SushiAI
                  * @return What run_in_order() returns, or InvalidDescription for a name that
                  *         is no input leaf, is given twice or is left out.
                  */
-                [[nodiscard]] Status run_by_name(SushiRuntime::span<const NamedFeed> feeds);
+                [[nodiscard]] Status run_by_name(SushiRuntime::span<const NamedFeed> feeds) noexcept;
 
                 /**
                  * @brief Fills every carried leaf with its initial value.
@@ -138,7 +138,7 @@ namespace SushiAI
                  * @return Success, at once for a step that carries nothing, or the failure of
                  *         a fill.
                  */
-                [[nodiscard]] Status reset();
+                [[nodiscard]] Status reset() noexcept;
 
                 /** @brief Reports whether the step keeps a value from a run to the next. */
                 [[nodiscard]] bool carries_state() const noexcept;
@@ -154,14 +154,14 @@ namespace SushiAI
                  * @return A tensor the pool owns, or InvalidDescription listing the names
                  *         that exist.
                  */
-                [[nodiscard]] Result<const SushiBLAS::Tensor*> input(std::string_view name) const;
+                [[nodiscard]] Result<const SushiBLAS::Tensor*> input(std::string_view name) const noexcept;
 
                 /**
                  * @brief Returns the tensor behind the output published under @p name.
                  * @return A tensor the pool owns, holding what the last run computed, or
                  *         InvalidDescription listing the names that exist.
                  */
-                [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const;
+                [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const noexcept;
 
                 /** @brief Returns the compiled step, for its counters. */
                 [[nodiscard]] const Graph::CompiledStep& step() const noexcept;
@@ -170,7 +170,7 @@ namespace SushiAI
                  * @brief Sets the run count of the compiled step to that of a saved run.
                  * @return What Graph::CompiledStep::restore_run_count() returns.
                  */
-                [[nodiscard]] Status restore_run_count(std::size_t count);
+                [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
             private:
                 /** @brief Holds one carried leaf and what reset() fills it with. */

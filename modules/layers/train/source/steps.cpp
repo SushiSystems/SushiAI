@@ -113,7 +113,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<Shape> batch_shape(int64_t batch, const Shape& sample)
+        Result<Shape> batch_shape(int64_t batch, const Shape& sample) noexcept
         {
             SA_FAIL_IF(batch <= 0, StatusCode::InvalidDescription,
                        "batch_shape: the batch is {}; it must be positive", batch);
@@ -133,7 +133,7 @@ namespace SushiAI
 
         Status retain(const NN::BufferUpdateList& updates,
                       std::vector<Graph::ValueID>& observed,
-                      std::vector<Graph::ValueID>& pinned)
+                      std::vector<Graph::ValueID>& pinned) noexcept
         {
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                             [&]() -> Status
@@ -145,7 +145,7 @@ namespace SushiAI
             });
         }
 
-        Status fill_host_tables(const NN::HostTableList& tables, Graph::TensorPool& pool)
+        Status fill_host_tables(const NN::HostTableList& tables, Graph::TensorPool& pool) noexcept
         {
             for (const NN::HostTable& table : tables.tables())
             {

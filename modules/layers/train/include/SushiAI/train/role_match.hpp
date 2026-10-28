@@ -44,7 +44,7 @@ namespace SushiAI
          *         element type or class count differs, with both descriptions.
          */
         [[nodiscard]] Status match_roles(const std::vector<Data::TargetDescription>& required,
-                                         const Data::Dataset& dataset);
+                                         const Data::Dataset& dataset) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

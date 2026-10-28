@@ -63,7 +63,7 @@ namespace SushiAI
                  * @return InvalidDescription, with the set unchanged, for an empty name, a
                  *         name the set holds, or a set of K_METRIC_CAPACITY metrics.
                  */
-                [[nodiscard]] Status add(const Metric& metric);
+                [[nodiscard]] Status add(const Metric& metric) noexcept;
 
                 /** @brief Removes every metric. */
                 void clear() noexcept;
@@ -93,7 +93,7 @@ namespace SushiAI
          * @brief Returns the value of @p metric as text: a fraction as a percentage of two
          *        decimals, any other number in six significant digits.
          */
-        [[nodiscard]] std::string describe_metric_value(const Metric& metric);
+        [[nodiscard]] std::string describe_metric_value(const Metric& metric) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

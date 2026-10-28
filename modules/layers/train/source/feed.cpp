@@ -43,7 +43,7 @@ namespace SushiAI
     namespace Train
     {
         Status check_feed(const SushiBLAS::Tensor& source, const SushiBLAS::Tensor& destination,
-                          std::string_view what)
+                          std::string_view what) noexcept
         {
             SA_TRY_ASSIGN(const Shape fed, checked_shape_of(source));
             SA_TRY_ASSIGN(const Shape expected, checked_shape_of(destination));

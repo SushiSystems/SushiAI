@@ -58,7 +58,7 @@ namespace SushiAI
 
         Result<std::vector<BufferUpdateSlot>> bind_buffer_updates(
             const NN::BufferUpdateList& updates, NN::ModelState& state,
-            const Graph::TensorPool& pool)
+            const Graph::TensorPool& pool) noexcept
         {
             std::vector<BufferUpdateSlot> slots;
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status

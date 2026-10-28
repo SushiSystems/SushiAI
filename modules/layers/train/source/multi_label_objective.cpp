@@ -46,7 +46,7 @@ namespace SushiAI
     namespace Train
     {
         Result<std::unique_ptr<MultiLabelObjective>> MultiLabelObjective::make(
-            std::int64_t batch, std::int64_t classes, double threshold, DType dtype)
+            std::int64_t batch, std::int64_t classes, double threshold, DType dtype) noexcept
         {
             SA_TRY(Detail::validate_dense_leaf(batch, classes, dtype, K_MULTI_LABEL_TYPE));
             SA_TRY(validate_threshold(threshold));
@@ -120,7 +120,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Objective>> make_multi_label(const ObjectiveContext& given,
                                                             const Config::Value& attributes,
-                                                            std::string_view context)
+                                                            std::string_view context) noexcept
         {
             SA_TRY_ASSIGN(const double threshold, read_threshold(attributes, context));
             SA_TRY_ASSIGN(const Shape logits, Detail::read_matrix_output(given, context));

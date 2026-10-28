@@ -43,7 +43,7 @@ namespace SushiAI
          *         type or another element count.
          */
         [[nodiscard]] Status fill_dense_targets(const SushiBLAS::Tensor& values,
-                                                SushiBLAS::Tensor& targets);
+                                                SushiBLAS::Tensor& targets) noexcept;
 
         /**
          * @brief Copies @p labels into @p targets after checking that each is 0 or 1.
@@ -54,7 +54,7 @@ namespace SushiAI
          *         fill_dense_targets() refuses or for a label that is neither 0 nor 1.
          */
         [[nodiscard]] Status fill_binary_targets(const SushiBLAS::Tensor& labels,
-                                                 SushiBLAS::Tensor& targets);
+                                                 SushiBLAS::Tensor& targets) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

@@ -64,7 +64,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<BinaryCrossEntropyObjective>> make(
                     std::int64_t batch, double threshold = K_DEFAULT_THRESHOLD,
-                    DType dtype = DType::Float32);
+                    DType dtype = DType::Float32) noexcept;
 
                 /** @brief Declares the [N, 1] "targets" leaf and requires float32 [N] labels. */
                 void declare(const Graph::GraphBuilder& builder,
@@ -131,7 +131,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_binary_cross_entropy(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

@@ -43,7 +43,7 @@ namespace SushiAI
          *         nor float64, or Incompatible for another element count.
          */
         [[nodiscard]] Status require_host_reals(const SushiBLAS::Tensor& tensor,
-                                                std::int64_t elements, std::string_view what);
+                                                std::int64_t elements, std::string_view what) noexcept;
 
         /**
          * @brief Returns element @p index of @p tensor as a double.

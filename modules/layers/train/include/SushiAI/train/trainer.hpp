@@ -73,7 +73,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_parameters(
             const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool,
-            Graph::PlanOptions options = {});
+            Graph::PlanOptions options = {}) noexcept;
 
         /**
          * @brief Binds the state's storage, a zeroed gradient per parameter, the loss and the
@@ -83,7 +83,7 @@ namespace SushiAI
          * @see modules/layers/train/README.md
          */
         [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_step_results(
-            const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool);
+            const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool) noexcept;
 
         /**
          * @struct TrainerOptions
@@ -152,7 +152,7 @@ namespace SushiAI
             Metrics last_metrics;
 
             /** @brief A multi-line human-readable summary. */
-            std::string to_string() const;
+            std::string to_string() const noexcept;
         };
 
         /**
@@ -174,7 +174,7 @@ namespace SushiAI
                     SushiBLAS::Engine& engine, const TrainingGraph& built,
                     Graph::TensorPool& pool, const Objective& objective,
                     Optim::Optimizer& optimizer, TrainerOptions options = {},
-                    std::vector<BufferUpdateSlot> updates = {});
+                    std::vector<BufferUpdateSlot> updates = {}) noexcept;
 
                 Trainer(const Trainer&) = delete;
                 Trainer& operator=(const Trainer&) = delete;
@@ -189,7 +189,7 @@ namespace SushiAI
                  *         the measure() of the objective, Incompatible when @p batch does
                  *         not match the compiled shapes, or the failure of the run.
                  */
-                [[nodiscard]] Result<StepMetrics> run_step(const Data::Batch& batch);
+                [[nodiscard]] Result<StepMetrics> run_step(const Data::Batch& batch) noexcept;
 
                 /**
                  * @brief Runs @c options.epochs passes over @p dataset.
@@ -198,7 +198,7 @@ namespace SushiAI
                  *         Incompatible for another batch size, or the failure of match_input(),
                  *         of match_roles() for the roles the objective reads, or of a step.
                  */
-                [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset);
+                [[nodiscard]] Result<RunReport> fit(const Data::Dataset& dataset) noexcept;
 
                 /** @brief Returns how many times the step has been compiled. */
                 [[nodiscard]] std::size_t compile_count() const noexcept
@@ -230,13 +230,13 @@ namespace SushiAI
                  *              keeps counting the steps of this trainer.
                  * @return What Graph::CompiledStep::restore_run_count() returns.
                  */
-                [[nodiscard]] Status restore_run_count(std::size_t count)
+                [[nodiscard]] Status restore_run_count(std::size_t count) noexcept
                 {
                     return step_->step().restore_run_count(count);
                 }
 
                 /** @brief Reads the loss tensor's current value from the host. */
-                [[nodiscard]] double current_loss() const;
+                [[nodiscard]] double current_loss() const noexcept;
 
                 /** @brief Returns the options in force. */
                 [[nodiscard]] TrainerOptions& options() noexcept

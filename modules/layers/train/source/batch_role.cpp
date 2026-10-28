@@ -34,7 +34,7 @@ namespace SushiAI
     namespace Train
     {
         Result<const Data::BatchTarget*> require_batch_role(const Data::Batch& batch,
-                                                            std::string_view role)
+                                                            std::string_view role) noexcept
         {
             const Data::BatchTarget* const target = Data::find_target(batch.targets, role);
             SA_FAIL_IF(target == nullptr, StatusCode::InvalidDescription,

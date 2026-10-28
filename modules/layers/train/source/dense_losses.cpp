@@ -53,7 +53,7 @@ namespace SushiAI
 
         Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
                                             const Graph::Graph& graph,
-                                            const Graph::Traced& values)
+                                            const Graph::Traced& values) noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID held, values);
 
@@ -69,7 +69,7 @@ namespace SushiAI
 
         Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
                                          const Graph::Graph& graph, Graph::ValueID logits,
-                                         Graph::ValueID targets)
+                                         Graph::ValueID targets) noexcept
         {
             require_same_values(graph, logits, targets);
 
@@ -85,7 +85,7 @@ namespace SushiAI
 
         Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
                                          const Graph::Graph& graph, Graph::ValueID outputs,
-                                         Graph::ValueID targets)
+                                         Graph::ValueID targets) noexcept
         {
             require_same_values(graph, outputs, targets);
 

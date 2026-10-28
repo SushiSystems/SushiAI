@@ -128,7 +128,7 @@ namespace SushiAI
         Result<std::unique_ptr<TrainingStep>> TrainingStep::make(
             SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
             Optim::Optimizer& optimizer, std::vector<BufferUpdateSlot> updates,
-            TrainingStepOptions options)
+            TrainingStepOptions options) noexcept
         {
             SA_TRY(require_replay_invariant(optimizer, options.optimizer_placement));
 
@@ -188,7 +188,7 @@ namespace SushiAI
             return std::move(step);
         }
 
-        Status TrainingStep::run()
+        Status TrainingStep::run() noexcept
         {
             if (lead_)
                 SA_TRY(lead_->run());
@@ -196,7 +196,7 @@ namespace SushiAI
             return run_rest();
         }
 
-        Status TrainingStep::restore_run_count(std::size_t count)
+        Status TrainingStep::restore_run_count(std::size_t count) noexcept
         {
             if (lead_)
                 SA_TRY(lead_->restore_run_count(count));

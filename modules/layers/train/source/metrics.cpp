@@ -40,7 +40,7 @@ namespace SushiAI
             constexpr double K_PERCENT = 100.0;
         } // namespace
 
-        Status Metrics::add(const Metric& metric)
+        Status Metrics::add(const Metric& metric) noexcept
         {
             SA_FAIL_IF(metric.name.empty(), StatusCode::InvalidDescription,
                        "A metric needs a non-empty name");
@@ -83,7 +83,7 @@ namespace SushiAI
             return SushiRuntime::span<const Metric>(entries_.data(), count_);
         }
 
-        std::string describe_metric_value(const Metric& metric)
+        std::string describe_metric_value(const Metric& metric) noexcept
         {
             if (metric.is_fraction)
                 return SushiLog::format_text("{}%", SushiLog::fixed(metric.value * K_PERCENT, 2));

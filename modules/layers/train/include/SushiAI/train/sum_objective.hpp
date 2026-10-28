@@ -78,10 +78,10 @@ namespace SushiAI
                  *         by its position and its name. A null term stops the process.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SumObjective>> make(
-                    std::vector<SumTerm> terms);
+                    std::vector<SumTerm> terms) noexcept;
 
                 /** @brief Returns the prefix of the leaves of term @p index: "term<index>.". */
-                [[nodiscard]] static std::string leaf_prefix(std::size_t index);
+                [[nodiscard]] static std::string leaf_prefix(std::size_t index) noexcept;
 
                 /** @brief Declares every term's leaves under its prefix, and its roles. */
                 void declare(const Graph::GraphBuilder& builder,
@@ -134,7 +134,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_sum_objective(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

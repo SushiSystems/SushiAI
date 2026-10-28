@@ -150,7 +150,7 @@ namespace SushiAI
         Result<std::unique_ptr<EvaluationStep>> EvaluationStep::make(
             SushiBLAS::Engine& engine, const TracedStep& traced, const NN::ModelState& state,
             Graph::TensorPool& pool, const Graph::FusionSelector* selector,
-            const Graph::TensorPool* lender)
+            const Graph::TensorPool* lender) noexcept
         {
             SA_FAIL_IF(traced.input == Graph::K_NO_VALUE, StatusCode::InvalidDescription,
                        "The evaluation step needs the input leaf of its traced graph");
@@ -212,13 +212,13 @@ namespace SushiAI
 
         EvaluationStep::~EvaluationStep() = default;
 
-        Status EvaluationStep::run(const SushiBLAS::Tensor& inputs)
+        Status EvaluationStep::run(const SushiBLAS::Tensor& inputs) noexcept
         {
             const SushiBLAS::Tensor* const one = &inputs;
             return run_in_order(FeedSpan(&one, 1));
         }
 
-        Status EvaluationStep::run_in_order(FeedSpan feeds)
+        Status EvaluationStep::run_in_order(FeedSpan feeds) noexcept
         {
             SA_FAIL_IF(feeds.size() != input_leaves_.size(), StatusCode::Incompatible,
                        "The run was given {} tensors, but the compiled step is fed {}: {}",
@@ -248,7 +248,7 @@ namespace SushiAI
             return step_->run();
         }
 
-        Status EvaluationStep::run_by_name(SushiRuntime::span<const NamedFeed> feeds)
+        Status EvaluationStep::run_by_name(SushiRuntime::span<const NamedFeed> feeds) noexcept
         {
             SA_FAIL_IF(feeds.size() != input_leaves_.size(), StatusCode::InvalidDescription,
                        "The run was given {} named tensors, but the compiled step is fed {}: {}",
@@ -280,7 +280,7 @@ namespace SushiAI
             return run_in_order(FeedSpan(ordered_.data(), ordered_.size()));
         }
 
-        Status EvaluationStep::reset()
+        Status EvaluationStep::reset() noexcept
         {
             if (carried_.empty())
                 return Status();
@@ -302,7 +302,7 @@ namespace SushiAI
                                                          input_names_.size());
         }
 
-        Result<const SushiBLAS::Tensor*> EvaluationStep::input(std::string_view name) const
+        Result<const SushiBLAS::Tensor*> EvaluationStep::input(std::string_view name) const noexcept
         {
             for (std::size_t at = 0; at < input_names_.size(); ++at)
             {
@@ -318,7 +318,7 @@ namespace SushiAI
             });
         }
 
-        Result<const SushiBLAS::Tensor*> EvaluationStep::output(std::string_view name) const
+        Result<const SushiBLAS::Tensor*> EvaluationStep::output(std::string_view name) const noexcept
         {
             SA_TRY_ASSIGN(const Graph::ValueID id, outputs_.at(name));
 
@@ -331,7 +331,7 @@ namespace SushiAI
             return *step_;
         }
 
-        Status EvaluationStep::restore_run_count(std::size_t count)
+        Status EvaluationStep::restore_run_count(std::size_t count) noexcept
         {
             return step_->restore_run_count(count);
         }

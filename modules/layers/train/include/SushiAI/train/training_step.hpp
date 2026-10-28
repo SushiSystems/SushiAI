@@ -126,7 +126,7 @@ namespace SushiAI
                 [[nodiscard]] static Result<std::unique_ptr<TrainingStep>> make(
                     SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
                     Optim::Optimizer& optimizer, std::vector<BufferUpdateSlot> updates,
-                    TrainingStepOptions options = {});
+                    TrainingStepOptions options = {}) noexcept;
 
                 TrainingStep(const TrainingStep&) = delete;
                 TrainingStep& operator=(const TrainingStep&) = delete;
@@ -139,7 +139,7 @@ namespace SushiAI
                  *        the plan.
                  * @return Success, or the failure of the replay or of the optimizer's step.
                  */
-                [[nodiscard]] Status run();
+                [[nodiscard]] Status run() noexcept;
 
                 /**
                  * @brief Replays the part before the host stage, calls @p host_work, then
@@ -150,7 +150,7 @@ namespace SushiAI
                  *         failure of a replay, of @p host_work or of the optimizer's step.
                  */
                 template<typename HostWork>
-                [[nodiscard]] Status run(HostWork&& host_work)
+                [[nodiscard]] Status run(HostWork&& host_work) noexcept
                 {
                     SA_TRY(run_lead());
                     SA_TRY(std::forward<HostWork>(host_work)());
@@ -168,7 +168,7 @@ namespace SushiAI
                  * @param count What step().run_count() of the saved run returned.
                  * @return What Graph::CompiledStep::restore_run_count() returns for a part.
                  */
-                [[nodiscard]] Status restore_run_count(std::size_t count);
+                [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
                 /** @brief Returns the part before the host stage, or null for a step with none. */
                 [[nodiscard]] const Graph::CompiledStep* lead() const noexcept

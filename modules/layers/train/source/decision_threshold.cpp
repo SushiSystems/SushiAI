@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace Train
     {
-        Status validate_threshold(double threshold)
+        Status validate_threshold(double threshold) noexcept
         {
             // The comparison is written so that a NaN is refused as well.
             SA_FAIL_IF(!(threshold > 0.0 && threshold < 1.0), StatusCode::InvalidDescription,
@@ -43,7 +43,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<double> read_threshold(const Config::Value& attributes, std::string_view context)
+        Result<double> read_threshold(const Config::Value& attributes, std::string_view context) noexcept
         {
             for (const std::string& key : attributes.keys())
             {

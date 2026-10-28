@@ -56,7 +56,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status fill_one_hot(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& one_hot)
+        Status fill_one_hot(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& one_hot) noexcept
         {
             SA_TRY_ASSIGN(const Shape label_shape, checked_shape_of(labels));
             SA_TRY_ASSIGN(const Shape row_shape, checked_shape_of(one_hot));

@@ -142,7 +142,7 @@ namespace SushiAI
         Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
                                                                   const NN::ModelState& state,
                                                                   Graph::TensorPool& pool,
-                                                                  Graph::PlanOptions options)
+                                                                  Graph::PlanOptions options) noexcept
         {
             SA_TRY_ASSIGN(const std::vector<Graph::ValueID> pinned,
                           merged_pins(options, built.pinned));
@@ -168,7 +168,7 @@ namespace SushiAI
 
         Result<std::vector<Optim::ParameterSlot>> bind_step_results(const TrainingGraph& built,
                                                                     const NN::ModelState& state,
-                                                                    Graph::TensorPool& pool)
+                                                                    Graph::TensorPool& pool) noexcept
         {
             SA_FATAL_IF(pool.has_plan(),
                         "bind_step_results: the pool holds a plan; use bind_parameters()");
@@ -183,7 +183,7 @@ namespace SushiAI
             return pair_with_gradients(built, pool);
         }
 
-                std::string RunReport::to_string() const
+                std::string RunReport::to_string() const noexcept
         {
             std::string text = SushiLog::format_text(
                 "compiles       : {}\n"
@@ -237,7 +237,7 @@ namespace SushiAI
                                                        const Objective& objective,
                                                        Optim::Optimizer& optimizer,
                                                        TrainerOptions options,
-                                                       std::vector<BufferUpdateSlot> updates)
+                                                       std::vector<BufferUpdateSlot> updates) noexcept
         {
             SA_TRY_ASSIGN(Binding binding,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -323,7 +323,7 @@ namespace SushiAI
 
         }
 
-        double Trainer::current_loss() const
+        double Trainer::current_loss() const noexcept
         {
             const SushiBLAS::Tensor& loss = pool_->tensor(binding_.loss);
 
@@ -339,7 +339,7 @@ namespace SushiAI
             }
         }
 
-        Result<StepMetrics> Trainer::run_step(const Data::Batch& batch)
+        Result<StepMetrics> Trainer::run_step(const Data::Batch& batch) noexcept
         {
             SushiBLAS::Tensor& inputs = pool_->tensor(binding_.inputs);
 
@@ -388,7 +388,7 @@ namespace SushiAI
             return result;
         }
 
-        Result<RunReport> Trainer::fit(const Data::Dataset& dataset)
+        Result<RunReport> Trainer::fit(const Data::Dataset& dataset) noexcept
         {
             SA_FAIL_IF(dataset.batch_count() == 0, StatusCode::InvalidDescription,
                        "The dataset holds no batches");

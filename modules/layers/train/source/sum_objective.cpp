@@ -92,7 +92,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<std::unique_ptr<SumObjective>> SumObjective::make(std::vector<SumTerm> terms)
+        Result<std::unique_ptr<SumObjective>> SumObjective::make(std::vector<SumTerm> terms) noexcept
         {
             SA_FAIL_IF(terms.empty(), StatusCode::InvalidDescription,
                        "A sum objective adds the losses of at least one term; it was given none");
@@ -125,7 +125,7 @@ namespace SushiAI
 
         }
 
-        std::string SumObjective::leaf_prefix(std::size_t index)
+        std::string SumObjective::leaf_prefix(std::size_t index) noexcept
         {
             return "term" + std::to_string(index) + ".";
         }
@@ -240,7 +240,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Objective>> make_sum_objective(const ObjectiveContext& given,
                                                               const Config::Value& attributes,
-                                                              std::string_view context)
+                                                              std::string_view context) noexcept
         {
             SA_FAIL_IF(given.registry == nullptr, StatusCode::InvalidDescription,
                        "{} is a sum of objectives, which a registry builds, and it was given "

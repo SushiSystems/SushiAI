@@ -55,7 +55,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<Data::InputDescription> describe_input_leaf(const Graph::Value& leaf)
+        Result<Data::InputDescription> describe_input_leaf(const Graph::Value& leaf) noexcept
         {
             SA_FAIL_IF(leaf.shape.rank() == 0, StatusCode::InvalidDescription,
                        "The input leaf has no batch extent; a step reads [rows, sample...]");
@@ -71,7 +71,7 @@ namespace SushiAI
         }
 
         Status match_input(const Data::InputDescription& required,
-                           const Data::Dataset& dataset)
+                           const Data::Dataset& dataset) noexcept
         {
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                             [&required, &dataset]() -> Status

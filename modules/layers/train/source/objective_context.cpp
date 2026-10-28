@@ -34,7 +34,7 @@ namespace SushiAI
     namespace Train
     {
         Result<std::vector<OutputShape>> list_output_shapes(const Graph::Graph& graph,
-                                                            const NN::ModelOutputs& outputs)
+                                                            const NN::ModelOutputs& outputs) noexcept
         {
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {

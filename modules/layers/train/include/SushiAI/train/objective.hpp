@@ -69,7 +69,7 @@ namespace SushiAI
                  * @pre @p role was not declared yet; has() tells. A second declaration
                  *      stops the process.
                  */
-                void add(std::string_view role, Graph::ValueID id);
+                void add(std::string_view role, Graph::ValueID id) noexcept;
 
                 /**
                  * @brief Whether @p role was declared.
@@ -85,7 +85,7 @@ namespace SushiAI
                  * @pre @p role was declared; has() tells. An undeclared role stops the
                  *      process with a message that lists the declared ones.
                  */
-                Graph::ValueID at(std::string_view role) const;
+                Graph::ValueID at(std::string_view role) const noexcept;
 
                 /** @brief Every declared leaf, in declaration order. */
                 const std::vector<std::pair<std::string, Graph::ValueID>>& all() const noexcept
@@ -98,7 +98,7 @@ namespace SushiAI
                  * @param role The role, its per-sample shape and its element type; a role
                  *             may be required more than once, and each entry is matched.
                  */
-                void require(Data::TargetDescription role);
+                void require(Data::TargetDescription role) noexcept;
 
                 /** @brief Returns every batch role the objective reads, in declaration order. */
                 [[nodiscard]] const std::vector<Data::TargetDescription>& required() const noexcept
@@ -121,7 +121,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<SushiBLAS::Tensor*> find_leaf_tensor(const ObjectiveLeaves& leaves,
                                                                   std::string_view role,
-                                                                  Graph::TensorPool& pool);
+                                                                  Graph::TensorPool& pool) noexcept;
 
         /**
          * @class Objective
@@ -246,7 +246,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Objective>> make_cross_entropy(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

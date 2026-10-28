@@ -33,7 +33,7 @@ namespace SushiAI
 {
     namespace Train
     {
-        Result<const SushiBLAS::Tensor*> only_output(const StepView& step)
+        Result<const SushiBLAS::Tensor*> only_output(const StepView& step) noexcept
         {
             SA_FAIL_IF(step.outputs.size() != 1, StatusCode::InvalidDescription,
                        "The metric reads one model output and the step published {}",

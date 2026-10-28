@@ -100,7 +100,7 @@ namespace SushiAI
         } // namespace
 
         Status match_roles(const std::vector<Data::TargetDescription>& required,
-                           const Data::Dataset& dataset)
+                           const Data::Dataset& dataset) noexcept
         {
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate,
                                             [&required, &dataset]() -> Status

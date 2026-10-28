@@ -46,7 +46,7 @@ namespace SushiAI
     namespace Train
     {
         Result<std::unique_ptr<MeanSquaredErrorObjective>> MeanSquaredErrorObjective::make(
-            std::int64_t batch, std::int64_t width, DType dtype)
+            std::int64_t batch, std::int64_t width, DType dtype) noexcept
         {
             SA_TRY(Detail::validate_dense_leaf(batch, width, dtype, K_MEAN_SQUARED_ERROR_TYPE));
 
@@ -120,7 +120,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Objective>> make_mean_squared_error(
             const ObjectiveContext& given, const Config::Value& attributes,
-            std::string_view context)
+            std::string_view context) noexcept
         {
             SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
                        "{} states the key '{}', but a mean_squared_error objective has no keys",

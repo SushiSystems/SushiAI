@@ -76,7 +76,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::vector<BufferUpdateSlot>> bind_buffer_updates(
             const NN::BufferUpdateList& updates, NN::ModelState& state,
-            const Graph::TensorPool& pool);
+            const Graph::TensorPool& pool) noexcept;
 
         /**
          * @brief Records target = (1 - momentum) * target + momentum * source_scale * source

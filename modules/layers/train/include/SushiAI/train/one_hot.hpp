@@ -43,7 +43,7 @@ namespace SushiAI
          *         element type is not the one stated or a label lies outside [0, C).
          */
         [[nodiscard]] Status fill_one_hot(const SushiBLAS::Tensor& labels,
-                                          SushiBLAS::Tensor& one_hot);
+                                          SushiBLAS::Tensor& one_hot) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

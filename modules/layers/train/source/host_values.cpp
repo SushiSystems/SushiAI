@@ -34,7 +34,7 @@ namespace SushiAI
     namespace Train
     {
         Status require_host_reals(const SushiBLAS::Tensor& tensor, std::int64_t elements,
-                                  std::string_view what)
+                                  std::string_view what) noexcept
         {
             SA_FAIL_IF(tensor.dtype != DType::Float32 && tensor.dtype != DType::Float64,
                        StatusCode::InvalidDescription,

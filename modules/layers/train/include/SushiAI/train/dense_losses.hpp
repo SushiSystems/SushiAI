@@ -41,7 +41,7 @@ namespace SushiAI
          */
         [[nodiscard]] Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
                                                           const Graph::Graph& graph,
-                                                          const Graph::Traced& values);
+                                                          const Graph::Traced& values) noexcept;
 
         /**
          * @brief Emits the mean of max(x, 0) - x * y + log(1 + exp(-|x|)) over every element:
@@ -54,7 +54,7 @@ namespace SushiAI
         [[nodiscard]] Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
                                                        const Graph::Graph& graph,
                                                        Graph::ValueID logits,
-                                                       Graph::ValueID targets);
+                                                       Graph::ValueID targets) noexcept;
 
         /**
          * @brief Emits the mean of (x - y) squared over every element.
@@ -65,7 +65,7 @@ namespace SushiAI
         [[nodiscard]] Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
                                                        const Graph::Graph& graph,
                                                        Graph::ValueID outputs,
-                                                       Graph::ValueID targets);
+                                                       Graph::ValueID targets) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

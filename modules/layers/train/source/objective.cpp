@@ -44,7 +44,7 @@ namespace SushiAI
 {
     namespace Train
     {
-        void ObjectiveLeaves::add(std::string_view role, Graph::ValueID id)
+        void ObjectiveLeaves::add(std::string_view role, Graph::ValueID id) noexcept
         {
             SA_FATAL_IF(has(role),
                         "the objective declared the leaf '{}' twice; each role names "
@@ -59,7 +59,7 @@ namespace SushiAI
             return false;
         }
 
-        Graph::ValueID ObjectiveLeaves::at(std::string_view role) const
+        Graph::ValueID ObjectiveLeaves::at(std::string_view role) const noexcept
         {
             for (const std::pair<std::string, Graph::ValueID>& leaf : leaves_)
                 if (leaf.first == role) return leaf.second;
@@ -75,14 +75,14 @@ namespace SushiAI
             SA_FATAL("the objective declared no leaf '{}'; it declared {}", role, declared);
         }
 
-        void ObjectiveLeaves::require(Data::TargetDescription role)
+        void ObjectiveLeaves::require(Data::TargetDescription role) noexcept
         {
             required_.push_back(std::move(role));
         }
 
         Result<SushiBLAS::Tensor*> find_leaf_tensor(const ObjectiveLeaves& leaves,
                                                     std::string_view role,
-                                                    Graph::TensorPool& pool)
+                                                    Graph::TensorPool& pool) noexcept
         {
             Graph::ValueID id = Graph::K_NO_VALUE;
             for (const std::pair<std::string, Graph::ValueID>& leaf : leaves.all())
@@ -197,7 +197,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Objective>> make_cross_entropy(const ObjectiveContext& given,
                                                               const Config::Value& attributes,
-                                                              std::string_view context)
+                                                              std::string_view context) noexcept
         {
             SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
                        "{} states the key '{}', but a cross_entropy objective has no keys",

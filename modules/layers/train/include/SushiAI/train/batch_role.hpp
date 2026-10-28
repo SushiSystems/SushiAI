@@ -42,7 +42,7 @@ namespace SushiAI
          *         role when @p batch does not hold it.
          */
         [[nodiscard]] Result<const Data::BatchTarget*> require_batch_role(
-            const Data::Batch& batch, std::string_view role);
+            const Data::Batch& batch, std::string_view role) noexcept;
 
     } // namespace Train
 } // namespace SushiAI

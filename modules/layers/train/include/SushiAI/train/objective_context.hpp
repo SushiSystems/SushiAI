@@ -68,7 +68,7 @@ namespace SushiAI
          * @return One entry per output in published order, or OutOfMemory.
          */
         [[nodiscard]] Result<std::vector<OutputShape>> list_output_shapes(
-            const Graph::Graph& graph, const NN::ModelOutputs& outputs);
+            const Graph::Graph& graph, const NN::ModelOutputs& outputs) noexcept;
 
         /**
          * @brief Returns the entry of @p outputs named @p name.

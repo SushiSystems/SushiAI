@@ -43,7 +43,7 @@ namespace SushiAI
         inline constexpr double K_DEFAULT_THRESHOLD = 0.5;
 
         /** @brief Returns InvalidDescription unless @p threshold is above 0 and below 1. */
-        [[nodiscard]] Status validate_threshold(double threshold);
+        [[nodiscard]] Status validate_threshold(double threshold) noexcept;
 
         /**
          * @brief Reads the optional K_THRESHOLD_KEY of an objective section.
@@ -54,7 +54,7 @@ namespace SushiAI
          *         validate_threshold() refuses.
          */
         [[nodiscard]] Result<double> read_threshold(const Config::Value& attributes,
-                                                    std::string_view context);
+                                                    std::string_view context) noexcept;
 
         /**
          * @brief Returns log(p / (1 - p)), the logit whose sigmoid is @p probability.

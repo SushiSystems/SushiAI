@@ -63,7 +63,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status ObjectiveRegistry::add(const ObjectiveEntry& row)
+        Status ObjectiveRegistry::add(const ObjectiveEntry& row) noexcept
         {
             SA_FATAL_IF(row.type.empty(), "An objective row needs a non-empty type");
             SA_FATAL_IF(row.make == nullptr, "The objective row '{}' has no factory", row.type);
@@ -94,7 +94,7 @@ namespace SushiAI
             return SushiRuntime::span<const ObjectiveEntry>(rows_.data(), rows_.size());
         }
 
-        Status register_objectives(ObjectiveRegistry& registry)
+        Status register_objectives(ObjectiveRegistry& registry) noexcept
         {
             SA_TRY(registry.add(ObjectiveEntry{"cross_entropy", &make_cross_entropy}));
             SA_TRY(registry.add(
@@ -110,7 +110,7 @@ namespace SushiAI
                                                           std::string_view type,
                                                           const ObjectiveContext& given,
                                                           const Config::Value& attributes,
-                                                          std::string_view context)
+                                                          std::string_view context) noexcept
         {
             const ObjectiveEntry* const row = registry.find(type);
             SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,

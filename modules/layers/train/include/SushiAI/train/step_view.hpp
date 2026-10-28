@@ -58,7 +58,7 @@ namespace SushiAI
          * @return The tensor, never null, or InvalidDescription stating how many outputs
          *         the step published.
          */
-        [[nodiscard]] Result<const SushiBLAS::Tensor*> only_output(const StepView& step);
+        [[nodiscard]] Result<const SushiBLAS::Tensor*> only_output(const StepView& step) noexcept;
 
     } // namespace Train
 } // namespace SushiAI
