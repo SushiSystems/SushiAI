@@ -80,6 +80,18 @@ namespace SushiAI
                 {"int32", DType::Int32},
             }};
 
+            /** @brief Holds one way the "input" object may fit an image to its shape. */
+            struct InputFitEntry
+            {
+                std::string_view type; /**< The text a model file spells. */
+            };
+
+            /** @brief Lists every fit the "input" object may name. */
+            constexpr std::array<InputFitEntry, 2> K_INPUT_FITS = {{
+                {K_FIT_RESIZE},
+                {K_FIT_LETTERBOX},
+            }};
+
             /** @brief Lists every key a version 1 document may carry at the top level. */
             constexpr std::string_view K_FIRST_MODEL_KEYS[] = {"sushiai_model", "input", "layers"};
 
@@ -260,10 +272,7 @@ namespace SushiAI
 
                 const std::string fit_context = context + " 'fit'";
                 const std::string& stated = input.at("fit", context).as_string(fit_context);
-                SA_THROW_IF(stated != K_FIT_RESIZE && stated != K_FIT_LETTERBOX,
-                            "{} is '{}'; a fit is '{}' or '{}'", fit_context, stated,
-                            K_FIT_RESIZE, K_FIT_LETTERBOX);
-                return stated;
+                return std::string(find_entry(K_INPUT_FITS, stated, fit_context).type);
             }
 
             /** @brief Returns the text that names the "defaults" block of @p origin. */

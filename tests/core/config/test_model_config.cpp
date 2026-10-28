@@ -290,7 +290,7 @@ TEST(Small_ModelConfig, AnInputFitOutsideTheListIsAnError)
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 2, "input": {"shape": [8], "fit": "crop"},
         "layers": [{"type": "relu"}]
-    })"), "'input' 'fit'", "'crop'", "'resize' or 'letterbox'");
+    })"), "'input' 'fit'", "'crop'", "'resize', 'letterbox'");
 
     SA_EXPECT_ERROR((void)model_from(R"({
         "format_version": 2, "input": {"shape": [8], "fit": 1},
