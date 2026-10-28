@@ -55,16 +55,16 @@ namespace SushiAI
         {
             public:
                 /** @brief Returns the id of @p info's name and direction, giving one if new. */
-                [[nodiscard]] RegionID intern(const RegionInfo& info);
+                [[nodiscard]] RegionID intern(const RegionInfo& info) noexcept;
 
                 /** @brief Returns the id of @p name and @p direction, or K_NO_REGION_ID. */
-                [[nodiscard]] RegionID find(std::string_view name, Direction direction) const;
+                [[nodiscard]] RegionID find(std::string_view name, Direction direction) const noexcept;
 
                 /**
                  * @brief Returns the label of @p id, such as "head#0 backward".
                  * @pre @p id came from intern() or find() of this object.
                  */
-                [[nodiscard]] const std::string& label_of(RegionID id) const;
+                [[nodiscard]] const std::string& label_of(RegionID id) const noexcept;
 
                 /** @brief Returns how many ids have been given. */
                 [[nodiscard]] std::size_t size() const noexcept

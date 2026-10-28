@@ -112,7 +112,7 @@ namespace SushiAI
         }
 
         RegionExecutor::RegionExecutor(SushiBLAS::Engine& engine,
-                                       const Graph::FusionSelector* selector)
+                                       const Graph::FusionSelector* selector) noexcept
             : engine_(&engine), selector_(selector), trailing_counts_(engine.runtime()),
               graph_(engine.runtime().dynamic_graph())
         {

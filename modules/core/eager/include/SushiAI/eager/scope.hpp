@@ -48,7 +48,7 @@ namespace SushiAI
                  * @param trace The trace to mark; must outlive this object.
                  * @param name Scope name; see ScopeTrace::open().
                  */
-                Scope(ScopeTrace& trace, std::string_view name) : trace_(&trace)
+                Scope(ScopeTrace& trace, std::string_view name) noexcept : trace_(&trace)
                 {
                     trace_->open(name);
                 }

@@ -240,7 +240,7 @@ namespace SushiAI
 
         StepPlan RegionTable::plan(const Graph::Graph& graph, const Partition& partition,
                                    const BoundaryMap& boundaries,
-                                   SushiRuntime::span<const StorageID> preset)
+                                   SushiRuntime::span<const StorageID> preset) noexcept
         {
             const std::size_t region_count = partition.regions.size();
             SA_FATAL_IF(boundaries.regions.size() != region_count
@@ -406,7 +406,7 @@ namespace SushiAI
             return plan;
         }
 
-        std::vector<StorageID> RegionTable::forget()
+        std::vector<StorageID> RegionTable::forget() noexcept
         {
             entries_.assign(names_.size(), Entry{});
             live_.clear();

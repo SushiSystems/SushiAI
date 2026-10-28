@@ -116,7 +116,7 @@ namespace SushiAI
                  * @pre The three references outlive the session.
                  */
                 Session(SushiBLAS::Engine& engine, StepExecutor& executor,
-                        const RegionPartitioner& partitioner, SessionOptions options = {});
+                        const RegionPartitioner& partitioner, SessionOptions options = {}) noexcept;
 
                 Session(const Session&) = delete;
                 Session& operator=(const Session&) = delete;
@@ -132,20 +132,20 @@ namespace SushiAI
                  *         without storage; or the failure of an allocation or of the zero fill.
                  */
                 [[nodiscard]] Status bind_state(Graph::StateID state,
-                                                const SushiBLAS::Tensor& tensor, bool trainable);
+                                                const SushiBLAS::Tensor& tensor, bool trainable) noexcept;
 
                 /**
                  * @brief Returns the tensor every step writes the gradient of @p state into.
                  * @return A tensor sharing the session's storage, or InvalidDescription for a
                  *         state that is not bound as trainable.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor> gradient(Graph::StateID state) const;
+                [[nodiscard]] Result<SushiBLAS::Tensor> gradient(Graph::StateID state) const noexcept;
 
                 /**
                  * @brief Opens a step.
                  * @pre No other step of this session is alive; a second one stops the process.
                  */
-                [[nodiscard]] Step begin_step();
+                [[nodiscard]] Step begin_step() noexcept;
 
                 /** @brief Returns how many steps have run. */
                 [[nodiscard]] std::uint64_t step_count() const noexcept

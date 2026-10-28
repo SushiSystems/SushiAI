@@ -74,7 +74,7 @@ namespace SushiAI
                 next_by_reader_[reader_key(reader)] = at;
         }
 
-        void SlotLedger::begin_step()
+        void SlotLedger::begin_step() noexcept
         {
             next_.clear();
             next_by_position_.clear();
@@ -87,7 +87,7 @@ namespace SushiAI
         }
 
         StorageID SlotLedger::keep(RegionID producer, ValuePosition position,
-                                   SushiRuntime::span<const ReaderSlot> readers)
+                                   SushiRuntime::span<const ReaderSlot> readers) noexcept
         {
             Slot* const slot = find_unclaimed(by_position_, position_key(producer, position));
             if (slot == nullptr)
@@ -101,7 +101,7 @@ namespace SushiAI
         StorageID SlotLedger::match_readers(RegionID producer, ValuePosition position,
                                             const Shape& shape, DType dtype,
                                             SushiRuntime::span<const ReaderSlot> trusted,
-                                            SushiRuntime::span<const ReaderSlot> readers)
+                                            SushiRuntime::span<const ReaderSlot> readers) noexcept
         {
             for (const ReaderSlot& reader : trusted)
             {
@@ -119,7 +119,7 @@ namespace SushiAI
         }
 
         StorageID SlotLedger::place(RegionID producer, ValuePosition position, const Shape& shape,
-                                    DType dtype, SushiRuntime::span<const ReaderSlot> readers)
+                                    DType dtype, SushiRuntime::span<const ReaderSlot> readers) noexcept
         {
             Slot* const written = find_unclaimed(by_position_, position_key(producer, position));
             if (written != nullptr && written->shape == shape && written->dtype == dtype)
@@ -138,7 +138,7 @@ namespace SushiAI
             return fresh.id;
         }
 
-        std::vector<StorageID> SlotLedger::end_step()
+        std::vector<StorageID> SlotLedger::end_step() noexcept
         {
             std::vector<StorageID> released;
             for (const Slot& slot : slots_)
@@ -157,7 +157,7 @@ namespace SushiAI
             return released;
         }
 
-        std::vector<StorageID> SlotLedger::forget()
+        std::vector<StorageID> SlotLedger::forget() noexcept
         {
             std::vector<StorageID> released;
             for (const Slot& slot : slots_)

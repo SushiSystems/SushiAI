@@ -46,7 +46,7 @@ namespace SushiAI
 
         } // namespace
 
-        RegionID RegionNames::intern(const RegionInfo& info)
+        RegionID RegionNames::intern(const RegionInfo& info) noexcept
         {
             std::string text = label(info.name, info.direction);
             const auto found = ids_.find(text);
@@ -59,13 +59,13 @@ namespace SushiAI
             return id;
         }
 
-        RegionID RegionNames::find(std::string_view name, Direction direction) const
+        RegionID RegionNames::find(std::string_view name, Direction direction) const noexcept
         {
             const auto found = ids_.find(label(name, direction));
             return found != ids_.end() ? found->second : K_NO_REGION_ID;
         }
 
-        const std::string& RegionNames::label_of(RegionID id) const
+        const std::string& RegionNames::label_of(RegionID id) const noexcept
         {
             SA_FATAL_IF(id >= labels_.size(), "Region id {} was never given; {} ids exist", id,
                         labels_.size());

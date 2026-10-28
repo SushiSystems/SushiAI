@@ -65,7 +65,7 @@ namespace SushiAI
                  * @param selector Picks the form of a fused node; null selects by device.
                  */
                 explicit RegionExecutor(SushiBLAS::Engine& engine,
-                                        const Graph::FusionSelector* selector = nullptr);
+                                        const Graph::FusionSelector* selector = nullptr) noexcept;
 
                 RegionExecutor(const RegionExecutor&) = delete;
                 RegionExecutor& operator=(const RegionExecutor&) = delete;

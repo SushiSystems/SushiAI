@@ -44,7 +44,7 @@ namespace SushiAI
 
         }
 
-        Status StorageBank::adopt(StorageID id, SushiBLAS::Tensor tensor)
+        Status StorageBank::adopt(StorageID id, SushiBLAS::Tensor tensor) noexcept
         {
             SA_FATAL_IF(id == K_NO_STORAGE, "Storage id 0 names no storage and holds no tensor");
             SA_FATAL_IF(holds(id), "Storage {} already holds a tensor", id);
@@ -56,7 +56,7 @@ namespace SushiAI
             });
         }
 
-        Status StorageBank::allocate(StorageID id, const Shape& shape, DType dtype)
+        Status StorageBank::allocate(StorageID id, const Shape& shape, DType dtype) noexcept
         {
             SA_TRY_ASSIGN(SushiBLAS::Tensor tensor, allocate_tensor(*engine_, shape, dtype));
             SA_TRY(adopt(id, std::move(tensor)));
@@ -74,14 +74,14 @@ namespace SushiAI
             return tensors_.find(id) != tensors_.end();
         }
 
-        SushiBLAS::Tensor& StorageBank::tensor(StorageID id)
+        SushiBLAS::Tensor& StorageBank::tensor(StorageID id) noexcept
         {
             const auto found = tensors_.find(id);
             SA_FATAL_IF(found == tensors_.end(), "Storage {} holds no tensor", id);
             return found->second;
         }
 
-        const SushiBLAS::Tensor& StorageBank::tensor(StorageID id) const
+        const SushiBLAS::Tensor& StorageBank::tensor(StorageID id) const noexcept
         {
             const auto found = tensors_.find(id);
             SA_FATAL_IF(found == tensors_.end(), "Storage {} holds no tensor", id);

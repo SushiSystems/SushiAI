@@ -56,7 +56,7 @@ namespace SushiAI
             session_->close_step();
         }
 
-        Result<Graph::ValueID> Step::state(Graph::StateID state)
+        Result<Graph::ValueID> Step::state(Graph::StateID state) noexcept
         {
             const Session::BoundState* const bound = session_->find_state(state);
             SA_FAIL_IF(bound == nullptr, StatusCode::InvalidDescription,
@@ -78,7 +78,7 @@ namespace SushiAI
             });
         }
 
-        Graph::Traced Step::input(const SushiBLAS::Tensor& batch, std::string_view name)
+        Graph::Traced Step::input(const SushiBLAS::Tensor& batch, std::string_view name) noexcept
         {
             const Result<Graph::ValueID> leaf = builder_.observe(declare_input(batch, name));
             if (!leaf.has_value())
@@ -104,7 +104,7 @@ namespace SushiAI
             return leaf;
         }
 
-        Status Step::feed(Graph::ValueID leaf, const SushiBLAS::Tensor& source)
+        Status Step::feed(Graph::ValueID leaf, const SushiBLAS::Tensor& source) noexcept
         {
             SA_FAIL_IF(stage_ == Stage::Ran, StatusCode::Unsupported,
                        "The step has run; a leaf is fed before the step runs");
@@ -128,7 +128,7 @@ namespace SushiAI
             });
         }
 
-        Status Step::keep(const Graph::Traced& value)
+        Status Step::keep(const Graph::Traced& value) noexcept
         {
             SA_TRY(value);
             const Graph::ValueID id = value.value();
@@ -145,7 +145,7 @@ namespace SushiAI
             });
         }
 
-        Status Step::backward(const Graph::Traced& loss)
+        Status Step::backward(const Graph::Traced& loss) noexcept
         {
             SA_TRY(loss);
             SA_FAIL_IF(trace_.graph.has_refusal(), StatusCode::InvalidDescription,
@@ -190,7 +190,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status Step::apply(Graph::StepRecorder& update)
+        Status Step::apply(Graph::StepRecorder& update) noexcept
         {
             SA_FAIL_IF(stage_ == Stage::Ran, StatusCode::Unsupported,
                        "The step has run; an update is applied by the run, not after it");
@@ -233,7 +233,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<const SushiBLAS::Tensor*> Step::read(const Graph::Traced& value)
+        Result<const SushiBLAS::Tensor*> Step::read(const Graph::Traced& value) noexcept
         {
             SA_TRY(value);
             if (stage_ != Stage::Ran)
@@ -246,7 +246,7 @@ namespace SushiAI
             return session_->tensor_of(value.value());
         }
 
-        Result<double> Step::read_scalar(const Graph::Traced& value)
+        Result<double> Step::read_scalar(const Graph::Traced& value) noexcept
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, read(value));
             const Graph::ValueID id = value.value();
@@ -264,7 +264,7 @@ namespace SushiAI
                        : tensor->data_as<double>()[0];
         }
 
-        Status Step::finish()
+        Status Step::finish() noexcept
         {
             return flush();
         }

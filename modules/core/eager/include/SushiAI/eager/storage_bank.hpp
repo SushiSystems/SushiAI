@@ -66,14 +66,14 @@ namespace SushiAI
                  * @pre @p id is not K_NO_STORAGE and names no tensor yet; else the process stops.
                  * @return Success, or OutOfMemory when the map cannot grow.
                  */
-                [[nodiscard]] Status adopt(StorageID id, SushiBLAS::Tensor tensor);
+                [[nodiscard]] Status adopt(StorageID id, SushiBLAS::Tensor tensor) noexcept;
 
                 /**
                  * @brief Allocates a tensor of @p shape and @p dtype and holds it under @p id.
                  * @pre @p id is not K_NO_STORAGE and names no tensor yet; else the process stops.
                  * @return Success, or the failure of the allocation.
                  */
-                [[nodiscard]] Status allocate(StorageID id, const Shape& shape, DType dtype);
+                [[nodiscard]] Status allocate(StorageID id, const Shape& shape, DType dtype) noexcept;
 
                 /** @brief Lets go of the tensor under @p id; an unknown id does nothing. */
                 void release(StorageID id) noexcept;
@@ -86,10 +86,10 @@ namespace SushiAI
                  * @pre holds(@p id); an unknown id stops the process.
                  * @return A reference valid until release(@p id).
                  */
-                [[nodiscard]] SushiBLAS::Tensor& tensor(StorageID id);
+                [[nodiscard]] SushiBLAS::Tensor& tensor(StorageID id) noexcept;
 
                 /** @brief Const overload of tensor(). */
-                [[nodiscard]] const SushiBLAS::Tensor& tensor(StorageID id) const;
+                [[nodiscard]] const SushiBLAS::Tensor& tensor(StorageID id) const noexcept;
 
                 /** @brief Returns how many tensors the bank holds. */
                 [[nodiscard]] std::size_t size() const noexcept

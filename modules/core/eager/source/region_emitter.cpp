@@ -49,7 +49,7 @@ namespace SushiAI
 
         }
 
-        Status RegionEmitter::emit(SushiRuntime::Recorder& recorder)
+        Status RegionEmitter::emit(SushiRuntime::Recorder& recorder) noexcept
         {
             ++emits_;
             late_counts_.release();

@@ -95,7 +95,7 @@ namespace SushiAI
                                                            const Partition& partition,
                                                            RegionKey key,
                                                            const RegionBoundary& boundary,
-                                                           const ProgramOptions& options = {});
+                                                           const ProgramOptions& options = {}) noexcept;
 
     } // namespace Eager
 } // namespace SushiAI

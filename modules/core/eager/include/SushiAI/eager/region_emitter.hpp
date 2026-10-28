@@ -79,7 +79,7 @@ namespace SushiAI
                  *      no recorder a previous emit() filled will run again.
                  * @return Success, or the first refusal of the lowering or of the recorder.
                  */
-                [[nodiscard]] Status emit(SushiRuntime::Recorder& recorder);
+                [[nodiscard]] Status emit(SushiRuntime::Recorder& recorder) noexcept;
 
                 /** @brief Returns how many times emit() has been called. */
                 [[nodiscard]] std::size_t emit_count() const noexcept

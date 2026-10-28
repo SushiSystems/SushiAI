@@ -85,7 +85,7 @@ namespace SushiAI
                  * @brief Returns this step's leaf for @p state, declaring it on first use.
                  * @return The leaf, or InvalidDescription for a state the session has not bound.
                  */
-                [[nodiscard]] Result<Graph::ValueID> state(Graph::StateID state);
+                [[nodiscard]] Result<Graph::ValueID> state(Graph::StateID state) noexcept;
 
                 /**
                  * @brief Declares an input leaf shaped like @p batch and feeds @p batch into it.
@@ -95,21 +95,21 @@ namespace SushiAI
                  *         failure marks the step's graph as refused.
                  */
                 [[nodiscard]] Graph::Traced input(const SushiBLAS::Tensor& batch,
-                                                  std::string_view name = "input");
+                                                  std::string_view name = "input") noexcept;
 
                 /**
                  * @brief Feeds @p source into @p leaf, a leaf some other call declared.
                  * @param source Copied when the step runs; it must hold its values until then.
                  * @return InvalidDescription for a value that is not a leaf of this step.
                  */
-                [[nodiscard]] Status feed(Graph::ValueID leaf, const SushiBLAS::Tensor& source);
+                [[nodiscard]] Status feed(Graph::ValueID leaf, const SushiBLAS::Tensor& source) noexcept;
 
                 /**
                  * @brief Asks the step to leave @p value readable after it has run.
                  * @return The failure @p value holds, InvalidDescription for an unknown value, or
                  *         Unsupported once the step ran.
                  */
-                [[nodiscard]] Status keep(const Graph::Traced& value);
+                [[nodiscard]] Status keep(const Graph::Traced& value) noexcept;
 
                 /**
                  * @brief Appends the gradients of @p loss for every trainable state traced.
@@ -118,31 +118,31 @@ namespace SushiAI
                  *         refusal, when called twice or after the step ran; or the refusal of
                  *         the differentiation.
                  */
-                [[nodiscard]] Status backward(const Graph::Traced& loss);
+                [[nodiscard]] Status backward(const Graph::Traced& loss) noexcept;
 
                 /**
                  * @brief Runs the step with @p update recorded behind every region.
                  * @param update Records work that reads Session::gradient(); it must outlive the
                  *        session's executor and replay unchanged.
                  */
-                [[nodiscard]] Status apply(Graph::StepRecorder& update);
+                [[nodiscard]] Status apply(Graph::StepRecorder& update) noexcept;
 
                 /**
                  * @brief Returns the tensor of @p value, running the step first if it has not run.
                  * @return A tensor valid until the session's next step runs, or the failure
                  *         @p value holds.
                  */
-                [[nodiscard]] Result<const SushiBLAS::Tensor*> read(const Graph::Traced& value);
+                [[nodiscard]] Result<const SushiBLAS::Tensor*> read(const Graph::Traced& value) noexcept;
 
                 /**
                  * @brief Returns the one element of @p value as a double.
                  * @return The failure @p value holds, or InvalidDescription for a value of
                  *         another size or element type.
                  */
-                [[nodiscard]] Result<double> read_scalar(const Graph::Traced& value);
+                [[nodiscard]] Result<double> read_scalar(const Graph::Traced& value) noexcept;
 
                 /** @brief Runs the step if it has not run. */
-                [[nodiscard]] Status finish();
+                [[nodiscard]] Status finish() noexcept;
 
                 /** @brief Reports whether the step has run. */
                 [[nodiscard]] bool has_run() const noexcept

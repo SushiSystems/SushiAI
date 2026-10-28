@@ -188,7 +188,7 @@ namespace SushiAI
         RegionSignature signature_of(const Graph::Graph& graph,
                                      const Partition& partition,
                                      RegionKey region,
-                                     SushiRuntime::span<const std::uint64_t> external_identity)
+                                     SushiRuntime::span<const std::uint64_t> external_identity) noexcept
         {
             SA_FATAL_IF(partition.region_of_node.size() != graph.node_count(),
                         "The partition assigns {} nodes but the graph holds {}",

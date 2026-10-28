@@ -114,13 +114,13 @@ namespace SushiAI
                  */
                 [[nodiscard]] StepPlan plan(const Graph::Graph& graph, const Partition& partition,
                                             const BoundaryMap& boundaries,
-                                            SushiRuntime::span<const StorageID> preset);
+                                            SushiRuntime::span<const StorageID> preset) noexcept;
 
                 /**
                  * @brief Forgets every region, so the next step builds all of them.
                  * @return The ids of the boundary slots the table held.
                  */
-                [[nodiscard]] std::vector<StorageID> forget();
+                [[nodiscard]] std::vector<StorageID> forget() noexcept;
 
                 /** @brief Returns the names of the regions this table has seen. */
                 [[nodiscard]] const RegionNames& names() const noexcept

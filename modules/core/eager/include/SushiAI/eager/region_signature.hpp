@@ -74,7 +74,7 @@ namespace SushiAI
             const Graph::Graph& graph,
             const Partition& partition,
             RegionKey region,
-            SushiRuntime::span<const std::uint64_t> external_identity);
+            SushiRuntime::span<const std::uint64_t> external_identity) noexcept;
 
     } // namespace Eager
 } // namespace SushiAI

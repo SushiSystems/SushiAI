@@ -98,7 +98,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<BoundaryMap> find_boundaries(
             const Graph::Graph& graph, const Partition& partition,
-            SushiRuntime::span<const Graph::ValueID> observed);
+            SushiRuntime::span<const Graph::ValueID> observed) noexcept;
 
     } // namespace Eager
 } // namespace SushiAI

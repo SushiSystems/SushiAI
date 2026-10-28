@@ -68,19 +68,19 @@ namespace SushiAI
                  * @param name Scope name.
                  * @pre The trace is not sealed and is_legal_scope_name(@p name) holds.
                  */
-                void open(std::string_view name);
+                void open(std::string_view name) noexcept;
 
                 /**
                  * @brief Closes the innermost open scope.
                  * @pre The trace is not sealed and at least one scope is open.
                  */
-                void close();
+                void close() noexcept;
 
                 /**
                  * @brief Ends the trace and returns its segments in node order.
                  * @pre The trace is not sealed and every opened scope has been closed.
                  */
-                [[nodiscard]] std::vector<Segment> seal();
+                [[nodiscard]] std::vector<Segment> seal() noexcept;
 
                 /** @brief Returns how many scopes are open. */
                 std::size_t depth() const noexcept;

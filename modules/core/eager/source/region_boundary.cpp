@@ -198,7 +198,7 @@ namespace SushiAI
 
         Result<BoundaryMap> find_boundaries(const Graph::Graph& graph,
                                             const Partition& partition,
-                                            SushiRuntime::span<const Graph::ValueID> observed)
+                                            SushiRuntime::span<const Graph::ValueID> observed) noexcept
         {
             SA_FATAL_IF(partition.region_of_node.size() != graph.node_count(),
                         "The partition assigns {} nodes but the graph holds {}",

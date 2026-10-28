@@ -70,7 +70,7 @@ namespace SushiAI
                    name.find(K_OCCURRENCE_SEPARATOR) == std::string_view::npos;
         }
 
-        void ScopeTrace::open(std::string_view name)
+        void ScopeTrace::open(std::string_view name) noexcept
         {
             require_unsealed(sealed_, "open()");
             SA_FATAL_IF(name.empty(), "ScopeTrace::open() was given an empty scope name");
@@ -84,7 +84,7 @@ namespace SushiAI
             open_.emplace_back(name);
         }
 
-        void ScopeTrace::close()
+        void ScopeTrace::close() noexcept
         {
             require_unsealed(sealed_, "close()");
             SA_FATAL_IF(open_.empty(), "ScopeTrace::close() was called with no scope open");
@@ -93,7 +93,7 @@ namespace SushiAI
             open_.pop_back();
         }
 
-        std::vector<Segment> ScopeTrace::seal()
+        std::vector<Segment> ScopeTrace::seal() noexcept
         {
             require_unsealed(sealed_, "seal()");
             SA_FATAL_IF(!open_.empty(),

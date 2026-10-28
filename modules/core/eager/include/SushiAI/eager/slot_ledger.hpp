@@ -80,7 +80,7 @@ namespace SushiAI
                 ~SlotLedger() = default;
 
                 /** @brief Opens a step; no slot of the last step is claimed yet. */
-                void begin_step();
+                void begin_step() noexcept;
 
                 /**
                  * @brief Claims the slot @p producer wrote at @p position in the last step.
@@ -88,7 +88,7 @@ namespace SushiAI
                  * @return The slot's id, or K_NO_STORAGE when none exists or it is claimed.
                  */
                 [[nodiscard]] StorageID keep(RegionID producer, ValuePosition position,
-                                             SushiRuntime::span<const ReaderSlot> readers);
+                                             SushiRuntime::span<const ReaderSlot> readers) noexcept;
 
                 /**
                  * @brief Claims the slot of @p producer that one of @p trusted read last step.
@@ -101,7 +101,7 @@ namespace SushiAI
                 [[nodiscard]] StorageID match_readers(
                     RegionID producer, ValuePosition position, const Shape& shape, DType dtype,
                     SushiRuntime::span<const ReaderSlot> trusted,
-                    SushiRuntime::span<const ReaderSlot> readers);
+                    SushiRuntime::span<const ReaderSlot> readers) noexcept;
 
                 /**
                  * @brief Claims the slot @p producer wrote at @p position if it fits, or
@@ -111,19 +111,19 @@ namespace SushiAI
                  */
                 [[nodiscard]] StorageID place(RegionID producer, ValuePosition position,
                                               const Shape& shape, DType dtype,
-                                              SushiRuntime::span<const ReaderSlot> readers);
+                                              SushiRuntime::span<const ReaderSlot> readers) noexcept;
 
                 /**
                  * @brief Closes the step and forgets the slots it did not claim.
                  * @return The ids of the forgotten slots.
                  */
-                [[nodiscard]] std::vector<StorageID> end_step();
+                [[nodiscard]] std::vector<StorageID> end_step() noexcept;
 
                 /**
                  * @brief Forgets every slot, claimed or not.
                  * @return The ids of the forgotten slots.
                  */
-                [[nodiscard]] std::vector<StorageID> forget();
+                [[nodiscard]] std::vector<StorageID> forget() noexcept;
 
                 /** @brief Returns the slots created since begin_step(). */
                 [[nodiscard]] SushiRuntime::span<const SlotRecord> created() const noexcept

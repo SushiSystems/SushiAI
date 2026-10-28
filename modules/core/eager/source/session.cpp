@@ -70,7 +70,7 @@ namespace SushiAI
         } // namespace
 
         Session::Session(SushiBLAS::Engine& engine, StepExecutor& executor,
-                         const RegionPartitioner& partitioner, SessionOptions options)
+                         const RegionPartitioner& partitioner, SessionOptions options) noexcept
             : engine_(&engine), executor_(&executor), partitioner_(&partitioner),
               options_(options), bank_(engine), table_(ids_)
         {
@@ -78,7 +78,7 @@ namespace SushiAI
         }
 
         Status Session::bind_state(Graph::StateID state, const SushiBLAS::Tensor& tensor,
-                                   bool trainable)
+                                   bool trainable) noexcept
         {
             SA_FAIL_IF(state == Graph::K_NO_STATE, StatusCode::InvalidDescription,
                        "A state without identity cannot be bound; draw one with "
@@ -122,7 +122,7 @@ namespace SushiAI
             });
         }
 
-        Result<SushiBLAS::Tensor> Session::gradient(Graph::StateID state) const
+        Result<SushiBLAS::Tensor> Session::gradient(Graph::StateID state) const noexcept
         {
             const BoundState* const bound = find_state(state);
             SA_FAIL_IF(bound == nullptr || bound->gradient == K_NO_STORAGE,
@@ -134,7 +134,7 @@ namespace SushiAI
             return SushiBLAS::Tensor(bank_.tensor(bound->gradient));
         }
 
-        Step Session::begin_step()
+        Step Session::begin_step() noexcept
         {
             SA_FATAL_IF(open_, "A step of this session is still alive; a session traces one "
                                "step at a time");
