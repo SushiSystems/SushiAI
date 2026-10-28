@@ -71,7 +71,7 @@ namespace SushiAI::Vision::Imaging
      * [0, m - 1]; otherwise count such positions. A polygon of count or no vertices is unchanged.
      * @pre @p count is at least 1.
      */
-    [[nodiscard]] Polygon resample_polygon(const Polygon& polygon, std::size_t count);
+    [[nodiscard]] Polygon resample_polygon(const Polygon& polygon, std::size_t count) noexcept;
 
     /**
      * @brief Moves every vertex: x becomes x * scale_x + offset_x, y likewise, in float.

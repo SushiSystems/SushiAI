@@ -122,7 +122,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status apply_affine_nearest(ImageView source, const AffinePlan& plan, Image& destination)
+    Status apply_affine_nearest(ImageView source, const AffinePlan& plan, Image& destination) noexcept
     {
         SA_FAIL_IF(source.data() == nullptr || !is_valid_size(source.size()) ||
                        !is_valid_channel_count(source.channels()),

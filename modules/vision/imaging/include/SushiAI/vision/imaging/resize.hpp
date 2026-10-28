@@ -56,7 +56,7 @@ namespace SushiAI::Vision::Imaging
      * @param destination Reset to size with the source's channels; must pass check_source.
      * @return InvalidDescription unless @p size passes is_valid_size.
      */
-    [[nodiscard]] Status resize_bilinear(ImageView source, ImageSize size, Image& destination);
+    [[nodiscard]] Status resize_bilinear(ImageView source, ImageSize size, Image& destination) noexcept;
 
     /**
      * @brief Resizes an image by giving each pixel the source pixel its centre falls in.
@@ -66,7 +66,7 @@ namespace SushiAI::Vision::Imaging
      * @param size Must pass is_valid_size; otherwise Image::reset is fatal.
      * @param destination Reset to size with the source's channels; must pass check_source.
      */
-    void resize_nearest(ImageView source, ImageSize size, Image& destination);
+    void resize_nearest(ImageView source, ImageSize size, Image& destination) noexcept;
 
     /**
      * @brief Resizes an image to fit_long_side(source.size(), image_size).
@@ -76,5 +76,5 @@ namespace SushiAI::Vision::Imaging
      * @return InvalidDescription unless @p image_size passes is_valid_side.
      */
     [[nodiscard]] Status resize_long_side(ImageView source, std::int32_t image_size,
-                                          Image& destination);
+                                          Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

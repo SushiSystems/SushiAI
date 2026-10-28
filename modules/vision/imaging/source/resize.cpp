@@ -73,7 +73,7 @@ namespace SushiAI::Vision::Imaging
                          static_cast<std::int32_t>(std::min(width, limit))};
     }
 
-    Status resize_bilinear(ImageView source, ImageSize size, Image& destination)
+    Status resize_bilinear(ImageView source, ImageSize size, Image& destination) noexcept
     {
         check_source(source, destination, "resize_bilinear");
         SA_FAIL_IF(!is_valid_size(size), StatusCode::InvalidDescription,
@@ -85,7 +85,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    void resize_nearest(ImageView source, ImageSize size, Image& destination)
+    void resize_nearest(ImageView source, ImageSize size, Image& destination) noexcept
     {
         check_source(source, destination, "resize_nearest");
 
@@ -114,7 +114,7 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    Status resize_long_side(ImageView source, std::int32_t image_size, Image& destination)
+    Status resize_long_side(ImageView source, std::int32_t image_size, Image& destination) noexcept
     {
         SA_FAIL_IF(!is_valid_side(image_size), StatusCode::InvalidDescription,
                    "resize_long_side: an image size of {} is outside [1, {}]", image_size,

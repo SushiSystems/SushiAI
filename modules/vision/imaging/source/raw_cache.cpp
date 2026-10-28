@@ -139,7 +139,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order)
+    Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order) noexcept
     {
         SA_TRY(check_image(image, order, "write_raw_image"));
 
@@ -161,7 +161,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Result<RawImageHeader> read_raw_image_header(std::istream& in)
+    Result<RawImageHeader> read_raw_image_header(std::istream& in) noexcept
     {
         char bytes[K_RAW_IMAGE_HEADER_BYTES];
         in.read(bytes, static_cast<std::streamsize>(K_RAW_IMAGE_HEADER_BYTES));
@@ -198,7 +198,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Status read_raw_image_pixels(std::istream& in, const RawImageHeader& header,
-                                 Image& destination)
+                                 Image& destination) noexcept
     {
         SA_TRY(check_header(header, "read_raw_image_pixels", StatusCode::InvalidFile));
         destination.reset(header.size, header.channels);
@@ -217,7 +217,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Status write_raw_image_file(const std::filesystem::path& path, ImageView image,
-                                ChannelOrder order)
+                                ChannelOrder order) noexcept
     {
         // The image is checked before the open, so a rejected image truncates no file.
         SA_TRY(check_image(image, order, "write_raw_image_file"));
@@ -233,7 +233,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Status read_raw_image_file(const std::filesystem::path& path, Image& destination)
+    Status read_raw_image_file(const std::filesystem::path& path, Image& destination) noexcept
     {
         std::ifstream in(path, std::ios::binary);
         SA_FAIL_IF(!in.is_open(), StatusCode::FileNotFound,

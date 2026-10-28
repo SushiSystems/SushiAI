@@ -54,7 +54,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Returns InvalidDescription unless the probability is in [0, 1]. */
-    [[nodiscard]] Status validate_flip(const FlipSettings& settings);
+    [[nodiscard]] Status validate_flip(const FlipSettings& settings) noexcept;
 
     /**
      * @brief Draws whether to flip an image of the given size.
@@ -64,7 +64,7 @@ namespace SushiAI::Vision::Imaging
      *         and for a size that fails is_valid_size.
      */
     [[nodiscard]] Result<FlipPlan> plan_flip(const FlipSettings& settings, ImageSize source,
-                                             Random& random);
+                                             Random& random) noexcept;
 
     /**
      * @brief Copies an image, mirrored left to right when the plan says so.
@@ -74,7 +74,7 @@ namespace SushiAI::Vision::Imaging
      * @pre source.size() is plan.source.
      * @param destination Reset to the source's size and channels; must pass check_source.
      */
-    void apply_flip(ImageView source, const FlipPlan& plan, Image& destination);
+    void apply_flip(ImageView source, const FlipPlan& plan, Image& destination) noexcept;
 
     /**
      * @brief Mirrors boxes and polygons left to right when the plan says so.
@@ -83,5 +83,5 @@ namespace SushiAI::Vision::Imaging
      * and a flipped vertex has x = w - x, in float; every y is unchanged. Classes and order
      * are kept. Without a flip the labels are returned unchanged.
      */
-    [[nodiscard]] Labels apply_flip(const Labels& labels, const FlipPlan& plan);
+    [[nodiscard]] Labels apply_flip(const Labels& labels, const FlipPlan& plan) noexcept;
 } // namespace SushiAI::Vision::Imaging

@@ -121,10 +121,10 @@ namespace SushiAI::Vision::Imaging
     inline constexpr std::int32_t K_MAX_MOSAIC_IMAGE_SIZE = K_MAX_IMAGE_SIDE / 2;
 
     /** @brief Returns InvalidDescription unless the probability is in [0, 1]. */
-    [[nodiscard]] Status validate_mosaic(const MosaicSettings& settings);
+    [[nodiscard]] Status validate_mosaic(const MosaicSettings& settings) noexcept;
 
     /** @brief Returns InvalidDescription unless image_size is in [1, K_MAX_MOSAIC_IMAGE_SIZE]. */
-    [[nodiscard]] Status validate_mosaic_size(std::int32_t image_size);
+    [[nodiscard]] Status validate_mosaic_size(std::int32_t image_size) noexcept;
 
     /**
      * @brief Draws the three partners, the gate and the centre of one mosaic.
@@ -136,7 +136,7 @@ namespace SushiAI::Vision::Imaging
      */
     [[nodiscard]] Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings,
                                                  std::int32_t image_size, std::size_t index,
-                                                 PartnerSource& partners, Random& random);
+                                                 PartnerSource& partners, Random& random) noexcept;
 
     /**
      * @brief Places four patches, the sample then three partners, around the drawn centre.
@@ -148,7 +148,7 @@ namespace SushiAI::Vision::Imaging
      */
     [[nodiscard]] Result<MosaicPlan> plan_mosaic(
         const MosaicSettings& settings, const MosaicDraw& draw, std::int32_t image_size,
-        const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes);
+        const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes) noexcept;
 
     /**
      * @brief Composes four patches on a canvas of 2s by 2s.
@@ -159,7 +159,7 @@ namespace SushiAI::Vision::Imaging
      * @pre The plan holds a valid image_size; each placement fits its patch and the canvas.
      */
     [[nodiscard]] Status apply_mosaic(const std::array<ImageView, K_MOSAIC_PATCHES>& patches,
-                                      const MosaicPlan& plan, Image& destination);
+                                      const MosaicPlan& plan, Image& destination) noexcept;
 
     /**
      * @brief Joins the labels of four patches in canvas coordinates.
@@ -170,5 +170,5 @@ namespace SushiAI::Vision::Imaging
      * @param labels Pixel labels of each patch in the coordinates of its own image.
      */
     [[nodiscard]] Labels apply_mosaic(const std::array<Labels, K_MOSAIC_PATCHES>& labels,
-                                      const MosaicPlan& plan);
+                                      const MosaicPlan& plan) noexcept;
 } // namespace SushiAI::Vision::Imaging

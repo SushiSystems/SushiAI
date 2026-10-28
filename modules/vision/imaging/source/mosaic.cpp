@@ -175,7 +175,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status validate_mosaic(const MosaicSettings& settings)
+    Status validate_mosaic(const MosaicSettings& settings) noexcept
     {
         SA_FAIL_IF(!(settings.probability >= 0.0f && settings.probability <= 1.0f),
                    StatusCode::InvalidDescription,
@@ -184,7 +184,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Status validate_mosaic_size(std::int32_t image_size)
+    Status validate_mosaic_size(std::int32_t image_size) noexcept
     {
         SA_FAIL_IF(!is_valid_mosaic_size(image_size), StatusCode::InvalidDescription,
                    "validate_mosaic_size: an image_size of {} is outside [1, {}]; the canvas "
@@ -194,7 +194,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<MosaicDraw> draw_mosaic(const MosaicSettings& settings, std::int32_t image_size,
-                                   std::size_t index, PartnerSource& partners, Random& random)
+                                   std::size_t index, PartnerSource& partners, Random& random) noexcept
     {
         SA_TRY(validate_mosaic(settings));
         SA_TRY(validate_mosaic_size(image_size));
@@ -217,7 +217,7 @@ namespace SushiAI::Vision::Imaging
 
     Result<MosaicPlan> plan_mosaic(const MosaicSettings& settings, const MosaicDraw& draw,
                                    std::int32_t image_size,
-                                   const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes)
+                                   const std::array<ImageSize, K_MOSAIC_PATCHES>& patch_sizes) noexcept
     {
         SA_FATAL_IF(!draw.is_enabled,
                     "plan_mosaic: the draw is not enabled, so the sample is not a mosaic and has "
@@ -263,7 +263,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Status apply_mosaic(const std::array<ImageView, K_MOSAIC_PATCHES>& patches,
-                        const MosaicPlan& plan, Image& destination)
+                        const MosaicPlan& plan, Image& destination) noexcept
     {
         SA_FATAL_IF(!is_valid_mosaic_size(plan.image_size),
                     "apply_mosaic: the plan holds an image_size of {}, outside [1, {}]",
@@ -289,7 +289,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Labels apply_mosaic(const std::array<Labels, K_MOSAIC_PATCHES>& labels, const MosaicPlan& plan)
+    Labels apply_mosaic(const std::array<Labels, K_MOSAIC_PATCHES>& labels, const MosaicPlan& plan) noexcept
     {
         SA_FATAL_IF(!is_valid_mosaic_size(plan.image_size),
                     "apply_mosaic: the plan holds an image_size of {}, outside [1, {}]",

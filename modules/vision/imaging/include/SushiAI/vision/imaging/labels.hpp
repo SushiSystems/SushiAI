@@ -55,5 +55,5 @@ namespace SushiAI::Vision::Imaging
      * @return The labels, or InvalidFile naming the line and the cause.
      */
     [[nodiscard]] Result<FileLabels> parse_label_text(std::string_view text,
-                                                      std::int32_t class_count);
+                                                      std::int32_t class_count) noexcept;
 } // namespace SushiAI::Vision::Imaging

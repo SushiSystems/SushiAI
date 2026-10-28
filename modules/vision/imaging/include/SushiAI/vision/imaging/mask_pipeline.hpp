@@ -85,7 +85,7 @@ namespace SushiAI::Vision::Imaging
              *         of another size than its image; OutOfMemory.
              */
             [[nodiscard]] Status make_mask(std::size_t index, const TrainingTrace& trace,
-                                           ImageSize loaded_size, Image& mask);
+                                           ImageSize loaded_size, Image& mask) noexcept;
 
         private:
             /** @brief Loads one mask and resizes its long side as its image was resized. */

@@ -156,7 +156,7 @@ namespace SushiAI::Vision::Imaging
         return epoch >= epochs - close_mosaic;
     }
 
-    Status validate_training(const TrainingSettings& settings)
+    Status validate_training(const TrainingSettings& settings) noexcept
     {
         SA_TRY(validate_mosaic_size(settings.image_size));
         SA_FAIL_IF(settings.epochs <= 0, StatusCode::InvalidDescription,
@@ -190,7 +190,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<TrainingPipeline> TrainingPipeline::make(const SampleSource& source,
-                                                    const TrainingSettings& settings)
+                                                    const TrainingSettings& settings) noexcept
     {
         SA_TRY(validate_training(settings));
         SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
@@ -205,7 +205,7 @@ namespace SushiAI::Vision::Imaging
 
     Result<TrainingPipeline> TrainingPipeline::make(const SampleSource& source,
                                                     const TrainingSettings& settings,
-                                                    std::unique_ptr<PartnerSource> partners)
+                                                    std::unique_ptr<PartnerSource> partners) noexcept
     {
         SA_TRY(validate_training(settings));
         SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
@@ -217,7 +217,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<TrainingTrace> TrainingPipeline::make_sample(std::size_t index, std::int32_t epoch,
-                                                        Sample& sample)
+                                                        Sample& sample) noexcept
     {
         const std::string_view owner = "TrainingPipeline::make_sample";
         SA_FATAL_IF(epoch < 0 || epoch >= settings_.epochs,
@@ -265,7 +265,7 @@ namespace SushiAI::Vision::Imaging
         return Result<TrainingTrace>(trace);
     }
 
-    Status validate_validation(const ValidationSettings& settings)
+    Status validate_validation(const ValidationSettings& settings) noexcept
     {
         SA_FAIL_IF(!is_valid_side(settings.image_size), StatusCode::InvalidDescription,
                    "validate_validation: an image_size of {} is outside [1, {}]",
@@ -283,7 +283,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<ValidationPipeline> ValidationPipeline::make(const SampleSource& source,
-                                                        const ValidationSettings& settings)
+                                                        const ValidationSettings& settings) noexcept
     {
         SA_TRY(validate_validation(settings));
         SA_FAIL_IF(source.size() == 0, StatusCode::InvalidDescription,
@@ -293,7 +293,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<LetterboxPlan> ValidationPipeline::make_sample(std::size_t index, ImageSize target,
-                                                          Sample& sample)
+                                                          Sample& sample) noexcept
     {
         SA_TRY_ASSIGN(LoadedLabels own,
                       load_resized(*source_, index, settings_.image_size,

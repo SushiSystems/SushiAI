@@ -34,7 +34,7 @@
 
 namespace SushiAI::Vision::Imaging
 {
-    Status expand_gray(ImageView source, Image& destination)
+    Status expand_gray(ImageView source, Image& destination) noexcept
     {
         check_source(source, destination, "expand_gray");
         SA_FAIL_IF(source.channels() != K_GRAY_CHANNELS, StatusCode::InvalidDescription,

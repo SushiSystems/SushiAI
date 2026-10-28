@@ -81,7 +81,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status validate_hsv(const HSVSettings& settings)
+    Status validate_hsv(const HSVSettings& settings) noexcept
     {
         SA_FAIL_IF(!is_gain(settings.hue_gain) || !is_gain(settings.saturation_gain) ||
                        !is_gain(settings.value_gain),
@@ -92,7 +92,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random)
+    Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random) noexcept
     {
         SA_TRY(validate_hsv(settings));
 
@@ -200,7 +200,7 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination)
+    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination) noexcept
     {
         check_source(source, destination, "apply_hsv");
 

@@ -175,7 +175,7 @@ namespace SushiAI::Vision::Imaging
              * @pre @p size passes is_valid_size and @p channels passes is_valid_channel_count; a
              *      size read from a file or a caller is tested with them first.
              */
-            Image(ImageSize size, std::int32_t channels);
+            Image(ImageSize size, std::int32_t channels) noexcept;
 
             /**
              * @brief Gives the image a new size and channel count, keeping its allocation when
@@ -185,7 +185,7 @@ namespace SushiAI::Vision::Imaging
              * call is invalid.
              * @pre The bounds of the constructor hold.
              */
-            void reset(ImageSize size, std::int32_t channels);
+            void reset(ImageSize size, std::int32_t channels) noexcept;
 
             /** @brief Sets every byte of the image to one value. */
             void fill(std::uint8_t value) noexcept;
@@ -269,5 +269,5 @@ namespace SushiAI::Vision::Imaging
      * the one aliasing rule of every function that takes a source and a destination.
      * @param operation Names the calling function at the start of the message.
      */
-    void check_source(ImageView source, const Image& destination, std::string_view operation);
+    void check_source(ImageView source, const Image& destination, std::string_view operation) noexcept;
 } // namespace SushiAI::Vision::Imaging

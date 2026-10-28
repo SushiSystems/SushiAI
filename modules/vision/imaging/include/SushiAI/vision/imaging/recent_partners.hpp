@@ -73,7 +73,7 @@ namespace SushiAI::Vision::Imaging
              *         the batch size is above zero.
              */
             [[nodiscard]] static Result<std::unique_ptr<RecentPartners>> make(
-                std::size_t dataset_size, std::int32_t batch_size);
+                std::size_t dataset_size, std::int32_t batch_size) noexcept;
 
             /**
              * @brief Records the sample as loaded, then draws three entries of the buffer.

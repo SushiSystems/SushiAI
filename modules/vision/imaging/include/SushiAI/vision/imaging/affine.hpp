@@ -91,7 +91,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Returns InvalidDescription unless scale is in [0, 1) and translate is in [0, 0.5]. */
-    [[nodiscard]] Status validate_affine(const AffineSettings& settings);
+    [[nodiscard]] Status validate_affine(const AffineSettings& settings) noexcept;
 
     /**
      * @brief Draws one scale and one translation and builds the forward matrix.
@@ -103,7 +103,7 @@ namespace SushiAI::Vision::Imaging
      */
     [[nodiscard]] Result<AffinePlan> plan_affine(const AffineSettings& settings,
                                                  ImageSize source, ImageSize output,
-                                                 Random& random);
+                                                 Random& random) noexcept;
 
     /**
      * @brief Warps an image into plan.output by bilinear interpolation.
@@ -113,7 +113,7 @@ namespace SushiAI::Vision::Imaging
      * @pre source.size() is plan.source, plan.output is a valid size, the matrix is the plan's.
      * @param destination Reset to plan.output; must pass check_source.
      */
-    void apply_affine(ImageView source, const AffinePlan& plan, Image& destination);
+    void apply_affine(ImageView source, const AffinePlan& plan, Image& destination) noexcept;
 
     /**
      * @brief Warps boxes and polygons into the output and drops the objects a filter rejects.
@@ -123,5 +123,5 @@ namespace SushiAI::Vision::Imaging
      * vertex is warped, visible_polygon_box is its box and plan.polygon_filter its test. Both
      * compare the source box scaled by plan.scale with the new box. Survivors keep their order.
      */
-    [[nodiscard]] Labels apply_affine(const Labels& labels, const AffinePlan& plan);
+    [[nodiscard]] Labels apply_affine(const Labels& labels, const AffinePlan& plan) noexcept;
 } // namespace SushiAI::Vision::Imaging

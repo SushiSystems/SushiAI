@@ -88,7 +88,7 @@ namespace SushiAI::Vision::Imaging
      * @pre The view has pixels.
      * @param order The order the view's channels are in; the bytes are written as they are.
      */
-    [[nodiscard]] Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order);
+    [[nodiscard]] Status write_raw_image(std::ostream& out, ImageView image, ChannelOrder order) noexcept;
 
     /**
      * @brief Reads and validates a header, allocating nothing.
@@ -98,7 +98,7 @@ namespace SushiAI::Vision::Imaging
      *         side outside [1, K_MAX_IMAGE_SIDE], an unknown order, or a channel count that does
      *         not fit it.
      */
-    [[nodiscard]] Result<RawImageHeader> read_raw_image_header(std::istream& in);
+    [[nodiscard]] Result<RawImageHeader> read_raw_image_header(std::istream& in) noexcept;
 
     /**
      * @brief Reads the pixels that follow a header into an RGB or single-channel image.
@@ -109,7 +109,7 @@ namespace SushiAI::Vision::Imaging
      * @return InvalidFile when the stream ends before header.pixel_bytes() bytes.
      */
     [[nodiscard]] Status read_raw_image_pixels(std::istream& in, const RawImageHeader& header,
-                                               Image& destination);
+                                               Image& destination) noexcept;
 
     /**
      * @brief Writes one image to a file, replacing the file when it exists.
@@ -117,7 +117,7 @@ namespace SushiAI::Vision::Imaging
      * @return What write_raw_image returns, or InvalidFile when the file cannot be opened.
      */
     [[nodiscard]] Status write_raw_image_file(const std::filesystem::path& path, ImageView image,
-                                              ChannelOrder order);
+                                              ChannelOrder order) noexcept;
 
     /**
      * @brief Reads one image file into an RGB or single-channel image.
@@ -128,5 +128,5 @@ namespace SushiAI::Vision::Imaging
      *         is reset.
      */
     [[nodiscard]] Status read_raw_image_file(const std::filesystem::path& path,
-                                             Image& destination);
+                                             Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

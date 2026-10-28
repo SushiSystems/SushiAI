@@ -163,7 +163,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status validate_affine(const AffineSettings& settings)
+    Status validate_affine(const AffineSettings& settings) noexcept
     {
         SA_FAIL_IF(!(settings.scale >= 0.0f && settings.scale < 1.0f),
                    StatusCode::InvalidDescription,
@@ -176,7 +176,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<AffinePlan> plan_affine(const AffineSettings& settings, ImageSize source,
-                                   ImageSize output, Random& random)
+                                   ImageSize output, Random& random) noexcept
     {
         SA_TRY(validate_affine(settings));
         SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
@@ -209,7 +209,7 @@ namespace SushiAI::Vision::Imaging
         return Result<AffinePlan>(plan);
     }
 
-    void apply_affine(ImageView source, const AffinePlan& plan, Image& destination)
+    void apply_affine(ImageView source, const AffinePlan& plan, Image& destination) noexcept
     {
         check_source(source, destination, "apply_affine");
         SA_FATAL_IF(source.size() != plan.source,
@@ -266,7 +266,7 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    Labels apply_affine(const Labels& labels, const AffinePlan& plan)
+    Labels apply_affine(const Labels& labels, const AffinePlan& plan) noexcept
     {
         check_matrix(plan, "apply_affine");
 

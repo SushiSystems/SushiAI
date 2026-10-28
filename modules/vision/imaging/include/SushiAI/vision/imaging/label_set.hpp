@@ -65,7 +65,7 @@ namespace SushiAI::Vision::Imaging
              * @brief Constructs a set of objects without polygons.
              * @param boxes One per class; another count is fatal.
              */
-            LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes)
+            LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes) noexcept
                 : classes_(std::move(classes)), boxes_(std::move(boxes)), polygons_(boxes_.size())
             {
                 Detail::check_label_counts(classes_.size(), boxes_.size(), polygons_.size());
@@ -78,7 +78,7 @@ namespace SushiAI::Vision::Imaging
              *        is fatal.
              */
             LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes,
-                     std::vector<Polygon> polygons)
+                     std::vector<Polygon> polygons) noexcept
                 : classes_(std::move(classes)), boxes_(std::move(boxes)),
                   polygons_(std::move(polygons))
             {
@@ -86,7 +86,7 @@ namespace SushiAI::Vision::Imaging
             }
 
             /** @brief Reserves room for a number of objects in all three lists. */
-            void reserve(std::size_t count)
+            void reserve(std::size_t count) noexcept
             {
                 classes_.reserve(count);
                 boxes_.reserve(count);
@@ -97,7 +97,7 @@ namespace SushiAI::Vision::Imaging
              * @brief Appends one object.
              * @param polygon The object's outline; leave it empty for an object without one.
              */
-            void add(std::int32_t class_id, const Box& box, Polygon polygon = Polygon{})
+            void add(std::int32_t class_id, const Box& box, Polygon polygon = Polygon{}) noexcept
             {
                 classes_.push_back(class_id);
                 boxes_.push_back(box);
@@ -109,7 +109,7 @@ namespace SushiAI::Vision::Imaging
              * @param is_kept Called once per index in rising order; it may read this set.
              */
             template <typename Predicate>
-            void keep_if(Predicate is_kept)
+            void keep_if(Predicate is_kept) noexcept
             {
                 std::size_t kept = 0;
 

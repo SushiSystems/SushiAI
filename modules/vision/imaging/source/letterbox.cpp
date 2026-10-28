@@ -78,7 +78,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<LetterboxPlan> plan_letterbox(const LetterboxSettings& settings, ImageSize source,
-                                         ImageSize target)
+                                         ImageSize target) noexcept
     {
         validate_letterbox(settings);
         SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
@@ -117,7 +117,7 @@ namespace SushiAI::Vision::Imaging
         return Result<LetterboxPlan>(plan);
     }
 
-    void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination)
+    void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination) noexcept
     {
         check_source(source, destination, "apply_letterbox");
         SA_FATAL_IF(source.size() != plan.source,
@@ -162,7 +162,7 @@ namespace SushiAI::Vision::Imaging
                                 row_bytes);
     }
 
-    Labels apply_letterbox(const Labels& labels, const LetterboxPlan& plan)
+    Labels apply_letterbox(const Labels& labels, const LetterboxPlan& plan) noexcept
     {
         const auto ratio = static_cast<float>(plan.ratio);
         const auto offset_x = static_cast<float>(plan.left);

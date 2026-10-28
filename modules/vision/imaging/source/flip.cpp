@@ -37,7 +37,7 @@
 
 namespace SushiAI::Vision::Imaging
 {
-    Status validate_flip(const FlipSettings& settings)
+    Status validate_flip(const FlipSettings& settings) noexcept
     {
         SA_FAIL_IF(!(settings.probability >= 0.0f && settings.probability <= 1.0f),
                    StatusCode::InvalidDescription,
@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Imaging
         return Status();
     }
 
-    Result<FlipPlan> plan_flip(const FlipSettings& settings, ImageSize source, Random& random)
+    Result<FlipPlan> plan_flip(const FlipSettings& settings, ImageSize source, Random& random) noexcept
     {
         SA_TRY(validate_flip(settings));
         SA_FAIL_IF(!is_valid_size(source), StatusCode::InvalidDescription,
@@ -58,7 +58,7 @@ namespace SushiAI::Vision::Imaging
         return Result<FlipPlan>(plan);
     }
 
-    void apply_flip(ImageView source, const FlipPlan& plan, Image& destination)
+    void apply_flip(ImageView source, const FlipPlan& plan, Image& destination) noexcept
     {
         check_source(source, destination, "apply_flip");
         SA_FATAL_IF(source.size() != plan.source,
@@ -92,7 +92,7 @@ namespace SushiAI::Vision::Imaging
         }
     }
 
-    Labels apply_flip(const Labels& labels, const FlipPlan& plan)
+    Labels apply_flip(const Labels& labels, const FlipPlan& plan) noexcept
     {
         if (!plan.is_flipped)
             return labels;

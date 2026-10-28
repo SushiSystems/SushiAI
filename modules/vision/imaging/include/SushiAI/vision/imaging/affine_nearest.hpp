@@ -43,5 +43,5 @@ namespace SushiAI::Vision::Imaging
      * @return A failure README.md, section affine_nearest.hpp, lists.
      */
     [[nodiscard]] Status apply_affine_nearest(ImageView source, const AffinePlan& plan,
-                                              Image& destination);
+                                              Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

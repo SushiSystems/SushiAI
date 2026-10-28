@@ -187,7 +187,7 @@ namespace SushiAI::Vision::Imaging
         return longest > K_POLYGON_POINTS ? longest + 1 : K_POLYGON_POINTS;
     }
 
-    Polygon resample_polygon(const Polygon& polygon, std::size_t count)
+    Polygon resample_polygon(const Polygon& polygon, std::size_t count) noexcept
     {
         SA_FATAL_IF(count == 0, "resample_polygon: a point count of 0 leaves no polygon");
 

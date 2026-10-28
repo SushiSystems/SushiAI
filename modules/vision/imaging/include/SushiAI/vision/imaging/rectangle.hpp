@@ -82,7 +82,7 @@ namespace SushiAI::Vision::Imaging
      *
      * image_size must pass is_valid_side; batch_size and stride must be above zero.
      */
-    [[nodiscard]] Status validate_rectangle(const RectangleSettings& settings);
+    [[nodiscard]] Status validate_rectangle(const RectangleSettings& settings) noexcept;
 
     /**
      * @brief Sorts images by aspect ratio and gives each batch one shape, as set_rectangle.
@@ -93,5 +93,5 @@ namespace SushiAI::Vision::Imaging
      *         image, an invalid image size or a batch side outside [1, K_MAX_IMAGE_SIDE].
      */
     [[nodiscard]] Result<RectangularBatches> plan_rectangular_batches(
-        const std::vector<ImageSize>& sizes, const RectangleSettings& settings);
+        const std::vector<ImageSize>& sizes, const RectangleSettings& settings) noexcept;
 } // namespace SushiAI::Vision::Imaging

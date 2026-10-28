@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — imaging: Marked 52 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — detect: Marked 65 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — datasets: Marked 39 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — darknet_training_cases: Marked 16 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).

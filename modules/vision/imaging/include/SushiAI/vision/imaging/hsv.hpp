@@ -107,7 +107,7 @@ namespace SushiAI::Vision::Imaging
     };
 
     /** @brief Returns InvalidDescription unless each gain is finite and not negative. */
-    [[nodiscard]] Status validate_hsv(const HSVSettings& settings);
+    [[nodiscard]] Status validate_hsv(const HSVSettings& settings) noexcept;
 
     /**
      * @brief Draws the three gains of one jitter.
@@ -117,7 +117,7 @@ namespace SushiAI::Vision::Imaging
      * when a gain is zero.
      * @return The plan, or what validate_hsv returns, before any draw.
      */
-    [[nodiscard]] Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random);
+    [[nodiscard]] Result<HSVPlan> plan_hsv(const HSVSettings& settings, Random& random) noexcept;
 
     /**
      * @brief Reports whether a plan changes no pixel: all three of its gains are zero.
@@ -163,5 +163,5 @@ namespace SushiAI::Vision::Imaging
      * another channel count or when is_hsv_identity(plan). No label moves.
      * @param destination Reset to the source's size and channels; must pass check_source.
      */
-    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination);
+    void apply_hsv(ImageView source, const HSVPlan& plan, Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

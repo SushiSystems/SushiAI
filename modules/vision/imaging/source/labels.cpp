@@ -293,7 +293,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Result<FileLabels> parse_label_text(std::string_view text, std::int32_t class_count)
+    Result<FileLabels> parse_label_text(std::string_view text, std::int32_t class_count) noexcept
     {
         const RowTable table = split_rows(text);
         const bool is_polygon = is_polygon_file(table.rows);

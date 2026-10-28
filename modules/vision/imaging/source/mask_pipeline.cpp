@@ -76,7 +76,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Status TrainingMaskPipeline::make_mask(std::size_t index, const TrainingTrace& trace,
-                                           ImageSize loaded_size, Image& mask)
+                                           ImageSize loaded_size, Image& mask) noexcept
     {
         SA_TRY(load_resized(index, patches_[0]));
         SA_FAIL_IF(patches_[0].size() != loaded_size, StatusCode::Incompatible,

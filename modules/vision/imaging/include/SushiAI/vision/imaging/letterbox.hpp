@@ -93,7 +93,7 @@ namespace SushiAI::Vision::Imaging
      * @return The plan, or InvalidDescription unless both sizes are valid and both sides positive.
      */
     [[nodiscard]] Result<LetterboxPlan> plan_letterbox(const LetterboxSettings& settings,
-                                                       ImageSize source, ImageSize target);
+                                                       ImageSize source, ImageSize target) noexcept;
 
     /**
      * @brief Resizes an image to plan.resized and pads it to plan.target.
@@ -103,7 +103,7 @@ namespace SushiAI::Vision::Imaging
      * other byte is plan.padding_value.
      * @pre source.size() is plan.source and the plan tiles its target; check_source passes.
      */
-    void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination);
+    void apply_letterbox(ImageView source, const LetterboxPlan& plan, Image& destination) noexcept;
 
     /**
      * @brief Moves boxes and polygons into the letterboxed image.
@@ -111,5 +111,5 @@ namespace SushiAI::Vision::Imaging
      * With r = float(plan.ratio): x becomes x * r + plan.left and y becomes y * r + plan.top,
      * in float, multiply first. Classes and order are kept; nothing is clipped or removed.
      */
-    [[nodiscard]] Labels apply_letterbox(const Labels& labels, const LetterboxPlan& plan);
+    [[nodiscard]] Labels apply_letterbox(const Labels& labels, const LetterboxPlan& plan) noexcept;
 } // namespace SushiAI::Vision::Imaging

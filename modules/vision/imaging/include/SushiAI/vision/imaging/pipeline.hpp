@@ -154,7 +154,7 @@ namespace SushiAI::Vision::Imaging
      * image_size must pass validate_mosaic_size; epochs and batch_size above zero, close_mosaic
      * not below zero, then validate_mosaic, validate_affine, validate_hsv and validate_flip.
      */
-    [[nodiscard]] Status validate_training(const TrainingSettings& settings);
+    [[nodiscard]] Status validate_training(const TrainingSettings& settings) noexcept;
 
     /**
      * @brief Returns the generator that makes every draw of one sample.
@@ -180,7 +180,7 @@ namespace SushiAI::Vision::Imaging
              *         or a source that holds no image.
              */
             [[nodiscard]] static Result<TrainingPipeline> make(const SampleSource& source,
-                                                               const TrainingSettings& settings);
+                                                               const TrainingSettings& settings) noexcept;
 
             /**
              * @brief Builds a pipeline that takes its mosaic partners from a given source.
@@ -192,7 +192,7 @@ namespace SushiAI::Vision::Imaging
              */
             [[nodiscard]] static Result<TrainingPipeline> make(
                 const SampleSource& source, const TrainingSettings& settings,
-                std::unique_ptr<PartnerSource> partners);
+                std::unique_ptr<PartnerSource> partners) noexcept;
 
             /** @brief Forbids copying, which would share the source and duplicate the images. */
             TrainingPipeline(const TrainingPipeline&) = delete;
@@ -218,7 +218,7 @@ namespace SushiAI::Vision::Imaging
              * @pre @p index is below the source's size and @p epoch is in [0, settings().epochs).
              */
             [[nodiscard]] Result<TrainingTrace> make_sample(std::size_t index, std::int32_t epoch,
-                                                            Sample& sample);
+                                                            Sample& sample) noexcept;
 
             /** @brief Returns the settings the pipeline was constructed with. */
             [[nodiscard]] const TrainingSettings& settings() const noexcept { return settings_; }
@@ -268,7 +268,7 @@ namespace SushiAI::Vision::Imaging
      *
      * image_size must pass is_valid_side; then validate_letterbox.
      */
-    [[nodiscard]] Status validate_validation(const ValidationSettings& settings);
+    [[nodiscard]] Status validate_validation(const ValidationSettings& settings) noexcept;
 
     /**
      * @brief Produces validation samples: load, then letterbox. It draws nothing.
@@ -286,7 +286,7 @@ namespace SushiAI::Vision::Imaging
              *         refuses or a source that holds no image.
              */
             [[nodiscard]] static Result<ValidationPipeline> make(
-                const SampleSource& source, const ValidationSettings& settings);
+                const SampleSource& source, const ValidationSettings& settings) noexcept;
 
             /** @brief Forbids copying, which would share the source and duplicate the images. */
             ValidationPipeline(const ValidationPipeline&) = delete;
@@ -312,7 +312,7 @@ namespace SushiAI::Vision::Imaging
              * @pre @p index is below the source's size.
              */
             [[nodiscard]] Result<LetterboxPlan> make_sample(std::size_t index, ImageSize target,
-                                                            Sample& sample);
+                                                            Sample& sample) noexcept;
 
             /** @brief Returns the settings the pipeline was constructed with. */
             [[nodiscard]] const ValidationSettings& settings() const noexcept { return settings_; }

@@ -56,14 +56,14 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Image::Image(ImageSize size, std::int32_t channels)
+    Image::Image(ImageSize size, std::int32_t channels) noexcept
         : pixels_(checked_byte_count(size, channels, "Image"), std::uint8_t{0}), size_(size),
           channels_(channels)
     {
 
     }
 
-    void Image::reset(ImageSize size, std::int32_t channels)
+    void Image::reset(ImageSize size, std::int32_t channels) noexcept
     {
         const std::size_t needed = checked_byte_count(size, channels, "Image::reset");
 
@@ -95,7 +95,7 @@ namespace SushiAI::Vision::Imaging
         return before(view.data(), image_end) && before(image.data(), view_end);
     }
 
-    void check_source(ImageView source, const Image& destination, std::string_view operation)
+    void check_source(ImageView source, const Image& destination, std::string_view operation) noexcept
     {
         SA_FATAL_IF(source.data() == nullptr, "{}: the source image has no pixels", operation);
         SA_FATAL_IF(!is_valid_size(source.size()),

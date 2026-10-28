@@ -67,7 +67,7 @@ namespace SushiAI::Vision::Imaging
         }
     } // namespace
 
-    Status validate_rectangle(const RectangleSettings& settings)
+    Status validate_rectangle(const RectangleSettings& settings) noexcept
     {
         SA_FAIL_IF(!is_valid_side(settings.image_size), StatusCode::InvalidDescription,
                    "validate_rectangle: an image_size of {} is outside [1, {}]",
@@ -85,7 +85,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<RectangularBatches> plan_rectangular_batches(const std::vector<ImageSize>& sizes,
-                                                        const RectangleSettings& settings)
+                                                        const RectangleSettings& settings) noexcept
     {
         SA_TRY(validate_rectangle(settings));
         SA_FAIL_IF(sizes.empty(), StatusCode::InvalidDescription,

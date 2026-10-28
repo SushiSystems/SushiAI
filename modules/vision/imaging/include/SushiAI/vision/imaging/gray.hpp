@@ -46,5 +46,5 @@ namespace SushiAI::Vision::Imaging
      * @param destination Reset to the source's size with K_RGB_CHANNELS; must pass check_source.
      * @return InvalidDescription for a source of another channel count.
      */
-    [[nodiscard]] Status expand_gray(ImageView source, Image& destination);
+    [[nodiscard]] Status expand_gray(ImageView source, Image& destination) noexcept;
 } // namespace SushiAI::Vision::Imaging

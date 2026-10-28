@@ -69,7 +69,7 @@ namespace SushiAI::Vision::Imaging
     }
 
     Result<std::unique_ptr<RecentPartners>> RecentPartners::make(std::size_t dataset_size,
-                                                                 std::int32_t batch_size)
+                                                                 std::int32_t batch_size) noexcept
     {
         SA_TRY(check_arguments(dataset_size, batch_size));
 

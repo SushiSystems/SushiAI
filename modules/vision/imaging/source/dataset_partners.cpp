@@ -56,7 +56,7 @@ namespace SushiAI::Vision::Imaging
 
     }
 
-    Result<std::unique_ptr<DatasetPartners>> DatasetPartners::make(std::size_t dataset_size)
+    Result<std::unique_ptr<DatasetPartners>> DatasetPartners::make(std::size_t dataset_size) noexcept
     {
         SA_TRY_ASSIGN(const std::uint32_t checked, checked_dataset_size(dataset_size));
 

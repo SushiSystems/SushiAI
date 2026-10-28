@@ -55,7 +55,7 @@ namespace SushiAI::Vision::Imaging
              * @return The source, or InvalidDescription unless the count is in [1, 2^32 - 1].
              */
             [[nodiscard]] static Result<std::unique_ptr<DatasetPartners>> make(
-                std::size_t dataset_size);
+                std::size_t dataset_size) noexcept;
 
             /**
              * @brief Returns three random.index(dataset size) draws, in draw order.
