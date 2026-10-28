@@ -439,7 +439,7 @@ namespace SushiAI
         } // namespace
 
         Result<AnchorClustering> cluster_anchors(SushiRuntime::span<const AnchorSize> boxes,
-                                                 const ClusteringOptions& options)
+                                                 const ClusteringOptions& options) noexcept
         {
             SA_FAIL_IF(options.count < 1, StatusCode::InvalidDescription,
                        "count must be at least 1; got {}", options.count);

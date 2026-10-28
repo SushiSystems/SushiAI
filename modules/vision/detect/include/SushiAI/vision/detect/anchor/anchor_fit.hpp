@@ -73,7 +73,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<AnchorFit> measure_anchor_fit(
             SushiRuntime::span<const AnchorSize> boxes, const AnchorLayout& layout,
-            const FitOptions& options);
+            const FitOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

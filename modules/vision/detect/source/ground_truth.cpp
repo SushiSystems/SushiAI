@@ -44,7 +44,7 @@ namespace SushiAI
                                 std::int64_t batch,
                                 float image_width,
                                 float image_height,
-                                GroundTruthBatch& padded)
+                                GroundTruthBatch& padded) noexcept
         {
             const std::size_t row_count = rows.image_indices.size();
             SA_FAIL_IF(batch <= 0 || rows.classes.size() != row_count ||
@@ -93,6 +93,8 @@ namespace SushiAI
                 padded.labels[slot] = rows.classes[row];
                 padded.valid[slot] = (box[0] + box[1] + box[2] + box[3]) > 0.0f ? 1 : 0;
             }
+
+            return Status();
         }
 
     } // namespace Vision::Detect

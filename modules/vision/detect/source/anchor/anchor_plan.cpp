@@ -80,7 +80,7 @@ namespace SushiAI
 
         Result<AnchorPlan> plan_anchors(SushiRuntime::span<const AnchorSize> boxes,
                                         SushiRuntime::span<const std::int64_t> strides,
-                                        const AnchorPlanOptions& options)
+                                        const AnchorPlanOptions& options) noexcept
         {
             SA_FAIL_IF(strides.empty(), StatusCode::InvalidDescription,
                        "an anchor plan needs at least one stride; got none");

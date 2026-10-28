@@ -35,7 +35,7 @@ namespace SushiAI
     namespace Vision::Detect::Free
     {
         std::string detect_port_name(std::string_view copy, std::size_t level,
-                                     std::string_view role)
+                                     std::string_view role) noexcept
         {
             std::string name(copy);
             name.append(".level").append(std::to_string(level)).append(".").append(role);
@@ -43,7 +43,7 @@ namespace SushiAI
             return name;
         }
 
-        double detect_class_bias(std::int64_t classes, double stride)
+        double detect_class_bias(std::int64_t classes, double stride) noexcept
         {
             const double cells = K_DETECT_REFERENCE_IMAGE_SIDE / stride;
 

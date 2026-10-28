@@ -53,7 +53,7 @@ namespace SushiAI
         } // namespace
 
         Status validate_head(const HeadOptions& options, const AnchorLayout& layout,
-                             std::int64_t head_index)
+                             std::int64_t head_index) noexcept
         {
             SA_TRY(validate_anchor_layout(layout));
 

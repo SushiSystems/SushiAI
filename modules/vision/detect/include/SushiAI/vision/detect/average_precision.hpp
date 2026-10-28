@@ -98,7 +98,7 @@ namespace SushiAI
         [[nodiscard]] Status match_detections(SushiRuntime::span<const float> detections,
                                               SushiRuntime::span<const float> truth_boxes,
                                               SushiRuntime::span<const std::int64_t> truth_classes,
-                                              SushiRuntime::span<std::uint8_t> correct);
+                                              SushiRuntime::span<std::uint8_t> correct) noexcept;
 
         /**
          * @brief Returns the area under a precision envelope sampled at 101 recall points.
@@ -108,7 +108,7 @@ namespace SushiAI
          * @see U/utils/metrics.py:782-793
          */
         [[nodiscard]] Result<double> integrate_precision(
-            SushiRuntime::span<const double> recall, SushiRuntime::span<const double> precision);
+            SushiRuntime::span<const double> recall, SushiRuntime::span<const double> precision) noexcept;
 
         /**
          * @brief Accumulates matched detections image by image and reports the validation table.
@@ -128,14 +128,14 @@ namespace SushiAI
                 [[nodiscard]] Status add_image(
                     SushiRuntime::span<const float> detections,
                     SushiRuntime::span<const float> truth_boxes,
-                    SushiRuntime::span<const std::int64_t> truth_classes);
+                    SushiRuntime::span<const std::int64_t> truth_classes) noexcept;
 
                 /**
                  * @brief Computes the table over every image added since the last clear().
                  * @return No rows and zero means when no ground-truth box was added.
                  * @see U/utils/metrics.py:843-893
                  */
-                [[nodiscard]] MetricsSummary summarize() const;
+                [[nodiscard]] MetricsSummary summarize() const noexcept;
 
                 /** @brief Drops every accumulated image. */
                 void clear() noexcept;

@@ -175,7 +175,7 @@ namespace SushiAI
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
                                SushiRuntime::span<const float> scores,
                                float iou_threshold,
-                               std::vector<std::int64_t>& kept)
+                               std::vector<std::int64_t>& kept) noexcept
         {
             const std::size_t count = scores.size();
             SA_FATAL_IF(boxes.size() != count * K_BOX_VALUES,
@@ -190,7 +190,7 @@ namespace SushiAI
                                float threshold,
                                SuppressionCriterion criterion,
                                float distance_exponent,
-                               std::vector<std::int64_t>& kept)
+                               std::vector<std::int64_t>& kept) noexcept
         {
             const std::size_t count = scores.size();
             SA_FATAL_IF(boxes.size() != count * K_BOX_VALUES,
@@ -242,7 +242,7 @@ namespace SushiAI
                                      SushiRuntime::span<const float> scores,
                                      const PredictionShape& shape,
                                      const NMSConfig& config,
-                                     std::vector<std::vector<float>>& detections)
+                                     std::vector<std::vector<float>>& detections) noexcept
         {
             SA_FAIL_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0,
                        StatusCode::InvalidDescription,

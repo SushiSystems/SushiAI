@@ -75,14 +75,14 @@ namespace SushiAI
          * @return The task, or InvalidDescription naming the key that fails. An absent
          *         "assignment" or branch keeps the FreeTask default.
          */
-        [[nodiscard]] Result<FreeTask> read_free_task(const Config::Value& task);
+        [[nodiscard]] Result<FreeTask> read_free_task(const Config::Value& task) noexcept;
 
         /**
          * @brief Writes a FreeTask as the task section of a model file.
          * @return The "task" object with both branches written, each float as the double of
          *         equal value, or InvalidDescription naming the key that fails.
          */
-        [[nodiscard]] Result<Config::Value> write_free_task(const FreeTask& task);
+        [[nodiscard]] Result<Config::Value> write_free_task(const FreeTask& task) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

@@ -60,7 +60,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
                                                  std::int64_t batch,
-                                                 AnchorLeaves& leaves);
+                                                 AnchorLeaves& leaves) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

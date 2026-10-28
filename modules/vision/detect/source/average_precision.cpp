@@ -425,7 +425,7 @@ namespace SushiAI
         Status match_detections(SushiRuntime::span<const float> detections,
                                 SushiRuntime::span<const float> truth_boxes,
                                 SushiRuntime::span<const std::int64_t> truth_classes,
-                                SushiRuntime::span<std::uint8_t> correct)
+                                SushiRuntime::span<std::uint8_t> correct) noexcept
         {
             SA_TRY(check_image(detections, truth_boxes, truth_classes));
             const std::size_t count = detections.size() / K_DETECTION_VALUES;
@@ -437,7 +437,7 @@ namespace SushiAI
         }
 
         Result<double> integrate_precision(SushiRuntime::span<const double> recall,
-                                           SushiRuntime::span<const double> precision)
+                                           SushiRuntime::span<const double> precision) noexcept
         {
             SA_FAIL_IF(recall.size() != precision.size(), StatusCode::InvalidDescription,
                        "a precision curve needs one value per recall value; got {} and {}",
@@ -449,7 +449,7 @@ namespace SushiAI
         
         Status AveragePrecision::add_image(SushiRuntime::span<const float> detections,
                                            SushiRuntime::span<const float> truth_boxes,
-                                           SushiRuntime::span<const std::int64_t> truth_classes)
+                                           SushiRuntime::span<const std::int64_t> truth_classes) noexcept
         {
             SA_TRY(check_image(detections, truth_boxes, truth_classes));
 
@@ -478,7 +478,7 @@ namespace SushiAI
             return Status();
         }
 
-        MetricsSummary AveragePrecision::summarize() const
+        MetricsSummary AveragePrecision::summarize() const noexcept
         {
             MetricsSummary summary;
             summary.images = images_;

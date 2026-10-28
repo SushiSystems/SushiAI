@@ -92,7 +92,7 @@ namespace SushiAI
 
         Result<AnchorFit> measure_anchor_fit(SushiRuntime::span<const AnchorSize> boxes,
                                              const AnchorLayout& layout,
-                                             const FitOptions& options)
+                                             const FitOptions& options) noexcept
         {
             SA_TRY(validate_anchor_layout(layout));
             SA_FAIL_IF(!(options.recall_iou >= 0.0f && options.recall_iou <= 1.0f),

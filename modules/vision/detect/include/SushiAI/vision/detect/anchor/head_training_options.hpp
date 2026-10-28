@@ -78,7 +78,7 @@ namespace SushiAI
          *         ignore threshold or a class gate outside [0, 1], a weight, a gain or a
          *         bound that is negative or not finite, or an enumerator outside its enumeration.
          */
-        [[nodiscard]] Status validate_head_training(const HeadTrainingOptions& options);
+        [[nodiscard]] Status validate_head_training(const HeadTrainingOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

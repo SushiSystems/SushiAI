@@ -44,7 +44,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status validate_anchor_layout(const AnchorLayout& layout)
+        Status validate_anchor_layout(const AnchorLayout& layout) noexcept
         {
             SA_FAIL_IF(layout.anchors.empty(), StatusCode::InvalidDescription,
                        "an anchor layout needs at least one anchor");

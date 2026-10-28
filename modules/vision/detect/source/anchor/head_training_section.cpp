@@ -302,7 +302,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<HeadTrainingOptions> read_head_training_section(const Config::Value& section)
+        Result<HeadTrainingOptions> read_head_training_section(const Config::Value& section) noexcept
         {
             const Config::SectionReader reader(section, K_SECTION);
             const auto keys = list_keys();
@@ -325,7 +325,7 @@ namespace SushiAI
             return result;
         }
 
-        Result<Config::Value> write_head_training_section(const HeadTrainingOptions& options)
+        Result<Config::Value> write_head_training_section(const HeadTrainingOptions& options) noexcept
         {
             SA_TRY(validate_section(options));
 

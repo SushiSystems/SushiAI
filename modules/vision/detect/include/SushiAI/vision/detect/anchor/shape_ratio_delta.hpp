@@ -84,14 +84,14 @@ namespace SushiAI
          * @return 4, 1, 0.4 for three levels; 4, 1, 0.25, 0.06, 0.02 by level otherwise.
          * @pre 0 <= @p level < @p levels <= K_MAX_BALANCED_LEVELS; breaking it is fatal.
          */
-        [[nodiscard]] double objectness_balance(std::int64_t levels, std::int64_t level);
+        [[nodiscard]] double objectness_balance(std::int64_t levels, std::int64_t level) noexcept;
 
         /**
          * @brief Returns the factors of level @p input.head_index under @p input.training.
          * @pre validate_shape_ratio_delta(@p input) succeeds.
          */
         [[nodiscard]] ShapeRatioFactors derive_shape_ratio_factors(
-            const ShapeRatioDeltaInput& input);
+            const ShapeRatioDeltaInput& input) noexcept;
 
         /**
          * @brief Checks that @p input describes a head and assignments the loss can read.
@@ -101,7 +101,7 @@ namespace SushiAI
          *         holding a NaN or infinity, a level count above K_MAX_BALANCED_LEVELS, or
          *         an assignment outside the head or sharing a slot with another.
          */
-        [[nodiscard]] Status validate_shape_ratio_delta(const ShapeRatioDeltaInput& input);
+        [[nodiscard]] Status validate_shape_ratio_delta(const ShapeRatioDeltaInput& input) noexcept;
 
         /**
          * @brief Writes the objectness target of every slot: the assigned slot's complete IoU
@@ -110,7 +110,7 @@ namespace SushiAI
          * @return Success, or the failure of validate_shape_ratio_delta.
          */
         [[nodiscard]] Status build_objectness_targets(const ShapeRatioDeltaInput& input,
-                                                      std::vector<float>& targets);
+                                                      std::vector<float>& targets) noexcept;
 
         /**
          * @brief Measures the level's loss against fixed objectness targets.
@@ -119,7 +119,7 @@ namespace SushiAI
          *         InvalidDescription for targets of the wrong size.
          */
         [[nodiscard]] Result<ShapeRatioLoss> measure_shape_ratio_loss(
-            const ShapeRatioDeltaInput& input, SushiRuntime::span<const float> targets);
+            const ShapeRatioDeltaInput& input, SushiRuntime::span<const float> targets) noexcept;
 
         /**
          * @brief Writes the delta of the level, `-B` times the derivative of its loss by each
@@ -129,7 +129,7 @@ namespace SushiAI
          * @return Success, or the failure of validate_shape_ratio_delta.
          */
         [[nodiscard]] Status compute_shape_ratio_delta(const ShapeRatioDeltaInput& input,
-                                                       HeadDelta& result);
+                                                       HeadDelta& result) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

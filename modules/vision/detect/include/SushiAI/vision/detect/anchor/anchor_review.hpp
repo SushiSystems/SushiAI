@@ -80,7 +80,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<AnchorReview> review_anchors(
             SushiRuntime::span<const AnchorSize> boxes, const AnchorLayout& current,
-            SushiRuntime::span<const std::int64_t> strides, const ReviewOptions& options);
+            SushiRuntime::span<const std::int64_t> strides, const ReviewOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

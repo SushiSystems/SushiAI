@@ -73,7 +73,7 @@ namespace SushiAI
                  * @return The assigner, or InvalidDescription for a topk, a topk2 or a class count
                  *         below 1, or a stride_val or an eps below 0.
                  */
-                [[nodiscard]] static Result<TaskAlignedAssigner> make(const AssignerConfig& config);
+                [[nodiscard]] static Result<TaskAlignedAssigner> make(const AssignerConfig& config) noexcept;
 
                 /**
                  * @brief Writes the targets of every anchor of @p inputs into @p assignment.
@@ -83,7 +83,7 @@ namespace SushiAI
                  * @pre No score, predicted box or valid ground-truth box value is NaN or infinite;
                  *      FreeAssignmentStage refuses them before it calls this.
                  */
-                [[nodiscard]] Status assign(const AssignerInputs& inputs, Assignment& assignment);
+                [[nodiscard]] Status assign(const AssignerInputs& inputs, Assignment& assignment) noexcept;
 
                 /** @brief Returns the settings this assigner was built with. */
                 [[nodiscard]] const AssignerConfig& config() const noexcept

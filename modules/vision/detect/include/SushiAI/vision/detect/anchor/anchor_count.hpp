@@ -80,7 +80,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<AnchorCountChoice> choose_anchor_count(
             SushiRuntime::span<const AnchorSize> boxes, std::int64_t heads,
-            const CountOptions& options);
+            const CountOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

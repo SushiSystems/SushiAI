@@ -279,7 +279,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<FreeTask> read_free_task(const Config::Value& task)
+        Result<FreeTask> read_free_task(const Config::Value& task) noexcept
         {
             const SectionReader reader(task, K_TASK);
             SA_TRY(reader.check_object());
@@ -301,7 +301,7 @@ namespace SushiAI
             return Result<FreeTask>(std::move(result));
         }
 
-        Result<Config::Value> write_free_task(const FreeTask& task)
+        Result<Config::Value> write_free_task(const FreeTask& task) noexcept
         {
             SA_TRY(validate_free_task(task));
 

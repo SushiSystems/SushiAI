@@ -107,7 +107,7 @@ namespace SushiAI
         void decode_head(SushiRuntime::span<const float> head, const HeadShape& shape,
                          const HeadOptions& options, const AnchorLayout& layout,
                          std::int64_t head_index, SushiRuntime::span<float> boxes,
-                         SushiRuntime::span<float> scores)
+                         SushiRuntime::span<float> scores) noexcept
         {
             const Status valid = validate_head(options, layout, head_index);
             SA_FATAL_IF(!valid.is_ok(), "decode_head was given a head that does not validate: {}",

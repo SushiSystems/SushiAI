@@ -50,7 +50,7 @@ namespace SushiAI
          *         what validate_head_training refuses.
          */
         [[nodiscard]] Result<HeadTrainingOptions> read_head_training_section(
-            const Config::Value& section);
+            const Config::Value& section) noexcept;
 
         /**
          * @brief Writes HeadTrainingOptions as the objective section of a training file.
@@ -59,7 +59,7 @@ namespace SushiAI
          *         validate_head_training refuses.
          */
         [[nodiscard]] Result<Config::Value> write_head_training_section(
-            const HeadTrainingOptions& options);
+            const HeadTrainingOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

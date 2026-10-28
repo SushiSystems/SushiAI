@@ -46,7 +46,7 @@ namespace SushiAI
          * @see modules/vision/detect/README.md
          */
         void xyxy_to_xywh(SushiRuntime::span<const float> boxes,
-                          SushiRuntime::span<float> converted);
+                          SushiRuntime::span<float> converted) noexcept;
 
         /**
          * @brief Converts `[N, 4]` boxes from centre x, centre y, width, height to x1 y1 x2 y2.
@@ -55,7 +55,7 @@ namespace SushiAI
          * @see modules/vision/detect/README.md
          */
         void xywh_to_xyxy(SushiRuntime::span<const float> boxes,
-                          SushiRuntime::span<float> converted);
+                          SushiRuntime::span<float> converted) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

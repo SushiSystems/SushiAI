@@ -85,7 +85,7 @@ namespace SushiAI
         } // namespace
 
         Result<AssignmentChoice> read_assignment_section(const Config::Value* section,
-                                                         std::string_view where)
+                                                         std::string_view where) noexcept
         {
             AssignmentChoice choice;
             if (section == nullptr)
@@ -129,7 +129,7 @@ namespace SushiAI
         }
 
         Result<Config::Value> write_assignment_section(const AssignmentChoice& choice,
-                                                       std::string_view where)
+                                                       std::string_view where) noexcept
         {
             const RuleName* found = nullptr;
             for (const RuleName& row : K_RULE_NAMES)

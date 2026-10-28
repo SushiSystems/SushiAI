@@ -67,7 +67,7 @@ namespace SushiAI
             SushiRuntime::span<const float> head, const HeadShape& shape,
             const HeadOptions& options, const AnchorLayout& layout, std::int64_t head_index,
             const HeadTrainingOptions& training, const Detect::GroundTruthBatch& truth,
-            NetworkSize network, HeadDelta& result);
+            NetworkSize network, HeadDelta& result) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

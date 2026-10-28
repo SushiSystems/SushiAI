@@ -48,7 +48,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status validate_head_truth(const Detect::GroundTruthBatch& truth,
                                                  std::int64_t batch, std::int64_t classes,
-                                                 NetworkSize network);
+                                                 NetworkSize network) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

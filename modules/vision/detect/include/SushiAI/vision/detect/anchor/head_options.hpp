@@ -102,7 +102,7 @@ namespace SushiAI
          *         Exponential.
          */
         [[nodiscard]] Status validate_head(const HeadOptions& options, const AnchorLayout& layout,
-                                           std::int64_t head_index);
+                                           std::int64_t head_index) noexcept;
 
         /**
          * @brief Returns the channels of a head's output, `A * (5 + C)`.

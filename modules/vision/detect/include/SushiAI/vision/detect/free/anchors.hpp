@@ -61,7 +61,7 @@ namespace SushiAI
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] Result<std::int64_t> count_anchors(
-            SushiRuntime::span<const FeatureLevel> levels);
+            SushiRuntime::span<const FeatureLevel> levels) noexcept;
 
         /**
          * @brief Writes each anchor's cell centre in grid units and its stride.
@@ -73,7 +73,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status make_anchors(SushiRuntime::span<const FeatureLevel> levels,
                                           SushiRuntime::span<float> points,
-                                          SushiRuntime::span<float> strides);
+                                          SushiRuntime::span<float> strides) noexcept;
 
         /**
          * @brief Multiplies each anchor point by its stride, which gives the point in pixels.
@@ -84,7 +84,7 @@ namespace SushiAI
          */
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,
-                          SushiRuntime::span<float> scaled);
+                          SushiRuntime::span<float> scaled) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

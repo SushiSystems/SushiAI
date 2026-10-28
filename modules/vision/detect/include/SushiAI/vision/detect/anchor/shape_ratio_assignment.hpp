@@ -57,7 +57,7 @@ namespace SushiAI
          * @return Success, or InvalidDescription naming the key: ratio_limit must be finite and
          *         above 1, neighbour_offset finite and in [0, 0.5].
          */
-        [[nodiscard]] Status validate_shape_ratio_options(const ShapeRatioOptions& options);
+        [[nodiscard]] Status validate_shape_ratio_options(const ShapeRatioOptions& options) noexcept;
 
         /**
          * @brief Assigns each truth to every anchor of a head whose side ratio stays within a

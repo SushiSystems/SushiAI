@@ -61,7 +61,7 @@ namespace SushiAI
          *         the key that fails.
          */
         [[nodiscard]] Result<AssignmentChoice> read_assignment_section(
-            const Config::Value* section, std::string_view where);
+            const Config::Value* section, std::string_view where) noexcept;
 
         /**
          * @brief Reports whether @p choice is written; BestShape is the default and left out.
@@ -74,7 +74,7 @@ namespace SushiAI
          *         naming the key that fails.
          */
         [[nodiscard]] Result<Config::Value> write_assignment_section(
-            const AssignmentChoice& choice, std::string_view where);
+            const AssignmentChoice& choice, std::string_view where) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

@@ -101,7 +101,7 @@ namespace SushiAI
 
         }
 
-        Result<TaskAlignedAssigner> TaskAlignedAssigner::make(const AssignerConfig& config)
+        Result<TaskAlignedAssigner> TaskAlignedAssigner::make(const AssignerConfig& config) noexcept
         {
             SA_FAIL_IF(config.topk <= 0 || config.topk2 <= 0 || config.num_classes <= 0,
                        StatusCode::InvalidDescription,
@@ -115,7 +115,7 @@ namespace SushiAI
             return TaskAlignedAssigner(config);
         }
 
-        Status TaskAlignedAssigner::assign(const AssignerInputs& inputs, Assignment& assignment)
+        Status TaskAlignedAssigner::assign(const AssignerInputs& inputs, Assignment& assignment) noexcept
         {
             SA_TRY(check_inputs(inputs));
 

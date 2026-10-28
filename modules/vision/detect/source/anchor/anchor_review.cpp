@@ -76,7 +76,7 @@ namespace SushiAI
         Result<AnchorReview> review_anchors(SushiRuntime::span<const AnchorSize> boxes,
                                             const AnchorLayout& current,
                                             SushiRuntime::span<const std::int64_t> strides,
-                                            const ReviewOptions& options)
+                                            const ReviewOptions& options) noexcept
         {
             SA_TRY(check_review_options(options));
 

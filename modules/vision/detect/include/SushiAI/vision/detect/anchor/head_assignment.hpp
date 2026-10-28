@@ -51,7 +51,7 @@ namespace SushiAI
         [[nodiscard]] Result<AnchorLayout>
         assign_anchors_to_heads(SushiRuntime::span<const AnchorSize> anchors,
                                 SushiRuntime::span<const std::int64_t> strides,
-                                SushiRuntime::span<const std::int64_t> per_head);
+                                SushiRuntime::span<const std::int64_t> per_head) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

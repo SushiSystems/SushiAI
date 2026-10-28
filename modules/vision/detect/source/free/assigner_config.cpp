@@ -79,13 +79,13 @@ namespace SushiAI
         } // namespace
 
         AssignerConfig one_to_many_assigner_config(std::int64_t num_classes,
-                                                   SushiRuntime::span<const float> strides)
+                                                   SushiRuntime::span<const float> strides) noexcept
         {
             return make_branch_config(K_ONE_TO_MANY_TOPK, K_ONE_TO_MANY_TOPK, num_classes, strides);
         }
 
         AssignerConfig one_to_one_assigner_config(std::int64_t num_classes,
-                                                  SushiRuntime::span<const float> strides)
+                                                  SushiRuntime::span<const float> strides) noexcept
         {
             return make_branch_config(K_ONE_TO_ONE_TOPK, K_ONE_TO_ONE_TOPK2, num_classes, strides);
         }

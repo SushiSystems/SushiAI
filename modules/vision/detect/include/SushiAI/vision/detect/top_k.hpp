@@ -47,7 +47,7 @@ namespace SushiAI
          */
         void select_top_k(SushiRuntime::span<const float> values,
                           std::int64_t k,
-                          std::vector<std::int64_t>& indices);
+                          std::vector<std::int64_t>& indices) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

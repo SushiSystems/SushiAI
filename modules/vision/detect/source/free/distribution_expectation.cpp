@@ -41,7 +41,7 @@ namespace SushiAI
     {
         Status expect_distances(SushiRuntime::span<const float> logits,
                                 std::int64_t reg_max,
-                                SushiRuntime::span<float> distances)
+                                SushiRuntime::span<float> distances) noexcept
         {
             SA_FAIL_IF(reg_max < 1, StatusCode::InvalidDescription,
                        "reg_max must be positive; got {}", reg_max);
@@ -82,7 +82,7 @@ namespace SushiAI
             return Status();
         }
 
-        void fill_distribution_projection(SushiRuntime::span<float> projection)
+        void fill_distribution_projection(SushiRuntime::span<float> projection) noexcept
         {
             for (std::size_t bin = 0; bin < projection.size(); ++bin)
                 projection[bin] = static_cast<float>(bin);

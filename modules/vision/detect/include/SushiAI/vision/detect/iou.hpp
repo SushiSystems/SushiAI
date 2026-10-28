@@ -60,7 +60,7 @@ namespace SushiAI
          */
         void elementwise_iou(SushiRuntime::span<const float> boxes1,
                              SushiRuntime::span<const float> boxes2,
-                             SushiRuntime::span<float> ious);
+                             SushiRuntime::span<float> ious) noexcept;
 
         /**
          * @brief Writes the complete IoU of row i of @p boxes1 with row i of @p boxes2.
@@ -69,7 +69,7 @@ namespace SushiAI
          */
         void elementwise_complete_iou(SushiRuntime::span<const float> boxes1,
                                       SushiRuntime::span<const float> boxes2,
-                                      SushiRuntime::span<float> ious);
+                                      SushiRuntime::span<float> ious) noexcept;
 
         /**
          * @brief Writes the IoU of every row of @p boxes1 with every row of @p boxes2.
@@ -79,7 +79,7 @@ namespace SushiAI
          */
         void pairwise_iou(SushiRuntime::span<const float> boxes1,
                           SushiRuntime::span<const float> boxes2,
-                          SushiRuntime::span<float> ious);
+                          SushiRuntime::span<float> ious) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

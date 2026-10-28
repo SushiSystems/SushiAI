@@ -48,7 +48,7 @@ namespace SushiAI
         } // namespace
 
         void xyxy_to_xywh(SushiRuntime::span<const float> boxes,
-                          SushiRuntime::span<float> converted)
+                          SushiRuntime::span<float> converted) noexcept
         {
             check_box_arrays(boxes.size(), converted.size());
             for (std::size_t at = 0; at < boxes.size(); at += K_BOX_VALUES)
@@ -65,7 +65,7 @@ namespace SushiAI
         }
 
         void xywh_to_xyxy(SushiRuntime::span<const float> boxes,
-                          SushiRuntime::span<float> converted)
+                          SushiRuntime::span<float> converted) noexcept
         {
             check_box_arrays(boxes.size(), converted.size());
             for (std::size_t at = 0; at < boxes.size(); at += K_BOX_VALUES)

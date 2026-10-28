@@ -43,7 +43,7 @@ namespace SushiAI
          */
         void decode_xyxy(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
-                         SushiRuntime::span<float> boxes);
+                         SushiRuntime::span<float> boxes) noexcept;
 
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into centre and size.
@@ -54,7 +54,7 @@ namespace SushiAI
          */
         void decode_xywh(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
-                         SushiRuntime::span<float> boxes);
+                         SushiRuntime::span<float> boxes) noexcept;
 
         /**
          * @brief Encodes `[B, A, 4]` x1 y1 x2 y2 boxes as distances about `[A, 2]` anchor points.
@@ -65,7 +65,7 @@ namespace SushiAI
          */
         void encode_distances(SushiRuntime::span<const float> anchor_points,
                               SushiRuntime::span<const float> boxes,
-                              SushiRuntime::span<float> distances);
+                              SushiRuntime::span<float> distances) noexcept;
 
         /**
          * @brief Multiplies `[B, A, 4]` boxes by the `[A]` stride of their anchor.
@@ -76,7 +76,7 @@ namespace SushiAI
          */
         void scale_boxes(SushiRuntime::span<const float> boxes,
                          SushiRuntime::span<const float> strides,
-                         SushiRuntime::span<float> scaled);
+                         SushiRuntime::span<float> scaled) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

@@ -48,7 +48,7 @@ namespace SushiAI
          * @return The count, or InvalidDescription for an extent or a limit below 1.
          */
         [[nodiscard]] Result<std::int64_t> count_top_detections(const PredictionShape& shape,
-                                                                std::int64_t max_detections);
+                                                                std::int64_t max_detections) noexcept;
 
         /**
          * @brief Writes the highest-scoring anchor and class pairs of each image as detections.
@@ -62,7 +62,7 @@ namespace SushiAI
                                                    SushiRuntime::span<const float> scores,
                                                    const PredictionShape& shape,
                                                    std::int64_t max_detections,
-                                                   SushiRuntime::span<float> detections);
+                                                   SushiRuntime::span<float> detections) noexcept;
 
         /**
          * @brief Writes each image's rows of @p detections whose score exceeds the threshold.
@@ -75,7 +75,7 @@ namespace SushiAI
         [[nodiscard]] Status keep_confident_detections(SushiRuntime::span<const float> detections,
                                                        std::int64_t batch,
                                                        float confidence_threshold,
-                                                       std::vector<std::vector<float>>& kept);
+                                                       std::vector<std::vector<float>>& kept) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

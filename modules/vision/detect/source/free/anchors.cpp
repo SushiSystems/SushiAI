@@ -38,7 +38,7 @@ namespace SushiAI
 {
     namespace Vision::Detect::Free
     {
-        Result<std::int64_t> count_anchors(SushiRuntime::span<const FeatureLevel> levels)
+        Result<std::int64_t> count_anchors(SushiRuntime::span<const FeatureLevel> levels) noexcept
         {
             std::int64_t count = 0;
             for (const FeatureLevel& level : levels)
@@ -55,7 +55,7 @@ namespace SushiAI
 
         Status make_anchors(SushiRuntime::span<const FeatureLevel> levels,
                             SushiRuntime::span<float> points,
-                            SushiRuntime::span<float> strides)
+                            SushiRuntime::span<float> strides) noexcept
         {
             SA_TRY_ASSIGN(const std::int64_t anchor_count, count_anchors(levels));
             const std::size_t count = static_cast<std::size_t>(anchor_count);
@@ -83,7 +83,7 @@ namespace SushiAI
 
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,
-                          SushiRuntime::span<float> scaled)
+                          SushiRuntime::span<float> scaled) noexcept
         {
             SA_FATAL_IF(points.size() != strides.size() * K_POINT_VALUES ||
                             scaled.size() != points.size(),

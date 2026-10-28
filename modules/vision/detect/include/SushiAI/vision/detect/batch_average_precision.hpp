@@ -48,7 +48,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status add_batch(AveragePrecision& metric,
                        const std::vector<std::vector<float>>& detections,
-                             const GroundTruthBatch& truth);
+                             const GroundTruthBatch& truth) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

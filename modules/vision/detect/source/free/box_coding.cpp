@@ -64,7 +64,7 @@ namespace SushiAI
 
         void decode_xyxy(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
-                         SushiRuntime::span<float> boxes)
+                         SushiRuntime::span<float> boxes) noexcept
         {
             const std::size_t anchors = check_anchor_rows(distances.size(), anchor_points.size(),
                                                           K_POINT_VALUES, boxes.size());
@@ -86,7 +86,7 @@ namespace SushiAI
 
         void decode_xywh(SushiRuntime::span<const float> distances,
                          SushiRuntime::span<const float> anchor_points,
-                         SushiRuntime::span<float> boxes)
+                         SushiRuntime::span<float> boxes) noexcept
         {
             decode_xyxy(distances, anchor_points, boxes);
             xyxy_to_xywh(boxes, boxes);
@@ -94,7 +94,7 @@ namespace SushiAI
 
         void encode_distances(SushiRuntime::span<const float> anchor_points,
                               SushiRuntime::span<const float> boxes,
-                              SushiRuntime::span<float> distances)
+                              SushiRuntime::span<float> distances) noexcept
         {
             const std::size_t anchors = check_anchor_rows(boxes.size(), anchor_points.size(),
                                                           K_POINT_VALUES, distances.size());
@@ -116,7 +116,7 @@ namespace SushiAI
 
         void scale_boxes(SushiRuntime::span<const float> boxes,
                          SushiRuntime::span<const float> strides,
-                         SushiRuntime::span<float> scaled)
+                         SushiRuntime::span<float> scaled) noexcept
         {
             const std::size_t anchors =
                 check_anchor_rows(boxes.size(), strides.size(), 1, scaled.size());

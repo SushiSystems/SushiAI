@@ -126,7 +126,7 @@ namespace SushiAI
 
         void elementwise_iou(SushiRuntime::span<const float> boxes1,
                              SushiRuntime::span<const float> boxes2,
-                             SushiRuntime::span<float> ious)
+                             SushiRuntime::span<float> ious) noexcept
         {
             check_elementwise(boxes1.size(), boxes2.size(), ious.size());
             for (std::size_t row = 0; row < ious.size(); ++row)
@@ -139,7 +139,7 @@ namespace SushiAI
 
         void elementwise_complete_iou(SushiRuntime::span<const float> boxes1,
                                       SushiRuntime::span<const float> boxes2,
-                                      SushiRuntime::span<float> ious)
+                                      SushiRuntime::span<float> ious) noexcept
         {
             check_elementwise(boxes1.size(), boxes2.size(), ious.size());
             for (std::size_t row = 0; row < ious.size(); ++row)
@@ -152,7 +152,7 @@ namespace SushiAI
 
         void pairwise_iou(SushiRuntime::span<const float> boxes1,
                           SushiRuntime::span<const float> boxes2,
-                          SushiRuntime::span<float> ious)
+                          SushiRuntime::span<float> ious) noexcept
         {
             const std::size_t count1 = boxes1.size() / K_BOX_VALUES;
             const std::size_t count2 = boxes2.size() / K_BOX_VALUES;

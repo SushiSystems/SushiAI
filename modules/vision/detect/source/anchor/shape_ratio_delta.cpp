@@ -228,7 +228,7 @@ namespace SushiAI
             }
         } // namespace
 
-        double objectness_balance(std::int64_t levels, std::int64_t level)
+        double objectness_balance(std::int64_t levels, std::int64_t level) noexcept
         {
             SA_FATAL_IF(level < 0 || level >= levels || levels > K_MAX_BALANCED_LEVELS,
                         "no objectness balance for level {} of {}", level, levels);
@@ -237,7 +237,7 @@ namespace SushiAI
             return levels == K_SHORT_BALANCE_LEVELS ? K_SHORT_BALANCE[at] : K_LONG_BALANCE[at];
         }
 
-        ShapeRatioFactors derive_shape_ratio_factors(const ShapeRatioDeltaInput& input)
+        ShapeRatioFactors derive_shape_ratio_factors(const ShapeRatioDeltaInput& input) noexcept
         {
             const std::int64_t levels =
                 static_cast<std::int64_t>(input.layout->head_anchors.size());
@@ -256,7 +256,7 @@ namespace SushiAI
             return factors;
         }
 
-        Status validate_shape_ratio_delta(const ShapeRatioDeltaInput& input)
+        Status validate_shape_ratio_delta(const ShapeRatioDeltaInput& input) noexcept
         {
             SA_FAIL_IF(input.layout == nullptr || input.training == nullptr,
                        StatusCode::InvalidDescription,
@@ -335,7 +335,7 @@ namespace SushiAI
         }
 
         Status build_objectness_targets(const ShapeRatioDeltaInput& input,
-                                        std::vector<float>& targets)
+                                        std::vector<float>& targets) noexcept
         {
             SA_TRY(validate_shape_ratio_delta(input));
             fill_targets(input, make_plan(input), targets);
@@ -343,7 +343,7 @@ namespace SushiAI
         }
 
         Result<ShapeRatioLoss> measure_shape_ratio_loss(const ShapeRatioDeltaInput& input,
-                                                        SushiRuntime::span<const float> targets)
+                                                        SushiRuntime::span<const float> targets) noexcept
         {
             SA_TRY(validate_shape_ratio_delta(input));
             const LevelPlan plan = make_plan(input);
@@ -390,7 +390,7 @@ namespace SushiAI
             return loss;
         }
 
-        Status compute_shape_ratio_delta(const ShapeRatioDeltaInput& input, HeadDelta& result)
+        Status compute_shape_ratio_delta(const ShapeRatioDeltaInput& input, HeadDelta& result) noexcept
         {
             std::vector<float> targets;
             SA_TRY(build_objectness_targets(input, targets));

@@ -51,7 +51,7 @@ namespace SushiAI
          * @return Success, or InvalidDescription naming the first anchor, head or index that
          *         fails. Two heads may share an anchor and an anchor may belong to no head.
          */
-        [[nodiscard]] Status validate_anchor_layout(const AnchorLayout& layout);
+        [[nodiscard]] Status validate_anchor_layout(const AnchorLayout& layout) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

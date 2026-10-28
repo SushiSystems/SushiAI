@@ -82,7 +82,7 @@ namespace SushiAI
          * @return The task, or InvalidDescription naming the key and the entry that fails.
          *         Under a criterion that does not read it, distance_exponent is the default.
          */
-        [[nodiscard]] Result<AnchorTask> read_anchor_task(const Config::Value& task);
+        [[nodiscard]] Result<AnchorTask> read_anchor_task(const Config::Value& task) noexcept;
 
         /**
          * @brief Writes an AnchorTask as the task section of a model file.
@@ -90,7 +90,7 @@ namespace SushiAI
          *         InvalidDescription naming the key and the entry that fails. The exponent is
          *         written for a criterion that reads it and left out otherwise.
          */
-        [[nodiscard]] Result<Config::Value> write_anchor_task(const AnchorTask& task);
+        [[nodiscard]] Result<Config::Value> write_anchor_task(const AnchorTask& task) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

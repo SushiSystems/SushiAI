@@ -50,7 +50,7 @@ namespace SushiAI
         [[nodiscard]] Status fill_distribution_weights(
             SushiRuntime::span<const float> target_distances,
             SushiRuntime::span<const float> normalized_weight, std::int64_t reg_max,
-            SushiRuntime::span<float> weights);
+            SushiRuntime::span<float> weights) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

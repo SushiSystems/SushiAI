@@ -44,7 +44,7 @@ namespace SushiAI
     namespace Vision::Detect
     {
         Result<std::int64_t> count_top_detections(const PredictionShape& shape,
-                                                  std::int64_t max_detections)
+                                                  std::int64_t max_detections) noexcept
         {
             SA_FAIL_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0 ||
                            max_detections <= 0,
@@ -59,7 +59,7 @@ namespace SushiAI
                                      SushiRuntime::span<const float> scores,
                                      const PredictionShape& shape,
                                      std::int64_t max_detections,
-                                     SushiRuntime::span<float> detections)
+                                     SushiRuntime::span<float> detections) noexcept
         {
             SA_TRY_ASSIGN(const std::int64_t kept_count,
                           count_top_detections(shape, max_detections));
@@ -119,7 +119,7 @@ namespace SushiAI
         Status keep_confident_detections(SushiRuntime::span<const float> detections,
                                          std::int64_t batch,
                                          float confidence_threshold,
-                                         std::vector<std::vector<float>>& kept)
+                                         std::vector<std::vector<float>>& kept) noexcept
         {
             SA_FAIL_IF(batch <= 0, StatusCode::InvalidDescription,
                        "a confidence filter needs a positive batch; got {}", batch);

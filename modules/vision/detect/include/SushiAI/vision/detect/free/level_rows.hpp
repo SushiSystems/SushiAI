@@ -58,7 +58,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status join_level(SushiRuntime::span<const float> level,
                                         const LevelPlacement& placement,
-                                        SushiRuntime::span<float> joined);
+                                        SushiRuntime::span<float> joined) noexcept;
 
         /**
          * @brief Copies one level's rows out of a `[B, A, C]` array into `[B, n, C]`.
@@ -70,7 +70,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status split_level(SushiRuntime::span<const float> joined,
                                          const LevelPlacement& placement,
-                                         SushiRuntime::span<float> level);
+                                         SushiRuntime::span<float> level) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

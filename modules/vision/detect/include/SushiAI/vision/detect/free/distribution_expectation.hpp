@@ -46,14 +46,14 @@ namespace SushiAI
          */
         [[nodiscard]] Status expect_distances(SushiRuntime::span<const float> logits,
                                               std::int64_t reg_max,
-                                              SushiRuntime::span<float> distances);
+                                              SushiRuntime::span<float> distances) noexcept;
 
         /**
          * @brief Writes the bin values 0, 1, ..., reg_max - 1 into @p projection.
          * @param projection The `[reg_max, 1]` leaf the expectation graph multiplies by.
          * @see modules/vision/detect/README.md
          */
-        void fill_distribution_projection(SushiRuntime::span<float> projection);
+        void fill_distribution_projection(SushiRuntime::span<float> projection) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

@@ -96,7 +96,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status build_target_leaves(const Assignment& assignment,
                                                  const TargetLeafInputs& inputs,
-                                                 TargetLeaves& leaves);
+                                                 TargetLeaves& leaves) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

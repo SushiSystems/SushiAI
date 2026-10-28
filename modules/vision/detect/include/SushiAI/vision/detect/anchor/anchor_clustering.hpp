@@ -77,7 +77,7 @@ namespace SushiAI
          *         same order with the same options give the same anchors.
          */
         [[nodiscard]] Result<AnchorClustering> cluster_anchors(
-            SushiRuntime::span<const AnchorSize> boxes, const ClusteringOptions& options);
+            SushiRuntime::span<const AnchorSize> boxes, const ClusteringOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

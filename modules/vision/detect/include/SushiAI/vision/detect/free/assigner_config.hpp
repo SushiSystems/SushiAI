@@ -58,7 +58,7 @@ namespace SushiAI
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_many_assigner_config(
-            std::int64_t num_classes, SushiRuntime::span<const float> strides);
+            std::int64_t num_classes, SushiRuntime::span<const float> strides) noexcept;
 
         /**
          * @brief Returns the settings of the one-to-one branch.
@@ -67,7 +67,7 @@ namespace SushiAI
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_one_assigner_config(
-            std::int64_t num_classes, SushiRuntime::span<const float> strides);
+            std::int64_t num_classes, SushiRuntime::span<const float> strides) noexcept;
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

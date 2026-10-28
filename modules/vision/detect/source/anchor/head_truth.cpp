@@ -100,7 +100,7 @@ namespace SushiAI
         } // namespace
 
         Status validate_head_truth(const Detect::GroundTruthBatch& truth, std::int64_t batch,
-                                   std::int64_t classes, NetworkSize network)
+                                   std::int64_t classes, NetworkSize network) noexcept
         {
             SA_TRY(validate_truth_shape(truth, batch));
             SA_FAIL_IF(network.height < 1 || network.width < 1, StatusCode::InvalidDescription,

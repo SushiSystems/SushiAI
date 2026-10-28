@@ -33,6 +33,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/status.hpp>
+
 namespace SushiAI
 {
     namespace Vision::Detect
@@ -70,7 +72,7 @@ namespace SushiAI
                                               std::int64_t batch,
                                               float image_width,
                                               float image_height,
-                                              GroundTruthBatch& padded);
+                                              GroundTruthBatch& padded) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

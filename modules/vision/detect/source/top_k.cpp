@@ -41,7 +41,7 @@ namespace SushiAI
     {
         void select_top_k(SushiRuntime::span<const float> values,
                           std::int64_t k,
-                          std::vector<std::int64_t>& indices)
+                          std::vector<std::int64_t>& indices) noexcept
         {
             SA_FATAL_IF(k < 0 || static_cast<std::size_t>(k) > values.size(),
                         "a top-k of {} was asked of {} values", k, values.size());

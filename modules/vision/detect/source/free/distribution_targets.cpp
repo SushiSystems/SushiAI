@@ -48,7 +48,7 @@ namespace SushiAI
         Status fill_distribution_weights(SushiRuntime::span<const float> target_distances,
                                          SushiRuntime::span<const float> normalized_weight,
                                          std::int64_t reg_max,
-                                         SushiRuntime::span<float> weights)
+                                         SushiRuntime::span<float> weights) noexcept
         {
             SA_FAIL_IF(reg_max < 2, StatusCode::InvalidDescription,
                        "the distribution focal loss needs reg_max of at least 2; "

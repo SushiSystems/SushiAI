@@ -91,7 +91,7 @@ namespace SushiAI
 
         Status join_level(SushiRuntime::span<const float> level,
                           const LevelPlacement& placement,
-                          SushiRuntime::span<float> joined)
+                          SushiRuntime::span<float> joined) noexcept
         {
             SA_TRY_ASSIGN(const LevelExtents extents,
                           check_placement(placement, level.size(), joined.size()));
@@ -106,7 +106,7 @@ namespace SushiAI
 
         Status split_level(SushiRuntime::span<const float> joined,
                            const LevelPlacement& placement,
-                           SushiRuntime::span<float> level)
+                           SushiRuntime::span<float> level) noexcept
         {
             SA_TRY_ASSIGN(const LevelExtents extents,
                           check_placement(placement, level.size(), joined.size()));

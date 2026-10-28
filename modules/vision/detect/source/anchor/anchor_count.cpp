@@ -56,7 +56,7 @@ namespace SushiAI
 
         Result<AnchorCountChoice> choose_anchor_count(SushiRuntime::span<const AnchorSize> boxes,
                                                       std::int64_t heads,
-                                                      const CountOptions& options)
+                                                      const CountOptions& options) noexcept
         {
             SA_FAIL_IF(heads < 1, StatusCode::InvalidDescription,
                        "heads must be at least 1; got {}", heads);

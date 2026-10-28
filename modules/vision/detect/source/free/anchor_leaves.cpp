@@ -51,7 +51,7 @@ namespace SushiAI
 
         Status build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
                                    std::int64_t batch,
-                                   AnchorLeaves& leaves)
+                                   AnchorLeaves& leaves) noexcept
         {
             SA_FAIL_IF(batch <= 0 || levels.empty(), StatusCode::InvalidDescription,
                        "anchor leaves need a positive batch and at least one level; got batch "

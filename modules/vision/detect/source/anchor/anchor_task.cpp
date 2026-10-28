@@ -449,7 +449,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<AnchorTask> read_anchor_task(const Config::Value& task)
+        Result<AnchorTask> read_anchor_task(const Config::Value& task) noexcept
         {
             const Config::SectionReader reader(task, K_TASK);
             SA_TRY(reader.check_object());
@@ -481,7 +481,7 @@ namespace SushiAI
             return Result<AnchorTask>(std::move(result));
         }
 
-        Result<Config::Value> write_anchor_task(const AnchorTask& task)
+        Result<Config::Value> write_anchor_task(const AnchorTask& task) noexcept
         {
             SA_TRY(validate_anchor_task(task));
 

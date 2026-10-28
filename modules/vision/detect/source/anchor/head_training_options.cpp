@@ -49,7 +49,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status validate_head_training(const HeadTrainingOptions& options)
+        Status validate_head_training(const HeadTrainingOptions& options) noexcept
         {
             const float match = options.thresholds.match_threshold;
             SA_FAIL_IF(!is_unit_fraction(match) || !(match > 0.0f),

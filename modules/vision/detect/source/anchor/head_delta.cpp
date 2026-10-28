@@ -530,7 +530,7 @@ namespace SushiAI
                                   const HeadOptions& options, const AnchorLayout& layout,
                                   std::int64_t head_index, const HeadTrainingOptions& training,
                                   const Detect::GroundTruthBatch& truth, NetworkSize network,
-                                  HeadDelta& result)
+                                  HeadDelta& result) noexcept
         {
             const Status valid_head = validate_head(options, layout, head_index);
             SA_FATAL_IF(!valid_head.is_ok(),

@@ -40,7 +40,7 @@ namespace SushiAI
     {
         Status add_batch(AveragePrecision& metric,
                          const std::vector<std::vector<float>>& detections,
-                         const GroundTruthBatch& truth)
+                         const GroundTruthBatch& truth) noexcept
         {
             const auto images = static_cast<std::size_t>(truth.batch);
             const auto slots = static_cast<std::size_t>(truth.max_boxes);

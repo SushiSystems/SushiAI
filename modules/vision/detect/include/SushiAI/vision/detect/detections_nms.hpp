@@ -90,7 +90,7 @@ namespace SushiAI
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
                                SushiRuntime::span<const float> scores,
                                float iou_threshold,
-                               std::vector<std::int64_t>& kept);
+                               std::vector<std::int64_t>& kept) noexcept;
 
         /**
          * @brief Writes the indices of the boxes that survive suppression under @p criterion.
@@ -105,7 +105,7 @@ namespace SushiAI
                                float threshold,
                                SuppressionCriterion criterion,
                                float distance_exponent,
-                               std::vector<std::int64_t>& kept);
+                               std::vector<std::int64_t>& kept) noexcept;
 
         /**
          * @brief Writes each image's detections after thresholding and suppression.
@@ -119,7 +119,7 @@ namespace SushiAI
                                                    SushiRuntime::span<const float> scores,
                                                    const PredictionShape& shape,
                                                    const NMSConfig& config,
-                                                   std::vector<std::vector<float>>& detections);
+                                                   std::vector<std::vector<float>>& detections) noexcept;
 
     } // namespace Vision::Detect
 } // namespace SushiAI

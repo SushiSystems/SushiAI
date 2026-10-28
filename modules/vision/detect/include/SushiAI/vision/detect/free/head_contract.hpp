@@ -79,12 +79,12 @@ namespace SushiAI
          * @param role K_DETECT_BOXES or K_DETECT_SCORES.
          */
         [[nodiscard]] std::string detect_port_name(std::string_view copy, std::size_t level,
-                                                   std::string_view role);
+                                                   std::string_view role) noexcept;
 
         /**
          * @brief Returns the start of a last class bias, log(5 / classes / (640 / stride)^2).
          * @pre @p classes and @p stride are positive.
          */
-        [[nodiscard]] double detect_class_bias(std::int64_t classes, double stride);
+        [[nodiscard]] double detect_class_bias(std::int64_t classes, double stride) noexcept;
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

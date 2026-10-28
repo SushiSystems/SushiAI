@@ -105,7 +105,7 @@ namespace SushiAI
 
         Status build_target_leaves(const Assignment& assignment,
                                    const TargetLeafInputs& inputs,
-                                   TargetLeaves& leaves)
+                                   TargetLeaves& leaves) noexcept
         {
             SA_TRY(check_leaf_inputs(assignment, inputs));
 
@@ -150,6 +150,8 @@ namespace SushiAI
                 leaves.l1_scale[at + 2] = across;
                 leaves.l1_scale[at + 3] = down;
             }
+
+            return Status();
         }
 
     } // namespace Vision::Detect::Free

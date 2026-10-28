@@ -50,7 +50,7 @@ namespace SushiAI
         void decode_head(SushiRuntime::span<const float> head, const HeadShape& shape,
                          const HeadOptions& options, const AnchorLayout& layout,
                          std::int64_t head_index, SushiRuntime::span<float> boxes,
-                         SushiRuntime::span<float> scores);
+                         SushiRuntime::span<float> scores) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI

@@ -120,7 +120,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status validate_shape_ratio_options(const ShapeRatioOptions& options)
+        Status validate_shape_ratio_options(const ShapeRatioOptions& options) noexcept
         {
             SA_FAIL_IF(!std::isfinite(options.ratio_limit) || !(options.ratio_limit > 1.0f),
                        StatusCode::InvalidDescription,

@@ -79,7 +79,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<AnchorPlan> plan_anchors(
             SushiRuntime::span<const AnchorSize> boxes,
-            SushiRuntime::span<const std::int64_t> strides, const AnchorPlanOptions& options);
+            SushiRuntime::span<const std::int64_t> strides, const AnchorPlanOptions& options) noexcept;
 
     } // namespace Vision::Detect::Anchor
 } // namespace SushiAI
