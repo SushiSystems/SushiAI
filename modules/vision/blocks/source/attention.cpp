@@ -31,7 +31,6 @@
 #include <cstddef>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
