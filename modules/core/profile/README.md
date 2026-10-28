@@ -18,7 +18,11 @@ line, so a change of level rebuilds the sources that include `profile.hpp` and n
 The tests of other modules read a record through `modules/core/profile_records`.
 
 A zone is a group and a stage, both string literals: `SA_ZONE("host", "readback")` records the
-site `host.readback` in the group `host`. The groups and stages are in
+site `host.readback` in the group `host`. `zone_groups.hpp` holds `K_ZONE_GROUPS`, the one list of
+the groups SushiAI's sites use, and `is_zone_group`. `SA_ZONE` and `SA_ZONE_FINE` stop the compile
+of a group outside the list through `SA_REQUIRE_ZONE_GROUP`, in a build with the profiler and in
+one without, so a new group is added to the list and nowhere else; `profile_records` reads the
+same list. The groups and stages are in
 [`docs/agent/2026_10_26_PROFILER_ADOPTION/SPEC.md`](../../../docs/agent/2026_10_26_PROFILER_ADOPTION/SPEC.md),
 section 3, and the topic is [`docs/design/PROFILING/README.md`](../../../docs/design/PROFILING/README.md).
 
@@ -35,6 +39,7 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/profile/profile.hpp` | `SA_ZONE`, `SA_ZONE_FINE`, `SA_COUNTER`, `SA_VALUE`; included by source files only |
+| `SushiAI/profile/profile.hpp` | `SA_ZONE`, `SA_ZONE_FINE`, `SA_COUNTER`, `SA_VALUE`, `SA_REQUIRE_ZONE_GROUP`; included by source files only |
+| `SushiAI/profile/zone_groups.hpp` | `K_ZONE_GROUPS`, `is_zone_group` |
 | `SushiAI/profile/timelines.hpp` | `Timeline`, `mark_period`, `timeline_name` |
 | `SushiAI/profile/timeline_binding.hpp` | `TimelineBinding`; included by the programs only |

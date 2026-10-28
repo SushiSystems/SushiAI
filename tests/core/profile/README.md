@@ -10,4 +10,5 @@ Each test file has a page beside it that says what its cases pin.
 | --- | --- |
 | `test_timelines.cpp` | [`test_timelines.md`](test_timelines.md) |
 | `test_profile.cpp` | [`test_profile.md`](test_profile.md) |
+| `test_zone_groups.cpp` | [`test_zone_groups.md`](test_zone_groups.md) |
 | `test_timeline_binding.cpp` | [`test_timeline_binding.md`](test_timeline_binding.md) |

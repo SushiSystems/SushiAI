@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER profile
         test_timelines.cpp
         test_profile.cpp
         test_timeline_binding.cpp
+        test_zone_groups.cpp
     DEPENDS
         profile_records
     LINKS

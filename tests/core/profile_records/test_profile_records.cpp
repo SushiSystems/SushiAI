@@ -26,6 +26,7 @@
  * @see tests/core/profile_records/test_profile_records.md
  */
 
+#include <SushiAI/profile/zone_groups.hpp>
 #include <SushiAI/profile_records/profile_records.hpp>
 
 #include <cstdint>
@@ -99,6 +100,29 @@ TEST(Small_ProfileRecords, SushiAIZonesOfLeavesOutTheLibraryGroups)
 
     const std::map<std::string, std::string> expected = {{"device.run", "device"}};
     EXPECT_EQ(zones, expected);
+}
+
+/** @brief Tests that sushiai_zones_of keeps a zone of every group in K_ZONE_GROUPS. */
+TEST(Small_ProfileRecords, SushiAIZonesOfKeepsEveryGroupOfTheSharedList)
+{
+    SushiProfiler::RunRecord record;
+    SushiProfiler::PeriodRecord period;
+    SushiProfiler::ZoneTree tree;
+    record.sites.resize(SushiAI::Profile::K_ZONE_GROUPS.size());
+    std::map<std::string, std::string> expected;
+    for (std::uint32_t site = 0U; site < record.sites.size(); ++site)
+    {
+        const std::string group(SushiAI::Profile::K_ZONE_GROUPS[site]);
+        record.sites[site].name = group + ".stage";
+        record.sites[site].group = group;
+        expected[group + ".stage"] = group;
+        SushiProfiler::ZoneNode node;
+        node.site = site;
+        tree.nodes.push_back(node);
+    }
+    period.zones.push_back(tree);
+
+    EXPECT_EQ(SaTest::sushiai_zones_of(record, period), expected);
 }
 
 /** @brief Tests that the written configuration file reads back through SushiProfiler. */

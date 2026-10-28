@@ -29,6 +29,15 @@
 #pragma once
 
 #include <SushiAI/profile/profile_config.hpp>
+#include <SushiAI/profile/zone_groups.hpp>
+
+/**
+ * @brief Stops the compile when @p group is not one of SushiAI::Profile::K_ZONE_GROUPS.
+ * @param group A string literal naming the zone group.
+ */
+#define SA_REQUIRE_ZONE_GROUP(group)                                                               \
+    static_assert(::SushiAI::Profile::is_zone_group(group),                                        \
+                  "the zone group is not in SushiAI::Profile::K_ZONE_GROUPS")
 
 #if SA_ENABLE_PROFILER
 
@@ -36,13 +45,17 @@
 
 /**
  * @brief Records the rest of the scope as the stage zone `<group>.<stage>` of group @p group.
- * @param group A string literal naming the zone group, such as "host".
+ * @param group A string literal naming one of K_ZONE_GROUPS, such as "host".
  * @param stage A string literal naming the stage, such as "readback".
  */
-#define SA_ZONE(group, stage) SP_ZONE_AT(SA_PROFILE_LEVEL, 1, group "." stage, group)
+#define SA_ZONE(group, stage)                                                                      \
+    SA_REQUIRE_ZONE_GROUP(group);                                                                  \
+    SP_ZONE_AT(SA_PROFILE_LEVEL, 1, group "." stage, group)
 
 /** @brief Records the rest of the scope as a fine zone, kept at level 2; arguments as SA_ZONE. */
-#define SA_ZONE_FINE(group, stage) SP_ZONE_AT(SA_PROFILE_LEVEL, 2, group "." stage, group)
+#define SA_ZONE_FINE(group, stage)                                                                 \
+    SA_REQUIRE_ZONE_GROUP(group);                                                                  \
+    SP_ZONE_AT(SA_PROFILE_LEVEL, 2, group "." stage, group)
 
 /** @brief Records @p value at the counter @p name, folded per period by the CounterOp @p op. */
 #define SA_COUNTER(name, unit, op, value) SP_COUNTER_AT(SA_PROFILE_LEVEL, 1, name, unit, op, value)
@@ -52,11 +65,11 @@
 
 #else
 
-/** @brief Expands to nothing: the build has no profiler. */
-#define SA_ZONE(group, stage)
+/** @brief Checks @p group and records nothing: the build has no profiler. */
+#define SA_ZONE(group, stage) SA_REQUIRE_ZONE_GROUP(group)
 
-/** @brief Expands to nothing: the build has no profiler. */
-#define SA_ZONE_FINE(group, stage)
+/** @brief Checks @p group and records nothing: the build has no profiler. */
+#define SA_ZONE_FINE(group, stage) SA_REQUIRE_ZONE_GROUP(group)
 
 /** @brief Expands to nothing, and does not evaluate @p value: the build has no profiler. */
 #define SA_COUNTER(name, unit, op, value)

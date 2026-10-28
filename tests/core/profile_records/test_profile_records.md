@@ -16,6 +16,10 @@ A record with the sites `data.read` and `host.feed`, and a period whose one zone
 
 A period with the zones `device.run` of group `device`, `chain.wait` of group `Runtime` and `blas.record` of group `BLAS` gives `sushiai_zones_of` the one entry `device.run` to `device`: the groups of SushiRuntime and SushiBLAS are not SushiAI's.
 
+## SushiAIZonesOfKeepsEveryGroupOfTheSharedList
+
+A record with one zone `<group>.stage` for each group of `K_ZONE_GROUPS` (`SushiAI/profile/zone_groups.hpp`) gives `sushiai_zones_of` all of them. A group added to the list is covered with no edit to the case.
+
 ## TheWrittenConfigurationIsReadBySushiProfiler
 
 `write_profile_config` writes a file that `read_profiler_config` accepts. The read configuration follows `train.step`, has 2 active periods and one writer.

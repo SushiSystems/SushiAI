@@ -38,6 +38,7 @@
 #include <map>
 #include <string>
 #include <string_view>
+#include <SushiAI/profile/zone_groups.hpp>
 #include <SushiProfiler/config/profiler_config.hpp>
 #include <SushiProfiler/record/run_record.hpp>
 
@@ -77,10 +78,6 @@ namespace SushiAI
             return zones;
         }
 
-        /** @brief Holds the zone groups SushiAI's own sites use, as SA_ZONE names them. */
-        inline constexpr std::array<std::string_view, 10> K_SUSHIAI_ZONE_GROUPS = {
-            "compile", "copy", "data", "device", "eager", "eval", "host", "io", "optim", "train"};
-
         /** @brief Returns the zones of @p period whose group is one of @p groups. */
         template<std::size_t Count>
         std::map<std::string, std::string> zones_in_groups(
@@ -97,13 +94,14 @@ namespace SushiAI
         }
 
         /**
-         * @brief Returns the zones of @p period that SushiAI's own sites ran, leaving out the
-         *        zones of the libraries below it, such as the groups "Runtime" and "BLAS".
+         * @brief Returns the zones of @p period whose group is in Profile::K_ZONE_GROUPS, which
+         *        leaves out the zones of the libraries below SushiAI, such as the groups
+         *        "Runtime" and "BLAS".
          */
         inline std::map<std::string, std::string> sushiai_zones_of(
             const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period)
         {
-            return zones_in_groups(record, period, K_SUSHIAI_ZONE_GROUPS);
+            return zones_in_groups(record, period, Profile::K_ZONE_GROUPS);
         }
 
         /** @brief Writes @p text to @p path, making the folder that holds it. */
