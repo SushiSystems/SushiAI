@@ -401,13 +401,12 @@ TEST(Small_ImagingRawCache, PixelsRejectAHeaderTheReaderDidNotValidate)
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, WriterRejectsAnEmptyView)
+TEST(Small_ImagingRawCache, WriterStopsTheProcessOnAnEmptyView)
 {
     std::ostringstream out(std::ios::binary);
 
-    SA_EXPECT_FAILURE(write_raw_image(out, ImageView(), ChannelOrder::RGB),
-                      StatusCode::InvalidDescription, "no pixels");
-    EXPECT_TRUE(out.str().empty());
+    SA_EXPECT_FATAL((void)write_raw_image(out, ImageView(), ChannelOrder::RGB),
+                    "write_raw_image: the image to write has no pixels");
 }
 
 TEST(Small_ImagingRawCache, WriterRejectsAChannelCountThatDoesNotFitTheOrder)

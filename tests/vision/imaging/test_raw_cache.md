@@ -158,9 +158,10 @@ A stream one byte short of its pixels returns `InvalidFile` with "pixels ended" 
 `read_raw_image_pixels` given a hand-built header of height 0 returns `InvalidFile` with "height 0" and leaves
 the destination as it was.
 
-## WriterRejectsAnEmptyView
+## WriterStopsTheProcessOnAnEmptyView
 
-A default view returns `InvalidDescription` with "no pixels" and nothing is written.
+A default view breaks the precondition of `write_raw_image`, which stops the process with
+"write_raw_image: the image to write has no pixels".
 
 ## WriterRejectsAChannelCountThatDoesNotFitTheOrder
 
