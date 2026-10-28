@@ -41,7 +41,7 @@ namespace SushiAI
          * @return An objective a Trainer over @p built is made with; it outlives the trainer.
          */
         [[nodiscard]] inline Train::CrossEntropyObjective classifier_objective(
-            const Train::TrainingGraph& built)
+            const Train::TrainingGraph& built) noexcept
         {
             const Graph::Value& targets = built.graph.value(built.spec.targets);
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-28 — classifier_objective: Marked 1 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
+- 2026-10-28 — tensor_values: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
+- 2026-10-28 — scratch_files: Marked 2 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — profile_records: Marked 6 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — optim: Marked 45 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — model_text: Marked 4 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
