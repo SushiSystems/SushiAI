@@ -57,7 +57,7 @@ namespace SushiAI
                  * A test that never calls it opens no device and starts no worker. A runtime that
                  * cannot be created ends the process with its message.
                  */
-                static SushiRuntime::Runtime& runtime()
+                static SushiRuntime::Runtime& runtime() noexcept
                 {
                     if (!runtime_)
                     {

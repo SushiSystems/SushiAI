@@ -51,7 +51,7 @@ namespace SushiAI
                  * @param engine Lends the runtime, the scratch pool and the mode; it must outlive
                  *               this object.
                  */
-                explicit TestGraph(SushiBLAS::Engine& engine)
+                explicit TestGraph(SushiBLAS::Engine& engine) noexcept
                     : late_counts_(engine.runtime()), graph_(Detail::create_graph(engine).value()),
                       recorder_(graph_.recorder(), engine.scratch_pool(), late_counts_,
                                 engine.mode())
