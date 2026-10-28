@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-28 — shape: Breaking change: Made the `Shape` constructors and `Shape::dim` stop the process in place of throwing, and added `Shape::make` for extents a document or a file supplied (`shape.hpp`).
+- 2026-10-28 — shape: Added `checked_shape_of`, which reads a caller's tensor as a `Result<Shape>` (`tensor_shape.hpp`).
+- 2026-10-28 — train: Read the batch's tensors through `checked_shape_of` and the classifier's input extents through `Shape::make`, without the throwing bridge (`feed.cpp`, `one_hot.cpp`, `steps.hpp`).
+- 2026-10-28 — train: Returned the pinned values of the evaluation step as a vector, with no bridge around them (`evaluation_step.cpp`).
 - 2026-10-28 — vision: Breaking change: Made `output_shape(const Shape&)` of every block return `Result<Shape>`, passing on the first failure of a child (`blocks/include`).
 - 2026-10-28 — vision: Narrowed the throwing bridge of `DetectHead::create` to the block constructors and dropped it from `DetectHead::forward` (`detect_head.cpp`).
 - 2026-10-28 — training: Breaking change: Made `emit_head_delta_loss` return `Graph::Traced`, refusing a delta that `MUL` refuses as `InvalidDescription` in place of throwing (`head_delta_loss.hpp`).

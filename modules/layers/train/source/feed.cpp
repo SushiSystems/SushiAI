@@ -37,7 +37,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -46,14 +45,8 @@ namespace SushiAI
         Status check_feed(const SushiBLAS::Tensor& source, const SushiBLAS::Tensor& destination,
                           std::string_view what)
         {
-            SA_TRY_ASSIGN(const Shape fed, NN::Detail::bridge_throwing([&source]()
-            {
-                return shape_of(source);
-            }));
-            SA_TRY_ASSIGN(const Shape expected, NN::Detail::bridge_throwing([&destination]()
-            {
-                return shape_of(destination);
-            }));
+            SA_TRY_ASSIGN(const Shape fed, checked_shape_of(source));
+            SA_TRY_ASSIGN(const Shape expected, checked_shape_of(destination));
 
             SA_FAIL_IF(fed != expected, StatusCode::Incompatible,
                        "The batch's {} have shape {} but the compiled step expects {}",

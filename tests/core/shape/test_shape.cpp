@@ -35,9 +35,10 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -72,24 +73,24 @@ TEST(Small_Shape, NegativeIndicesCountFromTheInnermost)
     EXPECT_EQ(shape.dim(-3), 2);
 }
 
-TEST(Small_Shape, OutOfRangeDimensionThrows)
+TEST(Small_Shape, OutOfRangeDimensionIsFatal)
 {
     const Shape shape{2, 3};
-    EXPECT_THROW((void)shape.dim(2), SushiAI::Error);
-    EXPECT_THROW((void)shape.dim(-3), SushiAI::Error);
+    SA_EXPECT_FATAL((void)shape.dim(2), "Dimension 2");
+    SA_EXPECT_FATAL((void)shape.dim(-3), "Dimension -3");
 }
 
-TEST(Small_Shape, NonPositiveExtentIsRejectedAtConstruction)
+TEST(Small_Shape, NonPositiveExtentIsFatalAtConstruction)
 {
-    EXPECT_THROW(Shape({2, 0}), SushiAI::Error);
-    EXPECT_THROW(Shape({-1}), SushiAI::Error);
+    SA_EXPECT_FATAL(Shape({2, 0}), "positive");
+    SA_EXPECT_FATAL(Shape({-1}), "positive");
 }
 
-TEST(Small_Shape, RankBeyondTheMaximumIsRejected)
+TEST(Small_Shape, RankBeyondTheMaximumIsFatal)
 {
     const std::initializer_list<int64_t> too_many = {1, 1, 1, 1, 1, 1, 1, 1, 1};
     ASSERT_GT(static_cast<int32_t>(too_many.size()), SushiAI::K_MAX_RANK);
-    EXPECT_THROW((void)Shape(too_many), SushiAI::Error);
+    SA_EXPECT_FATAL((void)Shape(too_many), "exceeds the maximum");
 }
 
 TEST(Small_Shape, BuildsFromExtentsKnownOnlyAtRunTime)
@@ -113,12 +114,48 @@ TEST(Small_Shape, BuildsTheScalarFromAnEmptyExtentSpan)
 TEST(Small_Shape, RuntimeExtentsGetTheSameValidationAsAListDoes)
 {
     const std::vector<int64_t> non_positive{4, 0};
-    EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
-                 SushiAI::Error);
+    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
+                    "positive");
 
     const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::K_MAX_RANK) + 1, 1);
-    EXPECT_THROW((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
-                 SushiAI::Error);
+    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
+                    "exceeds the maximum");
+}
+
+TEST(Small_Shape, MakeBuildsTheShapeOfValidRuntimeExtents)
+{
+    const std::vector<int64_t> dims{64, 784};
+
+    SA_ASSERT_OK_AND_ASSIGN(const Shape shape, Shape::make(SushiRuntime::span<const int64_t>(
+                                                   dims.data(), dims.size())));
+
+    EXPECT_EQ(shape, (Shape{64, 784}));
+}
+
+TEST(Small_Shape, MakeBuildsTheScalarFromAnEmptySpan)
+{
+    const std::vector<int64_t> none;
+
+    SA_ASSERT_OK_AND_ASSIGN(const Shape shape, Shape::make(SushiRuntime::span<const int64_t>(
+                                                   none.data(), none.size())));
+
+    EXPECT_EQ(shape.rank(), 0);
+}
+
+TEST(Small_Shape, MakeRefusesANonPositiveExtentWithAStatus)
+{
+    const std::vector<int64_t> dims{4, 0, 2};
+
+    SA_EXPECT_FAILURE(Shape::make(SushiRuntime::span<const int64_t>(dims.data(), dims.size())),
+                      StatusCode::InvalidDescription, "Shape extents must be positive", "got 0");
+}
+
+TEST(Small_Shape, MakeRefusesARankBeyondTheMaximumWithAStatus)
+{
+    const std::vector<int64_t> dims(static_cast<std::size_t>(SushiAI::K_MAX_RANK) + 1, 1);
+
+    SA_EXPECT_FAILURE(Shape::make(SushiRuntime::span<const int64_t>(dims.data(), dims.size())),
+                      StatusCode::InvalidDescription, "Shape rank 7", "exceeds the maximum of 6");
 }
 
 TEST(Small_Shape, EqualityComparesRankAndEveryExtent)
@@ -162,21 +199,21 @@ TEST(Small_Shape, WorksAsAnUnorderedMapKey)
 TEST(Small_Shape, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
 {
     // The limit in the message is SushiBLAS's MAX_RANK; see tests/core/shape/README.md.
-    SA_EXPECT_ERROR((void)Shape({1, 1, 1, 1, 1, 1, 1}),
+    SA_EXPECT_FATAL((void)Shape({1, 1, 1, 1, 1, 1, 1}),
                     "Shape rank 7", "exceeds the maximum of 6");
 }
 
 TEST(Small_Shape, ShapeNonPositiveExtentNamesTheOffendingExtent)
 {
     // Shape itself refuses a zero-element tensor; see tests/core/shape/README.md.
-    SA_EXPECT_ERROR((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
-    SA_EXPECT_ERROR((void)Shape({-3}), "Shape extents must be positive", "got -3");
+    SA_EXPECT_FATAL((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
+    SA_EXPECT_FATAL((void)Shape({-3}), "Shape extents must be positive", "got -3");
 }
 
 TEST(Small_Shape, ShapeDimensionOutOfRangeNamesTheIndexAndTheRank)
 {
     const Shape shape{4, 3};
 
-    SA_EXPECT_ERROR((void)shape.dim(2), "Dimension 2", "rank-2 shape");
-    SA_EXPECT_ERROR((void)shape.dim(-3), "Dimension -3", "rank-2 shape");
+    SA_EXPECT_FATAL((void)shape.dim(2), "Dimension 2", "rank-2 shape");
+    SA_EXPECT_FATAL((void)shape.dim(-3), "Dimension -3", "rank-2 shape");
 }

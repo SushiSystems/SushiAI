@@ -27,12 +27,14 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -429,10 +431,10 @@ namespace SushiAI
             options.precision = precision;
             options.loss_scaling = loss_scaling;
 
-            SA_TRY_ASSIGN(const Shape inputs, NN::Detail::bridge_throwing([batch, features]()
-            {
-                return Shape{batch, features};
-            }));
+            const std::array<int64_t, 2> input_extents{batch, features};
+            SA_TRY_ASSIGN(const Shape inputs,
+                          Shape::make(SushiRuntime::span<const int64_t>(input_extents.data(),
+                                                                        input_extents.size())));
 
             return build_training_graph(module, objective, inputs, options);
         }

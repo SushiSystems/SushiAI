@@ -29,10 +29,9 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::Shape;
 
@@ -67,10 +66,29 @@ TEST(Small_TensorShape, ARankZeroTensorIsTheScalarShape)
     EXPECT_EQ(SushiAI::shape_of(tensor), Shape());
 }
 
-/** @brief Tests that an extent that is not positive throws an Error naming it. */
-TEST(Small_TensorShape, AnExtentThatIsNotPositiveThrows)
+/** @brief Tests that an extent that is not positive stops the process with a message naming it. */
+TEST(Small_TensorShape, AnExtentThatIsNotPositiveIsFatal)
 {
     const SushiBLAS::Tensor tensor = description(2, 0, 5);
 
-    SA_EXPECT_ERROR((void)SushiAI::shape_of(tensor), "positive", "0");
+    SA_EXPECT_FATAL((void)SushiAI::shape_of(tensor), "positive", "0");
+}
+
+/** @brief Tests that checked_shape_of reads a legal tensor like shape_of does. */
+TEST(Small_TensorShape, CheckedShapeOfReadsALegalTensor)
+{
+    const SushiBLAS::Tensor tensor = description(2, 3, 5);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Shape shape, SushiAI::checked_shape_of(tensor));
+
+    EXPECT_EQ(shape, (Shape{2, 3, 5}));
+}
+
+/** @brief Tests that checked_shape_of refuses an extent that is not positive with a status. */
+TEST(Small_TensorShape, CheckedShapeOfRefusesAnExtentThatIsNotPositive)
+{
+    const SushiBLAS::Tensor tensor = description(2, 0, 5);
+
+    SA_EXPECT_FAILURE(SushiAI::checked_shape_of(tensor), SushiAI::StatusCode::InvalidDescription,
+                      "Shape extents must be positive", "got 0");
 }

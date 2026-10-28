@@ -25,17 +25,18 @@ A default `Shape` has rank 0 and one element, and prints as "[]".
 
 On `Shape{2, 3, 4}`, `dim(-1)` is 4, `dim(-2)` is 3 and `dim(-3)` is 2.
 
-### OutOfRangeDimensionThrows
+### OutOfRangeDimensionIsFatal
 
-On `Shape{2, 3}`, `dim(2)` and `dim(-3)` throw `Error`.
+On `Shape{2, 3}`, `dim(2)` and `dim(-3)` stop the process with a report naming the index.
 
-### NonPositiveExtentIsRejectedAtConstruction
+### NonPositiveExtentIsFatalAtConstruction
 
-`Shape({2, 0})` and `Shape({-1})` throw `Error`.
+`Shape({2, 0})` and `Shape({-1})` stop the process with a report that says an extent must be
+positive.
 
-### RankBeyondTheMaximumIsRejected
+### RankBeyondTheMaximumIsFatal
 
-A list of nine extents, more than `K_MAX_RANK`, throws `Error`.
+A list of nine extents, more than `K_MAX_RANK`, stops the process.
 
 ### BuildsFromExtentsKnownOnlyAtRunTime
 
@@ -48,7 +49,25 @@ A `Shape` built from an empty span has rank 0 and one element.
 
 ### RuntimeExtentsGetTheSameValidationAsAListDoes
 
-A span holding 4 and 0 throws `Error`, and so does a span of `K_MAX_RANK` + 1 ones.
+A span holding 4 and 0 stops the process, and so does a span of `K_MAX_RANK` + 1 ones.
+
+### MakeBuildsTheShapeOfValidRuntimeExtents
+
+`Shape::make` over a span holding 64 and 784 returns `Shape{64, 784}`.
+
+### MakeBuildsTheScalarFromAnEmptySpan
+
+`Shape::make` over an empty span returns the rank-0 shape.
+
+### MakeRefusesANonPositiveExtentWithAStatus
+
+`Shape::make` over 4, 0 and 2 returns `InvalidDescription` naming "Shape extents must be
+positive" and "got 0".
+
+### MakeRefusesARankBeyondTheMaximumWithAStatus
+
+`Shape::make` over `K_MAX_RANK` + 1 ones returns `InvalidDescription` naming "Shape rank 7" and
+"exceeds the maximum of 6".
 
 ### EqualityComparesRankAndEveryExtent
 
@@ -108,8 +127,8 @@ further down ever has to handle one.
 
 ### ShapeDimensionOutOfRangeNamesTheIndexAndTheRank
 
-On a [4, 3] shape, `dim(2)` raises an error holding "Dimension 2" and "rank-2 shape", and
-`dim(-3)` one holding "Dimension -3" and "rank-2 shape".
+On a [4, 3] shape, `dim(2)` stops the process with a report holding "Dimension 2" and "rank-2
+shape", and `dim(-3)` one holding "Dimension -3" and "rank-2 shape".
 
 ### MatmulContractionMismatchNamesBothInnerExtents
 

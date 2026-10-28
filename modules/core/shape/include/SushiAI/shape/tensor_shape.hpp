@@ -31,17 +31,30 @@
 #include <cstdint>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
 {
     /**
      * @brief Returns the extents of @p tensor as a Shape.
-     * @throws Error for an extent that is not positive or a rank above K_MAX_RANK.
+     * @pre The tensor describes a legal shape: every extent is positive and the rank does not
+     *      exceed K_MAX_RANK. A tensor a caller supplied goes through checked_shape_of().
      */
     [[nodiscard]] inline Shape shape_of(const SushiBLAS::Tensor& tensor)
     {
         return Shape(SushiRuntime::span<const int64_t>(tensor.shape.data(),
                                                        static_cast<std::size_t>(tensor.rank)));
+    }
+
+    /**
+     * @brief Reads the extents of a tensor a caller supplied as a Shape.
+     * @return The shape, or InvalidDescription for an extent that is not positive or a rank above
+     *         K_MAX_RANK.
+     */
+    [[nodiscard]] inline Result<Shape> checked_shape_of(const SushiBLAS::Tensor& tensor) noexcept
+    {
+        return Shape::make(SushiRuntime::span<const int64_t>(
+            tensor.shape.data(), static_cast<std::size_t>(tensor.rank)));
     }
 } // namespace SushiAI

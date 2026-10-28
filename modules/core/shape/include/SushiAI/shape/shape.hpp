@@ -33,7 +33,9 @@
 #include <initializer_list>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
 
 namespace SushiAI
@@ -51,35 +53,44 @@ namespace SushiAI
             /**
              * @brief Constructs from an extent list, e.g. Shape{batch, features}.
              * @param dims The extent of each dimension, outermost first.
-             * @throws Error If the rank exceeds MAX_RANK or any extent is not positive.
+             * @pre The rank does not exceed K_MAX_RANK and every extent is positive; extents read
+             *      from a document or a file go through make().
              */
             Shape(std::initializer_list<int64_t> dims)
+                : Shape(SushiRuntime::span<const int64_t>(dims.begin(), dims.size()))
             {
-                SA_THROW_IF(dims.size() > static_cast<std::size_t>(K_MAX_RANK),
-                            "Shape rank {} exceeds the maximum of {}", dims.size(), K_MAX_RANK);
-
-                for (int64_t d : dims)
-                {
-                    SA_THROW_IF(d <= 0, "Shape extents must be positive; got {}", d);
-                    dims_[static_cast<std::size_t>(rank_++)] = d;
-                }
             }
 
             /**
              * @brief Constructs extents from a runtime span.
              * @param dims The extent of each dimension, outermost first.
-             * @throws Error If the rank exceeds MAX_RANK or any extent is not positive.
+             * @pre The rank does not exceed K_MAX_RANK and every extent is positive; extents read
+             *      from a document or a file go through make().
              */
             explicit Shape(SushiRuntime::span<const int64_t> dims)
             {
-                SA_THROW_IF(dims.size() > static_cast<std::size_t>(K_MAX_RANK),
-                            "Shape rank {} exceeds the maximum of {}", dims.size(), K_MAX_RANK);
+                const Status extents = check_extents(dims);
+                SA_FATAL_IF(!extents.is_ok(), "{}", extents.message());
 
                 for (std::size_t i = 0; i < dims.size(); ++i)
-                {
-                    SA_THROW_IF(dims[i] <= 0, "Shape extents must be positive; got {}", dims[i]);
                     dims_[static_cast<std::size_t>(rank_++)] = dims[i];
-                }
+            }
+
+            /**
+             * @brief Builds a shape from extents a document, a file or a computation supplied.
+             * @param dims The extent of each dimension, outermost first.
+             * @return The shape, or InvalidDescription when the rank exceeds K_MAX_RANK or an
+             *         extent is not positive.
+             */
+            [[nodiscard]] static Result<Shape> make(SushiRuntime::span<const int64_t> dims) noexcept
+            {
+                SA_TRY(check_extents(dims));
+
+                Shape shape;
+                for (std::size_t i = 0; i < dims.size(); ++i)
+                    shape.dims_[static_cast<std::size_t>(shape.rank_++)] = dims[i];
+
+                return shape;
             }
 
             /** @brief The number of dimensions; 0 for a scalar. */
@@ -89,12 +100,12 @@ namespace SushiAI
              * @brief The extent of one dimension.
              * @param index Dimension index; negative counts from the innermost.
              * @return The extent at @p index.
-             * @throws Error If @p index does not name a dimension of this shape.
+             * @pre @p index names a dimension of this shape.
              */
             int64_t dim(int32_t index) const
             {
                 const int32_t i = index < 0 ? index + rank_ : index;
-                SA_THROW_IF(i < 0 || i >= rank_,
+                SA_FATAL_IF(i < 0 || i >= rank_,
                             "Dimension {} is out of range for a rank-{} shape", index, rank_);
                 return dims_[static_cast<std::size_t>(i)];
             }
@@ -159,6 +170,20 @@ namespace SushiAI
             }
 
         private:
+            /** @brief Checks the rank and every extent of @p dims against the limits of a Shape. */
+            [[nodiscard]] static Status check_extents(SushiRuntime::span<const int64_t> dims) noexcept
+            {
+                SA_FAIL_IF(dims.size() > static_cast<std::size_t>(K_MAX_RANK),
+                           StatusCode::InvalidDescription,
+                           "Shape rank {} exceeds the maximum of {}", dims.size(), K_MAX_RANK);
+
+                for (std::size_t i = 0; i < dims.size(); ++i)
+                    SA_FAIL_IF(dims[i] <= 0, StatusCode::InvalidDescription,
+                               "Shape extents must be positive; got {}", dims[i]);
+
+                return Status();
+            }
+
             std::array<int64_t, static_cast<std::size_t>(K_MAX_RANK)> dims_{};
             int32_t rank_ = 0;
     };

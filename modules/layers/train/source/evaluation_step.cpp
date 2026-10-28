@@ -51,7 +51,6 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/model_state.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
@@ -74,21 +73,16 @@ namespace SushiAI
              * @brief Lists what the planner must not pack: every output the host reads and
              *        the next value of every carried pair, which is read behind the graph.
              */
-            [[nodiscard]] Result<std::vector<Graph::ValueID>> pinned_values(
-                const TracedStep& traced)
+            [[nodiscard]] std::vector<Graph::ValueID> pinned_values(const TracedStep& traced)
             {
-                return NN::Detail::bridge_throwing([&traced]()
-                {
-                    std::vector<Graph::ValueID> ids;
-                    for (const NN::ModelOutputs::Entry& entry : traced.outputs.all())
-                        ids.push_back(entry.second);
+                std::vector<Graph::ValueID> ids;
+                for (const NN::ModelOutputs::Entry& entry : traced.outputs.all())
+                    ids.push_back(entry.second);
 
-                    const SushiRuntime::span<const Graph::ValueID> kept =
-                        traced.carried.sources();
-                    ids.insert(ids.end(), kept.begin(), kept.end());
+                const SushiRuntime::span<const Graph::ValueID> kept = traced.carried.sources();
+                ids.insert(ids.end(), kept.begin(), kept.end());
 
-                    return ids;
-                });
+                return ids;
             }
 
             /** @brief Returns Incompatible when the plan of @p pool packs a carried next value. */
@@ -164,7 +158,7 @@ namespace SushiAI
             // The plan is adopted before any leaf or value of the graph is materialised.
             if (!pool.has_plan())
             {
-                SA_TRY_ASSIGN(const std::vector<Graph::ValueID> pinned, pinned_values(traced));
+                const std::vector<Graph::ValueID> pinned = pinned_values(traced);
 
                 Graph::PlanOptions options;
                 options.pinned = SushiRuntime::span<const Graph::ValueID>(pinned.data(),

@@ -35,7 +35,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/tensor_shape.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -59,14 +58,8 @@ namespace SushiAI
 
         Status fill_one_hot(const SushiBLAS::Tensor& labels, SushiBLAS::Tensor& one_hot)
         {
-            SA_TRY_ASSIGN(const Shape label_shape, NN::Detail::bridge_throwing([&labels]()
-            {
-                return shape_of(labels);
-            }));
-            SA_TRY_ASSIGN(const Shape row_shape, NN::Detail::bridge_throwing([&one_hot]()
-            {
-                return shape_of(one_hot);
-            }));
+            SA_TRY_ASSIGN(const Shape label_shape, checked_shape_of(labels));
+            SA_TRY_ASSIGN(const Shape row_shape, checked_shape_of(one_hot));
 
             SA_FAIL_IF(label_shape.rank() != 1 || row_shape.rank() != 2
                        || label_shape[0] != row_shape[0],
