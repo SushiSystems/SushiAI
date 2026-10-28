@@ -182,9 +182,9 @@ to say which two operations collided.
 
 ### AnUnknownOperandNamesTheOperationThatAskedForIt
 
-`add_node` of a RELU that reads the value 9999 raises an error holding "sushiai.relu",
-"reads value 9999" and "does not exist". One that writes the value 9999 raises
-"writes value 9999" and "does not exist".
+`add_node` of a RELU that reads the value 9999 stops the process with a report holding
+"sushiai.relu", "reads value 9999" and "does not exist". One that writes the value 9999 stops it
+with "writes value 9999" and "does not exist".
 
 ### LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit
 

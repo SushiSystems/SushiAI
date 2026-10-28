@@ -69,12 +69,23 @@ TEST(Small_PrecisionPolicy, ThePoliciesNameThemselvesAndTheMixedOneDefaultsToHal
 {
     const UniformPrecisionPolicy uniform;
     const MixedPrecisionPolicy mixed;
-    const MixedPrecisionPolicy mixed_float(DType::Float32);
+    SA_ASSERT_OK_AND_ASSIGN(const MixedPrecisionPolicy mixed_float,
+                            MixedPrecisionPolicy::make(DType::Float32));
 
     EXPECT_EQ(uniform.name(), "fp32");
     EXPECT_EQ(mixed.name(), "mixed");
     EXPECT_EQ(mixed.low(), DType::Half);
     EXPECT_EQ(mixed_float.low(), DType::Float32);
+}
+
+/** @brief Tests that make refuses a narrow type that is not a real float and accepts HALF. */
+TEST(Small_PrecisionPolicy, MakeRefusesALowTypeThatIsNotARealFloat)
+{
+    SA_EXPECT_FAILURE(MixedPrecisionPolicy::make(DType::Int32), StatusCode::InvalidDescription,
+                      "narrows to a real floating type");
+    SA_EXPECT_FAILURE(MixedPrecisionPolicy::make(DType::Complex32),
+                      StatusCode::InvalidDescription, "narrows to a real floating type");
+    SA_EXPECT_OK(MixedPrecisionPolicy::make(DType::Half));
 }
 
 /** @brief Tests that a default query names a FLOAT32 result and a default choice FLOAT32. */

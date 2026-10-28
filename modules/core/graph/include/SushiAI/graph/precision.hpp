@@ -29,7 +29,8 @@
 
 #include <string_view>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
@@ -118,12 +119,15 @@ namespace SushiAI
         class MixedPrecisionPolicy final : public PrecisionPolicy
         {
             public:
+                /** @brief Builds the policy that narrows to Half. */
+                MixedPrecisionPolicy() noexcept : low_(DType::Half) {}
+
                 /**
                  * @brief Builds a policy narrowing the compute-bound ops to @p low.
                  * @param low The narrow element type; must be a real float.
-                 * @throws Error If @p low is complex or integral.
+                 * @return The policy, or InvalidDescription when @p low is complex or integral.
                  */
-                explicit MixedPrecisionPolicy(DType low = DType::Half);
+                [[nodiscard]] static Result<MixedPrecisionPolicy> make(DType low) noexcept;
 
                 /** @brief The narrow element type this policy narrows to. */
                 DType low() const noexcept { return low_; }
@@ -133,6 +137,9 @@ namespace SushiAI
                 std::string_view name() const noexcept override { return "mixed"; }
 
             private:
+                /** @brief Holds @p low, which make() has checked. */
+                explicit MixedPrecisionPolicy(DType low) noexcept : low_(low) {}
+
                 DType low_;
         };
 

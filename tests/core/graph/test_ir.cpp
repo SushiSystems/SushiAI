@@ -36,9 +36,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -81,7 +79,7 @@ TEST(Small_Ir, AddNodeClaimsItsOutputs)
     EXPECT_EQ(graph.node(node).inputs.size(), 2u);
 }
 
-TEST(Small_Ir, ASecondProducerForOneValueThrows)
+TEST(Small_Ir, ASecondProducerForOneValueIsFatal)
 {
     // A value has exactly one producer; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -90,16 +88,16 @@ TEST(Small_Ir, ASecondProducerForOneValueThrows)
     const ValueID c = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation);
 
     graph.add_node(Ops::K_ADD.id, {a, b}, {c});
-    EXPECT_THROW(graph.add_node(Ops::K_SUB.id, {a, b}, {c}), Error);
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_SUB.id, {a, b}, {c}), "already written");
 }
 
-TEST(Small_Ir, ReferencingAnUnknownValueThrows)
+TEST(Small_Ir, ReferencingAnUnknownValueIsFatal)
 {
     Graph::Graph graph;
     const ValueID a = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input);
 
-    EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a, 99}, {a}), Error);
-    EXPECT_THROW(graph.add_node(Ops::K_ADD.id, {a}, {99}), Error);
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_ADD.id, {a, 99}, {a}), "reads value 99");
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_ADD.id, {a}, {99}), "writes value 99");
 }
 
 TEST(Small_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
@@ -226,7 +224,7 @@ TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
         }
 }
 
-TEST(Small_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
+TEST(Small_Ir, InsertNodeIsFatalForAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -237,21 +235,17 @@ TEST(Small_Ir, InsertNodeRejectsAResultThatIsAlreadyReadEarlier)
     // Node 0 reads `orphan`, which nothing writes yet.
     (void)graph.add_node(Ops::K_ADD.id, {x, orphan}, {y});
 
-    SA_EXPECT_ERROR((void)graph.insert_node(1, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}),
+    SA_EXPECT_FATAL((void)graph.insert_node(1, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}),
                     "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
 
-    // A rejected insert leaves the graph unchanged; see tests/core/graph/README.md.
-    EXPECT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.value(orphan).producer, K_NO_NODE);
-
     // The same node ahead of the reader is accepted; see tests/core/graph/README.md.
-    EXPECT_NO_THROW((void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}));
+    (void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}});
     EXPECT_EQ(graph.node_count(), 2u);
     EXPECT_EQ(graph.value(orphan).producer, Graph::NodeID{0});
     EXPECT_EQ(graph.value(y).producer, Graph::NodeID{1});
 }
 
-TEST(Small_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
+TEST(Small_Ir, InsertNodeIsFatalForAnOperandProducedNoEarlierThanItself)
 {
     // The mirror of the case above, and the one that was guarded first.
     Graph::Graph graph;
@@ -261,11 +255,8 @@ TEST(Small_Ir, InsertNodeRejectsAnOperandProducedNoEarlierThanItself)
 
     (void)graph.add_node(Ops::K_RELU.id, {x}, {y});
 
-    SA_EXPECT_ERROR((void)graph.insert_node(0, Graph::Node{Ops::K_TANH.id, {y}, {z}, {}}),
+    SA_EXPECT_FATAL((void)graph.insert_node(0, Graph::Node{Ops::K_TANH.id, {y}, {z}, {}}),
                     "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
-
-    EXPECT_EQ(graph.node_count(), 1u);
-    EXPECT_EQ(graph.value(z).producer, K_NO_NODE);
 }
 
 TEST(Small_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
@@ -345,7 +336,7 @@ TEST(Small_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
 }
 
 /** @brief Tests that a state binds one leaf and a leaf stands for one state, in one graph. */
-TEST(Small_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
+TEST(Small_Ir, BindStateLeafIsFatalForASecondBindingOfAStateOrOfALeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -354,15 +345,10 @@ TEST(Small_Ir, BindStateLeafRefusesASecondBindingOfAStateOrOfALeaf)
 
     graph.bind_state_leaf(StateID{7}, first);
 
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{7}, second), "State 7", "already has leaf");
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{8}, first), "already stands for state 7");
-    SA_EXPECT_ERROR(graph.bind_state_leaf(K_NO_STATE, second), "no identity");
-    SA_EXPECT_ERROR(graph.bind_state_leaf(StateID{9}, ValueID{99}), "value 99", "does not exist");
-
-    // A refused binding records nothing, so the table still holds the first pair alone.
-    ASSERT_EQ(graph.state_leaves().size(), 1u);
-    EXPECT_EQ(graph.state_leaf(StateID{7}), first);
-    EXPECT_EQ(graph.state_leaf(StateID{8}), K_NO_VALUE);
+    SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{7}, second), "State 7", "already has leaf");
+    SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{8}, first), "already stands for state 7");
+    SA_EXPECT_FATAL(graph.bind_state_leaf(K_NO_STATE, second), "no identity");
+    SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{9}, ValueID{99}), "value 99", "does not exist");
 }
 
 /** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
@@ -492,7 +478,7 @@ TEST(Small_Ir, ASecondProducerNamesBothOperationsAndTheRule)
     graph.add_node(Ops::K_RELU.id, {x}, {out});
 
     // The message names both colliding operations; see tests/core/graph/README.md.
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_TANH.id, {x}, {out}),
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_TANH.id, {x}, {out}),
                     "sushiai.tanh", "sushiai.relu", "single-assignment");
 }
 
@@ -505,8 +491,8 @@ TEST(Small_Ir, AnUnknownOperandNamesTheOperationThatAskedForIt)
     const ValueID out = graph.add_value(Shape{4, 3}, DType::Float32,
                                         Graph::Lifetime::Activation, "out");
 
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {9999u}, {out}),
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_RELU.id, {9999u}, {out}),
                     "sushiai.relu", "reads value 9999", "does not exist");
-    SA_EXPECT_ERROR((void)graph.add_node(Ops::K_RELU.id, {x}, {9999u}),
+    SA_EXPECT_FATAL((void)graph.add_node(Ops::K_RELU.id, {x}, {9999u}),
                     "sushiai.relu", "writes value 9999", "does not exist");
 }

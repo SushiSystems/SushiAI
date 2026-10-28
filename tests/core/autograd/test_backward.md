@@ -223,10 +223,10 @@ to something wider.
 The `to_single` policy narrows to fp32. That is a legal thing to ask for, and it is what an fp64
 model would use.
 
-## ANonFloatLowTypeIsRefusedAtConstruction
+## ANonFloatLowTypeIsRefusedByMake
 
-`MixedPrecisionPolicy{DType::Int32}` and `MixedPrecisionPolicy{DType::Complex32}` throw
-`Error`, and `MixedPrecisionPolicy{DType::Half}` does not.
+`MixedPrecisionPolicy::make(DType::Int32)` and `make(DType::Complex32)` return
+`InvalidDescription` naming a real floating type, and `make(DType::Half)` succeeds.
 
 ## EveryChoiceCarriesAReasonSomebodyCanRead
 

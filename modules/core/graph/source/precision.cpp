@@ -26,7 +26,8 @@
  */
 
 #include <SushiAI/graph/precision.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -75,14 +76,16 @@ namespace SushiAI
             return PrecisionChoice{query.declared, K_REASON_DECLARED};
         }
 
-        MixedPrecisionPolicy::MixedPrecisionPolicy(DType low) : low_(low)
+        Result<MixedPrecisionPolicy> MixedPrecisionPolicy::make(DType low) noexcept
         {
-            SA_THROW_IF(!is_real_float(low),
-                        "A mixed-precision policy narrows to a real floating type; {} is not "
-                        "one. SushiBLAS's converting copy is bounded to HALF, FLOAT32 and "
-                        "FLOAT64, and an integer conversion is a rounding policy nothing here "
-                        "is entitled to choose.",
-                        dtype_name(low));
+            SA_FAIL_IF(!is_real_float(low), StatusCode::InvalidDescription,
+                       "A mixed-precision policy narrows to a real floating type; {} is not "
+                       "one. SushiBLAS's converting copy is bounded to HALF, FLOAT32 and "
+                       "FLOAT64, and an integer conversion is a rounding policy nothing here "
+                       "is entitled to choose.",
+                       dtype_name(low));
+
+            return MixedPrecisionPolicy(low);
         }
 
         PrecisionChoice MixedPrecisionPolicy::choose(const PrecisionQuery& query) const

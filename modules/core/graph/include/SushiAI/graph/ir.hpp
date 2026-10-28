@@ -35,7 +35,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/state_id.hpp>
 
@@ -239,7 +238,7 @@ namespace SushiAI
                  * Verifies single-assignment invariants for each output.
                  *
                  * @return The new node index.
-                 * @throws Error If an operand is unknown or output already claimed.
+                 * @pre Every operand and output is a value of this graph, and no output has a producer.
                  */
                 NodeID add_node(OpID op,
                                 std::vector<ValueID> inputs,
@@ -247,7 +246,7 @@ namespace SushiAI
                                 Attributes attributes = {})
                 {
                     for (ValueID v : inputs)
-                        SA_THROW_IF(v >= values_.size(),
+                        SA_FATAL_IF(v >= values_.size(),
                                     "Operation {} reads value {}, which does not exist",
                                     Ops::name_of(op), v);
 
@@ -255,10 +254,10 @@ namespace SushiAI
 
                     for (ValueID v : outputs)
                     {
-                        SA_THROW_IF(v >= values_.size(),
+                        SA_FATAL_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
                                     Ops::name_of(op), v);
-                        SA_THROW_IF(values_[v].producer != K_NO_NODE,
+                        SA_FATAL_IF(values_[v].producer != K_NO_NODE,
                                     "Operation {} writes value {}, which is already written by {}. "
                                     "The IR is single-assignment; emit a new value instead.",
                                     Ops::name_of(op), v, Ops::name_of(nodes_[values_[v].producer].op));
@@ -270,25 +269,24 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Inserts an operation before the specified node.
-                 *
-                 * Maintains topological order and updates subsequent producer indices.
-                 *
+                 * @brief Inserts an operation before the specified node and keeps topological order.
                  * @return The inserted node index.
-                 * @throws Error If out of bounds or topological order is violated.
+                 * @pre @p before is at most the node count; the operands and outputs are values
+                 *      of this graph; no output has a producer; no operand is produced at or
+                 *      after @p before.
                  */
                 NodeID insert_node(NodeID before, Node node)
                 {
-                    SA_THROW_IF(before > nodes_.size(),
+                    SA_FATAL_IF(before > nodes_.size(),
                                 "Cannot insert before node {}; the graph has {} nodes",
                                 before, nodes_.size());
 
                     for (ValueID v : node.inputs)
                     {
-                        SA_THROW_IF(v >= values_.size(),
+                        SA_FATAL_IF(v >= values_.size(),
                                     "Operation {} reads value {}, which does not exist",
                                     Ops::name_of(node.op), v);
-                        SA_THROW_IF(values_[v].producer != K_NO_NODE
+                        SA_FATAL_IF(values_[v].producer != K_NO_NODE
                                         && values_[v].producer >= before,
                                     "Operation {} would be inserted at {} but reads value {}, "
                                     "which node {} writes. Insertion order must stay a "
@@ -298,10 +296,10 @@ namespace SushiAI
 
                     for (ValueID v : node.outputs)
                     {
-                        SA_THROW_IF(v >= values_.size(),
+                        SA_FATAL_IF(v >= values_.size(),
                                     "Operation {} writes value {}, which does not exist",
                                     Ops::name_of(node.op), v);
-                        SA_THROW_IF(values_[v].producer != K_NO_NODE,
+                        SA_FATAL_IF(values_[v].producer != K_NO_NODE,
                                     "Operation {} writes value {}, which is already written by {}. "
                                     "The IR is single-assignment; emit a new value instead.",
                                     Ops::name_of(node.op), v,
@@ -310,7 +308,7 @@ namespace SushiAI
                         // A result must not already be read before its proposed insertion point.
                         for (NodeID reader = 0; reader < before; ++reader)
                             for (ValueID in : nodes_[reader].inputs)
-                                SA_THROW_IF(in == v,
+                                SA_FATAL_IF(in == v,
                                             "Operation {} would be inserted at {} but writes "
                                             "value {}, which node {} reads. Insertion order must "
                                             "stay a topological order; insert before the result's "
@@ -334,28 +332,28 @@ namespace SushiAI
                 /** @brief Read-only access to a value. */
                 const Value& value(ValueID id) const
                 {
-                    SA_THROW_IF(id >= values_.size(), "Value {} does not exist", id);
+                    SA_FATAL_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Mutable access to a value, for passes that annotate. */
                 Value& value(ValueID id)
                 {
-                    SA_THROW_IF(id >= values_.size(), "Value {} does not exist", id);
+                    SA_FATAL_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Read-only access to a node. */
                 const Node& node(NodeID id) const
                 {
-                    SA_THROW_IF(id >= nodes_.size(), "Node {} does not exist", id);
+                    SA_FATAL_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
                 }
 
                 /** @brief Mutable access to a node, for passes that rewrite. */
                 Node& node(NodeID id)
                 {
-                    SA_THROW_IF(id >= nodes_.size(), "Node {} does not exist", id);
+                    SA_FATAL_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
                 }
 
@@ -394,26 +392,26 @@ namespace SushiAI
 
                 /**
                  * @brief Records @p leaf as this graph's leaf for @p state.
-                 * @param state An assigned identity this graph has no leaf for; else it throws.
-                 * @param leaf A value of this graph that stands for no other state; else it throws.
+                 * @pre @p state is an assigned identity this graph has no leaf for, and @p leaf is a
+                 *      value of this graph that stands for no other state.
                  */
                 void bind_state_leaf(StateID state, ValueID leaf)
                 {
-                    SA_THROW_IF(state == K_NO_STATE,
+                    SA_FATAL_IF(state == K_NO_STATE,
                                 "Cannot bind value {} to a state that has no identity; draw one "
                                 "with StateIdentity::get() first",
                                 leaf);
-                    SA_THROW_IF(leaf >= values_.size(),
+                    SA_FATAL_IF(leaf >= values_.size(),
                                 "Cannot bind state {} to value {}, which does not exist",
                                 static_cast<std::uint64_t>(state), leaf);
 
                     for (const std::pair<StateID, ValueID>& bound : state_leaves_)
                     {
-                        SA_THROW_IF(bound.first == state,
+                        SA_FATAL_IF(bound.first == state,
                                     "State {} already has leaf {} in this graph; it cannot also "
                                     "take value {}",
                                     static_cast<std::uint64_t>(state), bound.second, leaf);
-                        SA_THROW_IF(bound.second == leaf,
+                        SA_FATAL_IF(bound.second == leaf,
                                     "Value {} already stands for state {} in this graph; it "
                                     "cannot also stand for state {}",
                                     leaf, static_cast<std::uint64_t>(bound.first),

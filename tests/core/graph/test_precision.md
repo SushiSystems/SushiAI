@@ -11,8 +11,13 @@ every operation.
 ## ThePoliciesNameThemselvesAndTheMixedOneDefaultsToHalf
 
 `UniformPrecisionPolicy` is named "fp32" and `MixedPrecisionPolicy` "mixed". A mixed policy
-built without an argument narrows to half, and one built with float32 keeps float32 as its low
+built without an argument narrows to half, and one made with float32 keeps float32 as its low
 type.
+
+## MakeRefusesALowTypeThatIsNotARealFloat
+
+`MixedPrecisionPolicy::make` returns `InvalidDescription` naming "narrows to a real floating
+type" for int32 and for complex32, and succeeds for half.
 
 ## TheDefaultQueryAndChoiceAreFloat32
 

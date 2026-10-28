@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — graph: Breaking change: Made the id, order and single-assignment checks of `Graph` stop the process in place of throwing (`ir.hpp`).
+- 2026-10-28 — graph: Breaking change: Added `MixedPrecisionPolicy::make`, which returns `InvalidDescription` for a low type that is not a real float, and made the explicit constructor private (`precision.hpp`).
 - 2026-10-28 — shape: Breaking change: Made the `Shape` constructors and `Shape::dim` stop the process in place of throwing, and added `Shape::make` for extents a document or a file supplied (`shape.hpp`).
 - 2026-10-28 — shape: Added `checked_shape_of`, which reads a caller's tensor as a `Result<Shape>` (`tensor_shape.hpp`).
 - 2026-10-28 — train: Read the batch's tensors through `checked_shape_of` and the classifier's input extents through `Shape::make`, without the throwing bridge (`feed.cpp`, `one_hot.cpp`, `steps.hpp`).

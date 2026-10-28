@@ -39,10 +39,8 @@
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/fusion.hpp>
@@ -523,18 +521,21 @@ TEST(Small_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
               DType::Half);
 
     // A policy may narrow to fp32; see tests/core/autograd/README.md.
-    const MixedPrecisionPolicy to_single(DType::Float32);
+    SA_ASSERT_OK_AND_ASSIGN(const MixedPrecisionPolicy to_single,
+                            MixedPrecisionPolicy::make(DType::Float32));
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Float32);
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float32}).dtype,
               DType::Float32);
 }
 
-TEST(Small_Precision, ANonFloatLowTypeIsRefusedAtConstruction)
+TEST(Small_Precision, ANonFloatLowTypeIsRefusedByMake)
 {
-    EXPECT_THROW(MixedPrecisionPolicy{DType::Int32}, Error);
-    EXPECT_THROW(MixedPrecisionPolicy{DType::Complex32}, Error);
-    EXPECT_NO_THROW(MixedPrecisionPolicy{DType::Half});
+    SA_EXPECT_FAILURE(MixedPrecisionPolicy::make(DType::Int32), StatusCode::InvalidDescription,
+                      "real floating type");
+    SA_EXPECT_FAILURE(MixedPrecisionPolicy::make(DType::Complex32), StatusCode::InvalidDescription,
+                      "real floating type");
+    SA_EXPECT_OK(MixedPrecisionPolicy::make(DType::Half));
 }
 
 TEST(Small_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
