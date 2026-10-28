@@ -62,6 +62,30 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns the array under @p key of @p value; a refusal fails the test run. */
+    const std::vector<Config::Value>& array_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_array(key));
+    }
+
+    /** @brief Returns the whole number under @p key of @p value; a refusal fails the test run. */
+    std::int64_t int_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_int(key));
+    }
+
+    /** @brief Returns the real under @p key of @p value; a refusal fails the test run. */
+    double real_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_real(key));
+    }
+
+    /** @brief Returns the flag under @p key of @p value; a refusal fails the test run. */
+    bool bool_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_bool(key));
+    }
+
     using SaTest::sources_of_row;
     using SaTest::translate_darknet_text;
     using Vision::Detect::Anchor::HeadCoding;
@@ -219,10 +243,12 @@ TEST(Small_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
     EXPECT_EQ(type_of(model, 1), "batchnorm2d");
     EXPECT_EQ(type_of(model, 2), "leaky_relu");
     EXPECT_EQ(sources_of_row(model, 0), (std::vector<std::int64_t>{Config::K_MODEL_INPUT}));
-    EXPECT_DOUBLE_EQ(model.spec.layers[2].attributes.at("slope", "s").as_real("s"), 0.1);
-    EXPECT_DOUBLE_EQ(model.spec.layers[1].attributes.at("bn_epsilon", "e").as_real("e"), 1e-5);
-    EXPECT_FALSE(model.spec.layers[0].attributes.at("use_bias", "b").as_bool("b"));
-    EXPECT_TRUE(model.spec.layers[33].attributes.at("use_bias", "b").as_bool("b"));
+    EXPECT_DOUBLE_EQ(real_of(model.spec.layers[2].attributes, "slope"),
+                     0.1);
+    EXPECT_DOUBLE_EQ(real_of(model.spec.layers[1].attributes, "bn_epsilon"),
+                     1e-5);
+    EXPECT_FALSE(bool_of(model.spec.layers[0].attributes, "use_bias"));
+    EXPECT_TRUE(bool_of(model.spec.layers[33].attributes, "use_bias"));
 
     // Layer 17 is a route of layer 13 alone, so layer 18's convolution reads layer 13's row.
     EXPECT_EQ(type_of(model, 34), "conv2d");
@@ -234,20 +260,21 @@ TEST(Small_DarknetModel, SeparateFormHasTheCountedRowsAndSources)
 
     EXPECT_EQ(type_of(model, 23), "maxpool2d");
     const Config::Value& pool = model.spec.layers[23].attributes;
-    EXPECT_EQ(pool.at("kernel", "k").as_int("k"), 2);
-    EXPECT_EQ(pool.at("stride", "s").as_int("s"), 1);
-    EXPECT_EQ(pool.at("padding", "p").as_int("p"), 0);
-    const std::vector<Config::Value>& trailing = pool.at("trailing_padding", "t").as_array("t");
+    EXPECT_EQ(int_of(pool, "kernel"), 2);
+    EXPECT_EQ(int_of(pool, "stride"), 1);
+    EXPECT_EQ(int_of(pool, "padding"), 0);
+    const std::vector<Config::Value>& trailing =
+        array_of(pool, "trailing_padding");
     ASSERT_EQ(trailing.size(), 2u);
-    EXPECT_EQ(trailing[0].as_int("t"), 1);
-    EXPECT_EQ(trailing[1].as_int("t"), 1);
+    EXPECT_EQ(SaTest::require_value(trailing[0].as_int("t")), 1);
+    EXPECT_EQ(SaTest::require_value(trailing[1].as_int("t")), 1);
 
     // Layer 1 halves an even extent, which needs no trailing pad.
     const std::vector<Config::Value>& even =
-        model.spec.layers[3].attributes.at("trailing_padding", "t").as_array("t");
+        array_of(model.spec.layers[3].attributes, "trailing_padding");
     ASSERT_EQ(even.size(), 2u);
-    EXPECT_EQ(even[0].as_int("t"), 0);
-    EXPECT_EQ(even[1].as_int("t"), 0);
+    EXPECT_EQ(SaTest::require_value(even[0].as_int("t")), 0);
+    EXPECT_EQ(SaTest::require_value(even[1].as_int("t")), 0);
 }
 
 /** @brief Tests that the Folded form drops every batch-norm row and keeps the sources. */
@@ -263,7 +290,7 @@ TEST(Small_DarknetModel, FoldedFormHasNoNormalisationRow)
     EXPECT_EQ(model.row_of_layer,
               (std::vector<std::int64_t>{1,  2,  4,  5,  7,  8,  10, 11, 13, 14, 16, 17,
                                          19, 21, 23, 24, 24, 21, 26, 27, 28, 30, 31, 31}));
-    EXPECT_TRUE(model.spec.layers[0].attributes.at("use_bias", "b").as_bool("b"));
+    EXPECT_TRUE(bool_of(model.spec.layers[0].attributes, "use_bias"));
     EXPECT_EQ(sources_of_row(model, 25), (std::vector<std::int64_t>{21}));
     EXPECT_EQ(sources_of_row(model, 28), (std::vector<std::int64_t>{27, 13}));
 
@@ -538,7 +565,7 @@ namespace
     {
         const Config::Value& attributes =
             model.spec.layers.at(static_cast<std::size_t>(row)).attributes;
-        return attributes.at(key, "test").as_int("test");
+        return int_of(attributes, key);
     }
 
 } // namespace

@@ -120,7 +120,7 @@ namespace
 /** @brief Tests that the file holds its 29 rows and its three outputs. */
 TEST(Medium_Yolov5nFile, HoldsItsRowsAndItsThreeOutputs)
 {
-    const Config::ModelSpec spec = Config::load_model(model_path());
+    const Config::ModelSpec spec = SaTest::require_value(Config::load_model(model_path()));
 
     EXPECT_EQ(spec.layers.size(), K_ROWS);
     EXPECT_EQ(spec.input_shape, (Shape{K_INPUT_SIDE, K_INPUT_SIDE, 3}));
@@ -136,7 +136,7 @@ TEST(Medium_Yolov5nFile, HoldsItsRowsAndItsThreeOutputs)
 TEST(Medium_Yolov5nFile, BuildsToTheParameterCountOfTheReference)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(model_path());
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(model_path()));
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     (void)trace_outputs(model, spec.input_shape);
 
@@ -147,7 +147,7 @@ TEST(Medium_Yolov5nFile, BuildsToTheParameterCountOfTheReference)
 TEST(Medium_Yolov5nFile, PublishesThreeHeadsAtTheLevelStrides)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(model_path());
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(model_path()));
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
 
     const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
@@ -169,7 +169,7 @@ TEST(Medium_Yolov5nFile, PublishesThreeHeadsAtTheLevelStrides)
  */
 TEST(Medium_Yolov5nFile, TheTaskSectionReadsBack)
 {
-    const Config::ModelSpec spec = Config::load_model(model_path());
+    const Config::ModelSpec spec = SaTest::require_value(Config::load_model(model_path()));
 
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task,
                             Vision::Detect::Anchor::read_anchor_task(spec.task));
@@ -211,7 +211,7 @@ TEST(Medium_Yolov5nFile, TheTaskSectionReadsBack)
 TEST_F(Medium_Yolov5nBiases, AnInitialisedModelGainsTheStrideBiases)
 {
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(model_path());
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(model_path()));
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task,

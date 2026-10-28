@@ -111,10 +111,13 @@ namespace SushiAI
             std::string text_of(const Config::Value& root, std::string_view key,
                                 std::string_view origin)
             {
-                if (!root.has(key) || root.at(key, origin).kind() != Config::Kind::String)
+                const Config::Value absent;
+                const Config::Value& member = root.at_or(key, absent);
+                if (member.kind() != Config::Kind::String)
                     return std::string();
 
-                return root.at(key, origin).as_string(origin);
+                // member is a string, so as_string succeeds.
+                return member.as_string(origin).value();
             }
 
             /**
@@ -125,16 +128,18 @@ namespace SushiAI
             Status read_extents(const Config::Value& root, std::string_view origin,
                                 std::vector<std::int64_t>& extents)
             {
-                SA_FAIL_IF(!root.has("shape") ||
-                               root.at("shape", origin).kind() != Config::Kind::Array,
-                           StatusCode::InvalidFile, "{} has no array 'shape'", origin);
+                const Config::Value absent;
+                const Config::Value& shape = root.at_or("shape", absent);
+                SA_FAIL_IF(shape.kind() != Config::Kind::Array, StatusCode::InvalidFile,
+                           "{} has no array 'shape'", origin);
 
                 std::int64_t count = 1;
-                for (const Config::Value& entry : root.at("shape", origin).as_array(origin))
+                SA_TRY_ASSIGN(const std::vector<Config::Value>& entries, shape.as_array(origin));
+                for (const Config::Value& entry : entries)
                 {
                     SA_FAIL_IF(entry.kind() != Config::Kind::Int, StatusCode::InvalidFile,
                                "'shape' of {} holds a value that is not a whole number", origin);
-                    const std::int64_t extent = entry.as_int(origin);
+                    SA_TRY_ASSIGN(const std::int64_t extent, entry.as_int(origin));
                     SA_FAIL_IF(extent < 1 || extent > K_MAX_ELEMENTS / count,
                                StatusCode::InvalidFile, "'shape' of {} holds the extent {}",
                                origin, extent);
@@ -294,7 +299,7 @@ namespace SushiAI
 
                 const std::string origin = reference.description.string();
                 DarknetTensor tensor;
-                tensor.description = Config::parse_json_file(reference.description);
+                SA_TRY_ASSIGN(tensor.description, Config::parse_json_file(reference.description));
                 SA_FAIL_IF(text_of(tensor.description, "dtype", origin) != "float32" ||
                                text_of(tensor.description, "byte_order", origin) != "little",
                            StatusCode::InvalidFile, "{} does not describe little-endian float32",
@@ -358,7 +363,9 @@ namespace SushiAI
             dump.shape = {input.extents[0], input.extents[1], input.extents[2]};
             if (delta.description.has("cost"))
             {
-                dump.cost = delta.description.at("cost", delta_name).as_real(delta_name);
+                SA_TRY_ASSIGN(const Config::Value& stated_cost,
+                              delta.description.at("cost", delta_name));
+                SA_TRY_ASSIGN(dump.cost, stated_cost.as_real(delta_name));
             }
             else
             {
@@ -427,8 +434,8 @@ namespace SushiAI
 
             // Every row names an image of the batch, so the padding has nothing to refuse.
             GroundTruthBatch padded;
-            Vision::Detect::pad_ground_truth(listed, batch, static_cast<float>(network.width),
-                                             static_cast<float>(network.height), padded);
+            SA_TRY(Vision::Detect::pad_ground_truth(listed, batch, static_cast<float>(network.width),
+                                                    static_cast<float>(network.height), padded));
             return Result<GroundTruthBatch>(std::move(padded));
         }
 
@@ -545,15 +552,12 @@ namespace SushiAI
             Result<std::int64_t> read_first_layer(const DarknetTensor& solver)
             {
                 const Config::Value& description = solver.description;
-                SA_FAIL_IF(!description.has(K_FIRST_LAYER_KEY) ||
-                               description.at(K_FIRST_LAYER_KEY, K_DARKNET_NETWORK_COST).kind() !=
-                                   Config::Kind::Int,
-                           StatusCode::InvalidFile, "{} names no whole '{}'",
-                           K_DARKNET_NETWORK_COST, K_FIRST_LAYER_KEY);
+                const Config::Value absent;
+                const Config::Value& layer = description.at_or(K_FIRST_LAYER_KEY, absent);
+                SA_FAIL_IF(layer.kind() != Config::Kind::Int, StatusCode::InvalidFile,
+                           "{} names no whole '{}'", K_DARKNET_NETWORK_COST, K_FIRST_LAYER_KEY);
 
-                return Result<std::int64_t>(
-                    description.at(K_FIRST_LAYER_KEY, K_DARKNET_NETWORK_COST)
-                        .as_int(K_DARKNET_NETWORK_COST));
+                return layer.as_int(K_DARKNET_NETWORK_COST);
             }
 
             /** @brief Lists the references of the host run that the suite reads. */
@@ -825,9 +829,11 @@ namespace SushiAI
 
                 // Momentum and decay stay 0, so the step adds nothing to a gradient it reads.
                 Optim::SGDOptions options;
-                options.learning_rate = run.solver.description
-                                            .at("learning_rate", K_DARKNET_NETWORK_COST)
-                                            .as_real(K_DARKNET_NETWORK_COST);
+                SA_ASSERT_OK_AND_ASSIGN(
+                    const Config::Value& stated_rate,
+                    run.solver.description.at("learning_rate", K_DARKNET_NETWORK_COST));
+                SA_ASSERT_OK_AND_ASSIGN(options.learning_rate,
+                                        stated_rate.as_real(K_DARKNET_NETWORK_COST));
                 SA_ASSERT_OK_AND_ASSIGN(run.optimizer,
                                         Optim::SGD::make(engine, run.slots, options));
                 SA_ASSERT_OK_AND_ASSIGN(
@@ -1125,7 +1131,16 @@ namespace SushiAI
             /** @brief Returns the number @p key of @p settings, widened to float. */
             float read_setting(const Config::Value& settings, std::string_view key)
             {
-                return static_cast<float>(settings.at(key, key).as_real(key));
+                const Config::Value absent;
+                const Result<double> number = settings.at_or(key, absent).as_real(key);
+                if (!number.has_value())
+                {
+                    ADD_FAILURE() << number.status().message();
+                    return std::nanf("");
+                }
+
+                // The number is held, so value() succeeds.
+                return static_cast<float>(number.value());
             }
         } // namespace
 
@@ -1373,9 +1388,15 @@ namespace SushiAI
                            "'{}' is not a convolution over the model input", target.weight);
 
                 const Config::Value& attributes = spec.layers[row].attributes;
-                const std::int64_t kernel = attributes.at("kernel", "conv2d").as_int("kernel");
-                const std::int64_t stride = attributes.at("stride", "conv2d").as_int("stride");
-                const std::int64_t padding = attributes.at("padding", "conv2d").as_int("padding");
+                SA_TRY_ASSIGN(const Config::Value& stated_kernel,
+                              attributes.at("kernel", "conv2d"));
+                SA_TRY_ASSIGN(const std::int64_t kernel, stated_kernel.as_int("kernel"));
+                SA_TRY_ASSIGN(const Config::Value& stated_stride,
+                              attributes.at("stride", "conv2d"));
+                SA_TRY_ASSIGN(const std::int64_t stride, stated_stride.as_int("stride"));
+                SA_TRY_ASSIGN(const Config::Value& stated_padding,
+                              attributes.at("padding", "conv2d"));
+                SA_TRY_ASSIGN(const std::int64_t padding, stated_padding.as_int("padding"));
 
                 const SushiBLAS::Tensor& input = *run.inputs;
                 const std::int64_t images = input.shape[0];

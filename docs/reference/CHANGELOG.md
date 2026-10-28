@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — importers: Read the documents of the darknet cases and tests through the `Result` of the config readers (`darknet_training.cpp`).
 - 2026-10-28 — training: Breaking change: Made `FreeAssignmentStage` and `FreeBatchDecoder` take a built `TaskAlignedAssigner` in place of its config (`free_assignment_stage.hpp`).
 - 2026-10-28 — datasets: Forwarded the status of the imaging transforms through `fit_sample` and `fit_mask` (`fit_sample.cpp`).
 - 2026-10-28 — datasets: Stopped `ListImages` from swallowing a failed load, so `AugmentPipeline` returns its status (`augment_pipeline.cpp`).

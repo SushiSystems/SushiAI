@@ -52,6 +52,21 @@ using Vision::Importers::DarknetTraining;
 
 namespace
 {
+    /** @brief Returns the string under @p key of @p value; a refusal fails the test run. */
+    const std::string& string_of(const Config::Value& value, std::string_view key)
+    {
+        return SushiAI::Test::require_value(SushiAI::Test::require_value(value.at(key, key)).as_string(key));
+    }
+
+    /** @brief Returns the real under @p key of @p value; a refusal fails the test run. */
+    double real_of(const Config::Value& value, std::string_view key)
+    {
+        return SushiAI::Test::require_value(SushiAI::Test::require_value(value.at(key, key)).as_real(key));
+    }
+
+    namespace SaTest = SushiAI::Test;
+
+    using SushiAI::Test::require_value;
     /** @brief Holds the tolerance of every double a test reads back, absolute. */
     constexpr double K_DOUBLE_TOLERANCE = 1e-12;
 
@@ -100,12 +115,15 @@ TEST(Small_DarknetRecipe, WritesTheSolverAsSGD)
     SA_ASSERT_OK_AND_ASSIGN(const DarknetRecipe recipe,
                             write_recipe_of(std::string(K_SOLVER) + head_section(".7")));
 
-    const Config::Value& optimizer = recipe.training.at("optimizer", "the recipe");
+    const Config::Value& optimizer = require_value(recipe.training.at("optimizer", "the recipe"));
     EXPECT_EQ(optimizer.keys().size(), 3u);
-    EXPECT_EQ(optimizer.at("type", "optimizer").as_string("type"), "sgd");
-    EXPECT_NEAR(optimizer.at("momentum", "optimizer").as_real("momentum"), 0.9,
+    EXPECT_EQ(string_of(optimizer, "type"),
+              "sgd");
+    EXPECT_NEAR(real_of(optimizer, "momentum"),
+                0.9,
                 K_DOUBLE_TOLERANCE);
-    EXPECT_NEAR(optimizer.at("weight_decay", "optimizer").as_real("weight_decay"), 0.0005,
+    EXPECT_NEAR(real_of(optimizer, "weight_decay"),
+                0.0005,
                 K_DOUBLE_TOLERANCE);
     EXPECT_FALSE(optimizer.has("learning_rate"));
 }
@@ -118,7 +136,7 @@ TEST(Small_DarknetRecipe, WritesTheRateAsAStepSchedule)
 
     SA_ASSERT_OK_AND_ASSIGN(const Optim::StepSchedule schedule,
                             Optim::read_step_schedule_section(
-                                recipe.training.at("schedule", "the recipe")));
+                                require_value(recipe.training.at("schedule", "the recipe"))));
     EXPECT_NEAR(schedule.base_rate, 0.001, K_DOUBLE_TOLERANCE);
     EXPECT_EQ(schedule.warmup_iterations, 100);
     EXPECT_EQ(schedule.steps, (std::vector<std::int64_t>{1600, 1800}));
@@ -134,8 +152,9 @@ TEST(Small_DarknetRecipe, WritesTheSharedHeadOptionsAsTheAnchorObjective)
         const DarknetRecipe recipe,
         write_recipe_of(std::string(K_SOLVER) + head_section(".7") + head_section(".7")));
 
-    const Config::Value& objective = recipe.training.at("objective", "the recipe");
-    EXPECT_EQ(objective.at("type", "objective").as_string("type"), "anchor");
+    const Config::Value& objective = require_value(recipe.training.at("objective", "the recipe"));
+    EXPECT_EQ(string_of(objective, "type"),
+              "anchor");
 
     SA_ASSERT_OK_AND_ASSIGN(const Vision::Detect::Anchor::HeadTrainingOptions options,
                             Vision::Detect::Anchor::read_head_training_section(objective));

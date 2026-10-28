@@ -58,6 +58,7 @@ using Vision::Training::FreeModelFacts;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using Test::composed;
     using Test::count_parameters;
     using Test::trace_outputs;
@@ -135,7 +136,7 @@ TEST(Medium_UltralyticsFiles, HoldTheirRowsAndTheirInput)
     for (const UltralyticsFile& file : K_FILES)
     {
         SCOPED_TRACE(file.folder);
-        const Config::ModelSpec spec = Config::load_model(model_path(file.folder));
+        const Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
 
         EXPECT_EQ(spec.layers.size(), file.rows);
         EXPECT_EQ(spec.input_shape, (Shape{K_INPUT_SIDE, K_INPUT_SIDE, 3}));
@@ -154,7 +155,7 @@ TEST(Medium_UltralyticsFiles, BuildToTheParameterCountOfTheReference)
     for (const UltralyticsFile& file : K_FILES)
     {
         SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = Config::load_model(model_path(file.folder));
+        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
         SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
         (void)trace_outputs(model, spec.input_shape);
 
@@ -173,7 +174,7 @@ TEST(Medium_UltralyticsFiles, PublishTheOneToManyPortsAtTheLevelStrides)
     for (const UltralyticsFile& file : K_FILES)
     {
         SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = Config::load_model(model_path(file.folder));
+        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
         SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
 
         const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
@@ -199,7 +200,7 @@ TEST(Medium_UltralyticsFiles, GiveTheFactsOfAnAnchorFreeModel)
     for (const UltralyticsFile& file : K_FILES)
     {
         SCOPED_TRACE(file.folder);
-        Config::ModelSpec spec = Config::load_model(model_path(file.folder));
+        Config::ModelSpec spec = require_value(Config::load_model(model_path(file.folder)));
         SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
         const std::vector<Train::OutputShape> outputs = trace_outputs(model, spec.input_shape);
 
@@ -232,7 +233,7 @@ TEST(Medium_UltralyticsFiles, TheTaskSectionReadsBackAsTheDefaults)
     for (const char* const folder : K_TASK_FOLDERS)
     {
         SCOPED_TRACE(folder);
-        const Config::ModelSpec spec = Config::load_model(model_path(folder));
+        const Config::ModelSpec spec = require_value(Config::load_model(model_path(folder)));
 
         SA_ASSERT_OK_AND_ASSIGN(const FreeTask task,
                                 Vision::Detect::Free::read_free_task(spec.task));

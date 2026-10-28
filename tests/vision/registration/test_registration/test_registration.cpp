@@ -64,8 +64,8 @@
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -108,6 +108,36 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns the array under @p key of @p value; a refusal fails the test run. */
+    const std::vector<Config::Value>& array_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_array(key));
+    }
+
+    /** @brief Returns the string under @p key of @p value; a refusal fails the test run. */
+    const std::string& string_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_string(key));
+    }
+
+    /** @brief Returns the whole number under @p key of @p value; a refusal fails the test run. */
+    std::int64_t int_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_int(key));
+    }
+
+    /** @brief Returns the real under @p key of @p value; a refusal fails the test run. */
+    double real_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_real(key));
+    }
+
+    /** @brief Returns the flag under @p key of @p value; a refusal fails the test run. */
+    bool bool_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_bool(key));
+    }
+
     using Test::K_TRACE_BATCH;
     using Test::composed;
     using Test::MinimalCase;
@@ -216,13 +246,13 @@ namespace
     /** @brief Returns the entry of the manifest's "files" whose name is @p name. */
     const Config::Value& manifest_file(const Config::Value& manifest, std::string_view name)
     {
-        for (const Config::Value& file : manifest.at("files", "manifest").as_array("files"))
+        for (const Config::Value& file : array_of(manifest, "files"))
         {
-            if (file.at("name", "file").as_string("name") == name)
+            if (string_of(file, "name") == name)
                 return file;
         }
 
-        SA_THROW_IF(true, "MANIFEST.json lists no file named '{}'", name);
+        SA_FATAL_IF(true, "MANIFEST.json lists no file named '{}'", name);
         return manifest;
     }
 
@@ -244,16 +274,17 @@ namespace
     {
         std::vector<std::string> records;
         const Config::Value& weights = manifest_file(manifest, "weights.sushi");
-        for (const Config::Value& tensor : weights.at("tensors", "weights").as_array("tensors"))
+        for (const Config::Value& tensor : array_of(weights, "tensors"))
         {
-            const std::string& name = tensor.at("name", "tensor").as_string("name");
+            const std::string& name =
+                string_of(tensor, "name");
             const std::size_t row = record_row(name);
             if (row < first || row > last)
                 continue;
 
             std::vector<int64_t> extents;
-            for (const Config::Value& extent : tensor.at("shape", name).as_array("shape"))
-                extents.push_back(extent.as_int("extent"));
+            for (const Config::Value& extent : array_of(tensor, "shape"))
+                extents.push_back(SaTest::require_value(extent.as_int("extent")));
 
             const bool is_buffer = name.find(".running_") != std::string::npos;
             records.push_back(state_record(
@@ -483,7 +514,7 @@ TEST(Medium_VisionRegistration, EachRowRejectsAnUnknownKey)
 TEST(Medium_VisionRegistration, TheYOLO26FileHoldsItsTwentyFourRows)
 {
     const std::filesystem::path root = repository_root();
-    const Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    const Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
 
     const std::vector<std::string> expected_types = {
         "conv", "conv",     "c3k2",   "conv", "c3k2",     "conv",   "c3k2", "conv",
@@ -512,9 +543,11 @@ TEST(Medium_VisionRegistration, TheYOLO26FileHoldsItsTwentyFourRows)
     EXPECT_EQ(sources_of(21), (std::vector<std::int64_t>{20, 10}));
     EXPECT_EQ(sources_of(23), (std::vector<std::int64_t>{16, 19, 22}));
 
-    EXPECT_NEAR(spec.layers[0].attributes.at("bn_epsilon", "row 0").as_real("bn_epsilon"), 0.001,
+    EXPECT_NEAR(real_of(spec.layers[0].attributes, "bn_epsilon"),
+                0.001,
                 K_TOLERANCE);
-    EXPECT_NEAR(spec.layers[9].attributes.at("bn_momentum", "row 9").as_real("bn_momentum"), 0.03,
+    EXPECT_NEAR(real_of(spec.layers[9].attributes, "bn_momentum"),
+                0.03,
                 K_TOLERANCE);
     EXPECT_FALSE(spec.layers[11].attributes.has("bn_epsilon"));
 
@@ -532,8 +565,8 @@ TEST(Medium_VisionRegistration, TheYOLO26FileBuildsWhole)
 {
     const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
-    const Config::Value manifest = Config::parse_json_file(manifest_path());
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
+    const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     SA_ASSERT_OK_AND_ASSIGN(const TraceSummary trace,
@@ -555,12 +588,12 @@ TEST(Medium_VisionRegistration, YOLO26RowsTwoAndFourAddTheirBottlenecksInput)
 {
     const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
     const std::size_t rows_through_four = 5;
     keep_first_rows(spec, rows_through_four);
 
-    EXPECT_TRUE(spec.layers[2].attributes.at("shortcut", "row 2").as_bool("shortcut"));
-    EXPECT_TRUE(spec.layers[4].attributes.at("shortcut", "row 4").as_bool("shortcut"));
+    EXPECT_TRUE(bool_of(spec.layers[2].attributes, "shortcut"));
+    EXPECT_TRUE(bool_of(spec.layers[4].attributes, "shortcut"));
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     SA_ASSERT_OK_AND_ASSIGN(const TraceSummary traced,
@@ -577,9 +610,9 @@ TEST(Medium_VisionRegistration, YOLO26RowsZeroToNineMatchTheManifest)
 {
     const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
     keep_first_rows(spec, K_ATTENTION_ROW);
-    const Config::Value manifest = Config::parse_json_file(manifest_path());
+    const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     SA_ASSERT_OK_AND_ASSIGN(const TraceSummary trace,
@@ -599,7 +632,7 @@ TEST(Medium_VisionRegistration, YOLO26RowsBuildToTheReferenceShapes)
 {
     const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
     stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
     keep_first_rows(spec, K_ATTENTION_INNER_ROW);
 
@@ -623,35 +656,38 @@ TEST(Medium_VisionRegistration, YOLO26NeckTracesToTheReferenceLevels)
 {
     const std::filesystem::path root = repository_root();
     SA_ASSERT_OK_AND_ASSIGN(const NN::NodeRegistry registry, composed());
-    Config::ModelSpec spec = Config::load_model(yolo_model_path(root));
+    Config::ModelSpec spec = SaTest::require_value(Config::load_model(yolo_model_path(root)));
     stand_in(spec, K_ATTENTION_ROW, "silu", "{}");
     keep_first_rows(spec, K_ATTENTION_INNER_ROW);
     spec.outputs = {named_output(16, "level0"), named_output(19, "level1"),
                     named_output(21, "joined")};
-    const Config::Value manifest = Config::parse_json_file(manifest_path());
+    const Config::Value manifest = SaTest::require_value(Config::parse_json_file(manifest_path()));
 
     SA_ASSERT_OK_AND_ASSIGN(ModelGraph model, NN::build_model(registry, spec));
     SA_ASSERT_OK_AND_ASSIGN(const TraceSummary trace,
                             trace_summary(model, spec.input_shape, "model"));
 
-    const std::vector<Config::Value>& levels = manifest_file(manifest, "forward.sacp")
-                                                   .at("context", "forward.sacp")
-                                                   .at("levels", "context")
-                                                   .as_array("levels");
+    const std::vector<Config::Value>& levels =
+        array_of(SaTest::require_value(manifest_file(manifest, "forward.sacp").at("context",
+                                                                                  "forward.sacp")),
+                 "levels");
     ASSERT_EQ(levels.size(), 3u);
     ASSERT_EQ(trace.outputs.size(), 3u);
     for (std::size_t level = 0; level < 2; ++level)
     {
         SCOPED_TRACE("level " + std::to_string(level));
-        const std::int64_t height = levels[level].at("height", "level").as_int("height");
-        const std::int64_t width = levels[level].at("width", "level").as_int("width");
-        const std::int64_t channels = levels[level].at("channels", "level").as_int("channels");
+        const std::int64_t height =
+            int_of(levels[level], "height");
+        const std::int64_t width =
+            int_of(levels[level], "width");
+        const std::int64_t channels =
+            int_of(levels[level], "channels");
         const Shape expected{K_TRACE_BATCH, height, width, channels};
 
         EXPECT_EQ(trace.outputs[level],
                   "level" + std::to_string(level) + " " + expected.to_string());
 
-        EXPECT_NEAR(levels[level].at("stride", "level").as_real("stride") *
+        EXPECT_NEAR(real_of(levels[level], "stride") *
                         static_cast<double>(height),
                     static_cast<double>(spec.input_shape[0]), K_TOLERANCE);
     }
@@ -688,7 +724,7 @@ TEST(Medium_VisionRegistration, TheAnchorRowReadsTheTaskOfTheModel)
 {
     Train::ObjectiveRegistry registry;
     SA_EXPECT_OK(Vision::register_objectives(registry));
-    const Config::Value empty = Config::parse_json("{}", "<test>");
+    const Config::Value empty = SaTest::require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(Train::make_objective(registry, "anchor", Train::ObjectiveContext{},
                                             empty, "the objective block"),
@@ -704,7 +740,8 @@ TEST(Medium_VisionRegistration, ThePixelRowsBuildOverOneLogitMap)
     given.batch = 2;
     given.input_sample = Shape{4, 4, 3};
     given.outputs.push_back(Train::OutputShape{"output", Shape{2, 4, 4, 3}});
-    const Config::Value section = Config::parse_json(R"({"ignore_index": 255})", "<test>");
+    const Config::Value section =
+        SaTest::require_value(Config::parse_json(R"({"ignore_index": 255})", "<test>"));
 
     for (const std::string_view type : {"pixel_cross_entropy", "dice"})
     {
@@ -796,12 +833,10 @@ TEST_F(Medium_VisionMnist, TheDatasetRegistryListsMNIST)
 /** @brief Tests that "mnist" rejects a key it does not know before it looks for any file. */
 TEST_F(Medium_VisionMnist, AnUnknownMNISTKeyIsRejectedByItsOwnFactory)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(
+    SA_EXPECT_FAILURE(Data::make_dataset(
             datasets, *engine, "mnist",
             attributes_from(R"({"directory": "sushiai_absent_mnist", "batch_sizes": 16})"),
-            "data"),
-        "data", "'batch_sizes'", "'batch_size'");
+            "data"), StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
 }
 
 /** @brief Tests that "mnist" fails, naming the directory and its files, when they are absent. */
@@ -831,10 +866,9 @@ TEST_F(Medium_VisionMnist, MNISTTestSplitLooksForTheT10kFiles)
 /** @brief Tests that "mnist" throws when the required "directory" key is absent. */
 TEST_F(Medium_VisionMnist, MNISTRequiresADirectory)
 {
-    SA_EXPECT_ERROR(
-        (void)Data::make_dataset(datasets, *engine, "mnist",
+    SA_EXPECT_FAILURE(Data::make_dataset(datasets, *engine, "mnist",
                                  attributes_from(R"({"split": "test"})"), "data"),
-        "data", "has no", "'directory'");
+        StatusCode::InvalidDescription, "data", "has no", "'directory'");
 }
 
 /** @brief Tests that "mnist" rejects a split other than "train" or "test". */
@@ -1036,7 +1070,7 @@ namespace
     /** @brief Loads the YOLO26n model file as it is written. */
     Config::ModelSpec load_spec()
     {
-        return Config::load_model(yolo_model_path(repository_root()));
+        return SaTest::require_value(Config::load_model(yolo_model_path(repository_root())));
     }
 
     /**
@@ -1190,7 +1224,8 @@ namespace
                                            std::string_view kind, std::int64_t channels,
                                            std::vector<float>& joined)
     {
-        const std::int64_t anchors = Vision::Detect::Free::count_anchors(K_LEVELS);
+        const std::int64_t anchors =
+            SaTest::require_value(Vision::Detect::Free::count_anchors(K_LEVELS));
         joined.assign(static_cast<std::size_t>(anchors * channels), 0.0f);
 
         std::int64_t offset = 0;
@@ -1208,9 +1243,10 @@ namespace
                                                      << found->second.size() << " values, not "
                                                      << expected;
 
-            Vision::Detect::Free::join_level(found->second,
-                                             LevelPlacement{1, anchors, channels, offset, cells},
-                                             joined);
+            SA_EXPECT_OK(Vision::Detect::Free::join_level(found->second,
+                                                          LevelPlacement{1, anchors, channels,
+                                                                         offset, cells},
+                                                          joined));
             offset += cells;
         }
 
@@ -1235,11 +1271,11 @@ namespace
         if (!scores)
             return scores;
 
-        const std::size_t anchors =
-            static_cast<std::size_t>(Vision::Detect::Free::count_anchors(K_LEVELS));
+        const std::size_t anchors = static_cast<std::size_t>(
+            SaTest::require_value(Vision::Detect::Free::count_anchors(K_LEVELS)));
         std::vector<float> points(anchors * Vision::Detect::Free::K_POINT_VALUES);
         std::vector<float> strides(anchors);
-        Vision::Detect::Free::make_anchors(K_LEVELS, points, strides);
+        SA_EXPECT_OK(Vision::Detect::Free::make_anchors(K_LEVELS, points, strides));
 
         decode(decoded.boxes, points, decoded.boxes);
         Vision::Detect::Free::scale_boxes(decoded.boxes, strides, decoded.boxes);
@@ -1431,12 +1467,15 @@ TEST_F(Medium_Yolo26Forward, TheTopScoresMatchTheReferenceDetections)
     DecodedBranch decoded;
     ASSERT_TRUE(decode_branch(*ours, "one2one", &Vision::Detect::Free::decode_xyxy, decoded));
 
-    const PredictionShape shape{1, Vision::Detect::Free::count_anchors(K_LEVELS), K_CLASSES};
-    const std::int64_t rows =
-        Vision::Detect::count_top_detections(shape, Vision::Detect::K_MAX_DETECTIONS);
+    const std::int64_t anchors =
+        SaTest::require_value(Vision::Detect::Free::count_anchors(K_LEVELS));
+    const PredictionShape shape{1, anchors, K_CLASSES};
+    const std::int64_t rows = SaTest::require_value(
+        Vision::Detect::count_top_detections(shape, Vision::Detect::K_MAX_DETECTIONS));
     std::vector<float> detections(static_cast<std::size_t>(rows) * K_DETECTION_VALUES);
-    Vision::Detect::select_top_detections(decoded.boxes, decoded.scores, shape,
-                                          Vision::Detect::K_MAX_DETECTIONS, detections);
+    SA_EXPECT_OK(Vision::Detect::select_top_detections(decoded.boxes, decoded.scores, shape,
+                                                       Vision::Detect::K_MAX_DETECTIONS,
+                                                       detections));
 
     EXPECT_TRUE(near_reference(score_column(detections), score_column(reference.floats()),
                                K_PROBABILITY_TOLERANCE));

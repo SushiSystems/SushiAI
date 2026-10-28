@@ -377,10 +377,10 @@ namespace SushiAI
                 config.distance_exponent = model.distance_exponent;
 
                 std::vector<std::vector<float>> detections;
-                Vision::Detect::select_nms_detections(
+                SA_EXPECT_OK(Vision::Detect::select_nms_detections(
                     pixels, decoded.scores,
                     Vision::Detect::PredictionShape{1, decoded.rows, decoded.classes}, config,
-                    detections);
+                    detections));
 
                 std::vector<DetectionRow> rows;
                 const std::vector<float>& image = detections.front();
@@ -493,10 +493,15 @@ namespace SushiAI
                 if (!description.has(key))
                     return std::nanf("");
 
-                const Config::Value& value = description.at(key, key);
+                const Config::Value absent;
+                const Config::Value& value = description.at_or(key, absent);
                 const bool is_number =
                     value.kind() == Config::Kind::Real || value.kind() == Config::Kind::Int;
-                return is_number ? static_cast<float>(value.as_real(key)) : std::nanf("");
+                if (!is_number)
+                    return std::nanf("");
+
+                // value is a number, so as_real succeeds.
+                return static_cast<float>(value.as_real(key).value());
             }
         } // namespace
 

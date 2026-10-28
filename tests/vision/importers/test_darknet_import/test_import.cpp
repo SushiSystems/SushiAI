@@ -62,6 +62,12 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns the string under @p key of @p value; a refusal fails the test run. */
+    const std::string& string_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_string(key));
+    }
+
     /** @brief Holds the tolerance of an anchor read back from the task section, absolute. */
     constexpr float K_FLOAT_TOLERANCE = 1e-6f;
 
@@ -147,7 +153,8 @@ TEST(Medium_DarknetImport, StatesTheHeadsAsAnAnchorDetectionTask)
                             Vision::Importers::import_darknet_model(
                                 translated.config, translated.model, nullptr));
 
-    EXPECT_EQ(imported.model.task.at("type", "task").as_string("type"), "anchor_detection");
+    EXPECT_EQ(string_of(imported.model.task, "type"),
+              "anchor_detection");
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask task,
                             Vision::Detect::Anchor::read_anchor_task(imported.model.task));
 

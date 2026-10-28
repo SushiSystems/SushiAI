@@ -243,15 +243,16 @@ namespace SushiAI
                                                              IO::ExistingFiles::Refuse));
             EXPECT_EQ(written.files.size(), 3u);
 
-            const Config::ModelSpec model =
-                Config::load_model(directory / IO::K_IMPORTED_MODEL_FILE);
+            SA_ASSERT_OK_AND_ASSIGN(const Config::ModelSpec model,
+                                    Config::load_model(directory / IO::K_IMPORTED_MODEL_FILE));
             SA_ASSERT_OK_AND_ASSIGN(const std::string found, Config::write_model(model));
             SA_ASSERT_OK_AND_ASSIGN(const std::string wanted,
                                     Config::write_model(run.imported.model));
             EXPECT_EQ(found, wanted);
 
-            const Config::Value training =
-                Config::parse_json_file(directory / IO::K_IMPORTED_TRAINING_FILE);
+            SA_ASSERT_OK_AND_ASSIGN(
+                const Config::Value training,
+                Config::parse_json_file(directory / IO::K_IMPORTED_TRAINING_FILE));
             SA_ASSERT_OK_AND_ASSIGN(const Config::Value composed,
                                     IO::compose_training_file(run.imported));
             SA_ASSERT_OK_AND_ASSIGN(const std::string read_back, Config::write_json(training));
