@@ -15,7 +15,6 @@ from pathlib import Path
 
 from sushicore.build_tree import package_build_type
 from sushicore.provision.sushi_packages import PackageSet, RunDirs
-from sushicore.provision.sushi_packages import configure_arguments  # noqa: F401  (callers take it from here)
 
 from ..config import Config
 from .sycl_targets import sycl_targets_define

@@ -15,7 +15,6 @@ from types import SimpleNamespace
 import pytest
 
 from sushiai.services import project
-from sushiai.services.project import BuildType
 
 pytestmark = pytest.mark.medium
 

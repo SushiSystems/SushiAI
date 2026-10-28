@@ -23,7 +23,7 @@ from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
-from sushicore.provision.sushi_packages import PackageError, PackageSet
+from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
 from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
 
@@ -158,7 +158,7 @@ def _toolchain_args(cfg: Config, root: Path) -> list[str]:
     configures legitimately disagree on, since the consumer must also see the
     install prefix. Each caller sets its own. So are the
     package folders: each configure takes them from its own resolved packages, through
-    :func:`library_packages.configure_arguments`.
+    :func:`configure_arguments`.
 
     @param cfg The resolved configuration.
     @param root The project root.
@@ -236,7 +236,7 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
         f"-DCMAKE_BUILD_TYPE={build_type}",
     ]
     # Each library package reaches CMake as <Package>_DIR; CMake never builds or downloads one.
-    args += library_packages.configure_arguments(cfg, root, packages)
+    args += configure_arguments(cfg, root, packages)
     args += _toolchain_args(cfg, root)
     if cfg.is_windows and (prefix := _vcpkg_prefix(cfg, root)):
         args.append(f"-DCMAKE_PREFIX_PATH={prefix}")
@@ -577,7 +577,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         f"-DCMAKE_BUILD_TYPE={build_type}",
         f"-DCMAKE_PREFIX_PATH={prefix_path}",
     ]
-    configure += library_packages.configure_arguments(cfg, root, packages)
+    configure += configure_arguments(cfg, root, packages)
     configure += _toolchain_args(cfg, root)
     rc = _DRIVER.configure(configure, cwd=root, env=env)
     if rc != 0:

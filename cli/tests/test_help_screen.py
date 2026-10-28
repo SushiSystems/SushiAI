@@ -20,7 +20,7 @@ from sushiai.cli import app
 pytestmark = pytest.mark.medium
 
 K_GROUPS = {
-    "Project": ["build", "test", "run", "clean", "docs"],
+    "Project": ["build", "test", "run", "clean", "docs", "backlog", "design"],
     "Models": ["train", "inference", "import", "tokenize", "profile", "demo"],
     "Diagnostics": ["config", "env", "setup", "doctor", "link", "unlink"],
 }
