@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — model_text: Breaking change: Made `attributes_from` and `model_from` stop the process on a fixture that does not parse (`model_text.hpp`).
+- 2026-10-28 — model_text: Added `try_attributes_from` and `try_model_from`, which return the refusal of a fixture (`model_text.hpp`).
 - 2026-10-28 — config: Breaking change: Made `Value::at` and the `as_*` readers return a `Result` (`value.hpp`).
 - 2026-10-28 — config: Breaking change: Made `reject_unknown_keys` and `require_version` return a `Status` (`value.hpp`).
 - 2026-10-28 — config: Breaking change: Made `parse_json` and `parse_json_file` return a `Result` in place of throwing (`value.hpp`).
