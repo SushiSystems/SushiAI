@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — examples: Took the dataset root of the 12 example JSON files from `datasets/coco128` under the repository root, not the path of one machine (`train.json`).
 - 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `INSTALL.md`, the README, the tutorial, `CONTRIBUTING.md` and the CLI guide (`INSTALL.md`).
 - 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sa build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).
 - 2026-10-28 — tests: Added `test_noexcept_surface.cpp`, one `static_assert` per `noexcept` public function of the core and layers modules; the umbrella test moved to `test_SushiAI/test_engine_smoke.cpp` beside it.

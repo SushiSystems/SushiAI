@@ -17,7 +17,7 @@ added. `eval.json` was written from the same data block.
 | `build/yolov3_tiny/model.json` | `sa import darknet` | No |
 | `build/yolov3_tiny/weights.sushi` | The same import step | No |
 | `yolov3-tiny.cfg`, `yolov3-tiny.weights` | The Darknet project | No |
-| A YOLO-layout dataset | `D:/Projects/.sushisystems/datasets/coco128` here | No |
+| A YOLO-layout dataset | `datasets/coco128` under the repository root | No |
 
 ## Import
 
@@ -38,7 +38,7 @@ paths changed.
 | `model` | `../../../build/yolov3_tiny/model.json` | Against the directory of `train.json`, the repository's `build/yolov3_tiny` |
 | `weights` | `../../../build/yolov3_tiny/weights.sushi` | The same folder |
 | `checkpoint` | `../../../build/yolov3_tiny/trained.sushi` | The same folder; the run writes the file there |
-| `data.root` | `D:/Projects/.sushisystems/datasets/coco128` | Absolute; the `data` block is passed through as written and is not resolved against the file |
+| `data.root` | `datasets/coco128` | The `data` block is passed through as written and is not resolved against the file, so this is against the directory the command runs in: the repository root, where `datasets/` is git-ignored |
 
 Edit `data.root` to where the dataset lies on your machine. The dataset follows the YOLO
 layout: `images/train2017/*.jpg` with one `labels/train2017/*.txt` per image, each row

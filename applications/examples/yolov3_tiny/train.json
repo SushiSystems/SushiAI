@@ -6,7 +6,7 @@
     "data": {
         "reader": "yolo_txt",
         "task": "detection",
-        "root": "D:/Projects/.sushisystems/datasets/coco128",
+        "root": "datasets/coco128",
         "split": "train2017",
         "batch_size": 16,
         "input": [416, 416],

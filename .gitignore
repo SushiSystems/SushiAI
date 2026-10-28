@@ -44,3 +44,6 @@ tests/**/fixtures/**/*.sacp
 # Checkpoints a training run writes.
 *.ckpt
 docs/archive/
+
+# Datasets the examples read; each is downloaded by hand.
+/datasets/
