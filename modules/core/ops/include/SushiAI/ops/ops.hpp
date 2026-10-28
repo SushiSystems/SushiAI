@@ -82,7 +82,7 @@ namespace SushiAI
          * @c inline @c constexpr variable, which forces constant evaluation anyway,
          * so no name is hashed at run time.
          */
-        constexpr OpName op(std::string_view n)
+        constexpr OpName op(std::string_view n) noexcept
         {
             return OpName{n, OpID(OpID::hash(n.data(), n.size())), false, false};
         }
@@ -94,7 +94,7 @@ namespace SushiAI
          * static_assert walks @ref K_ALL and fails the build if any entry built
          * this way has no matching backward rule.
          */
-        constexpr OpName differentiable_op(std::string_view n)
+        constexpr OpName differentiable_op(std::string_view n) noexcept
         {
             return OpName{n, OpID(OpID::hash(n.data(), n.size())), true, false};
         }
@@ -107,7 +107,7 @@ namespace SushiAI
          * steps over the node. A barrier has no backward rule; the static_assert in
          * @c autograd/rules/all.hpp fails the build if one gains a row.
          */
-        constexpr OpName gradient_barrier_op(std::string_view n)
+        constexpr OpName gradient_barrier_op(std::string_view n) noexcept
         {
             return OpName{n, OpID(OpID::hash(n.data(), n.size())), false, true};
         }
@@ -354,7 +354,7 @@ namespace SushiAI
          * @param table The identities to check.
          * @return True when no two entries share an OpID.
          */
-        constexpr bool all_ids_unique(SushiRuntime::span<const OpName> table)
+        constexpr bool all_ids_unique(SushiRuntime::span<const OpName> table) noexcept
         {
             for (std::size_t i = 0; i < table.size(); ++i)
                 for (std::size_t j = i + 1; j < table.size(); ++j)
@@ -385,7 +385,7 @@ namespace SushiAI
          * @param table The identities to check.
          * @return True when some entry carries both flags.
          */
-        constexpr bool any_barrier_is_differentiable(SushiRuntime::span<const OpName> table)
+        constexpr bool any_barrier_is_differentiable(SushiRuntime::span<const OpName> table) noexcept
         {
             for (const OpName& entry : table)
             {
