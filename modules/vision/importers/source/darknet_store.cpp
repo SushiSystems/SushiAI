@@ -203,7 +203,7 @@ namespace SushiAI
         Status store_darknet_weights(const DarknetWeights& weights,
                                      SushiRuntime::span<const DarknetConvolutionShape> shapes,
                                      SushiRuntime::span<const DarknetWeightTarget> targets,
-                                     NN::ModelState& state)
+                                     NN::ModelState& state) noexcept
         {
             SA_FAIL_IF(weights.convolutions.size() != shapes.size()
                            || shapes.size() != targets.size(),

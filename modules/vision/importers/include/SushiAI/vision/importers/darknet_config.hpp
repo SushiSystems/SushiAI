@@ -82,13 +82,13 @@ namespace SushiAI
          *         at fault, or when the text holds no section.
          */
         [[nodiscard]] Result<DarknetConfig> parse_darknet_config(std::string_view text,
-                                                                 std::string_view origin);
+                                                                 std::string_view origin) noexcept;
 
         /**
          * @brief Reads the .cfg file at @p path and parses it.
          * @return The parsed configuration, FileNotFound when the file cannot be opened,
          *         InvalidFile when a read fails, or the failure of parse_darknet_config.
          */
-        [[nodiscard]] Result<DarknetConfig> load_darknet_config(const std::filesystem::path& path);
+        [[nodiscard]] Result<DarknetConfig> load_darknet_config(const std::filesystem::path& path) noexcept;
     } // namespace Vision::Importers
 } // namespace SushiAI

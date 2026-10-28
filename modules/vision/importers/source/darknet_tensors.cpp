@@ -175,7 +175,7 @@ namespace SushiAI
         Result<std::vector<IO::ImportedTensor>> list_darknet_tensors(
             const DarknetWeights& weights,
             SushiRuntime::span<const DarknetConvolutionShape> shapes,
-            SushiRuntime::span<const DarknetWeightTarget> targets)
+            SushiRuntime::span<const DarknetWeightTarget> targets) noexcept
         {
             SA_FAIL_IF(weights.convolutions.size() != shapes.size()
                            || shapes.size() != targets.size(),

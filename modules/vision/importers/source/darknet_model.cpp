@@ -95,7 +95,7 @@ namespace SushiAI
         } // namespace
 
         Result<DarknetModel> translate_darknet_model(const DarknetConfig& config,
-                                                     const DarknetTranslation& translation)
+                                                     const DarknetTranslation& translation) noexcept
         {
             Detail::TranslationProgress progress;
             progress.normalisation = translation.normalisation;

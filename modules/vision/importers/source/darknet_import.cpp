@@ -100,7 +100,7 @@ namespace SushiAI
 
         Result<IO::ImportedModel> import_darknet_model(const DarknetConfig& config,
                                                        const DarknetModel& model,
-                                                       const DarknetWeights* weights)
+                                                       const DarknetWeights* weights) noexcept
         {
             SA_TRY_ASSIGN(Config::Value task, write_task(model));
             SA_TRY_ASSIGN(const DarknetTraining training, read_darknet_training(config));
@@ -126,7 +126,7 @@ namespace SushiAI
         }
 
         Result<IO::ImportedModel> import_darknet_files(
-            SushiRuntime::span<const std::filesystem::path> files)
+            SushiRuntime::span<const std::filesystem::path> files) noexcept
         {
             SA_FAIL_IF(files.size() < K_FEWEST_FILES || files.size() > K_MOST_FILES,
                        StatusCode::InvalidDescription,

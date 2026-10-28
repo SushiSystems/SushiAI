@@ -49,7 +49,7 @@ namespace SushiAI
         [[nodiscard]] Result<std::vector<IO::ImportedTensor>> list_darknet_tensors(
             const DarknetWeights& weights,
             SushiRuntime::span<const DarknetConvolutionShape> shapes,
-            SushiRuntime::span<const DarknetWeightTarget> targets);
+            SushiRuntime::span<const DarknetWeightTarget> targets) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

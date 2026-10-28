@@ -109,7 +109,7 @@ namespace SushiAI
          *         that is malformed, out of range or does not fit the layer it reads.
          */
         [[nodiscard]] Result<DarknetModel> translate_darknet_model(
-            const DarknetConfig& config, const DarknetTranslation& translation);
+            const DarknetConfig& config, const DarknetTranslation& translation) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

@@ -71,7 +71,7 @@ namespace SushiAI
             const DarknetWeights& weights,
             SushiRuntime::span<const DarknetConvolutionShape> shapes,
             SushiRuntime::span<const DarknetWeightTarget> targets,
-            NN::ModelState& state);
+            NN::ModelState& state) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

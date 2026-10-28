@@ -68,7 +68,7 @@ namespace SushiAI
             }
         } // namespace
 
-        void fold_darknet_normalisation(DarknetConvolution& convolution)
+        void fold_darknet_normalisation(DarknetConvolution& convolution) noexcept
         {
             check_foldable(convolution);
 

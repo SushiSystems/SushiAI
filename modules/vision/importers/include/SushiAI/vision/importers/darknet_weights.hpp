@@ -118,7 +118,7 @@ namespace SushiAI
          * @return The header; Unsupported when major or minor is above 1000, or InvalidFile when
          *         the stream ends inside the header.
          */
-        [[nodiscard]] Result<DarknetWeightsHeader> read_darknet_header(std::istream& stream);
+        [[nodiscard]] Result<DarknetWeightsHeader> read_darknet_header(std::istream& stream) noexcept;
 
         /**
          * @brief Reads every convolution's floats from a .weights file, in the order of @p shapes.
@@ -130,7 +130,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<DarknetWeights> read_darknet_weights(
             const std::filesystem::path& path,
-            SushiRuntime::span<const DarknetConvolutionShape> shapes);
+            SushiRuntime::span<const DarknetConvolutionShape> shapes) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

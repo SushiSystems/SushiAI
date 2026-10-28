@@ -239,7 +239,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<DarknetTraining> read_darknet_training(const DarknetConfig& config)
+        Result<DarknetTraining> read_darknet_training(const DarknetConfig& config) noexcept
         {
             DarknetTraining training;
             SA_TRY_ASSIGN(training.solver, read_solver(config.net));

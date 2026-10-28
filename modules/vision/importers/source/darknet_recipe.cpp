@@ -218,7 +218,7 @@ namespace SushiAI
         } // namespace
 
         Result<DarknetRecipe> write_darknet_recipe(const DarknetConfig& config,
-                                                   const DarknetTraining& training)
+                                                   const DarknetTraining& training) noexcept
         {
             SA_TRY_ASSIGN(const std::vector<const DarknetSection*> heads,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,

@@ -58,7 +58,7 @@ namespace SushiAI
          *         the writer of a section refuses.
          */
         [[nodiscard]] Result<DarknetRecipe> write_darknet_recipe(const DarknetConfig& config,
-                                                                 const DarknetTraining& training);
+                                                                 const DarknetTraining& training) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

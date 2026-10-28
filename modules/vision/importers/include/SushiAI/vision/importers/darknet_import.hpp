@@ -54,7 +54,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<IO::ImportedModel> import_darknet_model(
             const DarknetConfig& config, const DarknetModel& model,
-            const DarknetWeights* weights);
+            const DarknetWeights* weights) noexcept;
 
         /**
          * @brief Reads a .cfg, and a .weights when one is given, into an imported model.
@@ -64,7 +64,7 @@ namespace SushiAI
          *         of the translation or of import_darknet_model.
          */
         [[nodiscard]] Result<IO::ImportedModel> import_darknet_files(
-            SushiRuntime::span<const std::filesystem::path> files);
+            SushiRuntime::span<const std::filesystem::path> files) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

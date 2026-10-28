@@ -239,7 +239,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<DarknetConfig> parse_darknet_config(std::string_view text, std::string_view origin)
+        Result<DarknetConfig> parse_darknet_config(std::string_view text, std::string_view origin) noexcept
         {
             ConfigAssembler assembler(origin);
             std::size_t begin = 0;
@@ -257,7 +257,7 @@ namespace SushiAI
             return assembler.finish();
         }
 
-        Result<DarknetConfig> load_darknet_config(const std::filesystem::path& path)
+        Result<DarknetConfig> load_darknet_config(const std::filesystem::path& path) noexcept
         {
             std::ifstream in(path, std::ios::binary);
             SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",

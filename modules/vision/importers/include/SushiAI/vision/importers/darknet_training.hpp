@@ -87,7 +87,7 @@ namespace SushiAI
          *         names the line of a policy other than steps, a truth_thresh other than 1, a
          *         label_smooth_eps other than 0, or an iou_loss other than mse and ciou.
          */
-        [[nodiscard]] Result<DarknetTraining> read_darknet_training(const DarknetConfig& config);
+        [[nodiscard]] Result<DarknetTraining> read_darknet_training(const DarknetConfig& config) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI

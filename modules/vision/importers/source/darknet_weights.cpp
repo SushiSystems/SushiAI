@@ -275,7 +275,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<DarknetWeightsHeader> read_darknet_header(std::istream& stream)
+        Result<DarknetWeightsHeader> read_darknet_header(std::istream& stream) noexcept
         {
             DarknetWeightsHeader header;
             SA_TRY_ASSIGN(header.major, read_int32(stream, "the major version"));
@@ -296,7 +296,7 @@ namespace SushiAI
 
         Result<DarknetWeights> read_darknet_weights(
             const std::filesystem::path& path,
-            SushiRuntime::span<const DarknetConvolutionShape> shapes)
+            SushiRuntime::span<const DarknetConvolutionShape> shapes) noexcept
         {
             std::ifstream stream(path, std::ios::binary);
             SA_FAIL_IF(!stream, StatusCode::FileNotFound, "could not open '{}' for reading",

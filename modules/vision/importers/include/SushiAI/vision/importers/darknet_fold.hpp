@@ -39,7 +39,7 @@ namespace SushiAI
          * @pre Each per-filter vector has one entry per filter, the weights hold whole filters,
          *      and rolling_variance + 1e-5 is positive; a violation stops the process.
          */
-        void fold_darknet_normalisation(DarknetConvolution& convolution);
+        void fold_darknet_normalisation(DarknetConvolution& convolution) noexcept;
 
     } // namespace Vision::Importers
 } // namespace SushiAI
