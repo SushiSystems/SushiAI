@@ -8,4 +8,5 @@
 
 sushiai_add_test_program(OWNER vision/umbrella
     SOURCES
-        test_vision.cpp)
+        test_vision/test_umbrella_reach.cpp
+        test_vision/test_noexcept_surface.cpp)

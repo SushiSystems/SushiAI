@@ -8,6 +8,7 @@
 
 sushiai_add_test_program(OWNER language/umbrella
     SOURCES
-        test_language.cpp
+        test_language/test_umbrella_reach.cpp
+        test_language/test_noexcept_surface.cpp
     DEPENDS
         failure_expectations)
