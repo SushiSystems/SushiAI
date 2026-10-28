@@ -87,8 +87,8 @@ classifier's. The message therefore comes from the objective and not from the gr
 
 ## LeavesRefuseADuplicateRoleAndNameAnAbsentOne
 
-Adding the leaf `targets` a second time raises an error holding "'targets'" and "twice".
-`at("collocation")` raises one holding "'collocation'" and "'targets'". `has` is true for
+Adding the leaf `targets` a second time stops the process with a message holding "'targets'"
+and "twice". `at("collocation")` stops it with one holding "'collocation'" and "'targets'". `has` is true for
 `targets` and false for `collocation`, and the set holds one leaf.
 
 ## CrossEntropyReadsTheOnlyOutput
@@ -107,7 +107,8 @@ outputs.
 
 ## AnEmptyLeafSetSaysSoRatherThanListingNothing
 
-`at("targets")` on an empty leaf set raises an error holding "'targets'" and "(none)".
+`at("targets")` on an empty leaf set stops the process with a message holding "'targets'" and
+"(none)".
 
 ## TheFactoryBuildsCrossEntropyOverTheContext
 

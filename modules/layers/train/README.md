@@ -14,7 +14,9 @@ it four times: `CrossEntropyObjective`, `BinaryCrossEntropyObjective`, `MultiLab
 and `MeanSquaredErrorObjective`. `SumObjective` is the composite: it owns other objectives and
 adds their weighted losses. An `ObjectiveRegistry` holds the types a training file may
 name. An objective declares its graph leaves and the
-batch roles it reads in `ObjectiveLeaves`; `match_roles` checks those roles against the ones a
+batch roles it reads in `ObjectiveLeaves`. Declaring a role twice and reading a role that was
+not declared are broken preconditions that stop the process; `has` tells whether a role was
+declared. `match_roles` checks those roles against the ones a
 dataset publishes, and `match_input` checks the per-sample shape and the element type of the
 input leaf against the input the dataset states. Each objective writes its own leaves in `feed`, on the host, once per batch:
 cross-entropy reads `labels` and calls `fill_one_hot`. `TrainingStep` and `EvaluationStep`

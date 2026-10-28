@@ -67,7 +67,8 @@ namespace SushiAI
                  * @brief Records that @p role is @p id.
                  * @param role What the leaf is for, e.g. "targets".
                  * @param id The declared value.
-                 * @throws Error If @p role was already declared.
+                 * @pre @p role was not declared yet; has() tells. A second declaration
+                 *      stops the process.
                  */
                 void add(std::string_view role, Graph::ValueID id);
 
@@ -82,7 +83,8 @@ namespace SushiAI
                  * @brief The value declared for @p role.
                  * @param role What the leaf is for.
                  * @return Its value id.
-                 * @throws Error If @p role was not declared; lists what was.
+                 * @pre @p role was declared; has() tells. An undeclared role stops the
+                 *      process with a message that lists the declared ones.
                  */
                 Graph::ValueID at(std::string_view role) const;
 

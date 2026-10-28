@@ -39,7 +39,6 @@
 #include <SushiAI/train/batch_role.hpp>
 #include <SushiAI/train/host_values.hpp>
 #include <SushiAI/train/one_hot.hpp>
-#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {
@@ -47,7 +46,7 @@ namespace SushiAI
     {
         void ObjectiveLeaves::add(std::string_view role, Graph::ValueID id)
         {
-            SA_THROW_IF(has(role),
+            SA_FATAL_IF(has(role),
                         "the objective declared the leaf '{}' twice; each role names "
                         "one value", role);
             leaves_.emplace_back(std::string(role), id);
@@ -73,9 +72,7 @@ namespace SushiAI
             }
             if (declared.empty()) declared = "(none)";
 
-            SA_THROW_IF(true, "the objective declared no leaf '{}'; it declared {}",
-                        role, declared);
-            return Graph::K_NO_VALUE;   // unreachable: SA_THROW_IF(true) always throws
+            SA_FATAL("the objective declared no leaf '{}'; it declared {}", role, declared);
         }
 
         void ObjectiveLeaves::require(Data::TargetDescription role)

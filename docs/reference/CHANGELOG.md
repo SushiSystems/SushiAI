@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — train: Made `ObjectiveLeaves::add` on a declared role and `ObjectiveLeaves::at` on an undeclared one stop the process, as broken preconditions, in place of throwing (`objective.cpp`).
 - 2026-10-28 — profile: Added the one list of SushiAI's zone groups, which `SA_ZONE` checks at compile time (`zone_groups.hpp`).
 - 2026-10-28 — profile_records: Removed `K_SUSHIAI_ZONE_GROUPS`, which the list of the profile module replaces (`profile_records.hpp`).
 - 2026-10-28 — train: Breaking change: Made `Objective::loss` return a `Result`, so the cross-entropy and anchor objectives refuse an unreadable output with a status (`objective.hpp`).

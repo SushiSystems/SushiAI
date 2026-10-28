@@ -230,10 +230,7 @@ namespace SushiAI
 
                 if (built.leaves.has("targets"))
                 {
-                    SA_TRY_ASSIGN(built.spec.targets, NN::Detail::bridge_throwing([&built]()
-                    {
-                        return built.leaves.at("targets");
-                    }));
+                    built.spec.targets = built.leaves.at("targets");
                 }
 
                 // logits stays unset for a model that publishes more than one value.

@@ -48,7 +48,6 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -395,9 +394,9 @@ TEST(Small_Objective, LeavesRefuseADuplicateRoleAndNameAnAbsentOne)
     ObjectiveLeaves leaves;
     leaves.add("targets", builder.input(Shape{2, 3}, "targets"));
 
-    SA_EXPECT_ERROR(leaves.add("targets", builder.input(Shape{2, 3}, "again")),
-                    "'targets'", "twice");
-    SA_EXPECT_ERROR((void)leaves.at("collocation"), "'collocation'", "'targets'");
+    const Graph::ValueID again = builder.input(Shape{2, 3}, "again");
+    SA_EXPECT_FATAL(leaves.add("targets", again), "'targets'", "twice");
+    SA_EXPECT_FATAL((void)leaves.at("collocation"), "'collocation'", "'targets'");
 
     EXPECT_TRUE(leaves.has("targets"));
     EXPECT_FALSE(leaves.has("collocation"));
@@ -441,7 +440,7 @@ TEST(Small_Objective, CrossEntropyRefusesTwoOutputs)
 TEST(Small_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)
 {
     const ObjectiveLeaves leaves;
-    SA_EXPECT_ERROR((void)leaves.at("targets"), "'targets'", "(none)");
+    SA_EXPECT_FATAL((void)leaves.at("targets"), "'targets'", "(none)");
 }
 
 /** @brief Tests that the factory builds cross-entropy over the batch and classes it is given. */
