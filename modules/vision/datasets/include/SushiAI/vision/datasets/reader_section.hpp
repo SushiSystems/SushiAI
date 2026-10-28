@@ -47,5 +47,5 @@ namespace SushiAI::Vision::Datasets
      * @pre @p engine outlives the dataset.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_reader_dataset(
-        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context);
+        SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context) noexcept;
 } // namespace SushiAI::Vision::Datasets

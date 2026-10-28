@@ -54,7 +54,7 @@ namespace SushiAI::Vision::Datasets
              *         neither 0 nor 1.
              */
             [[nodiscard]] static Result<std::unique_ptr<BinaryCollator>> make(
-                std::int32_t positive_class);
+                std::int32_t positive_class) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()

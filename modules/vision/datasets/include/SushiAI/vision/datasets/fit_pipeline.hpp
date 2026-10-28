@@ -57,7 +57,7 @@ namespace SushiAI::Vision::Datasets
              *         the bounds of an image.
              */
             [[nodiscard]] static Result<std::unique_ptr<FitPipeline>> make(
-                const SampleFitOptions& fit, std::int32_t channels);
+                const SampleFitOptions& fit, std::int32_t channels) noexcept;
 
             /** @brief Returns the layout an image of a channel count is decoded to. */
             [[nodiscard]] static Codecs::ChannelLayout layout_of(std::int32_t channels) noexcept;

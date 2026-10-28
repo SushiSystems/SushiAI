@@ -50,7 +50,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    bool has_image_extension(const std::filesystem::path& path)
+    bool has_image_extension(const std::filesystem::path& path) noexcept
     {
         std::string extension = path.extension().generic_string();
         for (char& character : extension)

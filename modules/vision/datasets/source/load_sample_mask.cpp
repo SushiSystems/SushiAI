@@ -43,7 +43,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status load_sample_mask(const SampleList& list, std::size_t sample,
-                            Imaging::Image& destination)
+                            Imaging::Image& destination) noexcept
     {
         SA_FAIL_IF(sample >= list.samples.size(), StatusCode::InvalidDescription,
                    "{}: sample {} is outside a list of {} samples", K_LOADER, sample,

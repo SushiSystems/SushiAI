@@ -47,5 +47,5 @@ namespace SushiAI::Vision::Datasets
      *         the position of the image in the batch.
      */
     [[nodiscard]] Status write_batch_inputs(SushiRuntime::span<const FittedSample> samples,
-                                            SushiBLAS::Tensor& inputs);
+                                            SushiBLAS::Tensor& inputs) noexcept;
 } // namespace SushiAI::Vision::Datasets

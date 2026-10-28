@@ -49,7 +49,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::unique_ptr<ClassificationCollator>> ClassificationCollator::make(
-        std::int32_t class_count)
+        std::int32_t class_count) noexcept
     {
         SA_FAIL_IF(class_count < 1, StatusCode::InvalidDescription,
                    "{}: {} classes; there must be at least 1", K_COLLATOR, class_count);

@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status paint_polygon_mask(const Imaging::Labels& objects, Imaging::ImageSize size,
-                              std::uint8_t background, Imaging::Image& mask)
+                              std::uint8_t background, Imaging::Image& mask) noexcept
     {
         return Detail::at_boundary(K_PAINTER, [&]() -> Status
         {

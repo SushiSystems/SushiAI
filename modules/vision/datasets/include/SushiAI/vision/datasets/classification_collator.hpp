@@ -50,7 +50,7 @@ namespace SushiAI::Vision::Datasets
              * @return The collator, never null; InvalidDescription for a count below 1.
              */
             [[nodiscard]] static Result<std::unique_ptr<ClassificationCollator>> make(
-                std::int32_t class_count);
+                std::int32_t class_count) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()

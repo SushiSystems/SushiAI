@@ -76,7 +76,7 @@ namespace SushiAI::Vision::Datasets
      *         Imaging::Image; InvalidFile when the stream ends early; OutOfMemory.
      */
     [[nodiscard]] Status read_stored_pixels(std::istream& in, const StoredPixels& pixels,
-                                            Imaging::Image& destination);
+                                            Imaging::Image& destination) noexcept;
 
     /**
      * @brief Opens a file and copies one stored image out of it into an interleaved image.
@@ -85,5 +85,5 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Status read_stored_pixels(const std::filesystem::path& file,
                                             const StoredPixels& pixels,
-                                            Imaging::Image& destination);
+                                            Imaging::Image& destination) noexcept;
 } // namespace SushiAI::Vision::Datasets

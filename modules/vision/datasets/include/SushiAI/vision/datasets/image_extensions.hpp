@@ -38,5 +38,5 @@ namespace SushiAI::Vision::Datasets
      * The extensions are .jpg, .jpeg, .png and Imaging::K_RAW_IMAGE_EXTENSION, compared
      * without regard to the case of ASCII letters. The file is not opened.
      */
-    [[nodiscard]] bool has_image_extension(const std::filesystem::path& path);
+    [[nodiscard]] bool has_image_extension(const std::filesystem::path& path) noexcept;
 } // namespace SushiAI::Vision::Datasets

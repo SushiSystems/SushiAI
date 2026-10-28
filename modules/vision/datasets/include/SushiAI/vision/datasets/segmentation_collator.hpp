@@ -89,7 +89,7 @@ namespace SushiAI::Vision::Datasets
              *         and for one stated with MaskOrigin::File.
              */
             [[nodiscard]] static Result<std::unique_ptr<SegmentationCollator>> make(
-                const SegmentationOptions& options);
+                const SegmentationOptions& options) noexcept;
 
             [[nodiscard]] std::string_view task() const noexcept override;
             [[nodiscard]] const std::vector<Data::TargetDescription>& targets()

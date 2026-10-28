@@ -92,7 +92,7 @@ namespace SushiAI::Vision::Datasets
              */
             [[nodiscard]] static Result<std::unique_ptr<ReaderDataset>> make(
                 SushiBLAS::Engine& engine, SampleList list,
-                std::unique_ptr<const Collator> collator, ReaderDatasetOptions options);
+                std::unique_ptr<const Collator> collator, ReaderDatasetOptions options) noexcept;
 
             /**
              * @brief Checks the options against the list and takes the three parts.
@@ -104,7 +104,7 @@ namespace SushiAI::Vision::Datasets
             [[nodiscard]] static Result<std::unique_ptr<ReaderDataset>> make(
                 SushiBLAS::Engine& engine, SampleList list,
                 std::unique_ptr<const Collator> collator,
-                std::unique_ptr<const SamplePipeline> pipeline, ReaderDatasetOptions options);
+                std::unique_ptr<const SamplePipeline> pipeline, ReaderDatasetOptions options) noexcept;
 
             ReaderDataset(const ReaderDataset&) = delete;
             ReaderDataset& operator=(const ReaderDataset&) = delete;

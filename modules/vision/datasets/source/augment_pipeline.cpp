@@ -162,7 +162,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<std::unique_ptr<AugmentPipeline>> AugmentPipeline::make(const AugmentOptions& options)
+    Result<std::unique_ptr<AugmentPipeline>> AugmentPipeline::make(const AugmentOptions& options) noexcept
     {
         SA_FAIL_IF(options.image_size < 1 ||
                        options.image_size > Imaging::K_MAX_MOSAIC_IMAGE_SIZE,

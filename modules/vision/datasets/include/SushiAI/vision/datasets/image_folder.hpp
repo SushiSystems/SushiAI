@@ -54,5 +54,5 @@ namespace SushiAI::Vision::Datasets
      * @return The list; FileNotFound when the split is not a directory; InvalidFile when it
      *         holds no folder or no image, or cannot be listed; OutOfMemory.
      */
-    [[nodiscard]] Result<SampleList> read_image_folder(const ImageFolderOptions& options);
+    [[nodiscard]] Result<SampleList> read_image_folder(const ImageFolderOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

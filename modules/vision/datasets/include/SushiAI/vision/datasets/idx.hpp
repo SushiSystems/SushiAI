@@ -59,5 +59,5 @@ namespace SushiAI::Vision::Datasets
      * more than the largest label. README.md, section idx.hpp, lists the forms of the two
      * files and every status.
      */
-    [[nodiscard]] Result<SampleList> read_idx(const IDXOptions& options);
+    [[nodiscard]] Result<SampleList> read_idx(const IDXOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

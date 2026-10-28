@@ -193,7 +193,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_cifar(const CIFAROptions& options)
+    Result<SampleList> read_cifar(const CIFAROptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

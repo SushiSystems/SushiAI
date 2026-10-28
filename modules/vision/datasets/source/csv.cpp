@@ -411,7 +411,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_csv(const CSVOptions& options)
+    Result<SampleList> read_csv(const CSVOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]() -> Result<SampleList>
         {

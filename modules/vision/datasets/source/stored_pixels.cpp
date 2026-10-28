@@ -111,7 +111,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status read_stored_pixels(std::istream& in, const StoredPixels& pixels,
-                              Imaging::Image& destination)
+                              Imaging::Image& destination) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {
@@ -120,7 +120,7 @@ namespace SushiAI::Vision::Datasets
     }
 
     Status read_stored_pixels(const std::filesystem::path& file, const StoredPixels& pixels,
-                              Imaging::Image& destination)
+                              Imaging::Image& destination) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

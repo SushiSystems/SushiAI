@@ -69,5 +69,5 @@ namespace SushiAI::Vision::Datasets
      * root/<mask_folder>/<split>/a/b<mask_suffix>.png. No file is opened.
      * @return The list, or a failure README.md, section mask_png.hpp, lists.
      */
-    [[nodiscard]] Result<SampleList> read_mask_png(const MaskPNGOptions& options);
+    [[nodiscard]] Result<SampleList> read_mask_png(const MaskPNGOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

@@ -204,7 +204,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    std::filesystem::path yolo_label_path(const std::filesystem::path& image)
+    std::filesystem::path yolo_label_path(const std::filesystem::path& image) noexcept
     {
         const std::filesystem::path image_folder(K_IMAGE_FOLDER);
         const std::vector<std::filesystem::path> parts(image.begin(), image.end());
@@ -230,7 +230,7 @@ namespace SushiAI::Vision::Datasets
         return label;
     }
 
-    Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options)
+    Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

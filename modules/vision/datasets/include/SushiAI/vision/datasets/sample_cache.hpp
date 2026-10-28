@@ -68,7 +68,7 @@ namespace SushiAI::Vision::Datasets
      * @return The path; FileNotFound or InvalidFile when @p source cannot be examined.
      */
     [[nodiscard]] Result<std::filesystem::path> sample_cache_path(
-        const std::filesystem::path& source, const SampleCacheOptions& options);
+        const std::filesystem::path& source, const SampleCacheOptions& options) noexcept;
 
     /**
      * @brief Decodes every image file of a list that has no cache file, and writes one.
@@ -78,7 +78,7 @@ namespace SushiAI::Vision::Datasets
      *         over a list with masks; the failure of a decode or of a write.
      */
     [[nodiscard]] Result<SampleCacheReport> write_sample_cache(
-        const SampleList& list, const SampleCacheOptions& options);
+        const SampleList& list, const SampleCacheOptions& options) noexcept;
 
     /**
      * @brief Returns the list with every image file replaced by its cache file.

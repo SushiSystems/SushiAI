@@ -70,5 +70,5 @@ namespace SushiAI::Vision::Datasets
      * with "iscrowd" set is left out. README.md, section coco_json.hpp, has every status.
      * @return The list; a failure that names the file and the index of the entry at fault.
      */
-    [[nodiscard]] Result<SampleList> read_coco_json(const COCOJSONOptions& options);
+    [[nodiscard]] Result<SampleList> read_coco_json(const COCOJSONOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

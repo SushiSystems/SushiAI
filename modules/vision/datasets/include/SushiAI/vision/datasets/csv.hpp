@@ -63,5 +63,5 @@ namespace SushiAI::Vision::Datasets
      * targets. README.md, section csv.hpp, gives the syntax read and every status.
      * @return The list; a failure that names the file, the line and the column at fault.
      */
-    [[nodiscard]] Result<SampleList> read_csv(const CSVOptions& options);
+    [[nodiscard]] Result<SampleList> read_csv(const CSVOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

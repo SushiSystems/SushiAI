@@ -71,7 +71,7 @@ namespace SushiAI::Vision::Datasets
              *         count outside its bounds.
              */
             [[nodiscard]] static Result<std::unique_ptr<AugmentPipeline>> make(
-                const AugmentOptions& options);
+                const AugmentOptions& options) noexcept;
 
             [[nodiscard]] std::string_view name() const noexcept override;
 

@@ -253,14 +253,14 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    bool mnist_available(const MNISTOptions& options)
+    bool mnist_available(const MNISTOptions& options) noexcept
     {
         std::error_code ignored;
         return std::filesystem::is_regular_file(image_path(options), ignored)
             && std::filesystem::is_regular_file(label_path(options), ignored);
     }
 
-    std::string mnist_expected_paths(const MNISTOptions& options)
+    std::string mnist_expected_paths(const MNISTOptions& options) noexcept
     {
         return SushiLog::format_text("images: {}, labels: {}",
                                        image_path(options).string(),
@@ -268,7 +268,7 @@ namespace SushiAI::Vision::Datasets
     }
 
     Result<std::unique_ptr<Data::Dataset>> try_load_mnist(SushiBLAS::Engine& engine,
-                                                          const MNISTOptions& options)
+                                                          const MNISTOptions& options) noexcept
     {
         std::unique_ptr<Data::Dataset> dataset;
         SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
@@ -280,7 +280,7 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<Data::Dataset>> make_mnist(SushiBLAS::Engine& engine,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
     {
         SA_TRY(attributes.reject_unknown_keys(
             context,

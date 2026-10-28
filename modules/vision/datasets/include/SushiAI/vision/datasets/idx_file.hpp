@@ -89,7 +89,7 @@ namespace SushiAI::Vision::Datasets
      *         unknown, there is no dimension, or the file's size is not the header plus the
      *         elements the header declares. Every message opens with the path.
      */
-    [[nodiscard]] Result<IDXHeader> read_idx_header(const std::filesystem::path& file);
+    [[nodiscard]] Result<IDXHeader> read_idx_header(const std::filesystem::path& file) noexcept;
 
     /**
      * @brief Reads every element byte of an IDX file, in the order the file stores them.
@@ -98,5 +98,5 @@ namespace SushiAI::Vision::Datasets
      *         ends early; OutOfMemory. Every message opens with the path.
      */
     [[nodiscard]] Result<std::vector<std::uint8_t>> read_idx_payload(
-        const std::filesystem::path& file, const IDXHeader& header);
+        const std::filesystem::path& file, const IDXHeader& header) noexcept;
 } // namespace SushiAI::Vision::Datasets

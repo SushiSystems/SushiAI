@@ -49,7 +49,7 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_COLLATOR = "MultiLabelCollator";
     } // namespace
 
-    Result<std::unique_ptr<MultiLabelCollator>> MultiLabelCollator::make(std::int32_t class_count)
+    Result<std::unique_ptr<MultiLabelCollator>> MultiLabelCollator::make(std::int32_t class_count) noexcept
     {
         SA_FAIL_IF(class_count < 1, StatusCode::InvalidDescription,
                    "{}: {} classes; there must be at least 1", K_COLLATOR, class_count);

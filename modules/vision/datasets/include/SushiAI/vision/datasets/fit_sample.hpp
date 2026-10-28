@@ -67,5 +67,5 @@ namespace SushiAI::Vision::Datasets
      *        stops the process.
      */
     [[nodiscard]] Status fit_sample(const Sample& sample, Imaging::ImageView source,
-                                    const SampleFitOptions& options, FittedSample& fitted);
+                                    const SampleFitOptions& options, FittedSample& fitted) noexcept;
 } // namespace SushiAI::Vision::Datasets

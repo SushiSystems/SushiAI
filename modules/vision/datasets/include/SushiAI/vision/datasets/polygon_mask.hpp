@@ -46,5 +46,5 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Status paint_polygon_mask(const Imaging::Labels& objects,
                                             Imaging::ImageSize size, std::uint8_t background,
-                                            Imaging::Image& mask);
+                                            Imaging::Image& mask) noexcept;
 } // namespace SushiAI::Vision::Datasets

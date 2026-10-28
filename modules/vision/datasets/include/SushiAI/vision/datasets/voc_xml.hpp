@@ -68,5 +68,5 @@ namespace SushiAI::Vision::Datasets
      * @return The list; a failure that names the annotation and its line, or the image list
      *         and its line.
      */
-    [[nodiscard]] Result<SampleList> read_voc_xml(const VOCXMLOptions& options);
+    [[nodiscard]] Result<SampleList> read_voc_xml(const VOCXMLOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

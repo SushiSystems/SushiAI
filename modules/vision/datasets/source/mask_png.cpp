@@ -181,7 +181,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_mask_png(const MaskPNGOptions& options)
+    Result<SampleList> read_mask_png(const MaskPNGOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

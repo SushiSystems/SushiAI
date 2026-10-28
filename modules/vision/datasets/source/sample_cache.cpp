@@ -184,7 +184,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::filesystem::path> sample_cache_path(const std::filesystem::path& source,
-                                                    const SampleCacheOptions& options)
+                                                    const SampleCacheOptions& options) noexcept
     {
         return Detail::at_boundary(K_CACHE, [&]() -> Result<std::filesystem::path>
         {
@@ -210,7 +210,7 @@ namespace SushiAI::Vision::Datasets
     }
 
     Result<SampleCacheReport> write_sample_cache(const SampleList& list,
-                                                 const SampleCacheOptions& options)
+                                                 const SampleCacheOptions& options) noexcept
     {
         SA_FAIL_IF(options.directory.empty(), StatusCode::InvalidDescription,
                    "{}: the cache has no directory", K_CACHE);

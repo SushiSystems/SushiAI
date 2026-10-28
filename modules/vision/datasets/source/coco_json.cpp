@@ -1133,7 +1133,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_coco_json(const COCOJSONOptions& options)
+    Result<SampleList> read_coco_json(const COCOJSONOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]() -> Result<SampleList>
         {

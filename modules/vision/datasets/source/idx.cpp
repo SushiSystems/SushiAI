@@ -199,7 +199,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_idx(const IDXOptions& options)
+    Result<SampleList> read_idx(const IDXOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

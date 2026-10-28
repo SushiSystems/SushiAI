@@ -357,7 +357,7 @@ namespace SushiAI::Vision::Datasets
         return nullptr;
     }
 
-    Result<XMLElement> parse_xml(std::string_view text)
+    Result<XMLElement> parse_xml(std::string_view text) noexcept
     {
         return Detail::at_boundary(K_PARSER, [&]()
         {

@@ -75,7 +75,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::unique_ptr<FitPipeline>> FitPipeline::make(const SampleFitOptions& fit,
-                                                           std::int32_t channels)
+                                                           std::int32_t channels) noexcept
     {
         SA_FAIL_IF(!Imaging::is_valid_size(fit.size), StatusCode::InvalidDescription,
                    "{}: an input of {} by {} pixels is outside the bounds of an image",

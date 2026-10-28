@@ -45,5 +45,5 @@ namespace SushiAI::Vision::Datasets
      *         mask file index the list lacks; otherwise the failure of Codecs::load_image.
      */
     [[nodiscard]] Status load_sample_mask(const SampleList& list, std::size_t sample,
-                                          Imaging::Image& destination);
+                                          Imaging::Image& destination) noexcept;
 } // namespace SushiAI::Vision::Datasets

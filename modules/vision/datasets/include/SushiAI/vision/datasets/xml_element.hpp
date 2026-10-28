@@ -68,5 +68,5 @@ namespace SushiAI::Vision::Datasets
      * @return The root; InvalidFile, opening with "line <n>", for what the subset lacks;
      *         OutOfMemory.
      */
-    [[nodiscard]] Result<XMLElement> parse_xml(std::string_view text);
+    [[nodiscard]] Result<XMLElement> parse_xml(std::string_view text) noexcept;
 } // namespace SushiAI::Vision::Datasets

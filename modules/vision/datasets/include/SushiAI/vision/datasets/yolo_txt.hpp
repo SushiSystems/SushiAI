@@ -56,7 +56,7 @@ namespace SushiAI::Vision::Datasets
      * The last folder named "images" on the path becomes "labels" and the extension becomes
      * .txt. A path with no such folder keeps its folder.
      */
-    [[nodiscard]] std::filesystem::path yolo_label_path(const std::filesystem::path& image);
+    [[nodiscard]] std::filesystem::path yolo_label_path(const std::filesystem::path& image) noexcept;
 
     /**
      * @brief Lists the images of one split and parses the label file of each.
@@ -66,5 +66,5 @@ namespace SushiAI::Vision::Datasets
      * @return The list; a failure that names the label file and its line, or the image list
      *         and its line.
      */
-    [[nodiscard]] Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options);
+    [[nodiscard]] Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

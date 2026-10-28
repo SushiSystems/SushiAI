@@ -110,7 +110,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status fit_mask(Imaging::ImageView mask, Imaging::ImageSize image,
-                    const SampleFitOptions& options, Imaging::Image& fitted)
+                    const SampleFitOptions& options, Imaging::Image& fitted) noexcept
     {
         const std::size_t fit = static_cast<std::size_t>(options.fit);
 

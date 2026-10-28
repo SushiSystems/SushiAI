@@ -53,7 +53,7 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<ReaderDataset>> ReaderDataset::make(
         SushiBLAS::Engine& engine, SampleList list, std::unique_ptr<const Collator> collator,
-        ReaderDatasetOptions options)
+        ReaderDatasetOptions options) noexcept
     {
         // A size no pipeline takes is left for the other form to refuse by the dataset's name.
         std::unique_ptr<const SamplePipeline> pipeline;
@@ -70,7 +70,7 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<ReaderDataset>> ReaderDataset::make(
         SushiBLAS::Engine& engine, SampleList list, std::unique_ptr<const Collator> collator,
-        std::unique_ptr<const SamplePipeline> pipeline, ReaderDatasetOptions options)
+        std::unique_ptr<const SamplePipeline> pipeline, ReaderDatasetOptions options) noexcept
     {
         SA_FAIL_IF(collator == nullptr, StatusCode::InvalidDescription,
                    "{}: '{}' has no collator", K_DATASET, options.name);

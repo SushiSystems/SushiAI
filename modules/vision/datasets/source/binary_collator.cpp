@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_COLLATOR = "BinaryCollator";
     } // namespace
 
-    Result<std::unique_ptr<BinaryCollator>> BinaryCollator::make(std::int32_t positive_class)
+    Result<std::unique_ptr<BinaryCollator>> BinaryCollator::make(std::int32_t positive_class) noexcept
     {
         SA_FAIL_IF(positive_class < 0 || positive_class >= K_BINARY_CLASSES,
                    StatusCode::InvalidDescription,

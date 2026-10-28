@@ -76,14 +76,14 @@ namespace SushiAI::Vision::Datasets
      * @param options Where to look and which split.
      * @return True when both the image and label files exist.
      */
-    bool mnist_available(const MNISTOptions& options);
+    bool mnist_available(const MNISTOptions& options) noexcept;
 
     /**
      * @brief The path pair @c mnist_available checks, for a diagnostic message.
      * @param options Where to look and which split.
      * @return "images: <path>, labels: <path>".
      */
-    std::string mnist_expected_paths(const MNISTOptions& options);
+    std::string mnist_expected_paths(const MNISTOptions& options) noexcept;
 
     /**
      * @brief Loads MNIST from IDX files.
@@ -95,7 +95,7 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> try_load_mnist(
         SushiBLAS::Engine& engine,
-        const MNISTOptions& options = {});
+        const MNISTOptions& options = {}) noexcept;
 
     /**
      * @brief Builds the MNIST dataset from configuration attributes.
@@ -108,6 +108,6 @@ namespace SushiAI::Vision::Datasets
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_mnist(
         SushiBLAS::Engine& engine,
         const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Vision::Datasets

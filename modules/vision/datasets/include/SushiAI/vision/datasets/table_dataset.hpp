@@ -74,7 +74,7 @@ namespace SushiAI::Vision::Datasets
              */
             [[nodiscard]] static Result<std::unique_ptr<TableDataset>> make(
                 SushiBLAS::Engine& engine, SampleList list,
-                std::unique_ptr<const Collator> collator, TableDatasetOptions options);
+                std::unique_ptr<const Collator> collator, TableDatasetOptions options) noexcept;
 
             TableDataset(const TableDataset&) = delete;
             TableDataset& operator=(const TableDataset&) = delete;

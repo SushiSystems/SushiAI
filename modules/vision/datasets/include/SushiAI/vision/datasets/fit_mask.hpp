@@ -48,5 +48,5 @@ namespace SushiAI::Vision::Datasets
      * @return Incompatible for a mask of several channels or of another size than @p image.
      */
     [[nodiscard]] Status fit_mask(Imaging::ImageView mask, Imaging::ImageSize image,
-                                  const SampleFitOptions& options, Imaging::Image& fitted);
+                                  const SampleFitOptions& options, Imaging::Image& fitted) noexcept;
 } // namespace SushiAI::Vision::Datasets

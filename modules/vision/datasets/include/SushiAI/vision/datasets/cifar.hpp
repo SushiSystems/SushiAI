@@ -69,5 +69,5 @@ namespace SushiAI::Vision::Datasets
      * @return The list; a failure that names the file and, for a label at or above the
      *         class count, the one-based record.
      */
-    [[nodiscard]] Result<SampleList> read_cifar(const CIFAROptions& options);
+    [[nodiscard]] Result<SampleList> read_cifar(const CIFAROptions& options) noexcept;
 } // namespace SushiAI::Vision::Datasets

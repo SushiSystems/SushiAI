@@ -396,7 +396,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<SampleList> read_voc_xml(const VOCXMLOptions& options)
+    Result<SampleList> read_voc_xml(const VOCXMLOptions& options) noexcept
     {
         return Detail::at_boundary(K_READER, [&]()
         {

@@ -169,7 +169,7 @@ namespace SushiAI::Vision::Datasets
         }
     } // namespace
 
-    Result<IDXHeader> read_idx_header(const std::filesystem::path& file)
+    Result<IDXHeader> read_idx_header(const std::filesystem::path& file) noexcept
     {
         return Detail::at_boundary(K_HEADER_READER, [&]()
         {
@@ -178,7 +178,7 @@ namespace SushiAI::Vision::Datasets
     }
 
     Result<std::vector<std::uint8_t>> read_idx_payload(const std::filesystem::path& file,
-                                                       const IDXHeader& header)
+                                                       const IDXHeader& header) noexcept
     {
         return Detail::at_boundary(K_PAYLOAD_READER, [&]()
         {

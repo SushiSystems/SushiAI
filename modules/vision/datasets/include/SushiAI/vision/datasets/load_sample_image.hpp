@@ -46,5 +46,5 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Status load_sample_image(const SampleList& list, std::size_t sample,
                                            const Codecs::DecodeOptions& options,
-                                           Imaging::Image& destination);
+                                           Imaging::Image& destination) noexcept;
 } // namespace SushiAI::Vision::Datasets

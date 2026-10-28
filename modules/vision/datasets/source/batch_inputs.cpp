@@ -47,7 +47,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Status write_batch_inputs(SushiRuntime::span<const FittedSample> samples,
-                              SushiBLAS::Tensor& inputs)
+                              SushiBLAS::Tensor& inputs) noexcept
     {
         SA_FAIL_IF(inputs.dtype != DType::Float32 || inputs.rank != K_INPUT_RANK,
                    StatusCode::Incompatible,

@@ -52,7 +52,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::unique_ptr<RegressionCollator>> RegressionCollator::make(
-        std::int32_t feature_count, std::int32_t target_count)
+        std::int32_t feature_count, std::int32_t target_count) noexcept
     {
         SA_FAIL_IF(feature_count < 1, StatusCode::InvalidDescription,
                    "{}: {} features; there must be at least 1", K_COLLATOR, feature_count);

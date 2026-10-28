@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Datasets
 
     Result<std::unique_ptr<TableDataset>> TableDataset::make(
         SushiBLAS::Engine& engine, SampleList list, std::unique_ptr<const Collator> collator,
-        TableDatasetOptions options)
+        TableDatasetOptions options) noexcept
     {
         SA_FAIL_IF(collator == nullptr, StatusCode::InvalidDescription,
                    "{}: '{}' has no collator", K_DATASET, options.name);

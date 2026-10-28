@@ -54,7 +54,7 @@ namespace SushiAI::Vision::Datasets
     } // namespace
 
     Result<std::unique_ptr<SegmentationCollator>> SegmentationCollator::make(
-        const SegmentationOptions& options)
+        const SegmentationOptions& options) noexcept
     {
         SA_FAIL_IF(options.class_count < 1 || options.class_count > K_VOID,
                    StatusCode::InvalidDescription,
