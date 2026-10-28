@@ -82,7 +82,7 @@ namespace SushiAI
                  * @pre No plan has been adopted and no planned value has been materialised; a
                  *      second adoption stops the process.
                  */
-                [[nodiscard]] Status adopt(MemoryPlan plan, const TensorPool* lender = nullptr);
+                [[nodiscard]] Status adopt(MemoryPlan plan, const TensorPool* lender = nullptr) noexcept;
 
                 /** @brief Whether a plan has been adopted. */
                 bool has_plan() const noexcept { return arenas_.has_value(); }
@@ -92,7 +92,7 @@ namespace SushiAI
                  * @return The arena set.
                  * @pre A plan has been adopted; asking earlier stops the process.
                  */
-                const ArenaSet& arenas() const;
+                const ArenaSet& arenas() const noexcept;
 
                 /**
                  * @brief Allocates an unmanaged standalone tensor.
@@ -102,7 +102,7 @@ namespace SushiAI
                  * @return Newly allocated tensor instance, or the allocation failure.
                  */
                 [[nodiscard]] Result<SushiBLAS::Tensor> create(const Shape& shape,
-                                                               DType dtype) const;
+                                                               DType dtype) const noexcept;
 
                 /**
                  * @brief Binds an externally owned tensor to the given value id.
@@ -112,7 +112,7 @@ namespace SushiAI
                  * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre @p id is not bound yet; a second binding stops the process.
                  */
-                [[nodiscard]] Status bind(ValueID id, SushiBLAS::Tensor tensor);
+                [[nodiscard]] Status bind(ValueID id, SushiBLAS::Tensor tensor) noexcept;
 
                 /** @brief Whether @p id has a tensor behind it yet. */
                 bool is_bound(ValueID id) const noexcept
@@ -126,10 +126,10 @@ namespace SushiAI
                  * @return A reference stable for the pool's lifetime.
                  * @pre @p id is bound; asking for an unbound value stops the process.
                  */
-                SushiBLAS::Tensor& tensor(ValueID id);
+                SushiBLAS::Tensor& tensor(ValueID id) noexcept;
 
                 /** @brief Const overload of tensor(). */
-                const SushiBLAS::Tensor& tensor(ValueID id) const;
+                const SushiBLAS::Tensor& tensor(ValueID id) const noexcept;
 
                 /**
                  * @brief Returns @p id's tensor, allocating it on first request.
@@ -138,7 +138,7 @@ namespace SushiAI
                  * @return A reference stable for the pool's lifetime, or the allocation failure.
                  */
                 [[nodiscard]] Result<SushiBLAS::Tensor&> materialise(ValueID id,
-                                                                     const Value& value);
+                                                                     const Value& value) noexcept;
 
                 /**
                  * @brief Allocates uninitialised storage for unbound graph leaves.
@@ -146,7 +146,7 @@ namespace SushiAI
                  * @param graph Graph whose unbound input leaves are allocated.
                  * @return Success, or the allocation failure.
                  */
-                [[nodiscard]] Status materialise_leaves(const Graph& graph);
+                [[nodiscard]] Status materialise_leaves(const Graph& graph) noexcept;
 
                 /**
                  * @brief Aliases target value storage to an existing source tensor.
@@ -156,7 +156,7 @@ namespace SushiAI
                  * @pre @p source is bound, and @p target is unbound or already aliases it; any
                  *      other case stops the process.
                  */
-                [[nodiscard]] Status alias(ValueID target, ValueID source);
+                [[nodiscard]] Status alias(ValueID target, ValueID source) noexcept;
 
                 /**
                  * @brief Retrieves or creates a shared constant all-ones tensor.
@@ -166,7 +166,7 @@ namespace SushiAI
                  * @return Stable reference to the allocated all-ones tensor, or the allocation
                  *         failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> ones(const Shape& shape, DType dtype);
+                [[nodiscard]] Result<SushiBLAS::Tensor&> ones(const Shape& shape, DType dtype) noexcept;
 
                 /**
                  * @brief Retrieves or creates a per-node scratch buffer.
@@ -177,7 +177,7 @@ namespace SushiAI
                  * @return Stable reference to scratch tensor, or the allocation failure.
                  */
                 [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(NodeID node, int slot,
-                                                                 const Shape& shape, DType dtype);
+                                                                 const Shape& shape, DType dtype) noexcept;
 
                 /**
                  * @brief Queues @p tensor to be filled with @p value once.
@@ -185,7 +185,7 @@ namespace SushiAI
                  * @param value The constant.
                  * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  */
-                [[nodiscard]] Status request_constant(SushiBLAS::Tensor& tensor, double value);
+                [[nodiscard]] Status request_constant(SushiBLAS::Tensor& tensor, double value) noexcept;
 
                 /**
                  * @brief Records every queued constant fill and runs it until it has finished.
@@ -193,7 +193,7 @@ namespace SushiAI
                  *         or of the run.
                  * @pre The engine's own graph holds no recorded task; the run executes all of it.
                  */
-                [[nodiscard]] Status flush_constants();
+                [[nodiscard]] Status flush_constants() noexcept;
 
                 /** @brief How many tensors the pool has handed out. */
                 std::size_t tensor_count() const noexcept;

@@ -68,7 +68,7 @@ namespace SushiAI
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
                     SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
                     StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr,
-                    NodeRange nodes = {}, std::string_view label = {});
+                    NodeRange nodes = {}, std::string_view label = {}) noexcept;
 
                 CompiledStep(const CompiledStep&) = delete;
                 CompiledStep& operator=(const CompiledStep&) = delete;
@@ -82,7 +82,7 @@ namespace SushiAI
                  * Each replay prelude is called with run_count() before the step is submitted.
                  * @return Success, also for an empty step, or the failure of the run.
                  */
-                [[nodiscard]] Status run();
+                [[nodiscard]] Status run() noexcept;
 
                 /**
                  * @brief Replays the step once, as run() does, but calls each replay prelude
@@ -91,7 +91,7 @@ namespace SushiAI
                  * run_count() still counts the run.
                  * @return What run() returns.
                  */
-                [[nodiscard]] Status run_at(std::uint64_t run_index);
+                [[nodiscard]] Status run_at(std::uint64_t run_index) noexcept;
 
                 /** @brief Returns how many replay preludes the lowered nodes registered. */
                 [[nodiscard]] std::size_t replay_prelude_count() const noexcept
@@ -126,7 +126,7 @@ namespace SushiAI
                  * @return InvalidDescription, with run_count(), once the step has run or
                  *         has been restored to a count above 0.
                  */
-                [[nodiscard]] Status restore_run_count(std::size_t count);
+                [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
                 /** @brief Returns whether the graph lowered to no runnable work. */
                 [[nodiscard]] bool empty() const noexcept

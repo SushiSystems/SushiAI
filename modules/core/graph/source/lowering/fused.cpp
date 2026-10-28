@@ -260,7 +260,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_gemm_bias(const LoweringContext& context)
+        Status lower_gemm_bias(const LoweringContext& context) noexcept
         {
             return record_fused_gemm(
                 context, FusedForm::GEMMBias, Ops::K_GEMM_BIAS, nullptr,
@@ -271,7 +271,7 @@ namespace SushiAI
                 });
         }
 
-        Status lower_gemm_bias_relu(const LoweringContext& context)
+        Status lower_gemm_bias_relu(const LoweringContext& context) noexcept
         {
             return record_fused_gemm(
                 context, FusedForm::GEMMBiasReLU, Ops::K_GEMM_BIAS_RELU,
@@ -283,7 +283,7 @@ namespace SushiAI
                 });
         }
 
-        Status lower_gemm_bias_sigmoid(const LoweringContext& context)
+        Status lower_gemm_bias_sigmoid(const LoweringContext& context) noexcept
         {
             return record_fused_gemm(
                 context, FusedForm::GEMMBiasSigmoid, Ops::K_GEMM_BIAS_SIGMOID,
@@ -295,7 +295,7 @@ namespace SushiAI
                 });
         }
 
-        Status lower_gemm_bias_tanh(const LoweringContext& context)
+        Status lower_gemm_bias_tanh(const LoweringContext& context) noexcept
         {
             return record_fused_gemm(
                 context, FusedForm::GEMMBiasTanh, Ops::K_GEMM_BIAS_TANH,
@@ -307,7 +307,7 @@ namespace SushiAI
                 });
         }
 
-        Status lower_gemm_bias_gelu(const LoweringContext& context)
+        Status lower_gemm_bias_gelu(const LoweringContext& context) noexcept
         {
             return record_fused_gemm(
                 context, FusedForm::GEMMBiasGELU, Ops::K_GEMM_BIAS_GELU,
@@ -342,7 +342,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_exp_sub_scale(const LoweringContext& context)
+        Status lower_exp_sub_scale(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 

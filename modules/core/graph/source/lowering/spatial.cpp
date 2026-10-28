@@ -81,7 +81,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_im2col(const LoweringContext& context)
+        Status lower_im2col(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -99,7 +99,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_col2im(const LoweringContext& context)
+        Status lower_col2im(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -117,7 +117,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_maxpool2d(const LoweringContext& context)
+        Status lower_maxpool2d(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 2);
 
@@ -133,7 +133,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_maxpool2d_backward(const LoweringContext& context)
+        Status lower_maxpool2d_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -149,7 +149,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_avgpool2d(const LoweringContext& context)
+        Status lower_avgpool2d(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -164,7 +164,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_avgpool2d_backward(const LoweringContext& context)
+        Status lower_avgpool2d_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -179,7 +179,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_upsample2d(const LoweringContext& context)
+        Status lower_upsample2d(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -196,7 +196,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_upsample2d_backward(const LoweringContext& context)
+        Status lower_upsample2d_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -213,7 +213,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_spatial_mean(const LoweringContext& context)
+        Status lower_spatial_mean(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -226,7 +226,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_spatial_mean_backward(const LoweringContext& context)
+        Status lower_spatial_mean_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -246,7 +246,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_concat_channels(const LoweringContext& context)
+        Status lower_concat_channels(const LoweringContext& context) noexcept
         {
             context.require_variadic_arity(1, 1);
 
@@ -267,7 +267,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_slice_channels(const LoweringContext& context)
+        Status lower_slice_channels(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -282,7 +282,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_depthwise_conv2d(const LoweringContext& context)
+        Status lower_depthwise_conv2d(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -298,7 +298,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_depthwise_conv2d_backward_input(const LoweringContext& context)
+        Status lower_depthwise_conv2d_backward_input(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -314,7 +314,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_depthwise_conv2d_backward_weight(const LoweringContext& context)
+        Status lower_depthwise_conv2d_backward_weight(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 

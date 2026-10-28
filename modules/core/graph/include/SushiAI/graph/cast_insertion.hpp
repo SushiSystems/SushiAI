@@ -126,10 +126,11 @@ namespace SushiAI
                 std::string_view policy() const noexcept { return policy_; }
 
                 /** @brief A multi-line human-readable summary; short when nothing happened. */
-                std::string to_string() const;
+                std::string to_string() const noexcept;
 
             private:
-                friend Result<CastReport> insert_casts(Graph& graph, const CastOptions& options);
+                friend Result<CastReport> insert_casts(Graph& graph,
+                                                       const CastOptions& options) noexcept;
 
                 std::vector<InsertedCast> casts_;
                 std::size_t before_ = 0;
@@ -147,7 +148,7 @@ namespace SushiAI
          * @pre @p graph is ordered, each node writes a value, each observed id is its own.
          */
         [[nodiscard]] Result<CastReport> insert_casts(Graph& graph,
-                                                      const CastOptions& options = {});
+                                                      const CastOptions& options = {}) noexcept;
 
         /**
          * @struct DTypeMismatch
@@ -181,10 +182,10 @@ namespace SushiAI
          * @return Disagreements found, or empty if invariant holds.
          */
         std::vector<DTypeMismatch> find_dtype_mismatches(const Graph& graph,
-                                                         const PrecisionPolicy& policy);
+                                                         const PrecisionPolicy& policy) noexcept;
 
         /** @brief A one-line description of @p mismatch, for a test failure or a report. */
-        std::string describe(const DTypeMismatch& mismatch);
+        std::string describe(const DTypeMismatch& mismatch) noexcept;
 
     } // namespace Graph
 } // namespace SushiAI

@@ -82,7 +82,7 @@ namespace SushiAI
                  * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  * @pre No list of one tree holds a recorder twice, and no list reaches itself.
                  */
-                [[nodiscard]] Status add(StepRecorder& recorder)
+                [[nodiscard]] Status add(StepRecorder& recorder) noexcept
                 {
                     SA_FATAL_IF(&recorder == this,
                                 "StepRecorderList::add: a list cannot hold itself");

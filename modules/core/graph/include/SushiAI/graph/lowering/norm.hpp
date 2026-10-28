@@ -35,30 +35,30 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records 2D batch normalization and the three batch statistics it saves. */
-        [[nodiscard]] Status lower_batchnorm2d(const LoweringContext& context);
+        [[nodiscard]] Status lower_batchnorm2d(const LoweringContext& context) noexcept;
 
         /** @brief Records the gradients of 2D batch normalization for x, gamma and beta. */
-        [[nodiscard]] Status lower_batchnorm2d_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_batchnorm2d_backward(const LoweringContext& context) noexcept;
 
         /** @brief Appends the three buffers lower_batchnorm2d() writes on every run. */
         void request_batchnorm2d_scratch(const Graph& graph, NodeID node,
-                                         std::vector<ScratchRequest>& requests);
+                                         std::vector<ScratchRequest>& requests) noexcept;
 
         /** @brief Appends the seven buffers lower_batchnorm2d_backward() writes on every run. */
         void request_batchnorm2d_backward_scratch(const Graph& graph, NodeID node,
-                                                  std::vector<ScratchRequest>& requests);
+                                                  std::vector<ScratchRequest>& requests) noexcept;
 
         /** @brief Records a per-channel scale and shift of an NHWC operand. */
-        [[nodiscard]] Status lower_channel_affine(const LoweringContext& context);
+        [[nodiscard]] Status lower_channel_affine(const LoweringContext& context) noexcept;
 
         /** @brief Records the fold of saved statistics into one per-channel scale and shift. */
-        [[nodiscard]] Status lower_batchnorm_fold(const LoweringContext& context);
+        [[nodiscard]] Status lower_batchnorm_fold(const LoweringContext& context) noexcept;
 
         /** @brief Records layer normalization and the two row statistics it saves. */
-        [[nodiscard]] Status lower_layer_norm(const LoweringContext& context);
+        [[nodiscard]] Status lower_layer_norm(const LoweringContext& context) noexcept;
 
         /** @brief Records the gradients of layer normalization for x, gamma and beta. */
-        [[nodiscard]] Status lower_layer_norm_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_layer_norm_backward(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each normalization operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 6> K_NORM_LOWERINGS = {{

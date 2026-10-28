@@ -35,22 +35,22 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records a GEMM with a per-column bias. */
-        [[nodiscard]] Status lower_gemm_bias(const LoweringContext& context);
+        [[nodiscard]] Status lower_gemm_bias(const LoweringContext& context) noexcept;
 
         /** @brief Records a GEMM with a per-column bias and a ReLU. */
-        [[nodiscard]] Status lower_gemm_bias_relu(const LoweringContext& context);
+        [[nodiscard]] Status lower_gemm_bias_relu(const LoweringContext& context) noexcept;
 
         /** @brief Records a GEMM with a per-column bias and a logistic sigmoid. */
-        [[nodiscard]] Status lower_gemm_bias_sigmoid(const LoweringContext& context);
+        [[nodiscard]] Status lower_gemm_bias_sigmoid(const LoweringContext& context) noexcept;
 
         /** @brief Records a GEMM with a per-column bias and a tanh. */
-        [[nodiscard]] Status lower_gemm_bias_tanh(const LoweringContext& context);
+        [[nodiscard]] Status lower_gemm_bias_tanh(const LoweringContext& context) noexcept;
 
         /** @brief Records a GEMM with a per-column bias and a GELU; result 1 holds the sum. */
-        [[nodiscard]] Status lower_gemm_bias_gelu(const LoweringContext& context);
+        [[nodiscard]] Status lower_gemm_bias_gelu(const LoweringContext& context) noexcept;
 
         /** @brief Records the scaled difference of an operand's exponential and a target. */
-        [[nodiscard]] Status lower_exp_sub_scale(const LoweringContext& context);
+        [[nodiscard]] Status lower_exp_sub_scale(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each fused operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 6> K_FUSED_LOWERINGS = {{

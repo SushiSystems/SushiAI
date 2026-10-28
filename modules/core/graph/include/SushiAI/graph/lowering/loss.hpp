@@ -35,13 +35,13 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records the row-wise log-softmax of a rank-2 operand. */
-        [[nodiscard]] Status lower_log_softmax(const LoweringContext& context);
+        [[nodiscard]] Status lower_log_softmax(const LoweringContext& context) noexcept;
 
         /** @brief Records dy - exp(log_probabilities) * rowsum(dy) over [dy, log_probabilities]. */
-        [[nodiscard]] Status lower_log_softmax_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_log_softmax_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the mean negative log-likelihood of log-probabilities and targets. */
-        [[nodiscard]] Status lower_nll_loss(const LoweringContext& context);
+        [[nodiscard]] Status lower_nll_loss(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each loss operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 3> K_LOSS_LOWERINGS = {{

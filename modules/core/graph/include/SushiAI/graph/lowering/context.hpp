@@ -112,27 +112,27 @@ namespace SushiAI
                  * @brief The node this context describes.
                  * @return A reference into the graph, valid while the graph is unchanged.
                  */
-                [[nodiscard]] const Node& node() const;
+                [[nodiscard]] const Node& node() const noexcept;
 
                 /**
                  * @brief The declared name of the node's operation.
                  * @return A static string from the operation table, used in diagnostics.
                  */
-                [[nodiscard]] std::string_view name() const;
+                [[nodiscard]] std::string_view name() const noexcept;
 
                 /**
                  * @brief Stops the process unless the node has exactly the given operand counts.
                  * @param inputs The required number of operands.
                  * @param outputs The required number of results.
                  */
-                void require_arity(std::size_t inputs, std::size_t outputs) const;
+                void require_arity(std::size_t inputs, std::size_t outputs) const noexcept;
 
                 /**
                  * @brief Stops the process unless the node has at least the given operand counts.
                  * @param inputs The minimum number of operands.
                  * @param outputs The minimum number of results.
                  */
-                void require_arity_at_least(std::size_t inputs, std::size_t outputs) const;
+                void require_arity_at_least(std::size_t inputs, std::size_t outputs) const noexcept;
 
                 /**
                  * @brief Stops the process unless the node has at least the given number of
@@ -140,49 +140,49 @@ namespace SushiAI
                  * @param inputs The minimum number of operands.
                  * @param outputs The required number of results.
                  */
-                void require_variadic_arity(std::size_t inputs, std::size_t outputs) const;
+                void require_variadic_arity(std::size_t inputs, std::size_t outputs) const noexcept;
 
                 /**
                  * @brief The graph description of one operand.
                  * @param index Position in the node's operand list; must be in range.
                  * @return A reference into the graph, valid while the graph is unchanged.
                  */
-                [[nodiscard]] const Value& input_value(std::size_t index) const;
+                [[nodiscard]] const Value& input_value(std::size_t index) const noexcept;
 
                 /**
                  * @brief The graph description of one result.
                  * @param index Position in the node's result list; must be in range.
                  * @return A reference into the graph, valid while the graph is unchanged.
                  */
-                [[nodiscard]] const Value& output_value(std::size_t index) const;
+                [[nodiscard]] const Value& output_value(std::size_t index) const noexcept;
 
                 /**
                  * @brief The tensor behind one operand.
                  * @param index Position in the node's operand list; must be in range.
                  * @return A reference stable for the pool's lifetime.
                  */
-                [[nodiscard]] const SushiBLAS::Tensor& input(std::size_t index) const;
+                [[nodiscard]] const SushiBLAS::Tensor& input(std::size_t index) const noexcept;
 
                 /**
                  * @brief The tensor behind one operand, for a row that writes it.
                  * @param index Position in the node's operand list; must be in range.
                  * @return A reference stable for the pool's lifetime.
                  */
-                [[nodiscard]] SushiBLAS::Tensor& mutable_input(std::size_t index) const;
+                [[nodiscard]] SushiBLAS::Tensor& mutable_input(std::size_t index) const noexcept;
 
                 /**
                  * @brief The tensor behind one result, allocated on first request.
                  * @param index Position in the node's result list; must be in range.
                  * @return A reference stable for the pool's lifetime, or the allocation failure.
                  */
-                [[nodiscard]] Result<SushiBLAS::Tensor&> output(std::size_t index) const;
+                [[nodiscard]] Result<SushiBLAS::Tensor&> output(std::size_t index) const noexcept;
 
                 /**
                  * @brief Whether one result already has a tensor behind it.
                  * @param index Position in the node's result list; must be in range.
                  * @return True when the pool holds a tensor for that result.
                  */
-                [[nodiscard]] bool output_is_bound(std::size_t index) const;
+                [[nodiscard]] bool output_is_bound(std::size_t index) const noexcept;
 
                 /**
                  * @brief Makes one result share the storage of one operand.
@@ -190,7 +190,7 @@ namespace SushiAI
                  * @param operand_index Position of the operand in the node's operand list.
                  * @return Success, or StatusCode::OutOfMemory when the host allocation fails.
                  */
-                [[nodiscard]] Status alias_output(std::size_t result_index, std::size_t operand_index) const;
+                [[nodiscard]] Status alias_output(std::size_t result_index, std::size_t operand_index) const noexcept;
 
                 /**
                  * @brief A scratch tensor private to this node and slot, reused across replays.
@@ -200,7 +200,7 @@ namespace SushiAI
                  * @return A reference stable for the pool's lifetime, or the allocation failure.
                  */
                 [[nodiscard]] Result<SushiBLAS::Tensor&> scratch(int slot, const Shape& shape,
-                                                                 DType dtype) const;
+                                                                 DType dtype) const noexcept;
 
                 /**
                  * @brief A shared tensor filled with ones, reused across nodes.
@@ -209,7 +209,7 @@ namespace SushiAI
                  * @return A reference stable for the pool's lifetime, or the allocation failure.
                  */
                 [[nodiscard]] Result<SushiBLAS::Tensor&> ones(const Shape& shape,
-                                                              DType dtype) const;
+                                                              DType dtype) const noexcept;
 
                 /**
                  * @brief Adds to the pass's count of recorded tasks.
@@ -226,7 +226,7 @@ namespace SushiAI
                  * @return The form the selector chose.
                  * @pre The selector answers a form that is the match, a GEMM narrowing, or None.
                  */
-                [[nodiscard]] FusionChoice select(const FusionQuery& query) const;
+                [[nodiscard]] FusionChoice select(const FusionQuery& query) const noexcept;
 
                 /**
                  * @brief Sets the task count of the decision select() recorded last.
@@ -241,7 +241,7 @@ namespace SushiAI
                  * @return Success, StatusCode::Unsupported when the context was bound without a
                  *         list of preludes, or StatusCode::OutOfMemory when the list cannot grow.
                  */
-                [[nodiscard]] Status before_each_replay(ReplayPrelude prelude) const;
+                [[nodiscard]] Status before_each_replay(ReplayPrelude prelude) const noexcept;
 
             private:
                 /** @brief Stops the process unless @p index is a valid operand of the node. */

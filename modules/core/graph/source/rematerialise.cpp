@@ -71,7 +71,7 @@ namespace SushiAI
             }
         }
 
-        void rematerialise_im2col(Graph& graph)
+        void rematerialise_im2col(Graph& graph) noexcept
         {
             const GraphBuilder builder(graph);
 

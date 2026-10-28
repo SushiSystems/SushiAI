@@ -39,7 +39,7 @@ namespace SushiAI
 {
     namespace Graph
     {
-        std::vector<ScratchRequest> scratch_of(const Graph& graph)
+        std::vector<ScratchRequest> scratch_of(const Graph& graph) noexcept
         {
             std::vector<ScratchRequest> requests;
             for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
@@ -51,7 +51,7 @@ namespace SushiAI
             return requests;
         }
 
-        Status Lowering::record(const Graph& graph, NodeRange nodes)
+        Status Lowering::record(const Graph& graph, NodeRange nodes) noexcept
         {
             emitted_ = 0;
             selections_.clear();

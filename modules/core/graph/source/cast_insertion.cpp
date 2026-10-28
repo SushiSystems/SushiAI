@@ -139,7 +139,7 @@ namespace SushiAI
                               [dtype](const InsertedCast& c) { return c.to == dtype; }));
         }
 
-        std::string CastReport::to_string() const
+        std::string CastReport::to_string() const noexcept
         {
             std::string text = SushiLog::format_text(
                 "precision      : {}\n"
@@ -163,7 +163,7 @@ namespace SushiAI
             return text;
         }
 
-        Result<CastReport> insert_casts(Graph& graph, const CastOptions& options)
+        Result<CastReport> insert_casts(Graph& graph, const CastOptions& options) noexcept
         {
             const UniformPrecisionPolicy fallback;
             const PrecisionPolicy& policy =
@@ -342,7 +342,7 @@ namespace SushiAI
         }
 
         std::vector<DTypeMismatch> find_dtype_mismatches(const Graph& graph,
-                                                         const PrecisionPolicy& policy)
+                                                         const PrecisionPolicy& policy) noexcept
         {
             std::vector<DTypeMismatch> mismatches;
 
@@ -372,7 +372,7 @@ namespace SushiAI
             return mismatches;
         }
 
-        std::string describe(const DTypeMismatch& mismatch)
+        std::string describe(const DTypeMismatch& mismatch) noexcept
         {
             return SushiLog::format_text(
                 "node {} ({}) computes in {} but its {} value {} is {}",

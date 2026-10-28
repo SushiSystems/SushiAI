@@ -35,55 +35,55 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records the elementwise sum of two equally shaped operands. */
-        [[nodiscard]] Status lower_add(const LoweringContext& context);
+        [[nodiscard]] Status lower_add(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise difference of two equally shaped operands. */
-        [[nodiscard]] Status lower_sub(const LoweringContext& context);
+        [[nodiscard]] Status lower_sub(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise product of two equally shaped operands. */
-        [[nodiscard]] Status lower_mul(const LoweringContext& context);
+        [[nodiscard]] Status lower_mul(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise quotient of two equally shaped operands. */
-        [[nodiscard]] Status lower_div(const LoweringContext& context);
+        [[nodiscard]] Status lower_div(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise minimum of two equally shaped operands. */
-        [[nodiscard]] Status lower_minimum(const LoweringContext& context);
+        [[nodiscard]] Status lower_minimum(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise maximum of two equally shaped operands. */
-        [[nodiscard]] Status lower_maximum(const LoweringContext& context);
+        [[nodiscard]] Status lower_maximum(const LoweringContext& context) noexcept;
 
         /** @brief Records the product of one operand and the scalar attribute. */
-        [[nodiscard]] Status lower_scale(const LoweringContext& context);
+        [[nodiscard]] Status lower_scale(const LoweringContext& context) noexcept;
 
         /** @brief Records the product of one operand and a one-element factor read at run time. */
-        [[nodiscard]] Status lower_dynamic_scale(const LoweringContext& context);
+        [[nodiscard]] Status lower_dynamic_scale(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise exponential of one operand. */
-        [[nodiscard]] Status lower_exp(const LoweringContext& context);
+        [[nodiscard]] Status lower_exp(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise absolute value of one operand. */
-        [[nodiscard]] Status lower_abs(const LoweringContext& context);
+        [[nodiscard]] Status lower_abs(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise arctangent of one operand. */
-        [[nodiscard]] Status lower_atan(const LoweringContext& context);
+        [[nodiscard]] Status lower_atan(const LoweringContext& context) noexcept;
 
         /** @brief Records the elementwise less-or-equal mask of two operands. */
-        [[nodiscard]] Status lower_less_equal(const LoweringContext& context);
+        [[nodiscard]] Status lower_less_equal(const LoweringContext& context) noexcept;
 
         /** @brief Records the selection of one of two operands by a condition operand. */
-        [[nodiscard]] Status lower_select(const LoweringContext& context);
+        [[nodiscard]] Status lower_select(const LoweringContext& context) noexcept;
 
         /** @brief Records a fill of the result with zeros. */
-        [[nodiscard]] Status lower_zero(const LoweringContext& context);
+        [[nodiscard]] Status lower_zero(const LoweringContext& context) noexcept;
 
         /** @brief Records a fill of the result with the scalar attribute. */
-        [[nodiscard]] Status lower_constant(const LoweringContext& context);
+        [[nodiscard]] Status lower_constant(const LoweringContext& context) noexcept;
 
         /** @brief Records the in-place accumulation of one operand into another. */
-        [[nodiscard]] Status lower_accumulate(const LoweringContext& context);
+        [[nodiscard]] Status lower_accumulate(const LoweringContext& context) noexcept;
 
         /** @brief Records the precision conversion of one operand into the result. */
-        [[nodiscard]] Status lower_cast(const LoweringContext& context);
+        [[nodiscard]] Status lower_cast(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each elementwise operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 17> K_ELEMENTWISE_LOWERINGS = {{

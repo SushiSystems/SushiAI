@@ -34,7 +34,7 @@ namespace SushiAI
     namespace Graph
     {
         Result<ArenaSet> ArenaSet::make(SushiBLAS::Engine& engine, MemoryPlan plan,
-                                        const ArenaSet* lender)
+                                        const ArenaSet* lender) noexcept
         {
             Storages storages;
             std::size_t owned_bytes = 0;
@@ -81,7 +81,7 @@ namespace SushiAI
             return {};
         }
 
-        SushiBLAS::Tensor ArenaSet::view(ValueID id, const Shape& shape, DType dtype) const
+        SushiBLAS::Tensor ArenaSet::view(ValueID id, const Shape& shape, DType dtype) const noexcept
         {
             const Placement& placement = plan_.placement(id);
 
@@ -102,7 +102,7 @@ namespace SushiAI
         }
 
         SushiBLAS::Tensor ArenaSet::scratch_view(NodeID node, int slot, const Shape& shape,
-                                                 DType dtype) const
+                                                 DType dtype) const noexcept
         {
             const Placement* const placement = plan_.scratch_placement(node, slot);
 

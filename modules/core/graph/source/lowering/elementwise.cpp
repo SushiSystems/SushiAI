@@ -94,37 +94,37 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_add(const LoweringContext& context)
+        Status lower_add(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::add);
         }
 
-        Status lower_sub(const LoweringContext& context)
+        Status lower_sub(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::sub);
         }
 
-        Status lower_mul(const LoweringContext& context)
+        Status lower_mul(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::mul);
         }
 
-        Status lower_div(const LoweringContext& context)
+        Status lower_div(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::div);
         }
 
-        Status lower_minimum(const LoweringContext& context)
+        Status lower_minimum(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::min);
         }
 
-        Status lower_maximum(const LoweringContext& context)
+        Status lower_maximum(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::ElementwiseOps::max);
         }
 
-        Status lower_scale(const LoweringContext& context)
+        Status lower_scale(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
             const SushiBLAS::Tensor& x = context.input(0);
@@ -137,7 +137,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_dynamic_scale(const LoweringContext& context)
+        Status lower_dynamic_scale(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
             const SushiBLAS::Tensor& x = context.input(0);
@@ -168,27 +168,27 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_exp(const LoweringContext& context)
+        Status lower_exp(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::ElementwiseOps::exp);
         }
 
-        Status lower_abs(const LoweringContext& context)
+        Status lower_abs(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::ElementwiseOps::abs);
         }
 
-        Status lower_atan(const LoweringContext& context)
+        Status lower_atan(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::ElementwiseOps::atan);
         }
 
-        Status lower_less_equal(const LoweringContext& context)
+        Status lower_less_equal(const LoweringContext& context) noexcept
         {
             return record_binary(context, &SushiBLAS::LogicOps::less_equal);
         }
 
-        Status lower_select(const LoweringContext& context)
+        Status lower_select(const LoweringContext& context) noexcept
         {
             context.require_arity(3, 1);
             const SushiBLAS::Tensor& condition = context.input(0);
@@ -202,7 +202,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_zero(const LoweringContext& context)
+        Status lower_zero(const LoweringContext& context) noexcept
         {
             context.require_arity(0, 1);
             SA_TRY_ASSIGN(SushiBLAS::Tensor& zeros, context.output(0));
@@ -213,7 +213,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_constant(const LoweringContext& context)
+        Status lower_constant(const LoweringContext& context) noexcept
         {
             context.require_arity(0, 1);
             SA_TRY_ASSIGN(SushiBLAS::Tensor& filled, context.output(0));
@@ -224,7 +224,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_accumulate(const LoweringContext& context)
+        Status lower_accumulate(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -239,7 +239,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_cast(const LoweringContext& context)
+        Status lower_cast(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
             const SushiBLAS::Tensor& source = context.input(0);

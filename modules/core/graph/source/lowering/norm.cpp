@@ -107,7 +107,7 @@ namespace SushiAI
         } // namespace
 
         void request_batchnorm2d_scratch(const Graph& graph, NodeID node,
-                                         std::vector<ScratchRequest>& requests)
+                                         std::vector<ScratchRequest>& requests) noexcept
         {
             const Value& x = graph.value(graph.node(node).inputs[0]);
             const Shape per_channel({x.shape[3]});
@@ -118,7 +118,7 @@ namespace SushiAI
         }
 
         void request_batchnorm2d_backward_scratch(const Graph& graph, NodeID node,
-                                                  std::vector<ScratchRequest>& requests)
+                                                  std::vector<ScratchRequest>& requests) noexcept
         {
             const Value& x = graph.value(graph.node(node).inputs[1]);
             const Shape per_channel({x.shape[3]});
@@ -132,7 +132,7 @@ namespace SushiAI
             requests.push_back(ScratchRequest{node, 6, per_channel, x.dtype});
         }
 
-        Status lower_batchnorm2d(const LoweringContext& context)
+        Status lower_batchnorm2d(const LoweringContext& context) noexcept
         {
             context.require_arity(3, 4);
 
@@ -199,7 +199,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_batchnorm2d_backward(const LoweringContext& context)
+        Status lower_batchnorm2d_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(5, 3);
 
@@ -271,7 +271,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_channel_affine(const LoweringContext& context)
+        Status lower_channel_affine(const LoweringContext& context) noexcept
         {
             context.require_arity(3, 1);
 
@@ -287,7 +287,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_batchnorm_fold(const LoweringContext& context)
+        Status lower_batchnorm_fold(const LoweringContext& context) noexcept
         {
             context.require_arity(4, 2);
 
@@ -323,7 +323,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_layer_norm(const LoweringContext& context)
+        Status lower_layer_norm(const LoweringContext& context) noexcept
         {
             context.require_arity(3, 3);
 
@@ -390,7 +390,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_layer_norm_backward(const LoweringContext& context)
+        Status lower_layer_norm_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(5, 3);
 

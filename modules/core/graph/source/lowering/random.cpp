@@ -93,7 +93,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_dropout(const LoweringContext& context)
+        Status lower_dropout(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 2);
 

@@ -287,7 +287,7 @@ namespace SushiAI
         }
 
         Result<MemoryPlan> MemoryPlan::build(const Graph& graph, const PlanOptions& options,
-                                             SushiRuntime::span<const ScratchRequest> scratch)
+                                             SushiRuntime::span<const ScratchRequest> scratch) noexcept
         {
             SA_FAIL_IF(options.alignment == 0, StatusCode::InvalidDescription,
                        "PlanOptions::alignment must be positive; an offset cannot be rounded "

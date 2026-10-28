@@ -35,19 +35,19 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Checks that every result of a leaf has a tensor bound; records no task. */
-        [[nodiscard]] Status lower_leaf(const LoweringContext& context);
+        [[nodiscard]] Status lower_leaf(const LoweringContext& context) noexcept;
 
         /**
          * @brief Records a copy of a contiguous operand into a result of other extents, and
          *        nothing when the plan made the result a view of the operand.
          */
-        [[nodiscard]] Status lower_reshape(const LoweringContext& context);
+        [[nodiscard]] Status lower_reshape(const LoweringContext& context) noexcept;
 
         /** @brief Records the conversion of one operand between the NCHW and NHWC layouts. */
-        [[nodiscard]] Status lower_layout_convert(const LoweringContext& context);
+        [[nodiscard]] Status lower_layout_convert(const LoweringContext& context) noexcept;
 
         /** @brief Records a copy of the operand into the result. */
-        [[nodiscard]] Status lower_stop_gradient(const LoweringContext& context);
+        [[nodiscard]] Status lower_stop_gradient(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each shape operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 4> K_SHAPE_LOWERINGS = {{

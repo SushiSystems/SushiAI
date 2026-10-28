@@ -62,12 +62,12 @@ namespace SushiAI
             }
         }
 
-        Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype) const
+        Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype) const noexcept
         {
             return allocate_tensor(*engine_, shape, dtype);
         }
 
-        Status TensorPool::adopt(MemoryPlan plan, const TensorPool* lender)
+        Status TensorPool::adopt(MemoryPlan plan, const TensorPool* lender) noexcept
         {
             SA_FATAL_IF(arenas_.has_value(),
                         "This pool has already adopted a memory plan; its arenas are allocated "
@@ -82,14 +82,14 @@ namespace SushiAI
             return Status();
         }
 
-        const ArenaSet& TensorPool::arenas() const
+        const ArenaSet& TensorPool::arenas() const noexcept
         {
             SA_FATAL_IF(!arenas_.has_value(),
                         "This pool has no memory plan; call adopt() before asking for its arenas");
             return *arenas_;
         }
 
-        Status TensorPool::bind(ValueID id, SushiBLAS::Tensor tensor)
+        Status TensorPool::bind(ValueID id, SushiBLAS::Tensor tensor) noexcept
         {
             SA_FATAL_IF(is_bound(id),
                         "Value {} is already bound to a tensor; a value has one buffer", id);
@@ -113,7 +113,7 @@ namespace SushiAI
             return first != shared_.end() ? &first->second : nullptr;
         }
 
-        SushiBLAS::Tensor& TensorPool::tensor(ValueID id)
+        SushiBLAS::Tensor& TensorPool::tensor(ValueID id) noexcept
         {
             const auto it = tensors_.find(id);
             SA_FATAL_IF(it == tensors_.end(),
@@ -121,7 +121,7 @@ namespace SushiAI
             return it->second;
         }
 
-        const SushiBLAS::Tensor& TensorPool::tensor(ValueID id) const
+        const SushiBLAS::Tensor& TensorPool::tensor(ValueID id) const noexcept
         {
             const auto it = tensors_.find(id);
             SA_FATAL_IF(it == tensors_.end(),
@@ -138,7 +138,7 @@ namespace SushiAI
             counter += bytes;
         }
 
-        Result<SushiBLAS::Tensor&> TensorPool::materialise(ValueID id, const Value& value)
+        Result<SushiBLAS::Tensor&> TensorPool::materialise(ValueID id, const Value& value) noexcept
         {
             const auto it = tensors_.find(id);
             if (it != tensors_.end()) return it->second;
@@ -193,7 +193,7 @@ namespace SushiAI
             return store_tensor(tensors_, id, std::move(own));
         }
 
-        Status TensorPool::materialise_leaves(const Graph& graph)
+        Status TensorPool::materialise_leaves(const Graph& graph) noexcept
         {
             for (const Node& node : graph.nodes())
             {
@@ -204,7 +204,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status TensorPool::alias(ValueID target, ValueID source)
+        Status TensorPool::alias(ValueID target, ValueID source) noexcept
         {
             const auto it = tensors_.find(source);
             SA_FATAL_IF(it == tensors_.end(),
@@ -228,7 +228,7 @@ namespace SushiAI
             });
         }
 
-        Result<SushiBLAS::Tensor&> TensorPool::ones(const Shape& shape, DType dtype)
+        Result<SushiBLAS::Tensor&> TensorPool::ones(const Shape& shape, DType dtype) noexcept
         {
             const ShapeKey key{shape.hash(), static_cast<std::int32_t>(dtype)};
 
@@ -252,7 +252,7 @@ namespace SushiAI
         }
 
         Result<SushiBLAS::Tensor&> TensorPool::scratch(NodeID node, int slot,
-                                                       const Shape& shape, DType dtype)
+                                                       const Shape& shape, DType dtype) noexcept
         {
             const ScratchKey key{node, slot};
 
@@ -279,7 +279,7 @@ namespace SushiAI
             return store_tensor(scratch_, key, std::move(buffer));
         }
 
-        Status TensorPool::request_constant(SushiBLAS::Tensor& tensor, double value)
+        Status TensorPool::request_constant(SushiBLAS::Tensor& tensor, double value) noexcept
         {
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -288,7 +288,7 @@ namespace SushiAI
             });
         }
 
-        Status TensorPool::flush_constants()
+        Status TensorPool::flush_constants() noexcept
         {
             if (pending_constants_.empty()) return Status();
 

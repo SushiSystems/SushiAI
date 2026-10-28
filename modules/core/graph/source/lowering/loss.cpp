@@ -41,7 +41,7 @@ namespace SushiAI
 {
     namespace Graph
     {
-        Status lower_log_softmax(const LoweringContext& context)
+        Status lower_log_softmax(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -87,7 +87,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_log_softmax_backward(const LoweringContext& context)
+        Status lower_log_softmax_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -131,7 +131,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_nll_loss(const LoweringContext& context)
+        Status lower_nll_loss(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 

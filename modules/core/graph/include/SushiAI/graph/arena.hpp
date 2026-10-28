@@ -58,7 +58,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<ArenaSet> make(SushiBLAS::Engine& engine,
                                                            MemoryPlan plan,
-                                                           const ArenaSet* lender = nullptr);
+                                                           const ArenaSet* lender = nullptr) noexcept;
 
                 /** @brief The plan these arenas realise. */
                 const MemoryPlan& plan() const noexcept { return plan_; }
@@ -72,7 +72,7 @@ namespace SushiAI
                  * @pre @p id is packed into an arena, and its bytes fit the planned slot; a
                  *      violation stops the process.
                  */
-                SushiBLAS::Tensor view(ValueID id, const Shape& shape, DType dtype) const;
+                SushiBLAS::Tensor view(ValueID id, const Shape& shape, DType dtype) const noexcept;
 
                 /** @brief Whether the plan placed the scratch buffer of @p node and @p slot. */
                 bool holds_scratch(NodeID node, int slot) const noexcept
@@ -87,7 +87,7 @@ namespace SushiAI
                  *      planned bytes; a violation stops the process.
                  */
                 SushiBLAS::Tensor scratch_view(NodeID node, int slot, const Shape& shape,
-                                               DType dtype) const;
+                                               DType dtype) const noexcept;
 
                 /** @brief How many arenas were allocated. */
                 std::size_t arena_count() const noexcept { return storages_.size(); }

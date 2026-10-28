@@ -88,37 +88,37 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_relu(const LoweringContext& context)
+        Status lower_relu(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::relu);
         }
 
-        Status lower_gelu(const LoweringContext& context)
+        Status lower_gelu(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::gelu);
         }
 
-        Status lower_sigmoid(const LoweringContext& context)
+        Status lower_sigmoid(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::sigmoid);
         }
 
-        Status lower_tanh(const LoweringContext& context)
+        Status lower_tanh(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::tanh);
         }
 
-        Status lower_silu(const LoweringContext& context)
+        Status lower_silu(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::silu);
         }
 
-        Status lower_softplus(const LoweringContext& context)
+        Status lower_softplus(const LoweringContext& context) noexcept
         {
             return record_copy_then(context, &SushiBLAS::NonLinearOps::softplus);
         }
 
-        Status lower_leaky_relu(const LoweringContext& context)
+        Status lower_leaky_relu(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
             const SushiBLAS::Tensor& x = context.input(0);
@@ -132,37 +132,37 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_relu_backward(const LoweringContext& context)
+        Status lower_relu_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::relu_backward);
         }
 
-        Status lower_gelu_backward(const LoweringContext& context)
+        Status lower_gelu_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::gelu_backward);
         }
 
-        Status lower_sigmoid_backward(const LoweringContext& context)
+        Status lower_sigmoid_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::sigmoid_backward);
         }
 
-        Status lower_tanh_backward(const LoweringContext& context)
+        Status lower_tanh_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::tanh_backward);
         }
 
-        Status lower_silu_backward(const LoweringContext& context)
+        Status lower_silu_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::silu_backward);
         }
 
-        Status lower_softplus_backward(const LoweringContext& context)
+        Status lower_softplus_backward(const LoweringContext& context) noexcept
         {
             return record_backward(context, &SushiBLAS::NonLinearOps::softplus_backward);
         }
 
-        Status lower_leaky_relu_backward(const LoweringContext& context)
+        Status lower_leaky_relu_backward(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
             const SushiBLAS::Tensor& dy = context.input(0);

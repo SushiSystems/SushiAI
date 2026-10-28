@@ -40,7 +40,7 @@ namespace SushiAI
          *
          * @param graph The graph to rewrite in place.
          */
-        void rematerialise_im2col(Graph& graph);
+        void rematerialise_im2col(Graph& graph) noexcept;
 
     } // namespace Graph
 } // namespace SushiAI

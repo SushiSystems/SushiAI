@@ -514,7 +514,7 @@ namespace SushiAI
             return total;
         }
 
-        std::string FusionReport::to_string() const
+        std::string FusionReport::to_string() const noexcept
         {
             if (!enabled_) return "fusion: disabled; the graph was lowered as it was built\n";
 
@@ -561,7 +561,7 @@ namespace SushiAI
             return text;
         }
 
-        FusionReport fuse(Graph& graph, const FusionOptions& options)
+        FusionReport fuse(Graph& graph, const FusionOptions& options) noexcept
         {
             FusionReport report;
             report.before_ = graph.node_count();

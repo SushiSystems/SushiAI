@@ -41,7 +41,7 @@ namespace SushiAI
 {
     namespace Graph
     {
-        Status lower_leaf(const LoweringContext& context)
+        Status lower_leaf(const LoweringContext& context) noexcept
         {
             // A leaf takes any number of operands and results; only the binding is checked.
             const Node& node = context.node();
@@ -57,7 +57,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_reshape(const LoweringContext& context)
+        Status lower_reshape(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -92,7 +92,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_layout_convert(const LoweringContext& context)
+        Status lower_layout_convert(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -114,7 +114,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_stop_gradient(const LoweringContext& context)
+        Status lower_stop_gradient(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 

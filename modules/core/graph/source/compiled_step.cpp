@@ -85,7 +85,7 @@ namespace SushiAI
         Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
             SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
             StepRecorder* trailing, const FusionSelector* selector, NodeRange nodes,
-            std::string_view label)
+            std::string_view label) noexcept
         {
             SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
                        "This graph holds a refused operation and cannot be compiled; the builder "
@@ -167,7 +167,7 @@ namespace SushiAI
             return std::move(step);
         }
 
-        Status CompiledStep::restore_run_count(std::size_t count)
+        Status CompiledStep::restore_run_count(std::size_t count) noexcept
         {
             SA_FAIL_IF(run_count_ != 0, StatusCode::InvalidDescription,
                        "The run count of a compiled step is restored before its first run, "
@@ -178,12 +178,12 @@ namespace SushiAI
             return Status();
         }
 
-        Status CompiledStep::run()
+        Status CompiledStep::run() noexcept
         {
             return run_at(static_cast<std::uint64_t>(run_count_));
         }
 
-        Status CompiledStep::run_at(std::uint64_t run_index)
+        Status CompiledStep::run_at(std::uint64_t run_index) noexcept
         {
             if (empty_)
                 return Status();

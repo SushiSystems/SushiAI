@@ -131,7 +131,7 @@ namespace SushiAI
                  * @param engine The engine the step will be recorded on.
                  * @return A selector over that device's cached profile.
                  */
-                static DeviceFusionSelector for_engine(SushiBLAS::Engine& engine);
+                static DeviceFusionSelector for_engine(SushiBLAS::Engine& engine) noexcept;
 
                 /** @brief Whether the device this selector reasons about has native double precision. */
                 bool supports_fp64() const noexcept { return supports_fp64_; }

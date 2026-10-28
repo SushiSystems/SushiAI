@@ -107,7 +107,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<SpatialExtents> window_extents(int64_t height, int64_t width, const ConvGeometry& g)
+        Result<SpatialExtents> window_extents(int64_t height, int64_t width, const ConvGeometry& g) noexcept
         {
             SA_FAIL_IF(g.kernel_h <= 0 || g.kernel_w <= 0, StatusCode::InvalidDescription,
                        "A window needs a positive kernel; got kernel {}x{}",
@@ -136,7 +136,7 @@ namespace SushiAI
         }
 
         Result<SpatialExtents> upsampled_extents(int64_t height, int64_t width,
-                                                 int64_t scale_h, int64_t scale_w)
+                                                 int64_t scale_h, int64_t scale_w) noexcept
         {
             SA_TRY(require_upsample_scales("upsample2d", scale_h, scale_w));
 
@@ -162,7 +162,7 @@ namespace SushiAI
         }
 
         ValueID GraphBuilder::declare_like(ValueID like, Shape shape, DType dtype,
-                                           Lifetime lifetime, std::string_view debug_name) const
+                                           Lifetime lifetime, std::string_view debug_name) const noexcept
         {
             const ValueID out = declare(shape, dtype, lifetime, debug_name);
             graph_->value(out).layout = graph_->value(like).layout;
@@ -183,14 +183,14 @@ namespace SushiAI
             return Status();
         }
 
-        ValueID GraphBuilder::input(Shape shape, std::string_view debug_name, DType dtype) const
+        ValueID GraphBuilder::input(Shape shape, std::string_view debug_name, DType dtype) const noexcept
         {
             const ValueID id = declare(shape, dtype, Lifetime::Input, debug_name);
             graph_->add_node(Ops::K_LEAF.id, {}, {id});
             return id;
         }
 
-        ValueID GraphBuilder::parameter(Shape shape, std::string_view debug_name, DType dtype) const
+        ValueID GraphBuilder::parameter(Shape shape, std::string_view debug_name, DType dtype) const noexcept
         {
             const ValueID id = declare(shape, dtype, Lifetime::Parameter, debug_name);
             graph_->value(id).requires_grad = true;
@@ -198,21 +198,21 @@ namespace SushiAI
             return id;
         }
 
-        ValueID GraphBuilder::buffer(Shape shape, std::string_view debug_name, DType dtype) const
+        ValueID GraphBuilder::buffer(Shape shape, std::string_view debug_name, DType dtype) const noexcept
         {
             const ValueID id = declare(shape, dtype, Lifetime::Buffer, debug_name);
             graph_->add_node(Ops::K_LEAF.id, {}, {id});
             return id;
         }
 
-        ValueID GraphBuilder::like(ValueID source, std::string_view debug_name) const
+        ValueID GraphBuilder::like(ValueID source, std::string_view debug_name) const noexcept
         {
             const Value& v = graph_->value(source);
             return declare_like(source, v.shape, v.dtype, v.lifetime, debug_name);
         }
 
         Traced GraphBuilder::matmul(const Traced& left, const Traced& right, bool transpose_a,
-                                    bool transpose_b) const
+                                    bool transpose_b) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID a, left);
             SA_TRY_ASSIGN(const ValueID b, right);
@@ -258,7 +258,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::bias_add(const Traced& operand, const Traced& offsets) const
+        Traced GraphBuilder::bias_add(const Traced& operand, const Traced& offsets) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID bias, offsets);
@@ -283,7 +283,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::sum_rows(const Traced& operand) const
+        Traced GraphBuilder::sum_rows(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -297,7 +297,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::gather_rows(const Traced& source, const Traced& index) const
+        Traced GraphBuilder::gather_rows(const Traced& source, const Traced& index) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID table, source);
             SA_TRY_ASSIGN(const ValueID indices, index);
@@ -332,7 +332,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::scatter_add_rows(const Traced& source, const Traced& index,
-                                              int64_t table_rows) const
+                                              int64_t table_rows) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID rows, source);
             SA_TRY_ASSIGN(const ValueID indices, index);
@@ -371,7 +371,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::causal_mask(const Traced& operand, double fill) const
+        Traced GraphBuilder::causal_mask(const Traced& operand, double fill) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID scores, operand);
 
@@ -413,43 +413,43 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::add(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::add(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_ADD.id, a, b, "ADD");
         }
 
-        Traced GraphBuilder::sub(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::sub(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_SUB.id, a, b, "SUB");
         }
 
-        Traced GraphBuilder::mul(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::mul(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_MUL.id, a, b, "MUL");
         }
 
-        Traced GraphBuilder::div(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::div(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_DIV.id, a, b, "DIV");
         }
 
-        Traced GraphBuilder::minimum(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::minimum(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_MINIMUM.id, a, b, "MINIMUM");
         }
 
-        Traced GraphBuilder::maximum(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::maximum(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_MAXIMUM.id, a, b, "MAXIMUM");
         }
 
-        Traced GraphBuilder::less_equal(const Traced& a, const Traced& b) const
+        Traced GraphBuilder::less_equal(const Traced& a, const Traced& b) const noexcept
         {
             return elementwise(Ops::K_LESS_EQUAL.id, a, b, "LESS_EQUAL");
         }
 
         Traced GraphBuilder::select(const Traced& mask, const Traced& left,
-                                    const Traced& right) const
+                                    const Traced& right) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID condition, mask);
             SA_TRY_ASSIGN(const ValueID a, left);
@@ -464,7 +464,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::scale(const Traced& operand, double alpha) const
+        Traced GraphBuilder::scale(const Traced& operand, double alpha) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -479,7 +479,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::dynamic_scale(const Traced& operand, const Traced& multiplier,
-                                           std::string_view debug_name) const
+                                           std::string_view debug_name) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID factor, multiplier);
@@ -514,52 +514,52 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::exp(const Traced& x) const
+        Traced GraphBuilder::exp(const Traced& x) const noexcept
         {
             return unary(Ops::K_EXP.id, x);
         }
 
-        Traced GraphBuilder::relu(const Traced& x) const
+        Traced GraphBuilder::relu(const Traced& x) const noexcept
         {
             return unary(Ops::K_RELU.id, x);
         }
 
-        Traced GraphBuilder::gelu(const Traced& x) const
+        Traced GraphBuilder::gelu(const Traced& x) const noexcept
         {
             return unary(Ops::K_GELU.id, x);
         }
 
-        Traced GraphBuilder::sigmoid(const Traced& x) const
+        Traced GraphBuilder::sigmoid(const Traced& x) const noexcept
         {
             return unary(Ops::K_SIGMOID.id, x);
         }
 
-        Traced GraphBuilder::tanh(const Traced& x) const
+        Traced GraphBuilder::tanh(const Traced& x) const noexcept
         {
             return unary(Ops::K_TANH.id, x);
         }
 
-        Traced GraphBuilder::abs(const Traced& x) const
+        Traced GraphBuilder::abs(const Traced& x) const noexcept
         {
             return unary(Ops::K_ABS.id, x);
         }
 
-        Traced GraphBuilder::atan(const Traced& x) const
+        Traced GraphBuilder::atan(const Traced& x) const noexcept
         {
             return unary(Ops::K_ATAN.id, x);
         }
 
-        Traced GraphBuilder::softplus(const Traced& x) const
+        Traced GraphBuilder::softplus(const Traced& x) const noexcept
         {
             return unary(Ops::K_SOFTPLUS.id, x);
         }
 
-        Traced GraphBuilder::silu(const Traced& x) const
+        Traced GraphBuilder::silu(const Traced& x) const noexcept
         {
             return unary(Ops::K_SILU.id, x);
         }
 
-        Traced GraphBuilder::leaky_relu(const Traced& operand, double slope) const
+        Traced GraphBuilder::leaky_relu(const Traced& operand, double slope) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_REFUSE_IF(*this, !is_legal_leaky_relu_slope(slope),
@@ -578,7 +578,7 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::zeros(Shape shape, DType dtype) const
+        ValueID GraphBuilder::zeros(Shape shape, DType dtype) const noexcept
         {
             // Zero emitter has no inputs to inherit layout from; consumers use zeros_like.
             const ValueID out = declare(shape, dtype, Lifetime::Activation, "zeros");
@@ -586,7 +586,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::zeros_like(const Traced& source, Shape shape, DType dtype) const
+        Traced GraphBuilder::zeros_like(const Traced& source, Shape shape, DType dtype) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID like, source);
 
@@ -595,7 +595,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::constant(Shape shape, double value, DType dtype) const
+        Traced GraphBuilder::constant(Shape shape, double value, DType dtype) const noexcept
         {
             SA_REFUSE_IF(*this, !is_real_float(dtype),
                          "CONSTANT fills a real floating tensor (half, float32, float64); got {}",
@@ -610,7 +610,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::constant_like(const Traced& operand, double value) const
+        Traced GraphBuilder::constant_like(const Traced& operand, double value) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -624,7 +624,7 @@ namespace SushiAI
 
         Traced GraphBuilder::activation_backward(OpID op, const Traced& gradient,
                                                  const Traced& forward,
-                                                 const Attributes& attributes) const
+                                                 const Attributes& attributes) const noexcept
         {
             SA_FATAL_IF(!Ops::is_activation_backward(op),
                         "{} is not an activation gradient", Ops::name_of(op));
@@ -652,7 +652,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::log_softmax(const Traced& operand) const
+        Traced GraphBuilder::log_softmax(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -666,7 +666,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::softmax(const Traced& operand) const
+        Traced GraphBuilder::softmax(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -685,7 +685,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::log_softmax_backward(const Traced& gradient,
-                                                  const Traced& forward) const
+                                                  const Traced& forward) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID log_probs, forward);
@@ -715,7 +715,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::nll_loss(const Traced& forward, const Traced& target) const
+        Traced GraphBuilder::nll_loss(const Traced& forward, const Traced& target) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID log_probs, forward);
             SA_TRY_ASSIGN(const ValueID one_hot, target);
@@ -732,7 +732,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::cast(const Traced& operand, DType dtype,
-                                  std::string_view debug_name) const
+                                  std::string_view debug_name) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -750,7 +750,7 @@ namespace SushiAI
             return out;
         }
 
-        Status GraphBuilder::cast_into(const Traced& operand, ValueID destination) const
+        Status GraphBuilder::cast_into(const Traced& operand, ValueID destination) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID source, operand);
 
@@ -769,7 +769,7 @@ namespace SushiAI
             return Status();
         }
 
-        Traced GraphBuilder::accumulate(const Traced& total, const Traced& contribution) const
+        Traced GraphBuilder::accumulate(const Traced& total, const Traced& contribution) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID acc, total);
             SA_TRY_ASSIGN(const ValueID delta, contribution);
@@ -781,7 +781,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::layout_convert(const Traced& operand, TensorLayout layout) const
+        Traced GraphBuilder::layout_convert(const Traced& operand, TensorLayout layout) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -837,7 +837,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Traced GraphBuilder::im2col(const Traced& operand, const ConvGeometry& g) const
+        Traced GraphBuilder::im2col(const Traced& operand, const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -854,7 +854,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::im2col_with_extents(const Traced& operand, const ConvGeometry& g,
-                                                 int64_t out_h, int64_t out_w) const
+                                                 int64_t out_h, int64_t out_w) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -875,7 +875,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::col2im(const Traced& cols, Shape image_shape,
-                                    const ConvGeometry& g) const
+                                    const ConvGeometry& g) const noexcept
         {
             SA_REFUSE_IF(*this, image_shape.rank() != 4,
                          "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
@@ -890,7 +890,7 @@ namespace SushiAI
 
         Traced GraphBuilder::col2im_with_extents(const Traced& operand, Shape image_shape,
                                                  const ConvGeometry& g,
-                                                 int64_t out_h, int64_t out_w) const
+                                                 int64_t out_h, int64_t out_w) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID cols, operand);
 
@@ -930,7 +930,7 @@ namespace SushiAI
         } // namespace
 
         Traced GraphBuilder::conv2d(const Traced& operand, const Traced& filters_in,
-                                    const Traced& offsets, const ConvGeometry& g) const
+                                    const Traced& offsets, const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID weight, filters_in);
@@ -1028,7 +1028,7 @@ namespace SushiAI
         } // namespace
 
         Traced GraphBuilder::depthwise_conv2d(const Traced& operand, const Traced& taps,
-                                              const ConvGeometry& g) const
+                                              const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID weight, taps);
@@ -1060,7 +1060,7 @@ namespace SushiAI
         Traced GraphBuilder::depthwise_conv2d_backward_input(const Traced& gradient,
                                                              const Traced& taps,
                                                              Shape input_shape,
-                                                             const ConvGeometry& g) const
+                                                             const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID weight, taps);
@@ -1090,7 +1090,7 @@ namespace SushiAI
 
         Traced GraphBuilder::depthwise_conv2d_backward_weight(const Traced& gradient,
                                                               const Traced& forward,
-                                                              const ConvGeometry& g) const
+                                                              const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID x, forward);
@@ -1120,7 +1120,7 @@ namespace SushiAI
         }
 
         Result<PoolResult> GraphBuilder::maxpool2d(const Traced& operand,
-                                                   const ConvGeometry& g) const
+                                                   const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1139,7 +1139,7 @@ namespace SushiAI
 
         Result<PoolResult> GraphBuilder::maxpool2d_with_extents(const Traced& operand,
                                                                 const ConvGeometry& g,
-                                                                int64_t out_h, int64_t out_w) const
+                                                                int64_t out_h, int64_t out_w) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1162,7 +1162,7 @@ namespace SushiAI
             return PoolResult{out, idx};
         }
 
-        Traced GraphBuilder::avgpool2d(const Traced& operand, const ConvGeometry& g) const
+        Traced GraphBuilder::avgpool2d(const Traced& operand, const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1183,7 +1183,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::upsample2d(const Traced& operand, int64_t scale_h,
-                                        int64_t scale_w) const
+                                        int64_t scale_w) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1207,7 +1207,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::spatial_mean(const Traced& operand) const
+        Traced GraphBuilder::spatial_mean(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1226,7 +1226,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::maxpool2d_backward(const Traced& gradient, const Traced& argmax,
-                                                Shape input_shape, const ConvGeometry& g) const
+                                                Shape input_shape, const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID indices, argmax);
@@ -1257,7 +1257,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::avgpool2d_backward(const Traced& gradient, Shape input_shape,
-                                                const ConvGeometry& g) const
+                                                const ConvGeometry& g) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
 
@@ -1279,7 +1279,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::upsample2d_backward(const Traced& gradient, Shape input_shape,
-                                                 int64_t scale_h, int64_t scale_w) const
+                                                 int64_t scale_h, int64_t scale_w) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
 
@@ -1306,7 +1306,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::spatial_mean_backward(const Traced& gradient,
-                                                   Shape input_shape) const
+                                                   Shape input_shape) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
 
@@ -1327,7 +1327,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::concat_channels(SushiRuntime::span<const ValueID> parts) const
+        Traced GraphBuilder::concat_channels(SushiRuntime::span<const ValueID> parts) const noexcept
         {
             SA_REFUSE_IF(*this, parts.empty(), "concat_channels needs at least one operand");
 
@@ -1370,7 +1370,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::slice_channels(const Traced& operand, int64_t offset,
-                                            int64_t count) const
+                                            int64_t count) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1395,7 +1395,7 @@ namespace SushiAI
         }
 
         Traced GraphBuilder::channel_affine(const Traced& operand, const Traced& scale_in,
-                                            const Traced& shift_in) const
+                                            const Traced& shift_in) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID gamma, scale_in);
@@ -1422,7 +1422,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::sum_channels(const Traced& operand) const
+        Traced GraphBuilder::sum_channels(const Traced& operand) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1441,7 +1441,7 @@ namespace SushiAI
         Result<BatchNormResult> GraphBuilder::batchnorm2d(const Traced& operand,
                                                           const Traced& scale_in,
                                                           const Traced& shift_in,
-                                                          double epsilon) const
+                                                          double epsilon) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID gamma, scale_in);
@@ -1493,7 +1493,7 @@ namespace SushiAI
 
         Result<BatchNormGrads> GraphBuilder::batchnorm2d_backward(
             const Traced& gradient, const Traced& forward, const Traced& scale_in,
-            const Traced& mean_in, const Traced& inv_std_in) const
+            const Traced& mean_in, const Traced& inv_std_in) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID x, forward);
@@ -1546,7 +1546,7 @@ namespace SushiAI
                                                            const Traced& shift_in,
                                                            const Traced& mean_in,
                                                            const Traced& variance_in,
-                                                           double epsilon) const
+                                                           double epsilon) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID gamma, scale_in);
             SA_TRY_ASSIGN(const ValueID beta, shift_in);
@@ -1600,7 +1600,7 @@ namespace SushiAI
         Result<LayerNormResult> GraphBuilder::layer_norm(const Traced& operand,
                                                          const Traced& gain,
                                                          const Traced& offset,
-                                                         double epsilon) const
+                                                         double epsilon) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
             SA_TRY_ASSIGN(const ValueID gamma, gain);
@@ -1647,7 +1647,7 @@ namespace SushiAI
 
         Result<LayerNormGrads> GraphBuilder::layer_norm_backward(
             const Traced& gradient, const Traced& forward, const Traced& gain,
-            const Traced& mean_in, const Traced& inv_std_in) const
+            const Traced& mean_in, const Traced& inv_std_in) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID dy, gradient);
             SA_TRY_ASSIGN(const ValueID x, forward);
@@ -1703,7 +1703,7 @@ namespace SushiAI
         }
 
         Result<DropoutResult> GraphBuilder::dropout(const Traced& operand, double rate,
-                                                    std::uint64_t seed) const
+                                                    std::uint64_t seed) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1734,7 +1734,7 @@ namespace SushiAI
             return DropoutResult{y, mask};
         }
 
-        Traced GraphBuilder::reshape(const Traced& operand, Shape shape) const
+        Traced GraphBuilder::reshape(const Traced& operand, Shape shape) const noexcept
         {
             SA_TRY_ASSIGN(const ValueID x, operand);
 
@@ -1749,7 +1749,7 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::stop_gradient(const Traced& x) const
+        Traced GraphBuilder::stop_gradient(const Traced& x) const noexcept
         {
             return unary(Ops::K_STOP_GRADIENT.id, x);
         }

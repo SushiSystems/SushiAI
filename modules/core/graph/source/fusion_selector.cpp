@@ -38,7 +38,7 @@ namespace SushiAI
         {
         }
 
-        DeviceFusionSelector DeviceFusionSelector::for_engine(SushiBLAS::Engine& engine)
+        DeviceFusionSelector DeviceFusionSelector::for_engine(SushiBLAS::Engine& engine) noexcept
         {
             // Device profile queries are cached statically across engine bindings.
             return DeviceFusionSelector(

@@ -35,22 +35,22 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records the product of two matrices, each transposed if its flag is set. */
-        [[nodiscard]] Status lower_matmul(const LoweringContext& context);
+        [[nodiscard]] Status lower_matmul(const LoweringContext& context) noexcept;
 
         /** @brief Records the sum of a rank-2 operand and a bias vector added to every row. */
-        [[nodiscard]] Status lower_bias_add(const LoweringContext& context);
+        [[nodiscard]] Status lower_bias_add(const LoweringContext& context) noexcept;
 
         /** @brief Records the column sums of a rank-2 operand. */
-        [[nodiscard]] Status lower_sum_rows(const LoweringContext& context);
+        [[nodiscard]] Status lower_sum_rows(const LoweringContext& context) noexcept;
 
         /** @brief Records the product of a row-selection matrix and a [V, D] table. */
-        [[nodiscard]] Status lower_gather_rows(const LoweringContext& context);
+        [[nodiscard]] Status lower_gather_rows(const LoweringContext& context) noexcept;
 
         /** @brief Records the product of a transposed row-selection matrix and [N, D] rows. */
-        [[nodiscard]] Status lower_scatter_add_rows(const LoweringContext& context);
+        [[nodiscard]] Status lower_scatter_add_rows(const LoweringContext& context) noexcept;
 
         /** @brief Records a per-entry scale and shift that replaces the upper triangle. */
-        [[nodiscard]] Status lower_causal_mask(const LoweringContext& context);
+        [[nodiscard]] Status lower_causal_mask(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each linear-algebra operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 6> K_LINALG_LOWERINGS = {{

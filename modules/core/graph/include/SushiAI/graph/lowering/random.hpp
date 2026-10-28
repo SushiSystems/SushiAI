@@ -35,7 +35,7 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records dropout: the mask of the run, saved, and its product with x. */
-        [[nodiscard]] Status lower_dropout(const LoweringContext& context);
+        [[nodiscard]] Status lower_dropout(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each operation that draws at each replay with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 1> K_RANDOM_LOWERINGS = {{

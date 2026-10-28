@@ -97,17 +97,17 @@ namespace SushiAI
             return id_;
         }
 
-        const Node& LoweringContext::node() const
+        const Node& LoweringContext::node() const noexcept
         {
             return graph_.node(id_);
         }
 
-        std::string_view LoweringContext::name() const
+        std::string_view LoweringContext::name() const noexcept
         {
             return Ops::name_of(node().op);
         }
 
-        void LoweringContext::require_arity(std::size_t inputs, std::size_t outputs) const
+        void LoweringContext::require_arity(std::size_t inputs, std::size_t outputs) const noexcept
         {
             const Node& current = node();
             SA_FATAL_IF(current.inputs.size() != inputs || current.outputs.size() != outputs,
@@ -117,7 +117,7 @@ namespace SushiAI
         }
 
         void LoweringContext::require_arity_at_least(std::size_t inputs,
-                                                     std::size_t outputs) const
+                                                     std::size_t outputs) const noexcept
         {
             const Node& current = node();
             SA_FATAL_IF(current.inputs.size() < inputs || current.outputs.size() < outputs,
@@ -128,7 +128,7 @@ namespace SushiAI
         }
 
         void LoweringContext::require_variadic_arity(std::size_t inputs,
-                                                     std::size_t outputs) const
+                                                     std::size_t outputs) const noexcept
         {
             const Node& current = node();
             SA_FATAL_IF(current.inputs.size() < inputs || current.outputs.size() != outputs,
@@ -152,25 +152,25 @@ namespace SushiAI
                         name(), index + 1, node().outputs.size());
         }
 
-        const Value& LoweringContext::input_value(std::size_t index) const
+        const Value& LoweringContext::input_value(std::size_t index) const noexcept
         {
             check_input(index);
             return graph_.value(node().inputs[index]);
         }
 
-        const Value& LoweringContext::output_value(std::size_t index) const
+        const Value& LoweringContext::output_value(std::size_t index) const noexcept
         {
             check_output(index);
             return graph_.value(node().outputs[index]);
         }
 
-        const SushiBLAS::Tensor& LoweringContext::input(std::size_t index) const
+        const SushiBLAS::Tensor& LoweringContext::input(std::size_t index) const noexcept
         {
             check_input(index);
             return pool_.tensor(node().inputs[index]);
         }
 
-        SushiBLAS::Tensor& LoweringContext::mutable_input(std::size_t index) const
+        SushiBLAS::Tensor& LoweringContext::mutable_input(std::size_t index) const noexcept
         {
             check_input(index);
             const ValueID written = node().inputs[index];
@@ -194,21 +194,21 @@ namespace SushiAI
             return pool_.tensor(written);
         }
 
-        Result<SushiBLAS::Tensor&> LoweringContext::output(std::size_t index) const
+        Result<SushiBLAS::Tensor&> LoweringContext::output(std::size_t index) const noexcept
         {
             check_output(index);
             const ValueID target = node().outputs[index];
             return pool_.materialise(target, graph_.value(target));
         }
 
-        bool LoweringContext::output_is_bound(std::size_t index) const
+        bool LoweringContext::output_is_bound(std::size_t index) const noexcept
         {
             check_output(index);
             return pool_.is_bound(node().outputs[index]);
         }
 
         Status LoweringContext::alias_output(std::size_t result_index,
-                                           std::size_t operand_index) const
+                                           std::size_t operand_index) const noexcept
         {
             check_output(result_index);
             check_input(operand_index);
@@ -216,12 +216,12 @@ namespace SushiAI
         }
 
         Result<SushiBLAS::Tensor&> LoweringContext::scratch(int slot, const Shape& shape,
-                                                            DType dtype) const
+                                                            DType dtype) const noexcept
         {
             return pool_.scratch(id_, slot, shape, dtype);
         }
 
-        Result<SushiBLAS::Tensor&> LoweringContext::ones(const Shape& shape, DType dtype) const
+        Result<SushiBLAS::Tensor&> LoweringContext::ones(const Shape& shape, DType dtype) const noexcept
         {
             return pool_.ones(shape, dtype);
         }
@@ -236,7 +236,7 @@ namespace SushiAI
             return emitted_;
         }
 
-        FusionChoice LoweringContext::select(const FusionQuery& query) const
+        FusionChoice LoweringContext::select(const FusionQuery& query) const noexcept
         {
             const FusionChoice choice = selector_.choose(query);
 
@@ -260,7 +260,7 @@ namespace SushiAI
             selections_.back().tasks = emitted_ - emitted_before;
         }
 
-        Status LoweringContext::before_each_replay(ReplayPrelude prelude) const
+        Status LoweringContext::before_each_replay(ReplayPrelude prelude) const noexcept
         {
             SA_FATAL_IF(!prelude, "{} (node {}) registered a replay prelude with no target",
                         name(), id_);

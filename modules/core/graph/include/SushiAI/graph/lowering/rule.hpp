@@ -61,7 +61,7 @@ namespace SushiAI
         /** @brief Joins two lowering tables into one, @p a first. */
         template<std::size_t N, std::size_t M>
         constexpr std::array<LoweringEntry, N + M> concat_lowerings(
-            const std::array<LoweringEntry, N>& a, const std::array<LoweringEntry, M>& b)
+            const std::array<LoweringEntry, N>& a, const std::array<LoweringEntry, M>& b) noexcept
         {
             std::array<LoweringEntry, N + M> out{};
             for (std::size_t i = 0; i < N; ++i)

@@ -170,7 +170,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<MemoryPlan> build(
                     const Graph& graph, const PlanOptions& options = {},
-                    SushiRuntime::span<const ScratchRequest> scratch = {});
+                    SushiRuntime::span<const ScratchRequest> scratch = {}) noexcept;
 
                 /** @brief How many values the plan covers. */
                 std::size_t value_count() const noexcept { return placements_.size(); }

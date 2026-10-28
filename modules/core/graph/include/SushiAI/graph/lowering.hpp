@@ -51,7 +51,7 @@ namespace SushiAI
          *        through the scratch rules of the table in graph/lowering/all.hpp.
          * @return The requests; MemoryPlan::build() places them.
          */
-        [[nodiscard]] std::vector<ScratchRequest> scratch_of(const Graph& graph);
+        [[nodiscard]] std::vector<ScratchRequest> scratch_of(const Graph& graph) noexcept;
 
         /**
          * @class Lowering
@@ -92,7 +92,7 @@ namespace SushiAI
                  * @return Success, the first refusal annotated with the node's operation, or
                  *         InvalidDescription for a bad range or operands in two layouts.
                  */
-                [[nodiscard]] Status record(const Graph& graph, NodeRange nodes = {});
+                [[nodiscard]] Status record(const Graph& graph, NodeRange nodes = {}) noexcept;
 
                 /** @brief Returns the number of tasks recorded by the last record(). */
                 [[nodiscard]] std::size_t emitted_operations() const noexcept

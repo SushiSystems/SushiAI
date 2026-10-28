@@ -225,7 +225,7 @@ namespace SushiAI
                 ValueID add_value(Shape shape,
                                   DType dtype,
                                   Lifetime lifetime,
-                                  std::string_view debug_name = {})
+                                  std::string_view debug_name = {}) noexcept
                 {
                     values_.push_back(Value{shape, dtype, TensorLayout::NHWC, lifetime,
                                             K_NO_NODE, false, debug_name});
@@ -243,7 +243,7 @@ namespace SushiAI
                 NodeID add_node(OpID op,
                                 std::vector<ValueID> inputs,
                                 std::vector<ValueID> outputs,
-                                Attributes attributes = {})
+                                Attributes attributes = {}) noexcept
                 {
                     for (ValueID v : inputs)
                         SA_FATAL_IF(v >= values_.size(),
@@ -275,7 +275,7 @@ namespace SushiAI
                  *      of this graph; no output has a producer; no operand is produced at or
                  *      after @p before.
                  */
-                NodeID insert_node(NodeID before, Node node)
+                NodeID insert_node(NodeID before, Node node) noexcept
                 {
                     SA_FATAL_IF(before > nodes_.size(),
                                 "Cannot insert before node {}; the graph has {} nodes",
@@ -330,28 +330,28 @@ namespace SushiAI
                 }
 
                 /** @brief Read-only access to a value. */
-                const Value& value(ValueID id) const
+                const Value& value(ValueID id) const noexcept
                 {
                     SA_FATAL_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Mutable access to a value, for passes that annotate. */
-                Value& value(ValueID id)
+                Value& value(ValueID id) noexcept
                 {
                     SA_FATAL_IF(id >= values_.size(), "Value {} does not exist", id);
                     return values_[id];
                 }
 
                 /** @brief Read-only access to a node. */
-                const Node& node(NodeID id) const
+                const Node& node(NodeID id) const noexcept
                 {
                     SA_FATAL_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
                 }
 
                 /** @brief Mutable access to a node, for passes that rewrite. */
-                Node& node(NodeID id)
+                Node& node(NodeID id) noexcept
                 {
                     SA_FATAL_IF(id >= nodes_.size(), "Node {} does not exist", id);
                     return nodes_[id];
@@ -395,7 +395,7 @@ namespace SushiAI
                  * @pre @p state is an assigned identity this graph has no leaf for, and @p leaf is a
                  *      value of this graph that stands for no other state.
                  */
-                void bind_state_leaf(StateID state, ValueID leaf)
+                void bind_state_leaf(StateID state, ValueID leaf) noexcept
                 {
                     SA_FATAL_IF(state == K_NO_STATE,
                                 "Cannot bind value {} to a state that has no identity; draw one "
@@ -433,7 +433,7 @@ namespace SushiAI
                  * @return A copy in which every value keeps its id and fields and has no producer;
                  *         a recorded refusal is kept as well.
                  */
-                [[nodiscard]] Graph without_nodes() const
+                [[nodiscard]] Graph without_nodes() const noexcept
                 {
                     Graph stripped;
                     stripped.values_ = values_;

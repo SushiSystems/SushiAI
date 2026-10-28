@@ -35,46 +35,46 @@ namespace SushiAI
     namespace Graph
     {
         /** @brief Records the ReLU of one operand. */
-        [[nodiscard]] Status lower_relu(const LoweringContext& context);
+        [[nodiscard]] Status lower_relu(const LoweringContext& context) noexcept;
 
         /** @brief Records the GELU of one operand. */
-        [[nodiscard]] Status lower_gelu(const LoweringContext& context);
+        [[nodiscard]] Status lower_gelu(const LoweringContext& context) noexcept;
 
         /** @brief Records the logistic sigmoid of one operand. */
-        [[nodiscard]] Status lower_sigmoid(const LoweringContext& context);
+        [[nodiscard]] Status lower_sigmoid(const LoweringContext& context) noexcept;
 
         /** @brief Records the tanh of one operand. */
-        [[nodiscard]] Status lower_tanh(const LoweringContext& context);
+        [[nodiscard]] Status lower_tanh(const LoweringContext& context) noexcept;
 
         /** @brief Records the SiLU of one operand. */
-        [[nodiscard]] Status lower_silu(const LoweringContext& context);
+        [[nodiscard]] Status lower_silu(const LoweringContext& context) noexcept;
 
         /** @brief Records the softplus of one operand. */
-        [[nodiscard]] Status lower_softplus(const LoweringContext& context);
+        [[nodiscard]] Status lower_softplus(const LoweringContext& context) noexcept;
 
         /** @brief Records the leaky ReLU of one operand, with the slope of attribute 0. */
-        [[nodiscard]] Status lower_leaky_relu(const LoweringContext& context);
+        [[nodiscard]] Status lower_leaky_relu(const LoweringContext& context) noexcept;
 
         /** @brief Records the ReLU gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_relu_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_relu_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the GELU gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_gelu_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_gelu_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the sigmoid gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_sigmoid_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_sigmoid_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the tanh gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_tanh_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_tanh_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the SiLU gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_silu_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_silu_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the softplus gradient from the upstream gradient and a forward tensor. */
-        [[nodiscard]] Status lower_softplus_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_softplus_backward(const LoweringContext& context) noexcept;
 
         /** @brief Records the leaky ReLU gradient, with the slope of attribute 0. */
-        [[nodiscard]] Status lower_leaky_relu_backward(const LoweringContext& context);
+        [[nodiscard]] Status lower_leaky_relu_backward(const LoweringContext& context) noexcept;
 
         /** @brief Pairs each activation operation with the row that lowers it. */
         inline constexpr std::array<LoweringEntry, 14> K_ACTIVATION_LOWERINGS = {{

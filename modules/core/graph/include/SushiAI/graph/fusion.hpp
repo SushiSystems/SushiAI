@@ -339,10 +339,10 @@ namespace SushiAI
                 std::size_t count(FusedForm form) const noexcept;
 
                 /** @brief A multi-line human-readable summary; empty when nothing happened. */
-                std::string to_string() const;
+                std::string to_string() const noexcept;
 
             private:
-                friend FusionReport fuse(Graph& graph, const FusionOptions& options);
+                friend FusionReport fuse(Graph& graph, const FusionOptions& options) noexcept;
 
                 std::vector<FusedSubtree> fused_;
                 std::vector<DeclinedFusion> declined_;
@@ -359,7 +359,7 @@ namespace SushiAI
          * @pre @p graph is ordered, proves uniform in layout, and owns every value in
          *      FusionOptions::observed; a broken one stops the process.
          */
-        FusionReport fuse(Graph& graph, const FusionOptions& options = {});
+        FusionReport fuse(Graph& graph, const FusionOptions& options = {}) noexcept;
 
     } // namespace Graph
 } // namespace SushiAI

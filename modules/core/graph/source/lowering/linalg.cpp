@@ -202,7 +202,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Status lower_matmul(const LoweringContext& context)
+        Status lower_matmul(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -217,7 +217,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_bias_add(const LoweringContext& context)
+        Status lower_bias_add(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
 
@@ -241,7 +241,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_sum_rows(const LoweringContext& context)
+        Status lower_sum_rows(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 
@@ -260,7 +260,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_gather_rows(const LoweringContext& context)
+        Status lower_gather_rows(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
             require_int32_index(context);
@@ -287,7 +287,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_scatter_add_rows(const LoweringContext& context)
+        Status lower_scatter_add_rows(const LoweringContext& context) noexcept
         {
             context.require_arity(2, 1);
             require_int32_index(context);
@@ -314,7 +314,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status lower_causal_mask(const LoweringContext& context)
+        Status lower_causal_mask(const LoweringContext& context) noexcept
         {
             context.require_arity(1, 1);
 

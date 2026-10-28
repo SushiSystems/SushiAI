@@ -94,7 +94,7 @@ namespace SushiAI
          *         padding or a window the padded input does not hold.
          */
         [[nodiscard]] Result<SpatialExtents> window_extents(int64_t height, int64_t width,
-                                                            const ConvGeometry& g);
+                                                            const ConvGeometry& g) noexcept;
 
         /**
          * @brief Computes the extents UPSAMPLE2D yields from a height by width input.
@@ -102,7 +102,7 @@ namespace SushiAI
          *         a product beyond 64 bits.
          */
         [[nodiscard]] Result<SpatialExtents> upsampled_extents(int64_t height, int64_t width,
-                                                               int64_t scale_h, int64_t scale_w);
+                                                               int64_t scale_h, int64_t scale_w) noexcept;
 
         /**
          * @brief Tells whether LEAKY_RELU and its gradient accept @p slope.
@@ -205,7 +205,7 @@ namespace SushiAI
                  * @return The new value's id.
                  */
                 ValueID input(Shape shape, std::string_view debug_name,
-                              DType dtype = DType::Float32) const;
+                              DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Declares a learnable parameter: a leaf that needs a gradient.
@@ -213,7 +213,7 @@ namespace SushiAI
                  * @return The new value's id.
                  */
                 ValueID parameter(Shape shape, std::string_view debug_name,
-                                  DType dtype = DType::Float32) const;
+                                  DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Declares a buffer leaf: persistent, no gradient, not rewritten per step.
@@ -221,7 +221,7 @@ namespace SushiAI
                  * @return The new value's id, with the BUFFER lifetime.
                  */
                 ValueID buffer(Shape shape, std::string_view debug_name,
-                               DType dtype = DType::Float32) const;
+                               DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Emits MATMUL, C = op(A) * op(B): [m, n], or [B, m, n] for rank 3.
@@ -232,7 +232,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced matmul(const Traced& a, const Traced& b,
                                             bool transpose_a = false,
-                                            bool transpose_b = false) const;
+                                            bool transpose_b = false) const noexcept;
 
                 /**
                  * @brief Emits @c K_BIAS_ADD: Y = X + 1 * bias^T, over an [N, C] X.
@@ -241,13 +241,13 @@ namespace SushiAI
                  * @return The sum, or InvalidDescription when the ranks, extents or element
                  *         types do not line up.
                  */
-                [[nodiscard]] Traced bias_add(const Traced& x, const Traced& bias) const;
+                [[nodiscard]] Traced bias_add(const Traced& x, const Traced& bias) const noexcept;
 
                 /**
                  * @brief Emits @c K_SUM_ROWS: the column sums of an [N, C] matrix.
                  * @return The [C] result, or InvalidDescription when @p x is not rank 2.
                  */
-                [[nodiscard]] Traced sum_rows(const Traced& x) const;
+                [[nodiscard]] Traced sum_rows(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits @c K_GATHER_ROWS: the rows of @p table that @p indices names.
@@ -256,7 +256,7 @@ namespace SushiAI
                  * @return The [..., D] result, or InvalidDescription when @p table is not rank
                  *         2 or not floating, @p indices is not INT32, or an extent does not fit.
                  */
-                [[nodiscard]] Traced gather_rows(const Traced& table, const Traced& indices) const;
+                [[nodiscard]] Traced gather_rows(const Traced& table, const Traced& indices) const noexcept;
 
                 /**
                  * @brief Emits @c K_SCATTER_ADD_ROWS: a zero [table_rows, D] with each row of
@@ -267,7 +267,7 @@ namespace SushiAI
                  * @return The result, or InvalidDescription when an argument does not fit.
                  */
                 [[nodiscard]] Traced scatter_add_rows(const Traced& rows, const Traced& indices,
-                                                      int64_t table_rows) const;
+                                                      int64_t table_rows) const noexcept;
 
                 /**
                  * @brief Emits @c K_CAUSAL_MASK: @p scores with every entry above the diagonal of
@@ -276,32 +276,32 @@ namespace SushiAI
                  * @param fill The replacement, stored in attribute slot 0; must be finite.
                  * @return The result, or InvalidDescription when an argument does not fit.
                  */
-                [[nodiscard]] Traced causal_mask(const Traced& scores, double fill) const;
+                [[nodiscard]] Traced causal_mask(const Traced& scores, double fill) const noexcept;
 
                 /** @brief Emits @c K_ADD; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced add(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced add(const Traced& a, const Traced& b) const noexcept;
 
                 /** @brief Emits @c K_SUB; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced sub(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced sub(const Traced& a, const Traced& b) const noexcept;
 
                 /** @brief Emits @c K_MUL; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced mul(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced mul(const Traced& a, const Traced& b) const noexcept;
 
                 /** @brief Emits DIV: a / b; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced div(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced div(const Traced& a, const Traced& b) const noexcept;
 
                 /** @brief Emits MINIMUM; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced minimum(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced minimum(const Traced& a, const Traced& b) const noexcept;
 
                 /** @brief Emits MAXIMUM; InvalidDescription for unequal shapes or types. */
-                [[nodiscard]] Traced maximum(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced maximum(const Traced& a, const Traced& b) const noexcept;
 
                 /**
                  * @brief Emits LESS_EQUAL: 1 where a <= b and 0 elsewhere.
                  * @return The mask, in the shape, dtype and layout of @p a, or
                  *         InvalidDescription for unequal shapes or types.
                  */
-                [[nodiscard]] Traced less_equal(const Traced& a, const Traced& b) const;
+                [[nodiscard]] Traced less_equal(const Traced& a, const Traced& b) const noexcept;
 
                 /**
                  * @brief Emits SELECT: a where the condition is non-zero, b elsewhere.
@@ -310,10 +310,10 @@ namespace SushiAI
                  *         in shape or type.
                  */
                 [[nodiscard]] Traced select(const Traced& condition, const Traced& a,
-                                            const Traced& b) const;
+                                            const Traced& b) const noexcept;
 
                 /** @brief Emits @c K_SCALE: Y = alpha * X. */
-                [[nodiscard]] Traced scale(const Traced& x, double alpha) const;
+                [[nodiscard]] Traced scale(const Traced& x, double alpha) const noexcept;
 
                 /**
                  * @brief Emits DYNAMIC_SCALE: Y = X * S[0] with S in device memory.
@@ -323,25 +323,25 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced dynamic_scale(const Traced& x, const Traced& factor,
                                                    std::string_view debug_name =
-                                                       "dynamic_scale") const;
+                                                       "dynamic_scale") const noexcept;
 
                 /** @brief Emits @c K_EXP: elementwise exp(X), out of place. */
-                [[nodiscard]] Traced exp(const Traced& x) const;
+                [[nodiscard]] Traced exp(const Traced& x) const noexcept;
 
                 /** @brief Emits ABS: elementwise |x|, out of place. */
-                [[nodiscard]] Traced abs(const Traced& x) const;
+                [[nodiscard]] Traced abs(const Traced& x) const noexcept;
 
                 /** @brief Emits ATAN: elementwise arctangent of x, out of place. */
-                [[nodiscard]] Traced atan(const Traced& x) const;
+                [[nodiscard]] Traced atan(const Traced& x) const noexcept;
 
                 /** @brief Emits SOFTPLUS: elementwise log(1 + exp(x)), out of place. */
-                [[nodiscard]] Traced softplus(const Traced& x) const;
+                [[nodiscard]] Traced softplus(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits ZERO: a fresh all-zero tensor with no operands.
                  * @return The new value id.
                  */
-                ValueID zeros(Shape shape, DType dtype = DType::Float32) const;
+                ValueID zeros(Shape shape, DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Emits ZERO adopting the layout of @p like.
@@ -349,7 +349,7 @@ namespace SushiAI
                  * @return The new value, or the failure @p like holds.
                  */
                 [[nodiscard]] Traced zeros_like(const Traced& like, Shape shape,
-                                                DType dtype = DType::Float32) const;
+                                                DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Emits CONSTANT: a tensor with no operands, filled with @p value.
@@ -358,36 +358,36 @@ namespace SushiAI
                  *         InvalidDescription when @p dtype is not half, float32 or float64.
                  */
                 [[nodiscard]] Traced constant(Shape shape, double value,
-                                              DType dtype = DType::Float32) const;
+                                              DType dtype = DType::Float32) const noexcept;
 
                 /**
                  * @brief Emits CONSTANT in the shape, element type and layout of @p x.
                  * @param x The value described; it is not read.
                  * @return The new value, or InvalidDescription when @p x is not real floating.
                  */
-                [[nodiscard]] Traced constant_like(const Traced& x, double value) const;
+                [[nodiscard]] Traced constant_like(const Traced& x, double value) const noexcept;
 
                 /** @brief Emits @c K_RELU. */
-                [[nodiscard]] Traced relu(const Traced& x) const;
+                [[nodiscard]] Traced relu(const Traced& x) const noexcept;
 
                 /** @brief Emits @c K_GELU (tanh approximation). */
-                [[nodiscard]] Traced gelu(const Traced& x) const;
+                [[nodiscard]] Traced gelu(const Traced& x) const noexcept;
 
                 /** @brief Emits @c K_SIGMOID. */
-                [[nodiscard]] Traced sigmoid(const Traced& x) const;
+                [[nodiscard]] Traced sigmoid(const Traced& x) const noexcept;
 
                 /** @brief Emits @c K_TANH. */
-                [[nodiscard]] Traced tanh(const Traced& x) const;
+                [[nodiscard]] Traced tanh(const Traced& x) const noexcept;
 
                 /** @brief Emits SILU: elementwise x * sigmoid(x). */
-                [[nodiscard]] Traced silu(const Traced& x) const;
+                [[nodiscard]] Traced silu(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits LEAKY_RELU with the given negative slope.
                  * @param slope The negative-side slope; must lie in (0, 1).
                  * @return The activated value, or InvalidDescription for a slope outside (0, 1).
                  */
-                [[nodiscard]] Traced leaky_relu(const Traced& x, double slope) const;
+                [[nodiscard]] Traced leaky_relu(const Traced& x, double slope) const noexcept;
 
                 /**
                  * @brief Emits an activation gradient operation.
@@ -399,21 +399,21 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced activation_backward(OpID op, const Traced& dy,
                                                          const Traced& primal,
-                                                         const Attributes& attributes = {}) const;
+                                                         const Attributes& attributes = {}) const noexcept;
 
                 /**
                  * @brief Emits @c K_LOG_SOFTMAX over the rows of an [N, C] matrix.
                  * @return The [N, C] log-probabilities, or InvalidDescription when @p x is not
                  *         rank 2.
                  */
-                [[nodiscard]] Traced log_softmax(const Traced& x) const;
+                [[nodiscard]] Traced log_softmax(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits a softmax over the last axis: RESHAPE, LOG_SOFTMAX, EXP, RESHAPE.
                  * @return The probabilities, with the shape of @p x, or InvalidDescription when
                  *         @p x has rank below two.
                  */
-                [[nodiscard]] Traced softmax(const Traced& x) const;
+                [[nodiscard]] Traced softmax(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits @c K_LOG_SOFTMAX_BACKWARD: dy - exp(log_probs) * rowsum(dy).
@@ -422,7 +422,7 @@ namespace SushiAI
                  *         operands are not rank 2 of one shape and one real floating type.
                  */
                 [[nodiscard]] Traced log_softmax_backward(const Traced& dy,
-                                                          const Traced& log_probs) const;
+                                                          const Traced& log_probs) const noexcept;
 
                 /**
                  * @brief Emits @c K_NLL_LOSS: the mean negative log-likelihood.
@@ -432,20 +432,20 @@ namespace SushiAI
                  *         rank 2 of one shape and one type.
                  */
                 [[nodiscard]] Traced nll_loss(const Traced& log_probs,
-                                              const Traced& one_hot) const;
+                                              const Traced& one_hot) const noexcept;
 
                 /**
                  * @brief Emits ACCUMULATE: acc_out = acc + delta into buffer of @p acc.
                  * @return The accumulated value, or InvalidDescription when the operands differ
                  *         in shape or type.
                  */
-                [[nodiscard]] Traced accumulate(const Traced& acc, const Traced& delta) const;
+                [[nodiscard]] Traced accumulate(const Traced& acc, const Traced& delta) const noexcept;
 
                 /**
                  * @brief Emits LAYOUT_CONVERT to permute between NHWC and NCHW layouts.
                  * @return The converted value, or InvalidDescription when @p x is not rank 4.
                  */
-                [[nodiscard]] Traced layout_convert(const Traced& x, TensorLayout layout) const;
+                [[nodiscard]] Traced layout_convert(const Traced& x, TensorLayout layout) const noexcept;
 
                 /**
                  * @brief Emits CAST: a copy of @p x converted to @p dtype.
@@ -453,7 +453,7 @@ namespace SushiAI
                  *         not a real float.
                  */
                 [[nodiscard]] Traced cast(const Traced& x, DType dtype,
-                                          std::string_view debug_name = "cast") const;
+                                          std::string_view debug_name = "cast") const noexcept;
 
                 /**
                  * @brief Emits CAST writing directly into an existing value buffer.
@@ -461,21 +461,21 @@ namespace SushiAI
                  * @return Success, or InvalidDescription when the shapes differ or an element
                  *         type is not a real float.
                  */
-                [[nodiscard]] Status cast_into(const Traced& source, ValueID destination) const;
+                [[nodiscard]] Status cast_into(const Traced& source, ValueID destination) const noexcept;
 
                 /**
                  * @brief Declares a value with the same shape, dtype and lifetime as @p like.
                  * @param debug_name A label for diagnostics; must outlive the graph.
                  * @return The new value's id.
                  */
-                ValueID like(ValueID like, std::string_view debug_name = {}) const;
+                ValueID like(ValueID like, std::string_view debug_name = {}) const noexcept;
 
                 /**
                  * @brief Declares a value inheriting the layout of @p like.
                  * @return The new value id.
                  */
                 ValueID declare_like(ValueID like, Shape shape, DType dtype,
-                                     Lifetime lifetime, std::string_view debug_name) const;
+                                     Lifetime lifetime, std::string_view debug_name) const noexcept;
 
                 /**
                  * @brief Emits IM2COL: expands convolution windows into matrix rows.
@@ -483,7 +483,7 @@ namespace SushiAI
                  * @return The column matrix, or InvalidDescription when @p x is not rank 4
                  *         NHWC or the window does not fit.
                  */
-                [[nodiscard]] Traced im2col(const Traced& x, const ConvGeometry& g) const;
+                [[nodiscard]] Traced im2col(const Traced& x, const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits IM2COL with explicit output extents.
@@ -491,7 +491,7 @@ namespace SushiAI
                  * @return The column matrix, or InvalidDescription.
                  */
                 [[nodiscard]] Traced im2col_with_extents(const Traced& x, const ConvGeometry& g,
-                                                         int64_t out_h, int64_t out_w) const;
+                                                         int64_t out_h, int64_t out_w) const noexcept;
 
                 /**
                  * @brief Emits COL2IM: the adjoint operation of IM2COL.
@@ -500,7 +500,7 @@ namespace SushiAI
                  *         extents disagree.
                  */
                 [[nodiscard]] Traced col2im(const Traced& cols, Shape image_shape,
-                                            const ConvGeometry& g) const;
+                                            const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits COL2IM with explicit window counts.
@@ -509,7 +509,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced col2im_with_extents(const Traced& cols, Shape image_shape,
                                                          const ConvGeometry& g,
-                                                         int64_t out_h, int64_t out_w) const;
+                                                         int64_t out_h, int64_t out_w) const noexcept;
 
                 /**
                  * @brief Emits a convolution as IM2COL and MATMUL, with symmetric padding assumed.
@@ -518,7 +518,7 @@ namespace SushiAI
                  * @return The [N,out_h,out_w,C_out] value, or InvalidDescription.
                  */
                 [[nodiscard]] Traced conv2d(const Traced& x, const Traced& weight,
-                                            const Traced& bias, const ConvGeometry& g) const;
+                                            const Traced& bias, const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits K_DEPTHWISE_CONV2D: each channel filtered by its own taps.
@@ -527,7 +527,7 @@ namespace SushiAI
                  *         taps or the window disagree with @p g.
                  */
                 [[nodiscard]] Traced depthwise_conv2d(const Traced& x, const Traced& weight,
-                                                      const ConvGeometry& g) const;
+                                                      const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits K_DEPTHWISE_CONV2D_BACKWARD_INPUT: the gradient of the input.
@@ -537,7 +537,7 @@ namespace SushiAI
                 [[nodiscard]] Traced depthwise_conv2d_backward_input(const Traced& dy,
                                                                      const Traced& weight,
                                                                      Shape input_shape,
-                                                                     const ConvGeometry& g) const;
+                                                                     const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT: the gradient of the taps.
@@ -545,7 +545,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced depthwise_conv2d_backward_weight(const Traced& dy,
                                                                       const Traced& x,
-                                                                      const ConvGeometry& g) const;
+                                                                      const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits @c K_MAXPOOL2D, with symmetric padding assumed.
@@ -553,7 +553,7 @@ namespace SushiAI
                  *         @p x is not rank 4 NHWC or the window does not fit.
                  */
                 [[nodiscard]] Result<PoolResult> maxpool2d(const Traced& x,
-                                                           const ConvGeometry& g) const;
+                                                           const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits MAXPOOL2D with explicit output extents.
@@ -562,14 +562,14 @@ namespace SushiAI
                 [[nodiscard]] Result<PoolResult> maxpool2d_with_extents(const Traced& x,
                                                                         const ConvGeometry& g,
                                                                         int64_t out_h,
-                                                                        int64_t out_w) const;
+                                                                        int64_t out_w) const noexcept;
 
                 /**
                  * @brief Emits @c K_AVGPOOL2D. Divides by the full window area.
                  * @return The pooled value, or InvalidDescription when @p x is not rank 4
                  *         NHWC or the window does not fit.
                  */
-                [[nodiscard]] Traced avgpool2d(const Traced& x, const ConvGeometry& g) const;
+                [[nodiscard]] Traced avgpool2d(const Traced& x, const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits UPSAMPLE2D using nearest-neighbour integer scaling.
@@ -577,14 +577,14 @@ namespace SushiAI
                  *         NHWC or a scale is below 1.
                  */
                 [[nodiscard]] Traced upsample2d(const Traced& x, int64_t scale_h,
-                                                int64_t scale_w) const;
+                                                int64_t scale_w) const noexcept;
 
                 /**
                  * @brief Emits @c K_SPATIAL_MEAN: the mean of every [H,W] plane.
                  * @return The @c [N,C] result, or InvalidDescription when @p x is not rank 4
                  *         NHWC.
                  */
-                [[nodiscard]] Traced spatial_mean(const Traced& x) const;
+                [[nodiscard]] Traced spatial_mean(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits MAXPOOL2D_BACKWARD routing gradients through argmax indices.
@@ -593,21 +593,21 @@ namespace SushiAI
                  */
                 [[nodiscard]] Traced maxpool2d_backward(const Traced& dy, const Traced& indices,
                                                         Shape input_shape,
-                                                        const ConvGeometry& g) const;
+                                                        const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits @c K_AVGPOOL2D_BACKWARD: spreads each gradient over its window.
                  * @return The @c [N,H,W,C] input gradient, or InvalidDescription.
                  */
                 [[nodiscard]] Traced avgpool2d_backward(const Traced& dy, Shape input_shape,
-                                                        const ConvGeometry& g) const;
+                                                        const ConvGeometry& g) const noexcept;
 
                 /**
                  * @brief Emits UPSAMPLE2D_BACKWARD summing replicas into source pixels.
                  * @return The input gradient, or InvalidDescription.
                  */
                 [[nodiscard]] Traced upsample2d_backward(const Traced& dy, Shape input_shape,
-                                                         int64_t scale_h, int64_t scale_w) const;
+                                                         int64_t scale_h, int64_t scale_w) const noexcept;
 
                 /**
                  * @brief Emits SPATIAL_MEAN_BACKWARD broadcasting by 1/(H*W).
@@ -615,7 +615,7 @@ namespace SushiAI
                  *         rank 2 or @p input_shape is not rank 4.
                  */
                 [[nodiscard]] Traced spatial_mean_backward(const Traced& dy,
-                                                           Shape input_shape) const;
+                                                           Shape input_shape) const noexcept;
 
                 /**
                  * @brief Emits @c K_CONCAT_CHANNELS: joins operands along the channel axis.
@@ -624,7 +624,7 @@ namespace SushiAI
                  *         is empty or an operand misfits.
                  */
                 [[nodiscard]] Traced concat_channels(
-                    SushiRuntime::span<const ValueID> parts) const;
+                    SushiRuntime::span<const ValueID> parts) const noexcept;
 
                 /**
                  * @brief Emits SLICE_CHANNELS extracting a contiguous channel slice.
@@ -632,20 +632,20 @@ namespace SushiAI
                  *         the channels or @p x is not rank 4 NHWC.
                  */
                 [[nodiscard]] Traced slice_channels(const Traced& x, int64_t offset,
-                                                    int64_t count) const;
+                                                    int64_t count) const noexcept;
 
                 /**
                  * @brief Emits CHANNEL_AFFINE: per-channel Y = gamma * X + beta.
                  * @return The [N,H,W,C] result, or InvalidDescription.
                  */
                 [[nodiscard]] Traced channel_affine(const Traced& x, const Traced& gamma,
-                                                    const Traced& beta) const;
+                                                    const Traced& beta) const noexcept;
 
                 /**
                  * @brief Sums an [N,H,W,C] tensor down to [C] per-channel sums.
                  * @return The [C] sums, or InvalidDescription when @p x is not rank 4 NHWC.
                  */
-                [[nodiscard]] Traced sum_channels(const Traced& x) const;
+                [[nodiscard]] Traced sum_channels(const Traced& x) const noexcept;
 
                 /**
                  * @brief Emits BATCHNORM2D normalising across N, H, and W dimensions.
@@ -656,7 +656,7 @@ namespace SushiAI
                 [[nodiscard]] Result<BatchNormResult> batchnorm2d(const Traced& x,
                                                                   const Traced& gamma,
                                                                   const Traced& beta,
-                                                                  double epsilon) const;
+                                                                  double epsilon) const noexcept;
 
                 /**
                  * @brief Emits BATCHNORM2D_BACKWARD producing dx, dgamma, and dbeta.
@@ -664,7 +664,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<BatchNormGrads> batchnorm2d_backward(
                     const Traced& dy, const Traced& x, const Traced& gamma,
-                    const Traced& saved_mean, const Traced& saved_inv_std) const;
+                    const Traced& saved_mean, const Traced& saved_inv_std) const noexcept;
 
                 /**
                  * @brief Emits BATCHNORM_FOLD: the scale and shift of fixed statistics.
@@ -677,7 +677,7 @@ namespace SushiAI
                                                                    const Traced& beta,
                                                                    const Traced& mean,
                                                                    const Traced& variance,
-                                                                   double epsilon) const;
+                                                                   double epsilon) const noexcept;
 
                 /**
                  * @brief Emits @c K_LAYER_NORM: each [D] row of @p x minus its mean, over the
@@ -689,7 +689,7 @@ namespace SushiAI
                 [[nodiscard]] Result<LayerNormResult> layer_norm(const Traced& x,
                                                                  const Traced& gamma,
                                                                  const Traced& beta,
-                                                                 double epsilon) const;
+                                                                 double epsilon) const noexcept;
 
                 /**
                  * @brief Emits @c K_LAYER_NORM_BACKWARD: the gradients of x, gamma and beta.
@@ -699,7 +699,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] Result<LayerNormGrads> layer_norm_backward(
                     const Traced& dy, const Traced& x, const Traced& gamma,
-                    const Traced& saved_mean, const Traced& saved_inv_std) const;
+                    const Traced& saved_mean, const Traced& saved_inv_std) const noexcept;
 
                 /**
                  * @brief Emits @c K_DROPOUT: @p x times a mask whose elements are 0 with
@@ -709,20 +709,20 @@ namespace SushiAI
                  * @return The result and the saved mask, or InvalidDescription.
                  */
                 [[nodiscard]] Result<DropoutResult> dropout(const Traced& x, double rate,
-                                                            std::uint64_t seed) const;
+                                                            std::uint64_t seed) const noexcept;
 
                 /**
                  * @brief Emits @c K_RESHAPE: a view of @p x with different extents.
                  * @return The reshaped value, or InvalidDescription when @p shape's element
                  *         count differs from @p x's.
                  */
-                [[nodiscard]] Traced reshape(const Traced& x, Shape shape) const;
+                [[nodiscard]] Traced reshape(const Traced& x, Shape shape) const noexcept;
 
                 /**
                  * @brief Emits STOP_GRADIENT: the value of @p x, with no gradient path back to it.
                  * @return A value shaped, typed and laid out like @p x that requires no gradient.
                  */
-                [[nodiscard]] Traced stop_gradient(const Traced& x) const;
+                [[nodiscard]] Traced stop_gradient(const Traced& x) const noexcept;
 
                 /**
                  * @brief Records on the graph that a description was refused.
