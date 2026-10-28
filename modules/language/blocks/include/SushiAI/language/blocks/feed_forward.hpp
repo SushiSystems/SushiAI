@@ -69,7 +69,7 @@ namespace SushiAI
             FeedForward(int64_t dim, int64_t hidden) noexcept;
 
             /** @brief Lists the two children that hold state, under "expand" and "project". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("expand", &FeedForward::expand),
@@ -83,17 +83,17 @@ namespace SushiAI
              * @return The [N, T, dim] result's id, or @p x after trace.fail() when @p x or
              *         this block's description does not fit.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces forward() over the newest slice, as a position reads no other.
              * @param sample Not read.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<FeedForward>,
@@ -107,7 +107,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or the key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_feed_forward_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

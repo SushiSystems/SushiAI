@@ -85,7 +85,7 @@ namespace SushiAI
             MoEFeedForward(int64_t dim, int64_t hidden, int64_t experts, int64_t top_k) noexcept;
 
             /** @brief Lists the three children, under "router", "expand" and "project". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("router", &MoEFeedForward::router),
@@ -102,7 +102,7 @@ namespace SushiAI
              *         description does not fit; nothing is recorded on @p trace.
              */
             [[nodiscard]] Result<ExpertTrace> trace_experts(const NN::Trace& trace,
-                                                            Graph::ValueID x);
+                                                            Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces trace_experts() over the newest slice, as a position reads no other.
@@ -110,24 +110,24 @@ namespace SushiAI
              */
             [[nodiscard]] Result<ExpertTrace> trace_experts_incremental(const NN::Trace& trace,
                                                                         Graph::ValueID x,
-                                                                        const Shape& sample);
+                                                                        const Shape& sample) noexcept;
 
             /**
              * @brief Traces the mixture and returns its result alone.
              * @return The [N, T, dim] result's id, or @p x after trace.fail() when
              *         trace_experts() refuses.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces forward() over the newest slice.
              * @param sample Not read.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<MoEFeedForward>,
@@ -141,7 +141,7 @@ namespace SushiAI
          *         0 or at most @p experts.
          */
         [[nodiscard]] Status check_expert_counts(int64_t dim, int64_t hidden, int64_t experts,
-                                                 int64_t top_k);
+                                                 int64_t top_k) noexcept;
 
         /**
          * @brief Builds a three-port MoEFeedForward node from "experts" and "hidden", with
@@ -151,7 +151,7 @@ namespace SushiAI
          *         InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_moe_feed_forward_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

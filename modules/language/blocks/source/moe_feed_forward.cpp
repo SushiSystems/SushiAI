@@ -124,7 +124,7 @@ namespace SushiAI
         }
 
         Result<ExpertTrace> MoEFeedForward::trace_experts(const NN::Trace& trace,
-                                                          Graph::ValueID x)
+                                                          Graph::ValueID x) noexcept
         {
             const Graph::GraphBuilder& builder = trace.builder();
             SA_TRY(SA_ANNOTATE(check_expert_counts(dim, hidden, experts, top_k),
@@ -142,12 +142,12 @@ namespace SushiAI
 
         Result<ExpertTrace> MoEFeedForward::trace_experts_incremental(const NN::Trace& trace,
                                                                       Graph::ValueID x,
-                                                                      const Shape&)
+                                                                      const Shape&) noexcept
         {
             return trace_experts(trace, x);
         }
 
-        Graph::ValueID MoEFeedForward::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID MoEFeedForward::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Result<ExpertTrace> traced = trace_experts(trace, x);
             if (!traced.has_value())
@@ -160,17 +160,17 @@ namespace SushiAI
         }
 
         Graph::ValueID MoEFeedForward::forward_incremental(const NN::Trace& trace,
-                                                           Graph::ValueID x, const Shape&)
+                                                           Graph::ValueID x, const Shape&) noexcept
         {
             return forward(trace, x);
         }
 
-        Result<Shape> MoEFeedForward::output_shape(const Shape& input) const
+        Result<Shape> MoEFeedForward::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
-        Status check_expert_counts(int64_t dim, int64_t hidden, int64_t experts, int64_t top_k)
+        Status check_expert_counts(int64_t dim, int64_t hidden, int64_t experts, int64_t top_k) noexcept
         {
             SA_FAIL_IF(dim <= 0 || hidden <= 0 || experts <= 0, StatusCode::InvalidDescription,
                        "a mixture of experts needs positive widths and at least one expert; "
@@ -185,7 +185,7 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<NN::Node>> make_moe_feed_forward_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(
                 attributes, Detail::KeySpan(K_MOE_FEED_FORWARD_KEYS), context));

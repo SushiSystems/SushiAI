@@ -77,25 +77,25 @@ namespace SushiAI
             project.out_features = dim;
         }
 
-        Graph::ValueID FeedForward::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID FeedForward::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_feed_forward(*this, trace, x), x);
         }
 
         Graph::ValueID FeedForward::forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                                        const Shape&)
+                                                        const Shape&) noexcept
         {
             return forward(trace, x);
         }
 
-        Result<Shape> FeedForward::output_shape(const Shape& input) const
+        Result<Shape> FeedForward::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<NN::Node>> make_feed_forward_node(NN::ShapeSpan inputs,
                                                                  const Config::Value& attributes,
-                                                                 std::string_view context)
+                                                                 std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_FEED_FORWARD_KEYS),
                                                context));

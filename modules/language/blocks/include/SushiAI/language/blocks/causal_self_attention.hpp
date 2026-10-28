@@ -92,7 +92,7 @@ namespace SushiAI
                 AttentionPositions positions = AttentionPositions::Learned) noexcept;
 
             /** @brief Lists the two children that hold state, under "qkv" and "proj". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("qkv", &CausalSelfAttention::qkv),
@@ -108,7 +108,7 @@ namespace SushiAI
              * @return The [N, T, dim] result's id, or @p x after trace.fail() when @p x or
              *         this block's description does not fit.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces one position against the keys and values the step carries. The row
@@ -118,10 +118,10 @@ namespace SushiAI
              * @return The [1, 1, dim] result's id, or @p x after trace.fail().
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<CausalSelfAttention>,
@@ -130,7 +130,7 @@ namespace SushiAI
                       "CausalSelfAttention must have an incremental form");
 
         /** @brief Returns InvalidDescription unless @p heads is positive and divides @p dim. */
-        [[nodiscard]] Status check_attention_widths(int64_t dim, int64_t heads);
+        [[nodiscard]] Status check_attention_widths(int64_t dim, int64_t heads) noexcept;
 
         /**
          * @brief Returns InvalidDescription for rotary positions over a head of an odd
@@ -138,7 +138,7 @@ namespace SushiAI
          * @pre check_attention_widths() accepted @p dim and @p heads.
          */
         [[nodiscard]] Status check_attention_positions(int64_t dim, int64_t heads,
-                                                       AttentionPositions positions);
+                                                       AttentionPositions positions) noexcept;
 
         /**
          * @brief Builds a CausalSelfAttention node from "heads", with optional "causal", true
@@ -147,7 +147,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_causal_self_attention_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

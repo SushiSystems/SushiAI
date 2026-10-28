@@ -66,7 +66,7 @@ namespace SushiAI
             PositionEmbedding(int64_t length, int64_t dim) noexcept;
 
             /** @brief Lists the one parameter, under "weight". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::field("weight", &PositionEmbedding::weight),
@@ -79,7 +79,7 @@ namespace SushiAI
              * @return The [N, T, dim] sum's id, or @p x after trace.fail() when @p x is longer
              *         than the table or does not fit this block's description.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces x plus the row of the table the leaf K_POSITION_LEAF names.
@@ -89,10 +89,10 @@ namespace SushiAI
              *         the trace does not fit.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<PositionEmbedding>,
@@ -107,7 +107,7 @@ namespace SushiAI
          *         "length" is below T.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_position_embedding_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

@@ -78,7 +78,7 @@ namespace SushiAI
             void tie_to(NN::Parameter& table) noexcept;
 
             /** @brief Lists the two children, under "norm" and "linear". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("norm", &LanguageHead::norm),
@@ -92,20 +92,20 @@ namespace SushiAI
              * @return The [N, T, vocabulary] logits' id, or @p x after trace.fail() when @p x,
              *         this head's description or the tied table does not fit.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces forward() over the newest slice, as a position reads no other.
              * @param sample Not read.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /**
              * @brief Returns [T, vocabulary] for a per-sample [T, dim] shape.
              * @pre @p input has rank 2; another rank is fatal.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<LanguageHead>,
@@ -123,7 +123,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_language_head_node(
             NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context,
-            const NN::BuiltRows& above = {});
+            const NN::BuiltRows& above = {}) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

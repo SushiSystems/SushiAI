@@ -71,10 +71,10 @@ namespace SushiAI
              */
             ExpertTransformerBlock(
                 int64_t heads, MoEFeedForward feed_forward, AttentionMask mask, double epsilon,
-                AttentionPositions positions = AttentionPositions::Learned);
+                AttentionPositions positions = AttentionPositions::Learned) noexcept;
 
             /** @brief Lists the four children, under "norm1", "attn", "norm2" and "ff". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("norm1", &ExpertTransformerBlock::norm1),
@@ -91,7 +91,7 @@ namespace SushiAI
              *         failure of a child; a child may have recorded it on @p trace as well.
              */
             [[nodiscard]] Result<ExpertTrace> trace_experts(const NN::Trace& trace,
-                                                            Graph::ValueID x);
+                                                            Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces the incremental form of each child in the order trace_experts() has.
@@ -100,23 +100,23 @@ namespace SushiAI
              */
             [[nodiscard]] Result<ExpertTrace> trace_experts_incremental(const NN::Trace& trace,
                                                                         Graph::ValueID x,
-                                                                        const Shape& sample);
+                                                                        const Shape& sample) noexcept;
 
             /**
              * @brief Traces the block and returns its result alone.
              * @return The [N, T, dim] result's id, or @p x once a child has failed the trace.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces the incremental form and returns its result alone.
              * @return The [1, 1, dim] result's id, or @p x once a child has failed the trace.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<ExpertTransformerBlock>,

@@ -57,7 +57,7 @@ namespace SushiAI
             NN::Parameter bias{};
 
             /** @brief Lists the two parameters, under "weight" and "bias". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::field("weight", &ExpertProjection::weight),
@@ -75,7 +75,7 @@ namespace SushiAI
              */
             [[nodiscard]] Graph::Traced mix(const Graph::GraphBuilder& builder,
                                             const Graph::Traced& gated,
-                                            const Graph::Traced& gate);
+                                            const Graph::Traced& gate) noexcept;
         };
 
     } // namespace Language::Blocks

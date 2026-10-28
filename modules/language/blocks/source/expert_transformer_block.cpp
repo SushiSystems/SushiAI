@@ -82,7 +82,7 @@ namespace SushiAI
         ExpertTransformerBlock::ExpertTransformerBlock(int64_t heads,
                                                        MoEFeedForward feed_forward,
                                                        AttentionMask mask, double epsilon,
-                                                       AttentionPositions positions)
+                                                       AttentionPositions positions) noexcept
             : attn(feed_forward.dim, heads, mask, positions), ff(std::move(feed_forward))
         {
             norm1.dim = ff.dim;
@@ -92,7 +92,7 @@ namespace SushiAI
         }
 
         Result<ExpertTrace> ExpertTransformerBlock::trace_experts(const NN::Trace& trace,
-                                                                  Graph::ValueID x)
+                                                                  Graph::ValueID x) noexcept
         {
             return trace_block(
                 *this, trace, x,
@@ -107,7 +107,7 @@ namespace SushiAI
         }
 
         Result<ExpertTrace> ExpertTransformerBlock::trace_experts_incremental(
-            const NN::Trace& trace, Graph::ValueID x, const Shape& sample)
+            const NN::Trace& trace, Graph::ValueID x, const Shape& sample) noexcept
         {
             return trace_block(
                 *this, trace, x,
@@ -121,19 +121,19 @@ namespace SushiAI
                 });
         }
 
-        Graph::ValueID ExpertTransformerBlock::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID ExpertTransformerBlock::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return output_or_fail(trace, trace_experts(trace, x), x);
         }
 
         Graph::ValueID ExpertTransformerBlock::forward_incremental(const NN::Trace& trace,
                                                                    Graph::ValueID x,
-                                                                   const Shape& sample)
+                                                                   const Shape& sample) noexcept
         {
             return output_or_fail(trace, trace_experts_incremental(trace, x, sample), x);
         }
 
-        Result<Shape> ExpertTransformerBlock::output_shape(const Shape& input) const
+        Result<Shape> ExpertTransformerBlock::output_shape(const Shape& input) const noexcept
         {
             return input;
         }

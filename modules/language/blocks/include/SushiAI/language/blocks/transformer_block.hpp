@@ -77,7 +77,7 @@ namespace SushiAI
                 AttentionPositions positions = AttentionPositions::Learned) noexcept;
 
             /** @brief Lists the four children, under "norm1", "attn", "norm2" and "ff". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("norm1", &TransformerBlock::norm1),
@@ -92,7 +92,7 @@ namespace SushiAI
              * @param x A [N, T, dim] value of a real floating type.
              * @return The [N, T, dim] result's id, or @p x once a child has failed the trace.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces the incremental form of each child in the order forward() has.
@@ -101,10 +101,10 @@ namespace SushiAI
              * @return The [1, 1, dim] result's id, or @p x once a child has failed the trace.
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<TransformerBlock>,
@@ -121,7 +121,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_transformer_block_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

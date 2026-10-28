@@ -248,24 +248,24 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID RotaryEmbedding::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID RotaryEmbedding::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_rows(*this, trace, x), x);
         }
 
         Graph::ValueID RotaryEmbedding::forward_incremental(const NN::Trace& trace,
                                                             Graph::ValueID x,
-                                                            const Shape& sample)
+                                                            const Shape& sample) noexcept
         {
             return trace.value_or_fail(trace_row(*this, trace, x, sample), x);
         }
 
-        Result<Shape> RotaryEmbedding::output_shape(const Shape& input) const
+        Result<Shape> RotaryEmbedding::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
-        Status check_rotary_widths(int64_t width, int64_t groups)
+        Status check_rotary_widths(int64_t width, int64_t groups) noexcept
         {
             SA_FAIL_IF(width <= 0 || groups <= 0 || width % groups != 0 ||
                            (width / groups) % K_PAIR != 0,

@@ -79,7 +79,7 @@ namespace SushiAI
             norm2.epsilon = epsilon;
         }
 
-        Graph::ValueID TransformerBlock::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID TransformerBlock::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Result<Graph::ValueID> traced =
                 trace_block(*this, trace, x, [&trace](auto& child, Graph::ValueID value)
@@ -93,7 +93,7 @@ namespace SushiAI
 
         Graph::ValueID TransformerBlock::forward_incremental(const NN::Trace& trace,
                                                              Graph::ValueID x,
-                                                             const Shape& sample)
+                                                             const Shape& sample) noexcept
         {
             const Result<Graph::ValueID> traced =
                 trace_block(*this, trace, x, [&trace, &sample](auto& child, Graph::ValueID value)
@@ -105,13 +105,13 @@ namespace SushiAI
             return trace.value_or_fail(traced, x);
         }
 
-        Result<Shape> TransformerBlock::output_shape(const Shape& input) const
+        Result<Shape> TransformerBlock::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<NN::Node>> make_transformer_block_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_TRANSFORMER_KEYS),
                                                context));

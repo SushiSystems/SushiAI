@@ -154,25 +154,25 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID PositionEmbedding::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID PositionEmbedding::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_positions(*this, trace, x), x);
         }
 
         Graph::ValueID PositionEmbedding::forward_incremental(const NN::Trace& trace,
                                                               Graph::ValueID x,
-                                                              const Shape& sample)
+                                                              const Shape& sample) noexcept
         {
             return trace.value_or_fail(trace_position(*this, trace, x, sample), x);
         }
 
-        Result<Shape> PositionEmbedding::output_shape(const Shape& input) const
+        Result<Shape> PositionEmbedding::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
         Result<std::unique_ptr<NN::Node>> make_position_embedding_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_POSITION_KEYS),
                                                context));

@@ -152,18 +152,18 @@ namespace SushiAI
             linear.use_bias = false;
         }
 
-        Graph::ValueID LanguageHead::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID LanguageHead::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_head(*this, trace, x), x);
         }
 
         Graph::ValueID LanguageHead::forward_incremental(const NN::Trace& trace,
-                                                         Graph::ValueID x, const Shape&)
+                                                         Graph::ValueID x, const Shape&) noexcept
         {
             return forward(trace, x);
         }
 
-        Result<Shape> LanguageHead::output_shape(const Shape& input) const
+        Result<Shape> LanguageHead::output_shape(const Shape& input) const noexcept
         {
             SA_FATAL_IF(input.rank() != Detail::K_SAMPLE_RANK,
                         "LanguageHead::output_shape was given {}; a per-sample sequence is "
@@ -176,7 +176,7 @@ namespace SushiAI
         Result<std::unique_ptr<NN::Node>> make_language_head_node(NN::ShapeSpan inputs,
                                                                   const Config::Value& attributes,
                                                                   std::string_view context,
-                                                                  const NN::BuiltRows& above)
+                                                                  const NN::BuiltRows& above) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_LANGUAGE_HEAD_KEYS),
                                                context));

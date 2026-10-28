@@ -61,7 +61,7 @@ namespace SushiAI
             RotaryEmbedding(int64_t width, int64_t groups) noexcept;
 
             /** @brief Lists no field: the block holds no state. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple<>{};
             }
@@ -73,7 +73,7 @@ namespace SushiAI
              * @return The [N, T, width] result's id, or @p x after trace.fail() when @p x,
              *         this block's description or the trace does not fit.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Traces the turn of one position, whose cosines and sines the run feeds
@@ -83,10 +83,10 @@ namespace SushiAI
              * @return The [1, 1, width] result's id, or @p x after trace.fail().
              */
             Graph::ValueID forward_incremental(const NN::Trace& trace, Graph::ValueID x,
-                                               const Shape& sample);
+                                               const Shape& sample) noexcept;
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<RotaryEmbedding>,
@@ -98,7 +98,7 @@ namespace SushiAI
          * @brief Returns InvalidDescription unless @p groups is positive and cuts @p width
          *        into parts of an even, positive number of channels.
          */
-        [[nodiscard]] Status check_rotary_widths(int64_t width, int64_t groups);
+        [[nodiscard]] Status check_rotary_widths(int64_t width, int64_t groups) noexcept;
 
     } // namespace Language::Blocks
 } // namespace SushiAI

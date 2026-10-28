@@ -37,7 +37,7 @@ namespace SushiAI
     {
         Graph::Traced ExpertProjection::mix(const Graph::GraphBuilder& builder,
                                             const Graph::Traced& gated,
-                                            const Graph::Traced& gate)
+                                            const Graph::Traced& gate) noexcept
         {
             SA_REFUSE_IF(builder, dim <= 0 || hidden <= 0 || experts <= 0,
                          "ExpertProjection needs positive extents; got dim={} hidden={} "

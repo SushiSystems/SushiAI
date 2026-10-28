@@ -412,24 +412,24 @@ namespace SushiAI
             proj.out_features = dim;
         }
 
-        Graph::ValueID CausalSelfAttention::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID CausalSelfAttention::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_attention(*this, trace, x), x);
         }
 
         Graph::ValueID CausalSelfAttention::forward_incremental(const NN::Trace& trace,
                                                                 Graph::ValueID x,
-                                                                const Shape& sample)
+                                                                const Shape& sample) noexcept
         {
             return trace.value_or_fail(trace_cached_attention(*this, trace, x, sample), x);
         }
 
-        Result<Shape> CausalSelfAttention::output_shape(const Shape& input) const
+        Result<Shape> CausalSelfAttention::output_shape(const Shape& input) const noexcept
         {
             return input;
         }
 
-        Status check_attention_widths(int64_t dim, int64_t heads)
+        Status check_attention_widths(int64_t dim, int64_t heads) noexcept
         {
             SA_FAIL_IF(dim <= 0 || heads <= 0 || dim % heads != 0,
                        StatusCode::InvalidDescription,
@@ -441,7 +441,7 @@ namespace SushiAI
         }
 
         Status check_attention_positions(int64_t dim, int64_t heads,
-                                         AttentionPositions positions)
+                                         AttentionPositions positions) noexcept
         {
             SA_FAIL_IF(positions == AttentionPositions::Rotary &&
                            !check_rotary_widths(dim, heads).is_ok(),
@@ -454,7 +454,7 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<NN::Node>> make_causal_self_attention_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_ATTENTION_KEYS),
                                                context));
