@@ -47,7 +47,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/imported_model.hpp>
 #include <SushiAI/io/imported_model_writer.hpp>
@@ -60,6 +59,7 @@ using IO::ImportedTensor;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Removes a directory under the system's temporary folder, before and after. */
     class ScratchDirectory
     {
@@ -143,11 +143,18 @@ TEST(Small_ImportedModelWriter, ComposesTheTrainingFileAroundTheRecipe)
     EXPECT_EQ(training.keys(),
               (std::vector<std::string>{"sushiai_train", "model", "weights", "data",
                                         "checkpoint", "objective", "optimizer"}));
-    EXPECT_EQ(training.at("sushiai_train", "file").as_int("version"), Config::K_TRAIN_VERSION);
-    EXPECT_EQ(training.at("model", "file").as_string("model"), "model.json");
-    EXPECT_EQ(training.at("weights", "file").as_string("weights"), "weights.sushi");
-    EXPECT_EQ(training.at("checkpoint", "file").as_string("checkpoint"), "trained.sushi");
-    EXPECT_EQ(training.at("optimizer", "file").at("type", "optimizer").as_string("type"), "sgd");
+    EXPECT_EQ(require_value(require_value(training.at("sushiai_train", "file")).as_int("version")),
+              Config::K_TRAIN_VERSION);
+    EXPECT_EQ(require_value(require_value(training.at("model", "file")).as_string("model")),
+              "model.json");
+    EXPECT_EQ(require_value(require_value(training.at("weights", "file")).as_string("weights")),
+              "weights.sushi");
+    EXPECT_EQ(require_value(require_value(training.at("checkpoint",
+                                                      "file")).as_string("checkpoint")),
+              "trained.sushi");
+    const Config::Value& optimizer = require_value(training.at("optimizer", "file"));
+    EXPECT_EQ(require_value(require_value(optimizer.at("type", "optimizer")).as_string("type")),
+              "sgd");
 }
 
 /** @brief Tests that the data block is null, since no foreign file names a dataset. */
@@ -157,7 +164,7 @@ TEST(Small_ImportedModelWriter, LeavesTheDataBlockNull)
                             IO::compose_training_file(make_imported()));
 
     ASSERT_TRUE(training.has("data"));
-    EXPECT_TRUE(training.at("data", "file").is_null());
+    EXPECT_TRUE(require_value(training.at("data", "file")).is_null());
 }
 
 /** @brief Tests that a model without tensors states no "weights" key. */
@@ -215,11 +222,12 @@ TEST(Small_ImportedModelWriter, TheModelFileReadsBack)
         const IO::WrittenImport written,
         IO::write_imported_model(imported, scratch.path(), ExistingFiles::Refuse));
 
-    const Config::ModelSpec read = Config::load_model(written.files.front());
+    const Config::ModelSpec read = require_value(Config::load_model(written.files.front()));
     EXPECT_EQ(read.input_shape, imported.model.input_shape);
     ASSERT_EQ(read.layers.size(), 1u);
     EXPECT_EQ(read.layers[0].type, "linear");
-    EXPECT_EQ(read.task.at("type", "task").as_string("type"), "stub_task");
+    EXPECT_EQ(require_value(require_value(read.task.at("type", "task")).as_string("type")),
+              "stub_task");
 }
 
 /** @brief Tests that the weight file holds each tensor's record and bytes, in order. */
@@ -258,7 +266,8 @@ TEST(Small_ImportedModelWriter, TheTrainingFileIsRefusedUntilItsDataIsFilled)
         IO::write_imported_model(make_imported(), scratch.path(), ExistingFiles::Refuse));
 
     const std::filesystem::path training = written.files.back();
-    SA_EXPECT_ERROR(Config::load_train(training), "'data'", "must be an object", "null");
+    SA_EXPECT_FAILURE(Config::load_train(training), StatusCode::InvalidDescription, "'data'",
+                      "must be an object", "null");
 }
 
 /** @brief Tests that a model without tensors writes two files and no weight file. */

@@ -38,6 +38,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/nn/init.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
@@ -87,9 +88,9 @@ namespace
 
     NN::LayerStack make_stack()
     {
-        return NN::build_layer_stack(
-            make_layer_registry(),
-            Config::parse_model(Config::parse_json(K_MODEL_JSON, "<test>"), "<test>"));
+        const Config::Value root = SaTest::require_value(Config::parse_json(K_MODEL_JSON, "<test>"));
+        return SaTest::require_value(NN::build_layer_stack(
+            make_layer_registry(), SaTest::require_value(Config::parse_model(root, "<test>"))));
     }
 
     /**
