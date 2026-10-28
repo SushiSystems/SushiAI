@@ -60,7 +60,7 @@ hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
 sa setup                  # provisions the toolchain and writes cli/config.local.toml
 sa build                  # debug build, the default
 sa test                   # unit, integration and regression suites
-sa run sushiai_core_graph_tests   # one module's cases in one process
+sa run sushiai_core_tests   # one tier's cases in one process
 ```
 
 `sa` and `sushiai` are the same program. If a library checkout cannot be found, `sa build` stops

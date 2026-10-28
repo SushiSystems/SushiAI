@@ -9,10 +9,11 @@ tests do not fit one file keeps them in a folder named like that file, such as
 
 ## Programs
 
-Each module with tests builds one program through `sushiai_add_test_program`
-(`cmake/SushiAITestProgram.cmake`). A module builds `sushiai_<tier>_<module>_tests` and an
-application `sushiai_<app>_tests`. Run one through the
-CLI, for example `sa run sushiai_core_graph_tests -- --gtest_filter=Small_Ir.*`.
+Each module with tests builds an object library through `sushiai_add_test_program`
+(`cmake/SushiAITestProgram.cmake`), and `sushiai_add_tier_test_programs` links the libraries of a
+tier into `sushiai_<tier>_tests`; a program repeats the device link of the library, so one
+program per tier pays it once. An application builds `sushiai_<app>_tests`. Run one through the
+CLI, for example `sa run sushiai_core_tests -- --gtest_filter=Small_Ir.*`.
 
 A case's suite prefix gives its size, which is its ctest label and sets its timeout: `Small_` is
 `small` (60 s), `Medium_` is `medium` (300 s) and `Large_` is `large` (900 s). A small case uses
@@ -32,7 +33,7 @@ committed. `tools/reference/export_yolo26_reference.py` writes them into the fix
 `tests/layers/nn/`, `tests/vision/detect/` and `tests/vision/registration/`, and a case whose
 file is absent reports itself skipped.
 
-The Darknet cases of `sushiai_vision_importers_tests` read their dumps from
+The Darknet cases of `sushiai_vision_tests` read their dumps from
 `SA_REFERENCE_DATA_DIR`. The training cases of the full YOLOv3, YOLOv4 and YOLOv7 models need
 several gigabytes of device memory.
 

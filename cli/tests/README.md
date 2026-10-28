@@ -76,7 +76,7 @@ its gradient reads.
 The cases pin the order the ceiling is resolved in (the flag, the variable, half of the
 machine), that 0 and a machine of unknown size give none, and both refusals. They call
 `resolve_limit_bytes` with values of their own, so none of them caps the test process.
-That a ceiling stops a real program is seen by running one: `sa run sushiai_vision_importers_tests`
+That a ceiling stops a real program is seen by running one: `sa run sushiai_vision_tests`
 over the full YOLOv3 training case ends in `out_of_memory` at 7.6 GB on the machine of
 15 GB.
 

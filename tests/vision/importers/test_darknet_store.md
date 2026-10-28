@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_store.cpp
 
 
-Suites: `Medium_DarknetStore`, in `sushiai_vision_importers_tests`.
+Suites: `Medium_DarknetStore`, in `sushiai_vision_tests`.
 
 The file needs an engine and no reference data. The state is built with `ModelState::from_entries`
 for a model of two convolutions: layer 0 with 2 filters, 3 channels and a kernel side of 2, and

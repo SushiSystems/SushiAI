@@ -64,14 +64,14 @@ sa build -D SB_SYCL_TARGETS=...   # any CMake cache variable, repeatable
 sa test --label small             # fast, run this often
 sa test                           # small and medium, as CI runs them
 sa test --label all
-sa run sushiai_core_graph_tests -- --gtest_brief=1   # one module's program; args after -- go to it
+sa run sushiai_core_tests -- --gtest_brief=1   # one tier's program; args after -- go to it
 
 sa demo mlp --epochs 1 --batches 2   # the showcase, in a couple of seconds
 ```
 
 `sa test` runs the CTest size labels that the GTest suite prefixes `Small_`, `Medium_` and
-`Large_` assign. Each module builds one
-test program, `sushiai_<tier>_<module>_tests`, and `sa run` runs one of them in one process.
+`Large_` assign. Each tier links the tests of its modules into one
+test program, `sushiai_<tier>_tests`, and `sa run` runs one of them in one process.
 SushiBLAS's own test suite does not enter this tree: its `SB_BUILD_TESTS` option
 defaults to off when SushiBLAS is added as a subdirectory, as this tree does.
 

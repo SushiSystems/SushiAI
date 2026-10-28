@@ -145,7 +145,7 @@ or, after the path, `load_image: `.
 
 ## Tests
 
-`tests/vision/codecs/`, compiled into `sushiai_vision_codecs_tests`. No test needs a device and
+`tests/vision/codecs/`, compiled into `sushiai_vision_tests`. No test needs a device and
 none reads a file from the repository. Each builds its input in memory: PNG files with
 `png_image_write_to_memory`, JPEG files with libjpeg's compressor at quality 100 and no
 subsampling, raw image files with `Imaging::write_raw_image`. The files `load_image` reads are

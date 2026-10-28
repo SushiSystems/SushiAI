@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — build: Breaking change: Linked one test program per tier, `sushiai_<tier>_tests`, from each module's object library, one device link per tier; applications keep theirs (`SushiAITestProgram.cmake`).
+- 2026-10-28 — tests: Renamed the fixture suite of `darknet_import_cases` `Medium_DarknetImportCases`, which shared its name with a plain suite of `importers` (`test_darknet_import.cpp`).
 - 2026-10-28 — examples: Took the dataset root of the 12 example JSON files from `datasets/coco128` under the repository root, not the path of one machine (`train.json`).
 - 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `INSTALL.md`, the README, the tutorial, `CONTRIBUTING.md` and the CLI guide (`INSTALL.md`).
 - 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sa build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).

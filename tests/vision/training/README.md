@@ -228,7 +228,7 @@ A delta of the shape [2, 3, 3, 6] is refused with an `InvalidDescription` status
 A `Float64` delta against a `Float32` head is refused with an `InvalidDescription` status naming
 "MUL needs operands of one element type", "float32" and "float64", and adds no node.
 
-Suites: `Medium_HeadDeltaLossEndToEnd`, in `sushiai_vision_training_tests`.
+Suites: `Medium_HeadDeltaLossEndToEnd`, in `sushiai_vision_tests`.
 
 The graph holds a `[2, 3, 3, 7]` float32 parameter, the head, and an input leaf of the same shape,
 the delta. `emit_head_delta_loss` joins them with a scale of 0.5, and the loss is differentiated at
@@ -382,7 +382,7 @@ flag of NaN fails with `InvalidDescription`, "'valid'" and "slot 1 of image 1".
 
 ## test_anchor_training_step.cpp
 
-Suites: `Medium_AnchorTrainingStep`, in `sushiai_vision_training_tests`.
+Suites: `Medium_AnchorTrainingStep`, in `sushiai_vision_tests`.
 
 The model reads `[8, 8, 3]` images through two normalised stride-2 convolutions of 8 channels, each
 followed by a LeakyReLU of 0.1 and a 1x1 head convolution of 14 channels. It publishes `head.0` on a
@@ -450,7 +450,7 @@ the work is not called and the run count stays 0.
 
 ## test_pixel_cross_entropy_objective.cpp
 
-Suites: `Medium_SegmentOverfit`, in `sushiai_vision_training_tests`.
+Suites: `Medium_SegmentOverfit`, in `sushiai_vision_tests`.
 
 The model, `TinySegmenter`, is a 3x3 convolution of stride 2, a second 3x3 convolution and a
 `SegmentHead` that upsamples by 2, all 8 channels wide, over two classes. The dataset is one batch
@@ -542,7 +542,7 @@ an output of [2, 2, 2, 3] under a [4, 4, 5] input ("[2, 2, 2, 3]", "[4, 4, 5]",
 
 ## test_pixel_cross_entropy_objective.cpp, test_dice_objective.cpp
 
-Suites: `Integration_PixelObjectives`, in `sushiai_vision_training_tests`.
+Suites: `Integration_PixelObjectives`, in `sushiai_vision_tests`.
 
 The logits are one 2 by 3 map of four classes. The model, `LogitMap`, adds a learnable map to an
 input of zeros, so the gradient of the map is the gradient at the logits. The mask ignores two of

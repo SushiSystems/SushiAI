@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_training/test_yolov3_tiny.cpp
 
 
-Suites: `Medium_DarknetYolov3TinyTraining`, in `sushiai_vision_importers_tests`.
+Suites: `Medium_DarknetYolov3TinyTraining`, in `sushiai_vision_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov3-tiny.cfg`, `yolov3-tiny.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov3_tiny`, one image of

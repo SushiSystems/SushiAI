@@ -118,7 +118,7 @@ holds "'darknet'", ".cfg" and "0 files".
 an absent root fails with `InvalidDescription`. The message holds "the data block 'reader'",
 "'coco_json'" and "'yolo_txt'".
 
-Suites: `Medium_Yolo26Forward`, in `sushiai_vision_registration_tests`.
+Suites: `Medium_Yolo26Forward`, in `sushiai_vision_tests`.
 
 The model is built from `applications/examples/yolo26/model.json`, with rows 9, 10, 16, 19, 21 and
 22 published beside the head. The weights and the references come from the `yolo26` folder of the

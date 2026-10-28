@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_import/test_decode.cpp
 
 
-Suites: `Small_DarknetDecode`, in `sushiai_vision_importers_tests`.
+Suites: `Small_DarknetDecode`, in `sushiai_vision_tests`.
 
 The suite is parameterised over six models: `yolov3-tiny`, `yolov7-tiny`, `yolov7`, `yolov3`,
 `yolov4-tiny` and `yolov4`. For each it reads the `.cfg` from the directory `SA_REFERENCE_DATA_DIR`

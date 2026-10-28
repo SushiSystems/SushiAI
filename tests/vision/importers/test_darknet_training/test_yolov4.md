@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_training/test_yolov4.cpp
 
 
-Suites: `Large_DarknetYolov4Training`, in `sushiai_vision_importers_tests`.
+Suites: `Large_DarknetYolov4Training`, in `sushiai_vision_tests`.
 
 The fixture `DarknetTrainingTest` reads `yolov4.cfg`, `yolov4.weights` and two runs under
 `references/` in the directory `SA_REFERENCE_DATA_DIR` names: `yolov4_plain_pool`, one image of

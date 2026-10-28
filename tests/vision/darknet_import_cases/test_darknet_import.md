@@ -1,7 +1,7 @@
 # tests/vision/darknet_import_cases/test_darknet_import.cpp
 
 
-Suites: `Small_DarknetImport`, `Medium_DarknetImport`.
+Suites: `Small_DarknetImport`, `Medium_DarknetImportCases`.
 
 Tests `fill_imported_state` and `import_darknet_stem` in
 `modules/vision/darknet_import_cases/include/SushiAI/vision/darknet_import_cases/darknet_import.hpp`.

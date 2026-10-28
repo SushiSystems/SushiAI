@@ -47,7 +47,7 @@ and for three files (".cfg", "3 files").
 `import_darknet_files` of a `.cfg` path that does not exist fails with `FileNotFound` and the
 path's name.
 
-Suites: `Medium_DarknetImportEndToEnd`, in `sushiai_vision_importers_tests`.
+Suites: `Medium_DarknetImportEndToEnd`, in `sushiai_vision_tests`.
 
 The suite runs once for each model of the parity table in `modules/vision/darknet_forward_cases/source/darknet_forward.cpp`:
 `yolov3-tiny`, `yolov3`, `yolov4-tiny`, `yolov4`, `yolov7-tiny` and `yolov7`. The fixture

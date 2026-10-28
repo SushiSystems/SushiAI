@@ -50,7 +50,7 @@ namespace SaTest = SushiAI::Test;
 namespace
 {
     /** @brief Provides an engine for a state built from the two entries every case fills. */
-    class Medium_DarknetImport : public SaTest::EngineTest
+    class Medium_DarknetImportCases : public SaTest::EngineTest
     {
 
     };
@@ -102,7 +102,7 @@ TEST(Small_DarknetImport, AStemWithoutFilesIsNotFound)
 }
 
 /** @brief Tests that every tensor lands in the entry of its name, byte for byte. */
-TEST_F(Medium_DarknetImport, EveryTensorLandsInTheEntryOfItsName)
+TEST_F(Medium_DarknetImportCases, EveryTensorLandsInTheEntryOfItsName)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -118,7 +118,7 @@ TEST_F(Medium_DarknetImport, EveryTensorLandsInTheEntryOfItsName)
 }
 
 /** @brief Tests that a tensor the state has no entry for is refused by name. */
-TEST_F(Medium_DarknetImport, ATensorWithoutAnEntryIsRefused)
+TEST_F(Medium_DarknetImportCases, ATensorWithoutAnEntryIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -129,7 +129,7 @@ TEST_F(Medium_DarknetImport, ATensorWithoutAnEntryIsRefused)
 }
 
 /** @brief Tests that a tensor stated twice, or of another shape, is refused by name. */
-TEST_F(Medium_DarknetImport, ARepeatedOrMisshapenTensorIsRefused)
+TEST_F(Medium_DarknetImportCases, ARepeatedOrMisshapenTensorIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, two_entries()));
@@ -144,7 +144,7 @@ TEST_F(Medium_DarknetImport, ARepeatedOrMisshapenTensorIsRefused)
 }
 
 /** @brief Tests that an entry no tensor supplies is refused by name. */
-TEST_F(Medium_DarknetImport, AnEntryNoTensorSuppliesIsRefused)
+TEST_F(Medium_DarknetImportCases, AnEntryNoTensorSuppliesIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state,
                             NN::ModelState::from_entries(*engine, two_entries()));

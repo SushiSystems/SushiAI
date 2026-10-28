@@ -50,7 +50,7 @@ publishes five outputs. Traced over a [2, 8] `Int32` input, the logits have the 
 `Training::K_USAGE_OUTPUT_PREFIX`, and a "sum" objective of a "next_token" term and an
 "expert_balance" term builds over the published shapes.
 
-Suites: `Medium_Moe`, in `sushiai_language_registration_tests`.
+Suites: `Medium_Moe`, in `sushiai_language_tests`.
 
 The block cases run a FLOAT64 mixture-of-experts block of three experts with a hidden width of 3
 over a `[1, 3, 4]` sequence, with every parameter filled from seeded noise. The mixture is compared
@@ -94,7 +94,7 @@ compile and a last loss below half the first. `expert_usage_min` is above 0.10 a
 `expert_usage_min`.
 
 Suites: `Small_DecoderModelFile`, `Medium_DecoderFromFiles`, in
-`sushiai_language_registration_tests`.
+`sushiai_language_tests`.
 
 The cases build the decoder that `decoder_model.hpp` states as a model file: a vocabulary of 32, a
 window of 8, a width of 16 and two blocks, with a head tied to the token table. The graphs are

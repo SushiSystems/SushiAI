@@ -35,7 +35,7 @@ cmake_minimum_required(VERSION 3.22) # gtest_discover_tests(TEST_FILTER ...)
 include(GoogleTest)
 include(SushiAITestProgram)
 
-# One test program per module, under tests/<tier>/<module>/.
+# The tests of each module, under tests/<tier>/<module>/; one program per tier.
 add_subdirectory(core)
 add_subdirectory(layers)
 add_subdirectory(applications)
@@ -45,6 +45,8 @@ endif()
 if(SA_BUILD_LANGUAGE)
     add_subdirectory(language)
 endif()
+# Every test folder has recorded its object library; each tier links them into one program.
+sushiai_add_tier_test_programs()
 
 # --- The `sa demo mlp` smoke test ---
 # A demo whose output nobody checks rots into a lie, and this one's output is

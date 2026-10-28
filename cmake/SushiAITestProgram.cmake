@@ -4,8 +4,11 @@
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
 
-# sushiai_add_test_program() builds the one test program of a module or an
-# application, so every program is linked, labelled and placed the same way.
+# sushiai_add_test_program() builds the tests of a module or an application, so every
+# program is linked, labelled and placed the same way. A module's tests build an object
+# library, and sushiai_add_tier_test_programs() links the libraries of each tier into one
+# program: a program repeats the device link of the library it links, so one program per tier
+# pays it once. An application keeps a program of its own.
 
 include(GoogleTest)
 
@@ -81,8 +84,9 @@ endfunction()
 #
 # Called from tests/<tier>/<module>/CMakeLists.txt with the key the module has
 # in SUSHIAI_MODULE_TIERS, or from tests/applications/<name>/CMakeLists.txt.
-# The program is sushiai_<tier>_<module>_tests for a module and
-# sushiai_<name>_tests for an application. It links the library of the
+# A module's tests build the object library sushiai_<tier>_<module>_test_objects, or
+# sushiai_<module>_test_objects in a domain tier, linked into sushiai_<tier>_tests; an
+# application's build the program sushiai_<name>_tests. Each links the library of the
 # owner's tier, GTest, the internal module engine_fixture, which holds main(),
 # and every module DEPENDS names.
 # Every case carries the size its suite-name prefix gives; CTest labels it with that size and
@@ -113,16 +117,20 @@ function(sushiai_add_test_program)
         string(REPLACE "/" "_" flat "${ARG_OWNER}")
         list(FIND SUSHIAI_DOMAIN_TIERS "${tier}" domain_position)
         if(domain_position EQUAL -1)
-            set(program "sushiai_${tier}_${flat}_tests")
+            set(program "sushiai_${tier}_${flat}_test_objects")
         else()
-            set(program "sushiai_${flat}_tests")
+            set(program "sushiai_${flat}_test_objects")
         endif()
+        add_library(${program} OBJECT ${ARG_SOURCES})
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_TEST_TIERS ${tier})
+        set_property(GLOBAL APPEND PROPERTY SUSHIAI_TEST_OBJECTS_${tier} ${program})
+        set_property(GLOBAL PROPERTY SUSHIAI_TEST_LIBRARY_${tier} ${library})
     else()
         set(library sushiai)
         set(program "sushiai_${ARG_APPLICATION}_tests")
+        add_executable(${program} ${ARG_SOURCES})
     endif()
 
-    add_executable(${program} ${ARG_SOURCES})
     if(ARG_DEVICE_SOURCES)
         sushiai_check_device_sources(${program} "${ARG_SOURCES}" "${ARG_DEVICE_SOURCES}")
         sushiai_apply_sycl(${program} DEVICE_SOURCES ${ARG_DEVICE_SOURCES})
@@ -153,6 +161,13 @@ function(sushiai_add_test_program)
 
     sushiai_apply_build_policy(${program})
 
+    if(ARG_APPLICATION)
+        sushiai_finish_test_program(${program})
+    endif()
+endfunction()
+
+# Registers the tests of `program` by size and copies the runtime and log DLLs beside it.
+function(sushiai_finish_test_program program)
     sushiai_discover_sized_tests(${program})
 
     if(WIN32)
@@ -163,4 +178,40 @@ function(sushiai_add_test_program)
                 $<TARGET_FILE_DIR:${program}>
             COMMENT "Copying the runtime and log DLLs beside ${program}...")
     endif()
+endfunction()
+
+# sushiai_add_tier_test_programs()
+#
+# Builds sushiai_<tier>_tests from the object libraries sushiai_add_test_program() recorded for
+# each tier. An object library hands on the links of what it links but not the objects of
+# another object library, so the module object libraries its members link are linked here too.
+# Called once, after every test folder is read.
+function(sushiai_add_tier_test_programs)
+    get_property(tiers GLOBAL PROPERTY SUSHIAI_TEST_TIERS)
+    list(REMOVE_DUPLICATES tiers)
+    sushiai_module_target(engine_fixture fixture_target)
+    foreach(tier IN LISTS tiers)
+        get_property(objects GLOBAL PROPERTY SUSHIAI_TEST_OBJECTS_${tier})
+        get_property(library GLOBAL PROPERTY SUSHIAI_TEST_LIBRARY_${tier})
+        set(program sushiai_${tier}_tests)
+        add_executable(${program})
+        target_link_libraries(${program} PRIVATE ${objects} ${library} GTest::gtest ${fixture_target})
+        set(linked_objects "")
+        foreach(object IN LISTS objects)
+            get_target_property(links ${object} LINK_LIBRARIES)
+            foreach(link IN LISTS links)
+                if(TARGET ${link})
+                    get_target_property(link_type ${link} TYPE)
+                    if(link_type STREQUAL "OBJECT_LIBRARY")
+                        list(APPEND linked_objects ${link})
+                    endif()
+                endif()
+            endforeach()
+        endforeach()
+        list(REMOVE_DUPLICATES linked_objects)
+        target_link_libraries(${program} PRIVATE ${linked_objects})
+        sushiai_apply_sycl(${program})
+        sushiai_apply_build_policy(${program})
+        sushiai_finish_test_program(${program})
+    endforeach()
 endfunction()

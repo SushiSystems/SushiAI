@@ -126,9 +126,9 @@ tiers, checks that the umbrella names every header under their include roots, an
 library into the export set `SushiAITargets`.
 
 `SA_BUILD_VISION` defaults to `ON` at the top level and to `OFF` under a consumer, as
-SushiBLAS's `SB_BUILD_TESTS` does. Each module has its own test program,
-`sushiai_<tier>_<module>_tests`, built from `tests/<tier>/<module>/` and linked against the
-library of its tier.
+SushiBLAS's `SB_BUILD_TESTS` does. Each module's tests build an object library from
+`tests/<tier>/<module>/`, linked with the library of its tier into the tier's program,
+`sushiai_<tier>_tests`.
 
 ## Phases
 

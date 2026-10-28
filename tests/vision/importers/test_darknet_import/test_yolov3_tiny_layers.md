@@ -2,7 +2,7 @@
 
 
 Suites: `Medium_DarknetYolov3TinyLayers`, `Medium_DarknetLayers`, in
-`sushiai_vision_importers_tests`.
+`sushiai_vision_tests`.
 
 The file compares the body of a model layer by layer. It covers two models that have a dump of every
 layer: `yolov3-tiny` in the run `yolov3_tiny` and `yolov7-tiny` in the run

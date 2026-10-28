@@ -10,7 +10,7 @@ a `Result` and include `<SushiAI/failure/status.hpp>` and `<SushiAI/failure/resu
 
 Each header has one source under `modules/vision/imaging/source/` and one test file under
 `tests/vision/imaging/`, named `test_<header>.cpp` and compiled into
-`sushiai_vision_imaging_tests`. `partner_source.hpp` is an interface with no source and no test.
+`sushiai_vision_tests`. `partner_source.hpp` is an interface with no source and no test.
 `test_mask_pipeline.cpp` tests `affine_nearest.hpp` and `mask_pipeline.hpp`.
 `modules/vision/imaging/source/bilinear.hpp` and `bilinear.cpp` are private and hold the
 fixed-point arithmetic the resize, the letterbox and the warp share.

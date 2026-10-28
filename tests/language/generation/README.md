@@ -270,7 +270,7 @@ Over a step fed only the ring leaves, `TablePositionFeed::make` fails with
 
 ## test_cached_generator.cpp
 
-Suites: `Medium_CachedGeneration`, in `sushiai_language_generation_tests`.
+Suites: `Medium_CachedGeneration`, in `sushiai_language_tests`.
 
 The fixture builds the decoder of `decoder_model.hpp`: a learned position table, two blocks, a
 window of 8 and a vocabulary of 32. It traces the `[1, 8]` window graph and the `[1, 1]` incremental
@@ -327,7 +327,7 @@ An empty prompt, the id 32 and a count of zero tokens are each refused as `Inval
 messages contain "no id", "0 to 31" and "0 tokens". Nothing is generated and the step has run zero
 times.
 
-Suites: `Medium_RotaryGeneration`, in `sushiai_language_generation_tests`.
+Suites: `Medium_RotaryGeneration`, in `sushiai_language_tests`.
 
 The fixture builds rotary decoders from the model files of `decoder_model.hpp`: two blocks over a
 window of 8, one block over a window of 8, and two blocks over a window of 64. For each it can
@@ -397,7 +397,7 @@ both leaves, is refused with a message that contains "both", 'position' and 'cac
 
 ## test_window_generator.cpp
 
-Suites: `Medium_Generation`, in `sushiai_language_generation_tests`.
+Suites: `Medium_Generation`, in `sushiai_language_tests`.
 
 The fixture builds the decoder of `decoder_model.hpp`, with a window of 8 and a vocabulary of 32,
 initialises its state, compiles the `[1, 8]` forward pass and builds a `WindowGenerator` over it.

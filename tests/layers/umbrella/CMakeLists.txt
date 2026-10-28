@@ -13,5 +13,5 @@ sushiai_add_test_program(OWNER umbrella
 
 # The distribution case compiles only where the library carries SA_DISTRIBUTED to its consumers.
 if(SA_ENABLE_DISTRIBUTED)
-    target_compile_definitions(sushiai_layers_umbrella_tests PRIVATE SA_TEST_DISTRIBUTED_BUILD)
+    target_compile_definitions(sushiai_layers_umbrella_test_objects PRIVATE SA_TEST_DISTRIBUTED_BUILD)
 endif()

@@ -171,7 +171,7 @@ def test(
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
-    a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*
+    a tier's program directly: sa run sushiai_core_tests -- --gtest_filter=Small_Version.*
 
     --label package is the exception: it runs no CTest at all, so --filter,
     --repeat and --jobs are rejected there.
@@ -187,7 +187,7 @@ def test(
            "sa run sushiai_example\n"
            "sa run --type release sushiai_example  # Run from build/default-release\n"
            "sa run --sort  # Pick an executable from a list\n"
-           "sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
+           "sa run sushiai_core_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
 )
 def run(

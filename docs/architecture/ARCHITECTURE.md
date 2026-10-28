@@ -63,8 +63,8 @@ quietly pays graph analysis every step, and nothing else would notice.
 Alongside the core there is the scaffolding a real library needs from day
 one: a `find_package(SushiAI)`-able target verified by an out-of-tree
 consumer, a test suite labelled by size (`small` / `medium` /
-`large`), and the `sa` CLI. Each module builds one test program,
-`sushiai_<tier>_<module>_tests`: `sa run` runs one in one process and `sa test`
+`large`), and the `sa` CLI. Each tier links the tests of its modules into one test program,
+`sushiai_<tier>_tests`: `sa run` runs one in one process and `sa test`
 runs every case through CTest. `sa demo mlp` runs the showcase:
 `applications/examples/source/demo_mlp.cpp`, a flag-driven training program, deliberately a
 separate binary from the `applications/examples/source/example.cpp` teaching file.
