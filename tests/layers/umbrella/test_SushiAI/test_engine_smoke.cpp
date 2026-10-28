@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_SushiAI.cpp                                                       */
+/* test_engine_smoke.cpp                                                  */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,7 +21,7 @@
 
 
 /**
- * @file test_SushiAI.cpp
+ * @file test_engine_smoke.cpp
  * @brief Tests that an axpy runs through SushiBLAS when linked through the umbrella header,
  *        and that a distributed build names every distribution header through it.
  * @author Mustafa Garip

@@ -242,6 +242,8 @@ throws that remain are at the boundary of a sibling library: `modules/core/seam/
 exception in flight to read its type, and `modules/core/distribution/source/replica_kernel.cpp` throws the failed
 `Status` of a replica into the kernel registry of SushiRuntime.
 
+Every public function of a library module that can fail only through a `Status`, a `Result` or a fatal stop is `noexcept`, so an exception cannot leave the public surface; a `std::bad_alloc` from the module's own containers ends the process through `std::terminate`. `tests/layers/umbrella/test_SushiAI/test_noexcept_surface.cpp` holds one `static_assert` per such function.
+
 ---
 
 ## 4. The IR, and why differentiation writes IR

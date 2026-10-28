@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-28 — tests: Added `test_noexcept_surface.cpp`, one `static_assert` per `noexcept` public function of the core and layers modules; the umbrella test moved to `test_SushiAI/test_engine_smoke.cpp` beside it.
+- 2026-10-28 — detect: Fixed `pad_ground_truth` and `build_target_leaves`, which fell off the end of a function returning a `Status`; `ground_truth.hpp` now includes `failure/status.hpp`.
+- 2026-10-28 — docs: Corrected the model-file guide for `build_layer_stack`, which returns a `Result<LayerStack>`, and dropped the FAQ line that `K_LOG_SOFTMAX` cannot be differentiated alone.
 - 2026-10-28 — tensor_values: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — scratch_files: Marked 2 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — training: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
