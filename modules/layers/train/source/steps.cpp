@@ -50,7 +50,6 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/node.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/training_graph.hpp>
@@ -95,23 +94,12 @@ namespace SushiAI
                 cast_options.policy = options.precision;
                 cast_options.observed = fusion_options.observed;
 
-                SA_TRY_ASSIGN(casts, NN::Detail::bridge_throwing([&graph, &cast_options]()
-                {
-                    return Graph::insert_casts(graph, cast_options);
-                }));
-                SA_TRY_ASSIGN(fusion, NN::Detail::bridge_throwing([&graph, &fusion_options]()
-                {
-                    return Graph::fuse(graph, fusion_options);
-                }));
+                // insert_casts() proves the layouts fuse() requires.
+                SA_TRY_ASSIGN(casts, Graph::insert_casts(graph, cast_options));
+                fusion = Graph::fuse(graph, fusion_options);
 
                 if (options.rematerialise)
-                {
-                    SA_TRY(NN::Detail::bridge_throwing([&graph]()
-                    {
-                        Graph::rematerialise_im2col(graph);
-                        return true;
-                    }));
-                }
+                    Graph::rematerialise_im2col(graph);
 
                 return Status();
             }
@@ -187,10 +175,7 @@ namespace SushiAI
             Result<Graph::ValueID> declare_input(const Graph::GraphBuilder& builder,
                                                  const Shape& batch_shape, DType dtype)
             {
-                return NN::Detail::bridge_throwing([&builder, &batch_shape, dtype]()
-                {
-                    return builder.input(batch_shape, "inputs", dtype);
-                });
+                return builder.input(batch_shape, "inputs", dtype);
             }
 
             Result<NN::ModelOutputs> single_output(Graph::ValueID id)
@@ -208,11 +193,7 @@ namespace SushiAI
             Status declare_objective(TrainingGraph& built, const Graph::GraphBuilder& builder,
                                      const Objective& objective)
             {
-                SA_TRY(NN::Detail::bridge_throwing([&built, &builder, &objective]()
-                {
-                    objective.declare(builder, built.leaves);
-                    return true;
-                }));
+                objective.declare(builder, built.leaves);
 
                 return Status();
             }
@@ -220,13 +201,8 @@ namespace SushiAI
             Status add_loss(TrainingGraph& built, const Graph::GraphBuilder& builder,
                             const Objective& objective)
             {
-                // A loss reports a refusal as a Status, but the builder it emits through throws.
-                SA_TRY_ASSIGN(const Result<Graph::ValueID> emitted,
-                              NN::Detail::bridge_throwing([&built, &builder, &objective]()
-                {
-                    return objective.loss(builder, built.graph, built.outputs, built.leaves);
-                }));
-                SA_TRY_ASSIGN(built.spec.loss, emitted);
+                SA_TRY_ASSIGN(built.spec.loss,
+                              objective.loss(builder, built.graph, built.outputs, built.leaves));
 
                 if (built.leaves.has("targets"))
                 {
@@ -267,18 +243,12 @@ namespace SushiAI
                 // The loss-scale leaf is declared before differentiation, which reads it.
                 if (options.loss_scaling)
                 {
-                    SA_TRY_ASSIGN(built.loss_scale, NN::Detail::bridge_throwing([&builder]()
-                    {
-                        return builder.input(Shape{1}, "loss_scale", DType::Float32);
-                    }));
+                    built.loss_scale = builder.input(Shape{1}, "loss_scale", DType::Float32);
                 }
 
                 SA_TRY_ASSIGN(const std::vector<Graph::ValueID> gradients,
-                              NN::Detail::bridge_throwing([&built, &wrt]()
-                {
-                    return Autograd::differentiate(built.graph, built.spec.loss, view_of(wrt),
-                                                   built.loss_scale);
-                }));
+                              Autograd::differentiate(built.graph, built.spec.loss, view_of(wrt),
+                                                      built.loss_scale));
 
                 for (std::size_t i = 0; i < built.parameters.size(); ++i)
                     built.parameters[i].gradient = gradients[i];
@@ -337,15 +307,12 @@ namespace SushiAI
                 if (pool.has_plan())
                     return Status();
 
+                const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(graph);
                 SA_TRY_ASSIGN(Graph::MemoryPlan plan,
-                              NN::Detail::bridge_throwing([&graph, &options]()
-                {
-                    const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(graph);
-                    return Graph::MemoryPlan::build(
-                        graph, options,
-                        SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(),
-                                                                        scratch.size()));
-                }));
+                              Graph::MemoryPlan::build(
+                                  graph, options,
+                                  SushiRuntime::span<const Graph::ScratchRequest>(
+                                      scratch.data(), scratch.size())));
 
                 return pool.adopt(std::move(plan), lender);
             }

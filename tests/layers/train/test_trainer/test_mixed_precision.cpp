@@ -247,7 +247,7 @@ TEST_F(Medium_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
     const MixedPrecisionPolicy precision;
     Graph::CastOptions casts;
     casts.policy = &precision;
-    Graph::insert_casts(built.graph, casts);
+    SA_EXPECT_OK(Graph::insert_casts(built.graph, casts));
 
     ASSERT_EQ(built.graph.value(built.spec.logits).dtype, DType::Half);
 

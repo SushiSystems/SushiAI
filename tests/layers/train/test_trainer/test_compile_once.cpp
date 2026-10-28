@@ -198,7 +198,7 @@ TEST_F(Medium_CompileOnce,
     const Graph::GraphBuilder builder(graph);
 
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueID y = builder.scale(x, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, builder.scale(x, 2.0));
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));

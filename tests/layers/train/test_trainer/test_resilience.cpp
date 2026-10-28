@@ -554,7 +554,7 @@ TEST_F(Medium_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
 
         const ValueID x = builder.input(Shape{n, n}, "x");
         const ValueID w = builder.input(Shape{n, n}, "w");
-        const ValueID y = builder.matmul(x, w, false, true);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.matmul(x, w, false, true));
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
@@ -652,7 +652,7 @@ namespace
         const GraphBuilder builder(graph);
 
         const ValueID x = builder.input(Shape{rows, columns}, "logits");
-        const ValueID y = builder.log_softmax(x);
+        SA_TRY_ASSIGN(const ValueID y, builder.log_softmax(x));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(engine, graph));
         SaTest::write_tensor(run->pool.tensor(x), logits);
@@ -735,7 +735,8 @@ TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
 
     const ValueID logits = builder.input(Shape{rows, columns}, "logits");
     const ValueID targets = builder.input(Shape{rows, columns}, "targets");
-    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
 
@@ -856,10 +857,10 @@ TEST_F(Medium_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSays
     const ValueID batch = builder.input(Shape{4}, "batch_mean");
     const ValueID out = builder.like(running, "updated_running_mean");
     graph.add_node(Ops::K_BATCHNORM_UPDATE_STATS.id, {running, batch}, {out});
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.adopt(Graph::MemoryPlan::build(graph)));
+    SA_EXPECT_OK(pool.adopt(Graph::MemoryPlan::build(graph).value()));
     SA_EXPECT_OK(pool.materialise_leaves(graph));
 
     SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),

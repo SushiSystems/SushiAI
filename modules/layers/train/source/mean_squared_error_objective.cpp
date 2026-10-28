@@ -81,8 +81,10 @@ namespace SushiAI
             const Graph::ValueID predicted = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, width_}, K_MEAN_SQUARED_ERROR_TYPE);
 
-            return emit_squared_error(builder, graph, predicted,
-                                      leaves.at(Detail::K_TARGETS_LEAF));
+            SA_TRY_ASSIGN(const Graph::ValueID loss,
+                          emit_squared_error(builder, graph, predicted,
+                                             leaves.at(Detail::K_TARGETS_LEAF)));
+            return loss;
         }
 
         Status MeanSquaredErrorObjective::feed(const Data::Batch& batch,

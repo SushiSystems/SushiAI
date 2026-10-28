@@ -173,13 +173,24 @@ namespace SushiAI
                             dtype_name(total_dtype));
 
                 if (shape != Shape{1})
-                    value = builder.reshape(value, Shape{1});
+                {
+                    SA_TRY_ASSIGN(value, builder.reshape(value, Shape{1}));
+                }
 
                 // A weight of exactly 1 changes nothing, so it emits no node.
                 if (term.weight != 1.0)
-                    value = builder.scale(value, term.weight);
+                {
+                    SA_TRY_ASSIGN(value, builder.scale(value, term.weight));
+                }
 
-                total = total == Graph::K_NO_VALUE ? value : builder.add(total, value);
+                if (total == Graph::K_NO_VALUE)
+                {
+                    total = value;
+                }
+                else
+                {
+                    SA_TRY_ASSIGN(total, builder.add(total, value));
+                }
                 total_dtype = dtype;
             }
 

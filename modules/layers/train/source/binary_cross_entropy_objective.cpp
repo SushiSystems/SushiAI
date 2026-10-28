@@ -82,7 +82,10 @@ namespace SushiAI
             const Graph::ValueID logits = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, 1}, K_BINARY_CROSS_ENTROPY_TYPE);
 
-            return emit_logistic_loss(builder, graph, logits, leaves.at(Detail::K_TARGETS_LEAF));
+            SA_TRY_ASSIGN(const Graph::ValueID loss,
+                          emit_logistic_loss(builder, graph, logits,
+                                             leaves.at(Detail::K_TARGETS_LEAF)));
+            return loss;
         }
 
         Status BinaryCrossEntropyObjective::feed(const Data::Batch& batch,

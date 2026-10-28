@@ -51,42 +51,45 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueID emit_mean_of_elements(const Graph::GraphBuilder& builder,
-                                             const Graph::Graph& graph, Graph::ValueID values)
+        Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
+                                            const Graph::Graph& graph,
+                                            const Graph::Traced& values)
         {
+            SA_TRY_ASSIGN(const Graph::ValueID held, values);
+
             // By value: every emission below can reallocate the value vector.
-            const std::int64_t elements = graph.value(values).shape.num_elements();
+            const std::int64_t elements = graph.value(held).shape.num_elements();
             SA_FATAL_IF(elements < 1, "The mean of a value that holds no element was asked for");
 
             // As [elements, 1], K_SUM_ROWS adds every element into one.
-            const Graph::ValueID column = builder.reshape(values, Shape{elements, 1});
+            const Graph::Traced column = builder.reshape(held, Shape{elements, 1});
 
             return builder.scale(builder.sum_rows(column), 1.0 / static_cast<double>(elements));
         }
 
-        Graph::ValueID emit_logistic_loss(const Graph::GraphBuilder& builder,
-                                          const Graph::Graph& graph, Graph::ValueID logits,
-                                          Graph::ValueID targets)
+        Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
+                                         const Graph::Graph& graph, Graph::ValueID logits,
+                                         Graph::ValueID targets)
         {
             require_same_values(graph, logits, targets);
 
-            const Graph::ValueID positive_part = builder.relu(logits);
-            const Graph::ValueID product = builder.mul(logits, targets);
+            const Graph::Traced positive_part = builder.relu(logits);
+            const Graph::Traced product = builder.mul(logits, targets);
 
             // exp reads a value at or below zero, so it cannot overflow for any logit.
-            const Graph::ValueID tail = builder.softplus(builder.scale(builder.abs(logits), -1.0));
-            const Graph::ValueID each = builder.add(builder.sub(positive_part, product), tail);
+            const Graph::Traced tail = builder.softplus(builder.scale(builder.abs(logits), -1.0));
+            const Graph::Traced each = builder.add(builder.sub(positive_part, product), tail);
 
             return emit_mean_of_elements(builder, graph, each);
         }
 
-        Graph::ValueID emit_squared_error(const Graph::GraphBuilder& builder,
-                                          const Graph::Graph& graph, Graph::ValueID outputs,
-                                          Graph::ValueID targets)
+        Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
+                                         const Graph::Graph& graph, Graph::ValueID outputs,
+                                         Graph::ValueID targets)
         {
             require_same_values(graph, outputs, targets);
 
-            const Graph::ValueID difference = builder.sub(outputs, targets);
+            const Graph::Traced difference = builder.sub(outputs, targets);
 
             return emit_mean_of_elements(builder, graph, builder.mul(difference, difference));
         }

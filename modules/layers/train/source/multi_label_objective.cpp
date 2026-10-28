@@ -81,7 +81,10 @@ namespace SushiAI
             const Graph::ValueID logits = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, classes_}, K_MULTI_LABEL_TYPE);
 
-            return emit_logistic_loss(builder, graph, logits, leaves.at(Detail::K_TARGETS_LEAF));
+            SA_TRY_ASSIGN(const Graph::ValueID loss,
+                          emit_logistic_loss(builder, graph, logits,
+                                             leaves.at(Detail::K_TARGETS_LEAF)));
+            return loss;
         }
 
         Status MultiLabelObjective::feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,

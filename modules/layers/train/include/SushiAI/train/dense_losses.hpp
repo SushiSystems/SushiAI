@@ -37,11 +37,11 @@ namespace SushiAI
         /**
          * @brief Emits the mean of every element of @p values.
          * @pre @p values holds at least one element of a real floating type.
-         * @return The id of a 1-element value.
+         * @return A 1-element value, or the failure of @p values or of an emitter.
          */
-        [[nodiscard]] Graph::ValueID emit_mean_of_elements(const Graph::GraphBuilder& builder,
-                                                           const Graph::Graph& graph,
-                                                           Graph::ValueID values);
+        [[nodiscard]] Graph::Traced emit_mean_of_elements(const Graph::GraphBuilder& builder,
+                                                          const Graph::Graph& graph,
+                                                          const Graph::Traced& values);
 
         /**
          * @brief Emits the mean of max(x, 0) - x * y + log(1 + exp(-|x|)) over every element:
@@ -49,23 +49,23 @@ namespace SushiAI
          * @param logits The values x.
          * @param targets The values y, each in [0, 1].
          * @pre Both hold one shape of at least one element and one real floating type.
-         * @return The id of a 1-element value.
+         * @return A 1-element value, or the failure of an emitter.
          */
-        [[nodiscard]] Graph::ValueID emit_logistic_loss(const Graph::GraphBuilder& builder,
-                                                        const Graph::Graph& graph,
-                                                        Graph::ValueID logits,
-                                                        Graph::ValueID targets);
+        [[nodiscard]] Graph::Traced emit_logistic_loss(const Graph::GraphBuilder& builder,
+                                                       const Graph::Graph& graph,
+                                                       Graph::ValueID logits,
+                                                       Graph::ValueID targets);
 
         /**
          * @brief Emits the mean of (x - y) squared over every element.
          * @pre @p outputs and @p targets hold one shape of at least one element and one
          *      real floating type.
-         * @return The id of a 1-element value.
+         * @return A 1-element value, or the failure of an emitter.
          */
-        [[nodiscard]] Graph::ValueID emit_squared_error(const Graph::GraphBuilder& builder,
-                                                        const Graph::Graph& graph,
-                                                        Graph::ValueID outputs,
-                                                        Graph::ValueID targets);
+        [[nodiscard]] Graph::Traced emit_squared_error(const Graph::GraphBuilder& builder,
+                                                       const Graph::Graph& graph,
+                                                       Graph::ValueID outputs,
+                                                       Graph::ValueID targets);
 
     } // namespace Train
 } // namespace SushiAI

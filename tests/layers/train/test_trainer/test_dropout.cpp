@@ -134,12 +134,17 @@ namespace
                 mask_ = dropped.value().saved_mask;
 
                 const ValueID targets = builder.input(shape, "targets");
-                loss_ = builder.nll_loss(y_, targets);
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                loss_ = builder.nll_loss(y_, targets).value();
 
                 const std::vector<ValueID> wrt = {x_};
-                gradient_ = Autograd::differentiate(
-                    graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                const Result<std::vector<ValueID>> gradients = Autograd::differentiate(
+                    graph_, loss_, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+                SA_EXPECT_OK(gradients);
+                if (!gradients.has_value())
+                    return;
+
+                gradient_ = gradients.value().at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
@@ -408,7 +413,7 @@ TEST_F(Medium_Dropout, AStepWithoutDropoutRegistersNoPrelude)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2, 3}, "x");
-    const ValueID doubled = builder.scale(x, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, builder.scale(x, 2.0));
 
     TensorPool pool(*engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));

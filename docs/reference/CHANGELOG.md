@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-28 — train: Called `insert_casts`, `fuse` and `differentiate` without the throwing bridge (`steps.cpp`).
+- 2026-10-28 — train: Breaking change: Made the three dense loss emitters return `Graph::Traced` (`dense_losses.hpp`).
+- 2026-10-28 — train: Called the builder in the step builders without the throwing bridge (`steps.cpp`).
+- 2026-10-28 — train: Called `MemoryPlan::build` without the throwing bridge (`steps.cpp`).
 - 2026-10-28 — nn: Breaking change: Made `ModelGraph::output_shape` refuse a graph without exactly one model output as InvalidDescription, in place of returning an empty shape (`model_graph.hpp`).
 - 2026-10-28 — nn: Breaking change: Made `output_shape(const Shape&)` of every layer type return `Result<Shape>`, refusing a shape as InvalidDescription in place of throwing (`layers.hpp`).
 - 2026-10-28 — nn: Breaking change: Made `output_shape(const Shape&)` of the layer stack and the model graph return `Result<Shape>` (`layer_stack.hpp`).

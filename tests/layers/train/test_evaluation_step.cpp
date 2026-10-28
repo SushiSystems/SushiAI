@@ -59,7 +59,6 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
@@ -96,10 +95,7 @@ namespace
         SA_TRY_ASSIGN(const Graph::ValueID gain, trace.feed(K_GAIN_LEAF, shape, DType::Float32));
         SA_TRY_ASSIGN(const Graph::ValueID sum,
                       trace.carried_leaf(shape, "sum", DType::Float32));
-        SA_TRY_ASSIGN(const Graph::ValueID next, NN::Detail::bridge_throwing([&]()
-        {
-            return builder.add(sum, builder.mul(x, gain));
-        }));
+        SA_TRY_ASSIGN(const Graph::ValueID next, builder.add(sum, builder.mul(x, gain)));
         SA_TRY(trace.carry(sum, next, K_INITIAL));
 
         return next;
@@ -121,7 +117,7 @@ namespace
         }
 
         /** @brief Returns @p input. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }

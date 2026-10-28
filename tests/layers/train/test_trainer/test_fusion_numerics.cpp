@@ -374,8 +374,9 @@ TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
     const Graph::ValueID x = builder.input(Shape{K_ROWS, K_IN_DIM}, "x");
     const Graph::ValueID w = builder.parameter(Shape{K_OUT_DIM, K_IN_DIM}, "w");
     const Graph::ValueID b = builder.parameter(Shape{K_OUT_DIM}, "b");
-    const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const Graph::ValueID out = builder.gelu(pre);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID pre,
+                            builder.bias_add(builder.matmul(x, w, false, true), b));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID out, builder.gelu(pre));
 
     // `pre` is unobserved; the fold rests on the spill; see tests/layers/train/README.md.
     const std::vector<Graph::ValueID> observed{out};
@@ -547,7 +548,7 @@ TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
     const Graph::ValueID x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
     const Graph::ValueID w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
     const Graph::ValueID b = builder.parameter(Shape{K_HIDDEN}, "b");
-    builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b));
+    SA_EXPECT_OK(builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b)));
 
     const Graph::FusionReport fusion = Graph::fuse(graph, FusionOptions{});
     ASSERT_EQ(1u, fusion.fused().size()) << fusion.to_string();
@@ -594,12 +595,13 @@ TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
     const Graph::ValueID x = builder.input(Shape{K_BATCH, K_FEATURES}, "x");
     const Graph::ValueID w = builder.parameter(Shape{K_HIDDEN, K_FEATURES}, "w");
     const Graph::ValueID b = builder.parameter(Shape{K_HIDDEN}, "b");
-    const Graph::ValueID pre = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const Graph::ValueID out = builder.gelu(pre);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID pre,
+                            builder.bias_add(builder.matmul(x, w, false, true), b));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID out, builder.gelu(pre));
 
     // Emitted after the GELU, as gelu_backward is; see tests/layers/train/README.md.
     const Graph::ValueID dy = builder.input(Shape{K_BATCH, K_HIDDEN}, "dy");
-    (void)builder.activation_backward(Ops::K_GELU_BACKWARD.id, dy, pre);
+    SA_EXPECT_OK(builder.activation_backward(Ops::K_GELU_BACKWARD.id, dy, pre));
 
     const std::vector<Graph::ValueID> observed{out};
     FusionOptions options;

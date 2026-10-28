@@ -323,10 +323,10 @@ TEST_F(Medium_StaticMemory, APackedZeroBufferIsRefilledOnEveryReplay)
 
     const ValueID x = builder.input(Shape{4, 3}, "x");
     const ValueID zeros = builder.zeros(Shape{4, 3});
-    const ValueID sum = builder.add(zeros, x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(zeros, x));
 
     TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(graph)));
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(graph).value()));
     SA_EXPECT_OK(pool.materialise_leaves(graph));
 
     const std::vector<double> input{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};

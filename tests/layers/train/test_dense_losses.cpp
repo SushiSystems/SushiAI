@@ -77,7 +77,8 @@ TEST(Small_DenseLosses, TheMeanIsOneColumnSummedAndScaled)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID values = builder.input(Shape{4, 3}, "values");
 
-    const Graph::ValueID mean = Train::emit_mean_of_elements(builder, graph, values);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID mean,
+                            Train::emit_mean_of_elements(builder, graph, values));
 
     EXPECT_EQ(operations_of(graph), (std::vector<OpID>{Ops::K_RESHAPE.id, Ops::K_SUM_ROWS.id,
                                                        Ops::K_SCALE.id}));
@@ -94,7 +95,8 @@ TEST(Small_DenseLosses, TheLogisticLossReadsTheLogitInItsStableForm)
     const Graph::ValueID logits = builder.input(Shape{4, 3}, "logits");
     const Graph::ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const Graph::ValueID loss = Train::emit_logistic_loss(builder, graph, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            Train::emit_logistic_loss(builder, graph, logits, targets));
 
     // max(x, 0), x * y, then log(1 + exp(-|x|)); see tests/layers/train/README.md.
     EXPECT_EQ(operations_of(graph),
@@ -120,7 +122,8 @@ TEST(Small_DenseLosses, TheSquaredErrorSquaresTheDifference)
     const Graph::ValueID outputs = builder.input(Shape{4, 2}, "outputs");
     const Graph::ValueID targets = builder.input(Shape{4, 2}, "targets");
 
-    const Graph::ValueID loss = Train::emit_squared_error(builder, graph, outputs, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            Train::emit_squared_error(builder, graph, outputs, targets));
 
     EXPECT_EQ(operations_of(graph),
               (std::vector<OpID>{Ops::K_SUB.id, Ops::K_MUL.id, Ops::K_RESHAPE.id,

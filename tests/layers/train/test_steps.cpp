@@ -202,7 +202,10 @@ namespace
                 const Train::ObjectiveLeaves& leaves) const override
             {
                 const Graph::ValueID logits = outputs.at(output_).value();
-                return NN::CrossEntropyLoss{}.forward(builder, logits, leaves.at("targets"));
+                SA_TRY_ASSIGN(const Graph::ValueID loss,
+                              NN::CrossEntropyLoss{}.forward(builder, logits,
+                                                             leaves.at("targets")));
+                return loss;
             }
 
             /** @brief Returns "named_output". */

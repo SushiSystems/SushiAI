@@ -144,7 +144,9 @@ namespace SushiAI
                        "The model produced {} but the loss needs {}", output_shape.to_string(),
                        expected_shape.to_string());
 
-            return NN::CrossEntropyLoss{}.forward(builder, output, leaves.at("targets"));
+            SA_TRY_ASSIGN(const Graph::ValueID loss,
+                          NN::CrossEntropyLoss{}.forward(builder, output, leaves.at("targets")));
+            return loss;
         }
 
         Status CrossEntropyObjective::feed(const Data::Batch& batch,
