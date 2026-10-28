@@ -167,7 +167,7 @@ caller one.
 | A failed read | Its status is returned by the `read` of that index and by no other. The workers go on; every other index stays readable |
 | `begin_epoch` | Drops what was read ahead, waits for the running reads, calls `Data::begin_epoch` on the inner dataset with no read running, then queues from index 0 |
 | Shutdown | The destructor sets a flag, wakes every worker and joins. A read that is running finishes first; it cannot be interrupted |
-| Exceptions | What `inner.read` throws becomes the status of that index through `Detail::guard`; a `SushiAI::Error` stops the process, as it does everywhere under that guard |
+| Exceptions | What `inner.read` throws becomes the status of that index through `Detail::guard` |
 
 One thread at a time calls `read` and `begin_epoch`. `make` returns `InvalidDescription` for a
 null dataset or an option below 1, and the status of a thread that could not be started; the
