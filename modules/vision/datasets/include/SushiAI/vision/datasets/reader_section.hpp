@@ -43,7 +43,7 @@ namespace SushiAI::Vision::Datasets
      * @param section Holds the keys README.md, section reader_section.hpp, lists.
      * @return The dataset, never null; InvalidDescription for a reader or a task the tables
      *         lack, each listed, or a value out of range; or the reader's failure.
-     * @throws Error If a key is unknown, absent or of another kind.
+     *         The failure of a Config accessor for a key absent or of another kind.
      * @pre @p engine outlives the dataset.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> make_reader_dataset(

@@ -105,7 +105,8 @@ namespace SushiAI::Vision::Datasets
          * @brief Reads "positive": a class index, or a class name of the list.
          * @return The index, the second class when the key is absent; InvalidDescription for
          *         a name the list lacks, with the names it has, and for an index below 0.
-         * @throws Error If "positive" is neither a string nor a whole number.
+         *         The failure of a Config accessor when "positive" is neither a string nor a
+         *         whole number.
          */
         [[nodiscard]] Result<std::int32_t> read_positive_class(const Config::Value& section,
                                                                std::string_view context,
@@ -136,7 +137,8 @@ namespace SushiAI::Vision::Datasets
          * @brief Builds the binary collator over a set of two classes.
          * @return The collator; InvalidDescription for another class count and for a
          *         "positive" that names neither class.
-         * @throws Error If "positive" is neither a string nor a whole number.
+         *         The failure of a Config accessor when "positive" is neither a string nor a
+         *         whole number.
          */
         [[nodiscard]] Result<std::unique_ptr<const Collator>> make_binary_collator(
             const Config::Value& section, std::string_view context,
@@ -189,7 +191,8 @@ namespace SushiAI::Vision::Datasets
          *        list whose samples name no mask file has its polygons painted.
          * @return The collator; InvalidDescription for an "ignore_index" no int32 holds,
          *         and what SegmentationCollator::make refuses.
-         * @throws Error If "ignore_index" or "background" is no whole number.
+         *         The failure of a Config accessor when "ignore_index" or "background" is no
+         *         whole number.
          */
         [[nodiscard]] Result<std::unique_ptr<const Collator>> make_segmentation_collator(
             const Config::Value& section, std::string_view context,

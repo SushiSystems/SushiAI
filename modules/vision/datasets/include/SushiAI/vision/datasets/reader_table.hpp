@@ -62,7 +62,6 @@ namespace SushiAI::Vision::Datasets
     /**
      * @brief Lists the samples of one root and split in one on-disk layout.
      * @return The list, or the failure of the reader behind the row.
-     * @throws Error If a key of the row holds a value of another kind.
      */
     using SampleReader = Result<SampleList> (*)(const ReaderRequest& request);
 

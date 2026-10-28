@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — datasets: Corrected the doc comments that promised a thrown `Error` to name the status of the config accessors (`reader_section.hpp`, `task_dataset.hpp`).
 - 2026-10-28 — registration: Dropped the include of the removed `error.hpp` from the test (`test_registration.cpp`).
 - 2026-10-28 — blocks: Dropped the include of the removed `error.hpp` (`attention.cpp`).
 - 2026-10-28 — umbrella: Dropped the include of the removed `error.hpp` (`SushiAI.hpp`).

@@ -39,7 +39,7 @@ namespace SushiAI::Vision::Datasets::Detail
      * @brief Reads @p value as a whole number in [@p lowest, the largest int32].
      * @param key Names the value in a message, after @p context.
      * @return The number; InvalidDescription, naming the bounds, for one outside them.
-     * @throws Error If @p value is not a whole number.
+     *         The failure of Config::Value::as_int when @p value is not a whole number.
      */
     [[nodiscard]] Result<std::int32_t> read_section_count(const Config::Value& value,
                                                           std::string_view key,

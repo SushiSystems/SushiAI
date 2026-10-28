@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Datasets::Detail
      *        writes and uses the cache when one is stated, then builds the collator.
      * @return The dataset; InvalidDescription for a value out of range, a pipeline the
      *         table lacks, fewer classes stated than listed, and a reader of rows of numbers.
-     * @throws Error If a key is absent or of another kind.
+     *         The failure of a Config accessor for a key absent or of another kind.
      * @see modules/vision/datasets/README.md, section reader_section.hpp.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> build_image_dataset(
@@ -57,7 +57,7 @@ namespace SushiAI::Vision::Datasets::Detail
      *        of the task.
      * @return The dataset; InvalidDescription for a reader that lists no row of numbers
      *         and for a key only a dataset of images reads.
-     * @throws Error If "batch_size" is of another kind.
+     *         The failure of a Config accessor when "batch_size" is of another kind.
      */
     [[nodiscard]] Result<std::unique_ptr<Data::Dataset>> build_table_dataset(
         SushiBLAS::Engine& engine, const Config::Value& section, std::string_view context,
