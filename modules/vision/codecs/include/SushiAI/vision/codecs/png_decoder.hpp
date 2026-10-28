@@ -46,5 +46,5 @@ namespace SushiAI::Vision::Codecs
      *         Unsupported for a side above Imaging::K_MAX_IMAGE_SIDE; OutOfMemory.
      */
     [[nodiscard]] Result<Imaging::Image> decode_png(SushiRuntime::span<const std::uint8_t> bytes,
-                                                    const DecodeOptions& options);
+                                                    const DecodeOptions& options) noexcept;
 } // namespace SushiAI::Vision::Codecs

@@ -417,7 +417,7 @@ namespace SushiAI::Vision::Codecs
     } // namespace
 
     Result<Imaging::Image> decode_jpeg(SushiRuntime::span<const std::uint8_t> bytes,
-                                       const DecodeOptions& options)
+                                       const DecodeOptions& options) noexcept
     {
         try
         {

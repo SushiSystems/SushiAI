@@ -208,7 +208,7 @@ namespace SushiAI::Vision::Codecs
     } // namespace
 
     Result<Imaging::Image> decode_image(SushiRuntime::span<const std::uint8_t> bytes,
-                                        const DecodeOptions& options)
+                                        const DecodeOptions& options) noexcept
     {
         const ImageFormat format = detect_image_format(bytes);
         for (const Decoder& decoder : K_DECODERS)
@@ -226,7 +226,7 @@ namespace SushiAI::Vision::Codecs
     }
 
     Result<Imaging::Image> load_image(const std::filesystem::path& path,
-                                      const DecodeOptions& options)
+                                      const DecodeOptions& options) noexcept
     {
         try
         {

@@ -47,7 +47,7 @@ namespace SushiAI::Vision::Codecs
      *         asked for as gray.
      */
     [[nodiscard]] Result<Imaging::Image> decode_image(SushiRuntime::span<const std::uint8_t> bytes,
-                                                      const DecodeOptions& options);
+                                                      const DecodeOptions& options) noexcept;
 
     /**
      * @brief Reads a file and decodes it with decode_image.
@@ -56,5 +56,5 @@ namespace SushiAI::Vision::Codecs
      *         decode_image. Every message opens with the path.
      */
     [[nodiscard]] Result<Imaging::Image> load_image(const std::filesystem::path& path,
-                                                    const DecodeOptions& options);
+                                                    const DecodeOptions& options) noexcept;
 } // namespace SushiAI::Vision::Codecs
