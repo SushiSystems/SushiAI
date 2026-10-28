@@ -60,14 +60,14 @@ namespace SushiAI
 
         /** @brief Writes one piece of state as "name [extents] kind", for a readable mismatch. */
         [[nodiscard]] inline std::string state_record(const std::string& name, const Shape& shape,
-                                                      bool is_buffer)
+                                                      bool is_buffer) noexcept
         {
             return name + " " + shape.to_string() + (is_buffer ? " buffer" : " parameter");
         }
 
         /** @brief Lists every piece of state of @p model under @p prefix, in walk order. */
         [[nodiscard]] inline std::vector<std::string> state_records(NN::ModelGraph& model,
-                                                                    std::string_view prefix)
+                                                                    std::string_view prefix) noexcept
         {
             std::vector<std::string> records;
             const auto on_parameter = [&records](const std::string& name, NN::Parameter& state)
@@ -90,7 +90,7 @@ namespace SushiAI
          */
         [[nodiscard]] inline Result<TraceSummary> trace_summary(NN::ModelGraph& model,
                                                                 const Shape& sample,
-                                                                std::string_view prefix)
+                                                                std::string_view prefix) noexcept
         {
             std::vector<int64_t> extents{K_TRACE_BATCH};
             for (int32_t axis = 0; axis < sample.rank(); ++axis)
