@@ -40,7 +40,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Writes host doubles into a FLOAT32 or FLOAT64 tensor's shared USM. */
-        inline void write_tensor(SushiBLAS::Tensor& tensor, SushiRuntime::span<const double> values)
+        inline void write_tensor(SushiBLAS::Tensor& tensor, SushiRuntime::span<const double> values) noexcept
         {
             EXPECT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
 
@@ -56,7 +56,7 @@ namespace SushiAI
         }
 
         /** @brief Reads a FLOAT32 or FLOAT64 tensor's shared USM back as host doubles. */
-        inline std::vector<double> read_tensor(const SushiBLAS::Tensor& tensor)
+        inline std::vector<double> read_tensor(const SushiBLAS::Tensor& tensor) noexcept
         {
             const std::size_t count = static_cast<std::size_t>(tensor.num_elements);
             std::vector<double> values(count);
@@ -76,7 +76,7 @@ namespace SushiAI
         /**
          * @brief Returns a tensor's element bytes, for a bit-for-bit comparison.
          */
-        inline std::vector<unsigned char> read_tensor_bytes(const SushiBLAS::Tensor& tensor)
+        inline std::vector<unsigned char> read_tensor_bytes(const SushiBLAS::Tensor& tensor) noexcept
         {
             const std::size_t bytes = static_cast<std::size_t>(tensor.num_elements)
                                     * dtype_size(tensor.dtype);
@@ -91,7 +91,7 @@ namespace SushiAI
          */
         inline std::vector<unsigned char> read_row_bytes(const SushiBLAS::Tensor& tensor,
                                                          std::int64_t rows, std::int64_t first,
-                                                         std::int64_t count)
+                                                         std::int64_t count) noexcept
         {
             const std::vector<unsigned char> all = read_tensor_bytes(tensor);
             const std::size_t per_row = all.size() / static_cast<std::size_t>(rows);
@@ -107,7 +107,7 @@ namespace SushiAI
          * @return The index, or a.size() when they are identical.
          */
         inline std::size_t first_difference(const std::vector<unsigned char>& a,
-                                            const std::vector<unsigned char>& b)
+                                            const std::vector<unsigned char>& b) noexcept
         {
             const std::size_t shared = a.size() < b.size() ? a.size() : b.size();
             for (std::size_t i = 0; i < shared; ++i)
