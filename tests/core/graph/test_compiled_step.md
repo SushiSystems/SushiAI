@@ -52,9 +52,10 @@ in a graph", and the range [1, 0) with `InvalidDescription` and "[1, 0)".
 The `Medium_CompiledStepAttribution` cases test the label and the node origins
 `CompiledStep::compile` gives its runtime graph. Each adds a `SushiRuntime::RunObserver` to the
 runtime before it compiles, runs the step once and reads the `NodeTable` of the observation. The
-step is a relu, a reshape and a relu over a leaf of 8 elements; the reshape is a view and records
-no task. A case that needs trailing work gives the step a recorder that copies the first
-activation over the leaf.
+step is a relu, a reshape and a relu over a leaf of 8 elements, on a pool that adopted the
+graph's memory plan with reuse off; the plan makes the reshape a view, so it records no task. A
+case that needs trailing work gives the step a recorder that copies the first activation over
+the leaf; the activation is materialised before the recorder is bound to it.
 
 ### EveryTaskOfANodeCarriesItsOrigin
 

@@ -50,6 +50,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/dropout_mask.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
@@ -401,11 +402,17 @@ namespace
         made->view = builder.reshape(made->first, Shape{2, K_CHAIN_ELEMENTS / 2});
         made->second = builder.relu(made->view);
 
+        // A step runs on a planned pool, where the reshape's result is a view of its operand.
+        Graph::PlanOptions plan_options;
+        plan_options.reuse = false;
+        SA_TRY(made->pool.adopt(Graph::MemoryPlan::build(made->graph, plan_options)));
         SA_TRY(made->pool.materialise_leaves(made->graph));
         if (with_trailing)
         {
-            made->trailing = std::make_unique<CopyBack>(made->pool.tensor(made->first),
-                                                        made->pool.tensor(made->input));
+            // The trailing recorder is bound before lowering, so it materialises what it reads.
+            SA_TRY_ASSIGN(SushiBLAS::Tensor& first,
+                          made->pool.materialise(made->first, made->graph.value(made->first)));
+            made->trailing = std::make_unique<CopyBack>(first, made->pool.tensor(made->input));
         }
         SA_TRY_ASSIGN(made->step,
                       CompiledStep::compile(engine, made->graph, made->pool, made->trailing.get(),
