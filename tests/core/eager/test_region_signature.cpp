@@ -37,6 +37,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -109,13 +110,15 @@ namespace
         const GraphBuilder builder(traced.graph);
 
         const ValueID x = builder.parameter(recipe.shape, "x", recipe.dtype);
-        const ValueID rectified = builder.relu(x);
-        const ValueID squashed = builder.tanh(x);
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
+        const ValueID rectified = builder.relu(x).value();
+        const ValueID squashed = builder.tanh(x).value();
         const ValueID left = recipe.swaps_operands ? squashed : rectified;
         const ValueID right = recipe.swaps_operands ? rectified : squashed;
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
         const ValueID combined =
-            recipe.subtracts ? builder.sub(left, right) : builder.add(left, right);
-        (void)builder.scale(combined, recipe.alpha);
+            (recipe.subtracts ? builder.sub(left, right) : builder.add(left, right)).value();
+        SA_EXPECT_OK(builder.scale(combined, recipe.alpha));
 
         for (const Graph::Node& node : traced.graph.nodes())
             traced.partition.region_of_node.push_back(
@@ -181,9 +184,10 @@ namespace
         const GraphBuilder builder(traced.graph);
 
         const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-        const ValueID rectified = builder.relu(x);
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
+        const ValueID rectified = builder.relu(x).value();
         const ValueID read = recipe.reads_leaf ? x : rectified;
-        (void)builder.scale(read, 2.0);
+        SA_EXPECT_OK(builder.scale(read, 2.0));
 
         std::vector<Eager::RegionInfo> regions;
         if (recipe.lists_producer)
@@ -224,8 +228,9 @@ namespace
         const GraphBuilder builder(traced.graph);
 
         const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-        const ValueID outside = builder.relu(x);
-        const ValueID inside = builder.relu(x);
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
+        const ValueID outside = builder.relu(x).value();
+        const ValueID inside = builder.relu(x).value();
         const ValueID probed =
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation);
 
@@ -267,7 +272,7 @@ namespace
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation),
             traced.graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Activation)};
         (void)traced.graph.add_node(Ops::K_RELU.id, {x}, results);
-        (void)builder.tanh(results.at(index));
+        SA_EXPECT_OK(builder.tanh(results.at(index)));
 
         assign_regions(traced, {K_BODY, K_BODY},
                        {{K_BODY, "body#0", Eager::Direction::Forward}});
@@ -359,13 +364,16 @@ namespace
                 const Eager::Scope scope(trace, "stem");
                 parameters.push_back(
                     with_identity(traced, builder.parameter(Shape{6, 5}, "stem_weight"), 10));
-                activation = builder.relu(builder.matmul(activation, parameters.back()));
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                activation = builder.relu(builder.matmul(activation, parameters.back())).value();
 
                 for (std::size_t layer = 1; layer < stem_layers; ++layer)
                 {
                     parameters.push_back(with_identity(
                         traced, builder.parameter(Shape{5, 5}, "stem_extra_weight"), 10 + layer));
-                    activation = builder.relu(builder.matmul(activation, parameters.back()));
+                    // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                    activation =
+                        builder.relu(builder.matmul(activation, parameters.back())).value();
                 }
             }
             stem_output = activation;
@@ -373,7 +381,8 @@ namespace
                 const Eager::Scope scope(trace, "body");
                 parameters.push_back(
                     with_identity(traced, builder.parameter(Shape{5, 4}, "body_weight"), 20));
-                activation = builder.relu(builder.matmul(activation, parameters.back()));
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                activation = builder.relu(builder.matmul(activation, parameters.back())).value();
             }
 
             ValueID loss = K_NO_VALUE;
@@ -381,17 +390,18 @@ namespace
                 const Eager::Scope scope(trace, "head");
                 parameters.push_back(
                     with_identity(traced, builder.parameter(Shape{4, 3}, "head_weight"), 30));
-                const ValueID logits = builder.matmul(activation, parameters.back());
-                loss = builder.nll_loss(builder.log_softmax(logits), targets);
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                const ValueID logits = builder.matmul(activation, parameters.back()).value();
+                loss = builder.nll_loss(builder.log_softmax(logits), targets).value();
             }
 
             const std::vector<Eager::Segment> segments = trace.seal();
 
             Autograd::Provenance provenance;
-            (void)Autograd::differentiate(
+            SA_EXPECT_OK(Autograd::differentiate(
                 traced.graph, loss,
                 SushiRuntime::span<const ValueID>(parameters.data(), parameters.size()),
-                K_NO_VALUE, &provenance);
+                K_NO_VALUE, &provenance));
 
             traced.partition = Eager::ScopePartitioner{}.assign(
                 traced.graph,
@@ -428,7 +438,7 @@ TEST(Small_RegionSignature, TheHashOfOneNodeKeepsItsValue)
     Traced traced;
     const GraphBuilder builder(traced.graph);
     const ValueID x = builder.parameter(Shape{4, 3}, "x", DType::Float32);
-    (void)builder.relu(x);
+    SA_EXPECT_OK(builder.relu(x));
 
     traced.partition.region_of_node = {Eager::K_NO_REGION, K_BODY};
     traced.partition.regions = {{K_BODY, "body#0", Eager::Direction::Forward}};

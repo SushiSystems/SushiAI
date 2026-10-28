@@ -75,7 +75,9 @@ the tensors `Session::gradient` returns is applied without this module depending
 3. It writes the storage of every state leaf, feed and parameter gradient into one list, and
    `find_boundaries` lists what each region imports and exports.
 4. `RegionTable::plan` compares each region with the last step and returns a `StepPlan`.
-5. `compile_region` runs for each region whose action is `RegionAction::Build`.
+5. `compile_region` runs for each region whose action is `RegionAction::Build`. It returns a
+   `Result`; a refusal from the cast pass or the memory planner ends the step through the
+   session's recovery, as a failed run does.
 6. The session allocates the created slots, copies the feeds, and hands a `StepWork` to the
    executor, which drops, records and builds regions and runs the dynamic graph once.
 
@@ -320,6 +322,10 @@ then the region's nodes. The lowering, the fusion pass and the memory planner th
 graph of the shape they already handle, and `Graph::Lowering::record` lowers it whole. The eager
 path uses `graph` as the compiled path does.
 
+A refusal from `insert_casts` or `MemoryPlan::build`, such as a zero `PlanOptions::alignment`,
+comes back from `compile_region` as that status. A key that names no region, or a partition built
+for another graph, still stops the process.
+
 An import that another region computes gets `Lifetime::Input`: like a batch, it is written
 before the region runs and is rewritten on every step, so the planner must not pack it.
 
@@ -437,6 +443,11 @@ forward nodes and no other.
 A value read after the run has to be one the step kept: the loss passed to `backward`, a value
 passed to `keep`, or the value whose read started the run. Any other value may have been folded
 into a fused node or overwritten in an arena.
+
+`input` returns a `Graph::Traced`; a tensor with no element comes back as a failed one and marks
+the step's graph as refused. `backward`, `read`, `read_scalar` and `keep` take a `Graph::Traced`, so an emitter's result goes
+in without unwrapping. Handed a failed trace they return its failure, and `backward` returns
+`InvalidDescription` for a graph that holds a refusal even when the loss itself traced.
 
 Tracing a node after the step ran, or after `backward`, makes the next read return `Unsupported`.
 The design's phases, one dynamic graph per stretch between two reads, are not built; see

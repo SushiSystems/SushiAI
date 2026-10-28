@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-28 — eager: Breaking change: Made `compile_region` return a `Result`, forwarding a refusal of the cast pass or the memory plan (`region_program.hpp`).
+- 2026-10-28 — eager: Breaking change: Made `Step::input` return a `Graph::Traced` (`step.hpp`).
+- 2026-10-28 — eager: Breaking change: Made the `Step` reads, `keep` and `backward` take a `Graph::Traced` and return the failure a refused trace holds (`step.hpp`).
+- 2026-10-28 — eager: Made `Step::backward` refuse a graph that holds a refusal as `InvalidDescription` (`step.cpp`).
 - 2026-10-28 — seam: Made `guard_value` over a call that returns `Result<T>` return `Result<T>`, so a returned failure and a thrown one come back alike (`seam.hpp`).
 - 2026-10-28 — autograd: Breaking change: Made `differentiate` return `Result<std::vector<Graph::ValueID>>`, refusing a graph that holds a refusal and returning the first failure a rule observed (`backward.hpp`).
 - 2026-10-28 — autograd: Made the tape's index checks stop the process in place of throwing (`tape.cpp`).

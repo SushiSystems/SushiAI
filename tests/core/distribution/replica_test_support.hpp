@@ -174,13 +174,15 @@ namespace SushiAI::Distribution::Support
                 weight_ = builder.parameter(Shape{K_FEATURES, K_CLASSES}, "weight");
                 bias_ = builder.parameter(Shape{K_CLASSES}, "bias");
                 targets_ = builder.input(Shape{rows, K_CLASSES}, "targets");
-                const Graph::ValueID logits = builder.bias_add(builder.matmul(inputs_, weight_),
-                                                               bias_);
-                loss_ = builder.nll_loss(builder.log_softmax(logits), targets_);
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                const Graph::ValueID logits =
+                    builder.bias_add(builder.matmul(inputs_, weight_), bias_).value();
+                loss_ = builder.nll_loss(builder.log_softmax(logits), targets_).value();
 
                 const std::vector<Graph::ValueID> wrt = {weight_, bias_};
                 const SushiRuntime::span<const Graph::ValueID> wrt_view(wrt.data(), wrt.size());
-                gradients_ = Autograd::differentiate(graph_, loss_, wrt_view);
+                // A constructor cannot ASSERT; the graph is fixed, so a refusal is a defect.
+                gradients_ = Autograd::differentiate(graph_, loss_, wrt_view).value();
             }
 
             /** @brief Allocates every leaf and every value the packs name, and lists them. */

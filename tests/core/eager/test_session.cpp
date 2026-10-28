@@ -31,6 +31,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -129,17 +130,20 @@ namespace
             parameters.push_back(weight);
             parameters.push_back(bias);
 
-            const ValueID projected = builder.bias_add(builder.matmul(hidden, weight), bias);
-            hidden = i + 2 < K_TWO_LAYERS.size() ? builder.relu(projected)
-                                                 : builder.tanh(projected);
+            SA_TRY_ASSIGN(const ValueID projected,
+                          builder.bias_add(builder.matmul(hidden, weight), bias));
+            const bool hidden_layer = i + 2 < K_TWO_LAYERS.size();
+            SA_TRY_ASSIGN(hidden,
+                          hidden_layer ? builder.relu(projected) : builder.tanh(projected));
         }
         const ValueID targets =
             builder.input(Shape{Support::K_ROWS, K_TWO_LAYERS.back()}, "targets");
-        made->loss = builder.nll_loss(hidden, targets);
+        SA_TRY_ASSIGN(made->loss, builder.nll_loss(hidden, targets));
 
-        const std::vector<ValueID> gradients = Autograd::differentiate(
-            made->graph, made->loss,
-            SushiRuntime::span<const ValueID>(parameters.data(), parameters.size()));
+        SA_TRY_ASSIGN(const std::vector<ValueID> gradients,
+                      Autograd::differentiate(
+                          made->graph, made->loss,
+                          SushiRuntime::span<const ValueID>(parameters.data(), parameters.size())));
 
         std::vector<ValueID> observed{inputs, targets, made->loss};
         observed.insert(observed.end(), parameters.begin(), parameters.end());
@@ -149,13 +153,14 @@ namespace
 
         Graph::CastOptions casts;
         casts.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-        (void)Graph::insert_casts(made->graph, casts);
+        SA_TRY(Graph::insert_casts(made->graph, casts));
         Graph::FusionOptions fusion;
         fusion.observed = casts.observed;
         (void)Graph::fuse(made->graph, fusion);
         Graph::PlanOptions plan;
         plan.pinned = SushiRuntime::span<const ValueID>(pinned.data(), pinned.size());
-        SA_TRY(made->pool.adopt(Graph::MemoryPlan::build(made->graph, plan)));
+        SA_TRY_ASSIGN(Graph::MemoryPlan memory, Graph::MemoryPlan::build(made->graph, plan));
+        SA_TRY(made->pool.adopt(std::move(memory)));
 
         SA_TRY(made->pool.bind(inputs, made->inputs));
         SA_TRY(made->pool.bind(targets, made->targets));
@@ -389,7 +394,7 @@ TEST_F(Medium_EagerSession, TracingAfterTheStepRanIsRefused)
                             Support::trace_model(step, loop.model, loop.inputs, loop.targets));
     SA_EXPECT_OK(step.finish());
 
-    (void)step.builder().scale(loss, 2.0);
+    SA_EXPECT_OK(step.builder().scale(loss, 2.0));
     SA_EXPECT_FAILURE(step.read_scalar(loss), StatusCode::Unsupported, "after the step");
 }
 

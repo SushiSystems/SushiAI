@@ -88,7 +88,7 @@ namespace SushiAI
 
         } // namespace
 
-        RegionProgram compile_region(const Graph::Graph& graph, const Partition& partition,
+        Result<RegionProgram> compile_region(const Graph::Graph& graph, const Partition& partition,
                                      RegionKey key, const RegionBoundary& boundary,
                                      const ProgramOptions& options)
         {
@@ -111,7 +111,7 @@ namespace SushiAI
             Graph::CastOptions cast_options;
             cast_options.policy = options.precision;
             cast_options.observed = view_of(shared);
-            program.casts = Graph::insert_casts(program.graph, cast_options);
+            SA_TRY_ASSIGN(program.casts, Graph::insert_casts(program.graph, cast_options));
 
             Graph::FusionOptions fusion_options = options.fusion;
             fusion_options.observed = view_of(shared);
@@ -123,9 +123,10 @@ namespace SushiAI
             Graph::PlanOptions plan_options = options.plan;
             plan_options.pinned = view_of(boundary.exports);
             const std::vector<Graph::ScratchRequest> scratch = Graph::scratch_of(program.graph);
-            program.plan = Graph::MemoryPlan::build(
-                program.graph, plan_options,
-                SushiRuntime::span<const Graph::ScratchRequest>(scratch.data(), scratch.size()));
+            SA_TRY_ASSIGN(program.plan,
+                          Graph::MemoryPlan::build(program.graph, plan_options,
+                                                   SushiRuntime::span<const Graph::ScratchRequest>(
+                                                       scratch.data(), scratch.size())));
 
             return program;
         }

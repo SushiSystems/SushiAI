@@ -35,6 +35,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 using namespace SushiAI;
 using Graph::ValueID;
@@ -80,6 +81,7 @@ TEST_F(Medium_EagerStep, AnEmptyInputIsRefused)
     Eager::Step step = loop.session.begin_step();
     SA_EXPECT_FAILURE(step.input(SushiBLAS::Tensor{}, "batch"), StatusCode::InvalidDescription,
                       "batch", "no element");
+    EXPECT_TRUE(step.graph().has_refusal());
 }
 
 /** @brief Tests that only a leaf can be fed: the result of an operation is refused. */
@@ -90,7 +92,7 @@ TEST_F(Medium_EagerStep, FeedingTheResultOfAnOperationIsRefused)
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
-    const ValueID doubled = step.builder().scale(x, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, step.builder().scale(x, 2.0));
 
     SA_EXPECT_FAILURE(step.feed(doubled, loop.inputs), StatusCode::InvalidDescription,
                       "cannot be fed");
@@ -130,11 +132,56 @@ TEST_F(Medium_EagerStep, ReadScalarRefusesAValueOfManyElements)
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
-    const ValueID positive = step.builder().relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID positive, step.builder().relu(x));
 
     SA_EXPECT_FAILURE(step.read_scalar(positive), StatusCode::InvalidDescription,
                       "holds 48 elements");
     EXPECT_TRUE(step.has_run());
+}
+
+/** @brief Tests that backward() hands back the refusal a failed trace of the loss holds. */
+TEST_F(Medium_EagerStep, BackwardReturnsTheRefusalOfAFailedTrace)
+{
+    Support::Loop loop(*engine, K_RATE);
+    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+
+    Eager::Step step = loop.session.begin_step();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
+    const Graph::Traced refused = step.builder().matmul(x, x);
+
+    SA_EXPECT_FAILURE(step.backward(refused), StatusCode::InvalidDescription, "MATMUL",
+                      "inner extents must agree");
+    EXPECT_FALSE(step.has_run());
+}
+
+/** @brief Tests that read_scalar() hands back the refusal a failed trace holds. */
+TEST_F(Medium_EagerStep, ReadScalarReturnsTheRefusalOfAFailedTrace)
+{
+    Support::Loop loop(*engine, K_RATE);
+    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+
+    Eager::Step step = loop.session.begin_step();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
+
+    SA_EXPECT_FAILURE(step.read_scalar(step.builder().matmul(x, x)),
+                      StatusCode::InvalidDescription, "MATMUL", "inner extents must agree");
+    EXPECT_FALSE(step.has_run());
+}
+
+/** @brief Tests that backward() refuses a graph holding a refusal whose result was dropped. */
+TEST_F(Medium_EagerStep, BackwardRefusesAGraphHoldingARefusal)
+{
+    Support::Loop loop(*engine, K_RATE);
+    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+
+    Eager::Step step = loop.session.begin_step();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            Support::trace_model(step, loop.model, loop.inputs, loop.targets));
+    SA_EXPECT_FAILURE(step.builder().matmul(loss, loss), StatusCode::InvalidDescription,
+                      "MATMUL");
+
+    SA_EXPECT_FAILURE(step.backward(loss), StatusCode::InvalidDescription,
+                      "refused description");
 }
 
 /** @brief Tests that finish() runs the step once and a second call changes nothing. */

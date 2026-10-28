@@ -42,6 +42,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 namespace SushiAI
 {
@@ -90,9 +91,11 @@ namespace SushiAI
                  * @brief Declares an input leaf shaped like @p batch and feeds @p batch into it.
                  * @param batch Copied when the step runs; it must hold its values until then.
                  * @param name A label for diagnostics; must outlive the step.
+                 * @return The leaf, or InvalidDescription for a tensor with no element; a
+                 *         failure marks the step's graph as refused.
                  */
-                [[nodiscard]] Result<Graph::ValueID> input(const SushiBLAS::Tensor& batch,
-                                                           std::string_view name = "input");
+                [[nodiscard]] Graph::Traced input(const SushiBLAS::Tensor& batch,
+                                                  std::string_view name = "input");
 
                 /**
                  * @brief Feeds @p source into @p leaf, a leaf some other call declared.
@@ -103,17 +106,19 @@ namespace SushiAI
 
                 /**
                  * @brief Asks the step to leave @p value readable after it has run.
-                 * @return InvalidDescription for an unknown value, Unsupported once the step ran.
+                 * @return The failure @p value holds, InvalidDescription for an unknown value, or
+                 *         Unsupported once the step ran.
                  */
-                [[nodiscard]] Status keep(Graph::ValueID value);
+                [[nodiscard]] Status keep(const Graph::Traced& value);
 
                 /**
                  * @brief Appends the gradients of @p loss for every trainable state traced.
                  * @param loss A one-element value of this step; kept readable.
-                 * @return InvalidDescription when called twice or after the step ran, or the
-                 *         refusal of the differentiation.
+                 * @return The failure @p loss holds; InvalidDescription when the graph holds a
+                 *         refusal, when called twice or after the step ran; or the refusal of
+                 *         the differentiation.
                  */
-                [[nodiscard]] Status backward(Graph::ValueID loss);
+                [[nodiscard]] Status backward(const Graph::Traced& loss);
 
                 /**
                  * @brief Runs the step with @p update recorded behind every region.
@@ -124,15 +129,17 @@ namespace SushiAI
 
                 /**
                  * @brief Returns the tensor of @p value, running the step first if it has not run.
-                 * @return A tensor valid until the session's next step runs.
+                 * @return A tensor valid until the session's next step runs, or the failure
+                 *         @p value holds.
                  */
-                [[nodiscard]] Result<const SushiBLAS::Tensor*> read(Graph::ValueID value);
+                [[nodiscard]] Result<const SushiBLAS::Tensor*> read(const Graph::Traced& value);
 
                 /**
                  * @brief Returns the one element of @p value as a double.
-                 * @return InvalidDescription for a value of another size or element type.
+                 * @return The failure @p value holds, or InvalidDescription for a value of
+                 *         another size or element type.
                  */
-                [[nodiscard]] Result<double> read_scalar(Graph::ValueID value);
+                [[nodiscard]] Result<double> read_scalar(const Graph::Traced& value);
 
                 /** @brief Runs the step if it has not run. */
                 [[nodiscard]] Status finish();
@@ -156,6 +163,10 @@ namespace SushiAI
 
                 /** @brief Opens a step of @p session with an empty graph. */
                 explicit Step(Session& session);
+
+                /** @brief Declares the input leaf for input() and feeds @p batch into it. */
+                [[nodiscard]] Result<Graph::ValueID> declare_input(const SushiBLAS::Tensor& batch,
+                                                                   std::string_view name);
 
                 /** @brief Returns Unsupported when a node was traced after the step was closed. */
                 [[nodiscard]] Status require_no_late_node() const;

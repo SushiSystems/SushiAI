@@ -30,9 +30,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -79,10 +81,18 @@ namespace
     void finish(Step& step, Eager::ScopeTrace& trace, ValueID loss)
     {
         step.segments = trace.seal();
-        step.gradients = Autograd::differentiate(
+        Result<std::vector<ValueID>> gradients = Autograd::differentiate(
             step.graph, loss,
             SushiRuntime::span<const ValueID>(step.parameters.data(), step.parameters.size()),
             Graph::K_NO_VALUE, &step.provenance);
+        // A refusal fails the calling test and leaves the step unpartitioned.
+        if (!gradients.has_value())
+        {
+            ADD_FAILURE() << "differentiate() refused the step: " << gradients.status().message();
+            return;
+        }
+
+        step.gradients = std::move(gradients).value();
         step.partition = Eager::ScopePartitioner{}.assign(step.graph, as_span(step.segments),
                                                           step.provenance);
     }
@@ -98,7 +108,9 @@ namespace
         const ValueID bias = builder.parameter(Shape{outputs}, "bias");
         parameters.push_back(weight);
         parameters.push_back(bias);
-        return builder.bias_add(builder.matmul(x, weight), bias);
+
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
+        return builder.bias_add(builder.matmul(x, weight), bias).value();
     }
 
     /** @brief Builds two linear layers and a loss with no scope open. */
@@ -110,10 +122,11 @@ namespace
 
         const ValueID x = builder.input(Shape{8, 6}, "x");
         const ValueID targets = builder.input(Shape{8, 3}, "targets");
-        const ValueID hidden = builder.relu(linear(builder, x, 6, 4, step.parameters));
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
+        const ValueID hidden = builder.relu(linear(builder, x, 6, 4, step.parameters)).value();
         const ValueID logits = linear(builder, hidden, 4, 3, step.parameters);
 
-        finish(step, trace, builder.nll_loss(logits, targets));
+        finish(step, trace, builder.nll_loss(logits, targets).value());
         return step;
     }
 
@@ -131,20 +144,23 @@ namespace
         {
             const Eager::Scope scope(trace, "first");
             const ValueID x = builder.input(Shape{8, 6}, "x");
-            hidden = builder.relu(linear(builder, x, 6, 4, step.parameters));
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            hidden = builder.relu(linear(builder, x, 6, 4, step.parameters)).value();
         }
 
         ValueID logits = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "second");
-            logits = builder.tanh(linear(builder, hidden, 4, 3, step.parameters));
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            logits = builder.tanh(linear(builder, hidden, 4, 3, step.parameters)).value();
         }
 
         ValueID loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueID targets = builder.input(Shape{8, 3}, "targets");
-            loss = builder.nll_loss(logits, targets);
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            loss = builder.nll_loss(logits, targets).value();
         }
 
         finish(step, trace, loss);
@@ -173,20 +189,23 @@ namespace
         {
             const Eager::Scope scope(trace, "first");
             const ValueID x = builder.input(Shape{8, 4}, "x");
-            hidden = builder.relu(builder.matmul(x, weight));
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            hidden = builder.relu(builder.matmul(x, weight)).value();
         }
 
         ValueID logits = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "second");
-            logits = builder.tanh(builder.matmul(hidden, weight));
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            logits = builder.tanh(builder.matmul(hidden, weight)).value();
         }
 
         ValueID loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueID targets = builder.input(Shape{8, 4}, "targets");
-            loss = builder.nll_loss(logits, targets);
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            loss = builder.nll_loss(logits, targets).value();
         }
 
         step.parameters.push_back(weight);
@@ -208,14 +227,16 @@ namespace
         for (int pass = 0; pass < 2; ++pass)
         {
             const Eager::Scope scope(trace, "block");
-            hidden = builder.relu(linear(builder, hidden, 4, 4, step.parameters));
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            hidden = builder.relu(linear(builder, hidden, 4, 4, step.parameters)).value();
         }
 
         ValueID loss = Graph::K_NO_VALUE;
         {
             const Eager::Scope scope(trace, "loss");
             const ValueID targets = builder.input(Shape{8, 4}, "targets");
-            loss = builder.nll_loss(hidden, targets);
+            // The extents are fixed here, so a refusal is a defect: value() stops the test.
+            loss = builder.nll_loss(hidden, targets).value();
         }
 
         finish(step, trace, loss);
@@ -243,11 +264,12 @@ namespace
 
         {
             const Eager::Scope scope(trace, "first");
-            two.first = builder.relu(builder.parameter(Shape{4, 3}, "weight"));
+            SA_ASSERT_OK_AND_ASSIGN(two.first,
+                                    builder.relu(builder.parameter(Shape{4, 3}, "weight")));
         }
         {
             const Eager::Scope scope(trace, "second");
-            two.second = builder.relu(two.first);
+            SA_ASSERT_OK_AND_ASSIGN(two.second, builder.relu(two.first));
         }
 
         two.segments = trace.seal();
@@ -477,8 +499,8 @@ TEST(Small_ScopePartitioner, ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrd
     const NodeID leaf = 0;
     ASSERT_TRUE(is_leaf(two.graph, leaf));
 
-    const ValueID later_first = builder.add(two.second, two.first);
-    const ValueID earlier_first = builder.add(two.first, two.second);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID later_first, builder.add(two.second, two.first));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID earlier_first, builder.add(two.first, two.second));
     two.provenance.origin.assign(2, leaf);
 
     const Eager::Partition partition =
@@ -630,8 +652,8 @@ TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
     const GraphBuilder builder(two.graph);
 
     // Origins in forward order give the first backward node key 3 and its reader key 2.
-    const ValueID of_first = builder.relu(two.first);
-    (void)builder.relu(of_first);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID of_first, builder.relu(two.first));
+    SA_EXPECT_OK(builder.relu(of_first));
     two.provenance.origin.push_back(two.graph.value(two.first).producer);
     two.provenance.origin.push_back(two.graph.value(two.second).producer);
 
@@ -648,12 +670,12 @@ TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesThrows)
 
     const ValueID left = builder.parameter(Shape{4, 3}, "left");
     const ValueID right = builder.parameter(Shape{4, 3}, "right");
-    (void)builder.relu(left);
+    SA_EXPECT_OK(builder.relu(left));
 
     Autograd::Provenance provenance;
     provenance.forward_node_count = graph.node_count();
 
-    (void)builder.add(left, right);
+    SA_EXPECT_OK(builder.add(left, right));
     provenance.origin.push_back(graph.value(left).producer);
 
     const std::vector<Eager::Segment> segments = {

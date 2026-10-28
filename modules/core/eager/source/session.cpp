@@ -350,7 +350,7 @@ namespace SushiAI
 
             StepWork work;
             Result<StepPlan> planned = ::SushiAI::Detail::guard_value(
-                ::SushiAI::Detail::SeamPhase::Record, [&]()
+                ::SushiAI::Detail::SeamPhase::Record, [&]() -> Result<StepPlan>
             {
                 StepPlan plan = [&]()
                 {
@@ -365,10 +365,12 @@ namespace SushiAI
                 for (std::size_t region = 0; region < plan.regions.size(); ++region)
                 {
                     work.regions[region].order = plan.regions[region];
-                    if (plan.regions[region].action == RegionAction::Build)
-                        work.regions[region].program =
-                            compile_region(graph, partition, plan.regions[region].key,
-                                           boundaries.regions[region], options_.program);
+                    if (plan.regions[region].action != RegionAction::Build)
+                        continue;
+
+                    SA_TRY_ASSIGN(work.regions[region].program,
+                                  compile_region(graph, partition, plan.regions[region].key,
+                                                 boundaries.regions[region], options_.program));
                 }
                 return plan;
             });

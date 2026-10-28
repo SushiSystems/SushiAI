@@ -118,9 +118,12 @@ namespace
             {
                 work.regions[region].order = plan.regions[region];
                 if (plan.regions[region].action == RegionAction::Build)
-                    work.regions[region].program = Eager::compile_region(
-                        step.graph, step.partition, plan.regions[region].key,
-                        boundaries.regions[region]);
+                {
+                    SA_TRY_ASSIGN(work.regions[region].program,
+                                  Eager::compile_region(step.graph, step.partition,
+                                                        plan.regions[region].key,
+                                                        boundaries.regions[region]));
+                }
             }
 
             work.dropped = plan.dropped;

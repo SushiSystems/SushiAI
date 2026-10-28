@@ -112,9 +112,9 @@ TEST(Small_RegionBoundary, ImportsAreListedOnceInReadOrder)
 
     const ValueID a = builder.input(Shape{4}, "a");
     const ValueID b = builder.input(Shape{4}, "b");
-    const ValueID first = builder.add(b, a);
-    const ValueID second = builder.add(a, b);
-    step.hidden = builder.add(first, second);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID first, builder.add(b, a));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID second, builder.add(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(step.hidden, builder.add(first, second));
     Support::finish_forward(step, trace);
 
     const BoundaryMap map = Support::boundaries_of(step);
@@ -159,9 +159,9 @@ TEST(Small_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
     Eager::ScopeTrace trace(step.graph);
 
     const ValueID x = builder.input(Shape{4}, "x");
-    const ValueID first = builder.relu(x);
-    const ValueID second = builder.tanh(x);
-    step.hidden = builder.accumulate(first, second);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID first, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID second, builder.tanh(x));
+    SA_ASSERT_OK_AND_ASSIGN(step.hidden, builder.accumulate(first, second));
     Support::finish_forward(step, trace);
 
     const BoundaryMap map = Support::boundaries_of(step);
@@ -181,7 +181,7 @@ TEST(Small_RegionBoundary, AnAccumulateIntoALeafIsAnInvalidDescription)
     Eager::ScopeTrace trace(step.graph);
 
     const ValueID x = builder.input(Shape{4}, "x");
-    step.hidden = builder.accumulate(x, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(step.hidden, builder.accumulate(x, builder.relu(x)));
     Support::finish_forward(step, trace);
 
     SA_EXPECT_FAILURE(Support::try_boundaries_of(step), StatusCode::InvalidDescription,

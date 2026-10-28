@@ -265,37 +265,31 @@ namespace SushiAI::Eager::Support
      * @brief Emits one linear layer of @p layer over @p x into @p step.
      * @return The layer's result, before any activation.
      */
-    [[nodiscard]] inline Result<Graph::ValueID> trace_linear(Step& step, const LinearState& layer,
-                                                             Graph::ValueID x)
+    [[nodiscard]] inline Graph::Traced trace_linear(Step& step, const LinearState& layer,
+                                                    const Graph::Traced& x)
     {
         SA_TRY_ASSIGN(const Graph::ValueID weight, step.state(layer.weight_state));
         SA_TRY_ASSIGN(const Graph::ValueID bias, step.state(layer.bias_state));
-        return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
-        {
-            return step.builder().bias_add(step.builder().matmul(x, weight), bias);
-        });
+        return step.builder().bias_add(step.builder().matmul(x, weight), bias);
     }
 
     /** @brief Emits RELU, or TANH when @p is_relu is false, over @p x into @p step. */
-    [[nodiscard]] inline Result<Graph::ValueID> trace_activation(Step& step, Graph::ValueID x,
-                                                                 bool is_relu)
+    [[nodiscard]] inline Graph::Traced trace_activation(Step& step, const Graph::Traced& x,
+                                                        bool is_relu)
     {
-        return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
-        {
-            return is_relu ? step.builder().relu(x) : step.builder().tanh(x);
-        });
+        return is_relu ? step.builder().relu(x) : step.builder().tanh(x);
     }
 
     /**
      * @brief Traces @p model over @p inputs and the NLL loss against @p targets into @p step.
      * @param model At least one layer; every layer but the last ends in RELU.
-     * @return The one-element loss.
+     * @return The one-element loss, or the failure that stopped the trace.
      */
-    [[nodiscard]] inline Result<Graph::ValueID> trace_model(
+    [[nodiscard]] inline Graph::Traced trace_model(
         Step& step, const std::vector<LinearState>& model, const SushiBLAS::Tensor& inputs,
         const SushiBLAS::Tensor& targets, const TraceOptions& options = {})
     {
-        SA_TRY_ASSIGN(Graph::ValueID hidden, step.input(inputs, "inputs"));
+        Graph::Traced hidden = step.input(inputs, "inputs");
 
         for (std::size_t i = 0; i < model.size(); ++i)
         {
@@ -304,21 +298,20 @@ namespace SushiAI::Eager::Support
 
             if (options.scoping == Scoping::None)
             {
-                SA_TRY_ASSIGN(const Graph::ValueID projected, trace_linear(step, model[i], hidden));
-                SA_TRY_ASSIGN(hidden, trace_activation(step, projected, is_relu));
+                hidden = trace_activation(step, trace_linear(step, model[i], hidden), is_relu);
                 continue;
             }
 
             if (options.scoping == Scoping::SplitActivation && i == 0)
             {
-                Graph::ValueID projected = Graph::K_NO_VALUE;
+                Graph::Traced projected;
                 {
                     const Scope scope(step.scopes(), "linear");
-                    SA_TRY_ASSIGN(projected, trace_linear(step, model[i], hidden));
+                    projected = trace_linear(step, model[i], hidden);
                 }
 
                 const Scope scope(step.scopes(), "activation");
-                SA_TRY_ASSIGN(hidden, trace_activation(step, projected, is_relu));
+                hidden = trace_activation(step, projected, is_relu);
                 continue;
             }
 
@@ -329,25 +322,16 @@ namespace SushiAI::Eager::Support
                 name = "rest";
 
             const Scope scope(step.scopes(), name);
-            SA_TRY_ASSIGN(const Graph::ValueID projected, trace_linear(step, model[i], hidden));
-            SA_TRY_ASSIGN(hidden, trace_activation(step, projected, is_relu));
+            hidden = trace_activation(step, trace_linear(step, model[i], hidden), is_relu);
         }
 
         if (options.extra_scope)
         {
             const Scope scope(step.scopes(), "extra");
-            SA_TRY_ASSIGN(hidden, ::SushiAI::Detail::guard_value(
-                                      ::SushiAI::Detail::SeamPhase::Record, [&]()
-            {
-                return step.builder().scale(hidden, 1.0);
-            }));
+            hidden = step.builder().scale(hidden, 1.0);
         }
 
-        SA_TRY_ASSIGN(const Graph::ValueID one_hot, step.input(targets, "targets"));
-        return ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Record, [&]()
-        {
-            return step.builder().nll_loss(hidden, one_hot);
-        });
+        return step.builder().nll_loss(hidden, step.input(targets, "targets"));
     }
 
     /** @brief Owns a session over one model, its update and one batch, for a training loop. */
@@ -380,8 +364,7 @@ namespace SushiAI::Eager::Support
             const TraceOptions& options = {})
         {
             Step step = session.begin_step();
-            SA_TRY_ASSIGN(const Graph::ValueID loss,
-                          trace_model(step, model, inputs, targets, options));
+            const Graph::Traced loss = trace_model(step, model, inputs, targets, options);
             SA_TRY(step.backward(loss));
             SA_TRY(step.apply(update));
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, step.read(loss));
@@ -392,8 +375,7 @@ namespace SushiAI::Eager::Support
         [[nodiscard]] Result<double> step(const TraceOptions& options = {})
         {
             Step step = session.begin_step();
-            SA_TRY_ASSIGN(const Graph::ValueID loss,
-                          trace_model(step, model, inputs, targets, options));
+            const Graph::Traced loss = trace_model(step, model, inputs, targets, options);
             SA_TRY(step.backward(loss));
             SA_TRY(step.apply(update));
             return step.read_scalar(loss);

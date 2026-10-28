@@ -30,8 +30,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
+#include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/autograd/backward.hpp>
@@ -45,6 +47,7 @@
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/segment.hpp>
 #include <SushiAI/eager/storage_id.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -97,16 +100,26 @@ namespace SushiAI::Eager::Support
         const Graph::ValueID bias = builder.parameter(Shape{outputs}, "bias");
         parameters.push_back(weight);
         parameters.push_back(bias);
-        return builder.bias_add(builder.matmul(x, weight), bias);
+
+        // The helper fixes every extent, so a refusal is a defect: value() stops the test.
+        return builder.bias_add(builder.matmul(x, weight), bias).value();
     }
 
     /** @brief Seals @p trace, differentiates @p step at its loss and partitions it. */
     inline void finish(TracedStep& step, ScopeTrace& trace)
     {
         step.segments = trace.seal();
-        step.gradients = Autograd::differentiate(step.graph, step.loss,
-                                                 span_of(step.parameters), Graph::K_NO_VALUE,
-                                                 &step.provenance);
+        Result<std::vector<Graph::ValueID>> gradients =
+            Autograd::differentiate(step.graph, step.loss, span_of(step.parameters),
+                                    Graph::K_NO_VALUE, &step.provenance);
+        // A refusal fails the calling test and leaves the step unpartitioned.
+        if (!gradients.has_value())
+        {
+            ADD_FAILURE() << "differentiate() refused the step: " << gradients.status().message();
+            return;
+        }
+
+        step.gradients = std::move(gradients).value();
         step.partition =
             ScopePartitioner{}.assign(step.graph, span_of(step.segments), step.provenance);
     }
@@ -135,26 +148,29 @@ namespace SushiAI::Eager::Support
         {
             const Scope scope(trace, "encoder");
             const Graph::ValueID x = builder.input(Shape{8, 6}, "x");
-            step.hidden = builder.relu(linear(builder, x, 6, 4, step.parameters));
+            // The helper fixes every extent, so a refusal is a defect: value() stops the test.
+            step.hidden = builder.relu(linear(builder, x, 6, 4, step.parameters)).value();
         }
 
         {
             const Scope scope(trace, "head");
             const Graph::ValueID projected = linear(builder, step.hidden, 4, 3, step.parameters);
-            step.logits = head == Head::Tanh ? builder.tanh(projected) : builder.relu(projected);
+            const Graph::Traced activated =
+                head == Head::Tanh ? builder.tanh(projected) : builder.relu(projected);
+            step.logits = activated.value();
         }
 
         Graph::ValueID scored = step.logits;
         if (extra)
         {
             const Scope scope(trace, "extra");
-            scored = builder.scale(step.logits, 2.0);
+            scored = builder.scale(step.logits, 2.0).value();
         }
 
         {
             const Scope scope(trace, "loss");
             const Graph::ValueID targets = builder.input(Shape{8, 3}, "targets");
-            step.loss = builder.nll_loss(scored, targets);
+            step.loss = builder.nll_loss(scored, targets).value();
         }
 
         finish(step, trace);
@@ -177,14 +193,15 @@ namespace SushiAI::Eager::Support
             const Scope scope(trace, "linear");
             const Graph::ValueID x = builder.input(Shape{8, 6}, "x");
             projected = linear(builder, x, 6, 4, step.parameters);
+            // The helper fixes every extent, so a refusal is a defect: value() stops the test.
             if (!split)
-                step.hidden = builder.relu(projected);
+                step.hidden = builder.relu(projected).value();
         }
 
         if (split)
         {
             const Scope scope(trace, "activation");
-            step.hidden = builder.relu(projected);
+            step.hidden = builder.relu(projected).value();
         }
 
         finish_forward(step, trace);

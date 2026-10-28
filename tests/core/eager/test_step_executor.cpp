@@ -139,8 +139,8 @@ namespace
             Support::TraceOptions options;
             options.scoping = Support::Scoping::PerLayer;
             Eager::Step step = session.begin_step();
-            SA_TRY_ASSIGN(const ValueID loss,
-                          Support::trace_model(step, model, inputs, targets, options));
+            const Graph::Traced loss =
+                Support::trace_model(step, model, inputs, targets, options);
             SA_TRY(step.backward(loss));
             return apply ? step.apply(update) : step.finish();
         }

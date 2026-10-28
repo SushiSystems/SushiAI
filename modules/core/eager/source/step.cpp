@@ -78,7 +78,17 @@ namespace SushiAI
             });
         }
 
-        Result<Graph::ValueID> Step::input(const SushiBLAS::Tensor& batch, std::string_view name)
+        Graph::Traced Step::input(const SushiBLAS::Tensor& batch, std::string_view name)
+        {
+            const Result<Graph::ValueID> leaf = builder_.observe(declare_input(batch, name));
+            if (!leaf.has_value())
+                return leaf.status();
+
+            return leaf.value();
+        }
+
+        Result<Graph::ValueID> Step::declare_input(const SushiBLAS::Tensor& batch,
+                                                   std::string_view name)
         {
             SA_FAIL_IF(!batch.storage || batch.num_elements == 0, StatusCode::InvalidDescription,
                        "The tensor fed as '{}' holds no element", name);
@@ -118,27 +128,34 @@ namespace SushiAI
             });
         }
 
-        Status Step::keep(Graph::ValueID value)
+        Status Step::keep(const Graph::Traced& value)
         {
+            SA_TRY(value);
+            const Graph::ValueID id = value.value();
             SA_FAIL_IF(stage_ == Stage::Ran, StatusCode::Unsupported,
                        "The step has run; a value is kept before the step runs");
-            SA_FAIL_IF(value >= trace_.graph.value_count(), StatusCode::InvalidDescription,
-                       "Value {} does not exist in this step, which holds {} values", value,
+            SA_FAIL_IF(id >= trace_.graph.value_count(), StatusCode::InvalidDescription,
+                       "Value {} does not exist in this step, which holds {} values", id,
                        trace_.graph.value_count());
 
             return ::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                trace_.observed.push_back(value);
+                trace_.observed.push_back(id);
                 return Status();
             });
         }
 
-        Status Step::backward(Graph::ValueID loss)
+        Status Step::backward(const Graph::Traced& loss)
         {
+            SA_TRY(loss);
+            SA_FAIL_IF(trace_.graph.has_refusal(), StatusCode::InvalidDescription,
+                       "The step's graph holds a refused description; backward() differentiates "
+                       "a graph traced without a refusal");
             SA_FAIL_IF(stage_ != Stage::Tracing, StatusCode::InvalidDescription,
                        "backward() is called once, before the step runs");
             SA_TRY(keep(loss));
 
+            const Graph::ValueID loss_id = loss.value();
             Graph::Graph& graph = trace_.graph;
             std::vector<Graph::ValueID> wrt;
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Record, [&]()
@@ -157,9 +174,11 @@ namespace SushiAI
                 // The segments cover the forward nodes only, so they are cut before any other.
                 trace_.segments = scopes_.seal();
 
-                const std::vector<Graph::ValueID> gradients = Autograd::differentiate(
-                    graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()),
-                    Graph::K_NO_VALUE, &trace_.provenance);
+                SA_TRY_ASSIGN(const std::vector<Graph::ValueID> gradients,
+                              Autograd::differentiate(
+                                  graph, loss_id,
+                                  SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()),
+                                  Graph::K_NO_VALUE, &trace_.provenance));
                 for (std::size_t i = 0; i < gradients.size(); ++i)
                     trace_.gradients[i].value = gradients[i];
 
@@ -214,8 +233,9 @@ namespace SushiAI
             return Status();
         }
 
-        Result<const SushiBLAS::Tensor*> Step::read(Graph::ValueID value)
+        Result<const SushiBLAS::Tensor*> Step::read(const Graph::Traced& value)
         {
+            SA_TRY(value);
             if (stage_ != Stage::Ran)
             {
                 SA_TRY(keep(value));
@@ -223,19 +243,20 @@ namespace SushiAI
             }
 
             SA_TRY(require_no_late_node());
-            return session_->tensor_of(value);
+            return session_->tensor_of(value.value());
         }
 
-        Result<double> Step::read_scalar(Graph::ValueID value)
+        Result<double> Step::read_scalar(const Graph::Traced& value)
         {
             SA_TRY_ASSIGN(const SushiBLAS::Tensor* const tensor, read(value));
+            const Graph::ValueID id = value.value();
             SA_FAIL_IF(tensor->num_elements != 1, StatusCode::InvalidDescription,
-                       "Value {} holds {} elements; read_scalar() reads a value of one", value,
+                       "Value {} holds {} elements; read_scalar() reads a value of one", id,
                        tensor->num_elements);
 
             SA_FAIL_IF(tensor->dtype != DType::Float32 && tensor->dtype != DType::Float64,
                        StatusCode::InvalidDescription,
-                       "Value {} is {}; read_scalar() reads float32 and float64", value,
+                       "Value {} is {}; read_scalar() reads float32 and float64", id,
                        dtype_name(tensor->dtype));
 
             return tensor->dtype == DType::Float32

@@ -51,3 +51,14 @@ boundary the design names.
 ## AKeyThatNamesNoRegionIsFatal
 
 `K_NO_REGION` is the key of the leaves and compiles to nothing.
+
+## AZeroAlignmentComesBackAsAStatus
+
+A `ProgramOptions::plan` with an alignment of zero reaches the memory planner, and
+`compile_region` returns its `InvalidDescription`, "alignment must be positive", instead of
+stopping the process.
+
+## ANonFloatCastComesBackAsAStatus
+
+A precision policy that asks every operation for int32 reaches the cast pass, and
+`compile_region` returns its `InvalidDescription`, "real floating types".

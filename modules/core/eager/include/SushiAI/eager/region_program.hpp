@@ -30,6 +30,7 @@
 
 #include <vector>
 
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_boundary.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
@@ -86,14 +87,15 @@ namespace SushiAI
         /**
          * @brief Cuts region @p key out of @p graph and runs the passes over it.
          * @param boundary The entry find_boundaries() returned for @p key.
-         * @return The program; no value in exports is folded away or packed into an arena.
-         * @throws Error when a pass refuses the region.
+         * @return The program, with no export folded or packed, or a pass's refusal.
+         * @pre @p partition fits @p graph and @p key names a region; else the process stops.
          * @see modules/core/eager/README.md
          */
-        [[nodiscard]] RegionProgram compile_region(const Graph::Graph& graph,
-                                                   const Partition& partition, RegionKey key,
-                                                   const RegionBoundary& boundary,
-                                                   const ProgramOptions& options = {});
+        [[nodiscard]] Result<RegionProgram> compile_region(const Graph::Graph& graph,
+                                                           const Partition& partition,
+                                                           RegionKey key,
+                                                           const RegionBoundary& boundary,
+                                                           const ProgramOptions& options = {});
 
     } // namespace Eager
 } // namespace SushiAI

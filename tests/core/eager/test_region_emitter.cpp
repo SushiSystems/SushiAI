@@ -93,9 +93,10 @@ namespace
         made->step = Support::linear_then_relu(false);
 
         const Eager::BoundaryMap boundaries = Support::boundaries_of(made->step);
-        made->program = Eager::compile_region(made->step.graph, made->step.partition,
-                                              made->step.partition.regions[0].key,
-                                              boundaries.regions[0]);
+        SA_TRY_ASSIGN(made->program,
+                      Eager::compile_region(made->step.graph, made->step.partition,
+                                            made->step.partition.regions[0].key,
+                                            boundaries.regions[0]));
         SA_TRY(made->pool.adopt(made->program.plan));
 
         std::vector<ValueID> shared = made->program.imports;

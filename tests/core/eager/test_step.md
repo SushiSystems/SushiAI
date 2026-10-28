@@ -16,8 +16,8 @@ Asking a step for the same state twice returns one leaf, and the graph binds tha
 
 ## AnEmptyInputIsRefused
 
-`input()` with a default tensor fails with `InvalidDescription`, naming the label "batch" and
-"no element".
+`input()` with a default tensor returns a failed `Graph::Traced` with `InvalidDescription`,
+naming the label "batch" and "no element", and marks the step's graph as refused.
 
 ## FeedingTheResultOfAnOperationIsRefused
 
@@ -36,6 +36,21 @@ A second `backward()` on the same loss fails with `InvalidDescription` and "call
 
 `read_scalar()` of a K_RELU over the [8, 6] input runs the step, then fails with
 `InvalidDescription` and "holds 48 elements". `has_run()` is true afterwards.
+
+## BackwardReturnsTheRefusalOfAFailedTrace
+
+`backward()` of a K_MATMUL of the [8, 6] input with itself, which the builder refused, fails
+with `InvalidDescription`, "MATMUL" and "inner extents must agree". The step has not run.
+
+## ReadScalarReturnsTheRefusalOfAFailedTrace
+
+`read_scalar()` of the same refused K_MATMUL fails with the same refusal and does not run the
+step.
+
+## BackwardRefusesAGraphHoldingARefusal
+
+After a refused K_MATMUL whose result the test drops, `backward()` of the valid loss fails with
+`InvalidDescription` and "refused description".
 
 ## FinishRunsTheStepOnce
 
