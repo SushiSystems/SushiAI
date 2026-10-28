@@ -96,15 +96,17 @@ them with `monkeypatch`. `build` resolves packages, configures and compiles in o
 
 ## Failure contract
 
-### RW-11 Remove the old error surface
+### RW-11 Confirm the error contract in a build
 - State: open
-- Done when: `SushiAI::Error`, `SA_THROW_IF`, `throw_expectations.hpp`, `NN::Detail::bridge_throwing`
-  and its test are deleted, and every public declaration carries `noexcept`
+- Done when: one `sa build` and the test run compile and pass the tree after the removal of
+  `SushiAI::Error` and the `noexcept` pass, and `test_noexcept_surface.cpp` has a counterpart for
+  the vision and language libraries
 - Source: `docs/design/PROGRAMME/README.md`
 
-No `SA_THROW_IF` site throws any more and `tools/contract/check_contract.py` counts no site and no
-bridge call. What is left is the removal itself: each deletion edits a `CMakeLists.txt` list of
-sources or dependencies.
+`SushiAI::Error`, `SA_THROW_IF`, `throw_expectations.hpp` and `NN::Detail::bridge_throwing` are
+deleted, and the public functions of the library modules carry `noexcept`. Nothing was built or
+run. The vision and language counterparts of the test need a list entry in each umbrella test's
+`CMakeLists.txt`.
 
 ### RW-12 Observe that a dropped recording releases storage and scratch
 - State: open

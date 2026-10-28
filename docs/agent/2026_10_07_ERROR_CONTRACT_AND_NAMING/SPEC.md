@@ -1,6 +1,6 @@
 # Error contract and naming wave
 
-**Status:** Open — the naming half is done; the status contract is RW-11.
+**Status:** Open — written and awaiting the owner's single build; RW-11 records what the build confirms.
 
 ## Decided
 
