@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-29 — ci: Followed the first SushiBLAS tag (RW-45, `014d7ed9`).
 - 2026-10-29 — deps: Pinned SushiRuntime v0.5.0 and SushiBLAS v0.1.0 in the dependency fragment and in the CI refs, which followed `main` (`sushistack.deps.toml`, `ci.yml`).
 - 2026-10-29 — cli: Asked for sushicore 0.10.2 and registered its `backlog` and `design` command groups beside `docs` (`cli.py`).
 - 2026-10-28 — detect: Fixed the anchor, level-row, top-k and match functions stopping the process on a model array of the wrong size; they return `InvalidDescription` (`anchors.cpp`).
