@@ -66,7 +66,8 @@ survived.
 
 ## CastInsertionReturnsMixedOperandsAndLeavesTheGraphAlone
 
-`make_mixed_operands` adds an NHWC input to its own NCHW conversion, which no emitter refuses.
+`make_mixed_operands` adds an NHWC input of shape [1, 2, 2, 2] to its own NCHW conversion. The
+conversion keeps that shape, so ADD accepts the pair and no emitter refuses the two layouts.
 `insert_casts()` proves its input before it rewrites anything, so it returns
 `InvalidDescription` naming the ADD and the node count is unchanged.
 

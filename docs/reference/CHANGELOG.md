@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-28 — detect: Fixed the anchor, level-row, top-k and match functions stopping the process on a model array of the wrong size; they return `InvalidDescription` (`anchors.cpp`).
+- 2026-10-28 — codecs: Fixed a raw image whose header is cut short failing without the name of `decode_image`; the reader's status is annotated with it (`decode_image.cpp`).
+- 2026-10-28 — tests: Corrected four tests that disagreed with the error contract: the mixed-layout graph, the refused MUL backward rule, the nested graph of two outputs and the empty raw-image view (`test_backward.cpp`).
 - 2026-10-28 — tests: Added `test_noexcept_surface.cpp` to the vision and language umbrella tests, 418 and 110 `static_assert`s over the `noexcept` public functions of the two tiers (`test_vision/`, `test_language/`).
 - 2026-10-28 — tests: Moved the vision and language umbrella tests into `test_vision/` and `test_language/` as `test_umbrella_reach.cpp`, so the mirror checker accepts the second file.
 - 2026-10-28 — build: Fixed device units failing to compile by splitting each `SHELL:` group of the device options into its arguments, which a source's `COMPILE_OPTIONS` does not do (`SushiAISyclTarget.cmake`).

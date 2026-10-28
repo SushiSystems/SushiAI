@@ -201,12 +201,13 @@ namespace SushiAI
             SA_EXPECT_OK(c.graph.finalise());
         }
 
-        /** @brief Builds x + convert(x, NCHW), a node whose operands sit in two layouts. */
+        /** @brief Builds x + convert(x, NCHW) over a shape the convert keeps, in two layouts. */
         Graph::Graph make_mixed_operands()
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
-            const ValueID x = builder.input({2, 3, 4, 5}, "x");
+            // Every extent but N is 2, so the convert keeps the shape and ADD accepts it.
+            const ValueID x = builder.input({1, 2, 2, 2}, "x");
             // No emitter refuses two operand layouts; the proof is what catches them.
             EXPECT_TRUE(builder.add(x, builder.layout_convert(x, TensorLayout::NCHW)).has_value());
             return graph;

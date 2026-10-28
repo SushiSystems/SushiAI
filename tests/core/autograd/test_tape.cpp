@@ -41,6 +41,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::Shape;
+using SushiAI::StatusCode;
 using SushiAI::Autograd::GradientTape;
 using SushiAI::Graph::GraphBuilder;
 using SushiAI::Graph::K_NO_VALUE;
@@ -99,7 +100,7 @@ TEST(Small_GradientTape, AnOperandThatNeedsNoGradientReceivesNoContribution)
     EXPECT_FALSE(graph.has_refusal()) << "a contribution the builder accepted marked the graph";
 }
 
-/** @brief Tests that a contribution the builder refuses adds nothing and marks the graph. */
+/** @brief Tests that a refused contribution adds nothing, marks the graph and is returned. */
 TEST(Small_GradientTape, ARefusedContributionAddsNothingAndMarksTheGraph)
 {
     Graph::Graph graph;
@@ -116,12 +117,12 @@ TEST(Small_GradientTape, ARefusedContributionAddsNothingAndMarksTheGraph)
     ASSERT_FALSE(graph.has_refusal());
 
     const std::vector<ValueID> wrt{weight};
-    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
-                            SushiAI::Autograd::differentiate(
-        graph, product, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
+    SA_EXPECT_FAILURE(SushiAI::Autograd::differentiate(
+                          graph, product,
+                          SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())),
+                      StatusCode::InvalidDescription, "the backward rule of sushiai.mul",
+                      "MUL needs equally shaped operands");
 
-    ASSERT_EQ(gradients.size(), 1u);
-    EXPECT_EQ(gradients[0], K_NO_VALUE);
     EXPECT_TRUE(appended_of(graph, forward_nodes, Ops::K_MUL.id).empty());
     EXPECT_TRUE(graph.has_refusal());
 }

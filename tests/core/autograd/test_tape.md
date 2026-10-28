@@ -31,5 +31,6 @@ afterwards.
 
 `product` is a K_MUL of the [1] parameter `weight` and the [1, 1] input `input`, added with
 `Graph::add_node` so that no emitter checks it. The rule's `builder.mul(dy, input)` is refused,
-because dy is [1]. The gradient of `weight` comes back as `K_NO_VALUE`, no K_MUL is appended,
-and `graph.has_refusal()` is true, so `CompiledStep::compile` refuses the graph.
+because dy is [1]. `differentiate` returns that refusal as `InvalidDescription`, prefixed with
+the backward rule of `sushiai.mul`, no K_MUL is appended, and `graph.has_refusal()` is true, so
+`CompiledStep::compile` refuses the graph.
