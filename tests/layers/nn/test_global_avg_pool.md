@@ -45,27 +45,27 @@ the traced shape is the batch extent followed by its one extent.
 
 ## OutputShapeRejectsAFeatureVector
 
-`output_shape([16])` throws.
+`output_shape([16])` returns InvalidDescription.
 
 ## OutputShapeRejectsARankTwoShape
 
-`output_shape([7, 16])` throws.
+`output_shape([7, 16])` returns InvalidDescription.
 
 ## OutputShapeRejectsAShapeWithTheBatchAxis
 
-`output_shape([4, 7, 5, 16])` throws.
+`output_shape([4, 7, 5, 16])` returns InvalidDescription.
 
 ## ForwardRejectsAFeatureMatrix
 
-`forward()` throws on a [4, 16] input.
+`forward()` returns InvalidDescription on a [4, 16] input.
 
 ## ForwardRejectsAnInputWithoutTheBatchAxis
 
-`forward()` throws on a [7, 5, 16] input.
+`forward()` returns InvalidDescription on a [7, 5, 16] input.
 
 ## ForwardRejectsAnNCHWInput
 
-A [1, 4, 4, 3] input is converted to NCHW, and `forward()` throws on the converted value.
+A [1, 4, 4, 3] input is converted to NCHW, and `forward()` returns InvalidDescription for the converted value.
 
 ## TheParameterWalkVisitsNothing
 

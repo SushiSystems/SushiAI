@@ -28,6 +28,7 @@
 #pragma once
 
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -47,18 +48,21 @@ namespace SushiAI
             }
 
             /**
-             * @brief Traces the spatial mean of @p x.
-             * @param x An NHWC [N, H, W, C] value.
-             * @return The [N, C] result's id.
+             * @brief Traces the spatial mean of @p input.
+             * @param input An NHWC [N, H, W, C] value.
+             * @return The [N, C] result; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, C] shape.
-             * @return The per-sample [C] shape.
+             * @return The per-sample [C] shape, or InvalidDescription for an @p input
+             *         that is not rank 3.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<GlobalAvgPool>, "GlobalAvgPool must satisfy the Module contract");

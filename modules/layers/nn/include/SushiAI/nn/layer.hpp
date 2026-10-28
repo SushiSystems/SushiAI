@@ -53,11 +53,12 @@ namespace SushiAI
                 /**
                  * @brief Traces the layer, declaring its parameters on first call.
                  * @param builder Where the nodes go.
-                 * @param x The input value.
-                 * @return The result's id.
+                 * @param input The input value.
+                 * @return The result, the failure of @p input, or InvalidDescription for an
+                 *         input the layer refuses.
                  */
-                virtual Graph::ValueID forward(const Graph::GraphBuilder& builder,
-                                               Graph::ValueID x) = 0;
+                virtual Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                              const Graph::Traced& input) = 0;
 
                 /**
                  * @brief Applies @p visitor to every declared parameter this layer owns.
@@ -168,8 +169,8 @@ namespace SushiAI
                 static_assert(Module<L>,
                               "LayerAdapter's argument must satisfy the Module contract: "
                               "a static fields() listing its parameters, and a "
-                              "forward(const Graph::GraphBuilder&, Graph::ValueID) returning "
-                              "exactly Graph::ValueID.");
+                              "forward(const Graph::GraphBuilder&, const Graph::Traced&) "
+                              "returning exactly Graph::Traced.");
 
                 static_assert(!Detail::HoldsBufferField<L>::value,
                               "LayerAdapter's argument lists a buffer in its fields() tree. "
@@ -192,10 +193,10 @@ namespace SushiAI
                 LayerAdapter(L layer, int64_t output_features)
                     : LayerAdapter(std::move(layer), Shape{output_features}) {}
 
-                Graph::ValueID forward(const Graph::GraphBuilder& builder,
-                                       Graph::ValueID x) override
+                Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                      const Graph::Traced& input) override
                 {
-                    return layer_.forward(builder, x);
+                    return layer_.forward(builder, input);
                 }
 
                 void walk_parameters(std::string_view prefix,

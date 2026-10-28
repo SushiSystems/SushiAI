@@ -38,6 +38,7 @@
 #include <utility>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -145,16 +146,16 @@ namespace SushiAI
                  * @param role Selects the fill: fan-scaled for a weight, zero for a bias, one
                  *             for a scale.
                  * @param debug_name Name that must outlive the graph.
-                 * @return This parameter's leaf in builder.graph().
-                 * @pre A parameter declared before is given the same shape and dtype.
+                 * @return This parameter's leaf in builder.graph(), or InvalidDescription,
+                 *         graph marked, when an earlier declare gave another shape or dtype.
                  */
-                Graph::ValueID declare(const Graph::GraphBuilder& builder,
-                                       Shape shape,
-                                       ParameterRole role,
-                                       int64_t fan_in,
-                                       int64_t fan_out,
-                                       std::string_view debug_name,
-                                       DType dtype = DType::Float32)
+                [[nodiscard]] Result<Graph::ValueID> declare(const Graph::GraphBuilder& builder,
+                                                             Shape shape,
+                                                             ParameterRole role,
+                                                             int64_t fan_in,
+                                                             int64_t fan_out,
+                                                             std::string_view debug_name,
+                                                             DType dtype = DType::Float32)
                 {
                     return declare_described(builder, shape, Detail::init_of(role), role,
                                              fan_in, fan_out, debug_name, dtype);
@@ -165,17 +166,17 @@ namespace SushiAI
                  * @param role What the parameter is for; role() reports it whatever @p init is.
                  * @param init The fill init() reports.
                  * @param debug_name Name that must outlive the graph.
-                 * @return This parameter's leaf in builder.graph().
-                 * @pre A parameter declared before is given the same shape and dtype.
+                 * @return This parameter's leaf in builder.graph(), or InvalidDescription,
+                 *         graph marked, when an earlier declare gave another shape or dtype.
                  */
-                Graph::ValueID declare(const Graph::GraphBuilder& builder,
-                                       Shape shape,
-                                       ParameterRole role,
-                                       ParameterInit init,
-                                       int64_t fan_in,
-                                       int64_t fan_out,
-                                       std::string_view debug_name,
-                                       DType dtype = DType::Float32)
+                [[nodiscard]] Result<Graph::ValueID> declare(const Graph::GraphBuilder& builder,
+                                                             Shape shape,
+                                                             ParameterRole role,
+                                                             ParameterInit init,
+                                                             int64_t fan_in,
+                                                             int64_t fan_out,
+                                                             std::string_view debug_name,
+                                                             DType dtype = DType::Float32)
                 {
                     return declare_described(builder, shape, init, role, fan_in, fan_out,
                                              debug_name, dtype);
@@ -213,22 +214,22 @@ namespace SushiAI
 
             private:
                 /** @brief Keeps the first description and declares one leaf per graph. */
-                Graph::ValueID declare_described(const Graph::GraphBuilder& builder,
-                                                 Shape shape,
-                                                 ParameterInit init,
-                                                 ParameterRole role,
-                                                 int64_t fan_in,
-                                                 int64_t fan_out,
-                                                 std::string_view debug_name,
-                                                 DType dtype)
+                Result<Graph::ValueID> declare_described(const Graph::GraphBuilder& builder,
+                                                         Shape shape,
+                                                         ParameterInit init,
+                                                         ParameterRole role,
+                                                         int64_t fan_in,
+                                                         int64_t fan_out,
+                                                         std::string_view debug_name,
+                                                         DType dtype)
                 {
                     if (described_)
                     {
-                        SA_THROW_IF(shape != shape_ || dtype != dtype_,
-                                    "Parameter '{}' was declared as {} {} and is now traced as "
-                                    "{} {}",
-                                    debug_name, shape_.to_string(), dtype_name(dtype_),
-                                    shape.to_string(), dtype_name(dtype));
+                        SA_REFUSE_IF(builder, shape != shape_ || dtype != dtype_,
+                                     "Parameter '{}' was declared as {} {} and is now traced as "
+                                     "{} {}",
+                                     debug_name, shape_.to_string(), dtype_name(dtype_),
+                                     shape.to_string(), dtype_name(dtype));
                     }
                     else
                     {
@@ -416,8 +417,8 @@ namespace SushiAI
                 std::enable_if_t<std::is_same<
                     decltype(std::declval<T&>().forward(
                         std::declval<const Graph::GraphBuilder&>(),
-                        std::declval<Graph::ValueID>())),
-                    Graph::ValueID>::value>>>
+                        std::declval<const Graph::Traced&>())),
+                    Graph::Traced>::value>>>
                 : std::true_type {};
 
             /**
@@ -621,6 +622,9 @@ namespace SushiAI
         /**
          * @var Module
          * @brief Concept variable checking whether T defines fields() and forward().
+         *
+         * The forward is Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced&),
+         * const or not, returning exactly Graph::Traced.
          * @tparam T Candidate type checked against the module contract.
          */
         template<typename T>

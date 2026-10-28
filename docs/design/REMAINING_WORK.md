@@ -48,8 +48,8 @@ labels, as ruled on 2026-10-20. A0 to A4 are built; A5 to A7 need two and five m
   has no single output
 - Where: `modules/layers/nn/source/batch_norm2d.cpp`, `modules/layers/nn/source/model_graph.cpp`
 
-Today both `output_shape` functions return a shape unchecked, and the misfit is refused only when
-the model is traced.
+`ModelGraph::output_shape` refuses a graph without exactly one model output. Neither function
+checks its input shape yet, so an input misfit is refused only when the model is traced.
 
 ### RW-5 Design value-dependent control flow in autograd
 - State: open

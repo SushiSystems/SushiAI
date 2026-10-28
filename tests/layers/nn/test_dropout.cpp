@@ -193,7 +193,7 @@ TEST(Small_Dropout, OutputShapeIsTheInputShape)
 {
     const Dropout layer{};
 
-    EXPECT_EQ(layer.output_shape(Shape{6, 4}), (Shape{6, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{6, 4}).value(), (Shape{6, 4}));
 }
 
 /** @brief Tests that the factory reads "rate" and builds a node that keeps its input shape. */

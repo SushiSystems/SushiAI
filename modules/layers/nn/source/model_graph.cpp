@@ -301,10 +301,12 @@ namespace SushiAI
             return trace.value_or_fail(trace_single_incremental(*this, trace, input), input);
         }
 
-        Shape ModelGraph::output_shape(const Shape&) const
+        Result<Shape> ModelGraph::output_shape(const Shape&) const
         {
-            if (outputs_.size() != 1)
-                return Shape{};
+            SA_FAIL_IF(outputs_.size() != 1, StatusCode::InvalidDescription,
+                       "a model graph has a single output shape only with exactly one model "
+                       "output; this one publishes {}",
+                       outputs_.size());
 
             return shape_of(outputs_.front().second);
         }

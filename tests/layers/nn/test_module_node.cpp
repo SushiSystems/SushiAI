@@ -64,7 +64,7 @@ namespace
         /** @brief Traces a ReLU of @p x. */
         Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
-            return trace.builder().relu(x);
+            return trace.value_or_fail(trace.builder().relu(x), x);
         }
 
         /** @brief Traces a GELU of @p x and keeps @p seen. */
@@ -72,11 +72,11 @@ namespace
                                            const Shape& seen)
         {
             sample = seen;
-            return trace.builder().gelu(x);
+            return trace.value_or_fail(trace.builder().gelu(x), x);
         }
 
         /** @brief Returns @p input, which the probe keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }

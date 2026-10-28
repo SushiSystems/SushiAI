@@ -22,8 +22,8 @@ compares every per-sample axis, so it serves a feature vector and an image alike
 ## is_slope_rejected
 
 `is_slope_rejected` traces a layer of the given slope over a [2, 4] input and reports whether
-the trace throws `Error`. It uses `Test::capture_error` from `modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp`,
-so an exception of another type does not count as a rejection.
+`forward` returned `InvalidDescription`, so a failure of another code does not count as a
+rejection.
 
 ## TheDefaultSlopeIsOneHundredth
 
@@ -85,17 +85,17 @@ lies inside the range and still differs from its bound after narrowing to float3
 
 ## OutputShapeRejectsASlopeOutsideTheOpenRange
 
-For the five slopes the forward cases reject, `output_shape([4])` throws with a message
-containing "LeakyReLU" and "slope". A factory calls `output_shape()` and not `forward()`, so
-this is the check that refuses a slope when a model file is read.
+For the five slopes the forward cases reject, `output_shape([4])` fails with InvalidDescription and
+a message containing "LeakyReLU" and "slope". A factory calls `output_shape()` and not `forward()`,
+so this is the check that refuses a slope when a model file is read.
 
 ## ForwardNamesTheLayerAndTheSlopeItRefuses
 
-`forward()` with slope 1.5 throws with a message containing "LeakyReLU" and "slope".
+`forward()` with slope 1.5 returns InvalidDescription with a message containing "LeakyReLU" and "slope".
 
 ## ARejectedSlopeEmitsNothing
 
-After `forward()` throws for a slope of 1, the node count and the value count are unchanged.
+After `forward()` returns InvalidDescription for a slope of 1, the node count and the value count are unchanged.
 
 ## TheParameterWalkVisitsNothing
 

@@ -34,6 +34,7 @@
 #include <string_view>
 #include <tuple>
 #include <vector>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -72,12 +73,13 @@ namespace SushiAI
                 /**
                  * @brief Traces every layer in order.
                  * @param builder Where the nodes go.
-                 * @param x The input value.
-                 * @return The last layer's result.
-                 * @throws Error If the stack is empty, which would otherwise
-                 *         make the model the identity function.
+                 * @param input The input value.
+                 * @return The last layer's result, the failure of @p input or of the first layer
+                 *         that fails, or InvalidDescription when the stack is empty, which would
+                 *         otherwise make the model the identity function.
                  */
-                Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
+                Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                      const Graph::Traced& input);
 
                 /**
                  * @brief Applies visitor to every declared parameter with index prefix.
@@ -109,9 +111,10 @@ namespace SushiAI
                  * @brief Returns output_shape(), in the form a layer type gives it.
                  * @param input The shape the stack was built over; the layers check it when
                  *              they are traced, and the stack does not hold it.
+                 * @return output_shape(); a stack that exists cannot fail.
                  * @pre The stack holds at least one layer.
                  */
-                Shape output_shape(const Shape& input) const;
+                Result<Shape> output_shape(const Shape& input) const;
 
                 /**
                  * @brief The layer at @p index, for a test that wants to inspect it.

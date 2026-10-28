@@ -28,7 +28,7 @@
 #include <SushiAI/nn/unflatten.hpp>
 
 #include <cstdint>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -36,12 +36,15 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Throws unless the height, width and channels of @p layer are all positive. */
-            void require_positive_extents(const Unflatten& layer)
+            /** @brief Returns InvalidDescription unless every extent of @p layer is positive. */
+            [[nodiscard]] Status check_extents(const Unflatten& layer) noexcept
             {
-                SA_THROW_IF(layer.height <= 0 || layer.width <= 0 || layer.channels <= 0,
-                            "Unflatten needs positive extents; got height={} width={} channels={}",
-                            layer.height, layer.width, layer.channels);
+                SA_FAIL_IF(layer.height <= 0 || layer.width <= 0 || layer.channels <= 0,
+                           StatusCode::InvalidDescription,
+                           "Unflatten needs positive extents; got height={} width={} channels={}",
+                           layer.height, layer.width, layer.channels);
+
+                return Status();
             }
 
             /**
@@ -55,36 +58,37 @@ namespace SushiAI
             }
         } // namespace
 
-        Graph::ValueID Unflatten::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueID x) const
+        Graph::Traced Unflatten::forward(const Graph::GraphBuilder& builder,
+                                         const Graph::Traced& input) const
         {
-            require_positive_extents(*this);
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+            SA_TRY(builder.observe(check_extents(*this)));
             const int64_t elements = count_sample_elements(*this);
 
-            const Graph::Value& input = builder.graph().value(x);
-            SA_THROW_IF(input.shape.rank() != 2,
-                        "Unflatten needs a rank-2 [N, {}] input; got {}",
-                        elements, input.shape.to_string());
-            SA_THROW_IF(input.shape[1] != elements,
-                        "Unflatten({}, {}, {}) needs an input whose inner extent is {}; got {}",
-                        height, width, channels, elements, input.shape.to_string());
-            SA_THROW_IF(input.layout != Graph::TensorLayout::NHWC,
-                        "Unflatten needs an NHWC input; got {} tagged NCHW. Cross with "
-                        "layout_convert first (CV-3).",
-                        input.shape.to_string());
+            const Graph::Value& value = builder.graph().value(x);
+            SA_REFUSE_IF(builder, value.shape.rank() != 2,
+                         "Unflatten needs a rank-2 [N, {}] input; got {}",
+                         elements, value.shape.to_string());
+            SA_REFUSE_IF(builder, value.shape[1] != elements,
+                         "Unflatten({}, {}, {}) needs an input whose inner extent is {}; got {}",
+                         height, width, channels, elements, value.shape.to_string());
+            SA_REFUSE_IF(builder, value.layout != Graph::TensorLayout::NHWC,
+                         "Unflatten needs an NHWC input; got {} tagged NCHW. Cross with "
+                         "layout_convert first (CV-3).",
+                         value.shape.to_string());
 
             // reshape() copies its operand's layout tag, which the check above fixed at NHWC.
-            return builder.reshape(x, Shape{input.shape[0], height, width, channels});
+            return builder.reshape(x, Shape{value.shape[0], height, width, channels});
         }
 
-        Shape Unflatten::output_shape(const Shape& input) const
+        Result<Shape> Unflatten::output_shape(const Shape& input) const
         {
-            require_positive_extents(*this);
+            SA_TRY(check_extents(*this));
             const int64_t elements = count_sample_elements(*this);
 
-            SA_THROW_IF(input.rank() != 1 || input[0] != elements,
-                        "Unflatten({}, {}, {}) needs a per-sample shape of [{}]; got {}",
-                        height, width, channels, elements, input.to_string());
+            SA_FAIL_IF(input.rank() != 1 || input[0] != elements, StatusCode::InvalidDescription,
+                       "Unflatten({}, {}, {}) needs a per-sample shape of [{}]; got {}",
+                       height, width, channels, elements, input.to_string());
 
             return Shape{height, width, channels};
         }

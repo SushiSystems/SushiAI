@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -79,7 +80,8 @@ namespace
         const Graph::GraphBuilder builder(graph);
 
         const Graph::ValueID x = builder.input(with_batch(batch, sample), "x");
-        return graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(layer.forward(builder, x).value()).shape;
     }
 
     /** @brief Collects the parameter walk's output as "name:extents" strings. */
@@ -123,7 +125,7 @@ TEST(Small_DepthwiseConv2d, ForwardEmitsOneDepthwiseNodeAndNoBiasAdd)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(count_op(graph, Ops::K_DEPTHWISE_CONV2D.id), 1u);
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 0u);
@@ -137,7 +139,7 @@ TEST(Small_DepthwiseConv2d, TheEmittedNodeReadsTheInputAndTheWeight)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     const Graph::Node* node = first_node(graph, Ops::K_DEPTHWISE_CONV2D.id);
     ASSERT_NE(node, nullptr);
@@ -156,7 +158,7 @@ TEST(Small_DepthwiseConv2d, ForwardKeepsTheSpatialExtentsAndTagsNHWC)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 8, 4}));
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -170,7 +172,7 @@ TEST(Small_DepthwiseConv2d, StrideTwoHalvesAnEvenExtent)
 
     DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 6, 4}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 3, 4}));
 }
@@ -184,7 +186,7 @@ TEST(Small_DepthwiseConv2d, TheWeightOfAnAnisotropicWindowIsHeightWidthChannels)
     DepthwiseConv2d layer = make_layer(3, 2);
     layer.geometry.kernel_w = 4;
     const Graph::ValueID x = builder.input(Shape{2, 6, 9, 3}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.shape(), (Shape{2, 4, 3}));
 }
@@ -198,7 +200,7 @@ TEST(Small_DepthwiseConv2d, TheParameterWalkNamesOnlyTheWeight)
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
     EXPECT_TRUE(walk(layer).empty());
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[3, 3, 4]"}));
     EXPECT_EQ(NN::parameter_elements(layer), 3 * 3 * 4);
@@ -212,7 +214,7 @@ TEST(Small_DepthwiseConv2d, TheWeightRecordsTheWeightRole)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
 }
@@ -225,7 +227,7 @@ TEST(Small_DepthwiseConv2d, TheWeightRecordsItsWindowAsBothFans)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.fan_in(), 3 * 3);
     EXPECT_EQ(layer.weight.fan_out(), 3 * 3);
@@ -239,7 +241,7 @@ TEST(Small_DepthwiseConv2d, TheWeightAndTheResultTakeTheInputElementType)
 
     DepthwiseConv2d layer = make_layer(2, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
@@ -250,7 +252,7 @@ TEST(Small_DepthwiseConv2d, OutputShapeAtStrideOneKeepsTheExtents)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}), (Shape{8, 6, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{8, 6, 4}));
 }
 
 /** @brief Tests that output_shape() halves the extents of a padded 3x3 window at stride 2. */
@@ -258,7 +260,7 @@ TEST(Small_DepthwiseConv2d, OutputShapeAtStrideTwoHalvesTheExtents)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
 
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}), (Shape{4, 3, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{4, 3, 4}));
 }
 
 /** @brief Tests that output_shape() matches the traced shape at stride 1 and at stride 2. */
@@ -267,10 +269,10 @@ TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardAtStrideOneAndTwo)
     const Shape sample{8, 6, 4};
 
     const DepthwiseConv2d unit = make_layer(4, 3, 1, 1);
-    EXPECT_EQ(traced_shape(unit, 3, sample), with_batch(3, unit.output_shape(sample)));
+    EXPECT_EQ(traced_shape(unit, 3, sample), with_batch(3, unit.output_shape(sample).value()));
 
     const DepthwiseConv2d strided = make_layer(4, 3, 2, 1);
-    EXPECT_EQ(traced_shape(strided, 3, sample), with_batch(3, strided.output_shape(sample)));
+    EXPECT_EQ(traced_shape(strided, 3, sample), with_batch(3, strided.output_shape(sample).value()));
 }
 
 /** @brief Tests that output_shape() drops the remainder of an odd extent at stride 2 and agrees. */
@@ -279,8 +281,8 @@ TEST(Small_DepthwiseConv2d, OutputShapeAgreesWithForwardOverAnOddExtent)
     const DepthwiseConv2d layer = make_layer(4, 3, 2, 1);
     const Shape sample{7, 9, 4};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{4, 5, 4}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{4, 5, 4}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
 }
 
 /** @brief Tests that same_padded() sets the kernel, the stride, kernel / 2 pads and dilation 1. */
@@ -314,7 +316,7 @@ TEST(Small_DepthwiseConv2d, ForwardRejectsAnInputThatIsNotRankFour)
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 16}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "rank-4");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "rank-4");
 }
 
 /** @brief Tests that forward() throws on a rank-4 input tagged NCHW, naming NHWC. */
@@ -325,9 +327,10 @@ TEST(Small_DepthwiseConv2d, ForwardRejectsAnNCHWInput)
 
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, nchw), "NHWC");
+    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "NHWC");
 }
 
 /** @brief Tests that forward() throws when the input's channel count differs from the layer's. */
@@ -339,7 +342,7 @@ TEST(Small_DepthwiseConv2d, ForwardRejectsAChannelCountThatDiffersFromTheLayer)
     DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "[H, W, 4]");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "[H, W, 4]");
 }
 
 /** @brief Tests that forward() throws on a non-positive channel count, naming it. */
@@ -351,7 +354,8 @@ TEST(Small_DepthwiseConv2d, ForwardRejectsANonPositiveChannelCount)
     DepthwiseConv2d layer = make_layer(0, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "positive channel count");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
+                      "positive channel count");
 }
 
 /** @brief Tests that forward() throws when the window is larger than the input. */
@@ -363,21 +367,22 @@ TEST(Small_DepthwiseConv2d, ForwardRejectsAWindowThatDoesNotFit)
     DepthwiseConv2d layer = make_layer(4, 5, 1, 0);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 4}, "x");
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws when the sample's channel count differs. */
+/** @brief Tests that output_shape() fails when the sample's channel count differs. */
 TEST(Small_DepthwiseConv2d, OutputShapeRejectsAChannelCountThatDiffersFromTheLayer)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 5}), "[H, W, 4]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 5}), StatusCode::InvalidDescription,
+                      "[H, W, 4]");
 }
 
-/** @brief Tests that output_shape() throws on a sample that is not an [H, W, C] shape. */
+/** @brief Tests that output_shape() fails on a sample that is not an [H, W, C] shape. */
 TEST(Small_DepthwiseConv2d, OutputShapeRejectsASampleOfTheWrongRank)
 {
     const DepthwiseConv2d layer = make_layer(4, 3, 1, 1);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8}), "[H, W, 4]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8}), StatusCode::InvalidDescription, "[H, W, 4]");
 }

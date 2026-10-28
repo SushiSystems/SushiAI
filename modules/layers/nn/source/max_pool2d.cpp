@@ -28,8 +28,7 @@
 #include <SushiAI/nn/max_pool2d.hpp>
 
 #include <limits>
-#include <string_view>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -39,74 +38,82 @@ namespace SushiAI
         {
             /**
              * @brief Computes the extents the window of @p layer yields over @p sample.
-             * @param sample A per-sample shape; anything but an [H, W, C] shape that the window
-             *        fits throws.
-             * @return The number of window rows and of window columns.
+             * @param sample A per-sample shape.
+             * @return The number of window rows and of window columns, or InvalidDescription
+             *         for anything but an [H, W, C] shape that the window fits.
              */
-            [[nodiscard]] Graph::SpatialExtents fit_window(const MaxPool2d& layer,
-                                                           const Shape& sample)
+            [[nodiscard]] Result<Graph::SpatialExtents> fit_window(const MaxPool2d& layer,
+                                                                   const Shape& sample) noexcept
             {
-                SA_THROW_IF(sample.rank() != 3,
-                            "MaxPool2d needs a per-sample shape of [H, W, C]; got {}",
-                            sample.to_string());
-                SA_THROW_IF(layer.trailing_pad_h < 0 || layer.trailing_pad_w < 0,
-                            "MaxPool2d needs a non-negative trailing padding; got {},{}",
-                            layer.trailing_pad_h, layer.trailing_pad_w);
+                SA_FAIL_IF(sample.rank() != 3, StatusCode::InvalidDescription,
+                           "MaxPool2d needs a per-sample shape of [H, W, C]; got {}",
+                           sample.to_string());
+                SA_FAIL_IF(layer.trailing_pad_h < 0 || layer.trailing_pad_w < 0,
+                           StatusCode::InvalidDescription,
+                           "MaxPool2d needs a non-negative trailing padding; got {},{}",
+                           layer.trailing_pad_h, layer.trailing_pad_w);
 
                 constexpr int64_t K_LARGEST_EXTENT = std::numeric_limits<int64_t>::max();
-                SA_THROW_IF(layer.trailing_pad_h > K_LARGEST_EXTENT - sample[0] ||
-                                layer.trailing_pad_w > K_LARGEST_EXTENT - sample[1],
-                            "MaxPool2d needs a trailing padding that keeps the input within 64 "
-                            "bits; got {},{} over {}",
-                            layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
+                SA_FAIL_IF(layer.trailing_pad_h > K_LARGEST_EXTENT - sample[0] ||
+                               layer.trailing_pad_w > K_LARGEST_EXTENT - sample[1],
+                           StatusCode::InvalidDescription,
+                           "MaxPool2d needs a trailing padding that keeps the input within 64 "
+                           "bits; got {},{} over {}",
+                           layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
 
                 // The trailing pad lengthens the input, so the window rule covers it.
-                Graph::SpatialExtents extents;
-                try
-                {
-                    extents = Graph::window_extents(sample[0] + layer.trailing_pad_h,
-                                                    sample[1] + layer.trailing_pad_w,
-                                                    layer.geometry);
-                }
-                catch (const Error& error)
-                {
-                    SA_THROW_IF(true,
-                                "MaxPool2d needs a legal window over its per-sample shape; "
-                                "got {}: {}",
-                                sample.to_string(), std::string_view(error.what()));
-                }
+                const Result<Graph::SpatialExtents> fitted =
+                    Graph::window_extents(sample[0] + layer.trailing_pad_h,
+                                          sample[1] + layer.trailing_pad_w, layer.geometry);
+                if (!fitted.has_value())
+                    return SA_ANNOTATE(fitted.status(),
+                                       "MaxPool2d needs a legal window over its per-sample "
+                                       "shape; got {}",
+                                       sample.to_string());
+
+                SA_TRY_ASSIGN(const Graph::SpatialExtents extents, fitted);
 
                 // A window that starts at or past the input's end holds padding alone.
                 const Graph::ConvGeometry& g = layer.geometry;
-                SA_THROW_IF((extents.height - 1) * g.stride_h - g.pad_top >= sample[0] ||
-                                (extents.width - 1) * g.stride_w - g.pad_left >= sample[1],
-                            "MaxPool2d needs a trailing padding that leaves every window a tap "
-                            "inside the input; got {},{} over {}",
-                            layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
+                SA_FAIL_IF((extents.height - 1) * g.stride_h - g.pad_top >= sample[0] ||
+                               (extents.width - 1) * g.stride_w - g.pad_left >= sample[1],
+                           StatusCode::InvalidDescription,
+                           "MaxPool2d needs a trailing padding that leaves every window a tap "
+                           "inside the input; got {},{} over {}",
+                           layer.trailing_pad_h, layer.trailing_pad_w, sample.to_string());
 
                 return extents;
             }
         } // namespace
 
-        Graph::ValueID MaxPool2d::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueID x) const
+        Graph::Traced MaxPool2d::forward(const Graph::GraphBuilder& builder,
+                                         const Graph::Traced& input) const
         {
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+
             const Shape& image = builder.graph().value(x).shape;
-            SA_THROW_IF(image.rank() != 4,
-                        "MaxPool2d needs a rank-4 [N, H, W, C] input; got {}", image.to_string());
+            SA_REFUSE_IF(builder, image.rank() != 4,
+                         "MaxPool2d needs a rank-4 [N, H, W, C] input; got {}",
+                         image.to_string());
 
             // Only NHWC reaches the fit; the emitter refuses any other layout first.
             if (builder.graph().value(x).layout != Graph::TensorLayout::NHWC)
-                return builder.maxpool2d(x, geometry).output;
+            {
+                SA_TRY_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, geometry));
+                return pooled.output;
+            }
 
             const Shape sample{image[1], image[2], image[3]};
-            const Graph::SpatialExtents out = fit_window(*this, sample);
-            return builder.maxpool2d_with_extents(x, geometry, out.height, out.width).output;
+            SA_TRY_ASSIGN(const Graph::SpatialExtents out,
+                          builder.observe(fit_window(*this, sample)));
+            SA_TRY_ASSIGN(const Graph::PoolResult pooled,
+                          builder.maxpool2d_with_extents(x, geometry, out.height, out.width));
+            return pooled.output;
         }
 
-        Shape MaxPool2d::output_shape(const Shape& input) const
+        Result<Shape> MaxPool2d::output_shape(const Shape& input) const
         {
-            const Graph::SpatialExtents out = fit_window(*this, input);
+            SA_TRY_ASSIGN(const Graph::SpatialExtents out, fit_window(*this, input));
 
             return Shape{out.height, out.width, input[2]};
         }

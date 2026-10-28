@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -60,18 +61,21 @@ namespace SushiAI
             }
 
             /**
-             * @brief Traces the channel slice of @p x.
-             * @param x An NHWC [N, H, W, C] value.
-             * @return The [N, H, W, count] result's id.
+             * @brief Traces the channel slice of @p input.
+             * @param input An NHWC [N, H, W, C] value.
+             * @return The [N, H, W, count] result; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, C] shape.
-             * @return The per-sample [H, W, count] shape.
+             * @return The per-sample [H, W, count] shape, or InvalidDescription for a
+             *         slice that does not fit @p input.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<ChannelSlice>, "ChannelSlice must satisfy the Module contract");

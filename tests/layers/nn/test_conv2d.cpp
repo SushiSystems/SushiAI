@@ -33,6 +33,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -84,7 +85,8 @@ namespace
         const Graph::GraphBuilder builder(graph);
 
         const Graph::ValueID x = builder.input(with_batch(batch, sample), "x");
-        return graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(layer.forward(builder, x).value()).shape;
     }
 
     /** @brief Collects the parameter walk's output as "name:extents" strings. */
@@ -117,7 +119,7 @@ TEST(Small_Conv2d, ForwardOfAPaddedThreeByThreeKeepsTheSpatialExtents)
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 28, 28, 8}));
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -131,7 +133,7 @@ TEST(Small_Conv2d, TheParametersAndTheResultTakeTheInputElementType)
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x", DType::Float64);
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(layer.bias.dtype(), DType::Float64);
@@ -147,7 +149,7 @@ TEST(Small_Conv2d, TheParameterWalkNamesTheWeightAndTheBias)
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
     EXPECT_TRUE(walk(layer).empty());
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 1]", "bias:[8]"}));
     EXPECT_EQ(NN::parameter_elements(layer), 8 * 3 * 3 * 1 + 8);
@@ -163,7 +165,7 @@ TEST(Small_Conv2d, TheWeightOfAnAnisotropicWindowIsOutHeightWidthIn)
     layer.geometry.kernel_h = 2;
     layer.geometry.kernel_w = 4;
     const Graph::ValueID x = builder.input(Shape{2, 6, 9, 3}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.shape(), (Shape{5, 2, 4, 3}));
 }
@@ -176,7 +178,7 @@ TEST(Small_Conv2d, ALayerWithABiasTracesOneBiasAdd)
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
@@ -190,7 +192,7 @@ TEST(Small_Conv2d, ABiasFreeLayerHasNoBiasEntryAndNoBiasAdd)
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     layer.use_bias = false;
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 1]"}));
     EXPECT_FALSE(layer.bias.declared());
@@ -208,7 +210,7 @@ TEST(Small_Conv2d, TheWeightAndTheBiasRecordTheirFans)
     layer.geometry.kernel_w = 5;
     layer.geometry.pad_left = 2;
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.fan_in(), 3 * 5 * 4);
     EXPECT_EQ(layer.weight.fan_out(), 3 * 5 * 6);
@@ -224,7 +226,7 @@ TEST(Small_Conv2d, TheParametersRecordTheirRoles)
 
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
     EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
@@ -239,11 +241,11 @@ TEST(Small_Conv2d, TracingTwiceDoesNotDuplicateParameters)
     Conv2d layer = make_conv(1, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{4, 28, 28, 1}, "x");
 
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
     const Graph::ValueID first_weight = layer.weight.id_in(graph);
     const Graph::ValueID first_bias = layer.bias.id_in(graph);
 
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.id_in(graph), first_weight);
     EXPECT_EQ(layer.bias.id_in(graph), first_bias);
@@ -256,8 +258,8 @@ TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAStridedWindow)
     const Conv2d layer = make_conv(3, 16, 3, 2);
     const Shape sample{9, 12, 3};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{4, 5, 16}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{4, 5, 16}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a padded 5x5 window. */
@@ -266,8 +268,8 @@ TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAPaddedWindow)
     const Conv2d layer = make_conv(2, 4, 5, 1, 2);
     const Shape sample{7, 10, 2};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{7, 10, 4}));
-    EXPECT_EQ(traced_shape(layer, 3, sample), with_batch(3, layer.output_shape(sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{7, 10, 4}));
+    EXPECT_EQ(traced_shape(layer, 3, sample), with_batch(3, layer.output_shape(sample).value()));
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a dilated strided window. */
@@ -278,8 +280,8 @@ TEST(Small_Conv2d, OutputShapeAgreesWithForwardForADilatedStridedWindow)
     layer.geometry.dilation_w = 3;
     const Shape sample{11, 13, 2};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{5, 5, 3}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{5, 5, 3}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
 }
 
 /** @brief Tests that output_shape() matches the traced shape for a pointwise convolution. */
@@ -288,8 +290,8 @@ TEST(Small_Conv2d, OutputShapeAgreesWithForwardForAPointwiseWindow)
     const Conv2d layer = make_conv(4, 6, 1);
     const Shape sample{5, 7, 4};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{5, 7, 6}));
-    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{5, 7, 6}));
+    EXPECT_EQ(traced_shape(layer, 2, sample), with_batch(2, layer.output_shape(sample).value()));
 }
 
 /** @brief Tests that same_padded() pads by kernel / 2, sets one stride and drops the bias. */
@@ -316,7 +318,7 @@ TEST(Small_Conv2d, SamePaddedAtStrideOneKeepsTheSpatialExtents)
     const Conv2d layer = Conv2d::same_padded(4, 4, 3, 1);
     const Shape sample{7, 10, 4};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{7, 10, 4}));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{7, 10, 4}));
     EXPECT_EQ(traced_shape(layer, 2, sample), (Shape{2, 7, 10, 4}));
 }
 
@@ -325,8 +327,8 @@ TEST(Small_Conv2d, SamePaddedAtStrideOneKeepsTheExtentsForAPointwiseAndAFiveByFi
 {
     const Shape sample{9, 6, 2};
 
-    EXPECT_EQ(Conv2d::same_padded(2, 8, 1, 1).output_shape(sample), (Shape{9, 6, 8}));
-    EXPECT_EQ(Conv2d::same_padded(2, 8, 5, 1).output_shape(sample), (Shape{9, 6, 8}));
+    EXPECT_EQ(Conv2d::same_padded(2, 8, 1, 1).output_shape(sample).value(), (Shape{9, 6, 8}));
+    EXPECT_EQ(Conv2d::same_padded(2, 8, 5, 1).output_shape(sample).value(), (Shape{9, 6, 8}));
 }
 
 /** @brief Tests that same_padded() with stride 2 halves an even H and an even W. */
@@ -335,7 +337,7 @@ TEST(Small_Conv2d, SamePaddedAtStrideTwoHalvesAnEvenExtent)
     const Conv2d layer = Conv2d::same_padded(3, 16, 3, 2);
     const Shape sample{640, 320, 3};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{320, 160, 16}));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{320, 160, 16}));
     EXPECT_EQ(traced_shape(layer, 1, sample), (Shape{1, 320, 160, 16}));
 }
 
@@ -347,7 +349,7 @@ TEST(Small_Conv2d, SamePaddedTracesNoBias)
 
     Conv2d layer = Conv2d::same_padded(2, 8, 3, 1);
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[8, 3, 3, 2]"}));
     EXPECT_FALSE(layer.bias.declared());
@@ -363,7 +365,7 @@ TEST(Small_Conv2d, ANonZeroBiasInitReachesTheBiasParameter)
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     layer.bias_init = -4.5;
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     // -4.5 is exact in binary, so the stored value compares equal with no tolerance.
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
@@ -379,7 +381,7 @@ TEST(Small_Conv2d, TheDefaultBiasInitIsTheConstantZero)
 
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.bias.init().kind, NN::ParameterInit::Kind::Constant);
     EXPECT_NEAR(layer.bias.init().constant, 0.0, K_EXACT_TOLERANCE);
@@ -394,7 +396,7 @@ TEST(Small_Conv2d, BiasInitLeavesTheWeightFanScaled)
     Conv2d layer = make_conv(2, 3, 3, 1, 1);
     layer.bias_init = 1.25;
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 2}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
@@ -405,7 +407,8 @@ TEST(Small_Conv2d, OutputShapeRejectsANonPositiveInputChannelCount)
 {
     const Conv2d layer = make_conv(0, 8, 3);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "Conv2d", "in=0", "out=8");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription, "Conv2d",
+                      "in=0", "out=8");
 }
 
 /** @brief Tests that output_shape() refuses a layer whose output channel count is negative. */
@@ -413,7 +416,8 @@ TEST(Small_Conv2d, OutputShapeRejectsANonPositiveOutputChannelCount)
 {
     const Conv2d layer = make_conv(3, -1, 3);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "Conv2d", "in=3", "out=-1");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription, "Conv2d",
+                      "in=3", "out=-1");
 }
 
 /** @brief Tests that output_shape() refuses a per-sample channel count other than in_channels. */
@@ -421,8 +425,8 @@ TEST(Small_Conv2d, OutputShapeRejectsAWrongChannelCount)
 {
     const Conv2d layer = make_conv(3, 8, 3);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 4}),
-                    "Conv2d(3, 8)", "[8, 8, 4]", "[H, W, 3]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 4}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "[8, 8, 4]", "[H, W, 3]");
 }
 
 /** @brief Tests that output_shape() refuses a per-sample feature vector. */
@@ -430,7 +434,8 @@ TEST(Small_Conv2d, OutputShapeRejectsAFeatureVector)
 {
     const Conv2d layer = make_conv(3, 8, 3);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{3}), "Conv2d(3, 8)", "[3]", "[H, W, 3]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{3}), StatusCode::InvalidDescription, "Conv2d(3, 8)",
+                      "[3]", "[H, W, 3]");
 }
 
 /** @brief Tests that output_shape() refuses a shape that still carries the batch axis. */
@@ -439,8 +444,8 @@ TEST(Small_Conv2d, OutputShapeRejectsABatchedShape)
     const Conv2d layer = make_conv(3, 8, 3);
 
     // The third extent equals in_channels, so only the rank check can refuse this shape.
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{2, 8, 3, 3}),
-                    "Conv2d(3, 8)", "[2, 8, 3, 3]", "[H, W, 3]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 8, 3, 3}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "[2, 8, 3, 3]", "[H, W, 3]");
 }
 
 /** @brief Tests that output_shape() refuses a window larger than the padded input. */
@@ -448,7 +453,8 @@ TEST(Small_Conv2d, OutputShapeRejectsAWindowThatDoesNotFit)
 {
     const Conv2d layer = make_conv(3, 8, 5);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{4, 4, 3}), "Conv2d(3, 8)", "[4, 4, 3]", "5x5");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "[4, 4, 3]", "5x5");
 }
 
 /** @brief Tests that output_shape() refuses a zero stride. */
@@ -456,7 +462,8 @@ TEST(Small_Conv2d, OutputShapeRejectsAZeroStride)
 {
     const Conv2d layer = make_conv(3, 8, 3, 0);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "Conv2d(3, 8)", "stride 0,0");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "stride 0,0");
 }
 
 /** @brief Tests that output_shape() refuses a negative padding and names it. */
@@ -464,7 +471,8 @@ TEST(Small_Conv2d, OutputShapeRejectsANegativePadding)
 {
     const Conv2d layer = make_conv(3, 8, 3, 1, -1);
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{8, 8, 3}), "Conv2d(3, 8)", "padding -1,-1");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "Conv2d(3, 8)", "padding -1,-1");
 }
 
 /** @brief Tests that forward() refuses an input whose channel count is not in_channels. */
@@ -476,7 +484,8 @@ TEST(Small_Conv2d, ForwardRejectsAWrongChannelCount)
     Conv2d layer = make_conv(3, 8, 3);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 4}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "[8, 8, 4]", "[H, W, 3]");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Conv2d(3, 8)",
+                      "[8, 8, 4]", "[H, W, 3]");
     EXPECT_FALSE(layer.weight.declared());
 }
 
@@ -489,7 +498,8 @@ TEST(Small_Conv2d, ForwardRejectsAnInputThatIsNotRankFour)
     Conv2d layer = make_conv(3, 8, 3);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "rank-4", "[2, 3]");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Conv2d(3, 8)",
+                      "rank-4", "[2, 3]");
     EXPECT_FALSE(layer.weight.declared());
 }
 
@@ -502,7 +512,8 @@ TEST(Small_Conv2d, ForwardRejectsNonPositiveChannelCounts)
     Conv2d layer = make_conv(3, 0, 3);
     const Graph::ValueID x = builder.input(Shape{2, 8, 8, 3}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d", "in=3", "out=0");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Conv2d", "in=3",
+                      "out=0");
 }
 
 /** @brief Tests that forward() refuses a window larger than the padded input. */
@@ -514,7 +525,8 @@ TEST(Small_Conv2d, ForwardRejectsAWindowThatDoesNotFit)
     Conv2d layer = make_conv(3, 8, 5);
     const Graph::ValueID x = builder.input(Shape{2, 4, 4, 3}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Conv2d(3, 8)", "[4, 4, 3]", "5x5");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Conv2d(3, 8)",
+                      "[4, 4, 3]", "5x5");
 }
 
 /** @brief Tests that forward() refuses an NCHW input before it declares a value or a node. */
@@ -525,12 +537,14 @@ TEST(Small_Conv2d, ForwardRejectsAnNCHWInput)
 
     Conv2d layer = make_conv(3, 8, 3, 1, 1);
     const Graph::ValueID x = builder.input(Shape{2, 3, 3, 3}, "x");
-    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
     // Every extent is 3, so the permuted shape passes every check but the layout tag's.
-    SA_EXPECT_ERROR((void)layer.forward(builder, nchw), "Conv2d", "NHWC");
+    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "Conv2d",
+                      "NHWC");
 
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_EQ(graph.value_count(), values_before);
@@ -548,12 +562,14 @@ TEST(Small_Conv2d, DifferentiatingALossYieldsAGradientForTheWeightAndTheBias)
     const Graph::ValueID x = builder.input(Shape{4, 6, 6, 2}, "x");
     const Graph::ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const Graph::ValueID logits = builder.spatial_mean(layer.forward(builder, x));
-    const Graph::ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID logits,
+                            builder.spatial_mean(layer.forward(builder, x)));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
     const std::vector<Graph::ValueID> wrt = {layer.weight.id_in(graph), layer.bias.id_in(graph)};
-    const std::vector<Graph::ValueID> grads = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Graph::ValueID> grads, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(grads.size(), 2u);
     for (std::size_t i = 0; i < grads.size(); ++i)

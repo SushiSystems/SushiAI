@@ -29,6 +29,7 @@
 #include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -47,7 +48,7 @@ namespace
     {
         public:
             /** @brief Returns @p x unchanged. */
-            Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x) override
+            Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x) override
             {
                 return x;
             }
@@ -94,14 +95,15 @@ TEST(Small_Layer, AnAdapterTracesWhatItsModuleTraces)
     const Graph::GraphBuilder adapted_builder(adapted_graph);
     LayerAdapter<Linear> adapter(Linear{6, 8}, 8);
     NN::Layer& layer = adapter;
-    const Graph::ValueID adapted =
-        layer.forward(adapted_builder, adapted_builder.input(Shape{2, 6}, "x"));
+    const Graph::ValueID adapted_x = adapted_builder.input(Shape{2, 6}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID adapted,
+                            layer.forward(adapted_builder, adapted_x));
 
     Graph::Graph direct_graph;
     const Graph::GraphBuilder direct_builder(direct_graph);
     Linear module{6, 8};
-    const Graph::ValueID direct =
-        module.forward(direct_builder, direct_builder.input(Shape{2, 6}, "x"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID direct,
+                            module.forward(direct_builder, direct_builder.input(Shape{2, 6}, "x")));
 
     EXPECT_EQ(adapted_graph.node_count(), direct_graph.node_count());
     EXPECT_EQ(adapted_graph.value(adapted).shape, direct_graph.value(direct).shape);

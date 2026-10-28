@@ -59,15 +59,16 @@ namespace SushiAI
             public:
                 static_assert(Traceable<L>,
                               "ModuleNode's argument needs a static fields() and one of three "
-                              "forms: forward(const Graph::GraphBuilder&, Graph::ValueID), "
-                              "forward(const Trace&, Graph::ValueID), or the pair trace_training "
-                              "and trace_evaluation over (const Trace&, Graph::ValueID), each "
-                              "returning exactly Graph::ValueID. Check the layer named in the "
+                              "forms: forward(const Graph::GraphBuilder&, const Graph::Traced&) "
+                              "returning exactly Graph::Traced, forward(const Trace&, "
+                              "Graph::ValueID), or the pair trace_training and trace_evaluation "
+                              "over (const Trace&, Graph::ValueID), the last two returning "
+                              "exactly Graph::ValueID. Check the layer named in the "
                               "instantiation below, not this line.");
                 static_assert(Detail::HasOutputShapeOfInput<L>::value,
                               "ModuleNode's argument needs output_shape(const Shape&) returning "
-                              "exactly Shape, which maps the per-sample input shape to the shape "
-                              "of the node's one port. Check the layer named in the "
+                              "exactly Result<Shape>, which maps the per-sample input shape to "
+                              "the shape of the node's one port. Check the layer named in the "
                               "instantiation below, not this line.");
 
                 /**
@@ -78,10 +79,7 @@ namespace SushiAI
                 [[nodiscard]] static Result<std::unique_ptr<ModuleNode>> create(L layer,
                                                                                 const Shape& input)
                 {
-                    SA_TRY_ASSIGN(const Shape produced, Detail::bridge_throwing([&layer, &input]()
-                    {
-                        return layer.output_shape(input);
-                    }));
+                    SA_TRY_ASSIGN(const Shape produced, layer.output_shape(input));
 
                     return std::unique_ptr<ModuleNode>(
                         new ModuleNode(std::move(layer), input, produced));

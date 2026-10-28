@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -57,18 +58,21 @@ namespace SushiAI
             }
 
             /**
-             * @brief Traces a RESHAPE of @p x to [N, height, width, channels].
-             * @param x An NHWC [N, height * width * channels] value.
-             * @return The reshaped value's id.
+             * @brief Traces a RESHAPE of @p input to [N, height, width, channels].
+             * @param input An NHWC [N, height * width * channels] value.
+             * @return The reshaped value; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input The per-sample [height * width * channels] shape.
-             * @return The per-sample [height, width, channels] shape.
+             * @return The per-sample [height, width, channels] shape, or
+             *         InvalidDescription for non-positive extents or another @p input.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<Unflatten>, "Unflatten must satisfy the Module contract");

@@ -97,7 +97,7 @@ namespace SushiAI
             return pass_through(*this, trace, x);
         }
 
-        Shape Dropout::output_shape(const Shape& input) const
+        Result<Shape> Dropout::output_shape(const Shape& input) const
         {
             return input;
         }

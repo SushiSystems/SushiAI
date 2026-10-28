@@ -210,7 +210,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
-        model.forward(builder, x);
+        SA_EXPECT_OK(model.forward(builder, x));
 
         std::vector<std::string> names;
         NN::for_each_parameter(model, [&names](const std::string& name, NN::Parameter& parameter)
@@ -597,7 +597,8 @@ TEST(Small_LayerRegistry, TheConvModelTracesToTheShapeItReports)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
 
-    EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (Shape{4, 10}));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, stack.forward(builder, x));
+    EXPECT_EQ(graph.value(y).shape, (Shape{4, 10}));
 }
 
 /** @brief Tests that the convolutional model names its six parameters by layer position. */
@@ -638,8 +639,9 @@ TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMod
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 784}, "inputs");
     const Graph::ValueID targets = builder.input(Shape{4, 10}, "targets");
-    const Graph::ValueID logits = stack.forward(builder, x);
-    const Graph::ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID logits, stack.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
     std::vector<std::string> names;
     std::vector<Shape> shapes;
@@ -652,8 +654,8 @@ TEST(Small_LayerRegistry, CrossEntropyDifferentiatesToEveryParameterOfTheConvMod
     });
     ASSERT_EQ(wrt.size(), 6u);
 
-    const std::vector<Graph::ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<Graph::ValueID> gradients, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const Graph::ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), wrt.size());
     for (std::size_t i = 0; i < gradients.size(); ++i)
@@ -673,7 +675,7 @@ TEST(Small_LayerRegistry, ASiLURowTracesOneSiLUNode)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 8, 8, 2}, "inputs");
     const std::size_t leaves = graph.node_count();
-    const Graph::ValueID y = layer->forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer->forward(builder, x));
 
     ASSERT_EQ(graph.node_count(), leaves + 1u);
     EXPECT_EQ(graph.nodes()[leaves].op, Ops::K_SILU.id);

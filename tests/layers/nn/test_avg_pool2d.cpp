@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <string>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
@@ -60,7 +61,8 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(Shape{2, sample[0], sample[1], sample[2]}, "x");
-        return graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(layer.forward(builder, x).value()).shape;
     }
 
     /** @brief Drops the batch axis of a rank-4 @p batched shape. */
@@ -88,7 +90,7 @@ TEST(Small_AvgPool2d, ForwardTracesThePooledShapeInNHWC)
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
 
     const AvgPool2d layer{window(3, 3, 3, 3)};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 2, 2, 3}));
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -100,8 +102,8 @@ TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForASquareWindow)
     const AvgPool2d layer{window(3, 3, 3, 3)};
     const Shape sample{6, 6, 3};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{2, 2, 3}));
-    EXPECT_EQ(layer.output_shape(sample), per_sample(traced_shape(layer, sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{2, 2, 3}));
+    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
 }
 
 /** @brief Tests that output_shape() equals the traced shape for a padded, uneven window. */
@@ -112,8 +114,8 @@ TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForAPaddedUnevenWindow)
     layer.geometry.pad_left = 1;
     const Shape sample{7, 5, 4};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{4, 6, 4}));
-    EXPECT_EQ(layer.output_shape(sample), per_sample(traced_shape(layer, sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{4, 6, 4}));
+    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
 }
 
 /** @brief Tests that output_shape() equals the traced shape for a window dilated on one axis. */
@@ -124,40 +126,40 @@ TEST(Small_AvgPool2d, OutputShapeAgreesWithTheTracedShapeForADilatedWindow)
     layer.geometry.dilation_w = 1;
     const Shape sample{9, 8, 1};
 
-    EXPECT_EQ(layer.output_shape(sample), (Shape{5, 6, 1}));
-    EXPECT_EQ(layer.output_shape(sample), per_sample(traced_shape(layer, sample)));
+    EXPECT_EQ(layer.output_shape(sample).value(), (Shape{5, 6, 1}));
+    EXPECT_EQ(layer.output_shape(sample).value(), per_sample(traced_shape(layer, sample)));
 }
 
-/** @brief Tests that output_shape() throws for a per-sample shape that is not rank 3. */
+/** @brief Tests that output_shape() fails for a per-sample shape that is not rank 3. */
 TEST(Small_AvgPool2d, OutputShapeRejectsAFeatureVector)
 {
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{8}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{8}), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws for a shape that still carries the batch axis. */
+/** @brief Tests that output_shape() fails for a shape that still carries the batch axis. */
 TEST(Small_AvgPool2d, OutputShapeRejectsABatchedShape)
 {
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{2, 4, 4, 3}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 4, 4, 3}), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws when the window is larger than the image. */
+/** @brief Tests that output_shape() fails when the window is larger than the image. */
 TEST(Small_AvgPool2d, OutputShapeRejectsAWindowLargerThanTheImage)
 {
     const AvgPool2d layer{window(5, 5, 1, 1)};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{4, 4, 3}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws when the geometry has a zero stride. */
+/** @brief Tests that output_shape() fails when the geometry has a zero stride. */
 TEST(Small_AvgPool2d, OutputShapeRejectsAZeroStride)
 {
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{4, 4, 3}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that output_shape() names the stride it refuses, not the window's fit. */
@@ -165,7 +167,8 @@ TEST(Small_AvgPool2d, OutputShapeNamesAZeroStride)
 {
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{4, 4, 3}), "AvgPool2d", "stride 0,0");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription,
+                      "AvgPool2d", "stride 0,0");
 }
 
 /** @brief Tests that output_shape() refuses a negative padding and names it. */
@@ -174,7 +177,8 @@ TEST(Small_AvgPool2d, OutputShapeRejectsANegativePadding)
     AvgPool2d layer{window(2, 2, 2, 2)};
     layer.geometry.pad_top = -1;
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{4, 4, 3}), "AvgPool2d", "padding -1,0");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 4, 3}), StatusCode::InvalidDescription,
+                      "AvgPool2d", "padding -1,0");
 }
 
 /** @brief Tests that forward() throws for an input that is not rank 4. */
@@ -186,7 +190,7 @@ TEST(Small_AvgPool2d, ForwardRejectsARankTwoInput)
 
     const AvgPool2d layer{window(2, 2, 2, 2)};
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() throws for a rank-4 input in NCHW layout. */
@@ -195,11 +199,12 @@ TEST(Small_AvgPool2d, ForwardRejectsAnNCHWInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{1, 6, 6, 3}, "x");
-    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
     const AvgPool2d layer{window(3, 3, 3, 3)};
 
-    EXPECT_THROW((void)layer.forward(builder, x_nchw), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() names the layout, not the window, for a narrow NCHW input. */
@@ -208,11 +213,12 @@ TEST(Small_AvgPool2d, ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{1, 8, 8, 2}, "x");
-    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
     const AvgPool2d layer{window(3, 3, 1, 1)};
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, nchw), "NHWC");
+    SA_EXPECT_FAILURE(layer.forward(builder, nchw), StatusCode::InvalidDescription, "NHWC");
 }
 
 /** @brief Tests that forward() refuses a zero stride in the layer's own message. */
@@ -224,7 +230,8 @@ TEST(Small_AvgPool2d, ForwardRejectsAZeroStride)
 
     const AvgPool2d layer{window(2, 2, 0, 0)};
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "AvgPool2d", "stride 0,0");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "AvgPool2d",
+                      "stride 0,0");
 }
 
 /** @brief Tests that forward() refuses a negative padding in the layer's own message. */
@@ -237,7 +244,8 @@ TEST(Small_AvgPool2d, ForwardRejectsANegativePadding)
     AvgPool2d layer{window(2, 2, 2, 2)};
     layer.geometry.pad_top = -1;
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "AvgPool2d", "padding -1,0");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "AvgPool2d",
+                      "padding -1,0");
 }
 
 /** @brief Tests that forward() throws when the window is larger than the image. */
@@ -249,7 +257,7 @@ TEST(Small_AvgPool2d, ForwardRejectsAWindowLargerThanTheImage)
 
     const AvgPool2d layer{window(5, 5, 1, 1)};
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that a traced AvgPool2d has no parameter and adds one value to the graph. */
@@ -260,7 +268,7 @@ TEST(Small_AvgPool2d, ATracedLayerHasNoParameter)
     const Graph::ValueID x = builder.input(Shape{2, 6, 6, 3}, "x");
 
     AvgPool2d layer{window(3, 3, 3, 3)};
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     int visited = 0;
     NN::for_each_parameter(layer, [&visited](const std::string&, NN::Parameter&) { ++visited; });

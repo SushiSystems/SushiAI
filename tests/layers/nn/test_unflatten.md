@@ -72,20 +72,20 @@ The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` throws
 
 ## OutputShapeRejectsAZeroExtent
 
-`Unflatten{4, 5, 0}.output_shape([60])` throws with a message containing "Unflatten needs
-positive extents".
+`Unflatten{4, 5, 0}.output_shape([60])` returns InvalidDescription with a message containing
+"Unflatten needs positive extents".
 
 ## OutputShapeRejectsANegativeExtent
 
-`Unflatten{-4, -5, 3}.output_shape([60])` throws the same message.
+`Unflatten{-4, -5, 3}.output_shape([60])` returns the same failure.
 
 ## OutputShapeRejectsAShapeThatIsNotRankOne
 
-`output_shape([60, 1])` throws.
+`output_shape([60, 1])` returns InvalidDescription.
 
 ## OutputShapeRejectsAMismatchedElementCount
 
-`output_shape([59])` throws.
+`output_shape([59])` returns InvalidDescription.
 
 ## HasNoParameters
 

@@ -91,8 +91,9 @@ graph is marked refused.
 
 ## OutputShapeIsTheShapeOfTheSinglePublishedOutput
 
-`output_shape([8, 8, 3])` is an empty `Shape` while nothing is published, [4, 4, 8] once up is
-the one published output, and an empty `Shape` again once a second output is published.
+`output_shape([8, 8, 3])` returns `InvalidDescription` naming "publishes 0" while nothing is
+published, is [4, 4, 8] once up is the one published output, and returns `InvalidDescription`
+naming "publishes 2" once a second output is published.
 
 ## AGraphIsANodeOfAnotherGraph
 

@@ -638,9 +638,9 @@ TEST(Small_NodeRegistry, AnEmptyOutputListPublishesTheLastRowWhole)
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph from_file, NN::build_model(registry, parsed));
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph by_hand, NN::build_model(registry, silent));
 
-    EXPECT_EQ(by_hand.output_shape(parsed.input_shape), (Shape{8, 8, 8}));
-    EXPECT_EQ(by_hand.output_shape(parsed.input_shape),
-              from_file.output_shape(parsed.input_shape));
+    EXPECT_EQ(by_hand.output_shape(parsed.input_shape).value(), (Shape{8, 8, 8}));
+    EXPECT_EQ(by_hand.output_shape(parsed.input_shape).value(),
+              from_file.output_shape(parsed.input_shape).value());
 }
 
 /** @brief Tests that a spec with no layer or a wrong output entry is refused. */

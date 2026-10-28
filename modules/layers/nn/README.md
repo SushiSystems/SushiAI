@@ -18,15 +18,18 @@ the model graph plan in the version history, which lists the public symbols of e
 
 Two error contracts meet in this module. `Buffer::define`, `Trace::update`, every `Node`,
 `ModelOutputs`, `ModelGraph`, the node factories, `make_node` and `build_model` return `Status`
-or `Result<T>` for a failure a description can cause, and stop the process for a misuse. The
-layer types, `LayerStack`, the layer factories and `build_layer_stack` throw `Error`.
-`ModuleNode` calls its layer through `Detail::bridge_throwing` in `throwing_bridge.hpp`, which
-turns the `Error` into a `Status`. Five sources catch an `Error` from a shape or window check they
-call and throw it again with the layer's name: `source/conv2d.cpp`, `source/max_pool2d.cpp`,
-`source/avg_pool2d.cpp`, `source/upsample2d.cpp` and the adapter in `source/layer_registry.cpp`.
+or `Result<T>` for a failure a description can cause, and stop the process for a misuse. A
+builder `forward` returns a `Graph::Traced`: its first line is
+`SA_TRY_ASSIGN(const Graph::ValueID x, input);`, so a failed operand passes through, and a check
+of the layer refuses through `SA_REFUSE_IF(builder, ...)`. `output_shape(const Shape&)` returns
+a `Result<Shape>`, and a shape check that `forward` shares with it returns a `Status` or a
+`Result`. The layer factories and `build_layer_stack` still throw `Error`; the node registry
+calls a factory through `Detail::bridge_throwing` in `throwing_bridge.hpp`, which turns the
+`Error` into a `Status`. A trace form never throws a child's failure: `Sequential` leaves it on
+the trace and traces no later child.
 
 Every layer type and block has the same members: its fields, a static `fields()`, one of the
-three trace forms, `Shape output_shape(const Shape&) const`, and one `static_assert` on
+three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `static_assert` on
 `Module`, `TraceModule` or `ModalModule`. Two types differ. `CrossEntropyLoss` has a builder
 `forward` and none of the other members. `Concat` is a `Node` over several inputs and has no
 `output_shape`.
@@ -87,7 +90,9 @@ selects the fill: fan-scaled for `Weight` and for `Embedding`, zero for `Bias`, 
 that the fans do not scale. The role is also what `Train::takes_weight_decay` reads, so
 `Embedding` marks a table that weight decay leaves alone. `state()` returns the identity, or
 `K_NO_STATE` when none was drawn. `id_in(graph)` returns the parameter's leaf in `graph`, or
-`Graph::K_NO_VALUE` when that graph holds none.
+`Graph::K_NO_VALUE` when that graph holds none. `declare()` returns `Result<Graph::ValueID>`.
+A second `declare()` with another shape or element type returns `InvalidDescription` through
+`SA_REFUSE_IF`, which marks the builder's graph, and the first description stays.
 
 A layer lists its state in a static `fields()`: `field` for a `Parameter`, `buffer` for a
 `Buffer`, `child` for a member that is walked in turn. `walk_state` visits every declared
@@ -151,10 +156,13 @@ returns a failure.
 every other trace. `claim_random_site()` returns 0, 1, 2 and so on in call order, so a layer
 that draws at each run of the step can tell its site from the others of the trace.
 
-A layer has one of three forms. A `Module` has `forward(const GraphBuilder&, ValueID)`. A
+A layer has one of three forms. A `Module` has
+`Graph::Traced forward(const GraphBuilder&, const Graph::Traced&)`. A
 `TraceModule` has `forward(const Trace&, ValueID)`. A `ModalModule` has `trace_training` and
 `trace_evaluation` and no `forward`. `trace_layer` calls whichever form a layer has, and a type
-that is both a `TraceModule` and a `Module` is traced as a `TraceModule`.
+that is both a `TraceModule` and a `Module` is traced as a `TraceModule`. `trace_layer` hands a
+`Module`'s failure to `Trace::value_or_fail`, which records it on the trace and returns the
+input.
 
 A carrying trace is an evaluation trace for a step that keeps values between its runs. Its
 mode is `Evaluation`, so a `ModalModule` traces its evaluation form and `update()` fails as it
@@ -197,7 +205,9 @@ Source: MG 2.3. PLAN unit U6. The carrying form: `docs/design/LANGUAGE/README.md
 fan-scaled unless a model states another. `ReLU`, `GELU`, `Tanh` and `Sigmoid` are
 elementwise activations with no parameter. `Sequential` applies its layers in order and names
 each child's state by its index. It has a builder `forward` only when every layer is a
-`Module`, and a trace `forward` that traces each child through `trace_layer`.
+`Module`, and a trace `forward` that traces each child through `trace_layer`. Once the trace
+holds a failure, the trace `forward` returns the value it has and traces no later child.
+`output_shape` returns the first child's failure.
 
 Source: the per-sample `output_shape(const Shape&)` of each type is CV section 2, decision 6.
 `Sequential`'s trace `forward` and its `output_shape` are MG 2.3, PLAN unit U6. The types

@@ -30,6 +30,7 @@
 #include <string>
 #include <tuple>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -53,7 +54,8 @@ TEST(Small_Identity, ForwardReturnsItsInput)
 
     const Identity layer{};
 
-    EXPECT_EQ(layer.forward(builder, x), x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
+    EXPECT_EQ(y, x);
 }
 
 /** @brief Tests that forward adds no node and no value to the graph. */
@@ -66,7 +68,7 @@ TEST(Small_Identity, ForwardEmitsNothing)
     const std::size_t values_before = graph.value_count();
 
     const Identity layer{};
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(graph.node_count(), nodes_before);
     EXPECT_EQ(graph.value_count(), values_before);
@@ -77,8 +79,8 @@ TEST(Small_Identity, OutputShapeReturnsItsInput)
 {
     const Identity layer{};
 
-    EXPECT_EQ(layer.output_shape(Shape{7}), (Shape{7}));
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}), (Shape{8, 6, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{7}).value(), (Shape{7}));
+    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{8, 6, 4}));
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
@@ -89,7 +91,7 @@ TEST(Small_Identity, TheParameterWalkVisitsNothing)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     Identity layer{};
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     std::size_t visits = 0;
     NN::for_each_parameter(layer, [&visits](const std::string&, NN::Parameter&)

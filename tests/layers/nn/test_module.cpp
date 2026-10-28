@@ -78,7 +78,8 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(Shape{2, features}, "x");
-        return graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(layer.forward(builder, x).value()).shape;
     }
 }
 
@@ -97,7 +98,7 @@ TEST(Small_Module, ALinearLayerNamesItsWeightAndBias)
 
     Linear layer{4, 3};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[3, 4]", "bias:[3]"}));
     EXPECT_EQ(NN::parameter_elements(layer), 3 * 4 + 3);
@@ -110,7 +111,7 @@ TEST(Small_Module, ABiasFreeLayerSimplyHasNoBiasEntry)
 
     Linear layer{4, 3, false};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"weight:[3, 4]"}));
 }
@@ -123,7 +124,7 @@ TEST(Small_Module, SequentialNamesParametersByLayerIndex)
 
     Sequential model{Linear{4, 8}, ReLU{}, Linear{8, 3}};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)model.forward(builder, x);
+    SA_EXPECT_OK(model.forward(builder, x));
 
     EXPECT_EQ(walk(model), (std::vector<std::string>{
         "0.weight:[8, 4]", "0.bias:[8]",
@@ -140,7 +141,7 @@ TEST(Small_Module, NestedContainersCompoundTheirIndices)
     Sequential model{inner, Linear{4, 2}};
 
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)model.forward(builder, x);
+    SA_EXPECT_OK(model.forward(builder, x));
 
     EXPECT_EQ(walk(model), (std::vector<std::string>{
         "0.0.weight:[4, 4]", "0.0.bias:[4]",
@@ -156,11 +157,11 @@ TEST(Small_Module, TracingTwiceDoesNotDuplicateParameters)
     Linear layer{4, 3};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
     const Graph::ValueID first_weight = layer.weight.id_in(graph);
     const std::size_t values_after_first = graph.value_count();
 
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.id_in(graph), first_weight);
     // The second trace declares no new parameter; see tests/layers/nn/README.md.
@@ -175,7 +176,7 @@ TEST(Small_Module, ParametersAreDeclaredAsGradientRequiringLeaves)
 
     Linear layer{4, 3};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_TRUE(graph.value(layer.weight.id_in(graph)).requires_grad);
     EXPECT_TRUE(graph.value(layer.bias.id_in(graph)).requires_grad);
@@ -190,7 +191,7 @@ TEST(Small_Module, RolesAndFansAreRecordedForTheInitializer)
 
     Linear layer{4, 3};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Weight);
     EXPECT_EQ(layer.bias.role(), NN::ParameterRole::Bias);
@@ -206,7 +207,7 @@ TEST(Small_Module, LinearRejectsAnInputWhoseInnerExtentIsWrong)
     Linear layer{4, 3};
     const Graph::ValueID x = builder.input(Shape{2, 7}, "x");
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 // Matches docs/getting_started/TUTORIAL.md §6 verbatim; see tests/layers/nn/README.md.
@@ -224,11 +225,12 @@ namespace
             return std::tuple{ NN::field("offset", &MyOffset::offset) };
         }
 
-        Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& input)
         {
-            const Graph::ValueID b = offset.declare(
-                builder, Shape{width}, NN::ParameterRole::Bias,
-                width, width, "offset");
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+            SA_TRY_ASSIGN(const Graph::ValueID b,
+                          offset.declare(builder, Shape{width}, NN::ParameterRole::Bias,
+                                         width, width, "offset"));
             return builder.bias_add(x, b);
         }
     };
@@ -241,7 +243,7 @@ TEST(Small_Module, TheTutorialsCustomLayerTracesAndIsWalkable)
 
     MyOffset layer{4};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(walk(layer), (std::vector<std::string>{"offset:[4]"}));
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
@@ -262,8 +264,8 @@ TEST(Small_Module, TheTutorialIsRightThatMulWouldNotBroadcast)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     const Graph::ValueID b = builder.input(Shape{4}, "b");
 
-    EXPECT_THROW((void)builder.mul(x, b), Error);
-    EXPECT_NO_THROW((void)builder.bias_add(x, b));
+    SA_EXPECT_FAILURE(builder.mul(x, b), StatusCode::InvalidDescription);
+    SA_EXPECT_OK(builder.bias_add(x, b));
 }
 
 // WalkableStub is deliberately not a LayerStack; see tests/layers/nn/README.md.
@@ -276,13 +278,14 @@ namespace
         public:
             WalkableStub()
             {
-                weight_.declare(builder_, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "w");
-                bias_.declare(builder_, Shape{2}, NN::ParameterRole::Bias, 0, 0, "b");
+                (void)weight_.declare(builder_, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2,
+                                      "w");
+                (void)bias_.declare(builder_, Shape{2}, NN::ParameterRole::Bias, 0, 0, "b");
             }
 
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x) { return x; }
+            Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x) { return x; }
 
             void walk_parameters(std::string_view prefix, const NN::ParameterVisitor& visitor)
             {
@@ -303,7 +306,7 @@ namespace
         public:
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x) { return x; }
+            Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x) { return x; }
 
             template<typename Fn>
             void visit_children(Fn&& visitor) { visitor(std::size_t{0}, child_); }
@@ -345,14 +348,14 @@ TEST(Small_Module, TheRuntimeArmIsAdditiveAndNoExistingTypeTakesIt)
 TEST(Small_Module, LinearReportsItsOutFeaturesAsThePerSampleOutputShape)
 {
     const Linear layer{4, 3};
-    EXPECT_EQ(layer.output_shape(Shape{4}), (Shape{3}));
+    EXPECT_EQ(layer.output_shape(Shape{4}).value(), (Shape{3}));
 }
 
 /** @brief Tests that Linear's output_shape() matches what forward() traces, batch axis aside. */
 TEST(Small_Module, LinearsOutputShapeAgreesWithItsTrace)
 {
     Linear layer{4, 3};
-    EXPECT_EQ(traced_shape(layer, 4), (Shape{2, layer.output_shape(Shape{4})[0]}));
+    EXPECT_EQ(traced_shape(layer, 4), (Shape{2, layer.output_shape(Shape{4}).value()[0]}));
 }
 
 /** @brief Tests that Linear refuses a per-sample shape whose rank is not 1. */
@@ -361,7 +364,8 @@ TEST(Small_Module, LinearRefusesAPerSampleShapeOfTheWrongRank)
     const Linear layer{4, 3};
 
     // The first extent equals in_features, so only the rank check can refuse this shape.
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{4, 2, 1}), "Linear(4, 3)", "[4, 2, 1]", "[4]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 2, 1}), StatusCode::InvalidDescription,
+                      "Linear(4, 3)", "[4, 2, 1]", "[4]");
 }
 
 /** @brief Tests that Linear refuses a rank-1 per-sample shape whose width is not in_features. */
@@ -369,7 +373,8 @@ TEST(Small_Module, LinearRefusesAPerSampleShapeOfTheWrongWidth)
 {
     const Linear layer{4, 3};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{7}), "Linear(4, 3)", "[7]", "[4]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{7}), StatusCode::InvalidDescription, "Linear(4, 3)",
+                      "[7]", "[4]");
 }
 
 /** @brief Tests that every activation returns the per-sample shape it was given, at any rank. */
@@ -377,10 +382,10 @@ TEST(Small_Module, AnActivationReportsItsInputShapeAsItsOutputShape)
 {
     for (const Shape& input : {Shape{5}, Shape{4, 4, 3}})
     {
-        EXPECT_EQ(ReLU{}.output_shape(input), input);
-        EXPECT_EQ(NN::GELU{}.output_shape(input), input);
-        EXPECT_EQ(NN::Tanh{}.output_shape(input), input);
-        EXPECT_EQ(NN::Sigmoid{}.output_shape(input), input);
+        EXPECT_EQ(ReLU{}.output_shape(input).value(), input);
+        EXPECT_EQ(NN::GELU{}.output_shape(input).value(), input);
+        EXPECT_EQ(NN::Tanh{}.output_shape(input).value(), input);
+        EXPECT_EQ(NN::Sigmoid{}.output_shape(input).value(), input);
     }
 }
 
@@ -392,10 +397,10 @@ TEST(Small_Module, AnActivationsOutputShapeAgreesWithItsTrace)
     NN::Tanh tanh;
     NN::Sigmoid sigmoid;
 
-    EXPECT_EQ(traced_shape(relu, 5), (Shape{2, relu.output_shape(Shape{5})[0]}));
-    EXPECT_EQ(traced_shape(gelu, 5), (Shape{2, gelu.output_shape(Shape{5})[0]}));
-    EXPECT_EQ(traced_shape(tanh, 5), (Shape{2, tanh.output_shape(Shape{5})[0]}));
-    EXPECT_EQ(traced_shape(sigmoid, 5), (Shape{2, sigmoid.output_shape(Shape{5})[0]}));
+    EXPECT_EQ(traced_shape(relu, 5), (Shape{2, relu.output_shape(Shape{5}).value()[0]}));
+    EXPECT_EQ(traced_shape(gelu, 5), (Shape{2, gelu.output_shape(Shape{5}).value()[0]}));
+    EXPECT_EQ(traced_shape(tanh, 5), (Shape{2, tanh.output_shape(Shape{5}).value()[0]}));
+    EXPECT_EQ(traced_shape(sigmoid, 5), (Shape{2, sigmoid.output_shape(Shape{5}).value()[0]}));
 }
 
 namespace
@@ -403,7 +408,8 @@ namespace
     /** @brief Declares one [2, 3] weight into @p builder and returns its leaf. */
     Graph::ValueID declare_weight(Parameter& parameter, const Graph::GraphBuilder& builder)
     {
-        return parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "weight");
+        return parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2, "weight")
+            .value();
     }
 }
 
@@ -474,12 +480,14 @@ TEST(Small_Module, ADeclareWithAnotherShapeIsRefused)
     Parameter parameter;
     (void)declare_weight(parameter, builder);
 
-    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{4, 3}, NN::ParameterRole::Weight,
-                                            3, 4, "weight"),
-                    "'weight'", "[2, 3]", "[4, 3]");
-    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{4, 3}, NN::ParameterRole::Weight,
-                                            3, 4, "weight"),
-                    "'weight'", "[2, 3]", "[4, 3]");
+    SA_EXPECT_FAILURE(parameter.declare(builder, Shape{4, 3}, NN::ParameterRole::Weight, 3, 4,
+                                        "weight"),
+                      StatusCode::InvalidDescription, "'weight'", "[2, 3]", "[4, 3]");
+    SA_EXPECT_FAILURE(parameter.declare(other_builder, Shape{4, 3}, NN::ParameterRole::Weight,
+                                        3, 4, "weight"),
+                      StatusCode::InvalidDescription, "'weight'", "[2, 3]", "[4, 3]");
+    EXPECT_TRUE(graph.has_refusal());
+    EXPECT_TRUE(other.has_refusal());
     EXPECT_EQ(other.value_count(), 0u);
     EXPECT_EQ(parameter.shape(), (Shape{2, 3}));
 }
@@ -495,13 +503,15 @@ TEST(Small_Module, ADeclareWithAnotherElementTypeIsRefused)
     Parameter parameter;
     (void)declare_weight(parameter, builder);
 
-    SA_EXPECT_ERROR((void)parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight,
-                                            3, 2, "weight", DType::Float64),
-                    "'weight'", dtype_name(DType::Float32), dtype_name(DType::Float64));
-    SA_EXPECT_ERROR((void)parameter.declare(other_builder, Shape{2, 3},
-                                            NN::ParameterRole::Weight, 3, 2, "weight",
-                                            DType::Float64),
-                    "'weight'", dtype_name(DType::Float32), dtype_name(DType::Float64));
+    SA_EXPECT_FAILURE(parameter.declare(builder, Shape{2, 3}, NN::ParameterRole::Weight, 3, 2,
+                                        "weight", DType::Float64),
+                      StatusCode::InvalidDescription, "'weight'", dtype_name(DType::Float32),
+                      dtype_name(DType::Float64));
+    SA_EXPECT_FAILURE(parameter.declare(other_builder, Shape{2, 3}, NN::ParameterRole::Weight,
+                                        3, 2, "weight", DType::Float64),
+                      StatusCode::InvalidDescription, "'weight'", dtype_name(DType::Float32),
+                      dtype_name(DType::Float64));
+    EXPECT_TRUE(other.has_refusal());
     EXPECT_EQ(other.value_count(), 0u);
     EXPECT_EQ(parameter.dtype(), DType::Float32);
 }
@@ -536,7 +546,7 @@ TEST(Small_Module, ACopiedLayerHasANewStateID)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     Linear original{4, 3};
-    (void)original.forward(builder, x);
+    SA_EXPECT_OK(original.forward(builder, x));
 
     Linear copy = original;
     EXPECT_EQ(copy.weight.state(), Graph::K_NO_STATE);
@@ -544,7 +554,7 @@ TEST(Small_Module, ACopiedLayerHasANewStateID)
 
     EXPECT_TRUE(copy.weight.declared());
 
-    (void)copy.forward(builder, x);
+    SA_EXPECT_OK(copy.forward(builder, x));
 
     EXPECT_NE(copy.weight.id_in(graph), Graph::K_NO_VALUE);
 
@@ -562,7 +572,7 @@ TEST(Small_Module, AMovedLayerKeepsItsStateID)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     Linear original{4, 3};
-    (void)original.forward(builder, x);
+    SA_EXPECT_OK(original.forward(builder, x));
     const Graph::StateID weight_state = original.weight.state();
     const Graph::ValueID weight_leaf = original.weight.id_in(graph);
     const std::size_t values_after_trace = graph.value_count();
@@ -572,7 +582,7 @@ TEST(Small_Module, AMovedLayerKeepsItsStateID)
     EXPECT_EQ(moved.weight.state(), weight_state);
     EXPECT_EQ(moved.weight.id_in(graph), weight_leaf);
 
-    (void)moved.forward(builder, x);
+    SA_EXPECT_OK(moved.forward(builder, x));
 
     // A second trace of the moved layer adds the two activations and no parameter leaf.
     EXPECT_EQ(graph.value_count(), values_after_trace + 2);
@@ -656,8 +666,8 @@ TEST(Small_Module, ALinearDeclaresTheFillItStates)
     NN::Linear fanned{3, 4};
     NN::Linear drawn{3, 4};
     drawn.weight_init = NN::ParameterInit::normal(0.02);
-    (void)fanned.forward(builder, x);
-    (void)drawn.forward(builder, x);
+    SA_EXPECT_OK(fanned.forward(builder, x));
+    SA_EXPECT_OK(drawn.forward(builder, x));
 
     EXPECT_EQ(fanned.weight.init().kind, NN::ParameterInit::Kind::FanScaled);
     EXPECT_EQ(drawn.weight.init().kind, NN::ParameterInit::Kind::Normal);
@@ -952,7 +962,7 @@ TEST(Small_Module, ALayerAdapterYieldsItsLayersParametersUnderThePrefix)
 
     NN::LayerAdapter<Linear> adapter(Linear{4, 3}, int64_t{3});
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
-    (void)adapter.forward(builder, x);
+    SA_EXPECT_OK(adapter.forward(builder, x));
 
     EXPECT_EQ(walk_all(adapter, "2"), (std::vector<std::string>{
         "parameter 2.weight:[3, 4]",
@@ -992,16 +1002,17 @@ TEST(Small_Module, ASequentialOfModulesKeepsItsBuilderForward)
                   "a Sequential of Modules must stay a Module when it nests");
     static_assert(std::is_same<decltype(std::declval<Chain&>().forward(
                                    std::declval<const Graph::GraphBuilder&>(),
-                                   std::declval<Graph::ValueID>())),
-                               Graph::ValueID>::value,
-                  "the builder forward must return exactly a ValueID");
+                                   std::declval<const Graph::Traced&>())),
+                               Graph::Traced>::value,
+                  "the builder forward must return exactly a Traced");
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     Sequential model{Chain{Linear{4, 8}, ReLU{}}, Linear{8, 3}};
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
-    EXPECT_EQ(graph.value(model.forward(builder, x)).shape, (Shape{2, 3}));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, model.forward(builder, x));
+    EXPECT_EQ(graph.value(y).shape, (Shape{2, 3}));
     EXPECT_EQ(walk(model), (std::vector<std::string>{
         "0.0.weight:[8, 4]", "0.0.bias:[8]",
         "1.weight:[3, 8]", "1.bias:[3]",

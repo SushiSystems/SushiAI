@@ -29,6 +29,7 @@
 #include <cstddef>
 #include <string>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -49,7 +50,8 @@ namespace
         const Graph::GraphBuilder builder(graph);
 
         const Graph::ValueID x = builder.input(batched, "x");
-        return graph.value(Flatten{}.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(Flatten{}.forward(builder, x).value()).shape;
     }
 } // namespace
 
@@ -70,7 +72,7 @@ TEST(Small_Flatten, ARank4InputTracesToOneReshape)
     const std::size_t nodes_before = graph.node_count();
 
     const Flatten layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 60}));
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
@@ -100,7 +102,7 @@ TEST(Small_Flatten, ARank2InputPassesThroughWithNoNode)
     const std::size_t values_before = graph.value_count();
 
     const Flatten layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(y, x);
     EXPECT_EQ(graph.node_count(), nodes_before);
@@ -116,7 +118,7 @@ TEST(Small_Flatten, AnNHWCInputYieldsAnNHWCResult)
     const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
     ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
 
-    const Graph::ValueID y = Flatten{}.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, Flatten{}.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
 }
@@ -130,7 +132,7 @@ TEST(Small_Flatten, ForwardRejectsAnNCHWInput)
     const Graph::ValueID x = builder.input(Shape{2, 3, 4, 5}, "x");
     graph.value(x).layout = Graph::TensorLayout::NCHW;
 
-    EXPECT_THROW((void)Flatten{}.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(Flatten{}.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that output_shape() matches the traced shape for an image and two vectors. */
@@ -138,15 +140,15 @@ TEST(Small_Flatten, OutputShapeAgreesWithTheTracedShape)
 {
     const Flatten layer{};
 
-    const Shape image = layer.output_shape(Shape{4, 5, 3});
+    const Shape image = layer.output_shape(Shape{4, 5, 3}).value();
     EXPECT_EQ(image, (Shape{60}));
     EXPECT_EQ(traced_shape(Shape{2, 4, 5, 3}), (Shape{2, image[0]}));
 
-    const Shape matrix = layer.output_shape(Shape{3, 4});
+    const Shape matrix = layer.output_shape(Shape{3, 4}).value();
     EXPECT_EQ(matrix, (Shape{12}));
     EXPECT_EQ(traced_shape(Shape{6, 3, 4}), (Shape{6, matrix[0]}));
 
-    const Shape vector = layer.output_shape(Shape{7});
+    const Shape vector = layer.output_shape(Shape{7}).value();
     EXPECT_EQ(vector, (Shape{7}));
     EXPECT_EQ(traced_shape(Shape{2, 7}), (Shape{2, vector[0]}));
 }
@@ -160,15 +162,15 @@ TEST(Small_Flatten, ForwardRejectsARank1Input)
     const Graph::ValueID x = builder.input(Shape{6}, "x");
     const Flatten layer{};
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws on a rank-0 per-sample shape. */
+/** @brief Tests that output_shape() fails on a rank-0 per-sample shape. */
 TEST(Small_Flatten, OutputShapeRejectsARank0Shape)
 {
     const Flatten layer{};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
@@ -181,7 +183,7 @@ TEST(Small_Flatten, TheParameterWalkVisitsNothing)
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 
     const Graph::ValueID x = builder.input(Shape{2, 4, 5, 3}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     std::size_t visits = 0;
     NN::for_each_parameter(layer,

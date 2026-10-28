@@ -28,6 +28,7 @@
 #pragma once
 
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -48,17 +49,20 @@ namespace SushiAI
 
             /**
              * @brief Traces the layer as one RESHAPE, or as nothing for a rank-2 input.
-             * @param x An NHWC input of rank 2 or more, batch axis first.
-             * @return The [N, d1 * ... * dk] result's id; @p x itself when it is rank 2.
+             * @param input An NHWC input of rank 2 or more, batch axis first.
+             * @return The [N, d1 * ... * dk] result, @p input itself when it is rank 2; the failure
+             *         of @p input, or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample shape of rank 1 or more.
-             * @return The rank-1 shape holding the element count of @p input.
+             * @return The rank-1 shape holding the element count of @p input, or
+             *         InvalidDescription for a rank-0 @p input.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<Flatten>, "Flatten must satisfy the Module contract");

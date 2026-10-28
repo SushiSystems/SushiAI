@@ -27,9 +27,8 @@
 
 #pragma once
 
-#include <SushiAI/failure/error.hpp>
-#include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 namespace SushiAI
 {
@@ -46,12 +45,12 @@ namespace SushiAI
              * @param builder Where the nodes go.
              * @param logits An [N, C] value of unnormalised scores.
              * @param one_hot An [N, C] one-hot target matrix.
-             * @return A 1-element loss value's id.
-             * @throws Error If the two operands disagree in shape or dtype.
+             * @return A 1-element loss value, the failure of an operand, or
+             *         InvalidDescription when the two operands disagree in shape or dtype.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder,
-                                   Graph::ValueID logits,
-                                   Graph::ValueID one_hot) const
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& logits,
+                                  const Graph::Traced& one_hot) const
             {
                 return builder.nll_loss(builder.log_softmax(logits), one_hot);
             }

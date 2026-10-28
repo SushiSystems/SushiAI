@@ -81,28 +81,30 @@ padding of 2, and dilation 1 on both axes.
 
 ## ForwardRejectsAnInputThatIsNotRankFour
 
-`forward` over a [2, 16] input throws an error naming "rank-4".
+`forward` over a [2, 16] input returns InvalidDescription naming "rank-4".
 
 ## ForwardRejectsAnNCHWInput
 
-`forward` over a value converted to NCHW throws an error naming "NHWC".
+`forward` over a value converted to NCHW returns InvalidDescription naming "NHWC".
 
 ## ForwardRejectsAChannelCountThatDiffersFromTheLayer
 
-A four-channel layer over a [2, 8, 8, 3] input throws an error naming "[H, W, 4]".
+`forward` of a four-channel layer over a [2, 8, 8, 3] input returns InvalidDescription naming
+"[H, W, 4]".
 
 ## ForwardRejectsANonPositiveChannelCount
 
-A layer with `channels` 0 throws an error naming "positive channel count".
+`forward` of a layer with `channels` 0 returns InvalidDescription naming "positive channel
+count".
 
 ## ForwardRejectsAWindowThatDoesNotFit
 
-An unpadded 5x5 window over a [2, 4, 4, 4] input throws `Error`.
+`forward` of an unpadded 5x5 window over a [2, 4, 4, 4] input returns InvalidDescription.
 
 ## OutputShapeRejectsAChannelCountThatDiffersFromTheLayer
 
-`output_shape([8, 8, 5])` on a four-channel layer throws an error naming "[H, W, 4]".
+`output_shape([8, 8, 5])` on a four-channel layer returns InvalidDescription naming "[H, W, 4]".
 
 ## OutputShapeRejectsASampleOfTheWrongRank
 
-`output_shape([8, 8])` throws an error naming "[H, W, 4]".
+`output_shape([8, 8])` returns InvalidDescription naming "[H, W, 4]".

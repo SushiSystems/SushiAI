@@ -112,7 +112,7 @@ namespace SushiAI
              * @brief Returns the per-sample shape either form produces, which is @p input.
              * @param input Any shape; a trace form refuses one that is not [H, W, channels].
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(ModalModule<BatchNorm2d>,

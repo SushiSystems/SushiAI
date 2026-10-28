@@ -33,7 +33,6 @@
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 
 namespace SushiAI
@@ -65,11 +64,7 @@ namespace SushiAI
                                   std::vector<Graph::ValueID>& outputs)
         {
             SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
-            SA_TRY_ASSIGN(const Graph::ValueID traced,
-                          Detail::bridge_throwing([this, &trace, &inputs]()
-            {
-                return layer_->forward(trace.builder(), inputs[0]);
-            }));
+            SA_TRY_ASSIGN(const Graph::ValueID traced, layer_->forward(trace.builder(), inputs[0]));
 
             outputs.push_back(traced);
             return Status();

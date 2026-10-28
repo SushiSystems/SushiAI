@@ -567,7 +567,8 @@ TEST(Small_BatchNorm2d, AnNCHWInputFails)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{3, 3, 3, 3}, "x");
-    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
     BatchNorm2d layer(3, NormOptions{});
     BufferUpdateList list;
     const std::size_t before = graph.value_count();
@@ -720,8 +721,8 @@ TEST(Small_BatchNorm2d, OutputShapeIsTheInputShape)
 {
     const BatchNorm2d layer(3, NormOptions{});
 
-    EXPECT_EQ(layer.output_shape(Shape{7, 5, 3}), (Shape{7, 5, 3}));
-    EXPECT_EQ(layer.output_shape(Shape{7, 5, 4}), (Shape{7, 5, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{7, 5, 3}).value(), (Shape{7, 5, 3}));
+    EXPECT_EQ(layer.output_shape(Shape{7, 5, 4}).value(), (Shape{7, 5, 4}));
 }
 
 /**

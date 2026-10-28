@@ -130,12 +130,14 @@ of `output_shape([4])`.
 
 ## LinearRefusesAPerSampleShapeOfTheWrongRank
 
-`output_shape([4, 2, 1])` throws with a message containing "Linear(4, 3)", "[4, 2, 1]" and
-"[4]". The first extent equals `in_features`, so only the rank check can refuse this shape.
+`output_shape([4, 2, 1])` returns InvalidDescription with a message containing "Linear(4, 3)", "[4,
+2, 1]" and "[4]". The first extent equals `in_features`, so only the rank check can refuse this
+shape.
 
 ## LinearRefusesAPerSampleShapeOfTheWrongWidth
 
-`output_shape([7])` throws with a message containing "Linear(4, 3)", "[7]" and "[4]".
+`output_shape([7])` returns InvalidDescription with a message containing "Linear(4, 3)", "[7]" and
+"[4]".
 
 ## AnActivationReportsItsInputShapeAsItsOutputShape
 
@@ -183,15 +185,16 @@ does not grow and `state_leaves()` holds one pair.
 
 ## ADeclareWithAnotherShapeIsRefused
 
-After a [2, 3] declaration, a `declare()` with [4, 3] throws with a message containing
-"'weight'", "[2, 3]" and "[4, 3]", through the same builder and through a builder over a second
-graph. The second graph holds no value and the parameter's shape stays [2, 3].
+After a [2, 3] declaration, a `declare()` with [4, 3] returns `InvalidDescription` with a
+message containing "'weight'", "[2, 3]" and "[4, 3]", through the same builder and through a
+builder over a second graph. Both graphs hold a refusal, the second holds no value and the
+parameter's shape stays [2, 3].
 
 ## ADeclareWithAnotherElementTypeIsRefused
 
-After a FLOAT32 declaration, a `declare()` with FLOAT64 throws with a message containing
-"'weight'" and both type names, in the same graph and in a second one. The second graph holds
-no value and the parameter's type stays FLOAT32.
+After a FLOAT32 declaration, a `declare()` with FLOAT64 returns `InvalidDescription` with a
+message containing "'weight'" and both type names, in the same graph and in a second one. The
+second graph holds a refusal and no value, and the parameter's type stays FLOAT32.
 
 ## ALaterDeclareKeepsTheFirstDescription
 

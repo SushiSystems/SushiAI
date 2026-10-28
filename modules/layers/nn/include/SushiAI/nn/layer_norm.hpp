@@ -90,7 +90,7 @@ namespace SushiAI
              * @brief Returns the per-sample shape forward() produces, which is @p input.
              * @param input Any shape; forward() refuses one whose last extent is not dim.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(TraceModule<LayerNorm>, "LayerNorm must satisfy the TraceModule contract");

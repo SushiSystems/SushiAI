@@ -32,6 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -55,8 +56,18 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(batched_input, "x");
-        const Shape traced = graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        const Shape traced = graph.value(layer.forward(builder, x).value()).shape;
         return Shape{traced[1], traced[2], traced[3]};
+    }
+
+    /** @brief Traces @p layer over a fresh input of @p batched_input and returns its status. */
+    Status trace_status(const ChannelSlice& layer, const Shape& batched_input)
+    {
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueID x = builder.input(batched_input, "x");
+        return layer.forward(builder, x).status();
     }
 } // namespace
 
@@ -74,16 +85,16 @@ TEST(Small_ChannelSlice, OutputShapeKeepsHeightAndWidthAndTakesTheRange)
 {
     const ChannelSlice layer{32, 32};
 
-    EXPECT_EQ(layer.output_shape(Shape{5, 3, 64}), (Shape{5, 3, 32}));
+    EXPECT_EQ(layer.output_shape(Shape{5, 3, 64}).value(), (Shape{5, 3, 32}));
 }
 
 /** @brief Tests that the first channel, the last channel and the whole range are all accepted. */
 TEST(Small_ChannelSlice, OutputShapeAcceptsTheFirstLastAndWholeRanges)
 {
-    EXPECT_EQ((ChannelSlice{0, 1}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 1}));
-    EXPECT_EQ((ChannelSlice{3, 1}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 1}));
-    EXPECT_EQ((ChannelSlice{1, 3}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 3}));
-    EXPECT_EQ((ChannelSlice{0, 4}.output_shape(Shape{4, 2, 4})), (Shape{4, 2, 4}));
+    EXPECT_EQ((ChannelSlice{0, 1}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 1}));
+    EXPECT_EQ((ChannelSlice{3, 1}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 1}));
+    EXPECT_EQ((ChannelSlice{1, 3}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 3}));
+    EXPECT_EQ((ChannelSlice{0, 4}.output_shape(Shape{4, 2, 4}).value()), (Shape{4, 2, 4}));
 }
 
 /** @brief Tests that the traced result carries the NHWC layout tag. */
@@ -94,7 +105,7 @@ TEST(Small_ChannelSlice, TheResultIsTaggedNHWC)
 
     const ChannelSlice layer{32, 32};
     const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -112,7 +123,7 @@ TEST(Small_ChannelSlice, ForwardEmitsOneSliceNodeCarryingTheOffset)
     const ChannelSlice layer{32, 32};
     const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
     const std::size_t nodes_before = graph.node_count();
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
@@ -130,7 +141,7 @@ TEST(Small_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
 
     const ChannelSlice layer{0, 64};
     const Graph::ValueID x = builder.input(Shape{2, 5, 3, 64}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 5, 3, 64}));
 }
@@ -139,11 +150,11 @@ TEST(Small_ChannelSlice, TheWholeChannelRangeTracesToTheInputShape)
 TEST(Small_ChannelSlice, OutputShapeAgreesWithTheTracedShape)
 {
     const ChannelSlice acceptance{32, 32};
-    EXPECT_EQ(acceptance.output_shape(Shape{5, 3, 64}),
+    EXPECT_EQ(acceptance.output_shape(Shape{5, 3, 64}).value(),
               traced_per_sample_shape(acceptance, Shape{2, 5, 3, 64}));
 
     const ChannelSlice leading{1, 2};
-    EXPECT_EQ(leading.output_shape(Shape{4, 4, 6}),
+    EXPECT_EQ(leading.output_shape(Shape{4, 4, 6}).value(),
               traced_per_sample_shape(leading, Shape{1, 4, 4, 6}));
 }
 
@@ -152,8 +163,8 @@ TEST(Small_ChannelSlice, OutputShapeRejectsANegativeOffset)
 {
     const ChannelSlice layer{-1, 4};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "offset=-1, count=4", "64 channels");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=-1, count=4", "64 channels");
 }
 
 /** @brief Tests that output_shape rejects a zero count in a message naming the values. */
@@ -161,8 +172,8 @@ TEST(Small_ChannelSlice, OutputShapeRejectsAZeroCount)
 {
     const ChannelSlice layer{0, 0};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "offset=0, count=0", "64 channels");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=0, count=0", "64 channels");
 }
 
 /** @brief Tests that output_shape rejects a negative count in a message naming the values. */
@@ -170,8 +181,8 @@ TEST(Small_ChannelSlice, OutputShapeRejectsANegativeCount)
 {
     const ChannelSlice layer{8, -2};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "offset=8, count=-2", "64 channels");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=8, count=-2", "64 channels");
 }
 
 /** @brief Tests that output_shape rejects a range that runs past the channels. */
@@ -179,8 +190,8 @@ TEST(Small_ChannelSlice, OutputShapeRejectsARangePastTheChannels)
 {
     const ChannelSlice layer{32, 40};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "offset=32, count=40", "64 channels");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=32, count=40", "64 channels");
 }
 
 /** @brief Tests that output_shape rejects an offset at the channel count, even with count 1. */
@@ -188,8 +199,8 @@ TEST(Small_ChannelSlice, OutputShapeRejectsAnOffsetAtTheChannelCount)
 {
     const ChannelSlice layer{64, 1};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "offset=64, count=1", "64 channels");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=64, count=1", "64 channels");
 }
 
 /** @brief Tests that extreme offsets and counts are refused without overflowing the range test. */
@@ -199,10 +210,10 @@ TEST(Small_ChannelSlice, OutputShapeRejectsExtremeValuesWithoutOverflow)
     const ChannelSlice far_offset{largest, 1};
     const ChannelSlice far_count{1, largest};
 
-    SA_EXPECT_ERROR((void)far_offset.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "64 channels");
-    SA_EXPECT_ERROR((void)far_count.output_shape(Shape{5, 3, 64}), "ChannelSlice",
-                    "64 channels");
+    SA_EXPECT_FAILURE(far_offset.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "64 channels");
+    SA_EXPECT_FAILURE(far_count.output_shape(Shape{5, 3, 64}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "64 channels");
 }
 
 /** @brief Tests that output_shape rejects a feature vector in a message naming layer and shape. */
@@ -210,15 +221,16 @@ TEST(Small_ChannelSlice, OutputShapeRejectsARankOnePerSampleShape)
 {
     const ChannelSlice layer{0, 1};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{16}), "ChannelSlice", "[H, W, C]", "[16]");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{16}), StatusCode::InvalidDescription, "ChannelSlice",
+                      "[H, W, C]", "[16]");
 }
 
-/** @brief Tests that output_shape throws for a shape that still carries its batch axis. */
+/** @brief Tests that output_shape fails for a shape that still carries its batch axis. */
 TEST(Small_ChannelSlice, OutputShapeRejectsARankFourShape)
 {
     const ChannelSlice layer{0, 1};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{2, 3, 5, 7}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 3, 5, 7}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward rejects a rank-2 input in a message naming layer and shape. */
@@ -230,7 +242,8 @@ TEST(Small_ChannelSlice, ForwardRejectsARankTwoInput)
     const ChannelSlice layer{0, 1};
     const Graph::ValueID x = builder.input(Shape{2, 12}, "x");
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "ChannelSlice", "rank-4", "[2, 12]");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "ChannelSlice",
+                      "rank-4", "[2, 12]");
 }
 
 /** @brief Tests that forward rejects a range past the channels in the layer's own message. */
@@ -238,8 +251,8 @@ TEST(Small_ChannelSlice, ForwardRejectsARangePastTheChannels)
 {
     const ChannelSlice layer{2, 2};
 
-    SA_EXPECT_ERROR((void)traced_per_sample_shape(layer, Shape{1, 2, 2, 3}), "ChannelSlice",
-                    "offset=2, count=2", "3 channels");
+    SA_EXPECT_FAILURE(trace_status(layer, Shape{1, 2, 2, 3}), StatusCode::InvalidDescription,
+                      "ChannelSlice", "offset=2, count=2", "3 channels");
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
@@ -250,9 +263,11 @@ TEST(Small_ChannelSlice, ForwardRejectsAnNCHWInput)
 
     const ChannelSlice layer{0, 1};
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x_nchw), "slice_channels", "NHWC");
+    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription,
+                      "slice_channels", "NHWC");
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
@@ -263,7 +278,7 @@ TEST(Small_ChannelSlice, TheParameterWalkVisitsNothing)
 
     ChannelSlice layer{0, 1};
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     std::size_t visited = 0;
     NN::for_each_parameter(layer, [&visited](const std::string&, NN::Parameter&)

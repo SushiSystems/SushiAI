@@ -35,6 +35,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -83,8 +84,9 @@ TEST(Small_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
     const ValueID targets = builder.input(Shape{8, 3}, "targets");
 
     NN::Sequential model{NN::Linear{6, 4}, NN::ReLU{}, NN::Linear{4, 3}};
-    const ValueID logits = model.forward(builder, x);
-    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, model.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
     const std::size_t forward_nodes = graph.node_count();
 
@@ -95,8 +97,8 @@ TEST(Small_Layers, TwoLayerMLPProducesTheExpectedBackwardTopology)
     });
     ASSERT_EQ(wrt.size(), 4u);
 
-    const std::vector<ValueID> grads =
-        Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> grads, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     // Cross-entropy differentiates as one fused rule; see tests/layers/nn/README.md.
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
@@ -135,11 +137,13 @@ TEST(Small_Layers, TheInputIsNotDifferentiatedWhenItDoesNotRequireOne)
     const ValueID targets = builder.input(Shape{8, 3}, "targets");
 
     NN::Linear layer{6, 3};
-    const ValueID logits = layer.forward(builder, x);
-    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, layer.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
     const std::vector<ValueID> wrt = {layer.weight.id_in(graph)};
-    (void)Autograd::differentiate(graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_EXPECT_OK(Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     // The input gradient's MATMUL is skipped; see tests/layers/nn/README.md.
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 2u);
@@ -149,7 +153,7 @@ namespace
 {
 
     /** @brief Differentiates @p loss with respect to @p wrt. */
-    std::vector<ValueID> differentiate(Graph::Graph& graph, ValueID loss,
+    Result<std::vector<ValueID>> differentiate(Graph::Graph& graph, ValueID loss,
                                        const std::vector<ValueID>& wrt,
                                        ValueID seed_factor = K_NO_VALUE,
                                        Autograd::Provenance* provenance = nullptr)
@@ -171,8 +175,9 @@ TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
     const ValueID targets = builder.input(Shape{8, 3}, "targets");
 
     NN::Sequential model{NN::Linear{6, 4}, NN::ReLU{}, NN::Linear{4, 3}};
-    const ValueID logits = model.forward(builder, x);
-    const ValueID loss = NN::CrossEntropyLoss{}.forward(builder, logits, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, model.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            NN::CrossEntropyLoss{}.forward(builder, logits, targets));
     const std::size_t forward_nodes = graph.node_count();
 
     std::vector<ValueID> wrt;
@@ -181,7 +186,7 @@ TEST(Small_Layers, AFusedCrossEntropyRootEmitsNoSeedNode)
         wrt.push_back(parameter.id_in(graph));
     });
 
-    (void)differentiate(graph, loss, wrt);
+    SA_EXPECT_OK(differentiate(graph, loss, wrt));
 
     EXPECT_EQ(op_names(graph, forward_nodes), (std::vector<std::string>{
         "sushiai.exp",
@@ -206,15 +211,15 @@ TEST(Small_Layers, LinearNamesItsOwnDimensionsWhenTheInputDoesNotFit)
     const ValueID x = builder.input(Shape{8, 5}, "x");
 
     NN::Linear layer{6, 4};
-    SA_EXPECT_ERROR((void)layer.forward(builder, x),
-                    "Linear(6, 4)", "[8, 5]", "inner extent must be 6");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription, "Linear(6, 4)",
+                      "[8, 5]", "inner extent must be 6");
 
     NN::Linear rank_checker{5, 4};
     const ValueID vector = builder.input(Shape{5}, "v");
-    SA_EXPECT_ERROR((void)rank_checker.forward(builder, vector),
-                    "Linear needs a rank-2 input", "[5]");
+    SA_EXPECT_FAILURE(rank_checker.forward(builder, vector), StatusCode::InvalidDescription,
+                      "Linear needs a rank-2 input", "[5]");
 
     NN::Linear empty{0, 4};
-    SA_EXPECT_ERROR((void)empty.forward(builder, x),
-                    "Linear needs positive feature counts", "in=0", "out=4");
+    SA_EXPECT_FAILURE(empty.forward(builder, x), StatusCode::InvalidDescription,
+                      "Linear needs positive feature counts", "in=0", "out=4");
 }

@@ -45,53 +45,53 @@ shape with its batch axis dropped.
 
 ## OutputShapeRejectsANegativeOffset
 
-Offset -1 with count 4 throws an error naming "ChannelSlice", "offset=-1, count=4" and
+Offset -1 with count 4 returns InvalidDescription naming "ChannelSlice", "offset=-1, count=4" and
 "64 channels".
 
 ## OutputShapeRejectsAZeroCount
 
-Offset 0 with count 0 throws an error naming "ChannelSlice", "offset=0, count=0" and
-"64 channels".
+Offset 0 with count 0 returns InvalidDescription naming "ChannelSlice", "offset=0, count=0" and "64
+channels".
 
 ## OutputShapeRejectsANegativeCount
 
-Offset 8 with count -2 throws an error naming "ChannelSlice", "offset=8, count=-2" and
+Offset 8 with count -2 returns InvalidDescription naming "ChannelSlice", "offset=8, count=-2" and
 "64 channels".
 
 ## OutputShapeRejectsARangePastTheChannels
 
-Offset 32 with count 40 over 64 channels throws an error naming "offset=32, count=40" and
+Offset 32 with count 40 over 64 channels returns InvalidDescription naming "offset=32, count=40" and
 "64 channels".
 
 ## OutputShapeRejectsAnOffsetAtTheChannelCount
 
-Offset 64 with count 1 over 64 channels throws an error naming "offset=64, count=1".
+Offset 64 with count 1 over 64 channels returns InvalidDescription naming "offset=64, count=1".
 
 ## OutputShapeRejectsExtremeValuesWithoutOverflow
 
-An offset of the largest `int64_t` with count 1, and offset 1 with a count of the largest
-`int64_t`, each throw an error naming "ChannelSlice" and "64 channels".
+An offset of the largest `int64_t` with count 1, and offset 1 with a count of the largest `int64_t`,
+each return InvalidDescription naming "ChannelSlice" and "64 channels".
 
 ## OutputShapeRejectsARankOnePerSampleShape
 
-`output_shape([16])` throws an error naming "ChannelSlice", "[H, W, C]" and "[16]".
+`output_shape([16])` returns InvalidDescription naming "ChannelSlice", "[H, W, C]" and "[16]".
 
 ## OutputShapeRejectsARankFourShape
 
-`output_shape([2, 3, 5, 7])` throws `Error`.
+`output_shape([2, 3, 5, 7])` returns InvalidDescription.
 
 ## ForwardRejectsARankTwoInput
 
-`forward` over a [2, 12] input throws an error naming "ChannelSlice", "rank-4" and "[2, 12]".
+`forward` over a [2, 12] input returns InvalidDescription naming "ChannelSlice", "rank-4" and "[2, 12]".
 
 ## ForwardRejectsARangePastTheChannels
 
-`forward` with offset 2 and count 2 over a three-channel input throws an error naming
+`forward` with offset 2 and count 2 over a three-channel input returns InvalidDescription naming
 "ChannelSlice", "offset=2, count=2" and "3 channels".
 
 ## ForwardRejectsAnNCHWInput
 
-`forward` over a value converted to NCHW throws an error naming "slice_channels" and "NHWC".
+`forward` over a value converted to NCHW returns InvalidDescription naming "slice_channels" and "NHWC".
 
 ## TheParameterWalkVisitsNothing
 

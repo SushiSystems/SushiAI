@@ -65,15 +65,15 @@ shape agrees.
 
 ## ForwardRejectsAnInputThatIsNotRankFour
 
-`forward()` throws on a [2, 16] input.
+`forward()` returns InvalidDescription on a [2, 16] input.
 
 ## ForwardRejectsAWindowThatDoesNotFit
 
-`forward()` throws for a 5x5 window over a [2, 4, 4, 3] input.
+`forward()` returns InvalidDescription for a 5x5 window over a [2, 4, 4, 3] input.
 
 ## ForwardRejectsAnNCHWInput
 
-A [2, 8, 8, 3] input is converted to NCHW, and `forward()` throws on the converted value.
+A [2, 8, 8, 3] input is converted to NCHW, and `forward()` returns InvalidDescription for the converted value.
 
 ## ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
 
@@ -83,43 +83,45 @@ the window is fitted.
 
 ## ForwardRejectsAZeroStride
 
-`forward()` with a vertical stride of 0 throws with a message containing "MaxPool2d" and
+`forward()` with a vertical stride of 0 returns InvalidDescription with a message containing "MaxPool2d" and
 "stride 0,2".
 
 ## ForwardRejectsANegativePadding
 
-`forward()` with a left padding of -1 throws with a message containing "MaxPool2d" and
+`forward()` with a left padding of -1 returns InvalidDescription with a message containing "MaxPool2d" and
 "padding 0,-1".
 
 ## OutputShapeRejectsAZeroStride
 
-`output_shape()` throws when the vertical stride is 0.
+`output_shape()` fails when the vertical stride is 0.
 
 ## OutputShapeNamesAZeroStride
 
-The message for the same layer contains "MaxPool2d" and "stride 0,2", so it reports the
-stride and not a window that does not fit.
+The message for the same layer contains "MaxPool2d" and "stride 0,2", so it reports the stride and
+not a window that does not fit.
 
 ## OutputShapeRejectsANegativePadding
 
-`output_shape()` with a left padding of -1 throws with a message containing "MaxPool2d" and
-"padding 0,-1".
+`output_shape()` with a left padding of -1 returns InvalidDescription with a message containing
+"MaxPool2d" and "padding 0,-1".
 
 ## OutputShapeRejectsAFeatureVector
 
-`output_shape([16])` throws.
+`output_shape([16])` returns InvalidDescription.
 
 ## OutputShapeRejectsABatchedShape
 
-`output_shape([2, 8, 8, 3])` throws.
+`output_shape([2, 8, 8, 3])` returns InvalidDescription.
 
 ## OutputShapeRejectsAWindowTallerThanTheInput
 
-A 5x2 window over [4, 8, 3] throws. The window fits the width, so the height check refuses.
+A 5x2 window over [4, 8, 3] returns InvalidDescription. The window fits the width, so the height
+check refuses.
 
 ## OutputShapeRejectsAWindowWiderThanTheInput
 
-A 2x5 window over [8, 4, 3] throws. The window fits the height, so the width check refuses.
+A 2x5 window over [8, 4, 3] returns InvalidDescription. The window fits the height, so the width
+check refuses.
 
 ## TrailingRowKeepsTheExtentOfAStrideOnePool
 
@@ -141,12 +143,12 @@ A 2x2 pool of stride 1 with `trailing_pad_h` 1 alone reports [3, 2, 2] over [3, 
 
 ## TrailingPadLetsAWindowFitAShortInput
 
-A 2x2 pool of stride 1 throws `Error` from `output_shape` over [1, 4, 3]. With a trailing pad
-of 1 on both axes it reports [1, 4, 3] and traces to [1, 1, 4, 3].
+A 2x2 pool of stride 1 fails from `output_shape` over [1, 4, 3]. With a trailing pad of 1 on both
+axes it reports [1, 4, 3] and traces to [1, 1, 4, 3].
 
 ## OutputShapeRejectsANegativeTrailingPad
 
-With `trailing_pad_w` -1, `output_shape` raises an error holding "MaxPool2d",
+With `trailing_pad_w` -1, `output_shape` returns InvalidDescription holding "MaxPool2d",
 "non-negative trailing padding" and "0,-1".
 
 ## ForwardRejectsANegativeTrailingPad
@@ -156,13 +158,13 @@ With `trailing_pad_h` -2, `forward` raises an error holding "MaxPool2d",
 
 ## OutputShapeRejectsATrailingPadThatOverflows
 
-With `trailing_pad_h` at the largest `int64_t`, `output_shape` raises an error holding
+With `trailing_pad_h` at the largest `int64_t`, `output_shape` returns InvalidDescription holding
 "MaxPool2d" and "within 64 bits".
 
 ## OutputShapeRejectsATrailingPadThatLeavesAWindowNoTap
 
-A 2x2 pool with `trailing_pad_h` 2 raises from `output_shape` an error holding "MaxPool2d",
-"every window a tap inside the input" and "2,0".
+A 2x2 pool with `trailing_pad_h` 2 makes `output_shape` return InvalidDescription holding
+"MaxPool2d", "every window a tap inside the input" and "2,0".
 
 ## ForwardRejectsATrailingPadThatLeavesAWindowNoTap
 

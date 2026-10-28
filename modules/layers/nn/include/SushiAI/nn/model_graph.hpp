@@ -227,10 +227,10 @@ namespace SushiAI
                  * @brief Returns the per-sample shape forward() produces.
                  * @param input The shape of the value read; forward() refuses any but the
                  *              shape the graph was started over.
-                 * @return The shape of the single published output, or an empty shape when
-                 *         the graph does not publish exactly one.
+                 * @return The shape of the single published output, or InvalidDescription
+                 *         naming the output count when the graph does not publish exactly one.
                  */
-                Shape output_shape(const Shape& input) const;
+                Result<Shape> output_shape(const Shape& input) const;
 
                 /**
                  * @brief Hands the state of every node to @p visitor, in the order added.

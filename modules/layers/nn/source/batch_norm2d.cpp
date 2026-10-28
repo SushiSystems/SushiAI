@@ -34,7 +34,6 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/node_attributes.hpp>
 
 namespace SushiAI
@@ -114,16 +113,13 @@ namespace SushiAI
                 const DType dtype = builder.graph().value(x).dtype;
                 const Shape per_channel{layer.channels};
 
-                SA_TRY_ASSIGN(const Graph::ValueID gamma, Detail::bridge_throwing([&]()
-                {
-                    return layer.weight.declare(builder, per_channel, ParameterRole::Scale,
-                                                layer.channels, layer.channels, "weight", dtype);
-                }));
-                SA_TRY_ASSIGN(const Graph::ValueID beta, Detail::bridge_throwing([&]()
-                {
-                    return layer.bias.declare(builder, per_channel, ParameterRole::Bias,
-                                              layer.channels, layer.channels, "bias", dtype);
-                }));
+                SA_TRY_ASSIGN(const Graph::ValueID gamma,
+                              layer.weight.declare(builder, per_channel, ParameterRole::Scale,
+                                                   layer.channels, layer.channels, "weight",
+                                                   dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID beta,
+                              layer.bias.declare(builder, per_channel, ParameterRole::Bias,
+                                                 layer.channels, layer.channels, "bias", dtype));
 
                 SA_TRY(SA_ANNOTATE(layer.running_mean.define(per_channel, 0.0, dtype),
                                    "BatchNorm2d({}) 'running_mean'", layer.channels));
@@ -168,10 +164,9 @@ namespace SushiAI
                            layer.channels, count, image.to_string());
 
                 SA_TRY_ASSIGN(const DeclaredState state, declare_state(layer, builder, x));
-                SA_TRY_ASSIGN(const Graph::BatchNormResult result, Detail::bridge_throwing([&]()
-                {
-                    return builder.batchnorm2d(x, state.gamma, state.beta, layer.options.epsilon);
-                }));
+                SA_TRY_ASSIGN(const Graph::BatchNormResult result,
+                              builder.batchnorm2d(x, state.gamma, state.beta,
+                                                  layer.options.epsilon));
 
                 request_update(trace, layer.running_mean, "running_mean", result.saved_mean,
                                layer.options.momentum, 1.0);
@@ -190,22 +185,16 @@ namespace SushiAI
                 SA_TRY(checked_image(layer, builder, x));
 
                 SA_TRY_ASSIGN(const DeclaredState state, declare_state(layer, builder, x));
-                SA_TRY_ASSIGN(const Graph::ValueID mean, Detail::bridge_throwing([&]()
-                {
-                    return layer.running_mean.read(builder, "running_mean");
-                }));
-                SA_TRY_ASSIGN(const Graph::ValueID variance, Detail::bridge_throwing([&]()
-                {
-                    return layer.running_var.read(builder, "running_var");
-                }));
+                const Graph::ValueID mean = layer.running_mean.read(builder, "running_mean");
+                const Graph::ValueID variance = layer.running_var.read(builder, "running_var");
 
-                return Detail::bridge_throwing([&]()
-                {
-                    const Graph::BatchNormFold folded = builder.batchnorm_fold(
-                        state.gamma, state.beta, mean, variance, layer.options.epsilon);
+                SA_TRY_ASSIGN(const Graph::BatchNormFold folded,
+                              builder.batchnorm_fold(state.gamma, state.beta, mean, variance,
+                                                     layer.options.epsilon));
 
-                    return builder.channel_affine(x, folded.scale, folded.shift);
-                });
+                SA_TRY_ASSIGN(const Graph::ValueID normalised,
+                              builder.channel_affine(x, folded.scale, folded.shift));
+                return normalised;
             }
 
         } // namespace
@@ -230,7 +219,7 @@ namespace SushiAI
             return trace.value_or_fail(trace_running_statistics(*this, trace, x), x);
         }
 
-        Shape BatchNorm2d::output_shape(const Shape& input) const
+        Result<Shape> BatchNorm2d::output_shape(const Shape& input) const
         {
             return input;
         }

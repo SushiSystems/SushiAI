@@ -143,58 +143,62 @@ and its role is `WEIGHT`.
 
 ## OutputShapeRejectsANonPositiveInputChannelCount
 
-A layer with `in_channels` 0 throws with a message containing "Conv2d", "in=0" and "out=8".
+A layer with `in_channels` 0 returns InvalidDescription with a message containing "Conv2d", "in=0"
+and "out=8".
 
 ## OutputShapeRejectsANonPositiveOutputChannelCount
 
-A layer with `out_channels` -1 throws with a message containing "Conv2d", "in=3" and "out=-1".
+A layer with `out_channels` -1 returns InvalidDescription with a message containing "Conv2d", "in=3"
+and "out=-1".
 
 ## OutputShapeRejectsAWrongChannelCount
 
-A three-channel layer given [8, 8, 4] throws. The message contains "Conv2d(3, 8)", the shape
-"[8, 8, 4]" and the expected form "[H, W, 3]".
+A three-channel layer given [8, 8, 4] returns InvalidDescription. The message contains "Conv2d(3,
+8)", the shape "[8, 8, 4]" and the expected form "[H, W, 3]".
 
 ## OutputShapeRejectsAFeatureVector
 
-`output_shape([3])` throws with a message containing "Conv2d(3, 8)", "[3]" and "[H, W, 3]".
+`output_shape([3])` returns InvalidDescription with a message containing "Conv2d(3, 8)", "[3]" and
+"[H, W, 3]".
 
 ## OutputShapeRejectsABatchedShape
 
-`output_shape([2, 8, 3, 3])` throws with a message containing the shape and "[H, W, 3]". The
-third extent equals `in_channels`, so only the rank check can refuse this shape.
+`output_shape([2, 8, 3, 3])` returns InvalidDescription with a message containing the shape and "[H,
+W, 3]". The third extent equals `in_channels`, so only the rank check can refuse this shape.
 
 ## OutputShapeRejectsAWindowThatDoesNotFit
 
-A 5x5 window over [4, 4, 3] throws with a message containing "Conv2d(3, 8)", "[4, 4, 3]" and
-"5x5".
+A 5x5 window over [4, 4, 3] returns InvalidDescription with a message containing "Conv2d(3, 8)",
+"[4, 4, 3]" and "5x5".
 
 ## OutputShapeRejectsAZeroStride
 
-A stride of 0 throws with a message containing "Conv2d(3, 8)" and "stride 0,0".
+A stride of 0 returns InvalidDescription with a message containing "Conv2d(3, 8)" and "stride 0,0".
 
 ## OutputShapeRejectsANegativePadding
 
-A padding of -1 throws with a message containing "Conv2d(3, 8)" and "padding -1,-1".
+A padding of -1 returns InvalidDescription with a message containing "Conv2d(3, 8)" and "padding
+-1,-1".
 
 ## ForwardRejectsAWrongChannelCount
 
-`forward()` on a [2, 8, 8, 4] input throws with a message containing "Conv2d(3, 8)",
+`forward()` on a [2, 8, 8, 4] input returns InvalidDescription with a message containing "Conv2d(3, 8)",
 "[8, 8, 4]" and "[H, W, 3]", the three strings OutputShapeRejectsAWrongChannelCount expects.
 The weight is not declared afterwards.
 
 ## ForwardRejectsAnInputThatIsNotRankFour
 
-`forward()` on a [2, 3] input throws with a message containing "Conv2d(3, 8)", "rank-4" and
+`forward()` on a [2, 3] input returns InvalidDescription with a message containing "Conv2d(3, 8)", "rank-4" and
 "[2, 3]", and the weight is not declared afterwards.
 
 ## ForwardRejectsNonPositiveChannelCounts
 
-`forward()` on a layer with `out_channels` 0 throws with a message containing "Conv2d",
+`forward()` on a layer with `out_channels` 0 returns InvalidDescription with a message containing "Conv2d",
 "in=3" and "out=0".
 
 ## ForwardRejectsAWindowThatDoesNotFit
 
-`forward()` with a 5x5 window over a [2, 4, 4, 3] input throws with a message containing
+`forward()` with a 5x5 window over a [2, 4, 4, 3] input returns InvalidDescription with a message containing
 "Conv2d(3, 8)", "[4, 4, 3]" and "5x5".
 
 ## ForwardRejectsAnNCHWInput

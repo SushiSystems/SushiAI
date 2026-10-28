@@ -9,8 +9,8 @@ This file needs no device. `NN::Node` in `modules/layers/nn/include/SushiAI/nn/n
 `ModelGraph` holds its rows through: a node declares its ports, reads a span of values and
 appends its results. `NN::ModuleNode<L>` in `modules/layers/nn/include/SushiAI/nn/module_node.hpp` wraps a
 layer of any of the three forms, and `NN::LayerNode` in `modules/layers/nn/include/SushiAI/nn/layer_node.hpp`
-wraps an `NN::Layer`. Both return a `Status` from `forward`, and an `Error` a layer throws
-comes back as a failure.
+wraps an `NN::Layer`. Both return a `Status` from `forward`, and a layer's refusal or an `Error`
+a trace-form layer throws comes back as a failure.
 
 ## BufferedStub
 
@@ -81,10 +81,10 @@ The node of `Linear{6, 8}` over [6] has one port named "output" of shape [8].
 ## ModuleNodeCreateReturnsTheFailureOfAShapeTheLayerRefuses
 
 `ModuleNode<Linear>::create(Linear{6, 8}, [5])` returns `InvalidDescription` with a message
-containing "Linear(6, 8)", "[5]" and "[6]". `Linear::output_shape` throws for that shape, and
-`create` returns the throw as a failure.
+containing "Linear(6, 8)", "[5]" and "[6]". `Linear::output_shape` returns that failure, and
+`create` passes it on.
 
-## ModuleNodeForwardReturnsTheFailureOfALayerThatThrows
+## ModuleNodeForwardReturnsTheFailureOfALayerThatRefuses
 
 `forward` over a [2, 5] value returns `InvalidDescription` with "Linear(6, 8)" and "[2, 5]",
 and `outputs` stays empty.

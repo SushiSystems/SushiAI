@@ -31,12 +31,13 @@ namespace SushiAI
 {
     namespace NN
     {
-        Graph::ValueID Identity::forward(const Graph::GraphBuilder&, Graph::ValueID x) const
+        Graph::Traced Identity::forward(const Graph::GraphBuilder&,
+                                        const Graph::Traced& input) const
         {
-            return x;
+            return input;
         }
 
-        Shape Identity::output_shape(const Shape& input) const
+        Result<Shape> Identity::output_shape(const Shape& input) const
         {
             return input;
         }

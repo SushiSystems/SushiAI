@@ -28,6 +28,7 @@
 #pragma once
 
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -51,15 +52,18 @@ namespace SushiAI
 
             /**
              * @brief Traces the activation over an input of any rank.
-             * @return The result's id, shaped and laid out like @p x.
+             * @return The result, shaped and laid out like @p input; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
-             * @return The shape of @p input, which the activation keeps.
+             * @return The shape of @p input, which the activation keeps, or
+             *         InvalidDescription for a slope the layer refuses.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<LeakyReLU>, "LeakyReLU must satisfy the Module contract");

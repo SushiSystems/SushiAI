@@ -93,7 +93,7 @@ namespace SushiAI
              * @param input The per-sample shape of the indices.
              * @pre @p input has a rank of at most K_MAX_RANK - 2; a higher rank is fatal.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(TraceModule<Embedding>, "Embedding must satisfy the TraceModule contract");

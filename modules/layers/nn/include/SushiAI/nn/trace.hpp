@@ -290,6 +290,13 @@ namespace SushiAI
                                                            Graph::ValueID fallback) const noexcept;
 
                 /**
+                 * @brief Returns the id @p traced holds, or records its failure with fail().
+                 * @param fallback Returned on a failure; a refusing layer passes its input.
+                 */
+                [[nodiscard]] Graph::ValueID value_or_fail(const Graph::Traced& traced,
+                                                           Graph::ValueID fallback) const noexcept;
+
+                /**
                  * @brief Hands one update of @p target to the sink.
                  * @param target A defined buffer; an undefined one is fatal.
                  * @param source A value of builder().graph(); anything else is fatal.
@@ -478,7 +485,7 @@ namespace SushiAI
 
             };
 
-            /** @brief Detects output_shape(const Shape&) returning Shape on T. */
+            /** @brief Detects output_shape(const Shape&) returning Result<Shape> on T. */
             template<typename T, typename = void>
             struct HasOutputShapeOfInput : std::false_type
             {
@@ -489,7 +496,7 @@ namespace SushiAI
             template<typename T>
             struct HasOutputShapeOfInput<T, std::enable_if_t<std::is_same<
                 decltype(std::declval<T&>().output_shape(std::declval<const Shape&>())),
-                Shape>::value>>
+                Result<Shape>>::value>>
                 : std::true_type
             {
 
@@ -549,11 +556,11 @@ namespace SushiAI
                           "below, not this line.");
             static_assert(Traceable<L>,
                           "A traced layer needs a static fields() and one of three forms: "
-                          "forward(const Graph::GraphBuilder&, Graph::ValueID), "
-                          "forward(const Trace&, Graph::ValueID), or the pair trace_training "
-                          "and trace_evaluation over (const Trace&, Graph::ValueID), each "
-                          "returning exactly Graph::ValueID. Check the layer named in the "
-                          "instantiation below, not this line.");
+                          "forward(const Graph::GraphBuilder&, const Graph::Traced&) returning "
+                          "exactly Graph::Traced, forward(const Trace&, Graph::ValueID), or the "
+                          "pair trace_training and trace_evaluation over (const Trace&, "
+                          "Graph::ValueID), the last two returning exactly Graph::ValueID. "
+                          "Check the layer named in the instantiation below, not this line.");
 
             if constexpr (TraceModule<L>)
             {
@@ -574,7 +581,7 @@ namespace SushiAI
             }
             else
             {
-                return layer.forward(trace.builder(), x);
+                return trace.value_or_fail(layer.forward(trace.builder(), x), x);
             }
         }
 

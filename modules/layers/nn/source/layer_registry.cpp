@@ -227,17 +227,11 @@ namespace SushiAI
             template<typename L>
             std::unique_ptr<Layer> adapt(L layer, const Shape& input, std::string_view context)
             {
-                Shape output;
-                try
-                {
-                    output = layer.output_shape(input);
-                }
-                catch (const Error& error)
-                {
-                    SA_THROW_IF(true, "{}: {}", context, std::string_view(error.what()));
-                }
+                Result<Shape> output = layer.output_shape(input);
+                SA_THROW_IF(!output.has_value(), "{}: {}", context, output.status().message());
 
-                return std::make_unique<LayerAdapter<L>>(std::move(layer), output);
+                return std::make_unique<LayerAdapter<L>>(std::move(layer),
+                                                         std::move(output).value());
             }
 
             /** @brief Builds a layer of type @p L that accepts no key. */

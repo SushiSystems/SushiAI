@@ -31,6 +31,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -54,8 +55,18 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(batched_input, "x");
-        const Shape traced = graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        const Shape traced = graph.value(layer.forward(builder, x).value()).shape;
         return Shape{traced[1], traced[2], traced[3]};
+    }
+
+    /** @brief Traces @p layer over a fresh input of @p batched_input and returns its status. */
+    Status trace_status(const Upsample2d& layer, const Shape& batched_input)
+    {
+        Graph::Graph graph;
+        const Graph::GraphBuilder builder(graph);
+        const Graph::ValueID x = builder.input(batched_input, "x");
+        return layer.forward(builder, x).status();
     }
 
     /** @brief Holds a scale whose product with an extent of 5 exceeds 64 bits. */
@@ -70,7 +81,7 @@ TEST(Small_Upsample2d, TheDefaultScaleDoublesHeightAndWidth)
 
     const Upsample2d layer{};
     const Graph::ValueID x = builder.input(Shape{2, 3, 5, 7}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 6, 10, 7}));
 }
@@ -83,7 +94,7 @@ TEST(Small_Upsample2d, TheScaleFieldSetsTheFactorOnBothSpatialAxes)
 
     const Upsample2d layer{3};
     const Graph::ValueID x = builder.input(Shape{1, 4, 2, 5}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{1, 12, 6, 5}));
 }
@@ -96,7 +107,7 @@ TEST(Small_Upsample2d, TheResultIsTaggedNHWC)
 
     const Upsample2d layer{};
     const Graph::ValueID x = builder.input(Shape{2, 3, 5, 7}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -111,7 +122,7 @@ TEST(Small_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
     const Upsample2d layer{3};
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
@@ -124,44 +135,45 @@ TEST(Small_Upsample2d, ForwardEmitsOneUpsampleNodeCarryingTheScale)
 /** @brief Tests that output_shape maps [H, W, C] to [H * scale, W * scale, C]. */
 TEST(Small_Upsample2d, OutputShapeScalesHeightAndWidthOnly)
 {
-    EXPECT_EQ(Upsample2d{}.output_shape(Shape{3, 5, 7}), (Shape{6, 10, 7}));
-    EXPECT_EQ(Upsample2d{4}.output_shape(Shape{2, 1, 9}), (Shape{8, 4, 9}));
+    EXPECT_EQ(Upsample2d{}.output_shape(Shape{3, 5, 7}).value(), (Shape{6, 10, 7}));
+    EXPECT_EQ(Upsample2d{4}.output_shape(Shape{2, 1, 9}).value(), (Shape{8, 4, 9}));
 }
 
 /** @brief Tests that output_shape equals the traced shape without its batch axis. */
 TEST(Small_Upsample2d, OutputShapeAgreesWithTheTracedShape)
 {
     const Upsample2d doubling{};
-    EXPECT_EQ(doubling.output_shape(Shape{3, 5, 7}),
+    EXPECT_EQ(doubling.output_shape(Shape{3, 5, 7}).value(),
               traced_per_sample_shape(doubling, Shape{2, 3, 5, 7}));
 
     const Upsample2d tripling{3};
-    EXPECT_EQ(tripling.output_shape(Shape{4, 2, 5}),
+    EXPECT_EQ(tripling.output_shape(Shape{4, 2, 5}).value(),
               traced_per_sample_shape(tripling, Shape{1, 4, 2, 5}));
 
     const Upsample2d identity{1};
-    EXPECT_EQ(identity.output_shape(Shape{6, 6, 1}),
+    EXPECT_EQ(identity.output_shape(Shape{6, 6, 1}).value(),
               traced_per_sample_shape(identity, Shape{5, 6, 6, 1}));
 }
 
 /** @brief Tests that output_shape rejects a scale of zero in a message naming layer and scale. */
 TEST(Small_Upsample2d, OutputShapeRejectsAZeroScale)
 {
-    SA_EXPECT_ERROR((void)Upsample2d{0}.output_shape(Shape{3, 5, 7}),
-                    "Upsample2d", "[3, 5, 7] with scale=0");
+    SA_EXPECT_FAILURE(Upsample2d{0}.output_shape(Shape{3, 5, 7}), StatusCode::InvalidDescription,
+                      "Upsample2d", "[3, 5, 7] with scale=0");
 }
 
 /** @brief Tests that output_shape rejects a negative scale in a message naming layer and scale. */
 TEST(Small_Upsample2d, OutputShapeRejectsANegativeScale)
 {
-    SA_EXPECT_ERROR((void)Upsample2d{-2}.output_shape(Shape{3, 5, 7}),
-                    "Upsample2d", "[3, 5, 7] with scale=-2");
+    SA_EXPECT_FAILURE(Upsample2d{-2}.output_shape(Shape{3, 5, 7}), StatusCode::InvalidDescription,
+                      "Upsample2d", "[3, 5, 7] with scale=-2");
 }
 
 /** @brief Tests that output_shape rejects a feature vector in a message naming layer and shape. */
 TEST(Small_Upsample2d, OutputShapeRejectsARankOnePerSampleShape)
 {
-    SA_EXPECT_ERROR((void)Upsample2d{}.output_shape(Shape{16}), "Upsample2d", "[H, W, C]", "[16]");
+    SA_EXPECT_FAILURE(Upsample2d{}.output_shape(Shape{16}), StatusCode::InvalidDescription,
+                      "Upsample2d", "[H, W, C]", "[16]");
 }
 
 /** @brief Tests that output_shape rejects a height whose scaled extent overflows 64 bits. */
@@ -169,28 +181,29 @@ TEST(Small_Upsample2d, OutputShapeRejectsAScaledHeightThatOverflows)
 {
     const Upsample2d layer{K_OVERFLOWING_SCALE};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{5, 1, 7}), "Upsample2d", "fit in 64 bits");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{5, 1, 7}), StatusCode::InvalidDescription,
+                      "Upsample2d", "fit in 64 bits");
 }
 
-/** @brief Tests that output_shape throws for a shape that still carries its batch axis. */
+/** @brief Tests that output_shape fails for a shape that still carries its batch axis. */
 TEST(Small_Upsample2d, OutputShapeRejectsARankFourShape)
 {
     const Upsample2d layer{};
-    EXPECT_THROW((void)layer.output_shape(Shape{2, 3, 5, 7}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{2, 3, 5, 7}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward rejects a scale of zero in a message naming layer and scale. */
 TEST(Small_Upsample2d, ForwardRejectsAZeroScale)
 {
-    SA_EXPECT_ERROR((void)traced_per_sample_shape(Upsample2d{0}, Shape{1, 2, 2, 3}),
-                    "Upsample2d", "[2, 2, 3] with scale=0");
+    SA_EXPECT_FAILURE(trace_status(Upsample2d{0}, Shape{1, 2, 2, 3}),
+                      StatusCode::InvalidDescription, "Upsample2d", "[2, 2, 3] with scale=0");
 }
 
 /** @brief Tests that forward rejects a rank-2 input in a message naming layer and shape. */
 TEST(Small_Upsample2d, ForwardRejectsARankTwoInput)
 {
-    SA_EXPECT_ERROR((void)traced_per_sample_shape(Upsample2d{}, Shape{2, 12}),
-                    "Upsample2d", "rank-4", "[2, 12]");
+    SA_EXPECT_FAILURE(trace_status(Upsample2d{}, Shape{2, 12}), StatusCode::InvalidDescription,
+                      "Upsample2d", "rank-4", "[2, 12]");
 }
 
 /** @brief Tests that forward rejects a width whose scaled extent overflows 64 bits. */
@@ -198,8 +211,8 @@ TEST(Small_Upsample2d, ForwardRejectsAScaledWidthThatOverflows)
 {
     const Upsample2d layer{K_OVERFLOWING_SCALE};
 
-    SA_EXPECT_ERROR((void)traced_per_sample_shape(layer, Shape{1, 1, 5, 3}),
-                    "Upsample2d", "fit in 64 bits");
+    SA_EXPECT_FAILURE(trace_status(layer, Shape{1, 1, 5, 3}), StatusCode::InvalidDescription,
+                      "Upsample2d", "fit in 64 bits");
 }
 
 /** @brief Tests that forward names the layout it reads for a rank-4 input tagged NCHW. */
@@ -210,9 +223,11 @@ TEST(Small_Upsample2d, ForwardRejectsAnNCHWInput)
 
     const Upsample2d layer{};
     const Graph::ValueID x = builder.input(Shape{1, 3, 2, 2}, "x");
-    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-    SA_EXPECT_ERROR((void)layer.forward(builder, x_nchw), "upsample2d", "NHWC");
+    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription, "upsample2d",
+                      "NHWC");
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
@@ -223,7 +238,7 @@ TEST(Small_Upsample2d, TheParameterWalkVisitsNothing)
 
     Upsample2d layer{};
     const Graph::ValueID x = builder.input(Shape{1, 2, 2, 3}, "x");
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     std::size_t visited = 0;
     NN::for_each_parameter(layer, [&visited](const std::string&, NN::Parameter&)

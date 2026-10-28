@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- 2026-10-28 — nn: Breaking change: Made `ModelGraph::output_shape` refuse a graph without exactly one model output as InvalidDescription, in place of returning an empty shape (`model_graph.hpp`).
+- 2026-10-28 — nn: Breaking change: Made `output_shape(const Shape&)` of every layer type return `Result<Shape>`, refusing a shape as InvalidDescription in place of throwing (`layers.hpp`).
+- 2026-10-28 — nn: Breaking change: Made `output_shape(const Shape&)` of the layer stack and the model graph return `Result<Shape>` (`layer_stack.hpp`).
+- 2026-10-28 — nn: Breaking change: Made the trace `forward` of `Sequential` leave a child's failure on the trace and trace no later child, in place of throwing it (`layers.hpp`).
+- 2026-10-28 — nn: Called `output_shape` without the throwing bridge in `ModuleNode::create` (`module_node.hpp`).
+- 2026-10-28 — nn: Breaking change: Made a layer's builder `forward` take a `Graph::Traced` operand and return a `Graph::Traced`, refusing through `SA_REFUSE_IF` in place of throwing (`module.hpp`).
+- 2026-10-28 — nn: Breaking change: Gave the runtime layer interface, its adapter, the layer stack and Sequential the same forward (`layer.hpp`).
+- 2026-10-28 — nn: Breaking change: Made `CrossEntropyLoss::forward` take and return `Graph::Traced` (`loss.hpp`).
+- 2026-10-28 — nn: Added `Trace::value_or_fail` over a `Graph::Traced`, through which `trace_layer` records the failure of a builder `forward` (`trace.hpp`).
+- 2026-10-28 — nn: Breaking change: Made `Parameter::declare` return `Result<Graph::ValueID>`, refusing a second description with another shape or element type through `SA_REFUSE_IF` (`module.hpp`).
+- 2026-10-28 — nn: Called `Parameter::declare` without the throwing bridge in BatchNorm2d (`batch_norm2d.cpp`).
+- 2026-10-28 — nn: Called `Parameter::declare` without the throwing bridge in Embedding (`embedding.cpp`).
+- 2026-10-28 — nn: Called `Parameter::declare` without the throwing bridge in LayerNorm (`layer_norm.cpp`).
+- 2026-10-28 — docs: Wrote the tutorial's custom layer with the `Graph::Traced` forward (`docs/getting_started/TUTORIAL.md`).
 - 2026-10-28 — eager: Breaking change: Made `compile_region` return a `Result`, forwarding a refusal of the cast pass or the memory plan (`region_program.hpp`).
 - 2026-10-28 — eager: Breaking change: Made `Step::input` return a `Graph::Traced` (`step.hpp`).
 - 2026-10-28 — eager: Breaking change: Made the `Step` reads, `keep` and `backward` take a `Graph::Traced` and return the failure a refused trace holds (`step.hpp`).

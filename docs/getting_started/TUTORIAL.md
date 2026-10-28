@@ -229,7 +229,10 @@ break the chain). `graph/cast_insertion.hpp` argues both.
 ## 6. Writing your own layer
 
 A layer is an aggregate struct with two members: a `static constexpr fields()`
-listing its parameters, and a `forward()`.
+listing its parameters, and a `forward()`. The forward takes the builder and a
+`Graph::Traced` operand and returns a `Graph::Traced`: its first line unwraps the
+operand with `SA_TRY_ASSIGN`, which hands an earlier failure on unchanged, and a
+check of its own refuses through `SA_REFUSE_IF(builder, ...)`.
 
 ```cpp
 struct MyOffset
@@ -242,9 +245,10 @@ struct MyOffset
         return std::tuple{ sa::NN::field("offset", &MyOffset::offset) };
     }
 
-    sa::Graph::ValueID forward(const sa::Graph::GraphBuilder& builder,
-                               sa::Graph::ValueID x)
+    sa::Graph::Traced forward(const sa::Graph::GraphBuilder& builder,
+                              const sa::Graph::Traced& input)
     {
+        SA_TRY_ASSIGN(const sa::Graph::ValueID x, input);
         const sa::Graph::ValueID b = offset.declare(
             builder, sa::Shape{width}, sa::NN::ParameterRole::Bias,
             width, width, "offset");
@@ -256,7 +260,7 @@ Source: not compiled
 
 `bias_add` and not `mul`, deliberately: `mul` goes through `require_same`, which
 compares **shape and dtype**, so multiplying an `[N, width]` activation by a
-`[width]` parameter throws rather than broadcasting. Broadcasting a vector over
+`[width]` parameter is refused with `InvalidDescription` rather than broadcast. Broadcasting a vector over
 rows is what `bias_add` is; there is no implicit broadcast anywhere in this
 builder, and that is on purpose.
 

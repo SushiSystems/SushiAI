@@ -42,15 +42,21 @@ namespace SushiAI
             layers_.push_back(std::move(layer));
         }
 
-        Graph::ValueID LayerStack::forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+        Graph::Traced LayerStack::forward(const Graph::GraphBuilder& builder,
+                                          const Graph::Traced& input)
         {
-            SA_THROW_IF(layers_.empty(),
-                        "this LayerStack holds no layers, so it would trace as the "
-                        "identity function rather than as a model");
+            SA_TRY(input);
+            SA_REFUSE_IF(builder, layers_.empty(),
+                         "this LayerStack holds no layers, so it would trace as the "
+                         "identity function rather than as a model");
 
+            Graph::Traced traced = input;
             for (const std::unique_ptr<Layer>& layer : layers_)
-                x = layer->forward(builder, x);
-            return x;
+            {
+                traced = layer->forward(builder, traced);
+                SA_TRY(traced);
+            }
+            return traced;
         }
 
         void LayerStack::walk_parameters(std::string_view prefix, const ParameterVisitor& visitor)
@@ -74,7 +80,7 @@ namespace SushiAI
             return layers_.back()->output_shape();
         }
 
-        Shape LayerStack::output_shape(const Shape&) const
+        Result<Shape> LayerStack::output_shape(const Shape&) const
         {
             return output_shape();
         }

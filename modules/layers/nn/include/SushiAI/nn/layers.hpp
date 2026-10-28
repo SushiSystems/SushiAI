@@ -32,7 +32,7 @@
 #include <tuple>
 #include <type_traits>
 #include <utility>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -79,17 +79,20 @@ namespace SushiAI
             /**
              * @brief Traces the layer, declaring its parameters on first call.
              * @param builder Where the nodes go.
-             * @param x An [N, in_features] input.
-             * @return The [N, out_features] result's id.
-             * @throws Error If @p x's inner extent is not in_features.
+             * @param input An [N, in_features] input.
+             * @return The [N, out_features] result, the failure of @p input, or
+             *         InvalidDescription for non-positive feature counts or an input whose
+             *         inner extent is not in_features.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
+            Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& input);
 
             /**
              * @brief Returns the per-sample shape forward() produces, [out_features].
              * @param input The per-sample input shape; must be [in_features].
+             * @return [out_features], or InvalidDescription for non-positive feature counts or
+             *         another @p input.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         /**
@@ -101,14 +104,20 @@ namespace SushiAI
             /** @brief No parameters. */
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
+            /**
+             * @brief Traces the activation.
+             * @param builder Where the node goes.
+             * @param input The input.
+             * @return The result, or the failure of @p input.
+             */
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const
             {
-                return builder.relu(x);
+                return builder.relu(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Shape output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const
             {
                 return input;
             }
@@ -123,14 +132,20 @@ namespace SushiAI
             /** @brief No parameters. */
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
+            /**
+             * @brief Traces the activation.
+             * @param builder Where the node goes.
+             * @param input The input.
+             * @return The result, or the failure of @p input.
+             */
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const
             {
-                return builder.gelu(x);
+                return builder.gelu(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Shape output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const
             {
                 return input;
             }
@@ -145,14 +160,20 @@ namespace SushiAI
             /** @brief No parameters. */
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
+            /**
+             * @brief Traces the activation.
+             * @param builder Where the node goes.
+             * @param input The input.
+             * @return The result, or the failure of @p input.
+             */
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const
             {
-                return builder.tanh(x);
+                return builder.tanh(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Shape output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const
             {
                 return input;
             }
@@ -167,14 +188,20 @@ namespace SushiAI
             /** @brief No parameters. */
             static constexpr auto fields() { return std::tuple<>{}; }
 
-            /** @brief Traces the activation. @param builder Where the node goes. @param x The input. @return The result's id. */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const
+            /**
+             * @brief Traces the activation.
+             * @param builder Where the node goes.
+             * @param input The input.
+             * @return The result, or the failure of @p input.
+             */
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const
             {
-                return builder.sigmoid(x);
+                return builder.sigmoid(input);
             }
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Shape output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const
             {
                 return input;
             }
@@ -204,10 +231,11 @@ namespace SushiAI
                 static_assert((Traceable<Ls> && ...),
                               "Every type in a Sequential needs a static fields() listing its "
                               "state and one of three forms: "
-                              "forward(const Graph::GraphBuilder&, Graph::ValueID), "
+                              "forward(const Graph::GraphBuilder&, const Graph::Traced&) "
+                              "returning exactly Graph::Traced, "
                               "forward(const Trace&, Graph::ValueID), or the pair "
                               "trace_training and trace_evaluation over "
-                              "(const Trace&, Graph::ValueID), each returning exactly "
+                              "(const Trace&, Graph::ValueID), the last two returning exactly "
                               "Graph::ValueID. Check the layer named in the instantiation "
                               "below, not this line.");
 
@@ -224,13 +252,16 @@ namespace SushiAI
                  * @brief Traces every layer in order; exists only when every layer is a Module.
                  * @tparam Enabled Leave at its default; false removes the overload.
                  * @param builder Where the nodes go.
-                 * @param x The input value.
-                 * @return The last layer's result.
+                 * @param input The input value.
+                 * @return The last layer's result, or the first failure, which every later
+                 *         layer passes on unchanged.
                  */
                 template<bool Enabled = true,
                          std::enable_if_t<Enabled && (Module<Ls> && ...), int> = 0>
-                Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+                Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                      const Graph::Traced& input)
                 {
+                    Graph::Traced x = input;
                     std::apply([&](auto&... layer) { ((x = layer.forward(builder, x)), ...); },
                                layers_);
                     return x;
@@ -238,9 +269,10 @@ namespace SushiAI
 
                 /**
                  * @brief Traces every layer in order, each in the form trace_layer() picks.
-                 * @param trace Passed to every layer unread; the mode is not consulted here.
+                 * @param trace Passed to every layer; only its status is read here, never its mode.
                  * @param x The input value.
-                 * @return The last layer's result.
+                 * @return The last layer's result; meaningless once trace.status() holds a
+                 *         failure. The first refusing layer records it and no later layer runs.
                  */
                 Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
                 {
@@ -255,18 +287,14 @@ namespace SushiAI
                  * @brief Returns the per-sample shape forward() produces over @p input.
                  * @tparam Enabled Leave at its default; false removes the overload.
                  * @param input The per-sample shape the first layer reads, batch axis excluded.
+                 * @return The last layer's shape, or the first layer's failure.
                  */
                 template<bool Enabled = true,
                          std::enable_if_t<
                              Enabled && (Detail::HasOutputShapeOfInput<Ls>::value && ...), int> = 0>
-                Shape output_shape(const Shape& input) const
+                Result<Shape> output_shape(const Shape& input) const
                 {
-                    Shape shape = input;
-                    std::apply([&](const auto&... layer)
-                    {
-                        ((shape = layer.output_shape(shape)), ...);
-                    }, layers_);
-                    return shape;
+                    return output_shape_from<0>(input);
                 }
 
                 /**
@@ -287,13 +315,33 @@ namespace SushiAI
                 auto& layer() noexcept { return std::get<Index>(layers_); }
 
             private:
-                /** @brief Traces one child and throws the failure it recorded on @p trace. */
+                /**
+                 * @brief Traces one child, or passes @p x on once @p trace holds a failure.
+                 * @return The child's result, or @p x unchanged after an earlier failure.
+                 */
                 template<typename L>
                 static Graph::ValueID trace_child(L& layer, const Trace& trace, Graph::ValueID x)
                 {
-                    const Graph::ValueID traced = trace_layer(layer, trace, x);
-                    SA_THROW_IF(!trace.status().is_ok(), "{}", trace.status().message());
-                    return traced;
+                    if (!trace.status().is_ok())
+                        return x;
+
+                    return trace_layer(layer, trace, x);
+                }
+
+                /** @brief Returns the shape layers Index onward produce over @p input. */
+                template<std::size_t Index>
+                Result<Shape> output_shape_from(const Shape& input) const
+                {
+                    if constexpr (Index == sizeof...(Ls))
+                    {
+                        return input;
+                    }
+                    else
+                    {
+                        SA_TRY_ASSIGN(const Shape next,
+                                      std::get<Index>(layers_).output_shape(input));
+                        return output_shape_from<Index + 1>(next);
+                    }
                 }
 
                 template<typename Fn, std::size_t... Indices>

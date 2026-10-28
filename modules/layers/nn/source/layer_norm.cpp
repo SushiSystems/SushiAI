@@ -33,7 +33,6 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/node_attributes.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -82,22 +81,19 @@ namespace SushiAI
                            layer.dim, dtype_name(dtype));
 
                 const Shape per_feature{layer.dim};
-                SA_TRY_ASSIGN(const Graph::ValueID gamma, Detail::bridge_throwing([&]()
-                {
-                    return layer.weight.declare(builder, per_feature, ParameterRole::Scale,
-                                                layer.dim, layer.dim, "weight", dtype);
-                }));
-                SA_TRY_ASSIGN(const Graph::ValueID beta, Detail::bridge_throwing([&]()
-                {
-                    return layer.bias.declare(builder, per_feature, ParameterRole::Bias,
-                                              layer.dim, layer.dim, "bias", dtype);
-                }));
+                SA_TRY_ASSIGN(const Graph::ValueID gamma,
+                              layer.weight.declare(builder, per_feature, ParameterRole::Scale,
+                                                   layer.dim, layer.dim, "weight", dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID beta,
+                              layer.bias.declare(builder, per_feature, ParameterRole::Bias,
+                                                 layer.dim, layer.dim, "bias", dtype));
 
                 const Result<Graph::LayerNormResult> normalised =
                     builder.layer_norm(x, gamma, beta, layer.epsilon);
                 SA_TRY(SA_ANNOTATE(normalised.status(), "LayerNorm({})", layer.dim));
 
-                return normalised.value().output;
+                SA_TRY_ASSIGN(const Graph::LayerNormResult result, normalised);
+                return result.output;
             }
         } // namespace
 
@@ -112,7 +108,7 @@ namespace SushiAI
             return forward(trace, x);
         }
 
-        Shape LayerNorm::output_shape(const Shape& input) const
+        Result<Shape> LayerNorm::output_shape(const Shape& input) const
         {
             return input;
         }

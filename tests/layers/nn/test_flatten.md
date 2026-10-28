@@ -40,7 +40,7 @@ The input is asserted to be NHWC first, and the flattened result is NHWC too.
 
 ## ForwardRejectsAnNCHWInput
 
-The layout tag of a [2, 3, 4, 5] input is set to NCHW by hand, and `forward()` throws.
+The layout tag of a [2, 3, 4, 5] input is set to NCHW by hand, and `forward()` returns InvalidDescription.
 
 ## OutputShapeAgreesWithTheTracedShape
 
@@ -49,11 +49,11 @@ shape of a batch equals the batch extent followed by that one extent.
 
 ## ForwardRejectsARank1Input
 
-`forward()` throws on a [6] input, which has a batch axis and no per-sample axis.
+`forward()` returns InvalidDescription on a [6] input, which has a batch axis and no per-sample axis.
 
 ## OutputShapeRejectsARank0Shape
 
-`output_shape()` throws on an empty shape.
+`output_shape()` fails on an empty shape.
 
 ## TheParameterWalkVisitsNothing
 

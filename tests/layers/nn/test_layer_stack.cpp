@@ -75,7 +75,7 @@ namespace
         Graph::Graph graph;
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(Shape{batch, features}, "inputs");
-        model.forward(builder, x);
+        SA_EXPECT_OK(model.forward(builder, x));
 
         std::vector<std::string> names;
         NN::for_each_parameter(model, [&names](const std::string& name, NN::Parameter& parameter)
@@ -156,7 +156,7 @@ TEST(Small_LayerStack, TracesTheLayersInOrder)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
-    const Graph::ValueID y = stack.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, stack.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 4}));
 }
@@ -168,7 +168,8 @@ TEST(Small_LayerStack, RefusesToTraceWhenEmpty)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
 
-    SA_EXPECT_ERROR((void)stack.forward(builder, x), "no layers", "identity");
+    SA_EXPECT_FAILURE(stack.forward(builder, x), StatusCode::InvalidDescription, "no layers",
+                      "identity");
 }
 
 TEST(Small_LayerStack, RefusesAnOutputWidthWhenEmpty)
@@ -199,10 +200,10 @@ TEST(Small_LayerStack, TracingTwiceDoesNotDuplicateParameters)
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
 
-    (void)stack.forward(builder, x);
+    SA_EXPECT_OK(stack.forward(builder, x));
     EXPECT_EQ(NN::parameter_count(stack), 4u);
 
-    (void)stack.forward(builder, x);
+    SA_EXPECT_OK(stack.forward(builder, x));
     EXPECT_EQ(NN::parameter_count(stack), 4u);
 }
 
@@ -290,8 +291,8 @@ TEST(Small_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
 {
     const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
 
-    EXPECT_EQ(stack.output_shape(Shape{6}), (Shape{4}));
-    EXPECT_EQ(stack.output_shape(Shape{6}), stack.output_shape());
+    EXPECT_EQ(stack.output_shape(Shape{6}).value(), (Shape{4}));
+    EXPECT_EQ(stack.output_shape(Shape{6}).value(), stack.output_shape());
 }
 
 /** @brief Tests that an empty stack refuses an output shape in the layer form too. */
@@ -365,7 +366,8 @@ TEST(Small_LayerStack, AConfiguredStackTracesToTheDeclaredOutputWidth)
     const SushiAI::Graph::GraphBuilder builder(graph);
     const SushiAI::Graph::ValueID x = builder.input(SushiAI::Shape{4, 6}, "inputs");
 
-    EXPECT_EQ(graph.value(stack.forward(builder, x)).shape, (SushiAI::Shape{4, 4}));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Graph::ValueID y, stack.forward(builder, x));
+    EXPECT_EQ(graph.value(y).shape, (SushiAI::Shape{4, 4}));
 }
 
 TEST(Small_LayerStack, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
@@ -427,8 +429,8 @@ TEST(Small_LayerStack, UseBiasDefaultsToTrueAndCanBeTurnedOff)
     SushiAI::Graph::Graph b;
     const SushiAI::Graph::GraphBuilder builder_a(a);
     const SushiAI::Graph::GraphBuilder builder_b(b);
-    (void)with_bias.forward(builder_a, builder_a.input(SushiAI::Shape{2, 6}, "x"));
-    (void)without_bias.forward(builder_b, builder_b.input(SushiAI::Shape{2, 6}, "x"));
+    SA_EXPECT_OK(with_bias.forward(builder_a, builder_a.input(SushiAI::Shape{2, 6}, "x")));
+    SA_EXPECT_OK(without_bias.forward(builder_b, builder_b.input(SushiAI::Shape{2, 6}, "x")));
 
     EXPECT_EQ(SushiAI::NN::parameter_count(with_bias), 2u);
     EXPECT_EQ(SushiAI::NN::parameter_count(without_bias), 1u);

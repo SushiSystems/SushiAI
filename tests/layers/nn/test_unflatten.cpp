@@ -30,6 +30,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -73,7 +74,7 @@ TEST(Small_Unflatten, TracesTheImageShape)
 
     const Unflatten layer{4, 5, 3};
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x", DType::Float64);
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4, 5, 3}));
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
@@ -87,11 +88,11 @@ TEST(Small_Unflatten, TagsTheResultNHWC)
 
     const Unflatten layer{4, 5, 3};
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.value(y).shape.rank(), 4);
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
-    EXPECT_NO_THROW(graph.finalise());
+    SA_EXPECT_OK(graph.finalise());
 }
 
 /** @brief Tests that the trace adds exactly one node, a RESHAPE reading the input. */
@@ -103,7 +104,7 @@ TEST(Small_Unflatten, EmitsOneReshapeNode)
     const Unflatten layer{4, 5, 3};
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
     const std::size_t nodes_before = graph.node_count();
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.node(graph.value(y).producer);
@@ -120,10 +121,10 @@ TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAnRGBImage)
 
     const Unflatten layer{4, 5, 3};
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
-    EXPECT_EQ(layer.output_shape(per_sample(graph, x)), per_sample(graph, y));
-    EXPECT_EQ(layer.output_shape(Shape{60}), (Shape{4, 5, 3}));
+    EXPECT_EQ(layer.output_shape(per_sample(graph, x)).value(), per_sample(graph, y));
+    EXPECT_EQ(layer.output_shape(Shape{60}).value(), (Shape{4, 5, 3}));
 }
 
 /** @brief Tests that output_shape() equals the traced per-sample shape of a one-channel image. */
@@ -134,10 +135,10 @@ TEST(Small_Unflatten, OutputShapeAgreesWithTheTraceForAGreyImage)
 
     const Unflatten layer{28, 28, 1};
     const Graph::ValueID x = builder.input(Shape{7, 784}, "x");
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
-    EXPECT_EQ(layer.output_shape(per_sample(graph, x)), per_sample(graph, y));
-    EXPECT_EQ(layer.output_shape(Shape{784}), (Shape{28, 28, 1}));
+    EXPECT_EQ(layer.output_shape(per_sample(graph, x)).value(), per_sample(graph, y));
+    EXPECT_EQ(layer.output_shape(Shape{784}).value(), (Shape{28, 28, 1}));
 }
 
 /** @brief Tests that forward() throws the layer's positive-extent error for a zero extent. */
@@ -150,7 +151,8 @@ TEST(Small_Unflatten, ForwardRejectsAZeroExtent)
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
 
     // The count check would also throw here, with a message that does not name the extents.
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Unflatten needs positive extents");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
+                      "Unflatten needs positive extents");
 }
 
 /** @brief Tests that forward() throws the layer's positive-extent error for a negative extent. */
@@ -163,7 +165,8 @@ TEST(Small_Unflatten, ForwardRejectsANegativeExtent)
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
 
     // Shape's constructor would also throw here, with a message that does not name the layer.
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Unflatten needs positive extents");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
+                      "Unflatten needs positive extents");
 }
 
 /** @brief Tests that forward() throws on a rank-4 input whose element count would fit. */
@@ -176,7 +179,7 @@ TEST(Small_Unflatten, ForwardRejectsAnInputThatIsNotRankTwo)
     const Unflatten layer{4, 5, 3};
     const Graph::ValueID x = builder.input(Shape{2, 60, 1, 1}, "x");
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() throws the layer's own error for a mismatched inner extent. */
@@ -189,7 +192,8 @@ TEST(Small_Unflatten, ForwardRejectsAMismatchedElementCount)
     const Graph::ValueID x = builder.input(Shape{3, 40}, "x");
 
     // reshape() would also reject it, with a message that does not name the layer.
-    SA_EXPECT_ERROR((void)layer.forward(builder, x), "Unflatten(4, 5, 3)", "inner extent is 60");
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription,
+                      "Unflatten(4, 5, 3)", "inner extent is 60");
 }
 
 /** @brief Tests that forward() throws on an input tagged NCHW. */
@@ -202,39 +206,41 @@ TEST(Small_Unflatten, ForwardRejectsAnNCHWInput)
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
     graph.value(x).layout = Graph::TensorLayout::NCHW;
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws the layer's positive-extent error for a zero extent. */
+/** @brief Tests that output_shape() returns the layer's positive-extent failure for a zero extent. */
 TEST(Small_Unflatten, OutputShapeRejectsAZeroExtent)
 {
     const Unflatten layer{4, 5, 0};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{60}), "Unflatten needs positive extents");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{60}), StatusCode::InvalidDescription,
+                      "Unflatten needs positive extents");
 }
 
-/** @brief Tests that output_shape() throws the layer's positive-extent error for a negative one. */
+/** @brief Tests that output_shape() returns the layer's positive-extent failure for a negative one. */
 TEST(Small_Unflatten, OutputShapeRejectsANegativeExtent)
 {
     const Unflatten layer{-4, -5, 3};
 
-    SA_EXPECT_ERROR((void)layer.output_shape(Shape{60}), "Unflatten needs positive extents");
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{60}), StatusCode::InvalidDescription,
+                      "Unflatten needs positive extents");
 }
 
-/** @brief Tests that output_shape() throws on a per-sample shape that is not rank 1. */
+/** @brief Tests that output_shape() fails on a per-sample shape that is not rank 1. */
 TEST(Small_Unflatten, OutputShapeRejectsAShapeThatIsNotRankOne)
 {
     const Unflatten layer{4, 5, 3};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{60, 1}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{60, 1}), StatusCode::InvalidDescription);
 }
 
-/** @brief Tests that output_shape() throws when the feature count does not match. */
+/** @brief Tests that output_shape() fails when the feature count does not match. */
 TEST(Small_Unflatten, OutputShapeRejectsAMismatchedElementCount)
 {
     const Unflatten layer{4, 5, 3};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{59}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{59}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the parameter walk visits nothing before and after a trace. */
@@ -248,7 +254,7 @@ TEST(Small_Unflatten, HasNoParameters)
 
     const Graph::ValueID x = builder.input(Shape{2, 60}, "x");
     const std::size_t values_before = graph.value_count();
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(NN::parameter_count(layer), 0u);
     EXPECT_EQ(NN::parameter_elements(layer), 0);

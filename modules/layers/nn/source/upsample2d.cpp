@@ -27,9 +27,7 @@
 
 #include <SushiAI/nn/upsample2d.hpp>
 
-#include <cstdint>
-#include <string_view>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -39,50 +37,46 @@ namespace SushiAI
         {
             /**
              * @brief Computes the extents the scale of @p layer yields over @p sample.
-             * @param sample A per-sample shape; anything but an [H, W, C] shape that the scale
-             *        can take throws.
-             * @return The scaled height and width.
+             * @param sample A per-sample shape.
+             * @return The scaled height and width, or InvalidDescription for anything but an
+             *         [H, W, C] shape that the scale can take.
              */
-            [[nodiscard]] Graph::SpatialExtents scale_extents(const Upsample2d& layer,
-                                                              const Shape& sample)
+            [[nodiscard]] Result<Graph::SpatialExtents> scale_extents(const Upsample2d& layer,
+                                                                      const Shape& sample) noexcept
             {
-                SA_THROW_IF(sample.rank() != 3,
-                            "Upsample2d needs a per-sample shape of [H, W, C]; got {}",
-                            sample.to_string());
+                SA_FAIL_IF(sample.rank() != 3, StatusCode::InvalidDescription,
+                           "Upsample2d needs a per-sample shape of [H, W, C]; got {}",
+                           sample.to_string());
 
-                Graph::SpatialExtents extents;
-                try
-                {
-                    extents = Graph::upsampled_extents(sample[0], sample[1], layer.scale,
-                                                       layer.scale);
-                }
-                catch (const Error& error)
-                {
-                    SA_THROW_IF(true,
-                                "Upsample2d needs a scale its per-sample shape can take; "
-                                "got {} with scale={}: {}",
-                                sample.to_string(), layer.scale, std::string_view(error.what()));
-                }
+                Result<Graph::SpatialExtents> extents =
+                    Graph::upsampled_extents(sample[0], sample[1], layer.scale, layer.scale);
+                if (!extents.has_value())
+                    return SA_ANNOTATE(extents.status(),
+                                       "Upsample2d needs a scale its per-sample shape can take; "
+                                       "got {} with scale={}",
+                                       sample.to_string(), layer.scale);
 
                 return extents;
             }
         } // namespace
 
-        Graph::ValueID Upsample2d::forward(const Graph::GraphBuilder& builder,
-                                           Graph::ValueID x) const
+        Graph::Traced Upsample2d::forward(const Graph::GraphBuilder& builder,
+                                          const Graph::Traced& input) const
         {
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+
             const Shape& image = builder.graph().value(x).shape;
-            SA_THROW_IF(image.rank() != 4,
-                        "Upsample2d needs a rank-4 [N, H, W, C] input; got {}",
-                        image.to_string());
-            (void)scale_extents(*this, Shape{image[1], image[2], image[3]});
+            SA_REFUSE_IF(builder, image.rank() != 4,
+                         "Upsample2d needs a rank-4 [N, H, W, C] input; got {}",
+                         image.to_string());
+            SA_TRY(builder.observe(scale_extents(*this, Shape{image[1], image[2], image[3]})));
 
             return builder.upsample2d(x, scale, scale);
         }
 
-        Shape Upsample2d::output_shape(const Shape& input) const
+        Result<Shape> Upsample2d::output_shape(const Shape& input) const
         {
-            const Graph::SpatialExtents scaled = scale_extents(*this, input);
+            SA_TRY_ASSIGN(const Graph::SpatialExtents scaled, scale_extents(*this, input));
 
             return Shape{scaled.height, scaled.width, input[2]};
         }

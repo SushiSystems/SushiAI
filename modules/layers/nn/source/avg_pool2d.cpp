@@ -27,8 +27,7 @@
 
 #include <SushiAI/nn/avg_pool2d.hpp>
 
-#include <string_view>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -38,51 +37,51 @@ namespace SushiAI
         {
             /**
              * @brief Computes the extents the window of @p layer yields over @p sample.
-             * @param sample A per-sample shape; anything but an [H, W, C] shape that the window
-             *        fits throws.
-             * @return The number of window rows and of window columns.
+             * @param sample A per-sample shape.
+             * @return The number of window rows and of window columns, or InvalidDescription
+             *         for anything but an [H, W, C] shape that the window fits.
              */
-            [[nodiscard]] Graph::SpatialExtents fit_window(const AvgPool2d& layer,
-                                                           const Shape& sample)
+            [[nodiscard]] Result<Graph::SpatialExtents> fit_window(const AvgPool2d& layer,
+                                                                   const Shape& sample) noexcept
             {
-                SA_THROW_IF(sample.rank() != 3,
-                            "AvgPool2d needs a per-sample shape of [H, W, C]; got {}",
-                            sample.to_string());
+                SA_FAIL_IF(sample.rank() != 3, StatusCode::InvalidDescription,
+                           "AvgPool2d needs a per-sample shape of [H, W, C]; got {}",
+                           sample.to_string());
 
-                Graph::SpatialExtents extents;
-                try
-                {
-                    extents = Graph::window_extents(sample[0], sample[1], layer.geometry);
-                }
-                catch (const Error& error)
-                {
-                    SA_THROW_IF(true,
-                                "AvgPool2d needs a legal window over its per-sample shape; "
-                                "got {}: {}",
-                                sample.to_string(), std::string_view(error.what()));
-                }
+                Result<Graph::SpatialExtents> extents =
+                    Graph::window_extents(sample[0], sample[1], layer.geometry);
+                if (!extents.has_value())
+                    return SA_ANNOTATE(extents.status(),
+                                       "AvgPool2d needs a legal window over its per-sample "
+                                       "shape; got {}",
+                                       sample.to_string());
 
                 return extents;
             }
         } // namespace
 
-        Graph::ValueID AvgPool2d::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueID x) const
+        Graph::Traced AvgPool2d::forward(const Graph::GraphBuilder& builder,
+                                         const Graph::Traced& input) const
         {
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+
             const Shape& image = builder.graph().value(x).shape;
-            SA_THROW_IF(image.rank() != 4,
-                        "AvgPool2d needs a rank-4 [N, H, W, C] input; got {}", image.to_string());
+            SA_REFUSE_IF(builder, image.rank() != 4,
+                         "AvgPool2d needs a rank-4 [N, H, W, C] input; got {}",
+                         image.to_string());
 
             // Axes 1 and 2 hold H and W under NHWC only; the emitter refuses any other layout.
             if (builder.graph().value(x).layout == Graph::TensorLayout::NHWC)
-                (void)fit_window(*this, Shape{image[1], image[2], image[3]});
+            {
+                SA_TRY(builder.observe(fit_window(*this, Shape{image[1], image[2], image[3]})));
+            }
 
             return builder.avgpool2d(x, geometry);
         }
 
-        Shape AvgPool2d::output_shape(const Shape& input) const
+        Result<Shape> AvgPool2d::output_shape(const Shape& input) const
         {
-            const Graph::SpatialExtents out = fit_window(*this, input);
+            SA_TRY_ASSIGN(const Graph::SpatialExtents out, fit_window(*this, input));
 
             return Shape{out.height, out.width, input[2]};
         }

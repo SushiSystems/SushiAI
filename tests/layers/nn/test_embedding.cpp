@@ -291,9 +291,9 @@ TEST(Small_Embedding, OutputShapeAppendsTheRowLength)
 {
     const Embedding layer = make_layer();
 
-    EXPECT_EQ(layer.output_shape(Shape{5}), (Shape{5, K_LENGTH}));
-    EXPECT_EQ(layer.output_shape(Shape{4, 2}), (Shape{4, 2, K_LENGTH}));
-    EXPECT_EQ(layer.output_shape(Shape{1, 1, 1, 1}), (Shape{1, 1, 1, 1, K_LENGTH}));
+    EXPECT_EQ(layer.output_shape(Shape{5}).value(), (Shape{5, K_LENGTH}));
+    EXPECT_EQ(layer.output_shape(Shape{4, 2}).value(), (Shape{4, 2, K_LENGTH}));
+    EXPECT_EQ(layer.output_shape(Shape{1, 1, 1, 1}).value(), (Shape{1, 1, 1, 1, K_LENGTH}));
 }
 
 /** @brief Tests that the factory reads both keys and builds a node over [T] into [T, D]. */
@@ -535,11 +535,11 @@ TEST_F(Medium_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
     const ValueID targets = builder.input(Shape{K_COUNT, K_WIDTH}, "targets");
     const Graph::Traced gathered = builder.gather_rows(table_id, index_id);
     ASSERT_TRUE(gathered.has_value());
-    const ValueID loss = builder.nll_loss(gathered.value(), targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(gathered.value(), targets));
 
     const std::vector<ValueID> wrt = {table_id};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_NE(gradients.at(0), Graph::K_NO_VALUE);
 
     TensorPool pool(*engine);

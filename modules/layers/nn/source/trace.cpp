@@ -188,6 +188,16 @@ namespace SushiAI
             return fallback;
         }
 
+        Graph::ValueID Trace::value_or_fail(const Graph::Traced& traced,
+                                            Graph::ValueID fallback) const noexcept
+        {
+            if (traced.has_value())
+                return traced.value();
+
+            fail(traced.status());
+            return fallback;
+        }
+
         Status Trace::update(Buffer& target, Graph::ValueID source, double momentum,
                              double source_scale) const
         {

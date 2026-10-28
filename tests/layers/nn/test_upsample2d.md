@@ -51,28 +51,28 @@ scale of 1 is the smallest the layer accepts and leaves the shape as it is.
 
 ## OutputShapeRejectsAZeroScale
 
-`Upsample2d{0}.output_shape([3, 5, 7])` throws with a message containing "Upsample2d" and
-"[3, 5, 7] with scale=0".
+`Upsample2d{0}.output_shape([3, 5, 7])` returns InvalidDescription with a message containing
+"Upsample2d" and "[3, 5, 7] with scale=0".
 
 ## OutputShapeRejectsANegativeScale
 
-`Upsample2d{-2}.output_shape([3, 5, 7])` throws with a message containing "Upsample2d" and
-"[3, 5, 7] with scale=-2".
+`Upsample2d{-2}.output_shape([3, 5, 7])` returns InvalidDescription with a message containing
+"Upsample2d" and "[3, 5, 7] with scale=-2".
 
 ## OutputShapeRejectsARankOnePerSampleShape
 
-`output_shape([16])` throws with a message containing "Upsample2d", the expected form
-"[H, W, C]" and "[16]".
+`output_shape([16])` returns InvalidDescription with a message containing "Upsample2d", the expected
+form "[H, W, C]" and "[16]".
 
 ## OutputShapeRejectsAScaledHeightThatOverflows
 
-With `K_OVERFLOWING_SCALE`, `output_shape([5, 1, 7])` throws with a message containing
-"Upsample2d" and "fit in 64 bits". The width is 1, so the height is the product that
+With `K_OVERFLOWING_SCALE`, `output_shape([5, 1, 7])` returns InvalidDescription with a message
+containing "Upsample2d" and "fit in 64 bits". The width is 1, so the height is the product that
 overflows.
 
 ## OutputShapeRejectsARankFourShape
 
-`output_shape([2, 3, 5, 7])` throws. The shape still carries its batch axis.
+`output_shape([2, 3, 5, 7])` returns InvalidDescription. The shape still carries its batch axis.
 
 ## ForwardRejectsAZeroScale
 

@@ -159,15 +159,22 @@ failure.
 The case is in the suite `Small_TraceDeathTest`. `trace.fail(Status())` stops the process with
 "Trace::fail was given a success".
 
-## SequentialThrowsTheFailureAChildRecorded
+## SequentialLeavesTheFailureAChildRecordedOnTheTrace
 
-`Sequential{RefusingStub, ModalStub}::forward` over a trace throws with a message containing
-"RefusingStub refuses". The second child's `trace_evaluation` is never called.
+`Sequential{RefusingStub, ModalStub}::forward` over a trace throws nothing and returns its input.
+The trace's status is `InvalidDescription` with a message containing "RefusingStub refuses". The
+second child's `trace_evaluation` is never called.
+
+## SequentialRecordsTheRefusalOfABuilderFormChild
+
+`Sequential{Linear{4, 8}, ReLU, ModalStub}::forward` over a trace of a [2, 5] input throws nothing.
+The trace's status is `InvalidDescription` with a message containing "Linear(4, 8)", the graph is
+marked refused, and the `ModalStub` is never called.
 
 ## SequentialFoldsAnInputShapeThroughItsChildren
 
-`output_shape([4])` of `Sequential{Linear{4, 8}, ReLU, Linear{8, 3}}` is [3].
-`output_shape([5])` throws with a message containing "Linear(4, 8)" and "[5]".
+`output_shape([4])` of `Sequential{Linear{4, 8}, ReLU, Linear{8, 3}}` is [3]. `output_shape([5])`
+returns InvalidDescription with a message containing "Linear(4, 8)" and "[5]".
 
 ## AnUpdateWithoutASourceIsFatal
 

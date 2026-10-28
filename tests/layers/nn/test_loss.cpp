@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -49,7 +50,8 @@ TEST(Small_CrossEntropyLoss, TheLossIsTheLikelihoodOfALogSoftmax)
     const ValueID one_hot = builder.input(Shape{4, 3}, "one_hot");
     const std::size_t nodes_before = graph.node_count();
 
-    const ValueID loss = CrossEntropyLoss{}.forward(builder, logits, one_hot);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            CrossEntropyLoss{}.forward(builder, logits, one_hot));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 2u);
     const Graph::Node& softmax = graph.nodes()[nodes_before];
@@ -69,7 +71,8 @@ TEST(Small_CrossEntropyLoss, TheLossIsOneElementOfTheLogitsType)
     const ValueID logits = builder.input(Shape{4, 3}, "logits", DType::Float64);
     const ValueID one_hot = builder.input(Shape{4, 3}, "one_hot", DType::Float64);
 
-    const ValueID loss = CrossEntropyLoss{}.forward(builder, logits, one_hot);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            CrossEntropyLoss{}.forward(builder, logits, one_hot));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(graph.value(loss).dtype, DType::Float64);
@@ -83,6 +86,6 @@ TEST(Small_CrossEntropyLoss, OperandsOfTwoShapesAreRefused)
     const ValueID logits = builder.input(Shape{4, 3}, "logits");
     const ValueID one_hot = builder.input(Shape{4, 2}, "one_hot");
 
-    SA_EXPECT_ERROR((void)CrossEntropyLoss{}.forward(builder, logits, one_hot), "NLL_LOSS",
-                    "[4, 3]", "[4, 2]");
+    SA_EXPECT_FAILURE(CrossEntropyLoss{}.forward(builder, logits, one_hot),
+                      StatusCode::InvalidDescription, "NLL_LOSS", "[4, 3]", "[4, 2]");
 }

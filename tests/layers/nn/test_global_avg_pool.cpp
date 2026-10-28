@@ -31,6 +31,7 @@
 #include <type_traits>
 #include <utility>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -52,7 +53,8 @@ namespace
         const Graph::ValueID x = builder.input(Shape{batch, height, width, channels}, "x");
 
         const GlobalAvgPool layer{};
-        return graph.value(layer.forward(builder, x)).shape;
+        // The input fits, so a refusal is a defect of the layer: value() stops the test.
+        return graph.value(layer.forward(builder, x).value()).shape;
     }
 } // namespace
 
@@ -64,8 +66,8 @@ TEST(Small_GlobalAvgPool, SatisfiesTheModuleTrait)
                   "GlobalAvgPool is a leaf and must not look like a container");
     static_assert(std::is_same<decltype(std::declval<const GlobalAvgPool&>().forward(
                                    std::declval<const Graph::GraphBuilder&>(),
-                                   std::declval<Graph::ValueID>())),
-                               Graph::ValueID>::value,
+                                   std::declval<const Graph::Traced&>())),
+                               Graph::Traced>::value,
                   "GlobalAvgPool declares no parameter, so forward() must be const");
     SUCCEED();
 }
@@ -78,7 +80,7 @@ TEST(Small_GlobalAvgPool, ForwardReducesTheSpatialAxes)
     const Graph::ValueID x = builder.input(Shape{4, 7, 5, 16}, "x");
 
     const GlobalAvgPool layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{4, 16}));
 }
@@ -92,7 +94,7 @@ TEST(Small_GlobalAvgPool, ForwardEmitsOneSpatialMeanNode)
 
     const GlobalAvgPool layer{};
     const std::size_t nodes_before = graph.nodes().size();
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.nodes().size(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
@@ -112,10 +114,10 @@ TEST(Small_GlobalAvgPool, ForwardKeepsTheNHWCLayoutTag)
     ASSERT_EQ(graph.value(x).layout, Graph::TensorLayout::NHWC);
 
     const GlobalAvgPool layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
-    EXPECT_NO_THROW(graph.finalise());
+    SA_EXPECT_OK(graph.finalise());
 }
 
 /** @brief Tests that output_shape() maps a per-sample [H, W, C] shape to [C]. */
@@ -123,7 +125,7 @@ TEST(Small_GlobalAvgPool, OutputShapeKeepsOnlyTheChannels)
 {
     const GlobalAvgPool layer{};
 
-    EXPECT_EQ(layer.output_shape(Shape{7, 5, 16}), (Shape{16}));
+    EXPECT_EQ(layer.output_shape(Shape{7, 5, 16}).value(), (Shape{16}));
 }
 
 /** @brief Tests that output_shape() agrees with the traced shape for two different inputs. */
@@ -131,11 +133,11 @@ TEST(Small_GlobalAvgPool, OutputShapeAgreesWithForward)
 {
     const GlobalAvgPool layer{};
 
-    const Shape square = layer.output_shape(Shape{7, 7, 512});
+    const Shape square = layer.output_shape(Shape{7, 7, 512}).value();
     ASSERT_EQ(square.rank(), 1);
     EXPECT_EQ(traced_shape(4, 7, 7, 512), (Shape{4, square[0]}));
 
-    const Shape oblong = layer.output_shape(Shape{3, 9, 2});
+    const Shape oblong = layer.output_shape(Shape{3, 9, 2}).value();
     ASSERT_EQ(oblong.rank(), 1);
     EXPECT_EQ(traced_shape(1, 3, 9, 2), (Shape{1, oblong[0]}));
 }
@@ -145,7 +147,7 @@ TEST(Small_GlobalAvgPool, OutputShapeRejectsAFeatureVector)
 {
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{16}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{16}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that output_shape() rejects a per-sample shape of rank 2. */
@@ -153,7 +155,7 @@ TEST(Small_GlobalAvgPool, OutputShapeRejectsARankTwoShape)
 {
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{7, 16}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{7, 16}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that output_shape() rejects a rank-4 shape that still carries the batch axis. */
@@ -161,7 +163,7 @@ TEST(Small_GlobalAvgPool, OutputShapeRejectsAShapeWithTheBatchAxis)
 {
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.output_shape(Shape{4, 7, 5, 16}), Error);
+    SA_EXPECT_FAILURE(layer.output_shape(Shape{4, 7, 5, 16}), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() rejects a rank-2 [N, F] input. */
@@ -173,7 +175,7 @@ TEST(Small_GlobalAvgPool, ForwardRejectsAFeatureMatrix)
 
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() rejects a rank-3 input that lacks the batch axis. */
@@ -185,7 +187,7 @@ TEST(Small_GlobalAvgPool, ForwardRejectsAnInputWithoutTheBatchAxis)
 
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.forward(builder, x), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that forward() rejects a rank-4 input tagged NCHW. */
@@ -194,11 +196,12 @@ TEST(Small_GlobalAvgPool, ForwardRejectsAnNCHWInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{1, 4, 4, 3}, "x");
-    const Graph::ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID x_nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
     const GlobalAvgPool layer{};
 
-    EXPECT_THROW((void)layer.forward(builder, x_nchw), Error);
+    SA_EXPECT_FAILURE(layer.forward(builder, x_nchw), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the parameter walk visits nothing, before and after a trace. */
@@ -211,7 +214,7 @@ TEST(Small_GlobalAvgPool, TheParameterWalkVisitsNothing)
     GlobalAvgPool layer{};
     EXPECT_EQ(NN::parameter_count(layer), 0u);
 
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     EXPECT_EQ(NN::parameter_count(layer), 0u);
     EXPECT_EQ(NN::parameter_elements(layer), 0);

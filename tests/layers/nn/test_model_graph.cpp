@@ -99,8 +99,10 @@ namespace
             {
                 SA_TRY(NN::Detail::require_input_count(inputs, 1));
 
-                outputs.push_back(trace.builder().relu(inputs[0]));
-                outputs.push_back(trace.builder().gelu(inputs[0]));
+                SA_TRY_ASSIGN(const Graph::ValueID rectified, trace.builder().relu(inputs[0]));
+                SA_TRY_ASSIGN(const Graph::ValueID smoothed, trace.builder().gelu(inputs[0]));
+                outputs.push_back(rectified);
+                outputs.push_back(smoothed);
                 return Status();
             }
 
@@ -244,11 +246,13 @@ TEST(Small_ModelGraph, BranchAndMergeTracesTheNodeSequenceOfTheHandWrittenTrace)
     Conv2d stem = Conv2d::same_padded(3, 4, 3, 2);
     Conv2d down = Conv2d::same_padded(4, 8, 3, 2);
     Conv2d mix = Conv2d::same_padded(12, 4, 1, 1);
-    const Graph::ValueID p3 = stem.forward(builder, x);
-    const Graph::ValueID up = NN::Upsample2d{2}.forward(builder, down.forward(builder, p3));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID p3, stem.forward(builder, x));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID up,
+                            NN::Upsample2d{2}.forward(builder, down.forward(builder, p3)));
     const Graph::ValueID parts[] = {up, p3};
-    const Graph::ValueID merged = builder.concat_channels(NN::ValueSpan(parts, 2));
-    const Graph::ValueID expected_features = mix.forward(builder, merged);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID merged,
+                            builder.concat_channels(NN::ValueSpan(parts, 2)));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID expected_features, mix.forward(builder, merged));
 
     const OpList ops = ops_of(traced);
     EXPECT_EQ(ops, ops_of(expected));
@@ -349,17 +353,19 @@ TEST(Small_ModelGraph, ForwardFailsWhenTwoOutputsArePublished)
     EXPECT_TRUE(graph.has_refusal());
 }
 
-/** @brief Tests that output_shape is the single output's shape, and empty without exactly one. */
+/** @brief Tests that output_shape is the single output's shape, and refused without exactly one. */
 TEST(Small_ModelGraph, OutputShapeIsTheShapeOfTheSinglePublishedOutput)
 {
     SA_ASSERT_OK_AND_ASSIGN(BranchingModel built, build_branching_model());
-    EXPECT_EQ(built.model.output_shape(Shape{8, 8, 3}), Shape{});
+    SA_EXPECT_FAILURE(built.model.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "exactly one model output", "publishes 0");
 
     SA_EXPECT_OK(built.model.output("features", built.up));
-    EXPECT_EQ(built.model.output_shape(Shape{8, 8, 3}), (Shape{4, 4, 8}));
+    EXPECT_EQ(built.model.output_shape(Shape{8, 8, 3}).value(), (Shape{4, 4, 8}));
 
     SA_EXPECT_OK(built.model.output("skip", built.stem));
-    EXPECT_EQ(built.model.output_shape(Shape{8, 8, 3}), Shape{});
+    SA_EXPECT_FAILURE(built.model.output_shape(Shape{8, 8, 3}), StatusCode::InvalidDescription,
+                      "exactly one model output", "publishes 2");
 }
 
 /** @brief Tests that a graph added to another is one node, traced and named under its name. */
@@ -921,7 +927,7 @@ namespace
         /** @brief Traces a ReLU of @p x. */
         Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
         {
-            return trace.builder().relu(x);
+            return trace.value_or_fail(trace.builder().relu(x), x);
         }
 
         /** @brief Traces a GELU of @p x and writes @p sample to seen. */
@@ -929,11 +935,11 @@ namespace
                                            const Shape& sample)
         {
             *seen = sample;
-            return trace.builder().gelu(x);
+            return trace.value_or_fail(trace.builder().gelu(x), x);
         }
 
         /** @brief Returns @p input. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }

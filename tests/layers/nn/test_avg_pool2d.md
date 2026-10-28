@@ -55,37 +55,38 @@ gives another shape.
 
 ## OutputShapeRejectsAFeatureVector
 
-`output_shape([8])` throws, because a per-sample shape must be rank 3.
+`output_shape([8])` fails, because a per-sample shape must be rank 3.
 
 ## OutputShapeRejectsABatchedShape
 
-`output_shape([2, 4, 4, 3])` throws. A shape that still carries the batch axis is rank 4.
+`output_shape([2, 4, 4, 3])` returns InvalidDescription. A shape that still carries the batch axis
+is rank 4.
 
 ## OutputShapeRejectsAWindowLargerThanTheImage
 
-A 5x5 window over a [4, 4, 3] sample throws.
+A 5x5 window over a [4, 4, 3] sample returns InvalidDescription.
 
 ## OutputShapeRejectsAZeroStride
 
-A geometry with stride 0 on both axes throws.
+A geometry with stride 0 on both axes returns InvalidDescription.
 
 ## OutputShapeNamesAZeroStride
 
-The message for the same geometry contains "AvgPool2d" and "stride 0,0". The case holds the
-message to the stride, where a check ordered differently would report a window that does not
-fit.
+The message for the same geometry contains "AvgPool2d" and "stride 0,0". The case holds the message
+to the stride, where a check ordered differently would report a window that does not fit.
 
 ## OutputShapeRejectsANegativePadding
 
-A top padding of -1 throws with a message containing "AvgPool2d" and "padding -1,0".
+A top padding of -1 returns InvalidDescription with a message containing "AvgPool2d" and "padding
+-1,0".
 
 ## ForwardRejectsARankTwoInput
 
-`forward()` throws on a [2, 8] input.
+`forward()` returns InvalidDescription on a [2, 8] input.
 
 ## ForwardRejectsAnNCHWInput
 
-A [1, 6, 6, 3] input is converted with `layout_convert` to NCHW, and `forward()` throws on the
+A [1, 6, 6, 3] input is converted with `layout_convert` to NCHW, and `forward()` returns InvalidDescription for the
 converted value.
 
 ## ForwardNamesTheLayoutOfAnNCHWInputNarrowerThanTheWindow
@@ -96,17 +97,17 @@ the window is fitted.
 
 ## ForwardRejectsAZeroStride
 
-`forward()` with stride 0 on both axes throws with a message containing "AvgPool2d" and
+`forward()` with stride 0 on both axes returns InvalidDescription with a message containing "AvgPool2d" and
 "stride 0,0".
 
 ## ForwardRejectsANegativePadding
 
-`forward()` with a top padding of -1 throws with a message containing "AvgPool2d" and
+`forward()` with a top padding of -1 returns InvalidDescription with a message containing "AvgPool2d" and
 "padding -1,0".
 
 ## ForwardRejectsAWindowLargerThanTheImage
 
-`forward()` throws for a 5x5 window over a [2, 4, 4, 3] input.
+`forward()` returns InvalidDescription for a 5x5 window over a [2, 4, 4, 3] input.
 
 ## ATracedLayerHasNoParameter
 

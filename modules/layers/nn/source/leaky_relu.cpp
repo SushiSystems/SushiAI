@@ -27,7 +27,7 @@
 
 #include <SushiAI/nn/leaky_relu.hpp>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -35,25 +35,29 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Throws unless the builder accepts the slope of @p layer. */
-            void require_legal_slope(const LeakyReLU& layer)
+            /** @brief Returns InvalidDescription unless the builder takes the slope of @p layer. */
+            [[nodiscard]] Status check_slope(const LeakyReLU& layer) noexcept
             {
-                SA_THROW_IF(!Graph::is_legal_leaky_relu_slope(layer.slope),
-                            "LeakyReLU needs a slope in (0, 1); got {}", layer.slope);
+                SA_FAIL_IF(!Graph::is_legal_leaky_relu_slope(layer.slope),
+                           StatusCode::InvalidDescription,
+                           "LeakyReLU needs a slope in (0, 1); got {}", layer.slope);
+
+                return Status();
             }
         } // namespace
 
-        Graph::ValueID LeakyReLU::forward(const Graph::GraphBuilder& builder,
-                                          Graph::ValueID x) const
+        Graph::Traced LeakyReLU::forward(const Graph::GraphBuilder& builder,
+                                         const Graph::Traced& input) const
         {
-            require_legal_slope(*this);
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+            SA_TRY(builder.observe(check_slope(*this)));
 
             return builder.leaky_relu(x, slope);
         }
 
-        Shape LeakyReLU::output_shape(const Shape& input) const
+        Result<Shape> LeakyReLU::output_shape(const Shape& input) const
         {
-            require_legal_slope(*this);
+            SA_TRY(check_slope(*this));
 
             return input;
         }

@@ -222,8 +222,8 @@ TEST(Small_LayerNorm, OutputShapeIsTheInputShape)
 {
     const LayerNorm layer = make_layer();
 
-    EXPECT_EQ(layer.output_shape(Shape{K_DIM}), (Shape{K_DIM}));
-    EXPECT_EQ(layer.output_shape(Shape{6, K_DIM}), (Shape{6, K_DIM}));
+    EXPECT_EQ(layer.output_shape(Shape{K_DIM}).value(), (Shape{K_DIM}));
+    EXPECT_EQ(layer.output_shape(Shape{6, K_DIM}).value(), (Shape{6, K_DIM}));
 }
 
 /** @brief Tests that the factory takes dim from the last extent and reads "ln_epsilon". */
@@ -370,12 +370,14 @@ namespace
                 const ValueID logits = build(builder, variable_);
                 const Shape logit_shape = graph_.value(logits).shape;
                 targets_ = builder.input(logit_shape, "targets", DType::Float64);
-                loss_ = builder.nll_loss(builder.log_softmax(logits), targets_);
+                // The extents are fixed here, so a refusal is a defect: value() stops the test.
+                loss_ = builder.nll_loss(builder.log_softmax(logits), targets_).value();
 
                 const std::vector<ValueID> wrt = {variable_};
+                // The graph is fixed here, so a refusal is a defect: value() stops the test.
                 gradient_ = Autograd::differentiate(
                     graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
@@ -457,8 +459,9 @@ namespace
     /** @brief Returns the [K_ROWS, K_WIDTH] rows of a normalised [2, 3, K_WIDTH] value. */
     ValueID normalised_rows(const GraphBuilder& builder, ValueID x, ValueID gamma, ValueID beta)
     {
+        // The extents are fixed here, so a refusal is a defect: value() stops the test.
         const Graph::LayerNormResult out = builder.layer_norm(x, gamma, beta, K_EPSILON).value();
-        return builder.reshape(out.output, Shape{K_ROWS, K_WIDTH});
+        return builder.reshape(out.output, Shape{K_ROWS, K_WIDTH}).value();
     }
 }
 

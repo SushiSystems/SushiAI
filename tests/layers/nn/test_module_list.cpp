@@ -175,7 +175,9 @@ TEST(Small_ModuleList, TheWalkNamesChildrenByIndex)
 
     Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     for (Linear& layer : list)
-        x = layer.forward(builder, x);
+    {
+        SA_ASSERT_OK_AND_ASSIGN(x, layer.forward(builder, x));
+    }
 
     EXPECT_EQ(parameter_names(list), (std::vector<std::string>{
         "0.weight:[8, 4]", "0.bias:[8]",
@@ -196,8 +198,10 @@ TEST(Small_ModuleList, AListUnderAChildFieldIsNamedByFieldThenIndex)
 
     Graph::ValueID x = builder.input(Shape{2, 4}, "x");
     for (Linear& layer : stage.blocks)
-        x = layer.forward(builder, x);
-    (void)stage.head.forward(builder, x);
+    {
+        SA_ASSERT_OK_AND_ASSIGN(x, layer.forward(builder, x));
+    }
+    SA_EXPECT_OK(stage.head.forward(builder, x));
 
     EXPECT_EQ(parameter_names(stage), (std::vector<std::string>{
         "blocks.0.weight:[4, 4]", "blocks.0.bias:[4]",
@@ -235,7 +239,7 @@ TEST(Small_ModuleList, GrowingTheListKeepsATracedChildsStateIdentity)
 
     ModuleList<Linear> list;
     list.push_back(Linear{4, 4});
-    (void)list[0].forward(builder, builder.input(Shape{2, 4}, "x"));
+    SA_EXPECT_OK(list[0].forward(builder, builder.input(Shape{2, 4}, "x")));
 
     const Graph::StateID weight_state = list[0].weight.state();
     const Graph::ValueID weight_leaf = list[0].weight.id_in(graph);

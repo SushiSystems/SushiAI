@@ -37,7 +37,6 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/traced.hpp>
 #include <SushiAI/nn/node_attributes.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -97,19 +96,19 @@ namespace SushiAI
                            layer.num_embeddings, layer.embedding_dim, K_MAX_RANK - 1,
                            index_shape.to_string());
 
-                SA_TRY_ASSIGN(const Graph::ValueID table, Detail::bridge_throwing([&]()
-                {
-                    return layer.weight.declare(
-                        builder, Shape{layer.num_embeddings, layer.embedding_dim},
-                        ParameterRole::Embedding, layer.weight_init, layer.embedding_dim,
-                        layer.embedding_dim, "weight", layer.dtype);
-                }));
+                SA_TRY_ASSIGN(const Graph::ValueID table,
+                              layer.weight.declare(
+                                  builder, Shape{layer.num_embeddings, layer.embedding_dim},
+                                  ParameterRole::Embedding, layer.weight_init,
+                                  layer.embedding_dim, layer.embedding_dim, "weight",
+                                  layer.dtype));
 
                 const Graph::Traced gathered = builder.gather_rows(table, indices);
                 SA_TRY(SA_ANNOTATE(gathered.status(), "Embedding({}, {})", layer.num_embeddings,
                                    layer.embedding_dim));
 
-                return gathered.value();
+                SA_TRY_ASSIGN(const Graph::ValueID rows, gathered);
+                return rows;
             }
         } // namespace
 
@@ -124,7 +123,7 @@ namespace SushiAI
             return forward(trace, indices);
         }
 
-        Shape Embedding::output_shape(const Shape& input) const
+        Result<Shape> Embedding::output_shape(const Shape& input) const
         {
             SA_FATAL_IF(input.rank() > K_MAX_SAMPLE_RANK,
                         "Embedding::output_shape was given {}; a per-sample index has a rank of "

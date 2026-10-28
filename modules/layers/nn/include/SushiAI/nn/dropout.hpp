@@ -71,7 +71,7 @@ namespace SushiAI
             Graph::ValueID trace_evaluation(const Trace& trace, Graph::ValueID x);
 
             /** @brief Returns the per-sample shape either form produces, which is @p input. */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(ModalModule<Dropout>, "Dropout must satisfy the ModalModule contract");

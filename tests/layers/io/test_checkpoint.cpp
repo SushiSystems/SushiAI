@@ -101,7 +101,7 @@ namespace
     {
         const Graph::GraphBuilder builder(graph);
         const Graph::ValueID x = builder.input(Shape{4, 6}, "inputs");
-        (void)model.forward(builder, x);
+        SA_EXPECT_OK(model.forward(builder, x));
 
         Result<NN::ModelState> created = NN::ModelState::create(engine, model);
         SA_EXPECT_OK(created);

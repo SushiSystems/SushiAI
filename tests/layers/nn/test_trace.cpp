@@ -80,7 +80,7 @@ namespace
         Graph::ValueID trace_training(const Trace& trace, Graph::ValueID x)
         {
             ++training_calls;
-            return trace.builder().relu(x);
+            return trace.value_or_fail(trace.builder().relu(x), x);
         }
 
         /** @brief Emits nothing, returns its input and counts the call. */
@@ -152,7 +152,7 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x)
         {
             return x;
         }
@@ -186,7 +186,7 @@ namespace
         }
 
         /** @brief Returns its input and counts the call. */
-        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x)
         {
             ++builder_calls;
             return x;
@@ -399,7 +399,7 @@ TEST(Small_Trace, EachUpdateAddsOneUpdateAndOneSource)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueID y = builder.relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, builder.relu(x));
     Buffer mean = defined_buffer();
     Buffer variance = defined_buffer();
     ASSERT_NE(mean.state(), variance.state());
@@ -539,7 +539,7 @@ TEST(Small_Trace, ValueOrFailReturnsAHeldValue)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 3}, "x");
-    const Graph::ValueID y = builder.relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, builder.relu(x));
     const Trace trace = Trace::evaluation(builder);
 
     EXPECT_EQ(trace.value_or_fail(Result<Graph::ValueID>(y), x), y);
@@ -570,8 +570,8 @@ TEST(Small_TraceDeathTest, FailGivenASuccessIsFatal)
     SA_EXPECT_FATAL(trace.fail(Status()), "Trace::fail was given a success");
 }
 
-/** @brief Tests that Sequential throws the failure a child recorded and traces no later child. */
-TEST(Small_Trace, SequentialThrowsTheFailureAChildRecorded)
+/** @brief Tests that Sequential leaves a child's failure on the trace and traces no later child. */
+TEST(Small_Trace, SequentialLeavesTheFailureAChildRecordedOnTheTrace)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -579,8 +579,26 @@ TEST(Small_Trace, SequentialThrowsTheFailureAChildRecorded)
     Sequential model{RefusingStub{}, ModalStub{}};
     const Trace trace = Trace::evaluation(builder);
 
-    SA_EXPECT_ERROR(static_cast<void>(model.forward(trace, x)), "RefusingStub refuses");
+    Graph::ValueID y = Graph::K_NO_VALUE;
+    EXPECT_NO_THROW(y = model.forward(trace, x));
+    EXPECT_EQ(y, x);
+    SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "RefusingStub refuses");
     EXPECT_EQ(model.layer<1>().evaluation_calls, 0);
+}
+
+/** @brief Tests that a builder-form child refusing its input inside a Sequential fails the trace. */
+TEST(Small_Trace, SequentialRecordsTheRefusalOfABuilderFormChild)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID x = builder.input(Shape{2, 5}, "x");
+    Sequential model{Linear{4, 8}, ReLU{}, ModalStub{}};
+    const Trace trace = Trace::evaluation(builder);
+
+    EXPECT_NO_THROW(static_cast<void>(model.forward(trace, x)));
+    SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "Linear(4, 8)");
+    EXPECT_EQ(model.layer<2>().evaluation_calls, 0);
+    EXPECT_TRUE(graph.has_refusal());
 }
 
 /** @brief Tests that Sequential folds an input shape through output_shape() of every child. */
@@ -588,8 +606,9 @@ TEST(Small_Trace, SequentialFoldsAnInputShapeThroughItsChildren)
 {
     const Sequential model{Linear{4, 8}, ReLU{}, Linear{8, 3}};
 
-    EXPECT_EQ(model.output_shape(Shape{4}), (Shape{3}));
-    SA_EXPECT_ERROR(static_cast<void>(model.output_shape(Shape{5})), "Linear(4, 8)", "[5]");
+    EXPECT_EQ(model.output_shape(Shape{4}).value(), (Shape{3}));
+    SA_EXPECT_FAILURE(model.output_shape(Shape{5}), StatusCode::InvalidDescription, "Linear(4, 8)",
+                      "[5]");
 }
 
 /** @brief Tests that an update whose source is NO_VALUE stops the process. */
@@ -647,8 +666,8 @@ TEST(Small_Trace, TraceLayerTracesAModuleThroughTheBuilder)
     Graph::Graph built_graph;
     const Graph::GraphBuilder built_builder(built_graph);
     Linear built{4, 3};
-    const Graph::ValueID built_out =
-        built.forward(built_builder, built_builder.input(Shape{2, 4}, "x"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID built_out,
+                            built.forward(built_builder, built_builder.input(Shape{2, 4}, "x")));
 
     EXPECT_EQ(traced_out, built_out);
     EXPECT_EQ(traced_graph.value_count(), built_graph.value_count());
@@ -738,8 +757,8 @@ TEST(Small_Trace, SequentialOfModulesTracesTheSameThroughBothForwards)
     Graph::Graph built_graph;
     const Graph::GraphBuilder built_builder(built_graph);
     Sequential built{Linear{4, 8}, ReLU{}, Linear{8, 3}};
-    const Graph::ValueID built_out =
-        built.forward(built_builder, built_builder.input(Shape{2, 4}, "x"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID built_out,
+                            built.forward(built_builder, built_builder.input(Shape{2, 4}, "x")));
 
     EXPECT_EQ(traced_out, built_out);
     EXPECT_EQ(traced_graph.value_count(), built_graph.value_count());
@@ -858,7 +877,7 @@ TEST(Small_Trace, CarryRecordsTheLeafItsNextValueAndItsInitialValue)
 
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID leaf,
                             trace.carried_leaf(Shape{4, 3}, "kept", DType::Float32));
-    const Graph::ValueID next = builder.scale(leaf, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID next, builder.scale(leaf, 2.0));
     SA_EXPECT_OK(trace.carry(leaf, next, 0.5));
 
     EXPECT_EQ(graph.value(leaf).lifetime, Graph::Lifetime::Input);
@@ -881,7 +900,7 @@ TEST(Small_Trace, CarryRefusesANextValueOfAnotherShape)
     const Trace trace = Trace::carrying(builder, fed, carried);
     SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID leaf,
                             trace.carried_leaf(Shape{4, 3}, "kept", DType::Float32));
-    const Graph::ValueID other = builder.reshape(leaf, Shape{3, 4});
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID other, builder.reshape(leaf, Shape{3, 4}));
 
     SA_EXPECT_FAILURE(trace.carry(leaf, other), StatusCode::InvalidDescription, "[4, 3]",
                       "[3, 4]");
@@ -897,7 +916,7 @@ TEST(Small_TraceDeathTest, CarryingAValueThatIsNoCarriedLeafIsFatal)
     NN::CarriedValueList carried;
     const Trace trace = Trace::carrying(builder, fed, carried);
     const Graph::ValueID x = builder.input(Shape{4, 3}, "x");
-    const Graph::ValueID computed = builder.scale(x, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID computed, builder.scale(x, 2.0));
 
     SA_EXPECT_FATAL(static_cast<void>(trace.carry(computed, computed)), "did not declare");
 }

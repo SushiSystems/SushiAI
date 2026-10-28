@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -85,17 +86,20 @@ namespace SushiAI
 
             /**
              * @brief Traces the convolution, declaring its parameters on the first call.
-             * @param x An NHWC [N, H, W, in_channels] value that the window fits.
-             * @return The [N, out_h, out_w, out_channels] result's id.
+             * @param input An NHWC [N, H, W, in_channels] value that the window fits.
+             * @return The [N, out_h, out_w, out_channels] result; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x);
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input);
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape that the window fits.
-             * @return The per-sample [out_h, out_w, out_channels] shape.
+             * @return The per-sample [out_h, out_w, out_channels] shape, or
+             *         InvalidDescription for a geometry or a shape the window does not fit.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<Conv2d>, "Conv2d must satisfy the Module contract");

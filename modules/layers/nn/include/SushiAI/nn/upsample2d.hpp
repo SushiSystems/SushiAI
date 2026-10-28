@@ -29,6 +29,7 @@
 
 #include <cstdint>
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -54,18 +55,21 @@ namespace SushiAI
             }
 
             /**
-             * @brief Traces the upsampling of @p x.
-             * @param x An NHWC [N, H, W, C] value.
-             * @return The [N, H * scale, W * scale, C] result's id.
+             * @brief Traces the upsampling of @p input.
+             * @param input An NHWC [N, H, W, C] value.
+             * @return The [N, H * scale, W * scale, C] result; the failure of @p input,
+             *         or InvalidDescription for an input the layer refuses.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, C] shape.
-             * @return The per-sample [H * scale, W * scale, C] shape.
+             * @return The per-sample [H * scale, W * scale, C] shape, or
+             *         InvalidDescription for a scale or a shape the layer refuses.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<Upsample2d>, "Upsample2d must satisfy the Module contract");

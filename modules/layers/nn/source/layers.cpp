@@ -26,7 +26,7 @@
  */
 
 #include <SushiAI/nn/layers.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -34,52 +34,58 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Throws unless the feature counts of @p layer are both positive. */
-            void require_positive_features(const Linear& layer)
+            /** @brief Returns InvalidDescription unless both feature counts of @p layer are > 0. */
+            [[nodiscard]] Status check_features(const Linear& layer) noexcept
             {
-                SA_THROW_IF(layer.in_features <= 0 || layer.out_features <= 0,
-                            "Linear needs positive feature counts; got in={} out={}",
-                            layer.in_features, layer.out_features);
+                SA_FAIL_IF(layer.in_features <= 0 || layer.out_features <= 0,
+                           StatusCode::InvalidDescription,
+                           "Linear needs positive feature counts; got in={} out={}",
+                           layer.in_features, layer.out_features);
+
+                return Status();
             }
         } // namespace
 
-        Graph::ValueID Linear::forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+        Graph::Traced Linear::forward(const Graph::GraphBuilder& builder,
+                                      const Graph::Traced& input)
         {
-            require_positive_features(*this);
+            SA_TRY_ASSIGN(const Graph::ValueID x, input);
+            SA_TRY(builder.observe(check_features(*this)));
 
             const Shape& input_shape = builder.graph().value(x).shape;
-            SA_THROW_IF(input_shape.rank() != 2,
-                        "Linear needs a rank-2 input; got {}", input_shape.to_string());
-            SA_THROW_IF(input_shape[1] != in_features,
-                        "Linear({}, {}) was given an input of {}; its inner extent must be {}",
-                        in_features, out_features, input_shape.to_string(), in_features);
+            SA_REFUSE_IF(builder, input_shape.rank() != 2,
+                         "Linear needs a rank-2 input; got {}", input_shape.to_string());
+            SA_REFUSE_IF(builder, input_shape[1] != in_features,
+                         "Linear({}, {}) was given an input of {}; its inner extent must be {}",
+                         in_features, out_features, input_shape.to_string(), in_features);
 
             const DType dtype = builder.graph().value(x).dtype;
 
-            const Graph::ValueID w = weight.declare(builder, Shape{out_features, in_features},
-                                                    ParameterRole::Weight, weight_init,
-                                                    in_features, out_features, "weight", dtype);
+            SA_TRY_ASSIGN(const Graph::ValueID w,
+                          weight.declare(builder, Shape{out_features, in_features},
+                                         ParameterRole::Weight, weight_init, in_features,
+                                         out_features, "weight", dtype));
 
             // X [N, in] against W [out, in] transposed: the flag, never a view.
-            Graph::ValueID y = builder.matmul(x, w, false, true);
+            Graph::Traced y = builder.matmul(x, w, false, true);
 
             if (use_bias)
             {
-                const Graph::ValueID b = bias.declare(builder, Shape{out_features},
-                                                      ParameterRole::Bias,
-                                                      in_features, out_features, "bias", dtype);
+                SA_TRY_ASSIGN(const Graph::ValueID b,
+                              bias.declare(builder, Shape{out_features}, ParameterRole::Bias,
+                                           in_features, out_features, "bias", dtype));
                 y = builder.bias_add(y, b);
             }
 
             return y;
         }
 
-        Shape Linear::output_shape(const Shape& input) const
+        Result<Shape> Linear::output_shape(const Shape& input) const
         {
-            require_positive_features(*this);
-            SA_THROW_IF(input.rank() != 1 || input[0] != in_features,
-                        "Linear({}, {}) was given a per-sample shape of {}; it needs [{}]",
-                        in_features, out_features, input.to_string(), in_features);
+            SA_TRY(check_features(*this));
+            SA_FAIL_IF(input.rank() != 1 || input[0] != in_features, StatusCode::InvalidDescription,
+                       "Linear({}, {}) was given a per-sample shape of {}; it needs [{}]",
+                       in_features, out_features, input.to_string(), in_features);
 
             return Shape{out_features};
         }

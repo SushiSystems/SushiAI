@@ -28,6 +28,7 @@
 #pragma once
 
 #include <tuple>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -48,15 +49,16 @@ namespace SushiAI
 
             /**
              * @brief Traces nothing.
-             * @return @p x itself.
+             * @return @p input itself, or the failure of @p input.
              */
-            Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x) const;
+            Graph::Traced forward(const Graph::GraphBuilder& builder,
+                                  const Graph::Traced& input) const;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @return The shape of @p input, which the layer keeps.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(Module<Identity>, "Identity must satisfy the Module contract");

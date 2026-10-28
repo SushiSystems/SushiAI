@@ -30,6 +30,7 @@
 #include <string>
 #include <tuple>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -54,7 +55,7 @@ TEST(Small_SiLU, ForwardEmitsOneSiLUNodeReadingTheInput)
     const std::size_t nodes_before = graph.node_count();
 
     const SiLU layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 1);
     const Graph::Node& node = graph.nodes().back();
@@ -73,7 +74,7 @@ TEST(Small_SiLU, ForwardKeepsTheShapeAndTypeOfAFeatureBatch)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     const SiLU layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 4}));
     EXPECT_EQ(graph.value(y).dtype, graph.value(x).dtype);
@@ -87,7 +88,7 @@ TEST(Small_SiLU, ForwardKeepsTheShapeAndNHWCTagOfAnImageBatch)
     const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
 
     const SiLU layer{};
-    const Graph::ValueID y = layer.forward(builder, x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
     EXPECT_EQ(graph.value(y).shape, (Shape{2, 8, 6, 3}));
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NHWC);
@@ -99,10 +100,11 @@ TEST(Small_SiLU, ForwardCarriesTheLayoutOfItsInput)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2, 8, 6, 3}, "x");
-    const Graph::ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
     const SiLU layer{};
-    const Graph::ValueID y = layer.forward(builder, nchw);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, nchw));
 
     EXPECT_EQ(graph.value(y).layout, Graph::TensorLayout::NCHW);
     EXPECT_EQ(graph.value(y).shape, graph.value(nchw).shape);
@@ -113,8 +115,8 @@ TEST(Small_SiLU, OutputShapeReturnsItsInput)
 {
     const SiLU layer{};
 
-    EXPECT_EQ(layer.output_shape(Shape{7}), (Shape{7}));
-    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}), (Shape{8, 6, 4}));
+    EXPECT_EQ(layer.output_shape(Shape{7}).value(), (Shape{7}));
+    EXPECT_EQ(layer.output_shape(Shape{8, 6, 4}).value(), (Shape{8, 6, 4}));
 }
 
 /** @brief Tests that the parameter walk visits nothing after a trace. */
@@ -125,7 +127,7 @@ TEST(Small_SiLU, TheParameterWalkVisitsNothing)
     const Graph::ValueID x = builder.input(Shape{2, 4}, "x");
 
     SiLU layer{};
-    (void)layer.forward(builder, x);
+    SA_EXPECT_OK(layer.forward(builder, x));
 
     std::size_t visits = 0;
     NN::for_each_parameter(layer, [&visits](const std::string&, NN::Parameter&)

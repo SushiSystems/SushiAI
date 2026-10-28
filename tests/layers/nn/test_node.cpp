@@ -77,7 +77,7 @@ namespace
         }
 
         /** @brief Defines the buffer as [4] zeros and returns its input. */
-        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x)
         {
             const Status defined = running.define(Shape{4}, 0.0);
             static_cast<void>(defined);
@@ -85,7 +85,7 @@ namespace
         }
 
         /** @brief Returns @p input, which the stub keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }
@@ -104,7 +104,7 @@ namespace
         }
 
         /** @brief Traces the child. */
-        Graph::ValueID forward(const Graph::GraphBuilder& builder, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder& builder, const Graph::Traced& x)
         {
             return inner.forward(builder, x);
         }
@@ -140,7 +140,7 @@ namespace
         }
 
         /** @brief Returns @p input, which the stub keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }
@@ -166,7 +166,7 @@ namespace
         }
 
         /** @brief Returns @p input, which the stub keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }
@@ -182,7 +182,7 @@ namespace
         }
 
         /** @brief Returns its input. */
-        Graph::ValueID forward(const Graph::GraphBuilder&, Graph::ValueID x)
+        Graph::Traced forward(const Graph::GraphBuilder&, const Graph::Traced& x)
         {
             return x;
         }
@@ -208,7 +208,7 @@ namespace
         }
 
         /** @brief Returns @p input, which the stub keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }
@@ -235,7 +235,7 @@ namespace
         }
 
         /** @brief Returns @p input, which the stub keeps. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }
@@ -332,8 +332,8 @@ TEST(Small_Node, ModuleNodeCreateReturnsTheFailureOfAShapeTheLayerRefuses)
                       StatusCode::InvalidDescription, "Linear(6, 8)", "[5]", "[6]");
 }
 
-/** @brief Tests that a layer's thrown refusal of a traced value comes back as a failure. */
-TEST(Small_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatThrows)
+/** @brief Tests that a layer's refusal of a traced value comes back as a failure. */
+TEST(Small_Node, ModuleNodeForwardReturnsTheFailureOfALayerThatRefuses)
 {
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
