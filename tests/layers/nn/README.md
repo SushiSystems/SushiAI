@@ -19,7 +19,6 @@ Each test file has a page beside it that says what its cases pin.
 | `test_node.cpp` | [`test_node.md`](test_node.md) |
 | `test_node_registry.cpp` | [`test_node_registry.md`](test_node_registry.md) |
 | `test_silu.cpp` | [`test_silu.md`](test_silu.md) |
-| `test_throwing_bridge.cpp` | [`test_throwing_bridge.md`](test_throwing_bridge.md) |
 | `test_trace.cpp` | [`test_trace.md`](test_trace.md) |
 | `test_unflatten.cpp` | [`test_unflatten.md`](test_unflatten.md) |
 | `test_upsample2d.cpp` | [`test_upsample2d.md`](test_upsample2d.md) |

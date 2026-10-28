@@ -29,7 +29,6 @@
 
 #include <cstdint>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {

@@ -44,7 +44,6 @@ sushiai_add_test_program(OWNER nn
         test_node_attributes.cpp
         test_node_registry.cpp
         test_silu.cpp
-        test_throwing_bridge.cpp
         test_trace.cpp
         test_unflatten.cpp
         test_upsample2d.cpp

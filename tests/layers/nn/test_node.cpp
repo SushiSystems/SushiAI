@@ -35,7 +35,6 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -215,33 +214,6 @@ namespace
         }
     };
 
-    /** @brief Records an OutOfMemory on the trace, then throws an Error about something else. */
-    struct RefusingThenThrowingStub
-    {
-        /** @brief Lists no state. */
-        static constexpr auto fields()
-        {
-            return std::tuple<>{};
-        }
-
-        /** @brief Records the cause, then throws as a later emitter would on a fallback value. */
-        Graph::ValueID forward(const Trace& trace, Graph::ValueID x)
-        {
-            trace.fail(Status::from_message(StatusCode::OutOfMemory, []()
-            {
-                return std::string("the stub's recorded cause");
-            }));
-            SA_THROW_IF(x != Graph::K_NO_VALUE, "the stub's later throw over value {}", x);
-            return x;
-        }
-
-        /** @brief Returns @p input, which the stub keeps. */
-        Result<Shape> output_shape(const Shape& input) const
-        {
-            return input;
-        }
-    };
-
     /** @brief Builds the node of @p layer over @p input and expects create() to succeed. */
     template<typename L>
     std::unique_ptr<ModuleNode<L>> node_of(L layer, const Shape& input)
@@ -360,22 +332,6 @@ TEST(Small_Node, ModuleNodeForwardReturnsTheFailureALayerRecorded)
 
     SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({x}), outputs),
                       StatusCode::InvalidDescription, "RefusingStub refuses");
-    EXPECT_TRUE(outputs.empty());
-}
-
-/** @brief Tests that a failure a layer recorded outranks an Error the layer threw after it. */
-TEST(Small_Node, ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2, 6}, "x");
-
-    const std::unique_ptr<ModuleNode<RefusingThenThrowingStub>> node =
-        node_of(RefusingThenThrowingStub{}, Shape{6});
-    std::vector<Graph::ValueID> outputs;
-
-    SA_EXPECT_FAILURE(node->forward(Trace::evaluation(builder), span_of({x}), outputs),
-                      StatusCode::OutOfMemory, "the stub's recorded cause");
     EXPECT_TRUE(outputs.empty());
 }
 

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — nn: Breaking change: Removed `Detail::bridge_throwing` with its header `throwing_bridge.hpp` and test; no unit called it.
 - 2026-10-28 — failure_expectations: Breaking change: Removed `SA_EXPECT_ERROR`, `capture_error` and `error_names` with `throw_expectations.hpp`; tests assert a status or a fatal stop.
 - 2026-10-28 — failure: Breaking change: Removed `Error` and `SA_THROW_IF`; a failure is a status, a result or a fatal stop (`error.hpp`).
 - 2026-10-28 — tools: Dropped every converted row of the contract class table; two rows of the boundary throws remain (`site_classes.tsv`).

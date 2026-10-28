@@ -70,7 +70,6 @@ three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `st
 | `layer_node.hpp` | `LayerNode` |
 | `concat.hpp` | `Concat`, `make_concat_node` |
 | `add.hpp` | `Add`, `make_add_node` |
-| `throwing_bridge.hpp` | `Detail::bridge_throwing` |
 | `model_outputs.hpp` | `ModelOutputs` |
 | `model_graph.hpp` | `NodeRef`, `ModelGraph` |
 | `node_registry.hpp` | `NodeRegistry`, `make_node`, `build_model` |
@@ -517,12 +516,6 @@ holds no state. `Add::create` refuses an input count other than two, an input th
 rank 3, and two inputs of different shapes. `make_add_node` takes no key.
 
 Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
-
-### throwing_bridge.hpp
-
-`Detail::bridge_throwing` calls a callable that reports a failure by throwing and returns a
-`Result`. An `Error` becomes `InvalidDescription`, `std::bad_alloc` becomes `OutOfMemory`, and
-any other exception is fatal. No unit of the library calls it; its test still builds it.
 
 ## The model graph
 

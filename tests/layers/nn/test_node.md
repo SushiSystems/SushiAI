@@ -37,11 +37,6 @@ a trace-form layer throws comes back as a failure.
 
 `RefusingStub` records an `InvalidDescription` failure on the trace and returns its input.
 
-## RefusingThenThrowingStub
-
-`RefusingThenThrowingStub` records an `OutOfMemory` failure on the trace and then throws an
-`Error` with a different message.
-
 ## node_of
 
 `node_of` calls `ModuleNode<L>::create` over a layer and an input shape, expects success and
@@ -93,11 +88,6 @@ and `outputs` stays empty.
 
 The node of `RefusingStub` returns the failure the stub recorded on the trace, and `outputs`
 stays empty although the stub returned an id.
-
-## ModuleNodeForwardReturnsTheRecordedFailureBeforeALaterThrow
-
-The node of `RefusingThenThrowingStub` returns the `OutOfMemory` failure with "the stub's
-recorded cause". The `Error` thrown after it is not what the caller sees.
 
 ## ModuleNodeForwardAppendsTheLayersResult
 
