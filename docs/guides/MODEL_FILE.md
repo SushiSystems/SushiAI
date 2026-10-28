@@ -155,7 +155,7 @@ Two functions build a parsed file. Both take the `ModelSpec` the reader returns.
 | Function | Declared in | Builds | Returns |
 | --- | --- | --- | --- |
 | `NN::build_model` | `modules/layers/nn/include/SushiAI/nn/node_registry.hpp` | Any version 2 file | `Result<ModelGraph>` |
-| `NN::build_layer_stack` | `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` | A chain | `LayerStack`, or it throws `Error` |
+| `NN::build_layer_stack` | `modules/layers/nn/include/SushiAI/nn/layer_registry.hpp` | A chain | `Result<LayerStack>` |
 
 `build_model` makes one node per row and names it by the row's index, so the state of row 3 is
 named `3.<leaf>`. It resolves each `from` entry to a port of an earlier node, hands the factory

@@ -178,8 +178,6 @@ narrowly today:
 
 - In mixed precision an overflowed gradient skips that parameter's update only; the other
   parameters still step.
-- Differentiating `K_LOG_SOFTMAX` on its own throws. It differentiates only as the fused
-  `K_LOG_SOFTMAX` and `K_NLL_LOSS` pair.
 - `gradcheck` cannot verify a mixed-precision graph. Check the rule in FLOAT64.
 - NVIDIA Pascal GPUs (GTX 1060, compute capability 6.1) fail when the OpenCL loader ingests
   SPIR-V. The workaround is to set `ONEAPI_DEVICE_SELECTOR` to `opencl:cpu`.
