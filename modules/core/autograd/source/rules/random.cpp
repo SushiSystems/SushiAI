@@ -45,7 +45,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             // The id is copied out before the emission grows the graph.
-            const Graph::ValueID mask = tape.node().outputs.at(1);
+            const Graph::ValueID mask = tape.output(1);
 
             // y = x * mask and the mask is constant in x, so dx = dy * mask of the same run.
             tape.contribute_input(0, tape.builder().mul(dy, mask));

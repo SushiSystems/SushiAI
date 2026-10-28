@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — autograd: Added `GradientTape::input` and `output`, which stop with a message for an index the node lacks; the rules use them in place of `at()` (`tape.hpp`).
 - 2026-10-28 — graph: Made a pinned value without a buffer and a structural node without a result stop with a message in place of `std::out_of_range` (`memory_plan.cpp`, `cast_insertion.cpp`).
 - 2026-10-28 — graph: Dropped the includes of the removed `error.hpp` from the headers and tests of the module.
 - 2026-10-28 — seam: Dropped the fatal stop for a thrown `Error`, which no longer exists; a `std::runtime_error` maps by phase (`seam.cpp`).

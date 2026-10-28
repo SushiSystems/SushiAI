@@ -79,15 +79,14 @@ namespace SushiAI
 
         void mul_backward(const GradientTape& tape)
         {
-            const Graph::Node& node = tape.node();
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
             if (tape.input_requires_grad(0))
-                tape.contribute_input(0, builder.mul(dc, node.inputs.at(1)));
+                tape.contribute_input(0, builder.mul(dc, tape.input(1)));
             if (tape.input_requires_grad(1))
-                tape.contribute_input(1, builder.mul(dc, node.inputs.at(0)));
+                tape.contribute_input(1, builder.mul(dc, tape.input(0)));
         }
 
         void scale_backward(const GradientTape& tape)
@@ -106,7 +105,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             // d/dx exp(x) = exp(x), which the forward pass already produced.
-            tape.contribute_input(0, tape.builder().mul(dy, tape.node().outputs.at(0)));
+            tape.contribute_input(0, tape.builder().mul(dy, tape.output(0)));
         }
 
         void accumulate_backward(const GradientTape& tape)
@@ -126,9 +125,8 @@ namespace SushiAI
             if (!tape.input_requires_grad(0) && !tape.input_requires_grad(1))
                 return;
 
-            const Graph::Node& node = tape.node();
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::Traced quotient = builder.div(dc, node.inputs.at(1));
+            const Graph::Traced quotient = builder.div(dc, tape.input(1));
 
             if (tape.input_requires_grad(0))
                 tape.contribute_input(0, quotient);
@@ -136,7 +134,7 @@ namespace SushiAI
             // The output c equals a / b, so -(dc / b) * c is -dc * a / b^2 without squaring b.
             if (tape.input_requires_grad(1))
                 tape.contribute_input(
-                    1, builder.scale(builder.mul(quotient, node.outputs.at(0)), -1.0));
+                    1, builder.scale(builder.mul(quotient, tape.output(0)), -1.0));
         }
 
         void minimum_backward(const GradientTape& tape)
@@ -148,9 +146,8 @@ namespace SushiAI
                 return;
 
             // A tie satisfies a <= b, so operand 0 takes the whole gradient there.
-            const Graph::Node& node = tape.node();
             const Graph::Traced first_wins =
-                tape.builder().less_equal(node.inputs.at(0), node.inputs.at(1));
+                tape.builder().less_equal(tape.input(0), tape.input(1));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
@@ -163,9 +160,8 @@ namespace SushiAI
                 return;
 
             // A tie satisfies b <= a, so operand 0 takes the whole gradient there.
-            const Graph::Node& node = tape.node();
             const Graph::Traced first_wins =
-                tape.builder().less_equal(node.inputs.at(1), node.inputs.at(0));
+                tape.builder().less_equal(tape.input(1), tape.input(0));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
@@ -178,7 +174,7 @@ namespace SushiAI
                 return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueID x = tape.node().inputs.at(0);
+            const Graph::ValueID x = tape.input(0);
             const Shape shape = tape.graph().value(x).shape;
             const DType dtype = tape.graph().value(x).dtype;
             const Graph::Traced zero = builder.zeros_like(x, shape, dtype);
@@ -200,7 +196,7 @@ namespace SushiAI
                 return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueID x = tape.node().inputs.at(0);
+            const Graph::ValueID x = tape.input(0);
             const Graph::Traced squared = builder.mul(x, x);
             const Graph::Traced denominator = builder.add(squared, builder.constant_like(x, 1.0));
 
@@ -216,7 +212,7 @@ namespace SushiAI
                 return;
 
             // The condition is operand 0 and receives nothing; operands 1 and 2 share dy.
-            route_gradient(tape, dy, tape.node().inputs.at(0), 1, 2);
+            route_gradient(tape, dy, tape.input(0), 1, 2);
         }
 
     } // namespace Autograd

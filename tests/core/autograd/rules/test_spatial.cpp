@@ -34,7 +34,6 @@
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>

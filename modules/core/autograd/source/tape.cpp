@@ -60,6 +60,22 @@ namespace SushiAI
             return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
         }
 
+        Graph::ValueID GradientTape::input(std::size_t index) const
+        {
+            const Graph::Node& n = node();
+            SA_FATAL_IF(index >= n.inputs.size(),
+                        "{} has no operand {}", Ops::name_of(n.op), index);
+            return n.inputs[index];
+        }
+
+        Graph::ValueID GradientTape::output(std::size_t index) const
+        {
+            const Graph::Node& n = node();
+            SA_FATAL_IF(index >= n.outputs.size(),
+                        "{} has no result {}", Ops::name_of(n.op), index);
+            return n.outputs[index];
+        }
+
         Graph::ValueID GradientTape::output_grad(std::size_t index) const
         {
             const Graph::Node& n = node();

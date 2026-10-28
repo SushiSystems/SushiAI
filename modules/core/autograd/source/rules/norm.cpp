@@ -118,10 +118,10 @@ namespace SushiAI
             if (dy == Graph::K_NO_VALUE) return;
 
             // The ids are copied out before the emission grows the graph.
-            const Graph::ValueID x = tape.node().inputs.at(0);
-            const Graph::ValueID gamma = tape.node().inputs.at(1);
-            const Graph::ValueID mean = tape.node().outputs.at(1);
-            const Graph::ValueID inv_std = tape.node().outputs.at(2);
+            const Graph::ValueID x = tape.input(0);
+            const Graph::ValueID gamma = tape.input(1);
+            const Graph::ValueID mean = tape.output(1);
+            const Graph::ValueID inv_std = tape.output(2);
 
 
             tape.observe(contribute_normalisation(

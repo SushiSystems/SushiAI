@@ -38,8 +38,8 @@ namespace SushiAI
             if (dc == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueID a = node.inputs.at(0);
-            const Graph::ValueID b = node.inputs.at(1);
+            const Graph::ValueID a = tape.input(0);
+            const Graph::ValueID b = tape.input(1);
             const bool ta = node.attributes.flag(0);
             const bool tb = node.attributes.flag(1);
 
@@ -81,7 +81,7 @@ namespace SushiAI
             if (ds == Graph::K_NO_VALUE) return;
             if (!tape.input_requires_grad(0)) return;
 
-            const Graph::ValueID x = tape.node().inputs.at(0);
+            const Graph::ValueID x = tape.input(0);
             const Graph::Value& value = tape.graph().value(x);
 
             // Sum-rows adjoint broadcasts row gradients back over matrix shape via bias addition on zeros.
@@ -96,8 +96,8 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             // The ids and the row count are copied out before the emission grows the graph.
-            const Graph::ValueID table = tape.node().inputs.at(0);
-            const Graph::ValueID indices = tape.node().inputs.at(1);
+            const Graph::ValueID table = tape.input(0);
+            const Graph::ValueID indices = tape.input(1);
             const int64_t table_rows = tape.graph().value(table).shape[0];
 
             tape.contribute_input(0, tape.builder().scatter_add_rows(dy, indices, table_rows));
@@ -110,7 +110,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             // The id is copied out before the emission grows the graph.
-            const Graph::ValueID indices = tape.node().inputs.at(1);
+            const Graph::ValueID indices = tape.input(1);
 
             tape.contribute_input(0, tape.builder().gather_rows(dy, indices));
         }

@@ -40,7 +40,7 @@ namespace SushiAI
             if (!tape.input_requires_grad(0)) return;
 
             // The id is copied out before the emission grows the graph.
-            const Graph::ValueID log_probs = tape.node().outputs.at(0);
+            const Graph::ValueID log_probs = tape.output(0);
 
             tape.contribute_input(0, tape.builder().log_softmax_backward(dy, log_probs));
         }
@@ -80,13 +80,12 @@ namespace SushiAI
 
         void nll_loss_backward(const GradientTape& tape)
         {
-            const Graph::Node& node = tape.node();
 
             if (!tape.output_is_root(0) && tape.output_grad(0) == Graph::K_NO_VALUE) return;
 
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueID log_probs = node.inputs.at(0);
-            const Graph::ValueID targets = node.inputs.at(1);
+            const Graph::ValueID log_probs = tape.input(0);
+            const Graph::ValueID targets = tape.input(1);
 
             const Graph::Value& value = tape.graph().value(log_probs);
             const double batch = static_cast<double>(value.shape.dim(0));
@@ -107,7 +106,9 @@ namespace SushiAI
             // Fused cross-entropy analytic gradient with one-hot targets simplifies to (softmax(X) - Y) / N.
             tape.skip(producer);
 
-            const Graph::ValueID logits = tape.graph().node(producer).inputs.at(0);
+            const Graph::Node& softmax = tape.graph().node(producer);
+            SA_FATAL_IF(softmax.inputs.empty(), "LOG_SOFTMAX node {} has no operand", producer);
+            const Graph::ValueID logits = softmax.inputs[0];
             if (!tape.graph().value(logits).requires_grad) return;
 
             const Graph::Traced probabilities = builder.exp(log_probs);

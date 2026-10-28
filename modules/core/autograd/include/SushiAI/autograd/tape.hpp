@@ -64,6 +64,18 @@ namespace SushiAI
                 Graph::NodeID node_id() const noexcept { return node_; }
 
                 /**
+                 * @brief Returns the forward value the node reads as operand @p index.
+                 * @pre @p index is below the operand count; a larger index is fatal.
+                 */
+                Graph::ValueID input(std::size_t index) const;
+
+                /**
+                 * @brief Returns the forward value the node writes as result @p index.
+                 * @pre @p index is below the result count; a larger index is fatal.
+                 */
+                Graph::ValueID output(std::size_t index) const;
+
+                /**
                  * @brief Returns the gradient ValueID of the node's result.
                  * @param index Output index on the current node.
                  * @return Gradient ValueID, or Graph::NO_VALUE if unseeded or inactive.

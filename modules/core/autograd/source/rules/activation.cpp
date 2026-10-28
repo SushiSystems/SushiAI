@@ -49,8 +49,8 @@ namespace SushiAI
 
             const Graph::ValueID primal =
                 activation->gradient_source == Ops::GradientSource::Output
-                    ? node.outputs.at(0)
-                    : node.inputs.at(0);
+                    ? tape.output(0)
+                    : tape.input(0);
 
             // Forward attributes directly to match the operation signature specified in ops.hpp.
             tape.contribute_input(
