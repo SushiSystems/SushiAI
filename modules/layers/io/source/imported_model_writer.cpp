@@ -204,7 +204,7 @@ namespace SushiAI
 
         } // namespace
 
-        Result<Config::Value> compose_training_file(const ImportedModel& imported)
+        Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept
         {
             SA_TRY(validate_recipe(imported.training));
 
@@ -239,7 +239,7 @@ namespace SushiAI
 
         Result<WrittenImport> write_imported_model(const ImportedModel& imported,
                                                    const std::filesystem::path& directory,
-                                                   ExistingFiles existing)
+                                                   ExistingFiles existing) noexcept
         {
             SA_TRY_ASSIGN(const std::string model_text, Config::write_model(imported.model));
             SA_TRY_ASSIGN(const Config::Value training, compose_training_file(imported));

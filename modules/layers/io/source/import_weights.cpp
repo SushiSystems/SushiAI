@@ -55,7 +55,7 @@ namespace SushiAI
             }
         } // namespace
 
-        std::string renamed(std::string_view name, SushiRuntime::span<const RenameRule> rules)
+        std::string renamed(std::string_view name, SushiRuntime::span<const RenameRule> rules) noexcept
         {
             for (const RenameRule& rule : rules)
             {
@@ -72,7 +72,7 @@ namespace SushiAI
         }
 
         Status import_weights(const std::filesystem::path& path, NN::ModelState& state,
-                              SushiRuntime::span<const RenameRule> rules)
+                              SushiRuntime::span<const RenameRule> rules) noexcept
         {
             std::ifstream in(path, std::ios::binary);
             SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",

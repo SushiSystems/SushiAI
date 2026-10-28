@@ -107,7 +107,7 @@ namespace SushiAI
                  *         Unsupported on a host that is not little-endian; InvalidFile.
                  */
                 [[nodiscard]] static Result<CheckpointWriter> create(
-                    std::ostream& out, std::uint32_t count, std::uint32_t run_state_count = 0);
+                    std::ostream& out, std::uint32_t count, std::uint32_t run_state_count = 0) noexcept;
 
                 /**
                  * @brief Opens the run-state section; every later write() is a run-state record.
@@ -117,7 +117,7 @@ namespace SushiAI
                  * @return InvalidDescription for an owner that is empty or longer than
                  *         @ref K_MAX_NAME_LENGTH; InvalidFile when the write fails.
                  */
-                [[nodiscard]] Status begin_run_state(std::string_view owner);
+                [[nodiscard]] Status begin_run_state(std::string_view owner) noexcept;
 
                 /**
                  * @brief Writes one record's header and its payload to the open section.
@@ -126,13 +126,13 @@ namespace SushiAI
                  * @return Success, InvalidDescription for a name longer than
                  *         @ref K_MAX_NAME_LENGTH, or InvalidFile when the write fails.
                  */
-                [[nodiscard]] Status write(const TensorRecord& record, const void* payload);
+                [[nodiscard]] Status write(const TensorRecord& record, const void* payload) noexcept;
 
                 /**
                  * @brief Checks that both sections hold exactly the records declared.
                  * @pre write() has succeeded once for each declared record.
                  */
-                void finish() const;
+                void finish() const noexcept;
 
                 /** @brief Returns how many model-state records this file declared. */
                 [[nodiscard]] std::uint32_t declared_count() const noexcept
@@ -198,7 +198,7 @@ namespace SushiAI
                  *         wrong, or the header is truncated; Unsupported on a host that is
                  *         not little-endian.
                  */
-                [[nodiscard]] static Result<CheckpointReader> open(std::istream& in);
+                [[nodiscard]] static Result<CheckpointReader> open(std::istream& in) noexcept;
 
                 /** @brief Returns the format version the file states. */
                 [[nodiscard]] std::uint32_t version() const noexcept
@@ -237,7 +237,7 @@ namespace SushiAI
                  * @return The owner the section names; InvalidFile for an owner that is empty,
                  *         longer than @ref K_MAX_NAME_LENGTH or truncated.
                  */
-                [[nodiscard]] Result<std::string> begin_run_state();
+                [[nodiscard]] Result<std::string> begin_run_state() noexcept;
 
                 /**
                  * @brief Reads the next record's header of the open section, not its payload.
@@ -246,7 +246,7 @@ namespace SushiAI
                  *         truncated.
                  * @pre The open section has a record left; otherwise the process stops.
                  */
-                [[nodiscard]] Result<TensorRecord> next();
+                [[nodiscard]] Result<TensorRecord> next() noexcept;
 
                 /**
                  * @brief Reads the payload of the record @ref next just returned.
@@ -255,7 +255,7 @@ namespace SushiAI
                  * @return Success, or InvalidFile when the stream ends early.
                  * @pre @p destination is not null.
                  */
-                [[nodiscard]] Status read_payload(const TensorRecord& record, void* destination);
+                [[nodiscard]] Status read_payload(const TensorRecord& record, void* destination) noexcept;
 
             private:
                 /**

@@ -347,7 +347,7 @@ namespace SushiAI
 
         Status save_run_checkpoint(const std::filesystem::path& path, NN::ModelState& state,
                                    Optim::Optimizer& optimizer,
-                                   const RunProgress& progress)
+                                   const RunProgress& progress) noexcept
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {
@@ -376,7 +376,7 @@ namespace SushiAI
         }
 
         Status load_run_checkpoint(const std::filesystem::path& path, NN::ModelState& state,
-                                   Optim::Optimizer& optimizer, RunProgress* progress)
+                                   Optim::Optimizer& optimizer, RunProgress* progress) noexcept
         {
             return SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status
             {

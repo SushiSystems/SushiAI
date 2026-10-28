@@ -41,7 +41,7 @@ namespace SushiAI
 {
     namespace IO
     {
-        Status save_checkpoint(const std::filesystem::path& path, NN::ModelState& state)
+        Status save_checkpoint(const std::filesystem::path& path, NN::ModelState& state) noexcept
         {
             std::ofstream out(path, std::ios::binary);
             SA_FAIL_IF(!out, StatusCode::InvalidFile, "could not open '{}' for writing",
@@ -58,7 +58,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status load_checkpoint(const std::filesystem::path& path, NN::ModelState& state)
+        Status load_checkpoint(const std::filesystem::path& path, NN::ModelState& state) noexcept
         {
             return import_weights(path, state, {});
         }

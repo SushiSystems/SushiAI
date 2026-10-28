@@ -55,7 +55,7 @@ namespace SushiAI
          * @return The renamed name, or a copy of name when no rule matches.
          */
         [[nodiscard]] std::string renamed(std::string_view name,
-                                          SushiRuntime::span<const RenameRule> rules);
+                                          SushiRuntime::span<const RenameRule> rules) noexcept;
 
         /**
          * @brief Loads an SACP file into state, renaming each record first; strict both ways.
@@ -67,7 +67,7 @@ namespace SushiAI
          */
         [[nodiscard]] Status import_weights(const std::filesystem::path& path,
                                             NN::ModelState& state,
-                                            SushiRuntime::span<const RenameRule> rules);
+                                            SushiRuntime::span<const RenameRule> rules) noexcept;
 
     } // namespace IO
 } // namespace SushiAI

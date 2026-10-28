@@ -71,7 +71,7 @@ namespace SushiAI
          * @return Success, or InvalidFile when the file cannot be written.
          */
         [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path,
-                                             NN::ModelState& state);
+                                             NN::ModelState& state) noexcept;
 
         /**
          * @brief Loads the model state of a checkpoint, strictly in both directions.
@@ -80,7 +80,7 @@ namespace SushiAI
          * @return Success, or the failure of import_weights() with no rename rule.
          */
         [[nodiscard]] Status load_checkpoint(const std::filesystem::path& path,
-                                             NN::ModelState& state);
+                                             NN::ModelState& state) noexcept;
 
     } // namespace IO
 } // namespace SushiAI

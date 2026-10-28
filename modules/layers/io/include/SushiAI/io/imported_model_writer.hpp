@@ -72,7 +72,7 @@ namespace SushiAI
          *         "checkpoint", then the keys of ImportedModel::training in their order; or
          *         InvalidDescription when the recipe is no object or states one of those keys.
          */
-        [[nodiscard]] Result<Config::Value> compose_training_file(const ImportedModel& imported);
+        [[nodiscard]] Result<Config::Value> compose_training_file(const ImportedModel& imported) noexcept;
 
         /**
          * @brief Writes the model, weight and training files of @p imported into @p directory.
@@ -84,7 +84,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<WrittenImport> write_imported_model(
             const ImportedModel& imported, const std::filesystem::path& directory,
-            ExistingFiles existing);
+            ExistingFiles existing) noexcept;
 
     } // namespace IO
 } // namespace SushiAI

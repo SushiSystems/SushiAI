@@ -72,7 +72,7 @@ namespace SushiAI
                  *            null function is fatal.
                  * @return InvalidDescription when a row holds the format.
                  */
-                [[nodiscard]] Status add(const ImporterEntry& row);
+                [[nodiscard]] Status add(const ImporterEntry& row) noexcept;
 
                 /** @brief Returns the row of @p format, or null when none holds it. */
                 [[nodiscard]] const ImporterEntry* find(std::string_view format) const noexcept;
@@ -95,7 +95,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<ImportedModel> import_model(
             const ImporterRegistry& registry, std::string_view format,
-            SushiRuntime::span<const std::filesystem::path> files);
+            SushiRuntime::span<const std::filesystem::path> files) noexcept;
 
     } // namespace IO
 } // namespace SushiAI

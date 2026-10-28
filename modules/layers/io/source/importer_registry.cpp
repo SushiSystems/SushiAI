@@ -60,7 +60,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status ImporterRegistry::add(const ImporterEntry& row)
+        Status ImporterRegistry::add(const ImporterEntry& row) noexcept
         {
             SA_FATAL_IF(row.format.empty(), "An importer row needs a non-empty format");
             SA_FATAL_IF(row.read == nullptr, "The importer row '{}' has no function",
@@ -94,7 +94,7 @@ namespace SushiAI
 
         Result<ImportedModel> import_model(const ImporterRegistry& registry,
                                            std::string_view format,
-                                           SushiRuntime::span<const std::filesystem::path> files)
+                                           SushiRuntime::span<const std::filesystem::path> files) noexcept
         {
             const ImporterEntry* const row = registry.find(format);
             SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,

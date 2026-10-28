@@ -227,7 +227,7 @@ namespace SushiAI
         } // namespace
 
         Result<CheckpointWriter> CheckpointWriter::create(std::ostream& out, std::uint32_t count,
-                                                          std::uint32_t run_state_count)
+                                                          std::uint32_t run_state_count) noexcept
         {
             SA_FAIL_IF(count > K_MAX_TENSOR_COUNT, StatusCode::InvalidDescription,
                        "a checkpoint may hold at most {} tensors; {} were declared",
@@ -252,7 +252,7 @@ namespace SushiAI
         {
         }
 
-        Status CheckpointWriter::begin_run_state(std::string_view owner)
+        Status CheckpointWriter::begin_run_state(std::string_view owner) noexcept
         {
             SA_FATAL_IF(in_run_state_, "the run-state section of this checkpoint is already open");
             SA_FATAL_IF(written_ != declared_,
@@ -275,7 +275,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status CheckpointWriter::write(const TensorRecord& record, const void* payload)
+        Status CheckpointWriter::write(const TensorRecord& record, const void* payload) noexcept
         {
             SA_FATAL_IF(!in_run_state_ && written_ >= declared_,
                         "this checkpoint declared {} records and a further one "
@@ -316,7 +316,7 @@ namespace SushiAI
             return Status();
         }
 
-        void CheckpointWriter::finish() const
+        void CheckpointWriter::finish() const noexcept
         {
             SA_FATAL_IF(written_ != declared_,
                         "this checkpoint declared {} records but {} were written",
@@ -326,7 +326,7 @@ namespace SushiAI
                         run_state_declared_, run_state_written_);
         }
 
-        Result<CheckpointReader> CheckpointReader::open(std::istream& in)
+        Result<CheckpointReader> CheckpointReader::open(std::istream& in) noexcept
         {
             SA_TRY(check_host_byte_order());
 
@@ -360,7 +360,7 @@ namespace SushiAI
         {
         }
 
-        Result<std::string> CheckpointReader::begin_run_state()
+        Result<std::string> CheckpointReader::begin_run_state() noexcept
         {
             SA_FATAL_IF(in_run_state_, "the run-state section of this checkpoint is already open");
             SA_FATAL_IF(read_ != count_,
@@ -380,7 +380,7 @@ namespace SushiAI
             return std::move(owner);
         }
 
-        Result<TensorRecord> CheckpointReader::next()
+        Result<TensorRecord> CheckpointReader::next() noexcept
         {
             SA_FATAL_IF(!in_run_state_ && read_ >= count_,
                         "this checkpoint declared {} records and a further one was requested",
@@ -430,7 +430,7 @@ namespace SushiAI
             return record;
         }
 
-        Status CheckpointReader::read_payload(const TensorRecord& record, void* destination)
+        Status CheckpointReader::read_payload(const TensorRecord& record, void* destination) noexcept
         {
             SA_FATAL_IF(destination == nullptr,
                         "'{}' was read with no destination", record.name);

@@ -48,7 +48,7 @@ namespace SushiAI
         [[nodiscard]] Status save_run_checkpoint(const std::filesystem::path& path,
                                                  NN::ModelState& state,
                                                  Optim::Optimizer& optimizer,
-                                                 const RunProgress& progress = RunProgress());
+                                                 const RunProgress& progress = RunProgress()) noexcept;
 
         /**
          * @brief Loads a model state and an optimizer's run state, both strictly both ways.
@@ -61,7 +61,7 @@ namespace SushiAI
         [[nodiscard]] Status load_run_checkpoint(const std::filesystem::path& path,
                                                  NN::ModelState& state,
                                                  Optim::Optimizer& optimizer,
-                                                 RunProgress* progress = nullptr);
+                                                 RunProgress* progress = nullptr) noexcept;
 
     } // namespace IO
 } // namespace SushiAI

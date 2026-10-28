@@ -31,7 +31,7 @@ namespace SushiAI
 {
     namespace IO
     {
-        Status check_run_seed(const RunProgress& saved, std::uint64_t seed, std::string_view file)
+        Status check_run_seed(const RunProgress& saved, std::uint64_t seed, std::string_view file) noexcept
         {
             SA_FAIL_IF(saved.seed != seed, StatusCode::Incompatible,
                        "'{}' was written by a run with the seed {}, but this run states the "

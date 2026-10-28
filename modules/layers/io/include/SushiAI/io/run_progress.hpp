@@ -73,7 +73,7 @@ namespace SushiAI
          * @return Incompatible, naming @p file and both seeds, unless they are equal.
          */
         [[nodiscard]] Status check_run_seed(const RunProgress& saved, std::uint64_t seed,
-                                            std::string_view file);
+                                            std::string_view file) noexcept;
 
     } // namespace IO
 } // namespace SushiAI
