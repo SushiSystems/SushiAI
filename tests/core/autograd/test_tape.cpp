@@ -33,10 +33,12 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/tape.hpp>
+#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::Shape;
 using SushiAI::Autograd::GradientTape;
@@ -77,12 +79,13 @@ TEST(Small_GradientTape, AnOperandThatNeedsNoGradientReceivesNoContribution)
     const GraphBuilder builder(graph);
     const ValueID weight = builder.parameter(Shape{1}, "weight");
     const ValueID input = builder.input(Shape{1}, "input");
-    const ValueID product = builder.mul(weight, input);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.mul(weight, input));
     const std::size_t forward_nodes = graph.node_count();
 
     const std::vector<ValueID> wrt{weight};
-    const std::vector<ValueID> gradients = SushiAI::Autograd::differentiate(
-        graph, product, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            SushiAI::Autograd::differentiate(
+        graph, product, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
     EXPECT_NE(gradients[0], K_NO_VALUE);
@@ -93,4 +96,32 @@ TEST(Small_GradientTape, AnOperandThatNeedsNoGradientReceivesNoContribution)
     ASSERT_EQ(products[0].inputs.size(), 2u);
     EXPECT_EQ(products[0].inputs[1], input);
     EXPECT_EQ(products[0].outputs.at(0), gradients[0]);
+    EXPECT_FALSE(graph.has_refusal()) << "a contribution the builder accepted marked the graph";
+}
+
+/** @brief Tests that a contribution the builder refuses adds nothing and marks the graph. */
+TEST(Small_GradientTape, ARefusedContributionAddsNothingAndMarksTheGraph)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID weight = builder.parameter(Shape{1}, "weight");
+    const ValueID input = builder.input(Shape{1, 1}, "input");
+
+    // A hand-added K_MUL skips the emitter's check, so the rule's [1] by [1, 1] mul is refused.
+    const ValueID product = graph.add_value(Shape{1}, SushiAI::DType::Float32,
+                                            Graph::Lifetime::Activation, "product");
+    graph.add_node(Ops::K_MUL.id, {weight, input}, {product});
+    graph.value(product).requires_grad = true;
+    const std::size_t forward_nodes = graph.node_count();
+    ASSERT_FALSE(graph.has_refusal());
+
+    const std::vector<ValueID> wrt{weight};
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            SushiAI::Autograd::differentiate(
+        graph, product, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
+
+    ASSERT_EQ(gradients.size(), 1u);
+    EXPECT_EQ(gradients[0], K_NO_VALUE);
+    EXPECT_TRUE(appended_of(graph, forward_nodes, Ops::K_MUL.id).empty());
+    EXPECT_TRUE(graph.has_refusal());
 }

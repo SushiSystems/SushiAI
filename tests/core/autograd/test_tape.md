@@ -24,4 +24,12 @@ passes the node count taken before differentiation, so only appended nodes are s
 `product` is a K_MUL of the parameter `weight` and the input `input`, both of shape [1], and is
 differentiated with respect to `weight`. One gradient comes back. The appended nodes hold one
 K_MUL, the seed times `input`, and its result is that gradient. The rule asked the tape whether
-each operand requires a gradient and emitted nothing for `input`.
+each operand requires a gradient and emitted nothing for `input`. The graph carries no refusal
+afterwards.
+
+## ARefusedContributionAddsNothingAndMarksTheGraph
+
+`product` is a K_MUL of the [1] parameter `weight` and the [1, 1] input `input`, added with
+`Graph::add_node` so that no emitter checks it. The rule's `builder.mul(dy, input)` is refused,
+because dy is [1]. The gradient of `weight` comes back as `K_NO_VALUE`, no K_MUL is appended,
+and `graph.has_refusal()` is true, so `CompiledStep::compile` refuses the graph.

@@ -29,33 +29,60 @@
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+
+#include <string>
+#include <utility>
 
 namespace SushiAI
 {
     namespace Autograd
     {
+        namespace
+        {
+            /**
+             * @brief Contributes the input, scale and shift gradients of a normalisation.
+             * @param grads The emitter's result, which holds dx, dgamma and dbeta.
+             * @return A success, or the failure @p grads holds, which contributes nothing.
+             */
+            template<typename Grads>
+            Status contribute_normalisation(const GradientTape& tape, Result<Grads> grads)
+            {
+                SA_TRY_ASSIGN(const Grads g, std::move(grads));
+
+                if (tape.input_requires_grad(0)) tape.contribute_input(0, g.dx);
+                if (tape.input_requires_grad(1)) tape.contribute_input(1, g.dgamma);
+                if (tape.input_requires_grad(2)) tape.contribute_input(2, g.dbeta);
+                return Status();
+            }
+        } // namespace
+
         void batchnorm2d_backward(const GradientTape& tape)
         {
             // The saved mean, the inverse deviation and the batch variance carry no gradient.
-            SA_THROW_IF(tape.output_grad(1) != Graph::K_NO_VALUE
-                        || tape.output_grad(2) != Graph::K_NO_VALUE
-                        || tape.output_grad(3) != Graph::K_NO_VALUE,
-                        "BATCHNORM2D's saved statistics received a gradient. They are a side "
-                        "channel for this node's own backward (CV-7), not a differentiable "
-                        "result, and this rule has no path to propagate one.");
+            if (tape.output_grad(1) != Graph::K_NO_VALUE
+                || tape.output_grad(2) != Graph::K_NO_VALUE
+                || tape.output_grad(3) != Graph::K_NO_VALUE)
+            {
+                tape.observe(Status::from_message(StatusCode::InvalidDescription, []()
+                {
+                    return std::string("BATCHNORM2D's saved statistics received a gradient. "
+                                       "They are a side channel for this node's own backward "
+                                       "(CV-7), not a differentiable result, and this rule "
+                                       "has no path to propagate one.");
+                }));
+                return;
+            }
 
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
 
             // Batch normalization gradients share batch reductions across input, scale, and bias.
             const Graph::Node& node = tape.node();
-            const Graph::BatchNormGrads g = tape.builder().batchnorm2d_backward(
-                dy, node.inputs[0], node.inputs[1], node.outputs[1], node.outputs[2]);
-
-            if (tape.input_requires_grad(0)) tape.contribute_input(0, g.dx);
-            if (tape.input_requires_grad(1)) tape.contribute_input(1, g.dgamma);
-            if (tape.input_requires_grad(2)) tape.contribute_input(2, g.dbeta);
+            tape.observe(contribute_normalisation(
+                tape, tape.builder().batchnorm2d_backward(dy, node.inputs[0], node.inputs[1],
+                                                          node.outputs[1], node.outputs[2])));
         }
 
         void channel_affine_backward(const GradientTape& tape)
@@ -96,13 +123,9 @@ namespace SushiAI
             const Graph::ValueID mean = tape.node().outputs.at(1);
             const Graph::ValueID inv_std = tape.node().outputs.at(2);
 
-            // The forward emitter checked every operand, so a refusal here is fatal in value().
-            const Graph::LayerNormGrads g =
-                tape.builder().layer_norm_backward(dy, x, gamma, mean, inv_std).value();
 
-            if (tape.input_requires_grad(0)) tape.contribute_input(0, g.dx);
-            if (tape.input_requires_grad(1)) tape.contribute_input(1, g.dgamma);
-            if (tape.input_requires_grad(2)) tape.contribute_input(2, g.dbeta);
+            tape.observe(contribute_normalisation(
+                tape, tape.builder().layer_norm_backward(dy, x, gamma, mean, inv_std)));
         }
     }
 }

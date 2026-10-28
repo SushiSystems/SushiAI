@@ -43,13 +43,14 @@ namespace SushiAI
              * @param where_set Index of the operand served where the mask is 1.
              * @param where_clear Index of the operand served where the mask is 0.
              */
-            void route_gradient(const GradientTape& tape, Graph::ValueID dy, Graph::ValueID mask,
-                                std::size_t where_set, std::size_t where_clear)
+            void route_gradient(const GradientTape& tape, Graph::ValueID dy,
+                                const Graph::Traced& mask, std::size_t where_set,
+                                std::size_t where_clear)
             {
                 const Graph::GraphBuilder& builder = tape.builder();
                 const Shape shape = tape.graph().value(dy).shape;
                 const DType dtype = tape.graph().value(dy).dtype;
-                const Graph::ValueID zero = builder.zeros_like(dy, shape, dtype);
+                const Graph::Traced zero = builder.zeros_like(dy, shape, dtype);
 
                 if (tape.input_requires_grad(where_set))
                     tape.contribute_input(where_set, builder.select(mask, dy, zero));
@@ -127,7 +128,7 @@ namespace SushiAI
 
             const Graph::Node& node = tape.node();
             const Graph::GraphBuilder& builder = tape.builder();
-            const Graph::ValueID quotient = builder.div(dc, node.inputs.at(1));
+            const Graph::Traced quotient = builder.div(dc, node.inputs.at(1));
 
             if (tape.input_requires_grad(0))
                 tape.contribute_input(0, quotient);
@@ -148,7 +149,7 @@ namespace SushiAI
 
             // A tie satisfies a <= b, so operand 0 takes the whole gradient there.
             const Graph::Node& node = tape.node();
-            const Graph::ValueID first_wins =
+            const Graph::Traced first_wins =
                 tape.builder().less_equal(node.inputs.at(0), node.inputs.at(1));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
@@ -163,7 +164,7 @@ namespace SushiAI
 
             // A tie satisfies b <= a, so operand 0 takes the whole gradient there.
             const Graph::Node& node = tape.node();
-            const Graph::ValueID first_wins =
+            const Graph::Traced first_wins =
                 tape.builder().less_equal(node.inputs.at(1), node.inputs.at(0));
             route_gradient(tape, dc, first_wins, 0, 1);
         }
@@ -180,12 +181,12 @@ namespace SushiAI
             const Graph::ValueID x = tape.node().inputs.at(0);
             const Shape shape = tape.graph().value(x).shape;
             const DType dtype = tape.graph().value(x).dtype;
-            const Graph::ValueID zero = builder.zeros_like(x, shape, dtype);
+            const Graph::Traced zero = builder.zeros_like(x, shape, dtype);
 
             // sign(x) is [0 <= x] - [x <= 0]; both masks are 1 at x = 0, so the sign is 0 there.
-            const Graph::ValueID not_negative = builder.less_equal(zero, x);
-            const Graph::ValueID not_positive = builder.less_equal(x, zero);
-            const Graph::ValueID sign = builder.sub(not_negative, not_positive);
+            const Graph::Traced not_negative = builder.less_equal(zero, x);
+            const Graph::Traced not_positive = builder.less_equal(x, zero);
+            const Graph::Traced sign = builder.sub(not_negative, not_positive);
 
             tape.contribute_input(0, builder.mul(dy, sign));
         }
@@ -200,8 +201,8 @@ namespace SushiAI
 
             const Graph::GraphBuilder& builder = tape.builder();
             const Graph::ValueID x = tape.node().inputs.at(0);
-            const Graph::ValueID squared = builder.mul(x, x);
-            const Graph::ValueID denominator = builder.add(squared, builder.constant_like(x, 1.0));
+            const Graph::Traced squared = builder.mul(x, x);
+            const Graph::Traced denominator = builder.add(squared, builder.constant_like(x, 1.0));
 
             tape.contribute_input(0, builder.div(dy, denominator));
         }

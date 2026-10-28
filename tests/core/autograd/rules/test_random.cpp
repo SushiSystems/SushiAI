@@ -38,6 +38,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -78,7 +79,8 @@ namespace
         out.mask = dropped.saved_mask;
 
         const ValueID targets = builder.input(shape, "targets");
-        out.loss = builder.nll_loss(builder.log_softmax(dropped.output), targets);
+        SA_ASSERT_OK_AND_ASSIGN(out.loss,
+                                builder.nll_loss(builder.log_softmax(dropped.output), targets));
     }
 
     /** @brief Appends the gradient of the loss at @c x and returns its id, or K_NO_VALUE. */
@@ -87,7 +89,7 @@ namespace
         const std::vector<ValueID> wrt = {masked.x};
         const std::vector<ValueID> gradients = Autograd::differentiate(
             masked.graph, masked.loss,
-            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
 
         return gradients.size() == 1u ? gradients[0] : K_NO_VALUE;
     }

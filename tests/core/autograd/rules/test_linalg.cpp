@@ -37,6 +37,8 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/traced.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -52,11 +54,11 @@ namespace
     constexpr double K_FILL = -1.0e9;
 
     /** @brief Appends the mask of @p scores and the cross-entropy of its rows; returns the loss. */
-    ValueID masked_loss(const GraphBuilder& builder, ValueID scores)
+    Graph::Traced masked_loss(const GraphBuilder& builder, ValueID scores)
     {
         const Graph::Traced masked = builder.causal_mask(scores, K_FILL);
         const ValueID targets = builder.input(Shape{K_LENGTH, K_LENGTH}, "targets");
-        return builder.nll_loss(builder.log_softmax(masked.value()), targets);
+        return builder.nll_loss(builder.log_softmax(masked), targets);
     }
 
     /** @brief Returns every node of @p graph that carries CAUSAL_MASK, in order. */
@@ -87,11 +89,12 @@ TEST(Small_CausalMaskBackward, TheScoreGradientIsTheGradientMaskedWithZero)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID scores = builder.parameter(Shape{K_LENGTH, K_LENGTH}, "scores");
-    const ValueID loss = masked_loss(builder, scores);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, masked_loss(builder, scores));
 
     const std::vector<ValueID> wrt = {scores};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_NE(gradients[0], K_NO_VALUE);
@@ -111,11 +114,12 @@ TEST(Small_CausalMaskBackward, ScoresThatNeedNoGradientAddNoNode)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID scores = builder.input(Shape{K_LENGTH, K_LENGTH}, "scores");
-    const ValueID loss = masked_loss(builder, scores);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, masked_loss(builder, scores));
 
     const std::vector<ValueID> wrt = {scores};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
     EXPECT_EQ(gradients[0], K_NO_VALUE);
@@ -131,8 +135,8 @@ namespace
     constexpr int64_t K_ROW_LENGTH = 3;
 
     /** @brief Differentiates @p loss with respect to @p wrt. */
-    std::vector<ValueID> differentiate(Graph::Graph& graph, ValueID loss,
-                                       const std::vector<ValueID>& wrt)
+    Result<std::vector<ValueID>> differentiate(Graph::Graph& graph, ValueID loss,
+                                               const std::vector<ValueID>& wrt)
     {
         return Autograd::differentiate(graph, loss,
                                        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
@@ -152,8 +156,9 @@ namespace
     }
 
     /** @brief Appends the cross-entropy of @p rows, an [N, K_ROW_LENGTH] value, to the graph. */
-    ValueID loss_over(const GraphBuilder& builder, ValueID rows)
+    Graph::Traced loss_over(const GraphBuilder& builder, const Graph::Traced& traced)
     {
+        SA_TRY_ASSIGN(const ValueID rows, traced);
         const Shape shape = builder.graph().value(rows).shape;
         const ValueID targets = builder.input(shape, "targets");
         return builder.nll_loss(builder.log_softmax(rows), targets);
@@ -176,13 +181,14 @@ TEST(Small_GatherBackward, TheScatteredRowsGradientIsOneGatherOverTheForwardInde
     const GraphBuilder builder(graph);
     const ValueID rows = builder.parameter(Shape{5, K_ROW_LENGTH}, "rows");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const Graph::Traced sums = builder.scatter_add_rows(rows, indices, K_TABLE_ROWS);
-    ASSERT_TRUE(sums.has_value());
-    const ValueID loss = loss_over(builder, sums.value());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, sums));
 
     const std::vector<ValueID> wrt = {rows};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_EQ(gradients.size(), 1u);
 
     const std::vector<Graph::Node> gathers = nodes_of(graph, Ops::K_GATHER_ROWS.id);
@@ -203,13 +209,14 @@ TEST(Small_GatherBackward, TheScatterIndexReceivesNoGradient)
     const GraphBuilder builder(graph);
     const ValueID rows = builder.parameter(Shape{5, K_ROW_LENGTH}, "rows");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const Graph::Traced sums = builder.scatter_add_rows(rows, indices, K_TABLE_ROWS);
-    ASSERT_TRUE(sums.has_value());
-    const ValueID loss = loss_over(builder, sums.value());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, sums));
 
     const std::vector<ValueID> wrt = {rows, indices};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_EQ(gradients.size(), 2u);
     EXPECT_NE(gradients[0], Graph::K_NO_VALUE);
     EXPECT_EQ(gradients[1], Graph::K_NO_VALUE);
@@ -223,13 +230,13 @@ TEST(Small_GatherBackward, FrozenScatteredRowsAppendNoGather)
     const ValueID rows = builder.input(Shape{5, K_ROW_LENGTH}, "rows");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
     const ValueID weight = builder.parameter(Shape{K_ROW_LENGTH, K_ROW_LENGTH}, "weight");
-    const Graph::Traced sums = builder.scatter_add_rows(rows, indices, K_TABLE_ROWS);
-    ASSERT_TRUE(sums.has_value());
-    const ValueID loss = loss_over(builder, builder.matmul(sums.value(), weight));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, builder.matmul(sums, weight)));
 
     const std::vector<ValueID> wrt = {weight};
-    (void)Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_EXPECT_OK(Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     EXPECT_TRUE(nodes_of(graph, Ops::K_GATHER_ROWS.id).empty());
 }
 
@@ -240,11 +247,11 @@ TEST(Small_GatherBackward, TheTableGradientIsOneScatterAddOverTheForwardIndex)
     const GraphBuilder builder(graph);
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const Graph::Traced gathered = builder.gather_rows(table, indices);
-    ASSERT_TRUE(gathered.has_value());
-    const ValueID loss = loss_over(builder, gathered.value());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gathered, builder.gather_rows(table, indices));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, gathered));
 
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {table});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {table}));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_NE(gradients[0], K_NO_VALUE);
@@ -268,11 +275,11 @@ TEST(Small_GatherBackward, TheIndexReceivesNoGradient)
     const GraphBuilder builder(graph);
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const Graph::Traced gathered = builder.gather_rows(table, indices);
-    ASSERT_TRUE(gathered.has_value());
-    const ValueID loss = loss_over(builder, gathered.value());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gathered, builder.gather_rows(table, indices));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, gathered));
 
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {table, indices});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {table, indices}));
 
     ASSERT_EQ(gradients.size(), 2u);
     EXPECT_NE(gradients[0], K_NO_VALUE);
@@ -287,12 +294,13 @@ TEST(Small_GatherBackward, ARankTwoIndexScattersTheGradientOfTheGathersShape)
     const GraphBuilder builder(graph);
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{2, 4}, "indices", DType::Int32);
-    const Graph::Traced gathered = builder.gather_rows(table, indices);
-    ASSERT_TRUE(gathered.has_value());
-    const ValueID rows = builder.reshape(gathered.value(), Shape{8, K_ROW_LENGTH});
-    const ValueID loss = loss_over(builder, rows);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gathered, builder.gather_rows(table, indices));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID rows,
+                            builder.reshape(gathered, Shape{8, K_ROW_LENGTH}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, rows));
 
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {table});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {table}));
 
     ASSERT_NE(gradients.at(0), K_NO_VALUE);
     const std::vector<Graph::Node> scatters = nodes_of(graph, Ops::K_SCATTER_ADD_ROWS.id);
@@ -310,11 +318,12 @@ TEST(Small_GatherBackward, AFrozenTableAppendsNoScatterAdd)
     const ValueID table = builder.buffer(Shape{K_TABLE_ROWS, 4}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
     const ValueID weight = builder.parameter(Shape{4, K_ROW_LENGTH}, "weight");
-    const Graph::Traced gathered = builder.gather_rows(table, indices);
-    ASSERT_TRUE(gathered.has_value());
-    const ValueID loss = loss_over(builder, builder.matmul(gathered.value(), weight));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gathered, builder.gather_rows(table, indices));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            loss_over(builder, builder.matmul(gathered, weight)));
 
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {weight});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {weight}));
 
     EXPECT_NE(gradients.at(0), K_NO_VALUE);
     EXPECT_TRUE(nodes_of(graph, Ops::K_SCATTER_ADD_ROWS.id).empty());
@@ -328,13 +337,12 @@ TEST(Small_GatherBackward, TwoGathersOfOneTableAccumulateTheirScatterAdds)
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID first = builder.input(Shape{5}, "first", DType::Int32);
     const ValueID second = builder.input(Shape{5}, "second", DType::Int32);
-    const Graph::Traced left = builder.gather_rows(table, first);
-    const Graph::Traced right = builder.gather_rows(table, second);
-    ASSERT_TRUE(left.has_value());
-    ASSERT_TRUE(right.has_value());
-    const ValueID loss = loss_over(builder, builder.add(left.value(), right.value()));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID left, builder.gather_rows(table, first));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID right, builder.gather_rows(table, second));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, loss_over(builder, builder.add(left, right)));
 
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {table});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {table}));
 
     ASSERT_NE(gradients.at(0), K_NO_VALUE);
     EXPECT_EQ(nodes_of(graph, Ops::K_SCATTER_ADD_ROWS.id).size(), 2u);

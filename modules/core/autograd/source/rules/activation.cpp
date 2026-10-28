@@ -26,7 +26,7 @@
  */
 
 #include <SushiAI/autograd/rules/activation.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -41,7 +41,7 @@ namespace SushiAI
             const Graph::Node& node = tape.node();
             const Ops::Activation* activation = Ops::activation_of(node.op);
 
-            SA_THROW_IF(activation == nullptr,
+            SA_FATAL_IF(activation == nullptr,
                         "{} is registered as an activation's backward rule but is not in "
                         "Ops::ACTIVATIONS. Add it there rather than here; that table is what "
                         "the fusion catalog also reads.",

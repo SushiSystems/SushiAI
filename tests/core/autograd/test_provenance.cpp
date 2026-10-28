@@ -36,6 +36,7 @@
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -58,15 +59,18 @@ namespace
 
             first_weight = builder.parameter(Shape{6, 4}, "first_weight");
             first_bias = builder.parameter(Shape{4}, "first_bias");
-            first_product = builder.matmul(x, first_weight);
-            const ValueID hidden = builder.relu(builder.bias_add(first_product, first_bias));
+            // The operands fit, so a refusal is a builder defect and value() stops the test.
+            first_product = builder.matmul(x, first_weight).value();
+            const Graph::Traced hidden =
+                builder.relu(builder.bias_add(first_product, first_bias));
 
             second_weight = builder.parameter(Shape{4, 3}, "second_weight");
             second_bias = builder.parameter(Shape{3}, "second_bias");
-            const ValueID logits =
+            const Graph::Traced logits =
                 builder.bias_add(builder.matmul(hidden, second_weight), second_bias);
 
-            loss = builder.nll_loss(builder.log_softmax(logits), targets);
+            // The operands fit, so a refusal is a builder defect and value() stops the test.
+            loss = builder.nll_loss(builder.log_softmax(logits), targets).value();
         }
 
         /** @brief Returns the four parameters, the first layer's weight first. */
@@ -98,9 +102,9 @@ namespace
     };
 
     /** @brief Differentiates @p loss with respect to @p wrt, recording into @p provenance. */
-    std::vector<ValueID> differentiate(Graph::Graph& graph, ValueID loss,
-                                       const std::vector<ValueID>& wrt,
-                                       Autograd::Provenance* provenance)
+    Result<std::vector<ValueID>> differentiate(Graph::Graph& graph, ValueID loss,
+                                               const std::vector<ValueID>& wrt,
+                                               Autograd::Provenance* provenance)
     {
         return Autograd::differentiate(graph, loss,
                                        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()),
@@ -125,7 +129,7 @@ TEST(Small_Provenance, EveryBackwardNodeHasAForwardOrigin)
     const std::size_t forward_nodes = model.graph.node_count();
 
     Autograd::Provenance provenance;
-    (void)differentiate(model.graph, model.loss, model.parameters(), &provenance);
+    SA_EXPECT_OK(differentiate(model.graph, model.loss, model.parameters(), &provenance));
 
     ASSERT_GT(model.graph.node_count(), forward_nodes);
     EXPECT_EQ(provenance.forward_node_count, forward_nodes);
@@ -141,8 +145,9 @@ TEST(Small_Provenance, ARuleEmitsUnderTheNodeItDifferentiates)
     TwoLinearGraph model;
 
     Autograd::Provenance provenance;
-    const std::vector<ValueID> gradients =
-        differentiate(model.graph, model.loss, model.parameters(), &provenance);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(model.graph, model.loss, model.parameters(),
+                                          &provenance));
 
     ASSERT_NE(gradients.at(0), K_NO_VALUE);
     const NodeID emitted = model.graph.value(gradients[0]).producer;
@@ -162,12 +167,13 @@ TEST(Small_Provenance, AFanOutAccumulateBelongsToTheProducer)
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
     const ValueID targets = builder.input(Shape{4, 3}, "targets");
 
-    const ValueID shared = builder.relu(x);
-    const ValueID sum = builder.add(builder.tanh(shared), builder.sigmoid(shared));
-    const ValueID loss = builder.nll_loss(sum, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID shared, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sum,
+                            builder.add(builder.tanh(shared), builder.sigmoid(shared)));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(sum, targets));
 
     Autograd::Provenance provenance;
-    (void)differentiate(graph, loss, {x}, &provenance);
+    SA_EXPECT_OK(differentiate(graph, loss, {x}, &provenance));
 
     const std::vector<NodeID> accumulates =
         nodes_of(graph, Ops::K_ACCUMULATE.id, provenance.forward_node_count);
@@ -188,11 +194,12 @@ TEST(Small_Provenance, AParameterReadTwiceAccumulatesUnderItsLeaf)
     const ValueID targets = builder.input(Shape{4, 3}, "targets");
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
 
-    const ValueID sum = builder.add(builder.relu(x), builder.tanh(x));
-    const ValueID loss = builder.nll_loss(sum, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(builder.relu(x), builder.tanh(x)));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(sum, targets));
 
     Autograd::Provenance provenance;
-    const std::vector<ValueID> gradients = differentiate(graph, loss, {x}, &provenance);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, loss, {x}, &provenance));
 
     ASSERT_NE(gradients.at(0), K_NO_VALUE);
     const NodeID closing = graph.value(gradients[0]).producer;
@@ -211,18 +218,19 @@ TEST(Small_Provenance, AReusedProvenanceHoldsOnlyTheLatestRun)
     const GraphBuilder builder(earlier);
     const ValueID targets = builder.input(Shape{4, 3}, "targets");
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
-    const ValueID loss =
-        builder.nll_loss(builder.add(builder.relu(x), builder.tanh(x)), targets);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const ValueID loss,
+        builder.nll_loss(builder.add(builder.relu(x), builder.tanh(x)), targets));
 
     Autograd::Provenance reused;
-    (void)differentiate(earlier, loss, {x}, &reused);
+    SA_EXPECT_OK(differentiate(earlier, loss, {x}, &reused));
     ASSERT_FALSE(reused.origin.empty());
 
     TwoLinearGraph second;
     TwoLinearGraph reference;
     Autograd::Provenance fresh;
-    (void)differentiate(second.graph, second.loss, second.parameters(), &reused);
-    (void)differentiate(reference.graph, reference.loss, reference.parameters(), &fresh);
+    SA_EXPECT_OK(differentiate(second.graph, second.loss, second.parameters(), &reused));
+    SA_EXPECT_OK(differentiate(reference.graph, reference.loss, reference.parameters(), &fresh));
 
     EXPECT_EQ(reused.forward_node_count, fresh.forward_node_count);
     EXPECT_EQ(reused.origin, fresh.origin);
@@ -239,12 +247,12 @@ TEST(Small_Provenance, ARequestedValueWithoutAProducerIsRefused)
         graph.add_value(Shape{4, 3}, DType::Float32, Graph::Lifetime::Parameter, "x");
     graph.value(x).requires_grad = true;
 
-    const ValueID sum = builder.add(builder.relu(x), builder.tanh(x));
-    const ValueID loss = builder.nll_loss(sum, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(builder.relu(x), builder.tanh(x)));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(sum, targets));
 
     Autograd::Provenance provenance;
-    SA_EXPECT_ERROR((void)differentiate(graph, loss, {x}, &provenance),
-                    "provenance", "producer node");
+    SA_EXPECT_FAILURE(differentiate(graph, loss, {x}, &provenance), StatusCode::InvalidDescription,
+                      "provenance", "producer node");
 }
 
 /** @brief Tests that a null provenance yields the same nodes and gradients as a recorded run. */
@@ -254,10 +262,11 @@ TEST(Small_Provenance, PassingNoProvenanceChangesNothing)
     TwoLinearGraph plain;
 
     Autograd::Provenance provenance;
-    const std::vector<ValueID> recorded_gradients =
-        differentiate(recorded.graph, recorded.loss, recorded.parameters(), &provenance);
-    const std::vector<ValueID> plain_gradients =
-        differentiate(plain.graph, plain.loss, plain.parameters(), nullptr);
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> recorded_gradients,
+                            differentiate(recorded.graph, recorded.loss,
+                                          recorded.parameters(), &provenance));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> plain_gradients,
+                            differentiate(plain.graph, plain.loss, plain.parameters(), nullptr));
 
     EXPECT_EQ(recorded_gradients, plain_gradients);
     ASSERT_EQ(recorded.graph.node_count(), plain.graph.node_count());

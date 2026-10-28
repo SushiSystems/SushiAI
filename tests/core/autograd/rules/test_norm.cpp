@@ -33,6 +33,7 @@
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -71,14 +72,15 @@ namespace
         const ValueID beta = builder.parameter(Shape{K_WIDTH}, "beta");
         const Graph::LayerNormResult out = builder.layer_norm(x, gamma, beta, 1e-5).value();
         const ValueID targets = builder.input(shape, "targets");
-        const ValueID loss = builder.nll_loss(builder.log_softmax(out.output), targets);
+        // The operands fit, so a refusal is a builder defect and value() stops the test.
+        const ValueID loss = builder.nll_loss(builder.log_softmax(out.output), targets).value();
 
         return Normalised{x, gamma, beta, out.saved_mean, out.saved_inv_std, loss};
     }
 
     /** @brief Differentiates @p loss with respect to @p wrt. */
-    std::vector<ValueID> differentiate(Graph::Graph& graph, ValueID loss,
-                                       const std::vector<ValueID>& wrt)
+    Result<std::vector<ValueID>> differentiate(Graph::Graph& graph, ValueID loss,
+                                               const std::vector<ValueID>& wrt)
     {
         return Autograd::differentiate(graph, loss,
                                        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
@@ -114,8 +116,8 @@ TEST(Small_LayerNormBackward, OneGradientNodeServesTheThreeOperands)
     const GraphBuilder builder(graph);
     const Normalised built = build(builder, true);
 
-    const std::vector<ValueID> gradients =
-        differentiate(graph, built.loss, {built.x, built.gamma, built.beta});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, built.loss, {built.x, built.gamma, built.beta}));
 
     ASSERT_EQ(gradients.size(), 3u);
     const std::vector<Graph::Node> backward = nodes_of(graph, Ops::K_LAYER_NORM_BACKWARD.id);
@@ -139,8 +141,8 @@ TEST(Small_LayerNormBackward, AnInputThatNeedsNoGradientReceivesNone)
     const GraphBuilder builder(graph);
     const Normalised built = build(builder, false);
 
-    const std::vector<ValueID> gradients =
-        differentiate(graph, built.loss, {built.x, built.gamma});
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            differentiate(graph, built.loss, {built.x, built.gamma}));
 
     ASSERT_EQ(gradients.size(), 2u);
     EXPECT_EQ(gradients[0], K_NO_VALUE);

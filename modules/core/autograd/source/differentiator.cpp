@@ -27,10 +27,14 @@
  */
 
 #include <SushiAI/autograd/backward.hpp>
+#include <utility>
+#include <vector>
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/rules/all.hpp>
 #include <SushiAI/autograd/rules/loss.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include "differentiator.hpp"
 
 namespace SushiAI
@@ -58,7 +62,7 @@ namespace SushiAI
 
         void Differentiator::contribute(Graph::ValueID primal, Graph::ValueID gradient)
         {
-            SA_THROW_IF(resolved_.find(primal) != resolved_.end(),
+            SA_FATAL_IF(resolved_.find(primal) != resolved_.end(),
                         "A gradient contribution to value {} arrived after its gradient was "
                         "already read. The reverse walk visits every consumer before the "
                         "producer, so this is an ordering bug in a backward rule, not a "
@@ -67,7 +71,7 @@ namespace SushiAI
 
             const Graph::Value& a = graph_.value(primal);
             const Graph::Value& b = graph_.value(gradient);
-            SA_THROW_IF(a.shape != b.shape,
+            SA_FATAL_IF(a.shape != b.shape,
                         "A gradient of shape {} was contributed to value {} of shape {}",
                         b.shape.to_string(), primal, a.shape.to_string());
 
@@ -77,10 +81,20 @@ namespace SushiAI
 
         void Differentiator::skip(Graph::NodeID node)
         {
-            SA_THROW_IF(node >= skipped_.size(),
+            SA_FATAL_IF(node >= skipped_.size(),
                         "Cannot skip node {}; the forward graph has {} nodes",
                         node, skipped_.size());
             skipped_[node] = true;
+        }
+
+        void Differentiator::observe(const Status& outcome) noexcept
+        {
+            if (outcome.is_ok())
+                return;
+
+            static_cast<void>(builder_.observe(outcome));
+            if (failure_.is_ok())
+                failure_ = outcome;
         }
 
         Graph::ValueID Differentiator::resolve(Graph::ValueID primal)
@@ -93,20 +107,36 @@ namespace SushiAI
 
             if (found != contributions_.end() && !found->second.empty())
             {
-                const std::vector<Graph::ValueID>& parts = found->second;
-                result = parts.front();
-                std::size_t next = 1;
-                // ACCUMULATE writes into its first operand; a shared one is first added afresh.
-                if (parts.size() > 1 && !owns_buffer(result))
-                    result = builder_.add(result, parts[next++]);
-                for (; next < parts.size(); ++next)
-                    result = builder_.accumulate(result, parts[next]);
+                const Result<Graph::ValueID> sum = sum_contributions(found->second);
+                if (sum.has_value())
+                    result = sum.value();
+                else
+                    observe(sum.status());
             }
 
             resolved_.emplace(primal, result);
             if (result != Graph::K_NO_VALUE)
                 resolved_gradients_.insert(result);
             return result;
+        }
+
+        Result<Graph::ValueID> Differentiator::sum_contributions(
+            const std::vector<Graph::ValueID>& parts)
+        {
+            Graph::ValueID running = parts.front();
+            std::size_t next = 1;
+            // ACCUMULATE writes into its first operand; a shared one is first added afresh.
+            if (parts.size() > 1 && !owns_buffer(running))
+            {
+                SA_TRY_ASSIGN(running, builder_.add(running, parts[next]));
+                ++next;
+            }
+            for (; next < parts.size(); ++next)
+            {
+                SA_TRY_ASSIGN(running, builder_.accumulate(running, parts[next]));
+            }
+
+            return running;
         }
 
         bool Differentiator::owns_buffer(Graph::ValueID gradient) const
@@ -121,18 +151,19 @@ namespace SushiAI
                    static_cast<std::size_t>(producer) >= forward_node_count_;
         }
 
-        Graph::ValueID Differentiator::resolve_requested(Graph::ValueID value)
+        Result<Graph::ValueID> Differentiator::resolve_requested(Graph::ValueID value)
         {
             const std::size_t nodes_before = graph_.node_count();
             const Graph::ValueID gradient = resolve(value);
             const Graph::NodeID producer = graph_.value(value).producer;
 
-            SA_THROW_IF(provenance_ != nullptr && graph_.node_count() > nodes_before
-                            && producer == Graph::K_NO_NODE,
-                        "Cannot record provenance for the gradient of value {}: summing its "
-                        "contributions appended a node, and no node produces the value. A "
-                        "requested value needs a producer node to carry provenance.",
-                        value);
+            SA_FAIL_IF(provenance_ != nullptr && graph_.node_count() > nodes_before
+                           && producer == Graph::K_NO_NODE,
+                       StatusCode::InvalidDescription,
+                       "Cannot record provenance for the gradient of value {}: summing its "
+                       "contributions appended a node, and no node produces the value. A "
+                       "requested value needs a producer node to carry provenance.",
+                       value);
 
             stamp_appended(producer);
             return gradient;
@@ -147,99 +178,106 @@ namespace SushiAI
             provenance_->origin.resize(graph_.node_count() - forward_node_count_, origin);
         }
 
-        void Differentiator::require_requestable(Graph::ValueID value) const
+        Status Differentiator::require_requestable(Graph::ValueID value) const
         {
             const Graph::Value& requested = graph_.value(value);
 
-            SA_THROW_IF(requested.lifetime == Graph::Lifetime::Buffer,
-                        "differentiate() cannot return a gradient for value {} ('{}'): it is a "
-                        "buffer, model state that takes no gradient and is written beside the "
-                        "graph. Request parameters and inputs only.",
-                        value, requested.debug_name);
+            SA_FAIL_IF(requested.lifetime == Graph::Lifetime::Buffer,
+                       StatusCode::InvalidDescription,
+                       "differentiate() cannot return a gradient for value {} ('{}'): it is a "
+                       "buffer, model state that takes no gradient and is written beside the "
+                       "graph. Request parameters and inputs only.",
+                       value, requested.debug_name);
+            return Status();
         }
 
-        void Differentiator::run()
+        Status Differentiator::run()
         {
-            graph_.finalise();
+            SA_TRY(graph_.finalise());
 
-            SA_THROW_IF(graph_.value(loss_).shape.num_elements() != 1,
-                        "differentiate() needs a scalar to differentiate; value {} has shape {}",
-                        loss_, graph_.value(loss_).shape.to_string());
+            SA_FAIL_IF(graph_.value(loss_).shape.num_elements() != 1,
+                       StatusCode::InvalidDescription,
+                       "differentiate() needs a scalar to differentiate; value {} has shape {}",
+                       loss_, graph_.value(loss_).shape.to_string());
 
             const Graph::NodeID root_producer = graph_.value(loss_).producer;
-            SA_THROW_IF(root_producer == Graph::K_NO_NODE,
-                        "differentiate() cannot seed a gradient for value {}: nothing produces "
-                        "it. The loss must be the result of an operation that has a backward "
-                        "rule, for example NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of "
-                        "loss terms.",
-                        loss_);
+            SA_FAIL_IF(root_producer == Graph::K_NO_NODE, StatusCode::InvalidDescription,
+                       "differentiate() cannot seed a gradient for value {}: nothing produces "
+                       "it. The loss must be the result of an operation that has a backward "
+                       "rule, for example NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of "
+                       "loss terms.",
+                       loss_);
 
             // A rule that seeds itself reads no output gradient, so it gets no explicit seed.
             if (!starts_from_implicit_seed(graph_.node(root_producer).op))
             {
-                require_seedable_root(root_producer);
+                SA_TRY(require_seedable_root(root_producer));
                 seed_root(root_producer);
             }
 
             for (std::size_t offset = forward_node_count_; offset > 0; --offset)
             {
                 const Graph::NodeID id = static_cast<Graph::NodeID>(offset - 1);
-                differentiate_node(id);
+                SA_TRY(differentiate_node(id));
                 stamp_appended(id);
             }
+
+            return Status();
         }
 
-        void Differentiator::require_seedable_root(Graph::NodeID producer) const
+        Status Differentiator::require_seedable_root(Graph::NodeID producer) const
         {
             const OpID op = graph_.node(producer).op;
             const DType dtype = graph_.value(loss_).dtype;
 
-            SA_THROW_IF(op == Ops::K_LEAF.id,
-                        "differentiate() cannot differentiate value {}: it is a leaf, produced "
-                        "by {}, so no operation computes it from a parameter. The loss must be "
-                        "the result of an operation that has a backward rule, for example "
-                        "NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of loss terms.",
-                        loss_, Ops::name_of(op));
-            SA_THROW_IF(!graph_.value(loss_).requires_grad,
-                        "differentiate() has nothing to differentiate: value {}, produced by {}, "
-                        "requires no gradient. No value that requires a gradient reaches it, or "
-                        "every path to it passes through an operation that lets no gradient "
-                        "through, such as STOP_GRADIENT.",
-                        loss_, Ops::name_of(op));
-            SA_THROW_IF(graph_.node(producer).outputs.front() != loss_,
-                        "differentiate() cannot differentiate value {}: it is not the first "
-                        "result of {}, and a backward rule reads the gradient of the first "
-                        "result only. Pass the first result, or a value computed from this one.",
-                        loss_, Ops::name_of(op));
-            SA_THROW_IF(!is_real_float(dtype),
-                        "differentiate() cannot differentiate value {}, produced by {}: its "
-                        "element type is {}, and a gradient exists only for half, float32 and "
-                        "float64.",
-                        loss_, Ops::name_of(op), dtype_name(dtype));
-            SA_THROW_IF(find_rule(op) == nullptr,
-                        "differentiate() cannot differentiate value {}: {} produces it and has "
-                        "no backward rule. Produce the loss with a differentiable operation, or "
-                        "add a rule to the appropriate domain under autograd/rules/.",
-                        loss_, Ops::name_of(op));
+            SA_FAIL_IF(op == Ops::K_LEAF.id, StatusCode::InvalidDescription,
+                       "differentiate() cannot differentiate value {}: it is a leaf, produced "
+                       "by {}, so no operation computes it from a parameter. The loss must be "
+                       "the result of an operation that has a backward rule, for example "
+                       "NLL_LOSS (see NN::CrossEntropyLoss) or an ADD of loss terms.",
+                       loss_, Ops::name_of(op));
+            SA_FAIL_IF(!graph_.value(loss_).requires_grad, StatusCode::InvalidDescription,
+                       "differentiate() has nothing to differentiate: value {}, produced by {}, "
+                       "requires no gradient. No value that requires a gradient reaches it, or "
+                       "every path to it passes through an operation that lets no gradient "
+                       "through, such as STOP_GRADIENT.",
+                       loss_, Ops::name_of(op));
+            SA_FAIL_IF(graph_.node(producer).outputs.front() != loss_,
+                       StatusCode::InvalidDescription,
+                       "differentiate() cannot differentiate value {}: it is not the first "
+                       "result of {}, and a backward rule reads the gradient of the first "
+                       "result only. Pass the first result, or a value computed from this one.",
+                       loss_, Ops::name_of(op));
+            SA_FAIL_IF(!is_real_float(dtype), StatusCode::InvalidDescription,
+                       "differentiate() cannot differentiate value {}, produced by {}: its "
+                       "element type is {}, and a gradient exists only for half, float32 and "
+                       "float64.",
+                       loss_, Ops::name_of(op), dtype_name(dtype));
+            SA_FAIL_IF(find_rule(op) == nullptr, StatusCode::InvalidDescription,
+                       "differentiate() cannot differentiate value {}: {} produces it and has "
+                       "no backward rule. Produce the loss with a differentiable operation, or "
+                       "add a rule to the appropriate domain under autograd/rules/.",
+                       loss_, Ops::name_of(op));
+            return Status();
         }
 
         void Differentiator::seed_root(Graph::NodeID producer)
         {
-            const Graph::ValueID one = builder_.constant_like(loss_, K_ROOT_SEED);
-            contribute(loss_, tape_.apply_seed_factor(one));
+            tape_.contribute(loss_,
+                             tape_.apply_seed_factor(builder_.constant_like(loss_, K_ROOT_SEED)));
             stamp_appended(producer);
         }
 
-        void Differentiator::differentiate_node(Graph::NodeID id)
+        Status Differentiator::differentiate_node(Graph::NodeID id)
         {
             if (skipped_[id])
-                return;
+                return Status();
 
             // Snapshot before anything below can grow the graph.
             current_node_ = graph_.node(id);
 
             if (Ops::is_gradient_barrier(current_node_.op))
-                return;
+                return Status();
 
             bool any_input_needs_grad = false;
             for (Graph::ValueID in : current_node_.inputs)
@@ -253,7 +291,7 @@ namespace SushiAI
 
             // Skip leaves and frozen subgraphs whose operands require no gradient.
             if (!any_input_needs_grad)
-                return;
+                return Status();
 
             bool reachable = false;
             for (Graph::ValueID out : current_node_.outputs)
@@ -266,39 +304,45 @@ namespace SushiAI
             }
 
             if (!reachable)
-                return;
+                return Status();
 
             const BackwardRule rule = find_rule(current_node_.op);
-            SA_THROW_IF(rule == nullptr,
-                        "No backward rule for {} (node {}), but its operands require a "
-                        "gradient. Add one to the appropriate domain under "
-                        "autograd/rules/, or mark the subgraph as not requiring gradients.",
-                        Ops::name_of(current_node_.op), id);
+            SA_FAIL_IF(rule == nullptr, StatusCode::InvalidDescription,
+                       "No backward rule for {} (node {}), but its operands require a "
+                       "gradient. Add one to the appropriate domain under "
+                       "autograd/rules/, or mark the subgraph as not requiring gradients.",
+                       Ops::name_of(current_node_.op), id);
 
             tape_.retarget(id);
             rule(tape_);
+            return Status();
         }
 
-        std::vector<Graph::ValueID> differentiate(Graph::Graph& graph,
-                                                  Graph::ValueID loss,
-                                                  SushiRuntime::span<const Graph::ValueID> wrt,
-                                                  Graph::ValueID seed_factor,
-                                                  Provenance* provenance)
+        Result<std::vector<Graph::ValueID>> differentiate(
+            Graph::Graph& graph, Graph::ValueID loss,
+            SushiRuntime::span<const Graph::ValueID> wrt, Graph::ValueID seed_factor,
+            Provenance* provenance)
         {
+            SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
+                       "differentiate() was given a graph in which an emitter refused part of "
+                       "the description, and the emitter's status names the cause. Discard "
+                       "the graph and trace it again.");
+
             Differentiator differentiator(graph, loss, seed_factor, provenance);
 
             // Every request is checked before the sweep, so a refused one appends no node.
             for (Graph::ValueID value : wrt)
-                differentiator.require_requestable(value);
+                SA_TRY(differentiator.require_requestable(value));
 
-            differentiator.run();
+            SA_TRY(differentiator.run());
 
             std::vector<Graph::ValueID> gradients;
             gradients.reserve(wrt.size());
 
             for (Graph::ValueID value : wrt)
             {
-                const Graph::ValueID gradient = differentiator.resolve_requested(value);
+                SA_TRY_ASSIGN(const Graph::ValueID gradient,
+                              differentiator.resolve_requested(value));
                 gradients.push_back(gradient);
 
                 // Parameter gradients persist across execution and receive Lifetime::GRADIENT.
@@ -307,7 +351,12 @@ namespace SushiAI
                     graph.value(gradient).lifetime = Graph::Lifetime::Gradient;
             }
 
-            return gradients;
+            // A rule reports a refused emission only through observe(), so it is read here.
+            SA_TRY(differentiator.failure());
+            SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
+                       "differentiate() appended a gradient that an emitter refused");
+
+            return std::move(gradients);
         }
 
     } // namespace Autograd

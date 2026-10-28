@@ -28,7 +28,8 @@
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/rules/spatial.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 
 namespace SushiAI
 {
@@ -58,10 +59,48 @@ namespace SushiAI
                 out_h = static_cast<int64_t>(node.attributes.get(8));
                 out_w = static_cast<int64_t>(node.attributes.get(9));
 
-                SA_THROW_IF(out_h <= 0 || out_w <= 0,
+                SA_FATAL_IF(out_h <= 0 || out_w <= 0,
                             "{}'s gradient needs the forward's window grid, but the node "
                             "carries {}x{} in attribute slots 8 and 9",
                             what, out_h, out_w);
+            }
+
+            /**
+             * @brief Places @p dy between zero blocks that fill the channels a slice dropped.
+             * @param in The [N,H,W,C] shape of the sliced operand.
+             * @param offset The first channel the slice took.
+             * @param taken How many channels the slice took.
+             * @return The [N,H,W,C] gradient, or the failure an emitter returned.
+             */
+            Graph::Traced pad_channels(const GradientTape& tape, Graph::ValueID dy,
+                                       const Shape& in, int64_t offset, int64_t taken)
+            {
+                const Graph::GraphBuilder& builder = tape.builder();
+                const DType dtype = tape.graph().value(dy).dtype;
+
+                std::vector<Graph::ValueID> parts;
+                if (offset > 0)
+                {
+                    SA_TRY_ASSIGN(const Graph::ValueID before,
+                                  builder.zeros_like(dy, Shape({in[0], in[1], in[2], offset}),
+                                                     dtype));
+                    parts.push_back(before);
+                }
+                parts.push_back(dy);
+                if (offset + taken < in[3])
+                {
+                    SA_TRY_ASSIGN(const Graph::ValueID after,
+                                  builder.zeros_like(
+                                      dy, Shape({in[0], in[1], in[2], in[3] - offset - taken}),
+                                      dtype));
+                    parts.push_back(after);
+                }
+
+                if (parts.size() == 1)
+                    return dy;
+
+                return builder.concat_channels(
+                    SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size()));
             }
         }
 
@@ -170,7 +209,7 @@ namespace SushiAI
                 const Shape& part = tape.graph().value(node.inputs[i]).shape;
 
                 // Enforce rank-4 NHWC shape before indexing channel dimension.
-                SA_THROW_IF(part.rank() != 4,
+                SA_FATAL_IF(part.rank() != 4,
                             "concat_channels_backward reads the channel extent of a rank-4 "
                             "[N,H,W,C] operand; operand {} is {}", i, part.to_string());
 
@@ -193,21 +232,8 @@ namespace SushiAI
             const Shape in = tape.graph().value(node.inputs[0]).shape;
             const int64_t offset = static_cast<int64_t>(node.attributes.get(0));
             const int64_t taken = tape.graph().value(node.outputs[0]).shape[3];
-            const DType dtype = tape.graph().value(dy).dtype;
 
-            std::vector<Graph::ValueID> parts;
-            if (offset > 0)
-                parts.push_back(tape.builder().zeros_like(
-                    dy, Shape({in[0], in[1], in[2], offset}), dtype));
-            parts.push_back(dy);
-            if (offset + taken < in[3])
-                parts.push_back(tape.builder().zeros_like(
-                    dy, Shape({in[0], in[1], in[2], in[3] - offset - taken}), dtype));
-
-            tape.contribute_input(0, parts.size() == 1
-                ? dy
-                : tape.builder().concat_channels(
-                      SushiRuntime::span<const Graph::ValueID>(parts.data(), parts.size())));
+            tape.contribute_input(0, pad_channels(tape, dy, in, offset, taken));
         }
 
         void depthwise_conv2d_backward(const GradientTape& tape)

@@ -31,6 +31,8 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/traced.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -81,12 +83,22 @@ namespace SushiAI
                 /**
                  * @brief Registers a gradient contribution to a forward primal value.
                  * @param primal Forward value receiving the gradient.
-                 * @param gradient Contribution value to accumulate.
+                 * @param gradient Contribution to accumulate. A failure is recorded on the
+                 *        graph through observe() and contributes nothing.
                  */
-                void contribute(Graph::ValueID primal, Graph::ValueID gradient) const;
+                void contribute(Graph::ValueID primal, const Graph::Traced& gradient) const;
 
                 /** @brief Convenience: contribute to the current node's @p index-th operand. */
-                void contribute_input(std::size_t index, Graph::ValueID gradient) const;
+                void contribute_input(std::size_t index, const Graph::Traced& gradient) const;
+
+                /**
+                 * @brief Records a failure a rule met while emitting its gradient.
+                 *
+                 * Sets the graph's refusal flag; differentiate() returns the first one.
+                 * @param outcome The status of the rule's emission; a success leaves the graph
+                 *        as it is.
+                 */
+                void observe(const Status& outcome) const noexcept;
 
                 /**
                  * @brief Marks an upstream node as already handled by the current rule.
@@ -103,9 +115,10 @@ namespace SushiAI
                 /**
                  * @brief Multiplies gradient by seed_factor if present, returning the result.
                  * @param gradient Root gradient to scale.
-                 * @return Scaled gradient ValueID, or gradient unchanged if unscaled.
+                 * @return The scaled gradient, @p gradient unchanged if unscaled, or the
+                 *         failure @p gradient holds.
                  */
-                Graph::ValueID apply_seed_factor(Graph::ValueID gradient) const;
+                [[nodiscard]] Graph::Traced apply_seed_factor(const Graph::Traced& gradient) const;
 
                 /** @brief Internal: constructs a tape over a differentiation run. */
                 GradientTape(Graph::GraphBuilder builder, Differentiator& owner,

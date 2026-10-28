@@ -64,8 +64,8 @@ it would leave the first run's entries in front.
 ## ARequestedValueWithoutAProducerIsRefused
 
 `x` is added with `add_value` and so has no K_LEAF node, and it is read twice, so the closing sum
-of its gradient needs an origin that does not exist. The call throws, and the message contains
-"provenance" and "producer node".
+of its gradient needs an origin that does not exist. The call returns `InvalidDescription`, and
+the message contains "provenance" and "producer node".
 
 ## PassingNoProvenanceChangesNothing
 

@@ -34,6 +34,8 @@
 #include <vector>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/autograd/tape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -72,16 +74,34 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Throws unless a gradient may be requested for @p value.
-                 * @param value A value of the graph whose lifetime is not BUFFER.
+                 * @brief Checks that a gradient may be requested for @p value.
+                 * @param value A value of the graph.
+                 * @return A success, or InvalidDescription for a BUFFER value.
                  */
-                void require_requestable(Graph::ValueID value) const;
+                [[nodiscard]] Status require_requestable(Graph::ValueID value) const;
 
-                /** @brief Runs the reverse sweep over the forward nodes. */
-                void run();
+                /**
+                 * @brief Runs the reverse sweep over the forward nodes.
+                 * @return A success, or InvalidDescription for a graph whose layouts or root
+                 *         cannot be differentiated, or for a node without a backward rule.
+                 */
+                [[nodiscard]] Status run();
 
-                /** @brief The summed gradient of @p primal, materialising the sum on first read. */
+                /**
+                 * @brief The summed gradient of @p primal, materialising the sum on first read.
+                 * @return The sum, or Graph::K_NO_VALUE when nothing was contributed or the sum
+                 *         was refused; a refusal is marked on the graph.
+                 */
                 Graph::ValueID resolve(Graph::ValueID primal);
+
+                /**
+                 * @brief Emits the sum of @p parts, accumulating in place where owns_buffer()
+                 *        allows.
+                 * @param parts One or more contributions to one primal value.
+                 * @return The sum, or the failure an emitter returned.
+                 */
+                [[nodiscard]] Result<Graph::ValueID> sum_contributions(
+                    const std::vector<Graph::ValueID>& parts);
 
                 /**
                  * @brief Returns whether @p gradient may be accumulated into in place: no other
@@ -91,9 +111,20 @@ namespace SushiAI
 
                 /**
                  * @brief Returns the gradient a caller requested for @p value, after run().
+                 * @return The gradient or Graph::K_NO_VALUE, or InvalidDescription when the
+                 *         sum appended a node that no producer of @p value can carry as origin.
                  * @see modules/core/eager/README.md, "Provenance".
                  */
-                Graph::ValueID resolve_requested(Graph::ValueID value);
+                [[nodiscard]] Result<Graph::ValueID> resolve_requested(Graph::ValueID value);
+
+                /**
+                 * @brief Marks the graph and keeps @p outcome when it is the first failure.
+                 * @param outcome A success, which changes nothing, or a refused emission.
+                 */
+                void observe(const Status& outcome) noexcept;
+
+                /** @brief The first failure observe() was given, or a success. */
+                [[nodiscard]] const Status& failure() const noexcept { return failure_; }
 
                 /** @brief Records one gradient contribution to @p primal. */
                 void contribute(Graph::ValueID primal, Graph::ValueID gradient);
@@ -115,11 +146,12 @@ namespace SushiAI
 
             private:
                 /**
-                 * @brief Throws unless the root can take an explicit seed.
+                 * @brief Checks that the root can take an explicit seed.
                  * @param producer The node that produces the root.
+                 * @return A success, or InvalidDescription naming why the root cannot be seeded.
                  * @pre finalise() has run on the graph.
                  */
-                void require_seedable_root(Graph::NodeID producer) const;
+                [[nodiscard]] Status require_seedable_root(Graph::NodeID producer) const;
 
                 /**
                  * @brief Emits the explicit one that seeds the root and records it as a gradient.
@@ -128,8 +160,12 @@ namespace SushiAI
                  */
                 void seed_root(Graph::NodeID producer);
 
-                /** @brief Emits the gradient nodes of forward node @p id, when it needs any. */
-                void differentiate_node(Graph::NodeID id);
+                /**
+                 * @brief Emits the gradient nodes of forward node @p id, when it needs any.
+                 * @return A success, or InvalidDescription for a node without a backward rule
+                 *         whose operands require a gradient.
+                 */
+                [[nodiscard]] Status differentiate_node(Graph::NodeID id);
 
                 /**
                  * @brief Records @p origin for every node appended since the last call.
@@ -172,6 +208,9 @@ namespace SushiAI
 
                 /** @brief Holds a snapshot of the forward node the walk is at. */
                 Graph::Node current_node_{};
+
+                /** @brief Holds the first refused emission of this run, or a success. */
+                Status failure_;
         };
 
     } // namespace Autograd

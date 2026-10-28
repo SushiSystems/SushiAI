@@ -46,7 +46,7 @@ namespace SushiAI
             // Matrix multiplication gradients derive from dU = dC V^T and dV = U^T dC.
             if (tape.input_requires_grad(0))
             {
-                Graph::ValueID da;
+                Graph::Traced da;
                 if (!ta && !tb)     da = builder.matmul(dc, b, false, true);
                 else if (ta && !tb) da = builder.matmul(b, dc, false, true);
                 else if (!ta)       da = builder.matmul(dc, b, false, false);
@@ -56,7 +56,7 @@ namespace SushiAI
 
             if (tape.input_requires_grad(1))
             {
-                Graph::ValueID db;
+                Graph::Traced db;
                 if (!ta && !tb)     db = builder.matmul(a, dc, true, false);
                 else if (ta && !tb) db = builder.matmul(a, dc, false, false);
                 else if (!ta)       db = builder.matmul(dc, a, true, false);
@@ -85,7 +85,7 @@ namespace SushiAI
             const Graph::Value& value = tape.graph().value(x);
 
             // Sum-rows adjoint broadcasts row gradients back over matrix shape via bias addition on zeros.
-            const Graph::ValueID zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
+            const Graph::Traced zeros = tape.builder().zeros_like(ds, value.shape, value.dtype);
             tape.contribute_input(0, tape.builder().bias_add(zeros, ds));
         }
 
@@ -100,9 +100,7 @@ namespace SushiAI
             const Graph::ValueID indices = tape.node().inputs.at(1);
             const int64_t table_rows = tape.graph().value(table).shape[0];
 
-            // The forward emitter checked both operands, so a refusal here is fatal in value().
-            tape.contribute_input(
-                0, tape.builder().scatter_add_rows(dy, indices, table_rows).value());
+            tape.contribute_input(0, tape.builder().scatter_add_rows(dy, indices, table_rows));
         }
 
         void scatter_add_rows_backward(const GradientTape& tape)
@@ -114,8 +112,7 @@ namespace SushiAI
             // The id is copied out before the emission grows the graph.
             const Graph::ValueID indices = tape.node().inputs.at(1);
 
-            // The forward emitter checked both operands, so a refusal here is fatal in value().
-            tape.contribute_input(0, tape.builder().gather_rows(dy, indices).value());
+            tape.contribute_input(0, tape.builder().gather_rows(dy, indices));
         }
 
         void causal_mask_backward(const GradientTape& tape)
@@ -127,8 +124,7 @@ namespace SushiAI
             // A replaced entry does not depend on its input, so its gradient is zero.
             constexpr double K_NO_GRADIENT = 0.0;
 
-            // The forward emitter checked the shape, so a refusal here is fatal in value().
-            tape.contribute_input(0, tape.builder().causal_mask(dy, K_NO_GRADIENT).value());
+            tape.contribute_input(0, tape.builder().causal_mask(dy, K_NO_GRADIENT));
         }
 
     } // namespace Autograd

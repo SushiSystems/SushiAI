@@ -3,7 +3,8 @@
 
 Suites: `Small_SpatialShapes`.
 
-Tests the shapes the builder infers for spatial operations and the layouts it refuses.
+Tests the shapes the builder infers for spatial operations and the layouts it refuses. A refused
+call returns `StatusCode::InvalidDescription` with the substrings the case names.
 
 ## Im2ColProducesTheColumnMatrixAGEMMExpects
 
@@ -23,7 +24,7 @@ gets should still name the geometry, not the Shape invariant it happened to trip
 
 ## Im2ColRejectsANonSpatialInput
 
-`im2col` over a [4, 8] input throws `Error`.
+`im2col` over a [4, 8] input is refused.
 
 ## Col2ImReturnsToTheImageItWasAskedFor
 
@@ -34,7 +35,7 @@ states the image shape instead. It always has it, because it held the value im2c
 ## Col2ImRejectsAColumnMatrixThatDoesNotMatchTheImage
 
 `col2im` of the column matrix of a [2, 5, 5, 3] image with a padded 3x3 window, asked for the
-image shape [2, 6, 6, 3], throws `Error`.
+image shape [2, 6, 6, 3], is refused.
 
 ## Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward
 
@@ -52,12 +53,12 @@ only, which ConvGeometry cannot express and does not need to.
 This case is the point of having `col2im_with_extents` as a twin. The deriving col2im assumes
 symmetric padding and is not a substitute for it. Feeding it the exact cols/image pair that
 `col2im_with_extents` accepted in Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward must
-still throw, which proves the twin is needed.
+still be refused, which proves the twin is needed.
 
 ## Im2ColRejectsAnNCHWInput
 
 im2col reads extents off axes 1, 2, 3 assuming NHWC. Handed an NCHW value it would read channels
-as height and produce a plausible but silently wrong shape, where it should throw.
+as height and produce a plausible but silently wrong shape, where it should refuse it.
 
 ## MaxPoolProducesAValueAndItsArgmaxTogether
 
@@ -82,20 +83,20 @@ the forward recorded (CV-6).
 
 ## UpsampleRejectsANonPositiveScale
 
-`upsample2d` with a height scale of 0 throws `Error`.
+`upsample2d` with a height scale of 0 is refused.
 
 ## MaxPoolRejectsAnNCHWInput
 
-maxpool2d reads extents off axes 1, 2, 3 assuming NHWC. Handed an NCHW value it must throw and
+maxpool2d reads extents off axes 1, 2, 3 assuming NHWC. Handed an NCHW value it must refuse it and
 must not pool the channel axis.
 
 ## AvgPoolRejectsAnNCHWInput
 
-`avgpool2d` over a value converted to NCHW throws `Error`.
+`avgpool2d` over a value converted to NCHW is refused.
 
 ## UpsampleRejectsAnNCHWInput
 
-`upsample2d` over a value converted to NCHW throws `Error`.
+`upsample2d` over a value converted to NCHW is refused.
 
 ## SpatialMeanReducesToNAndC
 
@@ -104,7 +105,7 @@ gradient test in this plan ends with this call.
 
 ## SpatialMeanRejectsAnNCHWInput
 
-`spatial_mean` over a value converted to NCHW throws `Error`.
+`spatial_mean` over a value converted to NCHW is refused.
 
 ## ConcatSumsTheChannelAxisAndNothingElse
 
@@ -112,29 +113,29 @@ gradient test in this plan ends with this call.
 
 ## ConcatRejectsOperandsThatDisagreeOffTheChannelAxis
 
-`concat_channels` of [2, 8, 8, 16] and [2, 4, 8, 16] throws `Error`.
+`concat_channels` of [2, 8, 8, 16] and [2, 4, 8, 16] is refused.
 
 ## ConcatRejectsAnNCHWOperand
 
-`concat_channels` of two values converted to NCHW throws `Error`.
+`concat_channels` of two values converted to NCHW is refused.
 
 ## SliceTakesAChannelRangeAndRefusesToOverrun
 
 Over [2, 8, 8, 48], `slice_channels(x, 16, 32)` gives [2, 8, 8, 32] and
-`slice_channels(x, 32, 32)` throws `Error`.
+`slice_channels(x, 32, 32)` is refused.
 
 ## SliceRejectsAnNCHWInput
 
-`slice_channels` over a value converted to NCHW throws `Error`.
+`slice_channels` over a value converted to NCHW is refused.
 
 ## ChannelAffineKeepsTheShapeAndChecksTheParameters
 
 `channel_affine` of [2, 8, 8, 16] with a [16] scale and a [16] shift gives [2, 8, 8, 16].
-With an [8] scale it throws `Error`.
+With an [8] scale it is refused.
 
 ## ChannelAffineRejectsAnNCHWInput
 
-`channel_affine` over a value converted to NCHW throws `Error`.
+`channel_affine` over a value converted to NCHW is refused.
 
 ## BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics
 
@@ -142,7 +143,7 @@ With an [8] scale it throws `Error`.
 of the input's shape, and `saved_mean`, `saved_inv_std` and `batch_variance`, each [16]. They
 are the four outputs of one K_BATCHNORM2D node in that order, and attribute 0 of the node is the
 epsilon 1e-5. Each of the four is FLOAT64 with the lifetime `ACTIVATION`. A gamma of [8]
-throws.
+is refused.
 
 A non-positive epsilon is a division by the standard deviation itself, which is exactly zero
 for a constant channel.
@@ -162,20 +163,20 @@ Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' typ
 
 ## BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma
 
-Five calls throw with "batchnorm_fold" and the operand at fault: a [8] mean ("mean", "[16]",
+Five calls are refused with "batchnorm_fold" and the operand at fault: a [8] mean ("mean", "[16]",
 "[8]"), a [8] beta ("beta"), a FLOAT64 variance among FLOAT32 operands ("variance", "float32",
 "float64"), a [4, 4] gamma ("rank-1") and four INT64 operands ("int64"). The graph's node count
 and value count are unchanged after all five.
 
 ## BatchNormFoldRejectsANonPositiveEpsilon
 
-An epsilon of 0.0 and one of -1e-3 each throw with a message containing "batchnorm_fold",
-"epsilon" and "positive". An epsilon of 1e-3 does not throw.
+An epsilon of 0.0 and one of -1e-3 are each refused with a message containing "batchnorm_fold",
+"epsilon" and "positive". An epsilon of 1e-3 is accepted.
 
 ## SumChannelsFoldsEverythingButTheChannelAxis
 
 `sum_channels` of [2, 8, 8, 16] gives [16], and over the same value converted to NCHW it
-throws `Error`.
+is refused.
 
 ## ReshapeRefusesToChangeTheElementCount
 
@@ -253,42 +254,42 @@ An [8, 1, 3, 3] weight under a 1x3 window over a [2, 5, 5, 3] input gives [2, 5,
 
 ## Conv2dRejectsAWeightWhoseKernelExtentsDifferFromTheWindow
 
-An [8, 3, 1, 3] weight under the same 1x3 window throws. It holds as many elements as
+An [8, 3, 1, 3] weight under the same 1x3 window is refused. It holds as many elements as
 [8, 1, 3, 3], so the reshape that follows accepts it and only the check in `conv2d` refuses
 the transposed kernel.
 
 ## Conv2dRejectsAWeightWhoseInputChannelsDifferFromTheImage
 
-An [8, 3, 3, 4] weight over a three-channel input throws with a message containing "conv2d".
+An [8, 3, 3, 4] weight over a three-channel input is refused with a message containing "conv2d".
 The reshape rejects the same weight by element count in a message that does not name the
 convolution, so the case requires the name.
 
 ## Conv2dRejectsAFlattenedWeight
 
-An [8, 27] weight throws. The weight enters `conv2d` as rank 4 and is flattened inside it.
+An [8, 27] weight is refused. The weight enters `conv2d` as rank 4 and is flattened inside it.
 
 ## Conv2dRejectsARankThreeInput
 
-A [5, 5, 3] input, which lacks the batch axis, throws.
+A [5, 5, 3] input, which lacks the batch axis, is refused.
 
 ## Conv2dPointwiseRejectsAnNCHWInput
 
 A [2, 5, 5, 3] input is converted to NCHW and paired with an [8, 1, 1, 5] weight, whose
 input-channel extent matches the last axis of the converted shape. The pointwise path skips
 K_IM2COL, which is the emitter that checks the layout, so `conv2d` has to check it itself. The
-call throws.
+call is refused.
 
 ## Conv2dRejectsABiasWhoseExtentDiffersFromTheFilterCount
 
-A [4] bias with eight filters throws.
+A [4] bias with eight filters is refused.
 
 ## Conv2dRejectsAWindowLargerThanThePaddedInput
 
-A 5x5 unpadded window over a [1, 2, 2, 3] input throws.
+A 5x5 unpadded window over a [1, 2, 2, 3] input is refused.
 
 ## Conv2dEmitsNothingWhenItRejectsItsOperands
 
-Three calls throw: an oversized window, a weight with four input channels over a
+Three calls are refused: an oversized window, a weight with four input channels over a
 three-channel input, and a [4] bias with eight filters. The node count afterwards equals the
 count taken before the calls. `conv2d` validates every operand before it emits its first
 reshape, so a refused call leaves no orphan node in the graph.
@@ -323,27 +324,27 @@ large as the window.
 
 ## WindowExtentsRejectANonPositiveKernel
 
-A kernel of 0 by 3 and one of 3 by -2 throw. Each message contains "positive kernel" and the
+A kernel of 0 by 3 and one of 3 by -2 are refused. Each message contains "positive kernel" and the
 kernel as given, "kernel 0x3" and "kernel 3x-2".
 
 ## WindowExtentsRejectANonPositiveStrideAndNameIt
 
-A vertical stride of 0 and a horizontal stride of -1 throw with "positive stride" and the
+A vertical stride of 0 and a horizontal stride of -1 are refused with "positive stride" and the
 pair, "stride 0,1" and "stride 1,-1". A zero stride is a division by zero in the extent
 formula, and the message names the stride and not a window that does not fit.
 
 ## WindowExtentsRejectANonPositiveDilation
 
-A horizontal dilation of 0 throws with "positive dilation" and "dilation 1,0".
+A horizontal dilation of 0 is refused with "positive dilation" and "dilation 1,0".
 
 ## WindowExtentsRejectANegativePadding
 
-A padding of -1 on both axes throws with "padding -1,-1", and a left pad of -1 alone throws
+A padding of -1 on both axes is refused with "padding -1,-1", and a left pad of -1 alone is refused
 with "padding 0,-1".
 
 ## WindowExtentsRejectAWindowThatDoesNotFit
 
-A 5x5 window over a 4 by 6 input throws with a message containing "5x5 window" and "4x6
+A 5x5 window over a 4 by 6 input is refused with a message containing "5x5 window" and "4x6
 input". The window fits the width and not the height.
 
 ## UpsampledExtentsScaleEachAxisByItsOwnFactor
@@ -352,11 +353,11 @@ A 3 by 5 input with scales 2 and 4 yields 6 by 20.
 
 ## UpsampledExtentsRejectAScaleBelowOne
 
-Scales of 0 by 2 and of 2 by -1 throw with "at least one" and the pair, "0x2" and "2x-1".
+Scales of 0 by 2 and of 2 by -1 are refused with "at least one" and the pair, "0x2" and "2x-1".
 
 ## UpsampledExtentsRejectAProductBeyondSixtyFourBits
 
-With a scale of 2^62, an extent of 5 on the height axis throws with "fit in 64 bits", and so
+With a scale of 2^62, an extent of 5 on the height axis is refused with "fit in 64 bits", and so
 does an extent of 5 on the width axis. Each call overflows one axis and leaves the other at
 1, so both products are checked.
 
@@ -367,7 +368,7 @@ overflow check therefore refuses nothing that 64 bits hold.
 
 ## UpsampleRejectsAScaledExtentBeyondSixtyFourBits
 
-`GraphBuilder::upsample2d` with a horizontal scale of 2^62 over a width of 5 throws with "fit
+`GraphBuilder::upsample2d` with a horizontal scale of 2^62 over a width of 5 is refused with "fit
 in 64 bits", and the node count is unchanged.
 
 ## TheDerivingEmittersRejectANegativePadding
@@ -378,16 +379,16 @@ geometry.
 
 ## Col2ImRejectsANegativePadding
 
-`col2im` with a padding of -1 throws with a message containing "padding".
+`col2im` with a padding of -1 is refused with a message containing "padding".
 
 ## Col2ImRejectsAnImageShapeThatIsNotRankFour
 
-`col2im` asked for the image shape [5, 5, 3] throws with a message containing "col2im" and
+`col2im` asked for the image shape [5, 5, 3] is refused with a message containing "col2im" and
 "rank-4".
 
 ## TheDerivingEmittersNameTheLayoutBeforeTheWindow
 
 A [1, 8, 8, 2] input is converted to NCHW, which leaves 2 on the axis an NHWC reader takes
 for the height, and a 3x3 window does not fit that. `im2col`, `maxpool2d` and `avgpool2d` each
-throw a message containing their own name and "NHWC". A caller who passed the wrong layout is
-told so, and is not told that the window is too large.
+return a failure whose message contains their own name and "NHWC". A caller who passed the
+wrong layout is told so, and is not told that the window is too large.

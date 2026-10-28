@@ -46,6 +46,7 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -244,15 +245,19 @@ namespace
 
                 variable_ = builder.parameter(variable_shape, "x", DType::Float64);
 
-                const ValueID logits = build(builder, variable_);
+                // The operands fit, so a refusal is a builder defect and value() stops the test.
+                const ValueID logits = Graph::Traced(build(builder, variable_)).value();
                 const Shape logit_shape = graph_.value(logits).shape;
 
                 targets_ = builder.input(logit_shape, "targets", DType::Float64);
-                loss_ = builder.nll_loss(logits, targets_);
+                // The operands fit, so a refusal is a builder defect and value() stops the test.
+                loss_ = builder.nll_loss(logits, targets_).value();
 
                 const std::vector<ValueID> wrt = {variable_};
-                const std::vector<ValueID> grads = Autograd::differentiate(
-                    graph_, loss_, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+                const std::vector<ValueID> grads =
+                    Autograd::differentiate(
+                        graph_, loss_, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()))
+                        .value();
 
                 gradient_ = grads.at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
@@ -807,7 +812,7 @@ TEST_F(Medium_Autograd, SumRowsBroadcastsItsGradientBack)
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueID x)
     {
         // [4, 3] -> [3] -> [1, 3], so the loss can consume it as a one-row batch.
-        const ValueID sums = builder.sum_rows(x);
+        const Graph::Traced sums = builder.sum_rows(x);
         return builder.bias_add(builder.zeros(Shape{1, 3}, DType::Float64), sums);
     });
 
@@ -826,7 +831,7 @@ TEST_F(Medium_Autograd, GatherRowsScatterAddsARepeatedIndexIntoItsTable)
     Probe probe(*engine, Shape{5, 3}, [&indices](const GraphBuilder& builder, ValueID x)
     {
         indices = builder.input(Shape{6}, "indices", DType::Int32);
-        return builder.gather_rows(x, indices).value();
+        return builder.gather_rows(x, indices);
     });
 
     // Row 3 is read three times and row 1 twice; rows 2 and 4 are read by no index.
@@ -847,7 +852,7 @@ TEST_F(Medium_Autograd, GatherRowsOverARankTwoIndexDifferentiatesThroughItsResha
     {
         // [4, 3] -> [2, 3, 3] -> [6, 3], so the loss can consume the tokens as rows.
         indices = builder.input(Shape{2, 3}, "indices", DType::Int32);
-        return builder.reshape(builder.gather_rows(x, indices).value(), Shape{6, 3});
+        return builder.reshape(builder.gather_rows(x, indices), Shape{6, 3});
     });
 
     probe.fill_indices(indices, {2, 2, 0, 3, 2, 1});
@@ -866,7 +871,7 @@ TEST_F(Medium_Autograd, ScatterAddRowsGathersARepeatedIndexBackOntoItsRows)
     Probe probe(*engine, Shape{6, 3}, [&indices](const GraphBuilder& builder, ValueID x)
     {
         indices = builder.input(Shape{6}, "indices", DType::Int32);
-        return builder.scatter_add_rows(x, indices, 5).value();
+        return builder.scatter_add_rows(x, indices, 5);
     });
 
     // Row 3 is written three times and row 1 twice; rows 2 and 4 are written by no index.
@@ -887,7 +892,7 @@ TEST_F(Medium_Autograd, ScatterAddRowsOverARankTwoIndexGathersInTheRowsOwnShape)
     {
         // [2, 3, 3] rows over a [2, 3] index sum into the [4, 3] the loss reads as rows.
         indices = builder.input(Shape{2, 3}, "indices", DType::Int32);
-        return builder.scatter_add_rows(x, indices, 4).value();
+        return builder.scatter_add_rows(x, indices, 4);
     });
 
     probe.fill_indices(indices, {2, 2, 0, 3, 2, 1});
@@ -944,7 +949,7 @@ TEST_F(Medium_Autograd, WholeTwoLayerModelUnderRandomDirections)
         hidden_weight = builder.input(Shape{6, 5}, "w0", DType::Float64);
         output_weight = builder.input(Shape{3, 6}, "w1", DType::Float64);
 
-        const ValueID hidden = builder.relu(
+        const Graph::Traced hidden = builder.relu(
             builder.bias_add(builder.matmul(inputs, hidden_weight, false, true), bias));
 
         return builder.log_softmax(builder.matmul(hidden, output_weight, false, true));
@@ -988,7 +993,7 @@ TEST_F(Medium_Autograd, LayoutConvertsGradientIsThePermutedGradient)
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueID x)
     {
         builder.graph().value(x).layout = Graph::TensorLayout::NCHW;
-        const ValueID nhwc = builder.layout_convert(x, Graph::TensorLayout::NHWC);
+        const Graph::Traced nhwc = builder.layout_convert(x, Graph::TensorLayout::NHWC);
         return builder.log_softmax(builder.reshape(nhwc, Shape{2, 60}));
     });
 
@@ -1005,8 +1010,8 @@ TEST_F(Medium_Autograd, LayoutConvertRoundTripComposesBothDirections)
     // The round trip is a secondary check only; see tests/core/autograd/README.md.
     Probe probe(*engine, Shape{2, 3, 4, 5}, [](const GraphBuilder& builder, ValueID x)
     {
-        const ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
-        const ValueID back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
+        const Graph::Traced nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+        const Graph::Traced back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
         return builder.log_softmax(builder.reshape(back, Shape{2, 60}));
     });
 
@@ -1029,7 +1034,7 @@ TEST_F(Medium_Autograd, AWholeConvolutionDifferentiatesThroughIm2colAndMatmul)
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID cols = builder.im2col(x, g);                      // [2*25, 27]
+        const Graph::Traced cols = builder.im2col(x, g);                      // [2*25, 27]
         weights = builder.parameter(Shape{27, 8}, "w", DType::Float64); // 8 output channels
         return builder.log_softmax(builder.matmul(cols, weights));      // [2*25, 8]
     });
@@ -1055,7 +1060,7 @@ TEST_F(Medium_Autograd, Im2colsGradientAccumulatesEveryWindowThatReadAPixel)
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID cols = builder.im2col(x, g);
+        const Graph::Traced cols = builder.im2col(x, g);
         weights = builder.parameter(Shape{18, 4}, "w", DType::Float64);
         return builder.log_softmax(builder.matmul(cols, weights)); // [16, 4]
     });
@@ -1080,7 +1085,7 @@ TEST_F(Medium_Autograd, AnAsymmetricallyPaddedConvolutionDifferentiatesOverItsRe
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID cols = builder.im2col_with_extents(x, g, 5, 4);  // [20, 9]
+        const Graph::Traced cols = builder.im2col_with_extents(x, g, 5, 4);  // [20, 9]
         weights = builder.parameter(Shape{9, 4}, "w", DType::Float64);
         return builder.log_softmax(builder.matmul(cols, weights));     // [20, 4]
     });
@@ -1103,7 +1108,7 @@ TEST_F(Medium_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID image = builder.col2im(x, Shape{1, 3, 3, 2}, g); // [1, 3, 3, 2]
+        const Graph::Traced image = builder.col2im(x, Shape{1, 3, 3, 2}, g); // [1, 3, 3, 2]
         return builder.log_softmax(builder.reshape(image, Shape{1, 18}));
     });
 
@@ -1118,12 +1123,13 @@ TEST_F(Medium_Autograd, Col2imsGradientGathersEveryWindowThatWroteAPixel)
 TEST_F(Medium_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 {
     // push_off_kinks leaves no ties in a window; see tests/core/autograd/README.md.
-    Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueID x)
+    Probe probe(*engine, Shape({2, 4, 4, 3}), [](const GraphBuilder& b, ValueID x) -> Graph::Traced
     {
         Graph::ConvGeometry g;
         g.kernel_h = 2; g.kernel_w = 2;
         g.stride_h = 2; g.stride_w = 2;
-        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+        SA_TRY_ASSIGN(const Graph::PoolResult pooled, b.maxpool2d(x, g));
+        return b.log_softmax(b.spatial_mean(pooled.output));
     });
 
     probe.fill_one_hot(2, 3);
@@ -1138,11 +1144,12 @@ TEST_F(Medium_Autograd, MaxPoolRoutesEachGradientToTheElementThatWon)
 TEST_F(Medium_Autograd, OverlappingMaxPoolWindowsAccumulateOnADominantPixel)
 {
     // At stride 1 a pixel can win several windows; see tests/core/autograd/README.md.
-    Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueID x)
+    Probe probe(*engine, Shape({1, 5, 5, 2}), [](const GraphBuilder& b, ValueID x) -> Graph::Traced
     {
         Graph::ConvGeometry g;
         g.kernel_h = 2; g.kernel_w = 2;
-        return b.log_softmax(b.spatial_mean(b.maxpool2d(x, g).output));
+        SA_TRY_ASSIGN(const Graph::PoolResult pooled, b.maxpool2d(x, g));
+        return b.log_softmax(b.spatial_mean(pooled.output));
     });
 
     probe.fill_one_hot(1, 2);
@@ -1208,10 +1215,11 @@ TEST_F(Medium_Autograd, SpatialMeanBroadcastsScaledByOneOverHW)
 TEST_F(Medium_Autograd, ConcatGivesEachOperandItsOwnChannelRange)
 {
     // Operands are reordered against their slices; see tests/core/autograd/README.md.
-    Probe probe(*engine, Shape({2, 4, 4, 6}), [](const GraphBuilder& b, ValueID x)
+    Probe probe(*engine, Shape({2, 4, 4, 6}),
+                [](const GraphBuilder& b, ValueID x) -> Graph::Traced
     {
-        const ValueID left = b.slice_channels(x, 0, 2);
-        const ValueID right = b.slice_channels(x, 2, 4);
+        SA_TRY_ASSIGN(const ValueID left, b.slice_channels(x, 0, 2));
+        SA_TRY_ASSIGN(const ValueID right, b.slice_channels(x, 2, 4));
         const std::array<ValueID, 2> parts = {right, left};   // deliberately reordered
         return b.log_softmax(b.spatial_mean(b.concat_channels(
             SushiRuntime::span<const ValueID>(parts.data(), parts.size()))));
@@ -1248,11 +1256,12 @@ TEST_F(Medium_Autograd, BatchNormsGradientAccountsForTheStatisticsItComputed)
     ValueID beta = Graph::K_NO_VALUE;
 
     Probe probe(*engine, Shape({4, 3, 3, 5}),
-                [&gamma, &beta](const GraphBuilder& b, ValueID x)
+                [&gamma, &beta](const GraphBuilder& b, ValueID x) -> Graph::Traced
     {
         gamma = b.parameter(Shape{5}, "gamma", DType::Float64);
         beta = b.parameter(Shape{5}, "beta", DType::Float64);
-        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+        SA_TRY_ASSIGN(const Graph::BatchNormResult normalised, b.batchnorm2d(x, gamma, beta, 1e-5));
+        return b.log_softmax(b.spatial_mean(normalised.output));
     });
 
     probe.fill_noise(gamma, 471, 1.0);
@@ -1271,11 +1280,13 @@ TEST_F(Medium_Autograd, BatchNormsScaleGradientIsTheSumOfDyTimesTheNormalisedInp
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
-    Probe probe(*engine, Shape{5}, [&x, &beta](const GraphBuilder& b, ValueID gamma)
+    Probe probe(*engine, Shape{5},
+                [&x, &beta](const GraphBuilder& b, ValueID gamma) -> Graph::Traced
     {
         x = b.input(Shape({4, 3, 3, 5}), "x", DType::Float64);
         beta = b.parameter(Shape{5}, "beta", DType::Float64);
-        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+        SA_TRY_ASSIGN(const Graph::BatchNormResult normalised, b.batchnorm2d(x, gamma, beta, 1e-5));
+        return b.log_softmax(b.spatial_mean(normalised.output));
     });
 
     probe.fill_noise(x, 481, 1.0);
@@ -1293,11 +1304,13 @@ TEST_F(Medium_Autograd, BatchNormsShiftGradientIsThePlainSumOfDy)
     ValueID x = Graph::K_NO_VALUE;
     ValueID gamma = Graph::K_NO_VALUE;
 
-    Probe probe(*engine, Shape{5}, [&x, &gamma](const GraphBuilder& b, ValueID beta)
+    Probe probe(*engine, Shape{5},
+                [&x, &gamma](const GraphBuilder& b, ValueID beta) -> Graph::Traced
     {
         x = b.input(Shape({4, 3, 3, 5}), "x", DType::Float64);
         gamma = b.parameter(Shape{5}, "gamma", DType::Float64);
-        return b.log_softmax(b.spatial_mean(b.batchnorm2d(x, gamma, beta, 1e-5).output));
+        SA_TRY_ASSIGN(const Graph::BatchNormResult normalised, b.batchnorm2d(x, gamma, beta, 1e-5));
+        return b.log_softmax(b.spatial_mean(normalised.output));
     });
 
     probe.fill_noise(x, 491, 1.0);
@@ -1387,18 +1400,18 @@ TEST_F(Medium_Autograd, DepthwiseConvolutionDifferentiatesOverItsInputAndItsTaps
     Probe probe(*engine, Shape{1, 1, 1, K_IMAGE_ELEMENTS + K_TAP_ELEMENTS},
                 [](const GraphBuilder& b, ValueID flat)
     {
-        const ValueID image = b.reshape(b.slice_channels(flat, 0, K_IMAGE_ELEMENTS),
-                                        Shape{2, 5, 5, 3});
-        const ValueID taps = b.reshape(b.slice_channels(flat, K_IMAGE_ELEMENTS, K_TAP_ELEMENTS),
-                                       Shape{3, 3, 3});
+        const Graph::Traced image = b.reshape(b.slice_channels(flat, 0, K_IMAGE_ELEMENTS),
+                                              Shape{2, 5, 5, 3});
+        const Graph::Traced taps =
+            b.reshape(b.slice_channels(flat, K_IMAGE_ELEMENTS, K_TAP_ELEMENTS), Shape{3, 3, 3});
 
         Graph::ConvGeometry g;
         g.kernel_h = 3; g.kernel_w = 3;
         g.stride_h = 2; g.stride_w = 2;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID windows = b.depthwise_conv2d(image, taps, g);   // [2, 3, 3, 3]
-        return b.log_softmax(b.spatial_mean(windows));                // [2, 3]
+        const Graph::Traced windows = b.depthwise_conv2d(image, taps, g); // [2, 3, 3, 3]
+        return b.log_softmax(b.spatial_mean(windows));                    // [2, 3]
     });
 
     probe.fill_one_hot(2, 3);

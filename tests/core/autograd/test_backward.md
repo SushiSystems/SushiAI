@@ -15,13 +15,14 @@ code that predates this field is uniform by construction and not by accident.
 
 ## FinaliseAcceptsAUniformGraph
 
-`finalise` does not throw on a graph of one MATMUL over a [2, 4] input and a [4, 3] parameter.
+`finalise` returns a success on a graph of one MATMUL over a [2, 4] input and a [4, 3] parameter.
 
 ## FinaliseRejectsAMixedGraphAndNamesTheValue
 
 The failure this check exists to catch is a layer emitting an NCHW value into an NHWC network.
 Nothing downstream would throw: the shapes still line up, every kernel still runs, and the
-model learns from transposed data.
+model learns from transposed data. The test sets the result's layout by hand, which no emitter
+does, so `finalise()` stops the process and the report names the MATMUL.
 
 ## LayoutConvertIsAllowedToChangeIt
 
@@ -63,13 +64,25 @@ passes for the wrong reason. A graph that is uniform because it was flattened ca
 from one that was uniform to begin with, so the proof has to be re-run against tags that
 survived.
 
+## CastInsertionReturnsMixedOperandsAndLeavesTheGraphAlone
+
+`make_mixed_operands` adds an NHWC input to its own NCHW conversion, which no emitter refuses.
+`insert_casts()` proves its input before it rewrites anything, so it returns
+`InvalidDescription` naming the ADD and the node count is unchanged.
+
+## FusionStopsOnAGraphWhoseLayoutsAreNotProven
+
+`fuse()` returns a report and no status, and takes a proven graph as a precondition. On the
+same mixed graph it stops the process, and the report names the precondition and the proof's
+message.
+
 ## TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand
 
 The test checks why the zeros exposure is latent and not live, and does not leave that to a
 comment. It is the premise the `zeros_like()` change rests on, and it is a premise about other
 emitters' guards, which is the kind that stops being true without anyone editing this file.
 
-The two `EXPECT_THROW` lines on `slice_channels` and `channel_affine` cover the rank-4 sites,
+The two `SA_EXPECT_FAILURE` lines on `slice_channels` and `channel_affine` cover the rank-4 sites,
 `slice_channels_backward` and `channel_affine_backward`. CV-3 makes their forward emitters
 refuse an NCHW operand outright, so their dy can never carry that tag.
 
@@ -77,10 +90,10 @@ The `reshape` to `rows` covers the rank-2 site, `sum_rows_backward`. Reshape car
 tag into rank-2 land with no guard at all, so unlike the two rank-4 sites the emitters let this
 chain be built.
 
-The last `EXPECT_THROW(graph.finalise(), Error)` shows what blocks that chain: the far end.
+The last `SA_EXPECT_FAILURE` on `graph.finalise()` shows what blocks that chain: the far end.
 `differentiate()` only seeds a loss produced by K_NLL_LOSS, whose one-hot operand is a leaf and so
 always NHWC, and nothing but K_LAYOUT_CONVERT may cross back, which is rank-4 only. `finalise()`
-rejects that node before differentiation ever runs, so the rule is never reached with an NCHW
+returns `InvalidDescription` for that node before differentiation ever runs, so the rule is never reached with an NCHW
 gradient. The guard is the pre-existing proof in `finalise()`, not a check in any emitter, and
 that is why it is worth a test and not a sentence.
 
@@ -306,11 +319,12 @@ between `nodes_after` and `nodes_before`, and the sum of `count_into(Half)` and
 `count_into(Float32)`, both of which are above 0. `retyped_values` is above 0, and
 `to_string` holds "mixed" and "casts inserted".
 
-## AGraphThatIsNotInTopologicalOrderIsRefused
+## AGraphThatIsNotInTopologicalOrderIsFatal
 
 `fuse()` and `MemoryPlan::build()` carry the same guard for the same reason. The pass emits a
 conversion immediately before its consumer, which is only a valid position if producers already
-come first.
+come first. The pass stops the process with a report naming "Node 0 reads value 1" and "which
+node 1 writes later".
 
 ## Pooled
 
@@ -424,3 +438,9 @@ reader, the GEMM.
 Once the rewiring is done the clone has one consumer of its own, so the pass has no reason to
 rematerialise its own output. If it did, the pass would not terminate on a graph with three
 consumers.
+
+## AGraphThatHoldsARefusalIsRefusedBeforeAnyNodeIsAppended
+
+`slice_channels` refuses an NCHW operand, and the refusal sets the graph's flag. The loss is then
+built from the NHWC parameter and is differentiable on its own, so only the flag stops
+`differentiate()`. It returns `InvalidDescription` and appends no node.

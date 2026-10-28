@@ -37,9 +37,9 @@
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace SushiAI
 {
@@ -59,7 +59,7 @@ namespace SushiAI
             g.kernel_h = 3; g.kernel_w = 3;
             g.pad_top = 1;  g.pad_left = 1;
 
-            const ValueID cols = builder.im2col(x, g);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
 
             EXPECT_EQ(graph.values()[cols].shape, Shape({2 * 5 * 5, 3 * 3 * 3}));
         }
@@ -74,13 +74,15 @@ namespace SushiAI
             Graph::ConvGeometry dilated;
             dilated.kernel_h = 3; dilated.kernel_w = 3;
             dilated.dilation_h = 2; dilated.dilation_w = 2;
-            EXPECT_EQ(graph.values()[builder.im2col(x, dilated)].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID dilated_cols, builder.im2col(x, dilated));
+            EXPECT_EQ(graph.values()[dilated_cols].shape,
                       Shape({1 * 3 * 3, 3 * 3 * 2}));
 
             Graph::ConvGeometry strided;
             strided.kernel_h = 3; strided.kernel_w = 3;
             strided.stride_h = 2; strided.stride_w = 2;
-            EXPECT_EQ(graph.values()[builder.im2col(x, strided)].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID strided_cols, builder.im2col(x, strided));
+            EXPECT_EQ(graph.values()[strided_cols].shape,
                       Shape({1 * 3 * 3, 3 * 3 * 2}));
         }
 
@@ -94,7 +96,7 @@ namespace SushiAI
             Graph::ConvGeometry g;
             g.kernel_h = 5; g.kernel_w = 5;
 
-            EXPECT_THROW((void)builder.im2col(x, g), Error);
+            SA_EXPECT_FAILURE(builder.im2col(x, g), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, Im2ColRejectsANonSpatialInput)
@@ -106,7 +108,7 @@ namespace SushiAI
             Graph::ConvGeometry g;
             g.kernel_h = 1; g.kernel_w = 1;
 
-            EXPECT_THROW((void)builder.im2col(x, g), Error);
+            SA_EXPECT_FAILURE(builder.im2col(x, g), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, Col2ImReturnsToTheImageItWasAskedFor)
@@ -120,7 +122,8 @@ namespace SushiAI
             g.kernel_h = 3; g.kernel_w = 3;
             g.pad_top = 1;  g.pad_left = 1;
 
-            const ValueID image = builder.col2im(cols, Shape({2, 5, 5, 3}), g);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID image,
+                                    builder.col2im(cols, Shape({2, 5, 5, 3}), g));
 
             EXPECT_EQ(graph.values()[image].shape, Shape({2, 5, 5, 3}));
         }
@@ -135,7 +138,8 @@ namespace SushiAI
             g.kernel_h = 3; g.kernel_w = 3;
             g.pad_top = 1;  g.pad_left = 1;
 
-            EXPECT_THROW((void)builder.col2im(cols, Shape({2, 6, 6, 3}), g), Error);
+            SA_EXPECT_FAILURE(builder.col2im(cols, Shape({2, 6, 6, 3}), g),
+                              StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, Col2ImWithExtentsRoundTripsAnAsymmetricallyPaddedForward)
@@ -149,11 +153,12 @@ namespace SushiAI
             g.kernel_h = 3; g.kernel_w = 3;
             // Padding is applied bottom and right only; see tests/core/autograd/README.md.
 
-            const ValueID cols = builder.im2col_with_extents(x, g, 13, 13);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col_with_extents(x, g, 13, 13));
             EXPECT_EQ(graph.values()[cols].shape, Shape({1 * 13 * 13, 3 * 3 * 3}));
 
-            const ValueID image = builder.col2im_with_extents(cols, Shape({1, 13, 13, 3}),
-                                                               g, 13, 13);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID image,
+                                    builder.col2im_with_extents(cols, Shape({1, 13, 13, 3}),
+                                        g, 13, 13));
             EXPECT_EQ(graph.values()[image].shape, Shape({1, 13, 13, 3}));
         }
 
@@ -167,9 +172,10 @@ namespace SushiAI
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
 
-            const ValueID cols = builder.im2col_with_extents(x, g, 13, 13);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col_with_extents(x, g, 13, 13));
 
-            EXPECT_THROW((void)builder.col2im(cols, Shape({1, 13, 13, 3}), g), Error);
+            SA_EXPECT_FAILURE(builder.col2im(cols, Shape({1, 13, 13, 3}), g),
+                              StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, Im2ColRejectsAnNCHWInput)
@@ -178,13 +184,14 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 32, 32}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
             g.pad_top = 1;  g.pad_left = 1;
 
-            EXPECT_THROW((void)builder.im2col(x_nchw, g), Error);
+            SA_EXPECT_FAILURE(builder.im2col(x_nchw, g), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, MaxPoolProducesAValueAndItsArgmaxTogether)
@@ -198,7 +205,7 @@ namespace SushiAI
             g.kernel_h = 2; g.kernel_w = 2;
             g.stride_h = 2; g.stride_w = 2;
 
-            const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, g));
 
             EXPECT_EQ(graph.values()[pooled.output].shape, Shape({2, 2, 2, 3}));
             EXPECT_EQ(graph.values()[pooled.indices].shape, Shape({2, 2, 2, 3}));
@@ -217,11 +224,13 @@ namespace SushiAI
             Graph::ConvGeometry g;
             g.kernel_h = 2; g.kernel_w = 2;
 
-            const Graph::PoolResult pooled = builder.maxpool2d_with_extents(x, g, 13, 13);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled,
+                                    builder.maxpool2d_with_extents(x, g, 13, 13));
             EXPECT_EQ(graph.values()[pooled.output].shape, Shape({1, 13, 13, 256}));
 
             // Without the explicit extents the same geometry gives 12x12.
-            EXPECT_EQ(graph.values()[builder.maxpool2d(x, g).output].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult inferred, builder.maxpool2d(x, g));
+            EXPECT_EQ(graph.values()[inferred.output].shape,
                       Shape({1, 12, 12, 256}));
         }
 
@@ -236,7 +245,8 @@ namespace SushiAI
             g.kernel_h = 3; g.kernel_w = 3;
             g.stride_h = 3; g.stride_w = 3;
 
-            EXPECT_EQ(graph.values()[builder.avgpool2d(x, g)].shape, Shape({2, 2, 2, 3}));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID pooled, builder.avgpool2d(x, g));
+            EXPECT_EQ(graph.values()[pooled].shape, Shape({2, 2, 2, 3}));
         }
 
         TEST(Small_SpatialShapes, UpsampleMultipliesTheSpatialExtentsOnly)
@@ -245,7 +255,8 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 3, 5, 7}, "x");
 
-            EXPECT_EQ(graph.values()[builder.upsample2d(x, 2, 2)].shape, Shape({2, 6, 10, 7}));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID upsampled, builder.upsample2d(x, 2, 2));
+            EXPECT_EQ(graph.values()[upsampled].shape, Shape({2, 6, 10, 7}));
         }
 
         TEST(Small_SpatialShapes, UpsampleRejectsANonPositiveScale)
@@ -254,7 +265,7 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 2, 2, 1}, "x");
 
-            EXPECT_THROW((void)builder.upsample2d(x, 0, 2), Error);
+            SA_EXPECT_FAILURE(builder.upsample2d(x, 0, 2), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, MaxPoolRejectsAnNCHWInput)
@@ -263,13 +274,14 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
             Graph::ConvGeometry g;
             g.kernel_h = 2; g.kernel_w = 2;
             g.stride_h = 2; g.stride_w = 2;
 
-            EXPECT_THROW((void)builder.maxpool2d(x_nchw, g), Error);
+            SA_EXPECT_FAILURE(builder.maxpool2d(x_nchw, g), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, AvgPoolRejectsAnNCHWInput)
@@ -277,13 +289,14 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 6, 6}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
             Graph::ConvGeometry g;
             g.kernel_h = 3; g.kernel_w = 3;
             g.stride_h = 3; g.stride_w = 3;
 
-            EXPECT_THROW((void)builder.avgpool2d(x_nchw, g), Error);
+            SA_EXPECT_FAILURE(builder.avgpool2d(x_nchw, g), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, UpsampleRejectsAnNCHWInput)
@@ -291,9 +304,10 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 2, 2}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-            EXPECT_THROW((void)builder.upsample2d(x_nchw, 2, 2), Error);
+            SA_EXPECT_FAILURE(builder.upsample2d(x_nchw, 2, 2), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, SpatialMeanReducesToNAndC)
@@ -303,7 +317,8 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({4, 7, 7, 512}, "x");
 
-            EXPECT_EQ(graph.values()[builder.spatial_mean(x)].shape, Shape({4, 512}));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID mean, builder.spatial_mean(x));
+            EXPECT_EQ(graph.values()[mean].shape, Shape({4, 512}));
         }
 
         TEST(Small_SpatialShapes, SpatialMeanRejectsAnNCHWInput)
@@ -311,9 +326,10 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-            EXPECT_THROW((void)builder.spatial_mean(x_nchw), Error);
+            SA_EXPECT_FAILURE(builder.spatial_mean(x_nchw), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, ConcatSumsTheChannelAxisAndNothingElse)
@@ -324,8 +340,10 @@ namespace SushiAI
             const ValueID b = builder.input({2, 8, 8, 32}, "b");
             const std::array<ValueID, 2> parts = {a, b};
 
-            EXPECT_EQ(graph.values()[builder.concat_channels(
-                          SushiRuntime::span<const ValueID>(parts.data(), parts.size()))].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID joined,
+                                    builder.concat_channels(SushiRuntime::span<const ValueID>(
+                                        parts.data(), parts.size())));
+            EXPECT_EQ(graph.values()[joined].shape,
                       Shape({2, 8, 8, 48}));
         }
 
@@ -337,8 +355,9 @@ namespace SushiAI
             const ValueID b = builder.input({2, 4, 8, 16}, "b");
             const std::array<ValueID, 2> parts = {a, b};
 
-            EXPECT_THROW((void)builder.concat_channels(
-                SushiRuntime::span<const ValueID>(parts.data(), parts.size())), Error);
+            SA_EXPECT_FAILURE(builder.concat_channels(
+                SushiRuntime::span<const ValueID>(parts.data(), parts.size())),
+                StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, ConcatRejectsAnNCHWOperand)
@@ -346,13 +365,16 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID a = builder.input({1, 3, 4, 4}, "a");
-            const ValueID a_nchw = builder.layout_convert(a, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID a_nchw,
+                                    builder.layout_convert(a, Graph::TensorLayout::NCHW));
             const ValueID b = builder.input({1, 3, 4, 4}, "b");
-            const ValueID b_nchw = builder.layout_convert(b, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID b_nchw,
+                                    builder.layout_convert(b, Graph::TensorLayout::NCHW));
             const std::array<ValueID, 2> parts = {a_nchw, b_nchw};
 
-            EXPECT_THROW((void)builder.concat_channels(
-                SushiRuntime::span<const ValueID>(parts.data(), parts.size())), Error);
+            SA_EXPECT_FAILURE(builder.concat_channels(
+                SushiRuntime::span<const ValueID>(parts.data(), parts.size())),
+                StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, SliceTakesAChannelRangeAndRefusesToOverrun)
@@ -361,9 +383,10 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 8, 8, 48}, "x");
 
-            EXPECT_EQ(graph.values()[builder.slice_channels(x, 16, 32)].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID slice, builder.slice_channels(x, 16, 32));
+            EXPECT_EQ(graph.values()[slice].shape,
                       Shape({2, 8, 8, 32}));
-            EXPECT_THROW((void)builder.slice_channels(x, 32, 32), Error);
+            SA_EXPECT_FAILURE(builder.slice_channels(x, 32, 32), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, SliceRejectsAnNCHWInput)
@@ -371,9 +394,10 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-            EXPECT_THROW((void)builder.slice_channels(x_nchw, 0, 1), Error);
+            SA_EXPECT_FAILURE(builder.slice_channels(x_nchw, 0, 1), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, ChannelAffineKeepsTheShapeAndChecksTheParameters)
@@ -384,11 +408,13 @@ namespace SushiAI
             const ValueID gamma = builder.parameter({16}, "gamma");
             const ValueID beta = builder.parameter({16}, "beta");
 
-            EXPECT_EQ(graph.values()[builder.channel_affine(x, gamma, beta)].shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID affine, builder.channel_affine(x, gamma, beta));
+            EXPECT_EQ(graph.values()[affine].shape,
                       Shape({2, 8, 8, 16}));
 
             const ValueID wrong = builder.parameter({8}, "wrong");
-            EXPECT_THROW((void)builder.channel_affine(x, wrong, beta), Error);
+            SA_EXPECT_FAILURE(builder.channel_affine(x, wrong, beta),
+                              StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, ChannelAffineRejectsAnNCHWInput)
@@ -396,11 +422,13 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
             const ValueID gamma = builder.parameter({3}, "gamma");
             const ValueID beta = builder.parameter({3}, "beta");
 
-            EXPECT_THROW((void)builder.channel_affine(x_nchw, gamma, beta), Error);
+            SA_EXPECT_FAILURE(builder.channel_affine(x_nchw, gamma, beta),
+                              StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that batchnorm2d emits four outputs, three of them per channel. */
@@ -412,7 +440,8 @@ namespace SushiAI
             const ValueID gamma = builder.parameter({16}, "gamma", DType::Float64);
             const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
 
-            const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, 1e-5);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult bn,
+                                    builder.batchnorm2d(x, gamma, beta, 1e-5));
             EXPECT_EQ(graph.values()[bn.output].shape, Shape({2, 8, 8, 16}));
             EXPECT_EQ(graph.values()[bn.saved_mean].shape, Shape({16}));
             EXPECT_EQ(graph.values()[bn.saved_inv_std].shape, Shape({16}));
@@ -432,10 +461,12 @@ namespace SushiAI
             }
 
             const ValueID wrong = builder.parameter({8}, "wrong");
-            EXPECT_THROW((void)builder.batchnorm2d(x, wrong, beta, 1e-5), Error);
+            SA_EXPECT_FAILURE(builder.batchnorm2d(x, wrong, beta, 1e-5),
+                              StatusCode::InvalidDescription);
 
             // Epsilon must be positive; see tests/core/autograd/README.md.
-            EXPECT_THROW((void)builder.batchnorm2d(x, gamma, beta, 0.0), Error);
+            SA_EXPECT_FAILURE(builder.batchnorm2d(x, gamma, beta, 0.0),
+                              StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, BatchNorm2dRejectsAnNCHWInput)
@@ -444,11 +475,13 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 3, 4, 4}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
             const ValueID gamma = builder.parameter({3}, "gamma");
             const ValueID beta = builder.parameter({3}, "beta");
 
-            EXPECT_THROW((void)builder.batchnorm2d(x_nchw, gamma, beta, 1e-5), Error);
+            SA_EXPECT_FAILURE(builder.batchnorm2d(x_nchw, gamma, beta, 1e-5),
+                              StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that batchnorm_fold emits one node of four operands and two [C] results. */
@@ -462,8 +495,8 @@ namespace SushiAI
             const ValueID variance = builder.buffer({16}, "running_var", DType::Float64);
             const std::size_t nodes_before = graph.node_count();
 
-            const Graph::BatchNormFold fold =
-                builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormFold fold,
+                                    builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
 
             ASSERT_EQ(graph.node_count(), nodes_before + 1);
             const Graph::Node& node = graph.nodes().back();
@@ -482,7 +515,9 @@ namespace SushiAI
 
             // The fold's results are what CHANNEL_AFFINE reads in an evaluation trace.
             const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
-            EXPECT_EQ(graph.value(builder.channel_affine(x, fold.scale, fold.shift)).shape,
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID affine,
+                                    builder.channel_affine(x, fold.scale, fold.shift));
+            EXPECT_EQ(graph.value(affine).shape,
                       Shape({2, 8, 8, 16}));
         }
 
@@ -502,16 +537,18 @@ namespace SushiAI
             const std::size_t nodes_before = graph.node_count();
             const std::size_t values_before = graph.value_count();
 
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
-                            "batchnorm_fold", "mean", "[16]", "[8]");
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, short_mean, mean, variance, 1e-3),
-                            "batchnorm_fold", "beta");
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, wide_variance, 1e-3),
-                            "batchnorm_fold", "variance", "float32", "float64");
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(matrix, beta, mean, variance, 1e-3),
-                            "batchnorm_fold", "rank-1");
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(counts, counts, counts, counts, 1e-3),
-                            "batchnorm_fold", "int64");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "mean", "[16]",
+                              "[8]");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, short_mean, mean, variance, 1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "beta");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, mean, wide_variance, 1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "variance",
+                              "float32", "float64");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(matrix, beta, mean, variance, 1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "rank-1");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(counts, counts, counts, counts, 1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "int64");
 
             // A rejected fold declares no value and emits no node.
             EXPECT_EQ(graph.node_count(), nodes_before);
@@ -528,11 +565,13 @@ namespace SushiAI
             const ValueID mean = builder.buffer({4}, "running_mean");
             const ValueID variance = builder.buffer({4}, "running_var");
 
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, variance, 0.0),
-                            "batchnorm_fold", "epsilon", "positive");
-            SA_EXPECT_ERROR((void)builder.batchnorm_fold(gamma, beta, mean, variance, -1e-3),
-                            "batchnorm_fold", "epsilon", "positive");
-            EXPECT_NO_THROW((void)builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, mean, variance, 0.0),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "epsilon",
+                              "positive");
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, mean, variance, -1e-3),
+                              StatusCode::InvalidDescription, "batchnorm_fold", "epsilon",
+                              "positive");
+            SA_EXPECT_OK(builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
         }
 
         TEST(Small_SpatialShapes, SumChannelsFoldsEverythingButTheChannelAxis)
@@ -541,10 +580,12 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 8, 8, 16}, "x");
 
-            EXPECT_EQ(graph.values()[builder.sum_channels(x)].shape, Shape({16}));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.sum_channels(x));
+            EXPECT_EQ(graph.values()[sums].shape, Shape({16}));
 
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
-            EXPECT_THROW((void)builder.sum_channels(x_nchw), Error);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
+            SA_EXPECT_FAILURE(builder.sum_channels(x_nchw), StatusCode::InvalidDescription);
         }
 
         TEST(Small_SpatialShapes, ReshapeRefusesToChangeTheElementCount)
@@ -554,8 +595,9 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 3, 4}, "x");
 
-            EXPECT_EQ(graph.values()[builder.reshape(x, Shape({6, 4}))].shape, Shape({6, 4}));
-            EXPECT_THROW((void)builder.reshape(x, Shape({6, 5})), Error);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID reshaped, builder.reshape(x, Shape({6, 4})));
+            EXPECT_EQ(graph.values()[reshaped].shape, Shape({6, 4}));
+            SA_EXPECT_FAILURE(builder.reshape(x, Shape({6, 5})), StatusCode::InvalidDescription);
         }
 
         namespace
@@ -599,7 +641,8 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 3, 3, 3}, "weight");
             const ValueID bias = builder.parameter({8}, "bias");
 
-            const ValueID y = builder.conv2d(x, weight, bias, square_window(3, 1));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, bias, square_window(3, 1)));
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 5, 5, 8}));
             EXPECT_EQ(graph.values()[y].layout, Graph::TensorLayout::NHWC);
@@ -617,7 +660,8 @@ namespace SushiAI
             g.stride_h = 2;
             g.stride_w = 2;
 
-            const ValueID y = builder.conv2d(x, weight, Graph::K_NO_VALUE, g);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, Graph::K_NO_VALUE, g));
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 4, 3, 4}));
         }
@@ -690,7 +734,9 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 1, 1, 3}, "weight");
             const std::size_t operands = graph.node_count();
 
-            const ValueID y = builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(1, 0));
+            SA_ASSERT_OK_AND_ASSIGN(
+                const ValueID y,
+                builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(1, 0)));
 
             EXPECT_EQ(op_names_from(graph, operands), (std::vector<std::string>{
                 "sushiai.reshape",
@@ -714,7 +760,8 @@ namespace SushiAI
             g.stride_h = 2;
             g.stride_w = 2;
 
-            const ValueID y = builder.conv2d(x, weight, Graph::K_NO_VALUE, g);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, Graph::K_NO_VALUE, g));
 
             EXPECT_EQ(op_names_from(graph, operands), (std::vector<std::string>{
                 "sushiai.reshape",
@@ -733,7 +780,8 @@ namespace SushiAI
             const ValueID x = builder.input({2, 5, 5, 3}, "x");
             const ValueID weight = builder.parameter({8, 1, 3, 3}, "weight");
 
-            const ValueID y = builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3)));
 
             EXPECT_EQ(graph.values()[y].shape, Shape({2, 5, 3, 8}));
         }
@@ -747,7 +795,8 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 3, 1, 3}, "weight");
 
             // [8,3,1,3] holds as many elements as [8,1,3,3], so no later reshape rejects it.
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3)), Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, Graph::K_NO_VALUE, window(1, 3)),
+                              StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that conv2d names itself when a weight's C_in differs from the input's. */
@@ -759,8 +808,8 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 3, 3, 4}, "weight");
 
             // reshape rejects the same weight by element count, in a message without "conv2d".
-            SA_EXPECT_ERROR(
-                (void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)), "conv2d");
+            SA_EXPECT_FAILURE( builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
+                              StatusCode::InvalidDescription, "conv2d");
         }
 
         /** @brief Tests that conv2d rejects a weight that is not rank 4. */
@@ -771,8 +820,8 @@ namespace SushiAI
             const ValueID x = builder.input({2, 5, 5, 3}, "x");
             const ValueID weight = builder.parameter({8, 3 * 3 * 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
-                         Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
+                         StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that conv2d rejects a rank-3 input. */
@@ -783,8 +832,8 @@ namespace SushiAI
             const ValueID x = builder.input({5, 5, 3}, "x");
             const ValueID weight = builder.parameter({8, 3, 3, 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
-                         Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(3, 1)),
+                         StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that a pointwise conv2d rejects an NCHW input although it skips IM2COL. */
@@ -793,12 +842,13 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({2, 5, 5, 3}, "x");
-            const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
             const ValueID weight = builder.parameter({8, 1, 1, 5}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x_nchw, weight, Graph::K_NO_VALUE,
+            SA_EXPECT_FAILURE(builder.conv2d(x_nchw, weight, Graph::K_NO_VALUE,
                                               square_window(1, 0)),
-                         Error);
+                         StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that conv2d rejects a bias whose extent differs from the filter count. */
@@ -810,7 +860,8 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 3, 3, 3}, "weight");
             const ValueID bias = builder.parameter({4}, "bias");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, bias, square_window(3, 1)), Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, bias, square_window(3, 1)),
+                              StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that conv2d rejects a window larger than the padded input. */
@@ -821,8 +872,8 @@ namespace SushiAI
             const ValueID x = builder.input({1, 2, 2, 3}, "x");
             const ValueID weight = builder.parameter({8, 5, 5, 3}, "weight");
 
-            EXPECT_THROW((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(5, 0)),
-                         Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, Graph::K_NO_VALUE, square_window(5, 0)),
+                         StatusCode::InvalidDescription);
         }
 
         /** @brief Tests that a conv2d call that throws leaves the graph without a new node. */
@@ -837,11 +888,12 @@ namespace SushiAI
             const ValueID widened = builder.parameter({8, 1, 1, 4}, "widened");
             const std::size_t operands = graph.node_count();
 
-            EXPECT_THROW((void)builder.conv2d(x, oversized, Graph::K_NO_VALUE, square_window(5, 0)),
-                         Error);
-            EXPECT_THROW((void)builder.conv2d(x, widened, Graph::K_NO_VALUE, square_window(1, 0)),
-                         Error);
-            EXPECT_THROW((void)builder.conv2d(x, fitting, bias, square_window(1, 0)), Error);
+            SA_EXPECT_FAILURE(builder.conv2d(x, oversized, Graph::K_NO_VALUE, square_window(5, 0)),
+                         StatusCode::InvalidDescription);
+            SA_EXPECT_FAILURE(builder.conv2d(x, widened, Graph::K_NO_VALUE, square_window(1, 0)),
+                         StatusCode::InvalidDescription);
+            SA_EXPECT_FAILURE(builder.conv2d(x, fitting, bias, square_window(1, 0)),
+                              StatusCode::InvalidDescription);
 
             EXPECT_EQ(graph.node_count(), operands);
         }
@@ -856,10 +908,11 @@ namespace SushiAI
             const ValueID bias = builder.parameter({8}, "bias");
             const ValueID shortcut = builder.parameter({8, 1, 1, 8}, "shortcut");
 
-            const ValueID y = builder.conv2d(x, weight, bias, square_window(3, 1));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, bias, square_window(3, 1)));
             (void)builder.conv2d(y, shortcut, Graph::K_NO_VALUE, square_window(1, 0));
 
-            EXPECT_NO_THROW(graph.finalise());
+            SA_EXPECT_OK(graph.finalise());
         }
 
         /** @brief Tests that a loss over conv2d differentiates to a weight and a bias gradient. */
@@ -872,13 +925,16 @@ namespace SushiAI
             const ValueID weight = builder.parameter({8, 3, 3, 3}, "weight");
             const ValueID bias = builder.parameter({8}, "bias");
 
-            const ValueID y = builder.conv2d(x, weight, bias, square_window(3, 1));
-            const ValueID logits = builder.spatial_mean(y);
-            const ValueID loss = builder.nll_loss(builder.log_softmax(logits), targets);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                                    builder.conv2d(x, weight, bias, square_window(3, 1)));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, builder.spatial_mean(y));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                                    builder.nll_loss(builder.log_softmax(logits), targets));
 
             const std::array<ValueID, 2> wrt = {weight, bias};
-            const std::vector<ValueID> grads = Autograd::differentiate(
-                graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+            SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> grads,
+                                    Autograd::differentiate(
+                graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
             ASSERT_EQ(grads.size(), 2u);
             ASSERT_NE(grads[0], Graph::K_NO_VALUE);
@@ -894,7 +950,8 @@ namespace SushiAI
             g.pad_top = 1;
             g.pad_left = 2;
 
-            const Graph::SpatialExtents out = Graph::window_extents(7, 9, g);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents out,
+                                    Graph::window_extents(7, 9, g));
 
             EXPECT_EQ(out.height, 7);
             EXPECT_EQ(out.width, 9);
@@ -908,7 +965,8 @@ namespace SushiAI
             g.stride_w = 3;
             g.dilation_h = 2;
 
-            const Graph::SpatialExtents out = Graph::window_extents(11, 16, g);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents out,
+                                    Graph::window_extents(11, 16, g));
 
             EXPECT_EQ(out.height, 4);
             EXPECT_EQ(out.width, 5);
@@ -917,7 +975,8 @@ namespace SushiAI
         /** @brief Tests that a window as large as the padded input yields one window. */
         TEST(Small_SpatialShapes, WindowExtentsOfAWindowThatExactlyFitsAreOneByOne)
         {
-            const Graph::SpatialExtents out = Graph::window_extents(3, 3, square_window(5, 1));
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents out,
+                                    Graph::window_extents(3, 3, square_window(5, 1)));
 
             EXPECT_EQ(out.height, 1);
             EXPECT_EQ(out.width, 1);
@@ -926,10 +985,10 @@ namespace SushiAI
         /** @brief Tests that window_extents names a kernel extent that is not positive. */
         TEST(Small_SpatialShapes, WindowExtentsRejectANonPositiveKernel)
         {
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, window(0, 3)),
-                            "positive kernel", "kernel 0x3");
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, window(3, -2)),
-                            "positive kernel", "kernel 3x-2");
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, window(0, 3)),
+                              StatusCode::InvalidDescription, "positive kernel", "kernel 0x3");
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, window(3, -2)),
+                              StatusCode::InvalidDescription, "positive kernel", "kernel 3x-2");
         }
 
         /** @brief Tests that a zero or negative stride is reported as the stride. */
@@ -937,12 +996,12 @@ namespace SushiAI
         {
             Graph::ConvGeometry zero = window(3, 3);
             zero.stride_h = 0;
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, zero),
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, zero), StatusCode::InvalidDescription,
                             "positive stride", "stride 0,1");
 
             Graph::ConvGeometry negative = window(3, 3);
             negative.stride_w = -1;
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, negative),
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, negative), StatusCode::InvalidDescription,
                             "positive stride", "stride 1,-1");
         }
 
@@ -952,32 +1011,34 @@ namespace SushiAI
             Graph::ConvGeometry g = window(3, 3);
             g.dilation_w = 0;
 
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, g),
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, g), StatusCode::InvalidDescription,
                             "positive dilation", "dilation 1,0");
         }
 
         /** @brief Tests that window_extents refuses a negative padding on either axis. */
         TEST(Small_SpatialShapes, WindowExtentsRejectANegativePadding)
         {
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, square_window(3, -1)),
-                            "padding -1,-1");
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, square_window(3, -1)),
+                              StatusCode::InvalidDescription, "padding -1,-1");
 
             Graph::ConvGeometry left_only = window(3, 3);
             left_only.pad_left = -1;
-            SA_EXPECT_ERROR((void)Graph::window_extents(8, 8, left_only), "padding 0,-1");
+            SA_EXPECT_FAILURE(Graph::window_extents(8, 8, left_only),
+                              StatusCode::InvalidDescription, "padding 0,-1");
         }
 
         /** @brief Tests that window_extents names the window and the input it does not fit. */
         TEST(Small_SpatialShapes, WindowExtentsRejectAWindowThatDoesNotFit)
         {
-            SA_EXPECT_ERROR((void)Graph::window_extents(4, 6, window(5, 5)),
-                            "5x5 window", "4x6 input");
+            SA_EXPECT_FAILURE(Graph::window_extents(4, 6, window(5, 5)),
+                              StatusCode::InvalidDescription, "5x5 window", "4x6 input");
         }
 
         /** @brief Tests that upsampled_extents multiplies each axis by its own scale. */
         TEST(Small_SpatialShapes, UpsampledExtentsScaleEachAxisByItsOwnFactor)
         {
-            const Graph::SpatialExtents out = Graph::upsampled_extents(3, 5, 2, 4);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents out,
+                                    Graph::upsampled_extents(3, 5, 2, 4));
 
             EXPECT_EQ(out.height, 6);
             EXPECT_EQ(out.width, 20);
@@ -986,8 +1047,10 @@ namespace SushiAI
         /** @brief Tests that upsampled_extents refuses a scale below one on either axis. */
         TEST(Small_SpatialShapes, UpsampledExtentsRejectAScaleBelowOne)
         {
-            SA_EXPECT_ERROR((void)Graph::upsampled_extents(3, 5, 0, 2), "at least one", "0x2");
-            SA_EXPECT_ERROR((void)Graph::upsampled_extents(3, 5, 2, -1), "at least one", "2x-1");
+            SA_EXPECT_FAILURE(Graph::upsampled_extents(3, 5, 0, 2),
+                              StatusCode::InvalidDescription, "at least one", "0x2");
+            SA_EXPECT_FAILURE(Graph::upsampled_extents(3, 5, 2, -1),
+                              StatusCode::InvalidDescription, "at least one", "2x-1");
         }
 
         /** @brief Tests that upsampled_extents refuses a product beyond 64 bits on either axis. */
@@ -995,8 +1058,10 @@ namespace SushiAI
         {
             const int64_t scale = int64_t{1} << 62;
 
-            SA_EXPECT_ERROR((void)Graph::upsampled_extents(5, 1, scale, 1), "fit in 64 bits");
-            SA_EXPECT_ERROR((void)Graph::upsampled_extents(1, 5, 1, scale), "fit in 64 bits");
+            SA_EXPECT_FAILURE(Graph::upsampled_extents(5, 1, scale, 1),
+                              StatusCode::InvalidDescription, "fit in 64 bits");
+            SA_EXPECT_FAILURE(Graph::upsampled_extents(1, 5, 1, scale),
+                              StatusCode::InvalidDescription, "fit in 64 bits");
         }
 
         /** @brief Tests that upsampled_extents accepts the largest product 64 bits hold. */
@@ -1004,7 +1069,8 @@ namespace SushiAI
         {
             const int64_t largest = std::numeric_limits<int64_t>::max();
 
-            const Graph::SpatialExtents out = Graph::upsampled_extents(largest / 2, 1, 2, 1);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents out,
+                                    Graph::upsampled_extents(largest / 2, 1, 2, 1));
 
             EXPECT_EQ(out.height, largest - 1);
             EXPECT_EQ(out.width, 1);
@@ -1018,7 +1084,8 @@ namespace SushiAI
             const ValueID x = builder.input({1, 1, 5, 3}, "x");
             const std::size_t operands = graph.node_count();
 
-            SA_EXPECT_ERROR((void)builder.upsample2d(x, 1, int64_t{1} << 62), "fit in 64 bits");
+            SA_EXPECT_FAILURE(builder.upsample2d(x, 1, int64_t{1} << 62),
+                              StatusCode::InvalidDescription, "fit in 64 bits");
             EXPECT_EQ(graph.node_count(), operands);
         }
 
@@ -1031,10 +1098,11 @@ namespace SushiAI
             const ValueID weight = builder.parameter({4, 3, 3, 3}, "weight");
             const Graph::ConvGeometry g = square_window(3, -1);
 
-            SA_EXPECT_ERROR((void)builder.im2col(x, g), "padding");
-            SA_EXPECT_ERROR((void)builder.conv2d(x, weight, Graph::K_NO_VALUE, g), "padding");
-            SA_EXPECT_ERROR((void)builder.maxpool2d(x, g), "padding");
-            SA_EXPECT_ERROR((void)builder.avgpool2d(x, g), "padding");
+            SA_EXPECT_FAILURE(builder.im2col(x, g), StatusCode::InvalidDescription, "padding");
+            SA_EXPECT_FAILURE(builder.conv2d(x, weight, Graph::K_NO_VALUE, g),
+                              StatusCode::InvalidDescription, "padding");
+            SA_EXPECT_FAILURE(builder.maxpool2d(x, g), StatusCode::InvalidDescription, "padding");
+            SA_EXPECT_FAILURE(builder.avgpool2d(x, g), StatusCode::InvalidDescription, "padding");
         }
 
         /** @brief Tests that col2im refuses a negative padding by name. */
@@ -1044,8 +1112,8 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID cols = builder.input({36, 27}, "cols");
 
-            SA_EXPECT_ERROR((void)builder.col2im(cols, Shape({1, 8, 8, 3}), square_window(3, -1)),
-                            "padding");
+            SA_EXPECT_FAILURE(builder.col2im(cols, Shape({1, 8, 8, 3}), square_window(3, -1)),
+                              StatusCode::InvalidDescription, "padding");
         }
 
         /** @brief Tests that col2im refuses an image shape that is not rank 4. */
@@ -1055,8 +1123,8 @@ namespace SushiAI
             const GraphBuilder builder(graph);
             const ValueID cols = builder.input({9, 27}, "cols");
 
-            SA_EXPECT_ERROR((void)builder.col2im(cols, Shape({5, 5, 3}), square_window(3, 0)),
-                            "col2im", "rank-4");
+            SA_EXPECT_FAILURE(builder.col2im(cols, Shape({5, 5, 3}), square_window(3, 0)),
+                              StatusCode::InvalidDescription, "col2im", "rank-4");
         }
 
         /** @brief Tests that the deriving emitters name the layout before a window's fit. */
@@ -1065,12 +1133,16 @@ namespace SushiAI
             Graph::Graph graph;
             const GraphBuilder builder(graph);
             const ValueID x = builder.input({1, 8, 8, 2}, "x");
-            const ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw,
+                                    builder.layout_convert(x, Graph::TensorLayout::NCHW));
             const Graph::ConvGeometry g = square_window(3, 0);
 
-            SA_EXPECT_ERROR((void)builder.im2col(nchw, g), "im2col", "NHWC");
-            SA_EXPECT_ERROR((void)builder.maxpool2d(nchw, g), "maxpool2d", "NHWC");
-            SA_EXPECT_ERROR((void)builder.avgpool2d(nchw, g), "avgpool2d", "NHWC");
+            SA_EXPECT_FAILURE(builder.im2col(nchw, g),
+                              StatusCode::InvalidDescription, "im2col", "NHWC");
+            SA_EXPECT_FAILURE(builder.maxpool2d(nchw, g),
+                              StatusCode::InvalidDescription, "maxpool2d", "NHWC");
+            SA_EXPECT_FAILURE(builder.avgpool2d(nchw, g),
+                              StatusCode::InvalidDescription, "avgpool2d", "NHWC");
         }
     }
 }
