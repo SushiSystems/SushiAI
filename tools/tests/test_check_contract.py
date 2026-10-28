@@ -12,7 +12,6 @@ import io
 import sys
 import tempfile
 import unittest
-from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,23 +22,19 @@ from contract.check_contract import (  # noqa: E402
     K_HEAD_LENGTH,
     K_SITE_TABLE,
     Repository,
-    count_bridges,
+    find_removed_names,
     find_sites,
-    is_frozen,
     main,
-    module_of,
-    note_bridge_count,
-    note_frozen_growth,
     note_open_question,
     note_unclassified,
-    rule_ratchet,
+    rule_removed_surface,
     rule_stale_row,
     rule_table_shape,
     rule_unlisted_site,
 )
 
-K_ONE_SITE = 'void f(int rank)\n{\n    SA_THROW_IF(rank > 4, "rank {} is too high", rank);\n}\n'
-K_SECOND_SITE = 'void g(int rank)\n{\n    SA_THROW_IF(rank < 0, "rank {} is negative", rank);\n}\n'
+K_ONE_SITE = 'void f(int rank)\n{\n    throw Failure("rank {} is too high");\n}\n'
+K_SECOND_SITE = 'void g(int rank)\n{\n    throw Failure("rank {} is negative");\n}\n'
 K_TWO_SITES = K_ONE_SITE + K_SECOND_SITE
 K_FILE = "modules/core/core/source/a.cpp"
 K_OTHER_FILE = "modules/core/core/source/b.cpp"
@@ -49,7 +44,7 @@ def _row(
     file: str,
     line: int,
     head: str,
-    kind: str = "macro",
+    kind: str = "throw",
     mechanism: str = "status",
     question: str = "",
 ) -> str:
@@ -83,24 +78,24 @@ def _run(folder: str, *flags: str) -> tuple[int, str]:
 class SiteScannerTest(unittest.TestCase):
     """Checks what counts as a failure site and how its message head is cut."""
 
-    def test_finds_a_macro_site_with_its_line_and_head(self) -> None:
-        """Reports the call's line and the format string as the head."""
+    def test_finds_a_throw_site_with_its_line_and_head(self) -> None:
+        """Reports the statement's line and its first literal as the head."""
         sites = find_sites(K_FILE, K_ONE_SITE)
         self.assertEqual(
             [(site.line, site.kind, site.head) for site in sites],
-            [(3, "macro", "rank {} is too high")],
+            [(3, "throw", "rank {} is too high")],
         )
 
     def test_joins_adjacent_literals_and_cuts_the_head(self) -> None:
-        """Joins the literals of a wrapped format string and keeps the first characters."""
+        """Joins the literals of a wrapped message and keeps the first characters."""
         literals = '"' + "x" * 40 + '"\n    " and ' + "y" * 40 + '"'
-        text = "SA_THROW_IF(a(b, c) || d,\n    " + literals + ", a);\n"
+        text = "throw Failure(\n    " + literals + ", a);\n"
         head = find_sites(K_FILE, text)[0].head
         self.assertEqual(head, ("x" * 40 + " and " + "y" * 40)[:K_HEAD_LENGTH])
 
     def test_unescapes_a_quote_in_the_head(self) -> None:
         """Counts an escaped quote as one character of the head."""
-        text = 'SA_THROW_IF(bad, "the name \\"{}\\" is taken", name);\n'
+        text = 'throw Failure("the name \\"{}\\" is taken");\n'
         self.assertEqual(find_sites(K_FILE, text)[0].head, 'the name "{}" is taken')
 
     def test_finds_a_throw_statement(self) -> None:
@@ -112,96 +107,83 @@ class SiteScannerTest(unittest.TestCase):
             [(3, "throw", "no arena of {} bytes")],
         )
 
-    def test_skips_comments_literals_and_the_definition(self) -> None:
-        """Reports no site for a mention in a comment, in a literal or in a #define block."""
+    def test_skips_comments_and_literals(self) -> None:
+        """Reports no site for a mention of throw in a comment or in a literal."""
         text = (
-            "// unreachable: SA_THROW_IF(true) always throws\n"
+            '// unreachable: throw Failure("x") always runs\n'
             "/* throw nothing */\n"
-            "#define SA_THROW_IF(condition, ...) \\\n"
-            "    do { if (condition) { throw ::Error(format(__VA_ARGS__)); } } while (0)\n"
-            'const char* text = "they throw when SA_THROW_IF(x) fires";\n'
+            'const char* text = "they throw when x fires";\n'
         )
-        self.assertEqual(find_sites("modules/core/core/include/SushiAI/core/common.hpp", text), [])
-
-    def test_counts_a_macro_that_wraps_the_site_macro(self) -> None:
-        """Reports the SA_THROW_IF in the body of another #define, continuation lines included."""
-        text = (
-            "#define MY_CHECK(condition) SA_THROW_IF(condition, \"wrapped\")\n"
-            "#define MY_LONG_CHECK(condition) \\\n"
-            "    SA_THROW_IF(condition, \"wrapped twice\")\n"
-        )
-        sites = find_sites(K_FILE, text)
-        self.assertEqual(
-            [(site.line, site.head) for site in sites], [(1, "wrapped"), (3, "wrapped twice")]
-        )
+        self.assertEqual(find_sites("modules/core/core/include/SushiAI/core/a.hpp", text), [])
 
     def test_keeps_a_digit_separator_out_of_literals(self) -> None:
         """Finds the site that follows a number written with digit separators."""
         text = "const int limit = 1'000'000;\n" + K_ONE_SITE
         self.assertEqual(len(find_sites(K_FILE, text)), 1)
 
-K_TEST_FROZEN = ("modules/core/graph/source/lowering.cpp", "modules/core/optim/source/")
-K_FROZEN_NAME = "contract.check_contract.K_FROZEN"
 
-
-class PathTest(unittest.TestCase):
-    """Checks the frozen list and the module of a path."""
-
-    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
-    def test_names_frozen_files_and_folders(self) -> None:
-        """Treats a listed file and every file under a listed folder as frozen."""
-        self.assertTrue(is_frozen("modules/core/graph/source/lowering.cpp"))
-        self.assertTrue(is_frozen("modules/core/optim/source/adamw.cpp"))
-        self.assertFalse(is_frozen("modules/core/graph/source/builder.cpp"))
-
-    def test_reads_the_module_from_the_path(self) -> None:
-        """Returns the tier and module of a library file and the folder of a program."""
-        self.assertEqual(module_of("modules/core/graph/source/builder.cpp"), "core/graph")
-        self.assertEqual(
-            module_of("modules/layers/nn/include/SushiAI/nn/module.hpp"), "layers/nn"
-        )
-        self.assertEqual(
-            module_of("modules/vision/detect/include/SushiAI/vision/detect/nms.hpp"),
-            "vision/detect",
-        )
-        self.assertEqual(
-            module_of("modules/layers/umbrella/include/SushiAI/SushiAI.hpp"), "layers/umbrella"
-        )
-        self.assertEqual(
-            module_of("applications/programs/source/train.cpp"), "applications/programs"
-        )
-        self.assertEqual(
-            module_of("applications/examples/demo/main.cpp"), "applications/examples"
-        )
-
-
-class RatchetTest(unittest.TestCase):
-    """Checks that a file may not hold more SA_THROW_IF sites than rows."""
+class RemovedSurfaceTest(unittest.TestCase):
+    """Checks that SA_THROW_IF and the rest of the throwing surface stay removed."""
 
     def test_is_registered(self) -> None:
         """Runs every rule as part of the checker's rule table."""
-        self.assertIs(K_CHECKER.rules["rule_ratchet"], rule_ratchet)
+        self.assertIs(K_CHECKER.rules["rule_removed_surface"], rule_removed_surface)
         self.assertIs(K_CHECKER.rules["rule_unlisted_site"], rule_unlisted_site)
         self.assertIs(K_CHECKER.rules["rule_stale_row"], rule_stale_row)
         self.assertIs(K_CHECKER.rules["rule_table_shape"], rule_table_shape)
 
-    def test_accepts_a_file_with_one_row_per_site(self) -> None:
-        """Reports nothing when the counts agree."""
+    def test_finds_a_call_a_definition_and_an_include(self) -> None:
+        """Reports each removed name with its line, comments and literals aside."""
+        text = (
+            "#include <SushiAI/failure/error.hpp>\n"
+            "// SA_THROW_IF is gone\n"
+            'const char* note = "SA_THROW_IF";\n'
+            'void f() { SA_THROW_IF(true, "x"); }\n'
+            "#define SA_THROW_IF(condition, ...) do {} while (0)\n"
+            "auto r = Detail::bridge_throwing(make());\n"
+            "throw SushiAI::Error(message);\n"
+        )
+        self.assertEqual(
+            find_removed_names(text),
+            [
+                (1, "failure/error.hpp"),
+                (4, "SA_THROW_IF"),
+                (5, "SA_THROW_IF"),
+                (6, "bridge_throwing"),
+                (7, "SushiAI::Error"),
+            ],
+        )
+
+    def test_leaves_the_error_of_another_library_alone(self) -> None:
+        """Accepts SushiRuntime::Error and an enumerator named Error."""
+        text = "const SushiRuntime::Error* refused = tasks.refusal();\nauto l = LogLevel::Error;\n"
+        self.assertEqual(find_removed_names(text), [])
+
+    def test_reports_a_new_site_under_the_library_the_programs_and_the_tests(self) -> None:
+        """Reports SA_THROW_IF in a module, an application and a tests folder, not elsewhere."""
+        text = 'void f() { SA_THROW_IF(true, "x"); }\n'
+        files = {
+            "modules/core/core/source/a.cpp": text,
+            "applications/programs/source/train.cpp": text,
+            "tests/unit/test_a.cpp": text,
+            "modules/core/stray.cpp": text,
+            "tools/other.cpp": text,
+        }
         with tempfile.TemporaryDirectory() as folder:
-            rows = [_row(K_FILE, 3, "rank {} is too high")]
+            issues = list(rule_removed_surface(_repository(folder, files, [])))
             self.assertEqual(
-                list(rule_ratchet(_repository(folder, {K_FILE: K_ONE_SITE}, rows))), []
+                sorted(issue.path.name for issue in issues), ["a.cpp", "test_a.cpp", "train.cpp"]
             )
 
-    def test_reports_a_site_added_after_the_table(self) -> None:
-        """Reports the first surplus site of a file that outgrew its rows."""
+    def test_accepts_a_tree_without_the_removed_names(self) -> None:
+        """Reports nothing for a file that fails through a status."""
+        text = 'Status f() { SA_FAIL_IF(true, StatusCode::InvalidDescription, "x"); }\n'
         with tempfile.TemporaryDirectory() as folder:
-            rows = [_row(K_FILE, 3, "rank {} is too high")]
-            issues = list(rule_ratchet(_repository(folder, {K_FILE: K_TWO_SITES}, rows)))
-            self.assertEqual([(issue.path.name, issue.line) for issue in issues], [("a.cpp", 7)])
+            repository = _repository(folder, {K_FILE: text}, [])
+            self.assertEqual(list(rule_removed_surface(repository)), [])
 
-    def test_reads_the_applications_and_no_tests_folder(self) -> None:
-        """Reports a site without a row under applications/, and none under a tests/ folder."""
+    def test_reads_the_applications_and_no_tests_folder_for_throw_sites(self) -> None:
+        """Reports a throw without a row under applications/, and none under a tests/ folder."""
         files = {
             "applications/programs/source/train.cpp": K_ONE_SITE,
             "applications/examples/source/demo.cpp": K_ONE_SITE,
@@ -212,34 +194,9 @@ class RatchetTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, files, [])
             self.assertEqual(
-                [issue.path.name for issue in rule_ratchet(repository)], ["demo.cpp", "train.cpp"]
+                [issue.path.name for issue in rule_unlisted_site(repository)],
+                ["demo.cpp", "train.cpp"],
             )
-            self.assertEqual(len(list(rule_unlisted_site(repository))), 2)
-
-    def test_reports_a_wrapper_macro_added_after_the_table(self) -> None:
-        """Fails the ratchet for a new macro whose body calls SA_THROW_IF."""
-        text = K_ONE_SITE + "#define MY_CHECK(condition) SA_THROW_IF(condition, \"wrapped\")\n"
-        with tempfile.TemporaryDirectory() as folder:
-            rows = [_row(K_FILE, 3, "rank {} is too high")]
-            repository = _repository(folder, {K_FILE: text}, rows)
-            self.assertEqual([issue.line for issue in rule_ratchet(repository)], [5])
-
-    def test_does_not_count_a_throw_row_as_room_for_a_macro(self) -> None:
-        """Compares SA_THROW_IF sites with the rows of kind macro only."""
-        with tempfile.TemporaryDirectory() as folder:
-            rows = [_row(K_FILE, 3, "rank {} is too high", kind="throw")]
-            repository = _repository(folder, {K_FILE: K_ONE_SITE}, rows)
-            self.assertEqual(len(list(rule_ratchet(repository))), 1)
-
-    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
-    def test_only_notes_a_frozen_file(self) -> None:
-        """Leaves a frozen file to the note and out of the failing rules."""
-        with tempfile.TemporaryDirectory() as folder:
-            rows = [_row("modules/core/optim/source/a.cpp", 3, "rank {} is too high")]
-            repository = _repository(folder, {"modules/core/optim/source/a.cpp": K_TWO_SITES}, rows)
-            self.assertEqual(list(rule_ratchet(repository)), [])
-            self.assertEqual(list(rule_unlisted_site(repository)), [])
-            self.assertEqual([issue.line for issue in note_frozen_growth(repository)], [7, 7])
 
 
 class CoverageTest(unittest.TestCase):
@@ -345,34 +302,6 @@ class TableShapeTest(unittest.TestCase):
 class NoteTest(unittest.TestCase):
     """Checks the notes, which are printed and never fail the run."""
 
-    def test_counts_bridge_calls_outside_comments(self) -> None:
-        """Counts a call and ignores a mention in a comment."""
-        text = "// Detail::bridge(result) throws\nauto x = Detail::bridge(make());\n"
-        self.assertEqual(count_bridges(text), 1)
-
-    def test_counts_no_other_function_named_bridge(self) -> None:
-        """Ignores a member call and an unqualified call of the same name."""
-        self.assertEqual(count_bridges("auto x = other.bridge(a);\nauto y = bridge(b);\n"), 0)
-
-    def test_reports_the_bridge_count_per_module(self) -> None:
-        """Yields one line per module that bridges and one line with the total."""
-        files = {
-            "modules/core/graph/source/a.cpp": (
-                "auto x = Detail::bridge(a());\nauto y = Detail::bridge(b());\n"
-            ),
-            "modules/layers/nn/include/SushiAI/nn/b.hpp": "auto z = Detail::bridge(c());\n",
-            "modules/core/core/source/c.cpp": "int d = 0;\n",
-        }
-        with tempfile.TemporaryDirectory() as folder:
-            messages = [
-                issue.message for issue in note_bridge_count(_repository(folder, files, []))
-            ]
-            self.assertEqual(messages, [
-                "module core/graph: 2 bridge calls",
-                "module layers/nn: 1 bridge calls",
-                "3 bridge calls; the last wave needs 0",
-            ])
-
     def test_lists_a_row_that_waits_for_a_class(self) -> None:
         """Yields a note for a row whose mechanism is unclassified."""
         with tempfile.TemporaryDirectory() as folder:
@@ -402,22 +331,16 @@ class NoteTest(unittest.TestCase):
 class ExitCodeTest(unittest.TestCase):
     """Checks what the command line returns."""
 
-    @mock.patch(K_FROZEN_NAME, K_TEST_FROZEN)
     def test_exits_clean_when_the_table_covers_the_tree(self) -> None:
-        """Returns 0 for a tree whose only remarks are notes."""
-        files = {
-            K_FILE: K_ONE_SITE + "auto x = Detail::bridge(a());\n",
-            "modules/core/optim/source/b.cpp": K_ONE_SITE,
-        }
+        """Returns 0 for a tree whose throw sites all have rows."""
         with tempfile.TemporaryDirectory() as folder:
-            _repository(folder, files, [_row(K_FILE, 3, "rank {} is too high")])
+            _repository(folder, {K_FILE: K_ONE_SITE}, [_row(K_FILE, 3, "rank {} is too high")])
             code, printed = _run(folder)
             self.assertEqual(code, 0)
-            self.assertIn("note: modules/core/optim/source/b.cpp:3: note_frozen_growth", printed)
-            self.assertIn("1 bridge calls", printed)
+            self.assertEqual(printed, "")
 
-    def test_exits_with_findings_when_a_site_was_added(self) -> None:
-        """Returns 1 and names the ratchet when a file outgrew its rows."""
+    def test_exits_with_findings_when_a_throw_was_added(self) -> None:
+        """Returns 1 and names the rule when a file holds a throw no row describes."""
         with tempfile.TemporaryDirectory() as folder:
             _repository(
                 folder,
@@ -426,7 +349,16 @@ class ExitCodeTest(unittest.TestCase):
             )
             code, printed = _run(folder)
             self.assertEqual(code, 1)
-            self.assertIn("modules/core/core/source/a.cpp:7: rule_ratchet:", printed)
+            self.assertIn("modules/core/core/source/a.cpp:7: rule_unlisted_site:", printed)
+
+    def test_exits_with_findings_when_the_removed_macro_returns(self) -> None:
+        """Returns 1 and names the rule for a new SA_THROW_IF."""
+        text = 'void f() { SA_THROW_IF(true, "x"); }\n'
+        with tempfile.TemporaryDirectory() as folder:
+            _repository(folder, {K_FILE: text}, [])
+            code, printed = _run(folder)
+            self.assertEqual(code, 1)
+            self.assertIn("modules/core/core/source/a.cpp:1: rule_removed_surface:", printed)
 
     def test_reports_counts_and_exits_clean(self) -> None:
         """Returns 0 under --report and prints one count per rule."""
@@ -438,7 +370,7 @@ class ExitCodeTest(unittest.TestCase):
             )
             code, printed = _run(folder, "--report")
             self.assertEqual(code, 0)
-            self.assertIn("rule_ratchet: 1", printed)
+            self.assertIn("rule_unlisted_site: 1", printed)
 
 
 if __name__ == "__main__":

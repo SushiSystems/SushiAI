@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — tools: Changed `check_contract.py` to fail on any use of `SA_THROW_IF`, `SushiAI::Error` or the removed headers in the library, the programs and the tests; dropped the ratchet and the bridge count (`check_contract.py`).
 - 2026-10-28 — data: Dropped the row text that said a `SushiAI::Error` stops the loader; the type is gone (`README.md`).
 - 2026-10-28 — training: Corrected the doc comment of `AnchorObjective::loss`, which promised a thrown `Error` (`anchor_objective.hpp`).
 - 2026-10-28 — imaging: Corrected the doc comments of `LabelSet` and `resize_nearest` that promised a thrown `Error` (`label_set.hpp`, `resize.hpp`).

@@ -3,9 +3,10 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks the failure sites of the library and of the applications against the class table.
+"""Checks the throw sites of the library and of the applications against the class table.
 
-The table is tools/contract/site_classes.tsv.
+A use of SA_THROW_IF or of another removed name anywhere in the library, the programs or the tests
+is a finding. The table is tools/contract/site_classes.tsv.
 Usage: python tools/contract/check_contract.py [repository root] [--report] [--rule NAME]
 The design is docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md, sections 5 and 6.
 """
@@ -13,7 +14,6 @@ The design is docs/agent/2026_10_07_ERROR_CONTRACT_AND_NAMING/SPEC.md, sections 
 from __future__ import annotations
 
 import argparse
-import fnmatch
 import re
 import sys
 from collections import Counter, defaultdict
@@ -30,22 +30,22 @@ K_SITE_TABLE = Path("tools/contract/site_classes.tsv")
 K_LIBRARY_FOLDERS = ("modules/*/*/include", "modules/*/*/source")
 K_PROGRAM_FOLDERS = ("applications",)
 K_SITE_FOLDERS = K_LIBRARY_FOLDERS + K_PROGRAM_FOLDERS
-K_LIBRARY_DEPTH = 4
+K_REMOVED_FOLDERS = K_SITE_FOLDERS + ("tests",)
 K_SOURCE_SUFFIXES = (".hpp", ".cpp", ".h", ".inl")
-K_FROZEN: tuple[str, ...] = ()
 K_COLUMNS = (
     "file", "line", "function", "kind", "message_head", "cause", "mechanism", "open_question",
     "reason",
 )
-K_KINDS = ("macro", "throw")
+K_KINDS = ("throw",)
 K_CAUSES = ("user-content", "outside", "precondition", "invariant", "unclassified")
 K_MECHANISMS = ("status", "fatal", "unclassified")
 K_HEAD_LENGTH = 60
 K_QUESTION_KEYS = re.compile(r"(?:[a-z0-9_]+(?:;[a-z0-9_]+)*)?")
-K_SITE_MACRO_DEFINITION = re.compile(r"\s*#\s*define\s+SA_THROW_IF\b")
-K_MACRO_SITE = re.compile(r"\bSA_THROW_IF\s*\(")
 K_THROW_SITE = re.compile(r"\bthrow\b")
-K_BRIDGE_CALL = re.compile(r"\bDetail\s*::\s*bridge\s*\(")
+K_REMOVED_NAMES = re.compile(
+    r"\bSA_THROW_IF\b|\bSA_EXPECT_ERROR\b|\bbridge_throwing\b|\bSushiAI\s*::\s*Error\b"
+    r"|failure/error\.hpp|nn/throwing_bridge\.hpp|failure_expectations/throw_expectations\.hpp"
+)
 K_LITERAL = re.compile(r'\s*"((?:[^"\\\n]|\\.)*)"')
 K_OPENERS = "([{"
 K_CLOSERS = ")]}"
@@ -101,26 +101,10 @@ def _raw_literal_end(text: str, start: int) -> int:
     return -1 if end < 0 else end + len(closing)
 
 
-def _directive_free(masked: str, original: str) -> str:
-    """Returns masked with the directive that defines SA_THROW_IF blanked, continuations included.
-
-    Every other directive stays, so a macro that wraps SA_THROW_IF holds a site.
-    """
-    kept: list[str] = []
-    in_directive = False
-    for masked_line, original_line in zip(masked.split("\n"), original.split("\n")):
-        if in_directive or K_SITE_MACRO_DEFINITION.match(masked_line):
-            kept.append(" " * len(masked_line))
-            in_directive = original_line.rstrip().endswith("\\")
-        else:
-            kept.append(masked_line)
-    return "\n".join(kept)
-
-
 def mask_source(text: str) -> tuple[str, str]:
     """Returns the C++ text twice with comments blanked: literals kept, then blanked.
 
-    Both results keep every offset and line of the input and hold no definition of SA_THROW_IF.
+    Both results keep every offset and line of the input.
     """
     kept: list[str] = []
     code: list[str] = []
@@ -152,36 +136,7 @@ def mask_source(text: str) -> tuple[str, str]:
             kept.append(character)
             code.append(character)
         index = end
-    return _directive_free("".join(kept), text), _directive_free("".join(code), text)
-
-
-def _call_end(code: str, open_paren: int) -> int:
-    """Returns the index of the bracket that closes the one at open_paren."""
-    depth = 0
-    for index in range(open_paren, len(code)):
-        if code[index] in K_OPENERS:
-            depth += 1
-        elif code[index] in K_CLOSERS:
-            depth -= 1
-            if depth == 0:
-                return index
-    return len(code) - 1
-
-
-def _second_argument(code: str, open_paren: int, close_paren: int) -> tuple[int, int]:
-    """Returns the span of the call's second argument, empty when it has one argument."""
-    depth = 0
-    commas: list[int] = []
-    for index in range(open_paren + 1, close_paren):
-        if code[index] in K_OPENERS:
-            depth += 1
-        elif code[index] in K_CLOSERS:
-            depth -= 1
-        elif code[index] == "," and depth == 0:
-            commas.append(index)
-    if not commas:
-        return close_paren, close_paren
-    return commas[0] + 1, commas[1] if len(commas) > 1 else close_paren
+    return "".join(kept), "".join(code)
 
 
 def message_head(text: str) -> str:
@@ -199,14 +154,9 @@ def message_head(text: str) -> str:
 
 
 def find_sites(file: str, text: str) -> list[Site]:
-    """Returns every SA_THROW_IF call and every throw statement of one source text, by line."""
+    """Returns every throw statement of one source text, by line."""
     kept, code = mask_source(text)
     sites: list[Site] = []
-    for match in K_MACRO_SITE.finditer(code):
-        close_paren = _call_end(code, match.end() - 1)
-        start, end = _second_argument(code, match.end() - 1, close_paren)
-        line = code.count("\n", 0, match.start()) + 1
-        sites.append(Site(file, line, "macro", message_head(kept[start:end])))
     for match in K_THROW_SITE.finditer(code):
         end = code.find(";", match.end())
         statement = kept[match.end():len(kept) if end < 0 else end]
@@ -216,25 +166,13 @@ def find_sites(file: str, text: str) -> list[Site]:
     return sorted(sites, key=lambda site: site.line)
 
 
-def count_bridges(text: str) -> int:
-    """Returns how many Detail::bridge( calls one source text holds outside comments."""
-    return len(K_BRIDGE_CALL.findall(mask_source(text)[1]))
-
-
-def is_frozen(file: str) -> bool:
-    """Returns whether a file is one the wave may not edit yet."""
-    return any(
-        file == entry or (entry.endswith("/") and file.startswith(entry)) for entry in K_FROZEN
-    )
-
-
-def module_of(file: str) -> str:
-    """Returns the tier and module of a library file, or the folder of a program, from its path."""
-    parts = file.split("/")
-    folder = "/".join(parts[:K_LIBRARY_DEPTH])
-    if any(fnmatch.fnmatchcase(folder, pattern) for pattern in K_LIBRARY_FOLDERS):
-        return "/".join(parts[1:3])
-    return "/".join(parts[:2]) if len(parts) > 2 else parts[0]
+def find_removed_names(text: str) -> list[tuple[int, str]]:
+    """Returns the line and the text of each use of a removed name outside comments and literals."""
+    code = mask_source(text)[1]
+    return [
+        (code.count("\n", 0, match.start()) + 1, match.group(0))
+        for match in K_REMOVED_NAMES.finditer(code)
+    ]
 
 
 class Repository:
@@ -255,6 +193,19 @@ class Repository:
                     if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
                         name = path.relative_to(self.root).as_posix()
                         found[name] = path.read_text(encoding="utf-8")
+        return found
+
+    @cached_property
+    def removed_uses(self) -> dict[str, list[tuple[int, str]]]:
+        """Returns the uses of a removed name in each file of the library, programs and tests."""
+        found: dict[str, list[tuple[int, str]]] = {}
+        for pattern in K_REMOVED_FOLDERS:
+            for folder in sorted(self.root.glob(pattern)):
+                for path in sorted(folder.rglob("*")):
+                    if path.is_file() and path.suffix in K_SOURCE_SUFFIXES:
+                        uses = find_removed_names(path.read_text(encoding="utf-8"))
+                        if uses:
+                            found[path.relative_to(self.root).as_posix()] = uses
         return found
 
     @cached_property
@@ -306,15 +257,6 @@ def collect(paths: list[Path]) -> Iterable[Repository]:
     return [Repository(path if path.is_dir() else path.parent) for path in paths]
 
 
-def _macro_surplus(repository: Repository) -> Iterator[tuple[str, int, int, int]]:
-    """Yields file, first surplus line, site count and row count where sites exceed rows."""
-    for file, sites in repository.sites.items():
-        macros = [site for site in sites if site.kind == "macro"]
-        allowed = sum(1 for row in repository.rows.get(file, []) if row.kind == "macro")
-        if len(macros) > allowed:
-            yield file, macros[allowed].line, len(macros), allowed
-
-
 def rule_table_shape(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for a missing table, a wrong header, a malformed or misplaced row."""
     if not repository.table_lines:
@@ -339,37 +281,24 @@ def rule_table_shape(repository: Repository) -> Iterator[Issue]:
         previous = (cells[0], int(cells[1]))
 
 
-def rule_ratchet(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each unfrozen file that holds more SA_THROW_IF sites than rows."""
-    for file, line, count, allowed in _macro_surplus(repository):
-        if not is_frozen(file):
-            message = f"{count} SA_THROW_IF sites, {allowed} rows; a new site uses the new macros"
+def rule_removed_surface(repository: Repository) -> Iterator[Issue]:
+    """Yields an issue for each use of SA_THROW_IF, SushiAI::Error or another removed name."""
+    for file, uses in repository.removed_uses.items():
+        for line, name in uses:
+            message = f"'{name}' belongs to the removed throwing surface; use the failure contract"
             yield Issue(repository.root / file, line, message)
 
 
 def rule_unlisted_site(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each site of an unfrozen file that no row describes."""
+    """Yields an issue for each throw site that no row describes."""
     for site in repository.unmatched[0]:
-        if not is_frozen(site.file):
-            yield Issue(repository.root / site.file, site.line, f"no row for '{site.head}'")
+        yield Issue(repository.root / site.file, site.line, f"no row for '{site.head}'")
 
 
 def rule_stale_row(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each row that matches no site of its file."""
     for row in repository.unmatched[1]:
         yield Issue(repository.table, row.number, f"no site in {row.file} for '{row.head}'")
-
-
-def note_frozen_growth(repository: Repository) -> Iterator[Issue]:
-    """Yields a note for each frozen file whose sites outgrew or left its rows."""
-    for file, line, count, allowed in _macro_surplus(repository):
-        if is_frozen(file):
-            yield Issue(
-                repository.root / file, line, f"frozen: {count} SA_THROW_IF sites, {allowed} rows"
-            )
-    for site in repository.unmatched[0]:
-        if is_frozen(site.file):
-            yield Issue(repository.root / site.file, site.line, f"frozen: no row for '{site.head}'")
 
 
 def note_unclassified(repository: Repository) -> Iterator[Issue]:
@@ -393,33 +322,20 @@ def note_open_question(repository: Repository) -> Iterator[Issue]:
         yield Issue(repository.table, first[key], f"{key}: {counts[key]} rows wait for an answer")
 
 
-def note_bridge_count(repository: Repository) -> Iterator[Issue]:
-    """Yields one note per module that calls Detail::bridge, and one with the total."""
-    counts: Counter[str] = Counter()
-    for file, text in repository.sources.items():
-        counts[module_of(file)] += count_bridges(text)
-    for module in sorted(counts):
-        if counts[module]:
-            yield Issue(repository.root, 0, f"module {module}: {counts[module]} bridge calls")
-    yield Issue(repository.root, 0, f"{sum(counts.values())} bridge calls; the last wave needs 0")
-
-
 K_CHECKER = Checker(
-    description="Checks the failure sites against the class table of the error contract.",
+    description="Checks the throw sites against the class table and bans the removed throwing surface.",
     collect=collect,
     rules={
         "rule_table_shape": rule_table_shape,
-        "rule_ratchet": rule_ratchet,
+        "rule_removed_surface": rule_removed_surface,
         "rule_unlisted_site": rule_unlisted_site,
         "rule_stale_row": rule_stale_row,
     },
 )
 
 K_NOTES = {
-    "note_frozen_growth": note_frozen_growth,
     "note_unclassified": note_unclassified,
     "note_open_question": note_open_question,
-    "note_bridge_count": note_bridge_count,
 }
 
 
