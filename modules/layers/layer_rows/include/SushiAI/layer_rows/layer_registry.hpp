@@ -39,7 +39,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Builds a fresh registry that holds the rows register_layers adds. */
-        [[nodiscard]] inline NN::NodeRegistry make_layer_registry()
+        [[nodiscard]] inline NN::NodeRegistry make_layer_registry() noexcept
         {
             NN::NodeRegistry registry;
             SA_EXPECT_OK(NN::register_layers(registry));
@@ -48,7 +48,7 @@ namespace SushiAI
 
         /** @brief Lists the type of every row of @p rows, in order. */
         template<typename Entry>
-        [[nodiscard]] std::vector<std::string_view> types_of(SushiRuntime::span<const Entry> rows)
+        [[nodiscard]] std::vector<std::string_view> types_of(SushiRuntime::span<const Entry> rows) noexcept
         {
             std::vector<std::string_view> types;
             for (const Entry& entry : rows)

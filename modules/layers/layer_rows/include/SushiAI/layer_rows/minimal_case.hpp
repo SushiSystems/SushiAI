@@ -51,7 +51,7 @@ namespace SushiAI
         };
 
         /** @brief Views @p shapes as the inputs of one row. */
-        [[nodiscard]] inline NN::ShapeSpan span_of(const std::vector<Shape>& shapes)
+        [[nodiscard]] inline NN::ShapeSpan span_of(const std::vector<Shape>& shapes) noexcept
         {
             return NN::ShapeSpan(shapes.data(), shapes.size());
         }
@@ -59,7 +59,7 @@ namespace SushiAI
         /** @brief Builds the node @p minimal describes from @p registry, as "layer 0 '<type>'". */
         [[nodiscard]] inline Result<std::unique_ptr<NN::Node>> make_minimal(
             const NN::NodeRegistry& registry, const MinimalCase& minimal,
-            std::string_view attributes)
+            std::string_view attributes) noexcept
         {
             const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
             return NN::make_node(registry, minimal.type, span_of(minimal.inputs),
