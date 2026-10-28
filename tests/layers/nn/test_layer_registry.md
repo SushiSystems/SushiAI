@@ -107,7 +107,7 @@ null for the expected `L`. Two rows that pointed at one factory would fail for o
 
 ## EachFactoryRejectsAnUnknownKey
 
-For every case, an object holding only `"no_such_key"` throws with a message containing the
+For every case, an object holding only `"no_such_key"` returns `InvalidDescription` with a message containing the
 layer's context and "'no_such_key'".
 
 ## Conv2dTakesItsInputChannelsFromTheInputShape
@@ -118,7 +118,7 @@ that disagrees with the layer before it.
 
 ## Conv2dRefusesAnInputThatIsNotAnImage
 
-A `conv2d` given the per-sample shape [784] throws. The message contains the context, "[784]",
+A `conv2d` given the per-sample shape [784] returns `InvalidDescription`. The message contains the context, "[784]",
 "[H, W, C]" and "'unflatten'", the layer that gives a feature vector its image shape.
 
 ## Conv2dDefaultsItsOptionalKeys
@@ -193,8 +193,8 @@ with `"scale": 3` maps it to [12, 12, 2].
 
 ## UnflattenRefusesAnInputOfAnotherSize
 
-A 28 x 28 x 1 `unflatten` given [783] throws with a message containing the context, "[783]"
-and "[784]". An object without "channels" throws with a message containing the context and
+A 28 x 28 x 1 `unflatten` given [783] returns `InvalidDescription` with a message containing the context, "[783]"
+and "[784]". An object without "channels" returns `InvalidDescription` with a message containing the context and
 "channels".
 
 ## TheConvModelBuildsAndReportsItsOutputShape
@@ -238,20 +238,20 @@ and the stack reports [180].
 
 ## AChainRefusesARowThatReadsTwoRows
 
-Row 2 with `"from": [-1, 0]` makes `build_layer_stack` throw with a message containing "layer
+Row 2 with `"from": [-1, 0]` makes `build_layer_stack` fail with a message containing "layer
 2 'relu'", "the row before it" and "build_model".
 
 ## AChainRefusesARowThatSkipsBack
 
-Row 2 with `"from": 0` throws with "layer 2 'relu'" and "the row before it".
+Row 2 with `"from": 0` returns `InvalidDescription` with "layer 2 'relu'" and "the row before it".
 
 ## AChainRefusesALaterRowThatReadsTheInput
 
-Row 1 with `"from": "input"` throws with "layer 1 'tanh'" and "the row before it".
+Row 1 with `"from": "input"` returns `InvalidDescription` with "layer 1 'tanh'" and "the row before it".
 
 ## AChainRefusesOutputsThatPublishAnEarlierRow
 
-A two-row document whose `outputs` is `[{"node": 0}]` throws with a message containing
+A two-row document whose `outputs` is `[{"node": 0}]` returns `InvalidDescription` with a message containing
 "'outputs'", "last row" and "build_model".
 
 ## AChainAcceptsOutputsThatPublishTheLastRow
@@ -260,5 +260,5 @@ The same document with `[{"node": 1}]` builds a stack of two layers.
 
 ## AChainRefusesARowThatReadsANamedPort
 
-Row 1 with `"from": {"node": 0, "port": "output"}` throws with "layer 1 'tanh'" and "the row
+Row 1 with `"from": {"node": 0, "port": "output"}` returns `InvalidDescription` with "layer 1 'tanh'" and "the row
 before it". The row it names is the row above; the port is what the chain refuses.

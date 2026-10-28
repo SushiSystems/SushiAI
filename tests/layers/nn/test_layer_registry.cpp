@@ -39,8 +39,10 @@
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>
@@ -69,6 +71,7 @@ namespace
 {
     using Test::attributes_from;
     using Test::make_layer_registry;
+    using Test::model_from;
 
     /** @brief Holds the unflatten, conv, pool, conv, pool, linear classifier as a model file. */
     constexpr std::string_view K_CONV_MODEL = R"({
@@ -124,18 +127,31 @@ namespace
     };
 
     /** @brief Builds the layer @p type names from @p attributes, as "layer 0 '<type>'". */
-    std::unique_ptr<NN::Layer> make_layer(std::string_view type, std::string_view attributes,
-                                           const Shape& input)
+    Result<std::unique_ptr<NN::Layer>> try_make_layer(std::string_view type,
+                                                      std::string_view attributes,
+                                                      const Shape& input)
     {
         const NN::NodeRegistry registry = make_layer_registry();
         const NN::LayerEntry* entry = registry.find_layer(type);
-        if (entry == nullptr)
-        {
-            ADD_FAILURE() << "no layer row holds '" << type << "'";
-            return nullptr;
-        }
+        SA_FATAL_IF(entry == nullptr, "no layer row holds '{}'", type);
+
         const std::string context = "layer 0 '" + std::string(type) + "'";
         return entry->make(input, attributes_from(attributes), context);
+    }
+
+    /**
+     * @brief Builds the layer @p type names from @p attributes.
+     * @pre The layer is accepted; a test of a refusal calls try_make_layer().
+     */
+    std::unique_ptr<NN::Layer> make_layer(std::string_view type, std::string_view attributes,
+                                          const Shape& input)
+    {
+        Result<std::unique_ptr<NN::Layer>> made = try_make_layer(type, attributes, input);
+        SA_FATAL_IF(!made.has_value(), "the test's layer '{}' is refused: {}", type,
+                    made.status().message());
+
+        // The layer is held, so value() succeeds.
+        return std::move(made).value();
     }
 
     /** @brief Returns the layer of type @p L that @p layer wraps, or null when it wraps another. */
@@ -195,12 +211,25 @@ namespace
         EXPECT_EQ(integer_pool->geometry.stride_w, pair_pool->geometry.stride_w);
     }
 
+    /**
+     * @brief Builds the layer stack the model file @p text describes.
+     * @pre The file is accepted; a test of a refusal calls build_layer_stack() itself.
+     */
+    NN::LayerStack build_stack(std::string_view text)
+    {
+        Result<NN::LayerStack> built =
+            NN::build_layer_stack(make_layer_registry(), model_from(text));
+        SA_FATAL_IF(!built.has_value(), "the test's model file is refused: {}",
+                    built.status().message());
+
+        // The stack is held, so value() succeeds.
+        return std::move(built).value();
+    }
+
     /** @brief Builds the stack K_CONV_MODEL describes. */
     NN::LayerStack make_conv_stack()
     {
-        return NN::build_layer_stack(
-            make_layer_registry(),
-            Config::parse_model(Config::parse_json(K_CONV_MODEL, "<test>"), "<test>"));
+        return build_stack(K_CONV_MODEL);
     }
 
     /** @brief Traces @p model over a [4, 784] input and lists its parameters as "name:extents". */
@@ -298,8 +327,8 @@ TEST(Small_LayerRegistry, EachFactoryRejectsAnUnknownKey)
     {
         const std::string context = "layer 0 '" + std::string(minimal.type) + "'";
 
-        SA_EXPECT_ERROR((void)make_layer(minimal.type, R"({"no_such_key": 1})", minimal.input),
-                        context, "'no_such_key'");
+        SA_EXPECT_FAILURE(try_make_layer(minimal.type, R"({"no_such_key": 1})", minimal.input),
+                          StatusCode::InvalidDescription, context, "'no_such_key'");
     }
 }
 
@@ -314,17 +343,18 @@ TEST(Small_LayerRegistry, Conv2dTakesItsInputChannelsFromTheInputShape)
     EXPECT_EQ(conv->in_channels, 7);
     EXPECT_EQ(conv->out_channels, 5);
 
-    SA_EXPECT_ERROR((void)make_layer("conv2d",
+    SA_EXPECT_FAILURE(try_make_layer("conv2d",
                                      R"({"filters": 5, "kernel": 3, "in_channels": 7})",
                                      Shape{8, 8, 7}),
-                    "layer 0 'conv2d'", "'in_channels'");
+                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "'in_channels'");
 }
 
 /** @brief Tests that a convolution fed a feature vector is refused with the layer that fixes it. */
 TEST(Small_LayerRegistry, Conv2dRefusesAnInputThatIsNotAnImage)
 {
-    SA_EXPECT_ERROR((void)make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{784}),
-                    "layer 0 'conv2d'", "[784]", "[H, W, C]", "'unflatten'");
+    SA_EXPECT_FAILURE(try_make_layer("conv2d", R"({"filters": 5, "kernel": 3})", Shape{784}),
+                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "[784]", "[H, W, C]",
+                      "'unflatten'");
 }
 
 /** @brief Tests that a convolution defaults to stride 1, no padding, dilation 1 and a bias. */
@@ -408,15 +438,20 @@ TEST(Small_LayerRegistry, AWindowSettingOfTheWrongFormIsRefused)
 {
     const Shape image{8, 8, 2};
 
-    SA_EXPECT_ERROR((void)make_layer("maxpool2d", R"({"kernel": [2]})", image),
-                    "layer 0 'maxpool2d' 'kernel'", "two-entry [h, w]", "1 entries");
-    SA_EXPECT_ERROR((void)make_layer("maxpool2d", R"({"kernel": [2, 2, 2]})", image),
-                    "layer 0 'maxpool2d' 'kernel'", "two-entry [h, w]", "3 entries");
-    SA_EXPECT_ERROR((void)make_layer("avgpool2d", R"({"kernel": "2"})", image),
-                    "layer 0 'avgpool2d' 'kernel'", "two-entry [h, w]");
-    SA_EXPECT_ERROR((void)make_layer("conv2d", R"({"filters": 5, "kernel": 3, "stride": 1.5})",
+    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"kernel": [2]})", image),
+                      StatusCode::InvalidDescription, "layer 0 'maxpool2d' 'kernel'",
+                      "two-entry [h, w]", "1 entries");
+    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"kernel": [2, 2, 2]})", image),
+                      StatusCode::InvalidDescription, "layer 0 'maxpool2d' 'kernel'",
+                      "two-entry [h, w]", "3 entries");
+    SA_EXPECT_FAILURE(try_make_layer("avgpool2d", R"({"kernel": "2"})", image),
+                      StatusCode::InvalidDescription, "layer 0 'avgpool2d' 'kernel'",
+                      "two-entry [h, w]");
+    SA_EXPECT_FAILURE(try_make_layer("conv2d",
+                                     R"({"filters": 5, "kernel": 3, "stride": 1.5})",
                                      image),
-                    "layer 0 'conv2d' 'stride'", "two-entry [h, w]");
+                      StatusCode::InvalidDescription, "layer 0 'conv2d' 'stride'",
+                      "two-entry [h, w]");
 }
 
 /** @brief Tests that a pool's stride follows its kernel unless the model file sets one. */
@@ -461,8 +496,8 @@ TEST(Small_LayerRegistry, Conv2dRejectsANonPositiveExtent)
              R"({"filters": 5, "kernel": 3, "dilation": 0})"})
     {
         SCOPED_TRACE(std::string(attributes));
-        SA_EXPECT_ERROR((void)make_layer("conv2d", attributes, image),
-                        "layer 0 'conv2d'", "Conv2d", "positive");
+        SA_EXPECT_FAILURE(try_make_layer("conv2d", attributes, image),
+                          StatusCode::InvalidDescription, "layer 0 'conv2d'", "Conv2d", "positive");
     }
 }
 
@@ -483,7 +518,8 @@ TEST(Small_LayerRegistry, ThePoolsRejectANonPositiveExtent)
                  R"({"kernel": 2, "stride": [-1, 2]})"})
         {
             SCOPED_TRACE(std::string(type) + " " + std::string(attributes));
-            SA_EXPECT_ERROR((void)make_layer(type, attributes, image), context, "positive");
+            SA_EXPECT_FAILURE(try_make_layer(type, attributes, image),
+                              StatusCode::InvalidDescription, context, "positive");
         }
     }
 }
@@ -504,7 +540,8 @@ TEST(Small_LayerRegistry, AWindowedLayerRejectsANegativePadding)
                 "{" + filters + R"("kernel": 3, "padding": )" + std::string(padding) + "}";
 
             SCOPED_TRACE(std::string(type) + " " + attributes);
-            SA_EXPECT_ERROR((void)make_layer(type, attributes, image), context, "padding");
+            SA_EXPECT_FAILURE(try_make_layer(type, attributes, image),
+                              StatusCode::InvalidDescription, context, "padding");
         }
     }
 }
@@ -514,16 +551,16 @@ TEST(Small_LayerRegistry, AFactoryRejectsAMissingRequiredKey)
 {
     const Shape image{8, 8, 2};
 
-    SA_EXPECT_ERROR((void)make_layer("conv2d", R"({"kernel": 3})", image),
-                    "layer 0 'conv2d'", "has no 'filters'");
-    SA_EXPECT_ERROR((void)make_layer("conv2d", R"({"filters": 5})", image),
-                    "layer 0 'conv2d'", "has no 'kernel'");
-    SA_EXPECT_ERROR((void)make_layer("maxpool2d", R"({"stride": 2})", image),
-                    "layer 0 'maxpool2d'", "has no 'kernel'");
-    SA_EXPECT_ERROR((void)make_layer("avgpool2d", R"({"stride": 2})", image),
-                    "layer 0 'avgpool2d'", "has no 'kernel'");
-    SA_EXPECT_ERROR((void)make_layer("linear", R"({"use_bias": false})", Shape{6}),
-                    "layer 0 'linear'", "has no 'units'");
+    SA_EXPECT_FAILURE(try_make_layer("conv2d", R"({"kernel": 3})", image),
+                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "has no 'filters'");
+    SA_EXPECT_FAILURE(try_make_layer("conv2d", R"({"filters": 5})", image),
+                      StatusCode::InvalidDescription, "layer 0 'conv2d'", "has no 'kernel'");
+    SA_EXPECT_FAILURE(try_make_layer("maxpool2d", R"({"stride": 2})", image),
+                      StatusCode::InvalidDescription, "layer 0 'maxpool2d'", "has no 'kernel'");
+    SA_EXPECT_FAILURE(try_make_layer("avgpool2d", R"({"stride": 2})", image),
+                      StatusCode::InvalidDescription, "layer 0 'avgpool2d'", "has no 'kernel'");
+    SA_EXPECT_FAILURE(try_make_layer("linear", R"({"use_bias": false})", Shape{6}),
+                      StatusCode::InvalidDescription, "layer 0 'linear'", "has no 'units'");
 }
 
 /** @brief Tests that leaky_relu refuses a slope outside (0, 1) when the layer is built. */
@@ -533,16 +570,16 @@ TEST(Small_LayerRegistry, LeakyReLURejectsASlopeOutsideItsRange)
                                         R"({"slope": -0.1})"})
     {
         SCOPED_TRACE(std::string(attributes));
-        SA_EXPECT_ERROR((void)make_layer("leaky_relu", attributes, Shape{6}),
-                        "layer 0 'leaky_relu'", "slope");
+        SA_EXPECT_FAILURE(try_make_layer("leaky_relu", attributes, Shape{6}),
+                          StatusCode::InvalidDescription, "layer 0 'leaky_relu'", "slope");
     }
 }
 
 /** @brief Tests that upsample refuses a scale below one when the layer is built. */
 TEST(Small_LayerRegistry, UpsampleRejectsAScaleBelowOne)
 {
-    SA_EXPECT_ERROR((void)make_layer("upsample", R"({"scale": 0})", Shape{4, 4, 2}),
-                    "layer 0 'upsample'", "Upsample2d", "scale");
+    SA_EXPECT_FAILURE(try_make_layer("upsample", R"({"scale": 0})", Shape{4, 4, 2}),
+                      StatusCode::InvalidDescription, "layer 0 'upsample'", "Upsample2d", "scale");
 }
 
 /** @brief Tests that leaky_relu and upsample use 0.01 and 2 until the model file sets a value. */
@@ -567,12 +604,12 @@ TEST(Small_LayerRegistry, LeakyReLUAndUpsampleReadTheirOptionalKey)
 /** @brief Tests that unflatten refuses an input whose element count its image does not hold. */
 TEST(Small_LayerRegistry, UnflattenRefusesAnInputOfAnotherSize)
 {
-    SA_EXPECT_ERROR((void)make_layer("unflatten",
+    SA_EXPECT_FAILURE(try_make_layer("unflatten",
                                      R"({"height": 28, "width": 28, "channels": 1})",
                                      Shape{783}),
-                    "layer 0 'unflatten'", "[783]", "[784]");
-    SA_EXPECT_ERROR((void)make_layer("unflatten", R"({"height": 28, "width": 28})", Shape{784}),
-                    "layer 0 'unflatten'", "channels");
+                      StatusCode::InvalidDescription, "layer 0 'unflatten'", "[783]", "[784]");
+    SA_EXPECT_FAILURE(try_make_layer("unflatten", R"({"height": 28, "width": 28})", Shape{784}),
+                      StatusCode::InvalidDescription, "layer 0 'unflatten'", "channels");
 }
 
 /** @brief Tests that the convolutional model file builds a stack that ends in ten features. */
@@ -695,9 +732,7 @@ TEST(Small_LayerRegistry, AVersionTwoChainStartsFromTheInputShape)
         ]
     })";
 
-    const NN::LayerStack stack = NN::build_layer_stack(
-        make_layer_registry(),
-        Config::parse_model(Config::parse_json(K_IMAGE_CHAIN, "<test>"), "<test>"));
+    const NN::LayerStack stack = build_stack(K_IMAGE_CHAIN);
 
     ASSERT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.layer(0).output_shape(), (Shape{6, 6, 5}));
@@ -717,10 +752,11 @@ TEST(Small_LayerRegistry, AChainRefusesARowThatReadsTwoRows)
         ]
     })";
     const Config::ModelSpec model =
-        Config::parse_model(Config::parse_json(K_MERGING_MODEL, "<test>"), "<test>");
+        model_from(K_MERGING_MODEL);
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 2 'relu'", "the row before it", "build_model");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 2 'relu'", "the row before it",
+                      "build_model");
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads one row other than the last. */
@@ -736,10 +772,10 @@ TEST(Small_LayerRegistry, AChainRefusesARowThatSkipsBack)
         ]
     })";
     const Config::ModelSpec model =
-        Config::parse_model(Config::parse_json(K_SKIPPING_MODEL, "<test>"), "<test>");
+        model_from(K_SKIPPING_MODEL);
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 2 'relu'", "the row before it");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 2 'relu'", "the row before it");
 }
 
 /** @brief Tests that build_layer_stack refuses a row that reads the model input below row 0. */
@@ -754,10 +790,10 @@ TEST(Small_LayerRegistry, AChainRefusesALaterRowThatReadsTheInput)
         ]
     })";
     const Config::ModelSpec model =
-        Config::parse_model(Config::parse_json(K_RESTARTING_MODEL, "<test>"), "<test>");
+        model_from(K_RESTARTING_MODEL);
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 1 'tanh'", "the row before it");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 1 'tanh'", "the row before it");
 }
 
 /** @brief Tests that build_layer_stack refuses a file whose outputs publish an earlier row. */
@@ -773,10 +809,10 @@ TEST(Small_LayerRegistry, AChainRefusesOutputsThatPublishAnEarlierRow)
         "outputs": [{"node": 0}]
     })";
     const Config::ModelSpec model =
-        Config::parse_model(Config::parse_json(K_EARLY_OUTPUT_MODEL, "<test>"), "<test>");
+        model_from(K_EARLY_OUTPUT_MODEL);
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "'outputs'", "last row", "build_model");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "'outputs'", "last row", "build_model");
 }
 
 /** @brief Tests that build_layer_stack builds a file whose outputs name the last row whole. */
@@ -792,9 +828,7 @@ TEST(Small_LayerRegistry, AChainAcceptsOutputsThatPublishTheLastRow)
         "outputs": [{"node": 1}]
     })";
 
-    const NN::LayerStack stack = NN::build_layer_stack(
-        make_layer_registry(),
-        Config::parse_model(Config::parse_json(K_LAST_OUTPUT_MODEL, "<test>"), "<test>"));
+    const NN::LayerStack stack = build_stack(K_LAST_OUTPUT_MODEL);
 
     EXPECT_EQ(stack.size(), 2u);
 }
@@ -811,8 +845,8 @@ TEST(Small_LayerRegistry, AChainRefusesARowThatReadsANamedPort)
         ]
     })";
     const Config::ModelSpec model =
-        Config::parse_model(Config::parse_json(K_PORT_MODEL, "<test>"), "<test>");
+        model_from(K_PORT_MODEL);
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 1 'tanh'", "the row before it");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 1 'tanh'", "the row before it");
 }

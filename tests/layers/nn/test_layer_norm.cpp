@@ -230,8 +230,9 @@ TEST(Small_LayerNorm, OutputShapeIsTheInputShape)
 TEST(Small_LayerNorm, TheFactoryReadsTheWidthAndTheEpsilon)
 {
     const Shape input{6, K_DIM};
-    const Config::Value plain = Config::parse_json("{}", "<test>");
-    const Config::Value stated = Config::parse_json(R"({"ln_epsilon": 0.001})", "<test>");
+    const Config::Value plain = SaTest::require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value stated =
+        SaTest::require_value(Config::parse_json(R"({"ln_epsilon": 0.001})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -257,10 +258,13 @@ TEST(Small_LayerNorm, TheFactoryRefusesARowThatDoesNotFit)
     const Shape input{6, K_DIM};
     const Shape pair[] = {Shape{K_DIM}, Shape{K_DIM}};
     const Shape deep{1, 1, 1, 1, 1, K_DIM};
-    const Config::Value plain = Config::parse_json("{}", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"momentum": 0.1})", "<test>");
-    const Config::Value negative = Config::parse_json(R"({"ln_epsilon": -1.0})", "<test>");
-    const Config::Value text = Config::parse_json(R"({"ln_epsilon": "small"})", "<test>");
+    const Config::Value plain = SaTest::require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value stray =
+        SaTest::require_value(Config::parse_json(R"({"momentum": 0.1})", "<test>"));
+    const Config::Value negative =
+        SaTest::require_value(Config::parse_json(R"({"ln_epsilon": -1.0})", "<test>"));
+    const Config::Value text =
+        SaTest::require_value(Config::parse_json(R"({"ln_epsilon": "small"})", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_layer_norm_node(NN::ShapeSpan(&input, 1), stray, "layer 3"),
                       StatusCode::InvalidDescription, "layer 3", "'momentum'");

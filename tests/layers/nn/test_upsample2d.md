@@ -76,23 +76,23 @@ overflows.
 
 ## ForwardRejectsAZeroScale
 
-`forward()` of `Upsample2d{0}` over a [1, 2, 2, 3] input throws with a message containing
+`forward()` of `Upsample2d{0}` over a [1, 2, 2, 3] input returns `InvalidDescription` with a message containing
 "Upsample2d" and "[2, 2, 3] with scale=0".
 
 ## ForwardRejectsARankTwoInput
 
-`forward()` over a [2, 12] input throws with a message containing "Upsample2d", "rank-4" and
+`forward()` over a [2, 12] input returns `InvalidDescription` with a message containing "Upsample2d", "rank-4" and
 "[2, 12]".
 
 ## ForwardRejectsAScaledWidthThatOverflows
 
-With `K_OVERFLOWING_SCALE`, `forward()` over a [1, 1, 5, 3] input throws with a message
+With `K_OVERFLOWING_SCALE`, `forward()` over a [1, 1, 5, 3] input returns `InvalidDescription` with a message
 containing "Upsample2d" and "fit in 64 bits". The height is 1, so the width is the product
 that overflows.
 
 ## ForwardRejectsAnNCHWInput
 
-A [1, 3, 2, 2] input is converted to NCHW, and `forward()` throws with a message containing
+A [1, 3, 2, 2] input is converted to NCHW, and `forward()` returns `InvalidDescription` with a message containing
 "upsample2d" and "NHWC". The lower-case name is the builder's: `GraphBuilder::upsample2d`
 raises this message.
 

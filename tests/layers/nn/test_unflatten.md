@@ -45,30 +45,30 @@ geometry: `output_shape([784])` is [28, 28, 1].
 
 ## ForwardRejectsAZeroExtent
 
-`Unflatten{4, 0, 3}` throws with a message containing "Unflatten needs positive extents". The
+`Unflatten{4, 0, 3}` returns `InvalidDescription` with a message containing "Unflatten needs positive extents". The
 element-count check would also throw for this layer, in a message that does not name the
 extents, so the case requires the layer's own message.
 
 ## ForwardRejectsANegativeExtent
 
-`Unflatten{-4, -5, 3}` throws the same message. The two negative extents multiply to a
+`Unflatten{-4, -5, 3}` returns `InvalidDescription` the same message. The two negative extents multiply to a
 positive count of 60, which matches the input, so no later check refuses the layer by count;
 `Shape`'s constructor would throw, in a message that does not name the layer.
 
 ## ForwardRejectsAnInputThatIsNotRankTwo
 
-A [2, 60, 1, 1] input throws. Its second extent is 60 and it holds 120 elements, so only the
+A [2, 60, 1, 1] input returns `InvalidDescription`. Its second extent is 60 and it holds 120 elements, so only the
 rank check can refuse it.
 
 ## ForwardRejectsAMismatchedElementCount
 
-A [3, 40] input to `Unflatten{4, 5, 3}` throws with a message containing "Unflatten(4, 5, 3)"
+A [3, 40] input to `Unflatten{4, 5, 3}` returns `InvalidDescription` with a message containing "Unflatten(4, 5, 3)"
 and "inner extent is 60". `reshape` would also reject the input, in a message that does not
 name the layer, so the case requires the layer's own.
 
 ## ForwardRejectsAnNCHWInput
 
-The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` throws.
+The layout tag of a [2, 60] input is set to NCHW by hand, and `forward()` returns `InvalidDescription`.
 
 ## OutputShapeRejectsAZeroExtent
 

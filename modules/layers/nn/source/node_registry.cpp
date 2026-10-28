@@ -41,7 +41,6 @@
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_node.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -141,10 +140,8 @@ namespace SushiAI
                            "{} reads {} values, but a '{}' layer reads one", context,
                            inputs.size(), entry.type);
 
-                SA_TRY_ASSIGN(std::unique_ptr<Layer> layer, Detail::bridge_throwing([&]()
-                {
-                    return entry.make(inputs[0], attributes, context);
-                }));
+                SA_TRY_ASSIGN(std::unique_ptr<Layer> layer,
+                              entry.make(inputs[0], attributes, context));
 
                 return std::unique_ptr<Node>(std::make_unique<LayerNode>(std::move(layer)));
             }

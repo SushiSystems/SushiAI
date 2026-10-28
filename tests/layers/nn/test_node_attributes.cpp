@@ -45,6 +45,7 @@ namespace NNDetail = SushiAI::NN::Detail;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Names the row in every diagnostic of this file. */
     constexpr std::string_view K_CONTEXT = "row 2 'conv'";
 
@@ -54,7 +55,7 @@ namespace
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value row(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 } // namespace
 

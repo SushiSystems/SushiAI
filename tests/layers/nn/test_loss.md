@@ -20,4 +20,4 @@ With float64 operands the loss holds one element and is float64 as well.
 
 ## OperandsOfTwoShapesAreRefused
 
-A [4, 2] target beside [4, 3] logits throws an error naming NLL_LOSS and both shapes.
+A [4, 2] target beside [4, 3] logits returns `InvalidDescription` naming NLL_LOSS and both shapes.

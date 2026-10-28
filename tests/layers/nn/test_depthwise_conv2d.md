@@ -77,7 +77,7 @@ padding of 2, and dilation 1 on both axes.
 
 ## SamePaddedRefusesUnequalChannelCounts
 
-`same_padded(4, 8, 3, 1)` throws an error naming "keeps its channel count".
+`same_padded(4, 8, 3, 1)` stops the process naming "keeps its channel count".
 
 ## ForwardRejectsAnInputThatIsNotRankFour
 

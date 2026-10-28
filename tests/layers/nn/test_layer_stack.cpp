@@ -41,8 +41,9 @@
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/layer_rows/layer_registry.hpp>
@@ -62,11 +63,12 @@ using NN::Linear;
 using NN::Sequential;
 using SushiAI::Config::Kind;
 using SushiAI::Config::Value;
-using SushiAI::Config::parse_json;
 
 namespace
 {
+    using Test::attributes_from;
     using Test::make_layer_registry;
+    using Test::model_from;
 
     /** @brief Traces @p model and returns its parameters as "name:extents". */
     template<typename M>
@@ -101,7 +103,7 @@ namespace
     {
         Config::LayerSpec row;
         row.type = std::move(type);
-        row.attributes = Config::parse_json(attributes, "<test>");
+        row.attributes = attributes_from(attributes);
         row.from.push_back(Config::SourceSpec{source, std::string()});
         return row;
     }
@@ -172,23 +174,23 @@ TEST(Small_LayerStack, RefusesToTraceWhenEmpty)
                       "identity");
 }
 
-TEST(Small_LayerStack, RefusesAnOutputWidthWhenEmpty)
+TEST(Small_LayerStack, AnEmptyStackStopsTheProcessOnAnOutputWidth)
 {
     const LayerStack stack;
-    SA_EXPECT_ERROR((void)stack.output_features(), "no layers");
+    SA_EXPECT_FATAL((void)stack.output_features(), "no layers");
 }
 
-TEST(Small_LayerStack, RefusesANullLayer)
+TEST(Small_LayerStack, ANullLayerStopsTheProcess)
 {
     LayerStack stack;
-    SA_EXPECT_ERROR(stack.push(nullptr), "null layer", "index 0");
+    SA_EXPECT_FATAL(stack.push(nullptr), "null layer", "index 0");
 }
 
-TEST(Small_LayerStack, ReportsAnOutOfRangeLayerIndex)
+TEST(Small_LayerStack, AnOutOfRangeLayerIndexStopsTheProcess)
 {
     const LayerStack stack = make_stack();
-    EXPECT_NO_THROW((void)stack.layer(2));
-    SA_EXPECT_ERROR((void)stack.layer(3), "layer 3", "holds 3");
+    EXPECT_EQ(stack.layer(2).output_features(), 4);
+    SA_EXPECT_FATAL((void)stack.layer(3), "layer 3", "holds 3");
 }
 
 TEST(Small_LayerStack, TracingTwiceDoesNotDuplicateParameters)
@@ -243,17 +245,18 @@ TEST(Small_LayerStack, ReportsTheLastLayersOutputShape)
     EXPECT_EQ(image_stack.output_features(), 4);
 }
 
-/** @brief Tests that an empty stack refuses to report an output shape. */
-TEST(Small_LayerStack, RefusesAnOutputShapeWhenEmpty)
+/** @brief Tests that an empty stack stops the process on an output shape. */
+TEST(Small_LayerStack, AnEmptyStackStopsTheProcessOnAnOutputShape)
 {
     const LayerStack stack;
-    SA_EXPECT_ERROR((void)stack.output_shape(), "no layers", "output shape");
+    SA_EXPECT_FATAL((void)stack.output_shape(), "no layers", "output shape");
 }
 
 /** @brief Tests that build_layer_stack hands each layer's output shape to the next factory. */
 TEST(Small_LayerStack, BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer)
 {
-    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
+    SA_ASSERT_OK_AND_ASSIGN(const LayerStack stack,
+                            NN::build_layer_stack(make_layer_registry(), hand_built_chain()));
 
     ASSERT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.layer(0).output_shape(), (Shape{8}));
@@ -270,7 +273,8 @@ TEST(Small_LayerStack, BuildLayerStackSeedsTheChainFromTheInputShape)
     Config::ModelSpec model = hand_built_chain();
     model.input_shape = Shape{5};
 
-    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), model);
+    SA_ASSERT_OK_AND_ASSIGN(const LayerStack stack,
+                            NN::build_layer_stack(make_layer_registry(), model));
 
     const auto& first = dynamic_cast<const LayerAdapter<Linear>&>(stack.layer(0));
     EXPECT_EQ(first.layer().in_features, 5);
@@ -282,56 +286,51 @@ TEST(Small_LayerStack, BuildLayerStackRefusesAHandBuiltRowWithoutASource)
     Config::ModelSpec model = hand_built_chain();
     model.layers[1].from.clear();
 
-    SA_EXPECT_ERROR((void)NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 1 'gelu'", "the row before it");
+    SA_EXPECT_FAILURE(NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 1 'gelu'", "the row before it");
 }
 
 /** @brief Tests that output_shape over an input shape is the last layer's output shape. */
 TEST(Small_LayerStack, OutputShapeOfAnInputIsTheLastLayersOutputShape)
 {
-    const LayerStack stack = NN::build_layer_stack(make_layer_registry(), hand_built_chain());
+    SA_ASSERT_OK_AND_ASSIGN(const LayerStack stack,
+                            NN::build_layer_stack(make_layer_registry(), hand_built_chain()));
 
-    EXPECT_EQ(stack.output_shape(Shape{6}).value(), (Shape{4}));
-    EXPECT_EQ(stack.output_shape(Shape{6}).value(), stack.output_shape());
+    SA_ASSERT_OK_AND_ASSIGN(const Shape of_input, stack.output_shape(Shape{6}));
+    EXPECT_EQ(of_input, (Shape{4}));
+    EXPECT_EQ(of_input, stack.output_shape());
 }
 
-/** @brief Tests that an empty stack refuses an output shape in the layer form too. */
-TEST(Small_LayerStack, RefusesAnOutputShapeOfAnInputWhenEmpty)
+/** @brief Tests that an empty stack stops the process on an output shape in the layer form. */
+TEST(Small_LayerStack, AnEmptyStackStopsTheProcessOnAnOutputShapeOfAnInput)
 {
     const LayerStack stack;
-    SA_EXPECT_ERROR((void)stack.output_shape(Shape{6}), "no layers", "output shape");
+    SA_EXPECT_FATAL((void)stack.output_shape(Shape{6}), "no layers", "output shape");
 }
 
 /** @brief Tests that a factory hands a rank-3 per-sample shape to its layer with no axis merged. */
 TEST(Small_LayerStack, AnActivationFactoryKeepsARankThreeInputShape)
 {
-    const Config::Value attributes = Config::parse_json("{}", "<test>");
-    const std::unique_ptr<NN::Layer> layer =
-        NN::make_gelu(Shape{4, 4, 3}, attributes, "layer 1 'gelu'");
+    const Config::Value attributes = attributes_from("{}");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NN::Layer> layer,
+                            NN::make_gelu(Shape{4, 4, 3}, attributes, "layer 1 'gelu'"));
 
     EXPECT_EQ(layer->output_shape(), (Shape{4, 4, 3}));
     EXPECT_EQ(layer->output_features(), 48);
 }
 
-/** @brief Tests that a linear layer after a rank-3 input throws and tells the reader to flatten. */
+/** @brief Tests that a linear layer after a rank-3 input is refused and names flatten. */
 TEST(Small_LayerStack, ALinearFactoryRefusesARankThreeInputAndNamesFlatten)
 {
-    const Config::Value attributes = Config::parse_json(R"({"units": 8})", "<test>");
+    const Config::Value attributes = attributes_from(R"({"units": 8})");
 
-    SA_EXPECT_ERROR((void)NN::make_linear(Shape{4, 4, 3}, attributes, "layer 1 'linear'"),
-                    "layer 1 'linear'", "[4, 4, 3]", "flatten");
-    EXPECT_NO_THROW((void)NN::make_linear(Shape{48}, attributes, "layer 1 'linear'"));
+    SA_EXPECT_FAILURE(NN::make_linear(Shape{4, 4, 3}, attributes, "layer 1 'linear'"),
+                      StatusCode::InvalidDescription, "layer 1 'linear'", "[4, 4, 3]", "flatten");
+    SA_EXPECT_OK(NN::make_linear(Shape{48}, attributes, "layer 1 'linear'"));
 }
 
 namespace
 {
-
-    /** @brief Parses @p text as a model document called "model.json". */
-    SushiAI::Config::ModelSpec model_from(std::string_view text)
-    {
-        return SushiAI::Config::parse_model(parse_json(text, "model.json"), "model.json");
-    }
-
     constexpr std::string_view K_GOOD_MODEL = R"({
         "sushiai_model": 1,
         "input": {"features": 6},
@@ -346,8 +345,9 @@ namespace
 
 TEST(Small_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
 {
-    SushiAI::NN::LayerStack stack =
-        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
+    SA_ASSERT_OK_AND_ASSIGN(
+        SushiAI::NN::LayerStack stack,
+        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL)));
 
     EXPECT_EQ(stack.size(), 3u);
     EXPECT_EQ(stack.output_features(), 4);
@@ -359,8 +359,9 @@ TEST(Small_LayerStack, ChainsLayerWidthsFromTheInputFeatures)
 
 TEST(Small_LayerStack, AConfiguredStackTracesToTheDeclaredOutputWidth)
 {
-    SushiAI::NN::LayerStack stack =
-        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL));
+    SA_ASSERT_OK_AND_ASSIGN(
+        SushiAI::NN::LayerStack stack,
+        SushiAI::NN::build_layer_stack(make_layer_registry(), model_from(K_GOOD_MODEL)));
 
     SushiAI::Graph::Graph graph;
     const SushiAI::Graph::GraphBuilder builder(graph);
@@ -378,8 +379,9 @@ TEST(Small_LayerStack, AnUnknownLayerTypeListsEveryTypeThisBuildHas)
         "layers": [{"type": "hologram", "units": 8}]
     })");
 
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), model),
-                    "hologram", "layer type", "'linear'", "'gelu'");
+    SA_EXPECT_FAILURE(SushiAI::NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "hologram", "layer type", "'linear'",
+                      "'gelu'");
 }
 
 TEST(Small_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
@@ -389,8 +391,8 @@ TEST(Small_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
         "input": {"features": 6},
         "layers": [{"type": "linear", "unitss": 8}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), typo),
-                    "layer 0 'linear'", "'unitss'");
+    SA_EXPECT_FAILURE(SushiAI::NN::build_layer_stack(make_layer_registry(), typo),
+                      StatusCode::InvalidDescription, "layer 0 'linear'", "'unitss'");
 
     // An activation accepts no attribute; see tests/layers/nn/README.md.
     const SushiAI::Config::ModelSpec stray = model_from(R"({
@@ -398,8 +400,8 @@ TEST(Small_LayerStack, AnUnknownLayerKeyIsRejectedByTheLayersOwnFactory)
         "input": {"features": 6},
         "layers": [{"type": "gelu", "units": 8}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), stray),
-                    "layer 0 'gelu'", "'units'");
+    SA_EXPECT_FAILURE(SushiAI::NN::build_layer_stack(make_layer_registry(), stray),
+                      StatusCode::InvalidDescription, "layer 0 'gelu'", "'units'");
 }
 
 TEST(Small_LayerStack, ALayerFactoryRefusesANonPositiveWidth)
@@ -409,21 +411,23 @@ TEST(Small_LayerStack, ALayerFactoryRefusesANonPositiveWidth)
         "input": {"features": 6},
         "layers": [{"type": "linear", "units": 0}]
     })");
-    SA_EXPECT_ERROR((void)SushiAI::NN::build_layer_stack(make_layer_registry(), model),
-                    "layer 0 'linear'", "'units'");
+    SA_EXPECT_FAILURE(SushiAI::NN::build_layer_stack(make_layer_registry(), model),
+                      StatusCode::InvalidDescription, "layer 0 'linear'", "'units'");
 }
 
 TEST(Small_LayerStack, UseBiasDefaultsToTrueAndCanBeTurnedOff)
 {
     const SushiAI::NN::NodeRegistry registry = make_layer_registry();
-    SushiAI::NN::LayerStack with_bias = SushiAI::NN::build_layer_stack(registry, model_from(R"({
+    SA_ASSERT_OK_AND_ASSIGN(SushiAI::NN::LayerStack with_bias,
+                            SushiAI::NN::build_layer_stack(registry, model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
         "layers": [{"type": "linear", "units": 4}]
-    })"));
-    SushiAI::NN::LayerStack without_bias = SushiAI::NN::build_layer_stack(registry, model_from(R"({
+    })")));
+    SA_ASSERT_OK_AND_ASSIGN(SushiAI::NN::LayerStack without_bias,
+                            SushiAI::NN::build_layer_stack(registry, model_from(R"({
         "sushiai_model": 1, "input": {"features": 6},
         "layers": [{"type": "linear", "units": 4, "use_bias": false}]
-    })"));
+    })")));
 
     SushiAI::Graph::Graph a;
     SushiAI::Graph::Graph b;

@@ -33,7 +33,7 @@
 #include <utility>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/nn/add.hpp>
@@ -124,15 +124,16 @@ namespace SushiAI
             }
 
             /** @brief Reads the required whole number under @p key. */
-            int64_t read_int(const Config::Value& attributes, std::string_view key,
-                             std::string_view context)
+            Result<int64_t> read_int(const Config::Value& attributes, std::string_view key,
+                                     std::string_view context)
             {
-                return attributes.at(key, context).as_int(name_key(context, key));
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return stated.as_int(name_key(context, key));
             }
 
             /** @brief Reads the whole number under @p key, or @p fallback when it is absent. */
-            int64_t read_int_or(const Config::Value& attributes, std::string_view key,
-                                std::string_view context, int64_t fallback)
+            Result<int64_t> read_int_or(const Config::Value& attributes, std::string_view key,
+                                        std::string_view context, int64_t fallback)
             {
                 if (!attributes.has(key))
                     return fallback;
@@ -141,61 +142,68 @@ namespace SushiAI
             }
 
             /** @brief Reads the boolean under @p key, or @p fallback when it is absent. */
-            bool read_bool_or(const Config::Value& attributes, std::string_view key,
-                              std::string_view context, bool fallback)
+            Result<bool> read_bool_or(const Config::Value& attributes, std::string_view key,
+                                      std::string_view context, bool fallback)
             {
                 if (!attributes.has(key))
                     return fallback;
 
-                return attributes.at(key, context).as_bool(name_key(context, key));
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return stated.as_bool(name_key(context, key));
             }
 
             /** @brief Reads the number under @p key, or @p fallback when it is absent. */
-            double read_real_or(const Config::Value& attributes, std::string_view key,
-                                std::string_view context, double fallback)
+            Result<double> read_real_or(const Config::Value& attributes, std::string_view key,
+                                        std::string_view context, double fallback)
             {
                 if (!attributes.has(key))
                     return fallback;
 
-                return attributes.at(key, context).as_real(name_key(context, key));
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return stated.as_real(name_key(context, key));
             }
 
             /**
              * @brief Reads a window setting spelled as an integer or as a two-entry [h, w] array.
              * @param what Names the value in a diagnostic, e.g. "layer 3 'conv2d' 'kernel'".
-             * @return The pair; an integer fills both axes.
+             * @return The pair, with an integer filling both axes; InvalidDescription for any
+             *         other spelling.
              */
-            AxisPair parse_axis_pair(const Config::Value& value, const std::string& what)
+            Result<AxisPair> parse_axis_pair(const Config::Value& value, const std::string& what)
             {
                 if (value.kind() == Config::Kind::Int)
                 {
-                    const int64_t both = value.as_int(what);
+                    SA_TRY_ASSIGN(const int64_t both, value.as_int(what));
                     return AxisPair{both, both};
                 }
 
-                SA_THROW_IF(value.kind() != Config::Kind::Array,
-                            "{} must be an integer or a two-entry [h, w] array, but it is {}",
-                            what, Config::kind_name(value.kind()));
+                SA_FAIL_IF(value.kind() != Config::Kind::Array, StatusCode::InvalidDescription,
+                           "{} must be an integer or a two-entry [h, w] array, but it is {}",
+                           what, Config::kind_name(value.kind()));
 
-                const std::vector<Config::Value>& entries = value.as_array(what);
-                SA_THROW_IF(entries.size() != 2,
-                            "{} must be an integer or a two-entry [h, w] array, but its array "
-                            "holds {} entries",
-                            what, entries.size());
+                SA_TRY_ASSIGN(const std::vector<Config::Value>& entries, value.as_array(what));
+                SA_FAIL_IF(entries.size() != 2, StatusCode::InvalidDescription,
+                           "{} must be an integer or a two-entry [h, w] array, but its array "
+                           "holds {} entries",
+                           what, entries.size());
 
-                return AxisPair{entries[0].as_int(what + "[0]"), entries[1].as_int(what + "[1]")};
+                SA_TRY_ASSIGN(const int64_t height, entries[0].as_int(what + "[0]"));
+                SA_TRY_ASSIGN(const int64_t width, entries[1].as_int(what + "[1]"));
+                return AxisPair{height, width};
             }
 
             /** @brief Reads the required window setting under @p key. */
-            AxisPair read_axis_pair(const Config::Value& attributes, std::string_view key,
-                                    std::string_view context)
+            Result<AxisPair> read_axis_pair(const Config::Value& attributes, std::string_view key,
+                                            std::string_view context)
             {
-                return parse_axis_pair(attributes.at(key, context), name_key(context, key));
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return parse_axis_pair(stated, name_key(context, key));
             }
 
             /** @brief Reads the window setting under @p key, or @p fallback when it is absent. */
-            AxisPair read_axis_pair_or(const Config::Value& attributes, std::string_view key,
-                                       std::string_view context, AxisPair fallback)
+            Result<AxisPair> read_axis_pair_or(const Config::Value& attributes,
+                                               std::string_view key, std::string_view context,
+                                               AxisPair fallback)
             {
                 if (!attributes.has(key))
                     return fallback;
@@ -223,35 +231,40 @@ namespace SushiAI
              * @brief Asks @p layer for its output shape and wraps both as a Layer.
              * @param input The per-sample shape entering @p layer.
              * @param context Prefixes the layer's own complaint about @p input or its settings.
+             * @return The layer, or the refusal of its output_shape() under @p context.
              */
             template<typename L>
-            std::unique_ptr<Layer> adapt(L layer, const Shape& input, std::string_view context)
+            Result<std::unique_ptr<Layer>> adapt(L layer, const Shape& input,
+                                                 std::string_view context)
             {
-                Result<Shape> output = layer.output_shape(input);
-                SA_THROW_IF(!output.has_value(), "{}: {}", context, output.status().message());
+                const Result<Shape> output = layer.output_shape(input);
+                if (!output.has_value())
+                    return SA_ANNOTATE(output.status(), "{}", context);
 
-                return std::make_unique<LayerAdapter<L>>(std::move(layer),
-                                                         std::move(output).value());
+                std::unique_ptr<Layer> adapted =
+                    std::make_unique<LayerAdapter<L>>(std::move(layer), output.value());
+                return std::move(adapted);
             }
 
             /** @brief Builds a layer of type @p L that accepts no key. */
             template<typename L>
-            std::unique_ptr<Layer> make_keyless(const Shape& input,
-                                                 const Config::Value& attributes,
-                                                 std::string_view context)
+            Result<std::unique_ptr<Layer>> make_keyless(const Shape& input,
+                                                        const Config::Value& attributes,
+                                                        std::string_view context)
             {
-                attributes.reject_unknown_keys(context, no_keys());
+                SA_TRY(attributes.reject_unknown_keys(context, no_keys()));
                 return adapt(L{}, input, context);
             }
 
             /** @brief Reads the window of a pooling row: its kernel, stride and padding. */
-            Graph::ConvGeometry read_pool_geometry(const Config::Value& attributes,
-                                                   std::string_view context)
+            Result<Graph::ConvGeometry> read_pool_geometry(const Config::Value& attributes,
+                                                           std::string_view context)
             {
-                const AxisPair kernel = read_axis_pair(attributes, "kernel", context);
-                const AxisPair stride = read_axis_pair_or(attributes, "stride", context, kernel);
-                const AxisPair padding =
-                    read_axis_pair_or(attributes, "padding", context, AxisPair{0, 0});
+                SA_TRY_ASSIGN(const AxisPair kernel, read_axis_pair(attributes, "kernel", context));
+                SA_TRY_ASSIGN(const AxisPair stride,
+                              read_axis_pair_or(attributes, "stride", context, kernel));
+                SA_TRY_ASSIGN(const AxisPair padding,
+                              read_axis_pair_or(attributes, "padding", context, AxisPair{0, 0}));
 
                 return make_geometry(kernel, stride, padding, AxisPair{1, 1});
             }
@@ -297,183 +310,190 @@ namespace SushiAI
             }
 
             /** @brief Builds a Mish, which takes no key. */
-            std::unique_ptr<Layer> make_mish(const Shape& input, const Config::Value& attributes,
-                                             std::string_view context)
+            Result<std::unique_ptr<Layer>> make_mish(const Shape& input,
+                                                     const Config::Value& attributes,
+                                                     std::string_view context)
             {
                 return make_keyless<Mish>(input, attributes, context);
             }
 
             /** @brief Builds a ChannelSlice from "offset" and "count", both required. */
-            std::unique_ptr<Layer> make_slice_channels(const Shape& input,
-                                                       const Config::Value& attributes,
-                                                       std::string_view context)
+            Result<std::unique_ptr<Layer>> make_slice_channels(const Shape& input,
+                                                               const Config::Value& attributes,
+                                                               std::string_view context)
             {
-                attributes.reject_unknown_keys(context, as_span(K_SLICE_CHANNELS_KEYS));
+                SA_TRY(attributes.reject_unknown_keys(context, as_span(K_SLICE_CHANNELS_KEYS)));
 
                 ChannelSlice layer{};
-                layer.offset = read_int(attributes, "offset", context);
-                layer.count = read_int(attributes, "count", context);
+                SA_TRY_ASSIGN(layer.offset, read_int(attributes, "offset", context));
+                SA_TRY_ASSIGN(layer.count, read_int(attributes, "count", context));
 
                 return adapt(layer, input, context);
             }
         }
 
-        std::unique_ptr<Layer> make_linear(const Shape& input,
-                                            const Config::Value& attributes,
-                                            std::string_view context)
+        Result<std::unique_ptr<Layer>> make_linear(const Shape& input,
+                                                   const Config::Value& attributes,
+                                                   std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_LINEAR_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_LINEAR_KEYS)));
 
-            SA_THROW_IF(input.rank() != 1,
-                        "{} was given a per-sample input of {}, but a linear layer needs a "
-                        "rank-1 [features] input; put a 'flatten' layer before it",
-                        context, input.to_string());
+            SA_FAIL_IF(input.rank() != 1, StatusCode::InvalidDescription,
+                       "{} was given a per-sample input of {}, but a linear layer needs a "
+                       "rank-1 [features] input; put a 'flatten' layer before it",
+                       context, input.to_string());
 
-            const int64_t units = read_int(attributes, "units", context);
-            SA_THROW_IF(units <= 0, "{} must be positive, but it is {}",
-                        name_key(context, "units"), units);
+            SA_TRY_ASSIGN(const int64_t units, read_int(attributes, "units", context));
+            SA_FAIL_IF(units <= 0, StatusCode::InvalidDescription,
+                       "{} must be positive, but it is {}", name_key(context, "units"), units);
 
-            const bool use_bias = read_bool_or(attributes, "use_bias", context, true);
+            SA_TRY_ASSIGN(const bool use_bias, read_bool_or(attributes, "use_bias", context, true));
 
             return adapt(Linear{input[0], units, use_bias}, input, context);
         }
 
-        std::unique_ptr<Layer> make_gelu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context)
+        Result<std::unique_ptr<Layer>> make_gelu(const Shape& input,
+                                                 const Config::Value& attributes,
+                                                 std::string_view context)
         {
             return make_keyless<GELU>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_relu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context)
+        Result<std::unique_ptr<Layer>> make_relu(const Shape& input,
+                                                 const Config::Value& attributes,
+                                                 std::string_view context)
         {
             return make_keyless<ReLU>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_tanh(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context)
+        Result<std::unique_ptr<Layer>> make_tanh(const Shape& input,
+                                                 const Config::Value& attributes,
+                                                 std::string_view context)
         {
             return make_keyless<Tanh>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_sigmoid(const Shape& input,
-                                             const Config::Value& attributes,
-                                             std::string_view context)
+        Result<std::unique_ptr<Layer>> make_sigmoid(const Shape& input,
+                                                    const Config::Value& attributes,
+                                                    std::string_view context)
         {
             return make_keyless<Sigmoid>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_leaky_relu(const Shape& input,
-                                                const Config::Value& attributes,
-                                                std::string_view context)
+        Result<std::unique_ptr<Layer>> make_leaky_relu(const Shape& input,
+                                                       const Config::Value& attributes,
+                                                       std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_LEAKY_RELU_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_LEAKY_RELU_KEYS)));
 
             LeakyReLU layer{};
-            layer.slope = read_real_or(attributes, "slope", context, layer.slope);
+            SA_TRY_ASSIGN(layer.slope, read_real_or(attributes, "slope", context, layer.slope));
 
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<Layer> make_unflatten(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context)
+        Result<std::unique_ptr<Layer>> make_unflatten(const Shape& input,
+                                                      const Config::Value& attributes,
+                                                      std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_UNFLATTEN_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_UNFLATTEN_KEYS)));
 
             Unflatten layer{};
-            layer.height = read_int(attributes, "height", context);
-            layer.width = read_int(attributes, "width", context);
-            layer.channels = read_int(attributes, "channels", context);
+            SA_TRY_ASSIGN(layer.height, read_int(attributes, "height", context));
+            SA_TRY_ASSIGN(layer.width, read_int(attributes, "width", context));
+            SA_TRY_ASSIGN(layer.channels, read_int(attributes, "channels", context));
 
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<Layer> make_conv2d(const Shape& input,
-                                            const Config::Value& attributes,
-                                            std::string_view context)
+        Result<std::unique_ptr<Layer>> make_conv2d(const Shape& input,
+                                                   const Config::Value& attributes,
+                                                   std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_CONV2D_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_CONV2D_KEYS)));
 
-            SA_THROW_IF(input.rank() != 3,
-                        "{} was given a per-sample input of {}, but a conv2d layer reads its "
-                        "input channels from a rank-3 [H, W, C] input; put an 'unflatten' layer "
-                        "before it",
-                        context, input.to_string());
+            SA_FAIL_IF(input.rank() != 3, StatusCode::InvalidDescription,
+                       "{} was given a per-sample input of {}, but a conv2d layer reads its "
+                       "input channels from a rank-3 [H, W, C] input; put an 'unflatten' layer "
+                       "before it",
+                       context, input.to_string());
 
-            const AxisPair kernel = read_axis_pair(attributes, "kernel", context);
-            const AxisPair stride =
-                read_axis_pair_or(attributes, "stride", context, AxisPair{1, 1});
-            const AxisPair padding =
-                read_axis_pair_or(attributes, "padding", context, AxisPair{0, 0});
-            const AxisPair dilation =
-                read_axis_pair_or(attributes, "dilation", context, AxisPair{1, 1});
+            SA_TRY_ASSIGN(const AxisPair kernel, read_axis_pair(attributes, "kernel", context));
+            SA_TRY_ASSIGN(const AxisPair stride,
+                          read_axis_pair_or(attributes, "stride", context, AxisPair{1, 1}));
+            SA_TRY_ASSIGN(const AxisPair padding,
+                          read_axis_pair_or(attributes, "padding", context, AxisPair{0, 0}));
+            SA_TRY_ASSIGN(const AxisPair dilation,
+                          read_axis_pair_or(attributes, "dilation", context, AxisPair{1, 1}));
 
             Conv2d layer{};
             layer.in_channels = input[2];
-            layer.out_channels = read_int(attributes, "filters", context);
+            SA_TRY_ASSIGN(layer.out_channels, read_int(attributes, "filters", context));
             layer.geometry = make_geometry(kernel, stride, padding, dilation);
-            layer.use_bias = read_bool_or(attributes, "use_bias", context, layer.use_bias);
+            SA_TRY_ASSIGN(layer.use_bias,
+                          read_bool_or(attributes, "use_bias", context, layer.use_bias));
 
             return adapt(std::move(layer), input, context);
         }
 
-        std::unique_ptr<Layer> make_maxpool2d(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context)
+        Result<std::unique_ptr<Layer>> make_maxpool2d(const Shape& input,
+                                                      const Config::Value& attributes,
+                                                      std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_MAXPOOL2D_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_MAXPOOL2D_KEYS)));
 
-            MaxPool2d layer{read_pool_geometry(attributes, context)};
-            const AxisPair trailing =
-                read_axis_pair_or(attributes, "trailing_padding", context, AxisPair{0, 0});
+            SA_TRY_ASSIGN(const Graph::ConvGeometry window,
+                          read_pool_geometry(attributes, context));
+            MaxPool2d layer{window};
+            SA_TRY_ASSIGN(const AxisPair trailing,
+                          read_axis_pair_or(attributes, "trailing_padding", context,
+                                            AxisPair{0, 0}));
             layer.trailing_pad_h = trailing.h;
             layer.trailing_pad_w = trailing.w;
 
             return adapt(std::move(layer), input, context);
         }
 
-        std::unique_ptr<Layer> make_avgpool2d(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context)
+        Result<std::unique_ptr<Layer>> make_avgpool2d(const Shape& input,
+                                                      const Config::Value& attributes,
+                                                      std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_AVGPOOL2D_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_AVGPOOL2D_KEYS)));
 
-            return adapt(AvgPool2d{read_pool_geometry(attributes, context)}, input, context);
+            SA_TRY_ASSIGN(const Graph::ConvGeometry window,
+                          read_pool_geometry(attributes, context));
+            return adapt(AvgPool2d{window}, input, context);
         }
 
-        std::unique_ptr<Layer> make_global_avgpool(const Shape& input,
-                                                    const Config::Value& attributes,
-                                                    std::string_view context)
+        Result<std::unique_ptr<Layer>> make_global_avgpool(const Shape& input,
+                                                           const Config::Value& attributes,
+                                                           std::string_view context)
         {
             return make_keyless<GlobalAvgPool>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_flatten(const Shape& input,
-                                             const Config::Value& attributes,
-                                             std::string_view context)
+        Result<std::unique_ptr<Layer>> make_flatten(const Shape& input,
+                                                    const Config::Value& attributes,
+                                                    std::string_view context)
         {
             return make_keyless<Flatten>(input, attributes, context);
         }
 
-        std::unique_ptr<Layer> make_upsample(const Shape& input,
-                                              const Config::Value& attributes,
-                                              std::string_view context)
+        Result<std::unique_ptr<Layer>> make_upsample(const Shape& input,
+                                                     const Config::Value& attributes,
+                                                     std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_UPSAMPLE_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_UPSAMPLE_KEYS)));
 
             Upsample2d layer{};
-            layer.scale = read_int_or(attributes, "scale", context, layer.scale);
+            SA_TRY_ASSIGN(layer.scale, read_int_or(attributes, "scale", context, layer.scale));
 
             return adapt(layer, input, context);
         }
 
-        std::unique_ptr<Layer> make_silu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context)
+        Result<std::unique_ptr<Layer>> make_silu(const Shape& input,
+                                                 const Config::Value& attributes,
+                                                 std::string_view context)
         {
             return make_keyless<SiLU>(input, attributes, context);
         }
@@ -506,13 +526,13 @@ namespace SushiAI
             return Status();
         }
 
-        LayerStack build_layer_stack(const NodeRegistry& registry,
-                                     const Config::ModelSpec& model)
+        Result<LayerStack> build_layer_stack(const NodeRegistry& registry,
+                                             const Config::ModelSpec& model)
         {
-            SA_THROW_IF(!publishes_last_row_only(model),
-                        "the model's 'outputs' publishes something other than the whole of its "
-                        "last row; a LayerStack is a chain and yields its last layer. Build "
-                        "this file with build_model.");
+            SA_FAIL_IF(!publishes_last_row_only(model), StatusCode::InvalidDescription,
+                       "the model's 'outputs' publishes something other than the whole of its "
+                       "last row; a LayerStack is a chain and yields its last layer. Build "
+                       "this file with build_model.");
 
             LayerStack stack;
 
@@ -523,23 +543,25 @@ namespace SushiAI
                 const std::string context =
                     "layer " + std::to_string(i) + " '" + spec.type + "'";
 
-                SA_THROW_IF(!reads_previous_row_only(spec, i),
-                            "{} reads something other than the row before it; a LayerStack is "
-                            "a chain. Build this file with build_model.",
-                            context);
+                SA_FAIL_IF(!reads_previous_row_only(spec, i), StatusCode::InvalidDescription,
+                           "{} reads something other than the row before it; a LayerStack is "
+                           "a chain. Build this file with build_model.",
+                           context);
 
                 const LayerEntry* const entry = registry.find_layer(spec.type);
-                SA_THROW_IF(entry == nullptr, "unknown layer type '{}'; this build has: {}",
-                            spec.type, list_layer_types(registry));
+                SA_FAIL_IF(entry == nullptr, StatusCode::InvalidDescription,
+                           "unknown layer type '{}'; this build has: {}",
+                           spec.type, list_layer_types(registry));
 
-                std::unique_ptr<Layer> layer = entry->make(shape, spec.attributes, context);
+                SA_TRY_ASSIGN(std::unique_ptr<Layer> layer,
+                              entry->make(shape, spec.attributes, context));
 
                 // Invariant: the next factory receives this layer's per-sample output shape.
                 shape = layer->output_shape();
                 stack.push(std::move(layer));
             }
 
-            return stack;
+            return std::move(stack);
         }
 
     } // namespace NN

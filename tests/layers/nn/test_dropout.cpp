@@ -55,6 +55,7 @@ static_assert(NN::ModalModule<Dropout> && !NN::Module<Dropout> && !NN::TraceModu
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the seed the training traces of these cases state. */
     constexpr std::uint64_t K_TRACE_SEED = 5;
 
@@ -200,7 +201,8 @@ TEST(Small_Dropout, OutputShapeIsTheInputShape)
 TEST(Small_Dropout, TheFactoryReadsTheRate)
 {
     const Shape input{6, 4};
-    const Config::Value attributes = Config::parse_json(R"({"rate": 0.1})", "<test>");
+    const Config::Value attributes =
+        require_value(Config::parse_json(R"({"rate": 0.1})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -218,10 +220,11 @@ TEST(Small_Dropout, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{6, 4};
     const Shape pair[] = {Shape{4}, Shape{4}};
-    const Config::Value good = Config::parse_json(R"({"rate": 0.1})", "<test>");
-    const Config::Value absent = Config::parse_json("{}", "<test>");
-    const Config::Value whole = Config::parse_json(R"({"rate": 1.0})", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"rate": 0.1, "seed": 3})", "<test>");
+    const Config::Value good = require_value(Config::parse_json(R"({"rate": 0.1})", "<test>"));
+    const Config::Value absent = require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value whole = require_value(Config::parse_json(R"({"rate": 1.0})", "<test>"));
+    const Config::Value stray =
+        require_value(Config::parse_json(R"({"rate": 0.1, "seed": 3})", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_dropout_node(NN::ShapeSpan(&input, 1), absent, "layer 3"),
                       StatusCode::InvalidDescription, "layer 3", "'rate'", "absent");

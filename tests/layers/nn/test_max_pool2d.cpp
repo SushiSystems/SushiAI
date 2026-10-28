@@ -35,12 +35,12 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>

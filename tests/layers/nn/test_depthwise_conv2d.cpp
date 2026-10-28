@@ -32,12 +32,12 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/depthwise_conv2d.hpp>
@@ -304,7 +304,7 @@ TEST(Small_DepthwiseConv2d, SamePaddedBuildsAPaddedLayerOfTheGivenStride)
 /** @brief Tests that same_padded() throws when the input and output channel counts differ. */
 TEST(Small_DepthwiseConv2d, SamePaddedRefusesUnequalChannelCounts)
 {
-    SA_EXPECT_ERROR((void)DepthwiseConv2d::same_padded(4, 8, 3, 1), "keeps its channel count");
+    SA_EXPECT_FATAL((void)DepthwiseConv2d::same_padded(4, 8, 3, 1), "keeps its channel count");
 }
 
 /** @brief Tests that forward() throws on a rank-2 input, naming the rank-4 requirement. */

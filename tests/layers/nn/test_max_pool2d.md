@@ -153,7 +153,7 @@ With `trailing_pad_w` -1, `output_shape` returns InvalidDescription holding "Max
 
 ## ForwardRejectsANegativeTrailingPad
 
-With `trailing_pad_h` -2, `forward` raises an error holding "MaxPool2d",
+With `trailing_pad_h` -2, `forward` returns `InvalidDescription` with a message holding "MaxPool2d",
 "non-negative trailing padding" and "-2,0", and the graph's node count does not change.
 
 ## OutputShapeRejectsATrailingPadThatOverflows

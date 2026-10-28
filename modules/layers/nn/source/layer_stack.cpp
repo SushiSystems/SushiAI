@@ -26,7 +26,7 @@
  */
 
 #include <SushiAI/nn/layer_stack.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 #include <utility>
 
@@ -36,7 +36,7 @@ namespace SushiAI
     {
         void LayerStack::push(std::unique_ptr<Layer> layer)
         {
-            SA_THROW_IF(layer == nullptr,
+            SA_FATAL_IF(layer == nullptr,
                         "a null layer was pushed onto a LayerStack at index {}",
                         layers_.size());
             layers_.push_back(std::move(layer));
@@ -68,14 +68,14 @@ namespace SushiAI
 
         int64_t LayerStack::output_features() const
         {
-            SA_THROW_IF(layers_.empty(),
+            SA_FATAL_IF(layers_.empty(),
                         "this LayerStack holds no layers, so it has no output width");
             return layers_.back()->output_features();
         }
 
         Shape LayerStack::output_shape() const
         {
-            SA_THROW_IF(layers_.empty(),
+            SA_FATAL_IF(layers_.empty(),
                         "this LayerStack holds no layers, so it has no output shape");
             return layers_.back()->output_shape();
         }
@@ -87,7 +87,7 @@ namespace SushiAI
 
         Layer& LayerStack::layer(std::size_t index) const
         {
-            SA_THROW_IF(index >= layers_.size(),
+            SA_FATAL_IF(index >= layers_.size(),
                         "layer {} is out of range; this LayerStack holds {}",
                         index, layers_.size());
             return *layers_[index];

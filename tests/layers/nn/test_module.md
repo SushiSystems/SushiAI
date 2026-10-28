@@ -68,7 +68,7 @@ bias has the role `Bias`.
 
 ## LinearRejectsAnInputWhoseInnerExtentIsWrong
 
-`Linear{4, 3}` over a [2, 7] input throws `Error`.
+`Linear{4, 3}` over a [2, 7] input returns `InvalidDescription`.
 
 ## TheTutorialsCustomLayerTracesAndIsWalkable
 

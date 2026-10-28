@@ -58,7 +58,7 @@ namespace
     /** @brief Parses the attributes of one row. */
     Config::Value attributes_of(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Builds an Identity node, and refuses unless "names" is an embedding row above. */

@@ -33,11 +33,11 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
@@ -580,7 +580,7 @@ TEST(Small_Trace, SequentialLeavesTheFailureAChildRecordedOnTheTrace)
     const Trace trace = Trace::evaluation(builder);
 
     Graph::ValueID y = Graph::K_NO_VALUE;
-    EXPECT_NO_THROW(y = model.forward(trace, x));
+    y = model.forward(trace, x);
     EXPECT_EQ(y, x);
     SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "RefusingStub refuses");
     EXPECT_EQ(model.layer<1>().evaluation_calls, 0);
@@ -595,7 +595,7 @@ TEST(Small_Trace, SequentialRecordsTheRefusalOfABuilderFormChild)
     Sequential model{Linear{4, 8}, ReLU{}, ModalStub{}};
     const Trace trace = Trace::evaluation(builder);
 
-    EXPECT_NO_THROW(static_cast<void>(model.forward(trace, x)));
+    static_cast<void>(model.forward(trace, x));
     SA_EXPECT_FAILURE(trace.status(), StatusCode::InvalidDescription, "Linear(4, 8)");
     EXPECT_EQ(model.layer<2>().evaluation_calls, 0);
     EXPECT_TRUE(graph.has_refusal());

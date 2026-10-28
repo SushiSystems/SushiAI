@@ -62,7 +62,7 @@ namespace SushiAI
         DepthwiseConv2d DepthwiseConv2d::same_padded(int64_t in_channels, int64_t out_channels,
                                                      int64_t kernel, int64_t stride)
         {
-            SA_THROW_IF(in_channels != out_channels,
+            SA_FATAL_IF(in_channels != out_channels,
                         "DepthwiseConv2d keeps its channel count; got in={} and out={}",
                         in_channels, out_channels);
 

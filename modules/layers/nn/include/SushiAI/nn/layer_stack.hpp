@@ -62,8 +62,7 @@ namespace SushiAI
                 /**
                  * @brief Appends @p layer to the end of the stack.
                  * @param layer The layer; ownership is taken.
-                 * @throws Error If @p layer is null - a null entry would trace
-                 *         as a silent identity rather than failing.
+                 * @pre @p layer is not null; a null entry would trace as a silent identity.
                  */
                 void push(std::unique_ptr<Layer> layer);
 
@@ -97,7 +96,7 @@ namespace SushiAI
                 /**
                  * @brief How many features a sample carries after the last layer.
                  * @return The last layer's output width.
-                 * @throws Error If the stack is empty.
+                 * @pre The stack holds at least one layer.
                  */
                 int64_t output_features() const;
 
@@ -120,7 +119,7 @@ namespace SushiAI
                  * @brief The layer at @p index, for a test that wants to inspect it.
                  * @param index Which layer, in [0, size()).
                  * @return The layer; owned by the stack.
-                 * @throws Error If @p index is out of range.
+                 * @pre @p index is in [0, size()).
                  */
                 Layer& layer(std::size_t index) const;
 

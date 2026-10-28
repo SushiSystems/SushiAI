@@ -51,6 +51,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Builds an Add over @p shapes, one per input. */
     Result<std::unique_ptr<Add>> create_over(const std::vector<Shape>& shapes)
     {
@@ -224,7 +225,7 @@ TEST(Small_Add, ForwardReturnsTheFailureOfValuesThatDoNotAdd)
 TEST(Small_Add, TheFactoryBuildsANodeFromARowWithNoKey)
 {
     const Shape shapes[] = {Shape{8, 6, 3}, Shape{8, 6, 3}};
-    const Config::Value none = Config::parse_json("{}", "<test>");
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -241,8 +242,8 @@ TEST(Small_Add, TheFactoryRefusesAKeyAndShapesThatDoNotMatch)
 {
     const Shape matched[] = {Shape{8, 6, 3}, Shape{8, 6, 3}};
     const Shape unmatched[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
-    const Config::Value stray = Config::parse_json(R"({"alpha": 2})", "<test>");
-    const Config::Value none = Config::parse_json("{}", "<test>");
+    const Config::Value stray = require_value(Config::parse_json(R"({"alpha": 2})", "<test>"));
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_add_node(NN::ShapeSpan(matched, 2), stray, "layer 3 'add'"),
                       StatusCode::InvalidDescription, "layer 3 'add'", "'alpha'", "no key");

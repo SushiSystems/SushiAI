@@ -41,7 +41,6 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/node.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 
 namespace SushiAI
@@ -94,17 +93,12 @@ namespace SushiAI
                                              std::vector<Graph::ValueID>& outputs) override
                 {
                     SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
-                    const Result<Graph::ValueID> traced =
-                        Detail::bridge_throwing([this, &trace, &inputs]()
-                    {
-                        return trace_layer(layer_, trace, inputs[0]);
-                    });
+                    const Graph::ValueID traced = trace_layer(layer_, trace, inputs[0]);
 
-                    // A failure the layer recorded is the cause of whatever it threw afterwards.
+                    // A failure the layer recorded sits on the trace; the id is meaningless then.
                     SA_TRY(trace.status());
-                    SA_TRY(traced);
 
-                    outputs.push_back(traced.value());
+                    outputs.push_back(traced);
                     return Status();
                 }
 
@@ -120,17 +114,13 @@ namespace SushiAI
                     if constexpr (IncrementalModule<L>)
                     {
                         SA_TRY(Detail::require_input_count(inputs, K_INPUT_COUNT));
-                        const Result<Graph::ValueID> traced =
-                            Detail::bridge_throwing([this, &trace, &inputs]()
-                        {
-                            return trace_layer_incremental(layer_, trace, inputs[0], input_);
-                        });
+                        const Graph::ValueID traced =
+                            trace_layer_incremental(layer_, trace, inputs[0], input_);
 
-                        // A failure the layer recorded caused whatever it threw afterwards.
+                        // A failure the layer recorded sits on the trace; the id is meaningless.
                         SA_TRY(trace.status());
-                        SA_TRY(traced);
 
-                        outputs.push_back(traced.value());
+                        outputs.push_back(traced);
                         return Status();
                     }
                     else

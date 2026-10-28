@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- 2026-10-28 — nn: Breaking change: Made every layer factory and `build_layer_stack` return a `Result` (`layer_registry.hpp`).
+- 2026-10-28 — nn: Forwarded the refusal of a layer factory through the node registry without the throwing bridge (`node_registry.cpp`).
+- 2026-10-28 — nn: Breaking change: Made `LayerStack` and `DepthwiseConv2d::same_padded` stop the process for a layer or a width that cannot be right (`layer_stack.hpp`).
+- 2026-10-28 — nn: Dropped the includes of `nn/throwing_bridge.hpp`; no unit calls `Detail::bridge_throwing` any more (`module_node.hpp`).
 - 2026-10-28 — distribution: Parsed the cluster section and gradient exchange fixtures through `require_value` (`tests/core/distribution`).
 - 2026-10-28 — optim: Read the optimizer and rate schedule sections through the `Result` of the config readers (`optimizer_registry.cpp`).
 - 2026-10-28 — darknet_reference: Read the manifest and the reference description through the `Result` of the config readers (`darknet_reference.cpp`).

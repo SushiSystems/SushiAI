@@ -71,7 +71,7 @@ namespace SushiAI
                                "{} '{}' must be a whole number, but it is {}", context, key,
                                Config::kind_name(value.kind()));
 
-                    const int64_t number = value.as_int(key);
+                    SA_TRY_ASSIGN(const int64_t number, value.as_int(key));
                     SA_FAIL_IF(number <= 0, StatusCode::InvalidDescription,
                                "{} '{}' must be positive, but it is {}", context, key, number);
 
@@ -90,7 +90,7 @@ namespace SushiAI
                     if (!attributes.has(key))
                         return fallback;
 
-                    const Config::Value& value = attributes.at(key, context);
+                    SA_TRY_ASSIGN(const Config::Value& value, attributes.at(key, context));
                     SA_FAIL_IF(value.kind() != Config::Kind::Int &&
                                    value.kind() != Config::Kind::Real,
                                StatusCode::InvalidDescription,
@@ -147,7 +147,8 @@ namespace SushiAI
                 SA_FAIL_IF(!attributes.has(key), StatusCode::InvalidDescription,
                            "{} needs the key '{}', which is absent", context, key);
 
-                return checked_positive_int(attributes.at(key, context), key, context);
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return checked_positive_int(stated, key, context);
             }
 
             Result<int64_t> read_positive_int_or(const Config::Value& attributes,
@@ -157,7 +158,8 @@ namespace SushiAI
                 if (!attributes.has(key))
                     return fallback;
 
-                return checked_positive_int(attributes.at(key, context), key, context);
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
+                return checked_positive_int(stated, key, context);
             }
 
             Result<bool> read_bool_or(const Config::Value& attributes, std::string_view key,
@@ -166,7 +168,7 @@ namespace SushiAI
                 if (!attributes.has(key))
                     return fallback;
 
-                const Config::Value& value = attributes.at(key, context);
+                SA_TRY_ASSIGN(const Config::Value& value, attributes.at(key, context));
                 SA_FAIL_IF(value.kind() != Config::Kind::Bool, StatusCode::InvalidDescription,
                            "{} '{}' must be true or false, but it is {}", context, key,
                            Config::kind_name(value.kind()));
@@ -181,7 +183,7 @@ namespace SushiAI
                 SA_FAIL_IF(!attributes.has(key), StatusCode::InvalidDescription,
                            "{} needs the key '{}', which is absent", context, key);
 
-                const Config::Value& stated = attributes.at(key, context);
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(key, context));
                 const bool is_object = stated.kind() == Config::Kind::Object;
                 if (is_object)
                     SA_TRY(reject_unknown_keys(stated, KeySpan(K_ROW_KEYS), context));
@@ -191,16 +193,21 @@ namespace SushiAI
                            "{} '{}' is an object without '{}', the row it names", context, key,
                            K_ROW_NODE_KEY);
 
-                const Config::Value& number =
-                    is_object ? stated.at(K_ROW_NODE_KEY, context) : stated;
-                SA_FAIL_IF(number.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
+                const Config::Value* number = &stated;
+                if (is_object)
+                {
+                    SA_TRY_ASSIGN(const Config::Value& node, stated.at(K_ROW_NODE_KEY, context));
+                    number = &node;
+                }
+
+                SA_FAIL_IF(number->kind() != Config::Kind::Int, StatusCode::InvalidDescription,
                            "{} '{}' must be a row number, {} or an object carrying '{}', but "
                            "it is {}",
                            context, key, K_PREVIOUS_ROW, K_ROW_NODE_KEY,
-                           Config::kind_name(number.kind()));
+                           Config::kind_name(number->kind()));
 
                 const int64_t above = static_cast<int64_t>(rows_above);
-                const int64_t named = number.as_int(key);
+                SA_TRY_ASSIGN(const int64_t named, number->as_int(key));
                 const int64_t row = named == K_PREVIOUS_ROW ? above - 1 : named;
                 SA_FAIL_IF(row < 0 || row >= above, StatusCode::InvalidDescription,
                            "{} '{}' names row {}, which is not above it; {} rows are above, "

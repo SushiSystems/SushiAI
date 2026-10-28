@@ -23,10 +23,9 @@ builder `forward` returns a `Graph::Traced`: its first line is
 `SA_TRY_ASSIGN(const Graph::ValueID x, input);`, so a failed operand passes through, and a check
 of the layer refuses through `SA_REFUSE_IF(builder, ...)`. `output_shape(const Shape&)` returns
 a `Result<Shape>`, and a shape check that `forward` shares with it returns a `Status` or a
-`Result`. The layer factories and `build_layer_stack` still throw `Error`; the node registry
-calls a factory through `Detail::bridge_throwing` in `throwing_bridge.hpp`, which turns the
-`Error` into a `Status`. A trace form never throws a child's failure: `Sequential` leaves it on
-the trace and traces no later child.
+`Result`. The layer factories and `build_layer_stack` return a `Result` too, and the node
+registry forwards a factory's refusal unchanged. A trace form never reports a child's failure by
+throwing: `Sequential` leaves it on the trace and traces no later child.
 
 Every layer type and block has the same members: its fields, a static `fields()`, one of the
 three trace forms, `Result<Shape> output_shape(const Shape&) const`, and one `static_assert` on
@@ -270,7 +269,7 @@ both are PLAN unit U9.
 `DepthwiseConv2d` filters each channel of an NHWC activation with its own window of taps. The
 weight is rank 3, [kernel_h, kernel_w, channels], and `GraphBuilder::depthwise_conv2d` owns the
 node. `DepthwiseConv2d::same_padded(in, out, kernel, stride)` builds a layer padded by
-kernel / 2 on every side; it throws when `in` and `out` differ. The layer has no bias. Both fans
+kernel / 2 on every side; it stops the process when `in` and `out` differ. The layer has no bias. Both fans
 of the weight are kernel_h * kernel_w, since each channel reads and writes only its own taps.
 
 Source: YOLO26 plan, `docs/agent/2026_10_07_YOLO26/PLAN.md`, unit U5.
@@ -523,9 +522,7 @@ Source: `docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md`, section 2.1.
 
 `Detail::bridge_throwing` calls a callable that reports a failure by throwing and returns a
 `Result`. An `Error` becomes `InvalidDescription`, `std::bad_alloc` becomes `OutOfMemory`, and
-any other exception is fatal.
-
-Source: PLAN unit U8 and the paragraph of PLAN that lists its callers.
+any other exception is fatal. No unit of the library calls it; its test still builds it.
 
 ## The model graph
 

@@ -61,7 +61,7 @@ namespace SushiAI
 
             /**
              * @brief Builds a bias-free depthwise convolution padded by kernel / 2 on every side.
-             * @param in_channels Must equal out_channels; same_padded throws otherwise.
+             * @pre @p in_channels equals @p out_channels.
              * @return A layer with dilation 1 whose geometry output_shape() and forward() check.
              */
             [[nodiscard]] static DepthwiseConv2d same_padded(int64_t in_channels,

@@ -46,20 +46,20 @@ The stack of `make_stack` has a size of 3, is not empty and reports 4 output fea
 
 ## RefusesToTraceWhenEmpty
 
-`forward` of an empty stack raises an error holding "no layers" and "identity".
+`forward` of an empty stack returns `InvalidDescription` with a message holding "no layers" and "identity".
 
-## RefusesAnOutputWidthWhenEmpty
+## AnEmptyStackStopsTheProcessOnAnOutputWidth
 
-`output_features` of an empty stack raises an error holding "no layers".
+`output_features` of an empty stack stops the process with a report holding "no layers".
 
-## RefusesANullLayer
+## ANullLayerStopsTheProcess
 
-`push(nullptr)` raises an error holding "null layer" and "index 0".
+`push(nullptr)` stops the process with a report holding "null layer" and "index 0".
 
-## ReportsAnOutOfRangeLayerIndex
+## AnOutOfRangeLayerIndexStopsTheProcess
 
-On a stack of three layers `layer(2)` does not throw, and `layer(3)` raises an error holding
-"layer 3" and "holds 3".
+On a stack of three layers `layer(3)` stops the process with a report holding "layer 3" and
+"holds 3".
 
 ## TracingTwiceDoesNotDuplicateParameters
 
@@ -89,9 +89,9 @@ equals `output_shape().num_elements()`. `output_features()` is a non-virtual fun
 The stack of `make_stack` reports [4]. With a `GELU` adapter of shape [2, 2, 1] pushed after
 it, the stack reports [2, 2, 1] and `output_features()` 4.
 
-## RefusesAnOutputShapeWhenEmpty
+## AnEmptyStackStopsTheProcessOnAnOutputShape
 
-`output_shape()` of an empty stack throws with a message containing "no layers" and "output
+`output_shape()` of an empty stack stops the process with a report holding "no layers" and "output
 shape".
 
 ## BuildLayerStackThreadsEachOutputShapeIntoTheNextLayer
@@ -108,7 +108,7 @@ The spec of `hand_built_chain` has its `input_shape` replaced by [5]. The first 
 
 ## BuildLayerStackRefusesAHandBuiltRowWithoutASource
 
-With the `from` list of row 1 cleared, `build_layer_stack` throws with a message containing
+With the `from` list of row 1 cleared, `build_layer_stack` returns `InvalidDescription` with a message containing
 "layer 1 'gelu'" and "the row before it".
 
 ## OutputShapeOfAnInputIsTheLastLayersOutputShape
@@ -116,10 +116,10 @@ With the `from` list of row 1 cleared, `build_layer_stack` throws with a message
 `LayerStack::output_shape([6])` of the built chain is [4] and equals the argument-free
 `output_shape()`.
 
-## RefusesAnOutputShapeOfAnInputWhenEmpty
+## AnEmptyStackStopsTheProcessOnAnOutputShapeOfAnInput
 
-`output_shape([6])` of an empty stack throws with a message containing "no layers" and "output
-shape".
+`output_shape([6])` of an empty stack stops the process with a report holding "no layers" and
+"output shape".
 
 ## AnActivationFactoryKeepsARankThreeInputShape
 
@@ -128,7 +128,7 @@ and 48 features. A factory that reduced its input to a width would report [48].
 
 ## ALinearFactoryRefusesARankThreeInputAndNamesFlatten
 
-`NN::make_linear` given [4, 4, 3] throws with a message containing the context, "[4, 4, 3]"
+`NN::make_linear` given [4, 4, 3] returns `InvalidDescription` with a message containing the context, "[4, 4, 3]"
 and "flatten". Given [48], the same object builds.
 
 ## test_layer_stack.cpp, tests/core/config/test_value.cpp, tests/core/config/test_train_config.cpp, tests/core/config/test_model_config.cpp
@@ -144,9 +144,9 @@ This file needs no device. The config layer is host-lane by construction: it tur
 typed tree and never touches an Engine.
 
 Most of what the cases assert is a diagnostic, not a value. That is deliberate. A config
-layer's job is to refuse a wrong file loudly, and a test that only checked "it threw" would keep
+layer's job is to refuse a wrong file loudly, and a test that only checked "it failed" would keep
 passing after a refactor collapsed five specific messages into one generic complaint.
-`modules/core/failure_expectations/include/SushiAI/failure_expectations/throw_expectations.hpp` gives the argument in full.
+`SA_EXPECT_FAILURE` in `modules/core/failure_expectations/include/SushiAI/failure_expectations/status_expectations.hpp` checks the code and each needle of the message.
 
 The cases fall into two groups, in file order:
 
@@ -171,22 +171,22 @@ refused, not truncated. The widening goes one way only.
 
 ## AWrongKindNamesBothTheContextAndTheKindFound
 
-`as_int("layer 0 'units'")` on a string raises an error holding "layer 0 'units'" and
+`as_int("layer 0 'units'")` on a string returns `InvalidDescription` with a message holding "layer 0 'units'" and
 "a string".
 
 ## AMissingKeyNamesTheKeyAndListsWhatIsPresent
 
-`at("gamma", "model.json")` on an object of `alpha` and `beta` raises an error holding
+`at("gamma", "model.json")` on an object of `alpha` and `beta` returns `InvalidDescription` with a message holding
 "model.json", "'gamma'", "'alpha'" and "'beta'".
 
 ## ReadingAKeyOffANonObjectSaysWhatItActuallyIs
 
-`at("units", "the model")` on an array raises an error holding "the model" and "an array".
+`at("units", "the model")` on an array returns `InvalidDescription` with a message holding "the model" and "an array".
 
 ## AnUnknownKeyIsAnErrorThatListsWhatIsAllowed
 
 `reject_unknown_keys` with the allowed keys `type` and `units` over an object holding `unitss`
-raises an error holding "layer 0 'linear'", "'unitss'", "'units'" and "'type'".
+returns `InvalidDescription` with a message holding "layer 0 'linear'", "'unitss'", "'units'" and "'type'".
 
 ## AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything
 
@@ -198,19 +198,36 @@ error and is not quietly dropped.
 Removing a key that is absent is not an error, because a layer spelled with no attributes still
 goes through the same call.
 
-## AtOrFallsBackWithoutThrowing
+## AtOrFallsBackWithoutAFailure
 
-A non-object falls back and does not throw. A layer spelled `{"type": "gelu"}`, whose attributes
+A non-object falls back and reports no failure. A layer spelled `{"type": "gelu"}`, whose attributes
 are an empty object, therefore reads its optional keys through the same call as any other layer.
 
 ## MalformedJSONNamesTheOriginAndTheComplaint
 
-`parse_json("{ not json", "train.json")` raises an error holding "train.json" and
+`parse_json("{ not json", "train.json")` returns `InvalidFile` with a message holding "train.json" and
 "not valid JSON".
 
-## AnObjectBuiltFromMismatchedVectorsIsRefused
+## AnObjectBuiltFromMismatchedVectorsIsFatal
 
-`Value::object` of two keys and one value raises an error holding "2 keys" and "1 value".
+`Value::object` of two keys and one value stops the process with a report holding "2 keys" and
+"1 value".
+
+## RequireVersionAcceptsTheExpectedVersion
+
+`require_version` over `{"sushiai_train": 4, "epochs": 2}` with the key `sushiai_train` and the
+version 4 returns a success.
+
+## RequireVersionRefusesAWrongOrAbsentVersionAsAnInvalidFile
+
+`require_version` returns `InvalidFile` for version 3 where 4 is expected ("version 3", "reads
+version 4"), for a document without the key ("has no 'sushiai_data'") and for a root that is an
+array ("must be an object", "an array").
+
+## ParseJSONFileNamesAMissingFile
+
+`parse_json_file` of a path that holds no file returns `FileNotFound` with a message holding "could
+not open" and the file name.
 
 ## ParsesAModelAndSeparatesEachLayersTypeFromItsAttributes
 
@@ -285,29 +302,29 @@ After a trace, a `linear` row has two parameters, and one with `use_bias` false 
 
 ## AMissingModelVersionIsAnErrorThatSaysWhy
 
-A model document without `sushiai_model` raises an error holding "sushiai_model" and
+A model document without `sushiai_model` returns `InvalidFile` with a message holding "sushiai_model" and
 "misread".
 
 ## AFutureModelVersionIsAnError
 
-`sushiai_model` 2 raises an error holding "version 2" and "version 1".
+`sushiai_model` 2 returns `InvalidFile` with a message holding "version 2" and "version 1".
 
 ## AnUnknownTopLevelModelKeyIsAnError
 
-A version 1 document with the key `optimizer` raises an error holding "'optimizer'" and
+A version 1 document with the key `optimizer` returns `InvalidDescription` with a message holding "'optimizer'" and
 "'layers'".
 
 ## AModelWithNoLayersIsAnError
 
-An empty `layers` array raises an error holding "no layers".
+An empty `layers` array returns `InvalidDescription` with a message holding "no layers".
 
 ## ANonPositiveInputWidthIsAnError
 
-`features` 0 raises an error holding "'features'" and "positive".
+`features` 0 returns `InvalidDescription` with a message holding "'features'" and "positive".
 
 ## ALayerThatIsNotAnObjectIsAnError
 
-A layer given as the string "linear" raises an error holding "layer 0" and "a string".
+A layer given as the string "linear" returns `InvalidDescription` with a message holding "layer 0" and "a string".
 
 ## AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRewrite
 
@@ -326,9 +343,9 @@ The input shape [28, 28, 1] is kept at rank 3 and its `num_elements()` is 784.
 
 ## AnEmptyOrNonPositiveInputShapeIsAnError
 
-An empty `shape` throws with a message containing "'input' 'shape'" and "empty". The shape
-[28, 0, 1] throws with "'shape' entry 1" and "positive". A version 2 input that states
-`features` throws with "'features'" and "'shape'".
+An empty `shape` returns `InvalidDescription` with a message containing "'input' 'shape'" and "empty". The shape
+[28, 0, 1] returns `InvalidDescription` with "'shape' entry 1" and "positive". A version 2 input that states
+`features` returns `InvalidDescription` with "'features'" and "'shape'".
 
 ## TheInputElementTypeIsFloat32UnlessTheFileStatesInt32
 
@@ -337,34 +354,34 @@ of `Float32`. One with "int32" parses to `Int32`.
 
 ## AnInputElementTypeOutsideTheListIsAnError
 
-The `dtype` "int64" raises an error holding "'input' 'dtype'", "'int64'" and
-"'float32', 'int32'". The `dtype` 32 raises one holding "'input' 'dtype'".
+The `dtype` "int64" returns `InvalidDescription` with a message holding "'input' 'dtype'", "'int64'" and
+"'float32', 'int32'". The `dtype` 32 returns one holding "'input' 'dtype'".
 
 ## AnInputShapeAboveTheRankOrTheElementLimitIsAnError
 
-A shape of `K_MAX_RANK` + 1 extents throws with "'shape'" and "at most". The shape
-[4294967296, 4294967296], whose product is 2^64, throws with "'shape'", "entry 1" and "more
+A shape of `K_MAX_RANK` + 1 extents returns `InvalidDescription` with "'shape'" and "at most". The shape
+[4294967296, 4294967296], whose product is 2^64, returns `InvalidDescription` with "'shape'", "entry 1" and "more
 elements".
 
 ## AModelRootThatIsNotAnObjectIsAnError
 
-The document `[1]` throws with a message containing "model.json", "'format_version'" and "an
+The document `[1]` returns `InvalidFile` with a message containing "model.json", "'format_version'" and "an
 array".
 
 ## AVersionAboveTheNewestIsRefusedWithBothNumbers
 
-`"format_version": 3` throws with a message containing "model.json", "version 3" and "version
+`"format_version": 3` returns `InvalidFile` with a message containing "model.json", "version 3" and "version
 2".
 
 ## FormatVersionOneIsRefusedAndNamesTheVersionOneKey
 
-`"format_version": 1` throws with a message containing "'format_version'" and
+`"format_version": 1` returns `InvalidFile` with a message containing "'format_version'" and
 "'sushiai_model'". Version 1 files carry the second key and never the first.
 
 ## AVersionOneDocumentRefusesTheVersionTwoKeys
 
-A version 1 document with a `from` on row 1 throws with "layer 1", "'from'" and "version 1".
-One with a top-level `defaults` throws with "'defaults'" and "'layers'".
+A version 1 document with a `from` on row 1 returns `InvalidDescription` with "layer 1", "'from'" and "version 1".
+One with a top-level `defaults` returns `InvalidDescription` with "'defaults'" and "'layers'".
 
 ## EachFromFormResolvesToAnAbsoluteRow
 
@@ -376,24 +393,24 @@ is `K_MODEL_INPUT`, and "from" is not among row 3's attributes.
 
 ## ANegativeFromOtherThanMinusOneNamesTheRow
 
-`"from": -2` on row 2 throws with a message containing "layer 2 of 'model.json'", "'from'" and
-"row -2". `{"node": -3}` inside an array throws with the layer and "row -3".
+`"from": -2` on row 2 returns `InvalidDescription` with a message containing "layer 2 of 'model.json'", "'from'" and
+"row -2". `{"node": -3}` inside an array returns `InvalidDescription` with the layer and "row -3".
 
 ## AForwardReferenceNamesTheRow
 
-`"from": 2` on row 1 throws with "layer 1 of 'model.json'", "row 2" and "above row 1".
-`"from": [0, 1]` on row 1, which names the row itself, throws with the layer and "row 1".
+`"from": 2` on row 1 returns `InvalidDescription` with "layer 1 of 'model.json'", "row 2" and "above row 1".
+`"from": [0, 1]` on row 1, which names the row itself, returns `InvalidDescription` with the layer and "row 1".
 
 ## AnUnknownKeyOrFormInAFromEntryNamesTheRow
 
-Each of five `from` entries on row 1 throws with "layer 1 of 'model.json'" and one more
+Each of five `from` entries on row 1 returns `InvalidDescription` with "layer 1 of 'model.json'" and one more
 needle: the key `prot` with "'prot'" and "'port'"; the string "previous" with "'previous'" and
 "'input'"; an empty array with "empty"; the number 0.5 with "it is a number"; and an empty
 `port` string with "'port'" and "empty string".
 
 ## AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError
 
-A top-level key `output` throws with a message containing "'output'", "'outputs'" and
+A top-level key `output` returns `InvalidDescription` with a message containing "'output'", "'outputs'" and
 "'defaults'".
 
 ## DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne
@@ -404,13 +421,13 @@ Row 1 states `bn_momentum` 7 and keeps it. Row 2 is a `relu` and receives no key
 
 ## AMalformedDefaultsBlockIsAnError
 
-A `defaults` that is an array throws with "'defaults'" and "an array". A type whose default is
-the number 3 throws with "'defaults' for 'conv'" and "object". A default that sets `from`
-throws with that context and "'from'", and one that sets `type` with "'type'".
+A `defaults` that is an array returns `InvalidDescription` with "'defaults'" and "an array". A type whose default is
+the number 3 returns `InvalidDescription` with "'defaults' for 'conv'" and "object". A default that sets `from`
+returns `InvalidDescription` with that context and "'from'", and one that sets `type` with "'type'".
 
 ## ADefaultsEntryForATypeNoLayerStatesIsAnError
 
-A default for "covn" in a model of `conv` and `relu` rows throws with a message containing
+A default for "covn" in a model of `conv` and `relu` rows returns `InvalidDescription` with a message containing
 "'defaults'", "'covn'" and "'conv', 'relu'".
 
 ## OutputsDefaultToTheLastRowAndKeepWhatTheFileStates
@@ -421,7 +438,7 @@ port "boxes", and row 1 with the port "boxes" and the name "predictions".
 
 ## AMalformedOutputIsAnError
 
-Seven `outputs` values each throw. Row 1 in a one-row model: "'outputs' entry 0", "row 1" and
+Seven `outputs` values each return `InvalidDescription`. Row 1 in a one-row model: "'outputs' entry 0", "row 1" and
 "0 to 0". The key `nme`: "'nme'" and "'name'". A `name` without a `port`: "'name'" and
 "'port'". An empty array: "'outputs'" and "empty". The number 3 as an entry: "a whole number".
 An empty `port` string: "'outputs' entry 0 'port'" and "empty string". An empty `name` string:
@@ -445,13 +462,13 @@ keys in that order, the type "anchor_detection", 80 classes and one head.
 
 ## AMalformedTaskIsAnError
 
-The parse raises an error for a task given as an array ("'model.json's 'task'", "an array"),
+The parse returns `InvalidDescription` for a task given as an array ("'model.json's 'task'", "an array"),
 as null ("'model.json's 'task'", "null"), without a type ("'model.json's 'task'",
 "no 'type'", "'classes'") and with the type 3 ("'task' 'type'", "a whole number").
 
 ## AVersionOneDocumentRefusesATask
 
-A version 1 document with a `task` raises an error holding "'task'" and "'layers'".
+A version 1 document with a `task` returns `InvalidDescription` with a message holding "'task'" and "'layers'".
 
 ## ParsesATrainDocumentIntoItsFourTypedBlocks
 
@@ -473,23 +490,23 @@ nobody would maintain.
 ## EpochsDefaultsToOneAndMustBePositive
 
 A train document without `epochs` parses to 1 epoch and an empty checkpoint path. `epochs` 0
-raises an error holding "'epochs'" and "positive".
+returns `InvalidDescription` with a message holding "'epochs'" and "positive".
 
 ## AnUnknownTopLevelTrainKeyIsAnError
 
-The key `epochz` raises an error holding "'epochz'" and "'epochs'".
+The key `epochz` returns `InvalidDescription` with a message holding "'epochz'" and "'epochs'".
 
 ## AMissingTrainBlockNamesIt
 
-A train document without `data` raises an error holding "'data'".
+A train document without `data` returns `InvalidDescription` with a message holding "'data'".
 
 ## ATypedBlockThatIsNotAnObjectIsAnError
 
-An `objective` given as a string raises an error holding "'objective'" and "a string".
+An `objective` given as a string returns `InvalidDescription` with a message holding "'objective'" and "a string".
 
 ## AFutureTrainVersionIsAnError
 
-`sushiai_train` 2 raises an error holding "version 2" and "version 1".
+`sushiai_train` 2 returns `InvalidFile` with a message holding "version 2" and "version 1".
 
 ## ParsesAnEvalDocument
 
@@ -503,4 +520,4 @@ document is an error; it is not silently preferred over the one on the command l
 
 ## LoadingAnAbsentFileNamesThePath
 
-`load_train("no/such/train.json")` raises an error holding that path.
+`load_train("no/such/train.json")` returns `FileNotFound` with a message holding that path.

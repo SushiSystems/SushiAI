@@ -33,6 +33,7 @@
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layer_stack.hpp>
@@ -49,11 +50,11 @@ namespace SushiAI
          * @param input The per-sample shape entering it, batch axis excluded.
          * @param attributes The layer's own keys; the factory rejects any it does not know.
          * @param context What to call this layer in a diagnostic, e.g. "layer 3 'linear'".
-         * @return The layer.
+         * @return The layer, or InvalidDescription when a key, a value or @p input does not fit.
          */
-        using LayerFactory = std::unique_ptr<Layer> (*)(const Shape& input,
-                                                         const Config::Value& attributes,
-                                                         std::string_view context);
+        using LayerFactory = Result<std::unique_ptr<Layer>> (*)(const Shape& input,
+                                                                const Config::Value& attributes,
+                                                                std::string_view context);
 
         /**
          * @struct LayerEntry
@@ -72,52 +73,44 @@ namespace SushiAI
          * @brief Builds a @c Linear from "units" and an optional "use_bias".
          * @param input The predecessor's per-sample shape; must be rank 1, [features].
          * @param context What to call this layer in a diagnostic.
-         * @throws Error If @p input is not rank 1, a key is unknown, "units" is absent, or it
-         *         is not positive.
+         * @return The layer, or InvalidDescription when @p input is not rank 1, a key is
+         *         unknown, "units" is absent, or it is not positive.
          */
-        std::unique_ptr<Layer> make_linear(const Shape& input,
-                                            const Config::Value& attributes,
-                                            std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_linear(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds a @c GELU, which takes no keys at all.
          * @param input The predecessor's per-sample shape; the activation preserves it.
          * @param attributes The layer's keys; any key whatsoever is an error.
          * @param context What to call this layer in a diagnostic.
-         * @return The layer.
-         * @throws Error If any key is present.
+         * @return The layer, or InvalidDescription when any key is present.
          */
-        std::unique_ptr<Layer> make_gelu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_gelu(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /** @brief Builds a @c ReLU, which takes no key. */
-        std::unique_ptr<Layer> make_relu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_relu(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /** @brief Builds a @c Tanh, which takes no key. */
-        std::unique_ptr<Layer> make_tanh(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_tanh(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /** @brief Builds a @c Sigmoid, which takes no key. */
-        std::unique_ptr<Layer> make_sigmoid(const Shape& input,
-                                             const Config::Value& attributes,
-                                             std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_sigmoid(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /** @brief Builds a @c LeakyReLU from an optional "slope", 0.01 when absent. */
-        std::unique_ptr<Layer> make_leaky_relu(const Shape& input,
-                                                const Config::Value& attributes,
-                                                std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_leaky_relu(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds an @c Unflatten from "height", "width" and "channels", all required.
          * @param input The predecessor's per-sample shape; must be [height * width * channels].
          */
-        std::unique_ptr<Layer> make_unflatten(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_unflatten(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds a @c Conv2d from "filters" and "kernel", with optional "stride",
@@ -126,9 +119,8 @@ namespace SushiAI
          * @param attributes "kernel", "stride", "padding" and "dilation" each hold an integer
          *        or a two-entry [h, w] array.
          */
-        std::unique_ptr<Layer> make_conv2d(const Shape& input,
-                                            const Config::Value& attributes,
-                                            std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_conv2d(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds a @c MaxPool2d from "kernel", with optional "stride" and "padding".
@@ -136,9 +128,8 @@ namespace SushiAI
          * @param attributes "stride" defaults to "kernel"; each key holds an integer or a
          *        two-entry [h, w] array.
          */
-        std::unique_ptr<Layer> make_maxpool2d(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_maxpool2d(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds an @c AvgPool2d from "kernel", with optional "stride" and "padding".
@@ -146,38 +137,33 @@ namespace SushiAI
          * @param attributes "stride" defaults to "kernel"; each key holds an integer or a
          *        two-entry [h, w] array.
          */
-        std::unique_ptr<Layer> make_avgpool2d(const Shape& input,
-                                               const Config::Value& attributes,
-                                               std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_avgpool2d(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds a @c GlobalAvgPool, which takes no key.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
-        std::unique_ptr<Layer> make_global_avgpool(const Shape& input,
-                                                    const Config::Value& attributes,
-                                                    std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_global_avgpool(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds a @c Flatten, which takes no key.
          * @param input The predecessor's per-sample shape, of rank 1 or more.
          */
-        std::unique_ptr<Layer> make_flatten(const Shape& input,
-                                             const Config::Value& attributes,
-                                             std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_flatten(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Builds an @c Upsample2d from an optional "scale", 2 when absent.
          * @param input The predecessor's per-sample shape; must be rank 3, [H, W, C].
          */
-        std::unique_ptr<Layer> make_upsample(const Shape& input,
-                                              const Config::Value& attributes,
-                                              std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_upsample(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /** @brief Builds a @c SiLU, which takes no key. */
-        std::unique_ptr<Layer> make_silu(const Shape& input,
-                                          const Config::Value& attributes,
-                                          std::string_view context);
+        [[nodiscard]] Result<std::unique_ptr<Layer>> make_silu(
+            const Shape& input, const Config::Value& attributes, std::string_view context);
 
         /**
          * @brief Adds the sixteen layer types, then the node types batchnorm2d, concat, add,
@@ -189,13 +175,13 @@ namespace SushiAI
         /**
          * @brief Builds the whole layer stack, chaining each layer's per-sample shape.
          * @param registry Its layer rows are the types a row of @p model may name.
-         * @param model Parsed model architecture specification; every row must read the row
-         *        before it, row 0 the model input, and "outputs" must be empty or publish
-         *        the last row whole.
-         * @throws Error If a layer type is unknown or attributes are invalid.
+         * @param model The model architecture; each row reads the row before it, row 0 the
+         *        input, and "outputs" is empty or publishes the last row whole.
+         * @return The stack, or InvalidDescription when a layer type is unknown, attributes are
+         *         invalid, or @p model is no chain.
          */
-        LayerStack build_layer_stack(const NodeRegistry& registry,
-                                     const Config::ModelSpec& model);
+        [[nodiscard]] Result<LayerStack> build_layer_stack(const NodeRegistry& registry,
+                                                           const Config::ModelSpec& model);
 
     } // namespace NN
 } // namespace SushiAI

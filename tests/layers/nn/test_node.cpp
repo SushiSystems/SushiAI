@@ -64,6 +64,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Lists one buffer and defines it when traced; stands in for a layer with state. */
     struct BufferedStub
     {
@@ -278,8 +279,8 @@ namespace
     std::unique_ptr<NN::Layer> make_test_conv2d(const Shape& input)
     {
         const Config::Value attributes =
-            Config::parse_json(R"({"filters": 5, "kernel": 3})", "<test>");
-        return NN::make_conv2d(input, attributes, "layer 0 'conv2d'");
+            require_value(Config::parse_json(R"({"filters": 5, "kernel": 3})", "<test>"));
+        return require_value(NN::make_conv2d(input, attributes, "layer 0 'conv2d'"));
     }
 } // namespace
 

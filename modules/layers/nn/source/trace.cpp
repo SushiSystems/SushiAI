@@ -34,7 +34,6 @@
 #include <vector>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/seam/seam.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 namespace SushiAI
 {
@@ -230,12 +229,9 @@ namespace SushiAI
             const Graph::ValueID held = fed_->find(name);
             if (held == Graph::K_NO_VALUE)
             {
-                return Detail::bridge_throwing([this, name, &shape, dtype]()
-                {
-                    const Graph::ValueID declared = builder_->input(shape, name, dtype);
-                    fed_->add(FedLeaf{name, declared});
-                    return declared;
-                });
+                const Graph::ValueID declared = builder_->input(shape, name, dtype);
+                fed_->add(FedLeaf{name, declared});
+                return declared;
             }
 
             const Graph::Value& value = builder_->graph().value(held);
@@ -256,10 +252,7 @@ namespace SushiAI
                        "nothing between runs; a layer carries a value in a carrying trace only",
                        debug_name);
 
-            return Detail::bridge_throwing([this, &shape, debug_name, dtype]()
-            {
-                return builder_->input(shape, debug_name, dtype);
-            });
+            return builder_->input(shape, debug_name, dtype);
         }
 
         Status Trace::carry(Graph::ValueID leaf, Graph::ValueID next, double initial_value) const
@@ -316,12 +309,9 @@ namespace SushiAI
                        "{} values",
                        debug_name, shape.to_string(), shape.num_elements(), values.size());
 
-            return Detail::bridge_throwing([this, &shape, debug_name, dtype, &values]()
-            {
-                const Graph::ValueID leaf = builder_->buffer(shape, debug_name, dtype);
-                tables_->add(HostTable{leaf, std::move(values)});
-                return leaf;
-            });
+            const Graph::ValueID leaf = builder_->buffer(shape, debug_name, dtype);
+            tables_->add(HostTable{leaf, std::move(values)});
+            return leaf;
         }
 
     } // namespace NN

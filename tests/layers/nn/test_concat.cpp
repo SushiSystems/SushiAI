@@ -51,6 +51,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Builds a Concat over @p shapes, one per input. */
     Result<std::unique_ptr<Concat>> create_over(const std::vector<Shape>& shapes)
     {
@@ -214,7 +215,7 @@ TEST(Small_Concat, ForwardReturnsTheFailureOfValuesThatDoNotJoin)
 TEST(Small_Concat, TheFactoryBuildsANodeFromARowWithNoKey)
 {
     const Shape shapes[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
-    const Config::Value none = Config::parse_json("{}", "<test>");
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -231,8 +232,8 @@ TEST(Small_Concat, TheFactoryRefusesAKeyAndShapesThatDoNotJoin)
 {
     const Shape joined[] = {Shape{8, 6, 3}, Shape{8, 6, 5}};
     const Shape apart[] = {Shape{8, 6, 3}, Shape{4, 6, 5}};
-    const Config::Value none = Config::parse_json("{}", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"axis": 3})", "<test>");
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value stray = require_value(Config::parse_json(R"({"axis": 3})", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_concat_node(NN::ShapeSpan(joined, 2), stray, "layer 2 'concat'"),
                       StatusCode::InvalidDescription, "layer 2 'concat'", "'axis'", "no key");

@@ -35,12 +35,13 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>

@@ -301,7 +301,8 @@ TEST(Small_Embedding, TheFactoryReadsTheTwoExtents)
 {
     const Shape input{5};
     const Config::Value attributes =
-        Config::parse_json(R"({"num_embeddings": 11, "embedding_dim": 4})", "<test>");
+        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 11, "embedding_dim": 4})",
+                                                 "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -324,12 +325,15 @@ TEST(Small_Embedding, TheFactoryRefusesARowThatDoesNotFit)
     const Shape pair[] = {Shape{5}, Shape{5}};
     const Shape deep{1, 1, 1, 1, 1};
     const Config::Value both =
-        Config::parse_json(R"({"num_embeddings": 11, "embedding_dim": 4})", "<test>");
-    const Config::Value stray = Config::parse_json(
-        R"({"num_embeddings": 11, "embedding_dim": 4, "padding": 0})", "<test>");
-    const Config::Value no_length = Config::parse_json(R"({"num_embeddings": 11})", "<test>");
+        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 11, "embedding_dim": 4})",
+                                                 "<test>"));
+    const Config::Value stray = SaTest::require_value(Config::parse_json(
+        R"({"num_embeddings": 11, "embedding_dim": 4, "padding": 0})", "<test>"));
+    const Config::Value no_length =
+        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 11})", "<test>"));
     const Config::Value zero_rows =
-        Config::parse_json(R"({"num_embeddings": 0, "embedding_dim": 4})", "<test>");
+        SaTest::require_value(Config::parse_json(R"({"num_embeddings": 0, "embedding_dim": 4})",
+                                                 "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_embedding_node(NN::ShapeSpan(&input, 1), stray, "layer 3"),
                       StatusCode::InvalidDescription, "layer 3", "'padding'");

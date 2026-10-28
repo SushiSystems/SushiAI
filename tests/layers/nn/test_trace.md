@@ -161,13 +161,13 @@ The case is in the suite `Small_TraceDeathTest`. `trace.fail(Status())` stops th
 
 ## SequentialLeavesTheFailureAChildRecordedOnTheTrace
 
-`Sequential{RefusingStub, ModalStub}::forward` over a trace throws nothing and returns its input.
+`Sequential{RefusingStub, ModalStub}::forward` over a trace returns `InvalidDescription` nothing and returns its input.
 The trace's status is `InvalidDescription` with a message containing "RefusingStub refuses". The
 second child's `trace_evaluation` is never called.
 
 ## SequentialRecordsTheRefusalOfABuilderFormChild
 
-`Sequential{Linear{4, 8}, ReLU, ModalStub}::forward` over a trace of a [2, 5] input throws nothing.
+`Sequential{Linear{4, 8}, ReLU, ModalStub}::forward` over a trace of a [2, 5] input returns `InvalidDescription` nothing.
 The trace's status is `InvalidDescription` with a message containing "Linear(4, 8)", the graph is
 marked refused, and the `ModalStub` is never called.
 

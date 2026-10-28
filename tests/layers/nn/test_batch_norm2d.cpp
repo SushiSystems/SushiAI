@@ -60,6 +60,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the epsilon the reference layers were run with. */
     constexpr double K_REFERENCE_EPSILON = 1e-3;
 
@@ -648,7 +649,8 @@ TEST(Small_BatchNorm2d, TheFactoryReadsTheChannelsAndTheTwoConstants)
 {
     const Shape input{8, 8, 6};
     const Config::Value attributes =
-        Config::parse_json(R"({"bn_epsilon": 0.001, "bn_momentum": 0.03})", "<test>");
+        require_value(Config::parse_json(R"({"bn_epsilon": 0.001, "bn_momentum": 0.03})",
+                                         "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -669,9 +671,10 @@ TEST(Small_BatchNorm2d, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape image{8, 8, 6};
     const Shape flat{48};
-    const Config::Value none = Config::parse_json("{}", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"channels": 6})", "<test>");
-    const Config::Value negative = Config::parse_json(R"({"bn_epsilon": -1.0})", "<test>");
+    const Config::Value none = require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value stray = require_value(Config::parse_json(R"({"channels": 6})", "<test>"));
+    const Config::Value negative =
+        require_value(Config::parse_json(R"({"bn_epsilon": -1.0})", "<test>"));
 
     SA_EXPECT_FAILURE(NN::make_batch_norm2d_node(NN::ShapeSpan(&image, 1), stray, "layer 3"),
                       StatusCode::InvalidDescription, "layer 3", "'channels'", "bn_epsilon");
