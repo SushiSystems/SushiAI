@@ -33,7 +33,6 @@
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/ir.hpp>
 

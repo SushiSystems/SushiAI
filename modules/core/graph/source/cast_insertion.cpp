@@ -204,7 +204,8 @@ namespace SushiAI
                 const Node& node = graph.node(id);
                 if (is_structural(node.op))
                 {
-                    computed[id] = declared[node.outputs.at(0)];
+                    SA_FATAL_IF(node.outputs.empty(), "{} has no result", Ops::name_of(node.op));
+                    computed[id] = declared[node.outputs.front()];
                     continue;
                 }
                 SA_TRY_ASSIGN(computed[id], computed_dtype(node, declared, policy));

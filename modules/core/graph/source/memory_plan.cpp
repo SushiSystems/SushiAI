@@ -436,7 +436,10 @@ namespace SushiAI
                 SA_FATAL_IF(pinned >= value_count,
                             "PlanOptions::pinned names value {}, which this graph does not have",
                             pinned);
-                buffers[buffer_of_owner.at(aliases.find(pinned))].packable = false;
+                const auto owner = buffer_of_owner.find(aliases.find(pinned));
+                SA_FATAL_IF(owner == buffer_of_owner.end(),
+                            "PlanOptions::pinned names value {}, which no buffer holds", pinned);
+                buffers[owner->second].packable = false;
             }
 
             // Evaluates reachability matrix when node limit allows reuse.
