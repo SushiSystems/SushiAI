@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_anchor_run.cpp                                                    */
+/* test_training_program.cpp                                              */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -19,28 +19,29 @@
 /* "as is", without warranty of any kind.                                 */
 /**************************************************************************/
 
-
 /**
- * @file test_anchor_run.cpp
- * @brief Tests the anchor run row and the anchor inference report over a YOLO-layout fixture.
+ * @file test_training_program.cpp
+ * @brief Tests run_training_file over the tiny_yolo fixture: the anchor row and its checkpoint.
  * @author Mustafa Garip
  */
+
+#include "training_program.hpp"
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
+#include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
-#include "inference_program.hpp"
 #include "registries.hpp"
+#include "tiny_yolo_files.hpp"
 #include "training_setup.hpp"
-#include "training_program.hpp"
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
-#include <SushiAI/config/value.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/checkpoint.hpp>
@@ -51,113 +52,45 @@
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/applications/programs/README.md.
 namespace SaTest = SushiAI::Test;
+namespace TinyYolo = SushiAI::Apps::TinyYoloTest;
 
 namespace
 {
     /** @brief Gives each case an engine on the shared test runtime. */
-    class Medium_AnchorRun : public SaTest::EngineTest {};
-
-    /** @brief Holds the images of the fixture: two batches of two. */
-    constexpr std::size_t K_IMAGES = 4;
-
-    /** @brief Holds the seed the training file states. */
-    constexpr std::uint64_t K_SEED = 7;
-
-    /** @brief Holds the updates of the run: one epoch of two batches. */
-    constexpr std::uint64_t K_STEPS = 2;
-
-    /** @brief Returns the directory of the fixture: the model file and the YOLO-layout dataset. */
-    std::filesystem::path fixture_directory()
-    {
-#ifdef SA_TEST_FIXTURE_DIR
-        return std::filesystem::path(SA_TEST_FIXTURE_DIR) / "tiny_yolo";
-#else
-        return {};
-#endif
-    }
-
-    /** @brief Returns the data block both files state: the fixture read as a detection task. */
-    std::string data_block()
-    {
-        return R"({"reader": "yolo_txt", "task": "detection", "root": ")"
-               + fixture_directory().generic_string()
-               + R"(", "split": "train", "batch_size": 2, "input": [16, 16],
-                   "max_objects": 8, "classes": 2})";
-    }
-
-    /** @brief Returns the training file: the anchor objective, one epoch, @p checkpoint. */
-    std::string training_text(const std::filesystem::path& checkpoint)
-    {
-        return R"({
-            "sushiai_train": 3,
-            "model": "model.json",
-            "objective": {"type": "anchor"},
-            "data": )" + data_block() + R"(,
-            "optimizer": {"type": "sgd", "momentum": 0.9, "learning_rate": 0.001},
-            "epochs": 1,
-            "seed": 7,
-            "checkpoint": ")" + checkpoint.generic_string() + R"("
-        })";
-    }
-
-    /**
-     * @brief Runs `sushiai train` over the fixture through the assembly the program runs.
-     * @return The outcome of the run, or the first failure of the setup, the run or the save.
-     */
-    Result<Apps::TrainingOutcome> train_the_fixture(SushiBLAS::Engine& engine,
-                                                    const std::filesystem::path& checkpoint)
-    {
-        const Config::TrainSpec spec = Config::parse_train(
-            Config::parse_json(training_text(checkpoint), "<test>"), "<test>",
-            fixture_directory());
-        return Apps::run_training_file("<test>", spec, engine);
-    }
-
-    /**
-     * @brief Runs `sushiai inference` over the fixture through the assembly the program runs,
-     *        which prints the report of the task type of the model file.
-     * @return The first failure of the build, the load or the report.
-     */
-    Status report_the_fixture(SushiBLAS::Engine& engine, const std::filesystem::path& checkpoint)
-    {
-        const std::filesystem::path model_path = fixture_directory() / "model.json";
-        const Config::ModelSpec model_spec = Config::load_model(model_path);
-        const Config::DataSpec data_spec = Config::parse_data(
-            Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}", "<test>"),
-            "<test>");
-        return Apps::run_inference_file(model_path, checkpoint, model_spec, data_spec, engine);
-    }
-
+    class Medium_TrainingProgram : public SaTest::EngineTest {};
 } // namespace
 
 /** @brief Tests that the anchor row trains two updates in one compile and a checkpoint lands. */
-TEST_F(Medium_AnchorRun, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
+TEST_F(Medium_TrainingProgram, TheAnchorRowTrainsTwoStepsAndWritesACheckpoint)
 {
-    const SaTest::ScratchFile checkpoint("sushiai_anchor_run_train.sushi");
+    const SaTest::ScratchFile checkpoint("sushiai_training_program_train.sushi");
 
     testing::internal::CaptureStdout();
-    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
+    const Result<Apps::TrainingOutcome> trained =
+        TinyYolo::train_the_fixture(*engine, checkpoint.path());
     const std::string printed = testing::internal::GetCapturedStdout();
 
     ASSERT_TRUE(trained.has_value()) << trained.status().message() << printed;
-    EXPECT_EQ(trained.value().optimizer_steps, K_STEPS) << printed;
+    EXPECT_EQ(trained.value().optimizer_steps, TinyYolo::K_STEPS) << printed;
     EXPECT_EQ(trained.value().summary.compile_count, 1u) << printed;
     EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
     EXPECT_EQ(printed.find(" 0 learnable scalars"), std::string::npos) << printed;
     EXPECT_EQ(printed.find("(0 scalars)"), std::string::npos) << printed;
+    EXPECT_NE(printed.find("compiles: 1"), std::string::npos) << printed;
 }
 
 /** @brief Tests that a checkpoint in a folder that does not exist yet is written there. */
-TEST_F(Medium_AnchorRun, TheRunCreatesTheFolderOfItsCheckpoint)
+TEST_F(Medium_TrainingProgram, TheRunCreatesTheFolderOfItsCheckpoint)
 {
     const std::filesystem::path folder =
-        std::filesystem::temp_directory_path() / "sushiai_anchor_run_new_folder";
+        std::filesystem::temp_directory_path() / "sushiai_training_program_new_folder";
     std::error_code ignored;
     std::filesystem::remove_all(folder, ignored);
     const std::filesystem::path checkpoint = folder / "nested" / "trained.sushi";
 
     testing::internal::CaptureStdout();
-    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint);
+    const Result<Apps::TrainingOutcome> trained =
+        TinyYolo::train_the_fixture(*engine, checkpoint);
     const std::string printed = testing::internal::GetCapturedStdout();
 
     EXPECT_TRUE(trained.has_value()) << trained.status().message() << printed;
@@ -165,32 +98,42 @@ TEST_F(Medium_AnchorRun, TheRunCreatesTheFolderOfItsCheckpoint)
     std::filesystem::remove_all(folder, ignored);
 }
 
-/** @brief Tests that the anchor report reads the checkpoint the run wrote, over every image. */
-TEST_F(Medium_AnchorRun, TheAnchorReportReadsTheCheckpointOfTheRun)
+/** @brief Tests that a checkpoint folder that cannot be created fails the run before it trains. */
+TEST_F(Medium_TrainingProgram, ACheckpointFolderUnderAFileIsRefusedBeforeTheRunTrains)
 {
-    const SaTest::ScratchFile checkpoint("sushiai_anchor_run_report.sushi");
+    const SaTest::ScratchFile blocker("sushiai_training_program_blocker");
+    std::ofstream(blocker.path()).put('x');
+    const std::filesystem::path checkpoint = blocker.path() / "nested" / "trained.sushi";
 
     testing::internal::CaptureStdout();
-    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
-    testing::internal::GetCapturedStdout();
-    ASSERT_TRUE(trained.has_value()) << trained.status().message();
-
-    testing::internal::CaptureStdout();
-    const Status reported = report_the_fixture(*engine, checkpoint.path());
+    const Result<Apps::TrainingOutcome> trained =
+        TinyYolo::train_the_fixture(*engine, checkpoint);
     const std::string printed = testing::internal::GetCapturedStdout();
 
-    SA_EXPECT_OK(reported);
-    EXPECT_NE(printed.find("1 heads, 2 classes"), std::string::npos) << printed;
-    EXPECT_NE(printed.find("detections over " + std::to_string(K_IMAGES) + " images."),
-              std::string::npos)
-        << printed;
-    EXPECT_NE(printed.find("Mean average precision at IoU 0.5"), std::string::npos) << printed;
-    EXPECT_NE(printed.find("of " + std::to_string(K_IMAGES) + " images"), std::string::npos)
-        << printed;
+    ASSERT_FALSE(trained.has_value()) << printed;
+    EXPECT_TRUE(SaTest::status_names(trained.status(), StatusCode::InvalidFile,
+                                     {"could not create", "the folder of the checkpoint"}));
+    EXPECT_TRUE(printed.empty()) << printed;
+}
+
+/** @brief Tests that a file without a checkpoint trains and prints no line about a written file. */
+TEST_F(Medium_TrainingProgram, AFileWithoutACheckpointTrainsAndWritesNothing)
+{
+    Config::TrainSpec spec = TinyYolo::training_spec("unused.sushi");
+    spec.checkpoint.clear();
+
+    testing::internal::CaptureStdout();
+    const Result<Apps::TrainingOutcome> trained =
+        Apps::run_training_file("<test>", spec, *engine);
+    const std::string printed = testing::internal::GetCapturedStdout();
+
+    ASSERT_TRUE(trained.has_value()) << trained.status().message() << printed;
+    EXPECT_EQ(trained.value().optimizer_steps, TinyYolo::K_STEPS) << printed;
+    EXPECT_EQ(printed.find("wrote "), std::string::npos) << printed;
 }
 
 /** @brief Tests that a fresh anchor run starts the head's biases from the stride of its level. */
-TEST_F(Medium_AnchorRun, AFreshAnchorRunStartsTheObjectnessAndClassBiasesFromTheStride)
+TEST_F(Medium_TrainingProgram, AFreshAnchorRunStartsTheObjectnessAndClassBiasesFromTheStride)
 {
     // The fixture's head is 8 by 8 over a 16 by 16 input: stride 2, two anchors, two classes.
     constexpr std::int64_t K_SLOTS = 2;
@@ -200,19 +143,20 @@ TEST_F(Medium_AnchorRun, AFreshAnchorRunStartsTheObjectnessAndClassBiasesFromThe
     const double objectness = std::log(8.0 / (320.0 * 320.0));
     const double classes = std::log(0.6 / (2.0 - 0.99));
 
-    const SaTest::ScratchFile checkpoint("sushiai_anchor_run_bias.sushi");
+    const SaTest::ScratchFile checkpoint("sushiai_training_program_bias.sushi");
     testing::internal::CaptureStdout();
-    const Result<Apps::TrainingOutcome> trained = train_the_fixture(*engine, checkpoint.path());
+    const Result<Apps::TrainingOutcome> trained =
+        TinyYolo::train_the_fixture(*engine, checkpoint.path());
     testing::internal::GetCapturedStdout();
     ASSERT_TRUE(trained.has_value()) << trained.status().message();
 
-    const Config::ModelSpec model_spec = Config::load_model(fixture_directory() / "model.json");
-    const Config::TrainSpec spec = Config::parse_train(
-        Config::parse_json(training_text(checkpoint.path()), "<test>"), "<test>",
-        fixture_directory());
+    const Config::ModelSpec model_spec =
+        Config::load_model(TinyYolo::fixture_directory() / "model.json");
+    const Config::TrainSpec spec = TinyYolo::training_spec(checkpoint.path());
     const Apps::Registries registries = Apps::compose_registries().value();
     const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, spec, model_spec, *engine, K_SEED).value();
+        Apps::TrainingSetup::make(registries, spec, model_spec, *engine, TinyYolo::K_SEED)
+            .value();
     SA_EXPECT_OK(IO::load_checkpoint(checkpoint.path(), setup->state()));
 
     const Vision::Detect::Anchor::AnchorTask task =

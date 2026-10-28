@@ -73,12 +73,14 @@ Suites: `Medium_TrainingReplicaModel`.
 For an architecture file holding `{"sushiai_model": 1}` and the objective `cross_entropy`, the
 fingerprint of `ReplicaSource::make` is 0xd043c6822d22eede, a value computed apart from SushiAI.
 
-## source/test_anchor_run.cpp
+## source/test_training_program.cpp, source/test_inference_program.cpp
 
-Trains the `tiny_yolo` fixture, two convolutions and one anchor head over four 16 by 16 images,
-for two steps through the `anchor` run row, then reports its checkpoint through the
-`anchor_detection` inference row. [`source/test_anchor_run.md`](source/test_anchor_run.md)
-describes each case.
+Train the `tiny_yolo` fixture, two convolutions and one anchor head over four 16 by 16 images,
+for two steps through the `anchor` run row (`run_training_file`), then report its checkpoint
+through the `anchor_detection` inference row (`run_inference_file`).
+`source/tiny_yolo_files.hpp` holds the training and evaluation files both share.
+[`source/test_training_program.md`](source/test_training_program.md) and
+[`source/test_inference_program.md`](source/test_inference_program.md) describe each case.
 
 ## source/test_profile_session.cpp
 

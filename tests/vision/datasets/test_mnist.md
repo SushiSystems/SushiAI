@@ -7,7 +7,8 @@ Tests `MNISTOptions`, `try_load_mnist` and `make_mnist` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/mnist.hpp` over IDX files the test
 writes, so no MNIST download is needed. The refusals of the factory (an unknown key, a missing
 directory, an unknown split or layout, absent files) are tested through the dataset registry
-in `tests/vision/registration/test_registration.cpp`, under `Medium_VisionMnist`; this file
+in `tests/vision/registration/test_registration/test_registration.cpp`, under
+`Medium_VisionMnist`; this file
 tests what the loader reads.
 
 ## Medium_DatasetsMNIST

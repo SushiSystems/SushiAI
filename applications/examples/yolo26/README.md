@@ -7,7 +7,7 @@ Ultralytics `yolo26.yaml` at scale `n`, read by `NN::build_model`
 
 `build_model` builds the whole file over the registry that `NN::register_layers` and
 `Vision::register_nodes` fill. `TheYOLO26FileBuildsWhole` in
-`tests/vision/registration/test_registration.cpp` pins that build: the 594 state records
+`tests/vision/registration/test_registration/test_registration.cpp` pins that build: the 594 state records
 of `weights.sushi` and the twelve ports the last row publishes. No run has been made with this
 model.
 

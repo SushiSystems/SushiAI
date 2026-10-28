@@ -1,8 +1,8 @@
 # tests/vision/registration
 
-The tests of the module `vision/registration`, one file per header of `modules/vision/registration/include/`. The suite prefix of a case gives its ctest label. `registration_test_support.hpp` holds the helpers the three files share: `composed`, `trace_outputs` and `count_parameters`.
+The tests of the module `vision/registration`, one folder for its one header, `modules/vision/registration/include/SushiAI/vision/registration/registration.hpp`. The suite prefix of a case gives its ctest label. The three files in `test_registration/` build the rows that header registers from the model files of `applications/examples/`; `test_registration/registration_test_support.hpp` holds the helpers they share: `composed`, `trace_outputs` and `count_parameters`.
 
-## test_registration.cpp
+## test_registration/test_registration.cpp
 
 Suites: `Medium_VisionRegistration`, `Medium_VisionRegistrationData`.
 
@@ -158,7 +158,7 @@ the scores equal the `decoded.boxes` and `decoded.scores` records of the branch.
 `select_top_detections` over the `one2one` decode gives rows whose score column equals that of the
 `one2one.detections` record within 1e-6.
 
-## test_registration.cpp
+## test_registration/test_registration.cpp
 
 The "mnist" row of the vision module's dataset registry: the keys, splits and layouts it refuses, the files it names when they are absent, and the rank-4 batches of the "image" layout. Needs an engine.
 
@@ -215,7 +215,7 @@ and a [16, 28, 28, 1] input tensor.
 For a directory that does not exist, `mnist_available` is false, `try_load_mnist` fails with
 `FileNotFound` and names the directory, and `mnist_expected_paths` is not empty.
 
-## test_ultralytics_files.cpp
+## test_registration/test_ultralytics_files.cpp
 
 Suites: `Medium_UltralyticsFiles`.
 
@@ -247,3 +247,35 @@ Each model publishes six ports: the boxes of the three levels at 80, 40 and 20 p
 
 `read_free_task` reads the task section of `yolov8n`, `yolo11n` and `yolo26` as the `FreeTask`
 defaults: score threshold 0.25 and intersection-over-union suppression at 0.7.
+
+## test_registration/test_yolov5n.cpp
+
+Suites: `Medium_Yolov5nFile`, `Medium_Yolov5nBiases`.
+
+Tests the model file `applications/examples/yolov5n/model.json`, read from `SA_REPOSITORY_ROOT`.
+`Medium_Yolov5nBiases` is an engine fixture.
+
+### HoldsItsRowsAndItsThreeOutputs
+
+The file has 29 rows and a [640, 640, 3] input, and names three outputs, "head_0" to "head_2".
+
+### BuildsToTheParameterCountOfTheReference
+
+The built model holds the parameters of the Ultralytics summary line.
+
+### PublishesThreeHeadsAtTheLevelStrides
+
+The three heads are 255 channels wide at the sides 640 divided by the strides 8, 16 and 32.
+
+### TheTaskSectionReadsBack
+
+The task section reads as 80 classes, nine anchors of YOLOv5 in pixels over 640, three logit heads
+with a stretch of 2, squared-sigmoid sides, three anchors each, and the shape-ratio rule at the
+default ratio limit.
+
+### AnInitialisedModelGainsTheStrideBiases
+
+After a seeded initialisation, `initialize_anchor_biases` adds log(8 / (640 / stride)^2) to the
+objectness entry of each slot and log(0.6 / (80 - 0.99)) to each class entry of the biases
+"26.bias", "27.bias" and "28.bias", each to 1e-5.
+

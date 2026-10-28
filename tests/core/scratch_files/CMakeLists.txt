@@ -8,6 +8,7 @@
 
 sushiai_add_test_program(OWNER scratch_files
     SOURCES
+        test_scratch_directory.cpp
         test_scratch_file.cpp
     DEPENDS
         scratch_files)

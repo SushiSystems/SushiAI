@@ -6,7 +6,7 @@ Ultralytics `yolov8.yaml` at scale `n` (depth 0.33, width 0.25, at most 1024 cha
 `sa train` and `sa inference`. There is no C++ in this directory.
 
 No run has been made with this model.
-`Medium_UltralyticsFiles` in `tests/vision/registration/test_ultralytics_files.cpp` pins the build.
+`Medium_UltralyticsFiles` in `tests/vision/registration/test_registration/test_ultralytics_files.cpp` pins the build.
 
 ## Rows
 

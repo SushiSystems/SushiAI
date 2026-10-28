@@ -11,7 +11,7 @@ this directory, and no run has been made with this model.
 `Vision::register_nodes` fill.
 
 The file builds into 1,872,157 parameters, the count of a sum over its rows and of the
-Ultralytics summary line. `tests/vision/registration/test_yolov5n.cpp` pins that count, the three
+Ultralytics summary line. `tests/vision/registration/test_registration/test_yolov5n.cpp` pins that count, the three
 head shapes and the task section.
 
 ## The rows

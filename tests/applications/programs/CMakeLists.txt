@@ -12,7 +12,9 @@
 set(SUSHIAI_PROGRAM_TEST_SOURCES)
 set(SUSHIAI_PROGRAM_TEST_LINKS sushiai_program_shared)
 if(SA_BUILD_VISION)
-    list(APPEND SUSHIAI_PROGRAM_TEST_SOURCES source/test_anchor_run.cpp)
+    list(APPEND SUSHIAI_PROGRAM_TEST_SOURCES
+        source/test_inference_program.cpp
+        source/test_training_program.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_LINKS sushiai_vision)
 endif()
 if(SA_BUILD_LANGUAGE)
