@@ -92,8 +92,11 @@ namespace SushiAI::Vision::Codecs
         {
             ByteStreamBuffer buffer(bytes);
             std::istream in(&buffer);
-            SA_TRY_ASSIGN(const Imaging::RawImageHeader header,
-                          Imaging::read_raw_image_header(in));
+            const Result<Imaging::RawImageHeader> read = Imaging::read_raw_image_header(in);
+            if (!read.has_value())
+                return SA_ANNOTATE(read.status(), "decode_image");
+
+            const Imaging::RawImageHeader& header = read.value();
 
             const std::size_t declared = Imaging::K_RAW_IMAGE_HEADER_BYTES + header.pixel_bytes();
             SA_FAIL_IF(bytes.size() != declared, StatusCode::InvalidFile,
