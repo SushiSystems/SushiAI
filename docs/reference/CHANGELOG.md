@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-29 — general: Tagged the first release, v0.1.0 (RW-1, `e08c75e5`).
+
 ## v0.1.0 — 2026-10-29
 
 - 2026-10-29 — ci: Followed the first SushiBLAS tag (RW-45, `014d7ed9`).
