@@ -65,14 +65,14 @@ namespace SushiAI
              * @pre @p micro_batch is below @p micro_batches.
              */
             [[nodiscard]] std::uint64_t draw_index(std::uint64_t micro_batches,
-                                                   std::uint64_t micro_batch) const;
+                                                   std::uint64_t micro_batch) const noexcept;
 
             /**
              * @brief Returns the position of the step counted @p step from the first.
              * @pre @p batches_per_epoch is at least 1.
              */
             [[nodiscard]] static ReplicaPosition at_step(std::uint64_t step,
-                                                         std::uint64_t batches_per_epoch);
+                                                         std::uint64_t batches_per_epoch) noexcept;
 
             /**
              * @brief Reads a position from the first K_REPLICA_POSITION_BYTES of @p view.
@@ -80,7 +80,7 @@ namespace SushiAI
              *         smaller than K_REPLICA_POSITION_BYTES.
              */
             [[nodiscard]] static Result<ReplicaPosition> read(
-                const SushiRuntime::Distributed::BufferView& view);
+                const SushiRuntime::Distributed::BufferView& view) noexcept;
         };
 
     } // namespace Distribution

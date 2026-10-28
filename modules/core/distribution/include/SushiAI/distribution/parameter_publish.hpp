@@ -65,7 +65,7 @@ namespace SushiAI
                 [[nodiscard]] static Result<std::unique_ptr<ParameterPublish>> make(
                     SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
                     const SushiBLAS::PackLayout& layout,
-                    std::vector<SushiBLAS::Tensor> parameters);
+                    std::vector<SushiBLAS::Tensor> parameters) noexcept;
 
                 ParameterPublish(const ParameterPublish&) = delete;
                 ParameterPublish& operator=(const ParameterPublish&) = delete;

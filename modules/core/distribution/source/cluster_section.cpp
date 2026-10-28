@@ -235,7 +235,7 @@ namespace SushiAI
         } // namespace
 
         Result<ClusterSection> ClusterSection::read(const Value& section,
-                                                    const std::filesystem::path& base)
+                                                    const std::filesystem::path& base) noexcept
         {
             const Config::SectionReader reader(section, K_CLUSTER_KEY);
             SA_TRY(reader.check_object());
@@ -340,7 +340,7 @@ namespace SushiAI
             return plan_;
         }
 
-        const std::string& ClusterSection::worker_of(std::size_t replica) const
+        const std::string& ClusterSection::worker_of(std::size_t replica) const noexcept
         {
             SA_FATAL_IF(replica >= replicas_.size(),
                         "Replica {} was asked of a cluster section that has {}", replica,
@@ -349,7 +349,7 @@ namespace SushiAI
         }
 
         const SushiRuntime::AbsentPolicy& ClusterSection::absent_policy_of(
-            std::size_t replica) const
+            std::size_t replica) const noexcept
         {
             SA_FATAL_IF(replica >= replicas_.size(),
                         "Replica {} was asked of a cluster section that has {}", replica,
@@ -357,7 +357,7 @@ namespace SushiAI
             return replicas_[replica].if_absent;
         }
 
-        Result<SushiRuntime::PlacementRules> ClusterSection::placement_rules() const
+        Result<SushiRuntime::PlacementRules> ClusterSection::placement_rules() const noexcept
         {
             SushiRuntime::PlacementRules rules;
             const Status built = SushiAI::Detail::guard(

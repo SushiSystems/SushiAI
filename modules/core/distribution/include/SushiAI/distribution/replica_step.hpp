@@ -52,7 +52,7 @@ namespace SushiAI
          * One pool thread, not pinned, so the replica's runtime takes no core the runtime
          * that serves the kernel pinned; every device the default filter takes.
          */
-        [[nodiscard]] SushiRuntime::RuntimeConfig replica_runtime_config();
+        [[nodiscard]] SushiRuntime::RuntimeConfig replica_runtime_config() noexcept;
 
         /**
          * @brief Owns a replica's runtime, its model, the compiled forward and backward step
@@ -74,7 +74,7 @@ namespace SushiAI
                 [[nodiscard]] static Result<std::unique_ptr<ReplicaStep>> make(
                     const ReplicaModelFactory& factory, const ReplicaDraws& draws,
                     std::int64_t micro_batch_rows,
-                    const SushiRuntime::RuntimeConfig& config = replica_runtime_config());
+                    const SushiRuntime::RuntimeConfig& config = replica_runtime_config()) noexcept;
 
                 ReplicaStep(const ReplicaStep&) = delete;
                 ReplicaStep& operator=(const ReplicaStep&) = delete;
@@ -111,21 +111,21 @@ namespace SushiAI
                  *        every micro-batch run before.
                  * @pre @p parameters was bound to parameter_layout().
                  */
-                [[nodiscard]] Status begin(const SushiBLAS::BoundPack& parameters);
+                [[nodiscard]] Status begin(const SushiBLAS::BoundPack& parameters) noexcept;
 
                 /**
                  * @brief Feeds one micro-batch, replays the step at its draw index and adds its
                  *        results.
                  * @return Success, or the failure of the feed or of the replay.
                  */
-                [[nodiscard]] Status run_micro_batch(const ReplicaRows& rows);
+                [[nodiscard]] Status run_micro_batch(const ReplicaRows& rows) noexcept;
 
                 /**
                  * @brief Writes the mean of the results of the micro-batches since begin().
                  * @param results Bound to result_layout().
                  * @return Success, or what ReplicaAccumulator::write_mean() refuses.
                  */
-                [[nodiscard]] Status finish(const SushiBLAS::BoundPack& results) const;
+                [[nodiscard]] Status finish(const SushiBLAS::BoundPack& results) const noexcept;
 
             private:
                 /**

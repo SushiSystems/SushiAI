@@ -51,7 +51,7 @@ namespace SushiAI
          * @param what Names the tensor's role in the message, with @p index.
          */
         inline void require_host_visible(const SushiBLAS::Tensor& tensor, std::string_view what,
-                                         std::size_t index)
+                                         std::size_t index) noexcept
         {
             SA_FATAL_IF(!is_host_visible(tensor),
                         "{} {} lives in device memory, which a host copy cannot address", what,

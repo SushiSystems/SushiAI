@@ -78,7 +78,7 @@ namespace SushiAI
                  *         micro-batch that does not divide its rows, rows that sum above the
                  *         largest int64, or rows that sum to zero.
                  */
-                [[nodiscard]] static Result<ReplicaPlan> make(std::vector<ReplicaShare> shares);
+                [[nodiscard]] static Result<ReplicaPlan> make(std::vector<ReplicaShare> shares) noexcept;
 
                 /** @brief Returns how many replicas the plan has; at least one. */
                 [[nodiscard]] std::size_t replica_count() const noexcept;
@@ -90,25 +90,25 @@ namespace SushiAI
                  * @brief Returns r_k, the rows replica @p replica takes per batch.
                  * @pre @p replica is below replica_count().
                  */
-                [[nodiscard]] std::int64_t rows_of(std::size_t replica) const;
+                [[nodiscard]] std::int64_t rows_of(std::size_t replica) const noexcept;
 
                 /**
                  * @brief Returns m_k, the rows per micro-batch of replica @p replica.
                  * @pre @p replica is below replica_count().
                  */
-                [[nodiscard]] std::int64_t micro_batch_of(std::size_t replica) const;
+                [[nodiscard]] std::int64_t micro_batch_of(std::size_t replica) const noexcept;
 
                 /**
                  * @brief Returns r_k / m_k, how many micro-batches replica @p replica runs.
                  * @pre @p replica is below replica_count().
                  */
-                [[nodiscard]] std::int64_t micro_batch_count_of(std::size_t replica) const;
+                [[nodiscard]] std::int64_t micro_batch_count_of(std::size_t replica) const noexcept;
 
                 /**
                  * @brief Returns r_k / B, the weight of replica @p replica in the gradient sum.
                  * @pre @p replica is below replica_count().
                  */
-                [[nodiscard]] double weight_of(std::size_t replica) const;
+                [[nodiscard]] double weight_of(std::size_t replica) const noexcept;
 
                 /**
                  * @brief Returns the rows replica @p replica takes of batch @p batch_index.
@@ -119,7 +119,7 @@ namespace SushiAI
                  *      (batch_index + 1) * B, fits in 64 bits.
                  */
                 [[nodiscard]] RowPositions rows(std::size_t replica,
-                                                std::uint64_t batch_index) const;
+                                                std::uint64_t batch_index) const noexcept;
 
                 /**
                  * @brief Returns micro-batch @p micro_batch_index of the rows of a replica.
@@ -128,7 +128,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] RowPositions micro_batch(std::size_t replica,
                                                        std::uint64_t batch_index,
-                                                       std::uint64_t micro_batch_index) const;
+                                                       std::uint64_t micro_batch_index) const noexcept;
 
             private:
                 /** @brief Takes checked @p shares whose rows sum to @p batch_rows. */

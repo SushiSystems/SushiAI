@@ -38,7 +38,7 @@ namespace SushiAI
 {
     namespace Distribution
     {
-        Result<ReplicaPlan> ReplicaPlan::make(std::vector<ReplicaShare> shares)
+        Result<ReplicaPlan> ReplicaPlan::make(std::vector<ReplicaShare> shares) noexcept
         {
             SA_FAIL_IF(shares.empty(), StatusCode::InvalidDescription,
                        "A plan needs at least one replica; it was given none");
@@ -96,31 +96,31 @@ namespace SushiAI
             return batch_rows_;
         }
 
-        std::int64_t ReplicaPlan::rows_of(std::size_t replica) const
+        std::int64_t ReplicaPlan::rows_of(std::size_t replica) const noexcept
         {
             SA_FATAL_IF(replica >= shares_.size(), "Replica {} was asked of a plan that has {}",
                         replica, shares_.size());
             return shares_[replica].rows;
         }
 
-        std::int64_t ReplicaPlan::micro_batch_of(std::size_t replica) const
+        std::int64_t ReplicaPlan::micro_batch_of(std::size_t replica) const noexcept
         {
             SA_FATAL_IF(replica >= shares_.size(), "Replica {} was asked of a plan that has {}",
                         replica, shares_.size());
             return shares_[replica].micro_batch;
         }
 
-        std::int64_t ReplicaPlan::micro_batch_count_of(std::size_t replica) const
+        std::int64_t ReplicaPlan::micro_batch_count_of(std::size_t replica) const noexcept
         {
             return rows_of(replica) / micro_batch_of(replica);
         }
 
-        double ReplicaPlan::weight_of(std::size_t replica) const
+        double ReplicaPlan::weight_of(std::size_t replica) const noexcept
         {
             return static_cast<double>(rows_of(replica)) / static_cast<double>(batch_rows_);
         }
 
-        RowPositions ReplicaPlan::rows(std::size_t replica, std::uint64_t batch_index) const
+        RowPositions ReplicaPlan::rows(std::size_t replica, std::uint64_t batch_index) const noexcept
         {
             const std::uint64_t count = static_cast<std::uint64_t>(rows_of(replica));
             const std::uint64_t batch = static_cast<std::uint64_t>(batch_rows_);
@@ -135,7 +135,7 @@ namespace SushiAI
         }
 
         RowPositions ReplicaPlan::micro_batch(std::size_t replica, std::uint64_t batch_index,
-                                              std::uint64_t micro_batch_index) const
+                                              std::uint64_t micro_batch_index) const noexcept
         {
             const std::uint64_t cuts = static_cast<std::uint64_t>(micro_batch_count_of(replica));
             SA_FATAL_IF(micro_batch_index >= cuts,

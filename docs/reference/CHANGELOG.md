@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — distribution: Marked 25 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — data: Marked 11 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (`dataset.hpp`, `dataset_registry.hpp`, `materialised_dataset.hpp`, `threaded_loader.hpp`).
 - 2026-10-28 — config: Marked 42 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — autograd: Marked 53 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).

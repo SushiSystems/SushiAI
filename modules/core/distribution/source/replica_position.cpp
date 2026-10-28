@@ -35,7 +35,7 @@ namespace SushiAI
     namespace Distribution
     {
         ReplicaPosition ReplicaPosition::at_step(std::uint64_t step,
-                                                 std::uint64_t batches_per_epoch)
+                                                 std::uint64_t batches_per_epoch) noexcept
         {
             SA_FATAL_IF(batches_per_epoch == 0,
                         "ReplicaPosition::at_step: an epoch holds at least one batch");
@@ -48,7 +48,7 @@ namespace SushiAI
         }
 
         std::uint64_t ReplicaPosition::draw_index(std::uint64_t micro_batches,
-                                                  std::uint64_t micro_batch) const
+                                                  std::uint64_t micro_batch) const noexcept
         {
             SA_FATAL_IF(micro_batch >= micro_batches,
                         "ReplicaPosition::draw_index: micro-batch {} of a step of {}",
@@ -58,7 +58,7 @@ namespace SushiAI
         }
 
         Result<ReplicaPosition> ReplicaPosition::read(
-            const SushiRuntime::Distributed::BufferView& view)
+            const SushiRuntime::Distributed::BufferView& view) noexcept
         {
             SA_FAIL_IF(view.data == nullptr, StatusCode::InvalidDescription,
                        "A replica node's position pack names no memory");

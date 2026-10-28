@@ -73,7 +73,7 @@ namespace SushiAI
             }
         } // namespace
 
-        SushiRuntime::RuntimeConfig replica_runtime_config()
+        SushiRuntime::RuntimeConfig replica_runtime_config() noexcept
         {
             SushiRuntime::RuntimeConfig config;
             config.worker_count = 1;
@@ -83,7 +83,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<ReplicaStep>> ReplicaStep::make(
             const ReplicaModelFactory& factory, const ReplicaDraws& draws,
-            std::int64_t micro_batch_rows, const SushiRuntime::RuntimeConfig& config)
+            std::int64_t micro_batch_rows, const SushiRuntime::RuntimeConfig& config) noexcept
         {
             SA_FAIL_IF(micro_batch_rows < 1, StatusCode::InvalidDescription,
                        "A replica step's micro-batch holds {} rows; it holds at least one",
@@ -151,7 +151,7 @@ namespace SushiAI
 
         ReplicaStep::~ReplicaStep() = default;
 
-        Status ReplicaStep::begin(const SushiBLAS::BoundPack& parameters)
+        Status ReplicaStep::begin(const SushiBLAS::BoundPack& parameters) noexcept
         {
             const SushiRuntime::span<const SushiBLAS::Tensor> targets = model_->parameters();
             for (std::size_t index = 0; index < targets.size(); ++index)
@@ -174,7 +174,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status ReplicaStep::run_micro_batch(const ReplicaRows& rows)
+        Status ReplicaStep::run_micro_batch(const ReplicaRows& rows) noexcept
         {
             SA_TRY(model_->feed(rows));
             SA_TRY(step_->run_at(rows.draw_index));
@@ -185,7 +185,7 @@ namespace SushiAI
             });
         }
 
-        Status ReplicaStep::finish(const SushiBLAS::BoundPack& results) const
+        Status ReplicaStep::finish(const SushiBLAS::BoundPack& results) const noexcept
         {
             return accumulator_->write_mean(results);
         }

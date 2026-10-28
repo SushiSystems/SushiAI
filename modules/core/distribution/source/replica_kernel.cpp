@@ -41,7 +41,7 @@ namespace SushiAI
     {
         Result<std::unique_ptr<ReplicaKernel>> ReplicaKernel::make(
             ReplicaPlan plan, ReplicaModelFactory factory, const ReplicaDraws& draws,
-            const SushiRuntime::RuntimeConfig& config)
+            const SushiRuntime::RuntimeConfig& config) noexcept
         {
             SA_FAIL_IF(draws.replica_index >= plan.replica_count(),
                        StatusCode::InvalidDescription,
@@ -106,7 +106,7 @@ namespace SushiAI
         Status ReplicaKernel::serve(
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView> inputs,
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView> outputs,
-            const SushiRuntime::NodeOptions& options)
+            const SushiRuntime::NodeOptions& options) noexcept
         {
             SA_TRY_ASSIGN(const ReplicaTask task, ReplicaTask::decode(options.parameters));
             SA_FAIL_IF(task.replica_count != plan_.replica_count(),

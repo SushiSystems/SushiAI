@@ -72,7 +72,7 @@ namespace SushiAI
              *         above the replica count.
              */
             [[nodiscard]] static Result<ReplicaTask> decode(
-                SushiRuntime::span<const std::uint64_t> words);
+                SushiRuntime::span<const std::uint64_t> words) noexcept;
 
             /** @brief Returns the seed, the replica and the run of the task. */
             [[nodiscard]] ReplicaDraws draws() const noexcept

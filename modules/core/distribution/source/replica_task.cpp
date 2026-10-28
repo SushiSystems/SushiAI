@@ -38,7 +38,7 @@ namespace SushiAI
             return {replica_index, replica_count, run_index, seed};
         }
 
-        Result<ReplicaTask> ReplicaTask::decode(SushiRuntime::span<const std::uint64_t> words)
+        Result<ReplicaTask> ReplicaTask::decode(SushiRuntime::span<const std::uint64_t> words) noexcept
         {
             SA_FAIL_IF(words.size() != K_REPLICA_TASK_WORDS, StatusCode::InvalidDescription,
                        "A replica node carries {} parameters, not {}", words.size(),

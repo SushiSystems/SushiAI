@@ -148,7 +148,7 @@ namespace SushiAI
             SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
             const ReplicaPlan& plan, const ExchangeRun& run,
             const SushiBLAS::TensorPack& parameters, const SushiBLAS::PackLayout& result_layout,
-            std::vector<SushiBLAS::Tensor> targets)
+            std::vector<SushiBLAS::Tensor> targets) noexcept
         {
             SA_TRY(require_arguments(binding, plan, run, parameters, result_layout, targets));
 

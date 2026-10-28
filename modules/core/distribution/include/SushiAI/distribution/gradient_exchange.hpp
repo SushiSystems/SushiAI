@@ -91,7 +91,7 @@ namespace SushiAI
                     const ReplicaPlan& plan, const ExchangeRun& run,
                     const SushiBLAS::TensorPack& parameters,
                     const SushiBLAS::PackLayout& result_layout,
-                    std::vector<SushiBLAS::Tensor> targets);
+                    std::vector<SushiBLAS::Tensor> targets) noexcept;
 
                 GradientExchange(const GradientExchange&) = delete;
                 GradientExchange& operator=(const GradientExchange&) = delete;

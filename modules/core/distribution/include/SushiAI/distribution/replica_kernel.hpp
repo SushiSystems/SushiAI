@@ -73,7 +73,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ReplicaKernel>> make(
                     ReplicaPlan plan, ReplicaModelFactory factory, const ReplicaDraws& draws,
-                    const SushiRuntime::RuntimeConfig& config = replica_runtime_config());
+                    const SushiRuntime::RuntimeConfig& config = replica_runtime_config()) noexcept;
 
                 ReplicaKernel(const ReplicaKernel&) = delete;
                 ReplicaKernel& operator=(const ReplicaKernel&) = delete;
@@ -126,7 +126,7 @@ namespace SushiAI
                 [[nodiscard]] Status serve(
                     SushiRuntime::span<const SushiRuntime::Distributed::BufferView> inputs,
                     SushiRuntime::span<const SushiRuntime::Distributed::BufferView> outputs,
-                    const SushiRuntime::NodeOptions& options);
+                    const SushiRuntime::NodeOptions& options) noexcept;
 
             private:
                 /** @brief Takes the plan, the factory and the first step. */

@@ -68,7 +68,7 @@ namespace SushiAI
                  *         of the README, or what ReplicaPlan::make refuses.
                  */
                 [[nodiscard]] static Result<ClusterSection>
-                read(const Config::Value& section, const std::filesystem::path& base);
+                read(const Config::Value& section, const std::filesystem::path& base) noexcept;
 
                 /** @brief Returns the address the master listens on, as the file spells it. */
                 [[nodiscard]] const std::string& listen_address() const noexcept;
@@ -86,14 +86,14 @@ namespace SushiAI
                  * @brief Returns the name of the machine replica @p replica runs on.
                  * @pre @p replica is below plan().replica_count().
                  */
-                [[nodiscard]] const std::string& worker_of(std::size_t replica) const;
+                [[nodiscard]] const std::string& worker_of(std::size_t replica) const noexcept;
 
                 /**
                  * @brief Returns what happens when the machine of replica @p replica is absent.
                  * @pre @p replica is below plan().replica_count().
                  */
                 [[nodiscard]] const SushiRuntime::AbsentPolicy& absent_policy_of(
-                    std::size_t replica) const;
+                    std::size_t replica) const noexcept;
 
                 /**
                  * @brief Turns the replicas into placement rules, one per replica in order.
@@ -103,7 +103,7 @@ namespace SushiAI
                  * @return The rules, or InvalidDescription naming the replica for a rule the
                  *         runtime refuses.
                  */
-                [[nodiscard]] Result<SushiRuntime::PlacementRules> placement_rules() const;
+                [[nodiscard]] Result<SushiRuntime::PlacementRules> placement_rules() const noexcept;
 
             private:
                 /** @brief What one replica states besides its rows. */

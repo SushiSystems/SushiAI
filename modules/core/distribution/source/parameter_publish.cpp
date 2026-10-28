@@ -94,7 +94,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<ParameterPublish>> ParameterPublish::make(
             SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
-            const SushiBLAS::PackLayout& layout, std::vector<SushiBLAS::Tensor> parameters)
+            const SushiBLAS::PackLayout& layout, std::vector<SushiBLAS::Tensor> parameters) noexcept
         {
             SA_TRY(require_layout(layout, parameters));
 
