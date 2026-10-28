@@ -3,8 +3,7 @@
 ## Owns
 
 The failure contract. `Status` carries a `StatusCode` and a message, and `Result<T>` holds either
-a value or the `Status` that explains its absence. `Error` is the exception a SushiAI failure
-surfaces as, and `SA_THROW_IF` throws it. The fatal checks stop the process for a broken
+a value or the `Status` that explains its absence. The fatal checks stop the process for a broken
 precondition.
 
 The default fatal handler writes the message through `SushiLog::log_at` at `FATAL` in
@@ -26,6 +25,5 @@ Each header is named by its include path under `include/`.
 | Header | Declares |
 | --- | --- |
 | `SushiAI/failure/check.hpp` | `FatalHandler`, `set_fatal_handler`, `SA_FATAL_IF`, `SA_FATAL`, `SA_ASSERT` |
-| `SushiAI/failure/error.hpp` | `Error`, `SA_THROW_IF` |
 | `SushiAI/failure/result.hpp` | `Result<T>`, `Result<T&>`, `Detail::status_of`, `SA_TRY_ASSIGN` |
 | `SushiAI/failure/status.hpp` | `StatusCode`, `Status`, `SA_FAIL_IF`, `SA_ANNOTATE`, `SA_TRY` |

@@ -81,7 +81,7 @@ namespace SushiAI
 
 /**
  * @brief Stops the process with a formatted message when @p condition holds, in every build.
- * @param condition Expression to evaluate; the same polarity as SA_THROW_IF.
+ * @param condition Expression to evaluate; the failure path runs when it is true.
  * @param ... Format string and arguments for SushiLog's format_text, evaluated only on failure.
  */
 #define SA_FATAL_IF(condition, ...)                                                    \

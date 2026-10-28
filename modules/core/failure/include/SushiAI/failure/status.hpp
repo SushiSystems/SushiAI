@@ -242,7 +242,7 @@ namespace SushiAI
 
 /**
  * @brief Returns a failed Status with a formatted message when @p condition holds.
- * @param condition Expression to evaluate; the same polarity as SA_THROW_IF.
+ * @param condition Expression to evaluate; the failure path runs when it is true.
  * @param code The StatusCode of the failure.
  * @param ... Format string and arguments for SushiLog's format_text, evaluated only on failure.
  */

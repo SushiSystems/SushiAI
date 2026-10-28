@@ -3,10 +3,6 @@
 The tests of the module `core/failure`, one file per header of `modules/core/failure/include/`. The
 suite prefix of a case gives its ctest label.
 
-## test_error.cpp
-
-The cases are described in [`test_error.md`](test_error.md).
-
 ## test_result.cpp
 
 Suites: `Small_Result`.
