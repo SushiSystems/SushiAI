@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — umbrella: Dropped the include of the removed `error.hpp` (`SushiAI.hpp`).
 - 2026-10-28 — train: Dropped the include of the removed `error.hpp` (`objective.hpp`).
 - 2026-10-28 — autograd: Added `GradientTape::input` and `output`, which stop with a message for an index the node lacks; the rules use them in place of `at()` (`tape.hpp`).
 - 2026-10-28 — graph: Made a pinned value without a buffer and a structural node without a result stop with a message in place of `std::out_of_range` (`memory_plan.cpp`, `cast_insertion.cpp`).

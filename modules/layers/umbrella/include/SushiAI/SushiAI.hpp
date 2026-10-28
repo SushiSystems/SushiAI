@@ -40,7 +40,6 @@
 #include <SushiAI/log/sushiai_log_project.hpp>
 #include <SushiAI/log/log.hpp>
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/dtype/dtype.hpp>
