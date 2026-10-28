@@ -52,7 +52,7 @@ namespace SushiAI
          */
         inline SushiProfiler::ProfilerConfig following_timeline(std::string_view timeline,
                                                                 std::uint32_t warmup,
-                                                                std::uint32_t active)
+                                                                std::uint32_t active) noexcept
         {
             SushiProfiler::ProfilerConfig config;
             config.timeline = std::string(timeline);
@@ -64,7 +64,7 @@ namespace SushiAI
 
         /** @brief Returns what the zones of @p period ran, as site name to group. */
         inline std::map<std::string, std::string> zones_of(const SushiProfiler::RunRecord& record,
-                                                           const SushiProfiler::PeriodRecord& period)
+                                                           const SushiProfiler::PeriodRecord& period) noexcept
         {
             std::map<std::string, std::string> zones;
             for (const SushiProfiler::ZoneTree& tree : period.zones)
@@ -82,7 +82,7 @@ namespace SushiAI
         template<std::size_t Count>
         std::map<std::string, std::string> zones_in_groups(
             const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period,
-            const std::array<std::string_view, Count>& groups)
+            const std::array<std::string_view, Count>& groups) noexcept
         {
             std::map<std::string, std::string> kept;
             for (const auto& [name, group] : zones_of(record, period))
@@ -99,7 +99,7 @@ namespace SushiAI
          *        "Runtime" and "BLAS".
          */
         inline std::map<std::string, std::string> sushiai_zones_of(
-            const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period)
+            const SushiProfiler::RunRecord& record, const SushiProfiler::PeriodRecord& period) noexcept
         {
             return zones_in_groups(record, period, Profile::K_ZONE_GROUPS);
         }
@@ -113,7 +113,7 @@ namespace SushiAI
         }
 
         /** @brief Returns the text of the file at @p path, or an empty string. */
-        inline std::string read_text(const std::filesystem::path& path)
+        inline std::string read_text(const std::filesystem::path& path) noexcept
         {
             std::ifstream file(path, std::ios::binary);
             return std::string(std::istreambuf_iterator<char>(file),
@@ -126,7 +126,7 @@ namespace SushiAI
          * @return The path of the configuration file, `profile.json` in @p folder.
          */
         inline std::filesystem::path write_profile_config(const std::filesystem::path& folder,
-                                                          std::string_view record_name)
+                                                          std::string_view record_name) noexcept
         {
             const std::filesystem::path path = folder / "profile.json";
             write_text(path,
