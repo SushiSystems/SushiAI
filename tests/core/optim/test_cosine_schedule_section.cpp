@@ -37,6 +37,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Optim::CosineSchedule;
@@ -50,7 +51,7 @@ namespace
     /** @brief Parses @p text as a section of a training file. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 } // namespace
 
@@ -65,12 +66,16 @@ TEST(Small_CosineScheduleSection, TheWriterStatesTheTypeAndEveryKey)
 
     SA_ASSERT_OK_AND_ASSIGN(const Value section, write_cosine_schedule_section(schedule));
 
-    EXPECT_EQ(section.at("type", "section").as_string("type"), K_COSINE_SCHEDULE_TYPE);
-    EXPECT_NEAR(section.at("base_rate", "section").as_real("base_rate"), 0.5, K_RATE_TOLERANCE);
-    EXPECT_EQ(section.at("warmup_iterations", "section").as_int("warmup_iterations"), 2);
-    EXPECT_EQ(section.at("total_iterations", "section").as_int("total_iterations"), 10);
-    EXPECT_NEAR(section.at("final_rate", "section").as_real("final_rate"), 0.25,
-                K_RATE_TOLERANCE);
+    const auto read = [&section](const char* key) -> const Value&
+    {
+        return require_value(section.at(key, "section"));
+    };
+
+    EXPECT_EQ(require_value(read("type").as_string("type")), K_COSINE_SCHEDULE_TYPE);
+    EXPECT_NEAR(require_value(read("base_rate").as_real("base_rate")), 0.5, K_RATE_TOLERANCE);
+    EXPECT_EQ(require_value(read("warmup_iterations").as_int("warmup_iterations")), 2);
+    EXPECT_EQ(require_value(read("total_iterations").as_int("total_iterations")), 10);
+    EXPECT_NEAR(require_value(read("final_rate").as_real("final_rate")), 0.25, K_RATE_TOLERANCE);
 }
 
 /** @brief Tests that a section whose type the caller took out is read like a full one. */

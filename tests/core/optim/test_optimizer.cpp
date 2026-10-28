@@ -193,7 +193,7 @@ TEST_F(Medium_ParameterDecay, TheKeyDecayAllReachesTheOptimizer)
 {
     const auto attributes = [](std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return SushiAI::Test::require_value(Config::parse_json(text, "<test>"));
     };
     constexpr std::string_view K_GROUPED =
         R"({"learning_rate": 0.5, "weight_decay": 0.5})";

@@ -40,6 +40,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Optim::RateSchedule;
@@ -61,7 +62,7 @@ namespace
     /** @brief Parses @p text as a section of a training file. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 } // namespace
 

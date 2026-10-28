@@ -78,7 +78,7 @@ namespace
     /** @brief Parses @p text as the attributes of an optimizer. */
     Config::Value attributes_from(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
     }
 } // namespace
 

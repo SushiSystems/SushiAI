@@ -42,6 +42,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Optim::K_STEP_SCHEDULE_TYPE;
@@ -62,7 +63,7 @@ namespace
     /** @brief Parses @p text as a schedule section. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 
     /** @brief Parses the section that states the one member @p member, as JSON text. */
@@ -176,9 +177,16 @@ TEST(Small_StepScheduleSection, WritesTheTypeAndEveryKeyInOrder)
     EXPECT_EQ(section.keys(),
               (std::vector<std::string>{"type", "base_rate", "warmup_iterations",
                                         "warmup_power", "steps", "scales"}));
-    EXPECT_EQ(section.at("type", "schedule").as_string("type"), K_STEP_SCHEDULE_TYPE);
-    EXPECT_EQ(section.at("warmup_iterations", "schedule").as_int("warmup_iterations"), 1000);
-    EXPECT_EQ(section.at("steps", "schedule").as_array("steps")[1].as_int("step"), 450000);
+    const auto read = [&section](const char* key) -> const Value&
+    {
+        return require_value(section.at(key, "schedule"));
+    };
+
+    EXPECT_EQ(require_value(read("type").as_string("type")), K_STEP_SCHEDULE_TYPE);
+    EXPECT_EQ(require_value(read("warmup_iterations").as_int("warmup_iterations")), 1000);
+
+    const std::vector<Value>& steps = require_value(read("steps").as_array("steps"));
+    EXPECT_EQ(require_value(steps[1].as_int("step")), 450000);
 }
 
 /** @brief Tests that a whole number is read where the section holds a real. */

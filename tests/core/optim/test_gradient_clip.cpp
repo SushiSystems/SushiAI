@@ -269,7 +269,7 @@ TEST_F(Medium_GradientClip, TheKeyClipNormEnablesTheClip)
 {
     const auto attributes = [](std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return SushiAI::Test::require_value(Config::parse_json(text, "<test>"));
     };
 
     for (const std::string_view type : {std::string_view("sgd"), std::string_view("adamw")})

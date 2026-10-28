@@ -94,9 +94,9 @@ namespace SushiAI
                     return std::string(K_STEP_SCHEDULE_TYPE);
 
                 const std::string where = reader.member(Detail::K_SCHEDULE_TYPE_KEY);
-                SA_TRY_ASSIGN(const std::string* const stated,
-                              Config::read_string(section.at(Detail::K_SCHEDULE_TYPE_KEY, where),
-                                                  where));
+                SA_TRY_ASSIGN(const Config::Value& member,
+                              section.at(Detail::K_SCHEDULE_TYPE_KEY, where));
+                SA_TRY_ASSIGN(const std::string* const stated, Config::read_string(member, where));
 
                 return std::string(*stated);
             }

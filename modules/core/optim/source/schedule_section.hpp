@@ -124,7 +124,8 @@ namespace SushiAI
                         continue;
 
                     const std::string where = member_of(field.key);
-                    SA_TRY(field.read(section.at(field.key, where), where, schedule));
+                    SA_TRY_ASSIGN(const Config::Value& member, section.at(field.key, where));
+                    SA_TRY(field.read(member, where, schedule));
                 }
                 return Status();
             }

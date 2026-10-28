@@ -41,6 +41,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Optim::CosineSchedule;
@@ -64,7 +65,8 @@ TEST(Small_RateScheduleSection, AStepScheduleIsWrittenAsStep)
     SA_ASSERT_OK_AND_ASSIGN(const Value written, write_rate_schedule_section(schedule));
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule read, read_rate_schedule_section(written));
 
-    EXPECT_EQ(written.at("type", "section").as_string("type"), "step");
+    EXPECT_EQ(require_value(require_value(written.at("type", "section")).as_string("type")),
+              "step");
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(read));
     EXPECT_NEAR(std::get<StepSchedule>(read).base_rate, 0.5, K_RATE_TOLERANCE);
     EXPECT_EQ(std::get<StepSchedule>(read).steps.size(), 1u);
@@ -80,7 +82,7 @@ TEST(Small_RateScheduleSection, ACosineScheduleIsWrittenAsCosine)
 
     SA_ASSERT_OK_AND_ASSIGN(const Value written, write_rate_schedule_section(schedule));
 
-    EXPECT_EQ(written.at("type", "section").as_string("type"),
+    EXPECT_EQ(require_value(require_value(written.at("type", "section")).as_string("type")),
               SushiAI::Optim::K_COSINE_SCHEDULE_TYPE);
 }
 

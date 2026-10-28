@@ -42,6 +42,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Optim::CosineSchedule;
@@ -74,7 +75,7 @@ namespace
     /** @brief Parses @p text as a section of a training file. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 } // namespace
 
@@ -150,7 +151,8 @@ TEST(Small_RateSchedule, AWrittenSectionStatesItsTypeAndReadsBack)
     SA_ASSERT_OK_AND_ASSIGN(const Value written, write_rate_schedule_section(cosine));
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule read, read_rate_schedule_section(written));
 
-    EXPECT_EQ(written.at("type", "section").as_string("type"), "cosine");
+    EXPECT_EQ(require_value(require_value(written.at("type", "section")).as_string("type")),
+              "cosine");
     ASSERT_TRUE(std::holds_alternative<CosineSchedule>(read));
     EXPECT_EQ(std::get<CosineSchedule>(read).warmup_iterations, 2);
 }

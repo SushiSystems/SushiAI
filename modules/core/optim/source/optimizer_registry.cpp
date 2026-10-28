@@ -71,10 +71,10 @@ namespace SushiAI
              * @param key Which one.
              * @param prefix What to call this optimizer in a diagnostic.
              * @param fallback Returned when @p key is absent.
-             * @return The value, or @p fallback.
+             * @return The value, or @p fallback; InvalidDescription for a value that is no number.
              */
-            double read_real(const Config::Value& attributes, std::string_view key,
-                             const std::string& prefix, double fallback)
+            Result<double> read_real(const Config::Value& attributes, std::string_view key,
+                                     const std::string& prefix, double fallback)
             {
                 const Config::Value spelled = Config::Value::real(fallback);
                 return attributes.at_or(key, spelled)
@@ -87,10 +87,10 @@ namespace SushiAI
              * @param key Which one.
              * @param prefix What to call this optimizer in a diagnostic.
              * @param fallback Returned when @p key is absent.
-             * @return The value, or @p fallback.
+             * @return The value, or @p fallback; InvalidDescription for a value that is no boolean.
              */
-            bool read_bool(const Config::Value& attributes, std::string_view key,
-                           const std::string& prefix, bool fallback)
+            Result<bool> read_bool(const Config::Value& attributes, std::string_view key,
+                                   const std::string& prefix, bool fallback)
             {
                 const Config::Value spelled = Config::Value::boolean(fallback);
                 return attributes.at_or(key, spelled)
@@ -110,7 +110,8 @@ namespace SushiAI
                     return Status();
 
                 const std::string where = prefix + " '" + std::string(K_CLIP_NORM_KEY) + "'";
-                const double max_norm = attributes.at(K_CLIP_NORM_KEY, where).as_real(where);
+                SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(K_CLIP_NORM_KEY, where));
+                SA_TRY_ASSIGN(const double max_norm, stated.as_real(where));
                 return SA_ANNOTATE(optimizer.enable_gradient_clip(max_norm), "{}", where);
             }
         }
@@ -120,19 +121,19 @@ namespace SushiAI
                                                       const Config::Value& attributes,
                                                       std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_ADAMW_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_ADAMW_KEYS)));
 
             const std::string prefix(context);
             AdamWOptions options;
-            options.learning_rate = read_real(attributes, "learning_rate", prefix,
-                                              options.learning_rate);
-            options.beta1 = read_real(attributes, "beta1", prefix, options.beta1);
-            options.beta2 = read_real(attributes, "beta2", prefix, options.beta2);
-            options.eps = read_real(attributes, "eps", prefix, options.eps);
-            options.weight_decay = read_real(attributes, "weight_decay", prefix,
-                                             options.weight_decay);
-            options.decay_all = read_bool(attributes, K_DECAY_ALL_KEY, prefix,
-                                          options.decay_all);
+            SA_TRY_ASSIGN(options.learning_rate,
+                          read_real(attributes, "learning_rate", prefix, options.learning_rate));
+            SA_TRY_ASSIGN(options.beta1, read_real(attributes, "beta1", prefix, options.beta1));
+            SA_TRY_ASSIGN(options.beta2, read_real(attributes, "beta2", prefix, options.beta2));
+            SA_TRY_ASSIGN(options.eps, read_real(attributes, "eps", prefix, options.eps));
+            SA_TRY_ASSIGN(options.weight_decay,
+                          read_real(attributes, "weight_decay", prefix, options.weight_decay));
+            SA_TRY_ASSIGN(options.decay_all,
+                          read_bool(attributes, K_DECAY_ALL_KEY, prefix, options.decay_all));
 
             SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
                        "{} 'learning_rate' must be positive, but it is {}",
@@ -150,19 +151,22 @@ namespace SushiAI
                                                     const Config::Value& attributes,
                                                     std::string_view context)
         {
-            attributes.reject_unknown_keys(context, as_span(K_SGD_KEYS));
+            SA_TRY(attributes.reject_unknown_keys(context, as_span(K_SGD_KEYS)));
 
             const std::string prefix(context);
             SGDOptions options;
-            options.learning_rate = read_real(attributes, "learning_rate", prefix,
-                                              options.learning_rate);
-            options.momentum = read_real(attributes, "momentum", prefix, options.momentum);
-            options.dampening = read_real(attributes, "dampening", prefix, options.dampening);
-            options.weight_decay = read_real(attributes, "weight_decay", prefix,
-                                             options.weight_decay);
-            options.nesterov = read_bool(attributes, "nesterov", prefix, options.nesterov);
-            options.decay_all = read_bool(attributes, K_DECAY_ALL_KEY, prefix,
-                                          options.decay_all);
+            SA_TRY_ASSIGN(options.learning_rate,
+                          read_real(attributes, "learning_rate", prefix, options.learning_rate));
+            SA_TRY_ASSIGN(options.momentum,
+                          read_real(attributes, "momentum", prefix, options.momentum));
+            SA_TRY_ASSIGN(options.dampening,
+                          read_real(attributes, "dampening", prefix, options.dampening));
+            SA_TRY_ASSIGN(options.weight_decay,
+                          read_real(attributes, "weight_decay", prefix, options.weight_decay));
+            SA_TRY_ASSIGN(options.nesterov,
+                          read_bool(attributes, "nesterov", prefix, options.nesterov));
+            SA_TRY_ASSIGN(options.decay_all,
+                          read_bool(attributes, K_DECAY_ALL_KEY, prefix, options.decay_all));
 
             SA_FAIL_IF(options.learning_rate <= 0.0, StatusCode::InvalidDescription,
                        "{} 'learning_rate' must be positive, but it is {}",
@@ -181,8 +185,9 @@ namespace SushiAI
                                                           const Config::Value& attributes,
                                                           std::string_view context)
         {
-            return Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type")
-                       .make(engine, std::move(parameters), attributes, context);
+            SA_TRY_ASSIGN(const OptimizerEntry& entry,
+                          Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type"));
+            return entry.make(engine, std::move(parameters), attributes, context);
         }
 
     } // namespace Optim
