@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — distribution: Parsed the cluster section and gradient exchange fixtures through `require_value` (`tests/core/distribution`).
 - 2026-10-28 — optim: Read the optimizer and rate schedule sections through the `Result` of the config readers (`optimizer_registry.cpp`).
 - 2026-10-28 — darknet_reference: Read the manifest and the reference description through the `Result` of the config readers (`darknet_reference.cpp`).
 - 2026-10-28 — data: Read the optional whole numbers of a dataset section through the `Result` of `Value::as_int` (`dataset.cpp`).

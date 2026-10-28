@@ -72,7 +72,8 @@ namespace
     /** @brief Reads @p text as a cluster section, with the base directory "conf". */
     SushiAI::Result<ClusterSection> read_text(const std::string& text)
     {
-        const Value section = SushiAI::Config::parse_json(text, "<test>");
+        const Value section =
+            SushiAI::Test::require_value(SushiAI::Config::parse_json(text, "<test>"));
         return ClusterSection::read(section, std::filesystem::path("conf"));
     }
 

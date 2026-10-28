@@ -43,6 +43,7 @@
 #include <SushiRuntime/distributed/worker_agent.hpp>
 #include <SushiRuntime/placement/placement_rules.hpp>
 #include <SushiAI/config/value.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
 
@@ -74,8 +75,9 @@ namespace SushiAI::Distribution::ExchangeSupport
     /** @brief Returns K_TWO_REPLICAS read as a cluster section; a refusal fails the test. */
     inline ClusterSection two_replica_section()
     {
-        const Config::Value value = Config::parse_json(K_TWO_REPLICAS, "<test>");
-        return ClusterSection::read(value, std::filesystem::path(".")).value();
+        const Config::Value value =
+            Test::require_value(Config::parse_json(K_TWO_REPLICAS, "<test>"));
+        return Test::require_value(ClusterSection::read(value, std::filesystem::path(".")));
     }
 
     /** @brief Returns a runtime whose machine reports @p name, on the devices @p devices takes. */
