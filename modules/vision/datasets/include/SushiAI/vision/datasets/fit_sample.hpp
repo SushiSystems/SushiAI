@@ -63,7 +63,8 @@ namespace SushiAI::Vision::Datasets
      *
      * The objects become pixel boxes clipped to the fitted image; one left with no area is
      * removed. README.md, section fit_sample.hpp, lists the failures.
-     * @param source The sample's loaded pixels; must not be the pixels of @p fitted.
+     * @param source The sample's loaded pixels, which pass Imaging::check_source; an invalid view
+     *        stops the process.
      */
     [[nodiscard]] Status fit_sample(const Sample& sample, Imaging::ImageView source,
                                     const SampleFitOptions& options, FittedSample& fitted);

@@ -180,19 +180,22 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Returns the string a request's section holds under a key; none when absent.
-         * @throws Error If the value is no string.
+         * @return The string, or InvalidDescription when the value is no string.
          */
-        [[nodiscard]] std::string text_of(const ReaderRequest& request, std::string_view key)
+        [[nodiscard]] Result<std::string> text_of(const ReaderRequest& request,
+                                                  std::string_view key)
         {
             const Config::Value absent = Config::Value::string(std::string());
-            return request.section.at_or(key, absent).as_string(named(request, key));
+            SA_TRY_ASSIGN(const std::string& text,
+                          request.section.at_or(key, absent).as_string(named(request, key)));
+            return text;
         }
 
         /**
          * @brief Returns the boolean a request's section holds under a key; false when absent.
-         * @throws Error If the value is no boolean.
+         * @return The boolean, or InvalidDescription when the value is no boolean.
          */
-        [[nodiscard]] bool flag_of(const ReaderRequest& request, std::string_view key)
+        [[nodiscard]] Result<bool> flag_of(const ReaderRequest& request, std::string_view key)
         {
             const Config::Value absent = Config::Value::boolean(false);
             return request.section.at_or(key, absent).as_bool(named(request, key));
@@ -200,17 +203,22 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Returns the strings a request's section lists under a key; none when absent.
-         * @throws Error If the value is no array of strings.
+         * @return The strings, or InvalidDescription when the value is no array of strings.
          */
-        [[nodiscard]] std::vector<std::string> names_of(const ReaderRequest& request,
-                                                        std::string_view key)
+        [[nodiscard]] Result<std::vector<std::string>> names_of(const ReaderRequest& request,
+                                                                std::string_view key)
         {
             const Config::Value absent = Config::Value::array({});
             const std::string name = named(request, key);
             std::vector<std::string> names;
 
-            for (const Config::Value& entry : request.section.at_or(key, absent).as_array(name))
-                names.push_back(entry.as_string(name));
+            SA_TRY_ASSIGN(const std::vector<Config::Value>& entries,
+                          request.section.at_or(key, absent).as_array(name));
+            for (const Config::Value& entry : entries)
+            {
+                SA_TRY_ASSIGN(const std::string& text, entry.as_string(name));
+                names.push_back(text);
+            }
 
             return names;
         }
@@ -231,17 +239,19 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Reads one annotation JSON and its image folder.
-         * @throws Error If "annotations" or "images" is no string, or "polygons" no boolean.
+         * @return The list, or InvalidDescription when "annotations" or "images" is no string, or
+         *         "polygons" no boolean.
          */
         [[nodiscard]] Result<SampleList> read_coco_json_request(const ReaderRequest& request)
         {
             COCOJSONOptions options;
             options.root = request.root;
             options.split = request.split;
-            options.annotation_file = text_of(request, K_ANNOTATIONS_KEY);
-            options.image_folder = text_of(request, K_IMAGES_KEY);
-            options.segmentation = flag_of(request, K_POLYGONS_KEY) ? COCOSegmentation::Polygons
-                                                                    : COCOSegmentation::Ignored;
+            SA_TRY_ASSIGN(options.annotation_file, text_of(request, K_ANNOTATIONS_KEY));
+            SA_TRY_ASSIGN(options.image_folder, text_of(request, K_IMAGES_KEY));
+            SA_TRY_ASSIGN(const bool polygons, flag_of(request, K_POLYGONS_KEY));
+            options.segmentation = polygons ? COCOSegmentation::Polygons
+                                            : COCOSegmentation::Ignored;
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
@@ -251,16 +261,17 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Reads a split of images with one XML annotation per image.
-         * @throws Error If "class_names" is no array of strings or "keep_difficult" no boolean.
+         * @return The list, or InvalidDescription when "class_names" is no array of strings or
+         *         "keep_difficult" no boolean.
          */
         [[nodiscard]] Result<SampleList> read_voc_xml_request(const ReaderRequest& request)
         {
             VOCXMLOptions options;
             options.root = request.root;
             options.split = request.split;
-            options.class_names = names_of(request, K_CLASS_NAMES_KEY);
-            options.difficult = flag_of(request, K_KEEP_DIFFICULT_KEY) ? VOCDifficult::Kept
-                                                                       : VOCDifficult::Dropped;
+            SA_TRY_ASSIGN(options.class_names, names_of(request, K_CLASS_NAMES_KEY));
+            SA_TRY_ASSIGN(const bool keep_difficult, flag_of(request, K_KEEP_DIFFICULT_KEY));
+            options.difficult = keep_difficult ? VOCDifficult::Kept : VOCDifficult::Dropped;
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {
@@ -270,19 +281,20 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Reads a split of images with one PNG mask per image; the class count is read.
-         * @throws Error If "images", "masks", "image_suffix" or "mask_suffix" is no string.
+         * @return The list, or InvalidDescription when "images", "masks", "image_suffix" or
+         *         "mask_suffix" is no string.
          */
         [[nodiscard]] Result<SampleList> read_mask_png_request(const ReaderRequest& request)
         {
-            const std::string images = text_of(request, K_IMAGES_KEY);
-            const std::string masks = text_of(request, K_MASKS_KEY);
+            SA_TRY_ASSIGN(const std::string images, text_of(request, K_IMAGES_KEY));
+            SA_TRY_ASSIGN(const std::string masks, text_of(request, K_MASKS_KEY));
 
             MaskPNGOptions options;
             options.root = request.root;
             options.split = request.split;
             options.class_count = request.class_count;
-            options.image_suffix = text_of(request, K_IMAGE_SUFFIX_KEY);
-            options.mask_suffix = text_of(request, K_MASK_SUFFIX_KEY);
+            SA_TRY_ASSIGN(options.image_suffix, text_of(request, K_IMAGE_SUFFIX_KEY));
+            SA_TRY_ASSIGN(options.mask_suffix, text_of(request, K_MASK_SUFFIX_KEY));
             if (!images.empty())
                 options.image_folder = images;
             if (!masks.empty())
@@ -296,16 +308,17 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Reads the feature and the target columns of one CSV file.
-         * @throws Error If "file" is no string, or "features" or "targets" no array of strings.
+         * @return The list, or InvalidDescription when "file" is no string, or "features" or
+         *         "targets" no array of strings.
          */
         [[nodiscard]] Result<SampleList> read_csv_request(const ReaderRequest& request)
         {
             CSVOptions options;
             options.root = request.root;
             options.split = request.split;
-            options.file = text_of(request, K_FILE_KEY);
-            options.features = names_of(request, K_FEATURES_KEY);
-            options.targets = names_of(request, K_TARGETS_KEY);
+            SA_TRY_ASSIGN(options.file, text_of(request, K_FILE_KEY));
+            SA_TRY_ASSIGN(options.features, names_of(request, K_FEATURES_KEY));
+            SA_TRY_ASSIGN(options.targets, names_of(request, K_TARGETS_KEY));
 
             return Detail::at_boundary(K_TABLE, [&]() -> Result<SampleList>
             {

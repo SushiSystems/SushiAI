@@ -114,8 +114,8 @@ namespace SushiAI::Vision::Datasets
         {
             const Config::Value spelled = Config::Value::string(std::string(
                 MNISTOptions().test_split ? K_MNIST_SPLIT_TEST : K_MNIST_SPLIT_TRAIN));
-            const std::string& split =
-                attributes.at_or("split", spelled).as_string(prefix + " 'split'");
+            SA_TRY_ASSIGN(const std::string& split,
+                          attributes.at_or("split", spelled).as_string(prefix + " 'split'"));
 
             SA_FAIL_IF(split != K_MNIST_SPLIT_TRAIN && split != K_MNIST_SPLIT_TEST,
                        StatusCode::InvalidDescription,
@@ -136,8 +136,8 @@ namespace SushiAI::Vision::Datasets
             const bool image_default = MNISTOptions().layout == MNISTLayout::Image;
             const Config::Value spelled = Config::Value::string(std::string(
                 image_default ? K_MNIST_LAYOUT_IMAGE : K_MNIST_LAYOUT_FLAT));
-            const std::string layout =
-                attributes.at_or("layout", spelled).as_string(prefix + " 'layout'");
+            SA_TRY_ASSIGN(const std::string layout,
+                          attributes.at_or("layout", spelled).as_string(prefix + " 'layout'"));
 
             SA_FAIL_IF(layout != K_MNIST_LAYOUT_FLAT && layout != K_MNIST_LAYOUT_IMAGE,
                        StatusCode::InvalidDescription,
@@ -282,24 +282,26 @@ namespace SushiAI::Vision::Datasets
                                                       const Config::Value& attributes,
                                                       std::string_view context)
     {
-        attributes.reject_unknown_keys(
+        SA_TRY(attributes.reject_unknown_keys(
             context,
-            SushiRuntime::span<const std::string_view>(K_MNIST_KEYS, std::size(K_MNIST_KEYS)));
+            SushiRuntime::span<const std::string_view>(K_MNIST_KEYS, std::size(K_MNIST_KEYS))));
 
         MNISTOptions options;
         const std::string prefix(context);
 
-        options.directory = attributes.at("directory", context)
-                                      .as_string(prefix + " 'directory'");
+        SA_TRY_ASSIGN(const Config::Value& stated_directory, attributes.at("directory", context));
+        SA_TRY_ASSIGN(options.directory, stated_directory.as_string(prefix + " 'directory'"));
         SA_TRY_ASSIGN(options.test_split, is_test_split(attributes, prefix));
         SA_TRY_ASSIGN(options.layout, read_layout(attributes, prefix));
 
         const Config::Value batch_size = Config::Value::integer(options.batch_size);
-        options.batch_size = attributes.at_or("batch_size", batch_size)
-                                       .as_int(prefix + " 'batch_size'");
+        SA_TRY_ASSIGN(options.batch_size,
+                      attributes.at_or("batch_size", batch_size)
+                          .as_int(prefix + " 'batch_size'"));
         const Config::Value max_samples = Config::Value::integer(options.max_samples);
-        options.max_samples = attributes.at_or("max_samples", max_samples)
-                                        .as_int(prefix + " 'max_samples'");
+        SA_TRY_ASSIGN(options.max_samples,
+                      attributes.at_or("max_samples", max_samples)
+                          .as_int(prefix + " 'max_samples'"));
 
         Result<std::unique_ptr<Data::Dataset>> loaded = try_load_mnist(engine, options);
 

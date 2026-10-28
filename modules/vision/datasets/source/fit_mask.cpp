@@ -33,6 +33,9 @@
 #include <string_view>
 
 
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 
 #include "disk.hpp"
@@ -48,8 +51,8 @@ namespace SushiAI::Vision::Datasets
         constexpr std::int32_t K_MASK_CHANNELS = 1;
 
         /** @brief Names a function that writes the fitted mask of one SampleFit. */
-        using MaskFit = void (*)(Imaging::ImageView mask, const SampleFitOptions& options,
-                                 Imaging::Image& fitted);
+        using MaskFit = Status (*)(Imaging::ImageView mask, const SampleFitOptions& options,
+                                   Imaging::Image& fitted);
 
         /** @brief Returns the source index the centre of destination index @p at falls in. */
         [[nodiscard]] constexpr std::int32_t nearest_index(std::int32_t at, std::int32_t source,
@@ -81,23 +84,25 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Scales each axis of the mask to the input size. */
-        void fit_by_resize(Imaging::ImageView mask, const SampleFitOptions& options,
-                           Imaging::Image& fitted)
+        Status fit_by_resize(Imaging::ImageView mask, const SampleFitOptions& options,
+                             Imaging::Image& fitted)
         {
             fitted.reset(options.size, K_MASK_CHANNELS);
             resize_nearest(mask, options.size, 0, 0, fitted);
+            return Status();
         }
 
         /** @brief Places the mask where the letterbox places its image; the rest is void. */
-        void fit_by_letterbox(Imaging::ImageView mask, const SampleFitOptions& options,
-                              Imaging::Image& fitted)
+        Status fit_by_letterbox(Imaging::ImageView mask, const SampleFitOptions& options,
+                                Imaging::Image& fitted)
         {
-            const Imaging::LetterboxPlan plan =
-                Imaging::plan_letterbox(options.letterbox, mask.size(), options.size);
+            SA_TRY_ASSIGN(const Imaging::LetterboxPlan plan,
+                          Imaging::plan_letterbox(options.letterbox, mask.size(), options.size));
 
             fitted.reset(options.size, K_MASK_CHANNELS);
             fitted.fill(K_MASK_VOID);
             resize_nearest(mask, plan.resized, plan.top, plan.left, fitted);
+            return Status();
         }
 
         /** @brief Holds the function of each SampleFit, at the index of its enumerator. */
@@ -123,8 +128,7 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_FITTER, [&]()
         {
-            K_FITS[fit](mask, options, fitted);
-            return Status();
+            return K_FITS[fit](mask, options, fitted);
         });
     }
 } // namespace SushiAI::Vision::Datasets

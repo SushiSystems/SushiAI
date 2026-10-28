@@ -40,7 +40,7 @@ namespace SushiAI::Vision::Datasets::Detail
         constexpr std::int64_t K_HIGHEST = std::numeric_limits<std::int32_t>::max();
 
         const std::string named = std::string(context) + " '" + std::string(key) + "'";
-        const std::int64_t read = value.as_int(named);
+        SA_TRY_ASSIGN(const std::int64_t read, value.as_int(named));
 
         SA_FAIL_IF(read < lowest || read > K_HIGHEST, StatusCode::InvalidDescription,
                    "{} is {}; it must be between {} and {}", named, read, lowest, K_HIGHEST);

@@ -121,10 +121,10 @@ namespace SushiAI::Vision::Datasets
             partial += std::string(K_PARTIAL_EXTENSION);
 
             // A file under the final name is whole: the rename is the last step.
-            Imaging::write_raw_image_file(partial, image,
-                                          image.channels() == Imaging::K_GRAY_CHANNELS
-                                              ? Imaging::ChannelOrder::Gray
-                                              : Imaging::ChannelOrder::RGB);
+            SA_TRY(Imaging::write_raw_image_file(partial, image,
+                                                 image.channels() == Imaging::K_GRAY_CHANNELS
+                                                     ? Imaging::ChannelOrder::Gray
+                                                     : Imaging::ChannelOrder::RGB));
             std::filesystem::rename(partial, target);
             return Status();
         }
@@ -168,9 +168,9 @@ namespace SushiAI::Vision::Datasets
                 if (options.longest_side > 0 &&
                     std::max(decoded.height(), decoded.width()) > options.longest_side)
                 {
-                    Imaging::resize_bilinear(
+                    SA_TRY(Imaging::resize_bilinear(
                         decoded.view(),
-                        Imaging::fit_long_side(decoded.size(), options.longest_side), resized);
+                        Imaging::fit_long_side(decoded.size(), options.longest_side), resized));
                     stored = resized.view();
                 }
 

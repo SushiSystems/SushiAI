@@ -32,6 +32,9 @@
 #include <string_view>
 
 
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
 
@@ -45,30 +48,30 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_FITTER = "fit_sample";
 
         /** @brief Names a function that writes the fitted image and returns the moved labels. */
-        using Fit = Imaging::Labels (*)(const Sample& sample, Imaging::ImageView source,
-                                        const SampleFitOptions& options,
-                                        Imaging::Image& destination);
+        using Fit = Result<Imaging::Labels> (*)(const Sample& sample, Imaging::ImageView source,
+                                                const SampleFitOptions& options,
+                                                Imaging::Image& destination);
 
         /** @brief Scales each axis to the input size; the labels scale with their axis. */
-        Imaging::Labels fit_by_resize(const Sample& sample, Imaging::ImageView source,
-                                      const SampleFitOptions& options,
-                                      Imaging::Image& destination)
+        Result<Imaging::Labels> fit_by_resize(const Sample& sample, Imaging::ImageView source,
+                                              const SampleFitOptions& options,
+                                              Imaging::Image& destination)
         {
-            Imaging::resize_bilinear(source, options.size, destination);
-            return Imaging::to_pixel_labels(sample.objects, options.size);
+            SA_TRY(Imaging::resize_bilinear(source, options.size, destination));
+            return Result<Imaging::Labels>(Imaging::to_pixel_labels(sample.objects, options.size));
         }
 
         /** @brief Letterboxes the image and moves the labels by the same plan. */
-        Imaging::Labels fit_by_letterbox(const Sample& sample, Imaging::ImageView source,
-                                         const SampleFitOptions& options,
-                                         Imaging::Image& destination)
+        Result<Imaging::Labels> fit_by_letterbox(const Sample& sample, Imaging::ImageView source,
+                                                 const SampleFitOptions& options,
+                                                 Imaging::Image& destination)
         {
-            const Imaging::LetterboxPlan plan =
-                Imaging::plan_letterbox(options.letterbox, source.size(), options.size);
+            SA_TRY_ASSIGN(const Imaging::LetterboxPlan plan,
+                          Imaging::plan_letterbox(options.letterbox, source.size(), options.size));
 
             Imaging::apply_letterbox(source, plan, destination);
-            return Imaging::apply_letterbox(
-                Imaging::to_pixel_labels(sample.objects, source.size()), plan);
+            return Result<Imaging::Labels>(Imaging::apply_letterbox(
+                Imaging::to_pixel_labels(sample.objects, source.size()), plan));
         }
 
         /** @brief Holds the function of each SampleFit, at the index of its enumerator. */
@@ -88,7 +91,7 @@ namespace SushiAI::Vision::Datasets
 
         return Detail::at_boundary(K_FITTER, [&]()
         {
-            fitted.objects = K_FITS[fit](sample, source, options, fitted.image);
+            SA_TRY_ASSIGN(fitted.objects, K_FITS[fit](sample, source, options, fitted.image));
             Imaging::clip_labels(fitted.objects, options.size);
             Imaging::remove_empty_boxes(fitted.objects);
 

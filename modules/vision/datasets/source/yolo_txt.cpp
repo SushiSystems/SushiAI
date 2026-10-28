@@ -36,8 +36,9 @@
 #include <utility>
 #include <vector>
 
-#include <SushiLog/text/text_format.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/datasets/image_extensions.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
 
@@ -164,18 +165,11 @@ namespace SushiAI::Vision::Datasets
 
             SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(label, K_READER));
 
-            try
-            {
-                return Result<Imaging::FileLabels>(Imaging::parse_label_text(text, class_count));
-            }
-            catch (const Error& error)
-            {
-                return Status::from_message(StatusCode::InvalidFile, [&]()
-                {
-                    return SushiLog::format_text("'{}': {}", Detail::display_of(label),
-                                                   error.what());
-                });
-            }
+            Result<Imaging::FileLabels> parsed = Imaging::parse_label_text(text, class_count);
+            if (!parsed.has_value())
+                return SA_ANNOTATE(parsed.status(), "'{}'", Detail::display_of(label));
+
+            return parsed;
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */

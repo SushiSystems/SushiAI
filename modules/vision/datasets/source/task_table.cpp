@@ -75,16 +75,16 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Builds the detection collator; the section must state "max_objects".
-         * @return The collator; InvalidDescription for a "max_objects" below 1.
-         * @throws Error If "max_objects" is absent or no whole number.
+         * @return The collator; InvalidDescription for a "max_objects" that is absent, no whole
+         *         number, or below 1.
          */
         [[nodiscard]] Result<std::unique_ptr<const Collator>> make_detection_collator(
             const Config::Value& section, std::string_view context,
             const CollatorRequest& request)
         {
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_MAX_OBJECTS_KEY, context));
             SA_TRY_ASSIGN(const std::int32_t max_objects,
-                          Detail::read_section_count(section.at(K_MAX_OBJECTS_KEY, context),
-                                                     K_MAX_OBJECTS_KEY, context, 1));
+                          Detail::read_section_count(stated, K_MAX_OBJECTS_KEY, context, 1));
             SA_TRY_ASSIGN(std::unique_ptr<DetectionCollator> collator,
                           DetectionCollator::make(request.class_count, max_objects));
 
@@ -114,11 +114,11 @@ namespace SushiAI::Vision::Datasets
             if (!section.has(K_POSITIVE_KEY))
                 return K_BINARY_CLASSES - 1;
 
-            const Config::Value& stated = section.at(K_POSITIVE_KEY, context);
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_POSITIVE_KEY, context));
             if (stated.kind() != Config::Kind::String)
                 return Detail::read_section_count(stated, K_POSITIVE_KEY, context, 0);
 
-            const std::string& name = stated.as_string(K_POSITIVE_KEY);
+            SA_TRY_ASSIGN(const std::string& name, stated.as_string(K_POSITIVE_KEY));
             const auto found = std::find(list.class_names.begin(), list.class_names.end(), name);
 
             std::string listed;
@@ -197,7 +197,8 @@ namespace SushiAI::Vision::Datasets
         {
             const std::string named = Detail::named(context, K_IGNORE_INDEX_KEY);
             const Config::Value fallback = Config::Value::integer(K_DEFAULT_IGNORE_INDEX);
-            const std::int64_t ignore = section.at_or(K_IGNORE_INDEX_KEY, fallback).as_int(named);
+            SA_TRY_ASSIGN(const std::int64_t ignore,
+                          section.at_or(K_IGNORE_INDEX_KEY, fallback).as_int(named));
 
             SA_FAIL_IF(ignore < std::numeric_limits<std::int32_t>::min() ||
                            ignore > std::numeric_limits<std::int32_t>::max(),
@@ -213,9 +214,10 @@ namespace SushiAI::Vision::Datasets
 
             if (section.has(K_BACKGROUND_KEY))
             {
+                SA_TRY_ASSIGN(const Config::Value& stated,
+                              section.at(K_BACKGROUND_KEY, context));
                 SA_TRY_ASSIGN(const std::int32_t background,
-                              Detail::read_section_count(section.at(K_BACKGROUND_KEY, context),
-                                                         K_BACKGROUND_KEY, context, 0));
+                              Detail::read_section_count(stated, K_BACKGROUND_KEY, context, 0));
                 options.background = background;
             }
 

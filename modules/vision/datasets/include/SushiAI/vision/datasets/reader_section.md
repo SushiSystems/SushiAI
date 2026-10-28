@@ -67,6 +67,5 @@ One block per task:
 
 | Outcome | When |
 | --- | --- |
-| `InvalidDescription` | A reader, a task or a pipeline no table holds, with every name the table has; an `input` that is not two entries; a count below its lowest value or above the largest int32; `classes` below the count of the list; a task of images over a reader of rows, or the reverse; `prefetch` without `workers`; `cache_side` without `cache`; an image key on a section of rows |
-| A thrown `Error` | A key that neither the shared list, nor the reader, nor the task holds; a required key left out; a value of another kind |
+| `InvalidDescription` | A reader, a task or a pipeline no table holds, with every name the table has; an `input` that is not two entries; a count below its lowest value or above the largest int32; `classes` below the count of the list; a task of images over a reader of rows, or the reverse; `prefetch` without `workers`; `cache_side` without `cache`; an image key on a section of rows; a key that neither the shared list, nor the reader, nor the task holds; a required key left out; a value of another kind |
 | Any other status | What the reader, the collator's `make` or the dataset's `make` returns |

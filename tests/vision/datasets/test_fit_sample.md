@@ -28,6 +28,12 @@ kept.
 
 A target size of 0 by 4 fails with `InvalidDescription`, "fit_sample" and "0 by 4".
 
-## ASourceOfNoPixelsIsAFailure
+## ASourceOfNoPixelsStopsTheProcess
 
-A default `ImageView` as the source fails with `InvalidFile` and "fit_sample".
+A default `ImageView` as the source stops the process with "resize_bilinear" and "no pixels".
+
+## ALetterboxThatLeavesNoPixelsIsRefused
+
+A source of 1 row and 4000 columns letterboxed to 4 by 4 would resize its rows to 0 pixels. The
+fit returns `InvalidDescription` with "plan_letterbox" and "zero pixels", the status of the plan
+passed on.

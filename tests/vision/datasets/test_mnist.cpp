@@ -155,10 +155,10 @@ TEST_F(Medium_DatasetsMNIST, AnImageFileWithoutTheIDX3HeaderIsInvalid)
 /** @brief Tests that the factory reads the image layout over the files of the directory. */
 TEST_F(Medium_DatasetsMNIST, TheFactoryReadsTheImageLayout)
 {
-    const Config::Value attributes = Config::parse_json(
+    const Config::Value attributes = SaTest::require_value(Config::parse_json(
         "{\"directory\": \"" + scratch.path().generic_string() +
             "\", \"batch_size\": 2, \"max_samples\": 0, \"layout\": \"image\"}",
-        "<test>");
+        "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
                             make_mnist(*engine, attributes, "data"));

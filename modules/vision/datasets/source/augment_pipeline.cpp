@@ -28,11 +28,14 @@
 #include <SushiAI/vision/datasets/augment_pipeline.hpp>
 
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <utility>
 
 #include <SushiLog/text/text_format.hpp>
 
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/codecs/decode_options.hpp>
 #include <SushiAI/vision/datasets/fit_mask.hpp>
@@ -43,6 +46,8 @@
 #include <SushiAI/vision/imaging/label_set.hpp>
 #include <SushiAI/vision/imaging/mask_pipeline.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
+#include <SushiAI/vision/imaging/partner_source.hpp>
+#include <SushiAI/vision/imaging/pipeline.hpp>
 
 #include "disk.hpp"
 
@@ -74,40 +79,21 @@ namespace SushiAI::Vision::Datasets
                     return list_->samples.size();
                 }
 
-                /**
-                 * @brief Loads one image in colour, with the labels of its sample.
-                 *
-                 * A failed load leaves @p image without pixels, which the pipeline refuses,
-                 * and keeps its status for failure().
-                 */
-                void load(std::size_t index, Imaging::Image& image,
-                          Imaging::FileLabels& labels) const override
+                /** @brief Loads one image in colour, with the labels of its sample. */
+                [[nodiscard]] Status load(std::size_t index, Imaging::Image& image,
+                                          Imaging::FileLabels& labels) const override
                 {
                     Codecs::DecodeOptions decoding;
                     decoding.layout = Codecs::ChannelLayout::Color;
 
-                    const Status loaded = load_sample_image(*list_, index, decoding, image);
-                    if (!loaded.is_ok())
-                    {
-                        if (failure_.is_ok())
-                            failure_ = loaded;
-
-                        image = Imaging::Image();
-                        return;
-                    }
-
+                    SA_TRY(load_sample_image(*list_, index, decoding, image));
                     labels = list_->samples[index].objects;
+                    return Status();
                 }
-
-                /** @brief Returns the first failure of a load, or success. */
-                [[nodiscard]] const Status& failure() const noexcept { return failure_; }
 
             private:
                 /// @brief Points at the list, which the caller keeps alive.
                 const SampleList* list_;
-
-                /// @brief Holds the first failure of a load; one thread uses a source.
-                mutable Status failure_;
         };
 
         /** @brief Supplies the masks of a sample list to imaging. */
@@ -147,7 +133,7 @@ namespace SushiAI::Vision::Datasets
             Imaging::Sample made;                /**< Holds what images last made. */
         };
 
-        /** @brief Makes one sample; may throw what Imaging::TrainingPipeline throws. */
+        /** @brief Makes one sample, then clips its labels and makes its mask. */
         [[nodiscard]] Status produce_one(const SampleList& list, std::size_t sample,
                                          std::int32_t epoch, BatchPipelines& pipelines,
                                          FittedSample& fitted)
@@ -156,8 +142,8 @@ namespace SushiAI::Vision::Datasets
                        "{}: sample {} is outside a list of {} samples", K_PIPELINE, sample,
                        list.samples.size());
 
-            const Imaging::TrainingTrace trace =
-                pipelines.images.make_sample(sample, epoch, pipelines.made);
+            SA_TRY_ASSIGN(const Imaging::TrainingTrace trace,
+                          pipelines.images.make_sample(sample, epoch, pipelines.made));
             const Sample& record = list.samples[sample];
 
             std::swap(fitted.image, pipelines.made.image);
@@ -194,11 +180,9 @@ namespace SushiAI::Vision::Datasets
         settings.close_mosaic = K_EPOCH_LIMIT - options.mosaic_epochs;
         settings.batch_size = 1;
 
-        return Detail::at_boundary(K_PIPELINE, [&]() -> Result<std::unique_ptr<AugmentPipeline>>
-        {
-            Imaging::validate_training(settings);
-            return std::unique_ptr<AugmentPipeline>(new AugmentPipeline(settings));
-        });
+        SA_TRY(Imaging::validate_training(settings));
+        return Result<std::unique_ptr<AugmentPipeline>>(
+            std::unique_ptr<AugmentPipeline>(new AugmentPipeline(settings)));
     }
 
     AugmentPipeline::AugmentPipeline(const Imaging::TrainingSettings& settings) noexcept
@@ -230,13 +214,18 @@ namespace SushiAI::Vision::Datasets
         const ListImages images(list);
         const ListMasks masks(list);
 
-        const Status produced = Detail::at_boundary(K_PIPELINE, [&]() -> Status
+        return Detail::at_boundary(K_PIPELINE, [&]() -> Status
         {
-            BatchPipelines pipelines{
-                Imaging::TrainingPipeline(
-                    images, settings_,
-                    std::make_unique<Imaging::DatasetPartners>(list.samples.size())),
-                Imaging::TrainingMaskPipeline(masks, settings_, K_MASK_VOID), Imaging::Sample{}};
+            SA_TRY_ASSIGN(std::unique_ptr<Imaging::DatasetPartners> drawn,
+                          Imaging::DatasetPartners::make(list.samples.size()));
+            std::unique_ptr<Imaging::PartnerSource> partners = std::move(drawn);
+            SA_TRY_ASSIGN(Imaging::TrainingPipeline training,
+                          Imaging::TrainingPipeline::make(images, settings_,
+                                                          std::move(partners)));
+
+            BatchPipelines pipelines{std::move(training),
+                                     Imaging::TrainingMaskPipeline(masks, settings_, K_MASK_VOID),
+                                     Imaging::Sample{}};
 
             for (std::size_t row = 0; row < samples.size(); ++row)
                 SA_TRY(produce_one(list, samples[row], static_cast<std::int32_t>(epoch),
@@ -244,8 +233,5 @@ namespace SushiAI::Vision::Datasets
 
             return Status();
         });
-
-        // A load that failed made the pipeline throw; its own status says why.
-        return images.failure().is_ok() ? produced : images.failure();
     }
 } // namespace SushiAI::Vision::Datasets

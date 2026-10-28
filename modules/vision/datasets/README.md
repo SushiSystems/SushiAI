@@ -252,7 +252,7 @@ section does not know how many epochs the run has.
 | `InvalidDescription` | `AugmentPipeline::make`, the row `default` | A training size outside [1, 8192]; a negative `mosaic_epochs`; an input that is not square or not of three channels |
 | `InvalidDescription` | `produce` | Another count of samples than of fitted samples; for `AugmentPipeline`, an epoch outside [0, the largest int32) and a list of no sample |
 | `Incompatible` | `produce` | A mask of several channels or of another size than its image; the message opens with the mask file |
-| Any other | `produce` | What `load_sample_image` or `load_sample_mask` returns; `InvalidFile` for what a transform of `vision/imaging` throws |
+| Any other | `produce` | What `load_sample_image` or `load_sample_mask` returns; what a transform of `vision/imaging` returns |
 
 `AugmentPipeline` reads a failed image load from the adapter it gives the imaging pipeline: the
 adapter keeps the status and hands over an image of no pixels, which the pipeline refuses.
@@ -281,9 +281,10 @@ adapter keeps the status and hands over an image of no pixels, which the pipelin
 
 A message opens with the path in quotes, written with forward slashes, then the name of the
 function that failed. A failure that has no path opens with the function. `source/disk.hpp` holds
-the file system calls the readers share and `at_boundary`, which turns what a reader throws into
-a status: `OutOfMemory` for `std::bad_alloc`, `InvalidFile` with the exception's text for anything
-else.
+the file system calls the readers share and `at_boundary`, which turns what a reader or an
+allocation throws into a status: `OutOfMemory` for `std::bad_alloc`, `InvalidFile` with the
+exception's text for anything else. A transform of `vision/imaging` returns its own status, and
+`fit_sample`, `fit_mask` and `AugmentPipeline` forward it.
 
 ## Known limits
 
@@ -302,8 +303,6 @@ else.
   3 is `Incompatible`; `Imaging::expand_gray` is not called.
 - `Imaging::resize_bilinear` does not widen its kernel on a reduction, so a large image fitted to
   a small input aliases.
-- `fit_sample` reports whatever a transform of `vision/imaging` throws as `InvalidFile`, because
-  those functions throw `Error` and return no status.
 - `read_yolo_txt` does not read the dataset file that names the classes, so `class_names` is
   empty and `class_count` comes from the caller.
 - `read_cifar` and `read_idx` read no class name file.

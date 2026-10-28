@@ -37,7 +37,7 @@ another size than its image, which `fit_mask` refuses.
 | `InvalidDescription` | `write_sample_cache` | No directory; a `longest_side` outside [0, 16384]; a `longest_side` above 0 over a list with masks; a sample that names no file of the list |
 | `FileNotFound` | `use_sample_cache`, `sample_cache_path` | A source that is absent; a source whose cache file is absent |
 | `Unsupported` | `write_sample_cache` | A decoded image of two or four channels |
-| Any other | all | What `Codecs::load_image` returns; `InvalidFile` for what the file system or the raw image writer throws |
+| Any other | all | What `Codecs::load_image` returns; what `Imaging::write_raw_image_file` and `Imaging::resize_bilinear` return; `InvalidFile` for what the file system throws |
 
 Disk size, by estimate and not measured: COCO train2017 has 118 287 images, most of them 640
 pixels on the longer side already, about 280 000 pixels each. At three bytes a pixel that is

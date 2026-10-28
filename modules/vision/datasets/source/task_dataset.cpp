@@ -101,8 +101,9 @@ namespace SushiAI::Vision::Datasets::Detail
         [[nodiscard]] Result<Imaging::ImageSize> read_input_size(const Config::Value& section,
                                                                  std::string_view context)
         {
-            const std::vector<Config::Value>& entries =
-                section.at(K_INPUT_KEY, context).as_array(named(context, K_INPUT_KEY));
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_INPUT_KEY, context));
+            SA_TRY_ASSIGN(const std::vector<Config::Value>& entries,
+                          stated.as_array(named(context, K_INPUT_KEY)));
             SA_FAIL_IF(entries.size() != K_INPUT_ENTRIES, StatusCode::InvalidDescription,
                        "{} holds {} entries; it is [height, width]",
                        named(context, K_INPUT_KEY), entries.size());
@@ -114,9 +115,9 @@ namespace SushiAI::Vision::Datasets::Detail
         }
 
         /** @brief Reads "batch_size", or returns @p fallback when the section states none. */
-        [[nodiscard]] std::int64_t read_batch_size(const Config::Value& section,
-                                                   std::string_view context,
-                                                   std::int64_t fallback)
+        [[nodiscard]] Result<std::int64_t> read_batch_size(const Config::Value& section,
+                                                           std::string_view context,
+                                                           std::int64_t fallback)
         {
             const Config::Value batch_size = Config::Value::integer(fallback);
             return section.at_or(K_BATCH_SIZE_KEY, batch_size)
@@ -147,8 +148,8 @@ namespace SushiAI::Vision::Datasets::Detail
             if (!section.has(K_FIT_KEY))
                 return fallback;
 
-            const std::string& name =
-                section.at(K_FIT_KEY, context).as_string(named(context, K_FIT_KEY));
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_FIT_KEY, context));
+            SA_TRY_ASSIGN(const std::string& name, stated.as_string(named(context, K_FIT_KEY)));
 
             const FitName* found = nullptr;
             std::string listed;
@@ -179,16 +180,19 @@ namespace SushiAI::Vision::Datasets::Detail
                           read_section_count(section.at_or(K_CHANNELS_KEY, channels),
                                              K_CHANNELS_KEY, context, 1));
 
-            options.batch_size = read_batch_size(section, context, options.batch_size);
+            SA_TRY_ASSIGN(options.batch_size,
+                          read_batch_size(section, context, options.batch_size));
 
             const Config::Value shuffle = Config::Value::boolean(options.shuffle);
-            options.shuffle =
-                section.at_or(K_SHUFFLE_KEY, shuffle).as_bool(named(context, K_SHUFFLE_KEY));
+            SA_TRY_ASSIGN(options.shuffle,
+                          section.at_or(K_SHUFFLE_KEY, shuffle)
+                              .as_bool(named(context, K_SHUFFLE_KEY)));
 
             // Reinterpreting the signed integer keeps every 64-bit seed a file can state.
             const Config::Value seed = Config::Value::integer(0);
-            options.seed = static_cast<std::uint64_t>(
-                section.at_or(K_SEED_KEY, seed).as_int(named(context, K_SEED_KEY)));
+            SA_TRY_ASSIGN(const std::int64_t stated_seed,
+                          section.at_or(K_SEED_KEY, seed).as_int(named(context, K_SEED_KEY)));
+            options.seed = static_cast<std::uint64_t>(stated_seed);
             return options;
         }
 
@@ -204,8 +208,9 @@ namespace SushiAI::Vision::Datasets::Detail
             if (!section.has(K_PIPELINE_KEY))
                 return rows.data();
 
-            const std::string& name = section.at(K_PIPELINE_KEY, context)
-                                          .as_string(named(context, K_PIPELINE_KEY));
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_PIPELINE_KEY, context));
+            SA_TRY_ASSIGN(const std::string& name,
+                          stated.as_string(named(context, K_PIPELINE_KEY)));
             const PipelineEntry* const row = find_pipeline(name);
 
             std::string listed;
@@ -235,8 +240,8 @@ namespace SushiAI::Vision::Datasets::Detail
                 return std::optional<SampleCacheOptions>();
 
             SampleCacheOptions options;
-            options.directory =
-                section.at(K_CACHE_KEY, context).as_string(named(context, K_CACHE_KEY));
+            SA_TRY_ASSIGN(const Config::Value& stated, section.at(K_CACHE_KEY, context));
+            SA_TRY_ASSIGN(options.directory, stated.as_string(named(context, K_CACHE_KEY)));
             options.layout = FitPipeline::layout_of(channels);
 
             const Config::Value side = Config::Value::integer(options.longest_side);
@@ -301,7 +306,7 @@ namespace SushiAI::Vision::Datasets::Detail
         }
 
         TableDatasetOptions options;
-        options.batch_size = read_batch_size(section, context, options.batch_size);
+        SA_TRY_ASSIGN(options.batch_size, read_batch_size(section, context, options.batch_size));
         options.name = std::string(reader.name);
 
         SA_TRY_ASSIGN(ListedSamples listed, read_samples(reader, request, context));

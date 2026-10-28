@@ -74,17 +74,19 @@ namespace SushiAI::Vision::Datasets
 
         /**
          * @brief Refuses a key that no section, nor the reader, nor the task of this one reads.
-         * @throws Error If the section holds such a key; the message lists the keys allowed.
+         * @return InvalidDescription when the section holds such a key; the message lists the
+         *         keys allowed.
          */
-        void reject_unread_keys(const Config::Value& section, std::string_view context,
-                                const ReaderEntry& reader, const TaskEntry& task)
+        [[nodiscard]] Status reject_unread_keys(const Config::Value& section,
+                                                std::string_view context,
+                                                const ReaderEntry& reader, const TaskEntry& task)
         {
             std::vector<std::string_view> allowed(std::begin(K_SHARED_KEYS),
                                                   std::end(K_SHARED_KEYS));
             allowed.insert(allowed.end(), reader.keys.begin(), reader.keys.end());
             allowed.insert(allowed.end(), task.keys.begin(), task.keys.end());
 
-            section.reject_unknown_keys(
+            return section.reject_unknown_keys(
                 context,
                 SushiRuntime::span<const std::string_view>(allowed.data(), allowed.size()));
         }
@@ -96,12 +98,15 @@ namespace SushiAI::Vision::Datasets
             ReaderRequest request;
             request.section = section;
             request.context = std::string(context);
-            request.root = section.at(Detail::K_ROOT_KEY, context)
-                               .as_string(Detail::named(context, Detail::K_ROOT_KEY));
+            SA_TRY_ASSIGN(const Config::Value& stated_root,
+                          section.at(Detail::K_ROOT_KEY, context));
+            SA_TRY_ASSIGN(request.root,
+                          stated_root.as_string(Detail::named(context, Detail::K_ROOT_KEY)));
 
             const Config::Value split = Config::Value::string(request.split);
-            request.split = section.at_or(Detail::K_SPLIT_KEY, split)
-                                .as_string(Detail::named(context, Detail::K_SPLIT_KEY));
+            SA_TRY_ASSIGN(request.split,
+                          section.at_or(Detail::K_SPLIT_KEY, split)
+                              .as_string(Detail::named(context, Detail::K_SPLIT_KEY)));
 
             const Config::Value classes = Config::Value::integer(request.class_count);
             SA_TRY_ASSIGN(request.class_count,
@@ -149,24 +154,26 @@ namespace SushiAI::Vision::Datasets
                                                                const Config::Value& section,
                                                                std::string_view context)
     {
-        const std::string& reader_name =
-            section.at(Detail::K_READER_KEY, context)
-                .as_string(Detail::named(context, Detail::K_READER_KEY));
+        SA_TRY_ASSIGN(const Config::Value& stated_reader,
+                      section.at(Detail::K_READER_KEY, context));
+        SA_TRY_ASSIGN(const std::string& reader_name,
+                      stated_reader.as_string(Detail::named(context, Detail::K_READER_KEY)));
         const ReaderEntry* const reader = find_reader(reader_name);
         SA_FAIL_IF(reader == nullptr, StatusCode::InvalidDescription,
                    "{} is '{}', which is no reader; this build has: {}",
                    Detail::named(context, Detail::K_READER_KEY), reader_name,
                    list_names(reader_table()));
 
-        const std::string& task_name = section.at(Detail::K_TASK_KEY, context)
-                                           .as_string(Detail::named(context, Detail::K_TASK_KEY));
+        SA_TRY_ASSIGN(const Config::Value& stated_task, section.at(Detail::K_TASK_KEY, context));
+        SA_TRY_ASSIGN(const std::string& task_name,
+                      stated_task.as_string(Detail::named(context, Detail::K_TASK_KEY)));
         const TaskEntry* const task = find_task(task_name);
         SA_FAIL_IF(task == nullptr, StatusCode::InvalidDescription,
                    "{} is '{}', which is no task; this build has: {}",
                    Detail::named(context, Detail::K_TASK_KEY), task_name,
                    list_names(task_table()));
 
-        reject_unread_keys(section, context, *reader, *task);
+        SA_TRY(reject_unread_keys(section, context, *reader, *task));
 
         SA_TRY_ASSIGN(const ReaderRequest request, read_request(section, context));
         SA_TRY_ASSIGN(const std::optional<Data::LoaderOptions> loader,

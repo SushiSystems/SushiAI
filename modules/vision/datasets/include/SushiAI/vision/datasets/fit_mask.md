@@ -15,7 +15,7 @@ in, and rows likewise. No two classes are blended.
 | --- | --- |
 | `InvalidDescription` | The input size is outside its bounds, or the fit names no row of the table |
 | `Incompatible` | The mask has more than one channel, or another size than its image |
-| `InvalidFile` | `Imaging::plan_letterbox` throws; the message holds its text |
+| `InvalidDescription` | `Imaging::plan_letterbox` refuses the sizes; the status is its own |
 | `OutOfMemory` | An allocation fails |
 
 `vision/imaging` has no nearest-neighbour resize and no letterbox for a mask.

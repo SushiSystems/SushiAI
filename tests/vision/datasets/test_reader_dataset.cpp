@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include "datasets_test_support.hpp"
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/vision/datasets/collator.hpp>
 #include <SushiAI/vision/datasets/stored_pixels.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -169,9 +170,9 @@ TEST_F(Medium_DatasetsReaderDataset, ADetectionBatchLetterboxesImagesAndBoxes)
     for (const char* name : {"a.saim", "b.saim"})
     {
         const std::filesystem::path file = scratch.path() / name;
-        Vision::Imaging::write_raw_image_file(
-            file, Support::uniform_image(ImageSize{2, 4}, 3, 255).view(),
-            Vision::Imaging::ChannelOrder::RGB);
+        SA_EXPECT_OK(Vision::Imaging::write_raw_image_file(
+                         file, Support::uniform_image(ImageSize{2, 4}, 3, 255).view(),
+                         Vision::Imaging::ChannelOrder::RGB));
 
         Sample sample;
         sample.file = static_cast<std::uint32_t>(list.files.size());

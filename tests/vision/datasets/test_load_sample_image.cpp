@@ -93,8 +93,8 @@ TEST(Small_DatasetsLoadSampleImage, AnImageFileIsDecoded)
     Image written(ImageSize{2, 3}, 3);
     const std::vector<std::uint8_t> pixels = Support::rising_bytes(written.byte_count(), 7);
     std::copy(pixels.begin(), pixels.end(), written.data());
-    SushiAI::Vision::Imaging::write_raw_image_file(
-        file, written.view(), SushiAI::Vision::Imaging::ChannelOrder::RGB);
+    SA_EXPECT_OK(SushiAI::Vision::Imaging::write_raw_image_file(
+                     file, written.view(), SushiAI::Vision::Imaging::ChannelOrder::RGB));
 
     Image image;
     SA_EXPECT_OK(load_sample_image(list_of(file), 0, DecodeOptions{}, image));

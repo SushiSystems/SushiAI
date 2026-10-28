@@ -155,11 +155,23 @@ TEST(Small_DatasetsFitSample, AnInputSizeOutsideTheBoundsIsRefused)
                       StatusCode::InvalidDescription, "fit_sample", "0 by 4");
 }
 
-/** @brief Tests that a source of no pixels is a failure and not a thrown exception. */
-TEST(Small_DatasetsFitSample, ASourceOfNoPixelsIsAFailure)
+/** @brief Tests that a source of no pixels stops the process in the resize that reads it. */
+TEST(Small_DatasetsFitSample, ASourceOfNoPixelsStopsTheProcess)
 {
     FittedSample fitted;
-    SA_EXPECT_FAILURE(fit_sample(Sample{}, ImageView(),
-                                 options_of(ImageSize{4, 4}, SampleFit::Resize), fitted),
-                      StatusCode::InvalidFile, "fit_sample");
+    SA_EXPECT_FATAL(static_cast<void>(fit_sample(
+                        Sample{}, ImageView(), options_of(ImageSize{4, 4}, SampleFit::Resize),
+                        fitted)),
+                    "resize_bilinear", "no pixels");
+}
+
+/** @brief Tests that a letterbox that leaves a resized side of zero pixels is refused. */
+TEST(Small_DatasetsFitSample, ALetterboxThatLeavesNoPixelsIsRefused)
+{
+    const Image source = Support::uniform_image(ImageSize{1, 4000}, 1, 0);
+
+    FittedSample fitted;
+    SA_EXPECT_FAILURE(fit_sample(Sample{}, source.view(),
+                                 options_of(ImageSize{4, 4}, SampleFit::Letterbox), fitted),
+                      StatusCode::InvalidDescription, "plan_letterbox", "zero pixels");
 }

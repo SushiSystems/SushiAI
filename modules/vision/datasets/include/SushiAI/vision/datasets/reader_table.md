@@ -18,6 +18,6 @@ section holds a null one, and a row then takes the default of each of its keys.
 | `csv` | `read_csv` | Root and split | `file`, a string. `features` and `targets`, arrays of strings |
 
 A key left out, or an empty string, gives the default of the reader's options. A value of
-another kind is a thrown `Error` that names the key, as it is for a shared key.
+another kind is `InvalidDescription` that names the key, as it is for a shared key.
 
 A new reader is a function of that signature and one row of `K_READERS`.

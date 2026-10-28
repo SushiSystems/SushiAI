@@ -37,6 +37,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
 #include <SushiAI/vision/imaging/image.hpp>
@@ -174,9 +175,9 @@ namespace SushiAI::Vision::Datasets::Support
         const std::filesystem::path file = scratch.path() / relative;
         std::filesystem::create_directories(file.parent_path());
 
-        Imaging::write_raw_image_file(file, image.view(),
-                                      image.channels() == 1 ? Imaging::ChannelOrder::Gray
-                                                            : Imaging::ChannelOrder::RGB);
+        SA_EXPECT_OK(Imaging::write_raw_image_file(
+            file, image.view(),
+            image.channels() == 1 ? Imaging::ChannelOrder::Gray : Imaging::ChannelOrder::RGB));
         return file;
     }
 

@@ -17,4 +17,4 @@ in `source/fit_sample.cpp`.
 | --- | --- |
 | `InvalidDescription` | The input size is outside [1, `Imaging::K_MAX_IMAGE_SIDE`], or the fit names no row of the table |
 | `OutOfMemory` | An allocation fails |
-| `InvalidFile` | A function of `vision/imaging` throws, such as for a source of no pixels; the message holds its text |
+| Any other | A function of `vision/imaging` returns a status, such as `plan_letterbox` for a resized side of zero pixels; it is forwarded. A source that fails `Imaging::check_source` stops the process |

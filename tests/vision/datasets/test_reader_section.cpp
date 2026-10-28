@@ -35,6 +35,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -46,7 +47,6 @@
 #include <SushiAI/data/threaded_loader.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/vision/datasets/binary_collator.hpp>
 #include <SushiAI/vision/datasets/classification_collator.hpp>
@@ -97,9 +97,9 @@ namespace
                 {
                     const std::filesystem::path file = scratch.path() / name;
                     std::filesystem::create_directories(file.parent_path());
-                    Vision::Imaging::write_raw_image_file(
-                        file, Support::uniform_image(ImageSize{2, 4}, 3, 255).view(),
-                        Vision::Imaging::ChannelOrder::RGB);
+                    SA_EXPECT_OK(Vision::Imaging::write_raw_image_file(
+                                     file, Support::uniform_image(ImageSize{2, 4}, 3, 255).view(),
+                                     Vision::Imaging::ChannelOrder::RGB));
                 }
 
                 scratch.write_text("labels/train/b.txt", "2 0.5 0.5 0.5 1.0\n");
@@ -181,12 +181,14 @@ TEST(Small_DatasetsReaderTable, ARowReadsItsKeysOfTheSection)
     EXPECT_EQ(list.table.values, (std::vector<float>{3.0f, 1.0f, 2.0f}));
 
     request.section = SaTest::attributes_from(R"({"features": "c"})");
-    SA_EXPECT_ERROR((void)csv->read(request), "data 'features'", "array");
+    SA_EXPECT_FAILURE(csv->read(request), StatusCode::InvalidDescription, "data 'features'",
+                      "array");
 
     const ReaderEntry* const coco = find_reader("coco_json");
     ASSERT_NE(coco, nullptr);
     request.section = SaTest::attributes_from(R"({"polygons": 3})");
-    SA_EXPECT_ERROR((void)coco->read(request), "data 'polygons'", "boolean");
+    SA_EXPECT_FAILURE(coco->read(request), StatusCode::InvalidDescription, "data 'polygons'",
+                      "boolean");
 }
 
 /** @brief Tests that the mask_png row passes the class count and the folders it is given. */
@@ -501,14 +503,12 @@ TEST_F(Medium_DatasetsReaderSection, AKeyTheTaskDoesNotReadIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_keys");
 
-    SA_EXPECT_ERROR(
-        (void)build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+    SA_EXPECT_FAILURE(build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
             "input": [4, 4], "max_objects": 2, "batch_sizes": 4)")),
-        "data", "'batch_sizes'", "'batch_size'");
-    SA_EXPECT_ERROR(
-        (void)build(section_of(scratch, R"(, "reader": "image_folder",
+        StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
+    SA_EXPECT_FAILURE(build(section_of(scratch, R"(, "reader": "image_folder",
             "task": "classification", "input": [4, 4], "max_objects": 2)")),
-        "data", "'max_objects'");
+        StatusCode::InvalidDescription, "data", "'max_objects'");
 }
 
 /** @brief Tests that a detection section without its object slots is refused by key. */
@@ -517,10 +517,9 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionNeedsMaxObjects)
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_slots");
     write_yolo_split(scratch);
 
-    SA_EXPECT_ERROR(
-        (void)build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+    SA_EXPECT_FAILURE(build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
             "batch_size": 2, "input": [4, 4], "classes": 3)")),
-        "data", "'max_objects'");
+        StatusCode::InvalidDescription, "data", "'max_objects'");
 }
 
 /** @brief Tests that an input of another length and a count below its bound are refused. */
@@ -699,10 +698,9 @@ TEST_F(Medium_DatasetsReaderSection, AKeyOfAnotherReaderIsRefused)
 {
     const Support::ScratchDirectory scratch("sushiai_test_datasets_section_reader_keys");
 
-    SA_EXPECT_ERROR(
-        (void)build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
+    SA_EXPECT_FAILURE(build(section_of(scratch, R"(, "reader": "yolo_txt", "task": "detection",
             "input": [4, 4], "max_objects": 2, "features": ["a"])")),
-        "data", "'features'", "'max_objects'");
+        StatusCode::InvalidDescription, "data", "'features'", "'max_objects'");
 }
 
 /** @brief Tests that "cache" writes raw image files and that the batches are read from them. */

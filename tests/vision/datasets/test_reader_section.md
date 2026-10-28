@@ -26,7 +26,7 @@ voc_xml lists `class_names`, `keep_difficult`; mask_png lists `images`, `masks`,
 ## ARowReadsItsKeysOfTheSection
 
 The csv row, given `file`, the feature c and the targets a, b over a file with the header
-`a,b,c`, reads the values 3, 1, 2. It raises an error holding "data 'features'" and "array"
+`a,b,c`, reads the values 3, 1, 2. It returns `InvalidDescription` with a message holding "data 'features'" and "array"
 when `features` is a string. The coco_json row raises one holding "data 'polygons'" and
 "boolean" when `polygons` is 3.
 
@@ -116,12 +116,12 @@ of each of the six tasks.
 
 ## AKeyTheTaskDoesNotReadIsRefused
 
-The key `batch_sizes` raises an error holding "data", "'batch_sizes'" and "'batch_size'". The
+The key `batch_sizes` returns `InvalidDescription` with a message holding "data", "'batch_sizes'" and "'batch_size'". The
 key `max_objects` on a classification section raises one holding "data" and "'max_objects'".
 
 ## ADetectionSectionNeedsMaxObjects
 
-A detection section without `max_objects` raises an error holding "data" and "'max_objects'".
+A detection section without `max_objects` returns `InvalidDescription` with a message holding "data" and "'max_objects'".
 
 ## ValuesOutsideTheirBoundsAreRefused
 
@@ -174,7 +174,7 @@ The task classification over the reader csv fails with `InvalidDescription`,
 
 ## AKeyOfAnotherReaderIsRefused
 
-The key `features` on a yolo_txt detection section raises an error holding "data",
+The key `features` on a yolo_txt detection section returns `InvalidDescription` with a message holding "data",
 "'features'" and "'max_objects'".
 
 ## ACacheIsWrittenAndRead
