@@ -63,7 +63,7 @@ namespace SushiAI::Vision::Imaging
      *
      * Destination column x reads source column floor((x + 0.5) * source width / width),
      * and rows likewise. No two values are blended, so an image of class indices stays one.
-     * @param size Must pass is_valid_size; otherwise Image::reset throws Error.
+     * @param size Must pass is_valid_size; otherwise Image::reset is fatal.
      * @param destination Reset to size with the source's channels; must pass check_source.
      */
     void resize_nearest(ImageView source, ImageSize size, Image& destination);

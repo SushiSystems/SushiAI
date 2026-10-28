@@ -63,7 +63,7 @@ namespace SushiAI::Vision::Imaging
 
             /**
              * @brief Constructs a set of objects without polygons.
-             * @param boxes One per class; otherwise throws Error.
+             * @param boxes One per class; another count is fatal.
              */
             LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes)
                 : classes_(std::move(classes)), boxes_(std::move(boxes)), polygons_(boxes_.size())
@@ -73,8 +73,9 @@ namespace SushiAI::Vision::Imaging
 
             /**
              * @brief Constructs a set of objects with their polygons.
-             * @param boxes One per class; otherwise throws Error.
-             * @param polygons One per class, empty for an object without one; else throws Error.
+             * @param boxes One per class; another count is fatal.
+             * @param polygons One per class, empty for an object without one; another count
+             *        is fatal.
              */
             LabelSet(std::vector<std::int32_t> classes, std::vector<Box> boxes,
                      std::vector<Polygon> polygons)
