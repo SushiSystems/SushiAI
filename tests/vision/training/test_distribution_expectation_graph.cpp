@@ -151,7 +151,7 @@ TEST_F(Medium_DistributionExpectationGraphEndToEnd, TheGraphAgreesWithTheHostDec
     // The host decodes the float32 values the tensor holds.
     const std::vector<float> stored(logits.begin(), logits.end());
     std::vector<float> host(8, 0.0f);
-    Vision::Detect::Free::expect_distances(stored, K_BINS, host);
+    ASSERT_TRUE(Vision::Detect::Free::expect_distances(stored, K_BINS, host).is_ok());
     const std::vector<double> device = SaTest::read_tensor(pool.tensor(expected));
     ASSERT_EQ(device.size(), host.size());
     for (std::size_t i = 0; i < host.size(); ++i)

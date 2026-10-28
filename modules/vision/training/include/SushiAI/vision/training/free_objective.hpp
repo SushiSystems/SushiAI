@@ -93,7 +93,7 @@ namespace SushiAI::Vision::Training
              * @brief Emits emit_free_detection_loss() over the one-to-many ports and, with a
              *        one-to-one copy, over its ports too, each total times its weight leaf.
              * @return The id of the `[1]` total.
-             * @throws Error If @p outputs lacks a port the facts name.
+             * @pre @p outputs are the outputs the facts were derived from.
              */
             Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
                                 const NN::ModelOutputs& outputs,

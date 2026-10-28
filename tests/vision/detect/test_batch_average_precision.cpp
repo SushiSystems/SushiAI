@@ -29,7 +29,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/average_precision.hpp>
 #include <SushiAI/vision/detect/batch_average_precision.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
@@ -85,7 +85,7 @@ TEST(Small_BatchAveragePrecision, MeansAClassWithAMissAndAFalsePositiveWithAFoun
         {0.0f, 0.0f, 8.0f, 8.0f, 0.9f, 0.0f, 20.0f, 20.0f, 28.0f, 28.0f, 0.7f, 1.0f},
         {100.0f, 100.0f, 108.0f, 108.0f, 0.8f, 0.0f}};
     AveragePrecision metric;
-    add_batch(metric, detections, make_truth());
+    SA_EXPECT_OK(add_batch(metric, detections, make_truth()));
     const MetricsSummary summary = metric.summarize();
 
     // The padding slot would add a fourth box, of class 0, if it were not dropped.
@@ -112,8 +112,8 @@ TEST(Small_BatchAveragePrecision, BatchesAccumulateIntoOneMetric)
     const std::vector<std::vector<float>> found{{0.0f, 0.0f, 8.0f, 8.0f, 0.9f, 0.0f}};
     const std::vector<std::vector<float>> missed(1);
     AveragePrecision metric;
-    add_batch(metric, found, first);
-    add_batch(metric, missed, first);
+    SA_EXPECT_OK(add_batch(metric, found, first));
+    SA_EXPECT_OK(add_batch(metric, missed, first));
 
     // Two boxes of class 0, one found: recall 0.5 and precision 1, the AP of class 0 above.
     EXPECT_EQ(metric.image_count(), 2);
@@ -126,6 +126,7 @@ TEST(Small_BatchAveragePrecision, RejectsAnArrayCountThatIsNotTheBatch)
     AveragePrecision metric;
     const std::vector<std::vector<float>> one_array(1);
 
-    SA_EXPECT_ERROR(add_batch(metric, one_array, make_truth()), "2 images", "got 1 arrays");
+    SA_EXPECT_FAILURE(add_batch(metric, one_array, make_truth()),
+                      SushiAI::StatusCode::InvalidDescription, "2 images", "got 1 arrays");
     EXPECT_EQ(metric.image_count(), 0);
 }

@@ -14,5 +14,5 @@ The leaf the distribution focal loss multiplies `log_softmax` by, so the loss is
 | weights | `wl = tr - t` at `tl`, `wr = 1 - wl` at `tr` |
 | scale | both times `normalized_weight / 4`: the mean over sides, the target score weight, and the division by `target_scores_sum` |
 
-A background row has `normalized_weight` 0, so all its bins are 0. The gain is the caller's. A target distance or a weight that is NaN or infinite throws before
-anything is written, since the clamp would pass a NaN to the bin index.
+A background row has `normalized_weight` 0, so all its bins are 0. The gain is the caller's. A target distance or a weight that is NaN or infinite returns
+`InvalidDescription` before anything is written, since the clamp would pass a NaN to the bin index.

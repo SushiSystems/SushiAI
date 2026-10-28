@@ -24,4 +24,5 @@ detection give recall 0.5 and the AP 0.495 of class 0.
 
 ## RejectsAnArrayCountThatIsNotTheBatch
 
-One detection array for a batch of two images throws and leaves the metric empty.
+One detection array for a batch of two images returns `InvalidDescription` and leaves the metric
+empty.

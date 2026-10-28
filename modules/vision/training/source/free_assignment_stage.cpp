@@ -33,7 +33,7 @@
 #include <string_view>
 #include <utility>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
@@ -239,15 +239,15 @@ namespace SushiAI::Vision::Training
         return leaves_;
     }
 
-    void FreeAssignmentStage::assign(SushiRuntime::span<const FreeLevelViews> levels,
-                                     const Detect::GroundTruthBatch& truth)
+    Status FreeAssignmentStage::assign(SushiRuntime::span<const FreeLevelViews> levels,
+                                       const Detect::GroundTruthBatch& truth)
     {
         SA_ZONE("host", "assign");
-        SA_THROW_IF(truth.batch != batch_, "the truth holds {} images for a stage of {}",
-                    truth.batch, batch_);
-        join_levels(levels);
-        refuse_non_finite_truth(truth);
-        decode_predictions();
+        SA_FAIL_IF(truth.batch != batch_, StatusCode::InvalidDescription,
+                   "the truth holds {} images for a stage of {}", truth.batch, batch_);
+        SA_TRY(join_levels(levels));
+        SA_TRY(refuse_non_finite_truth(truth));
+        SA_TRY(decode_predictions());
 
         Detect::Free::AssignerInputs inputs;
         inputs.batch = batch_;
@@ -271,18 +271,18 @@ namespace SushiAI::Vision::Training
         Detect::Free::build_target_leaves(assignment_, geometry, targets_);
 
         if (reg_max_ == 1)
-            return;
+            return Status();
         distribution_weights_.resize(targets_.target_distances.size() *
                                      static_cast<std::size_t>(reg_max_));
-        Detect::Free::fill_distribution_weights(view(targets_.target_distances),
-                                                view(targets_.normalized_weight), reg_max_,
-                                                view(distribution_weights_));
+        return Detect::Free::fill_distribution_weights(view(targets_.target_distances),
+                                                       view(targets_.normalized_weight), reg_max_,
+                                                       view(distribution_weights_));
     }
 
-    void FreeAssignmentStage::join_levels(SushiRuntime::span<const FreeLevelViews> levels)
+    Status FreeAssignmentStage::join_levels(SushiRuntime::span<const FreeLevelViews> levels)
     {
-        SA_THROW_IF(levels.size() != levels_.size(), "the stage has {} levels; got {} views",
-                    levels_.size(), levels.size());
+        SA_FAIL_IF(levels.size() != levels_.size(), StatusCode::InvalidDescription,
+                   "the stage has {} levels; got {} views", levels_.size(), levels.size());
         const std::size_t rows = static_cast<std::size_t>(batch_ * anchors_);
         const std::int64_t box_channels =
             static_cast<std::int64_t>(Detect::K_BOX_VALUES) * reg_max_;
@@ -294,19 +294,22 @@ namespace SushiAI::Vision::Training
             const std::int64_t level_anchors = levels_[level].height * levels_[level].width;
             const std::size_t level_rows = static_cast<std::size_t>(batch_ * level_anchors);
             const FreeLevelViews& views = levels[level];
-            SA_THROW_IF(views.boxes.size() != level_rows * static_cast<std::size_t>(box_channels) ||
-                            views.scores.size() != level_rows * static_cast<std::size_t>(classes_),
-                        "level {} needs {} box and {} score values; got {} and {}", level,
-                        level_rows * static_cast<std::size_t>(box_channels),
-                        level_rows * static_cast<std::size_t>(classes_), views.boxes.size(),
-                        views.scores.size());
+            SA_FAIL_IF(views.boxes.size() != level_rows * static_cast<std::size_t>(box_channels) ||
+                           views.scores.size() != level_rows * static_cast<std::size_t>(classes_),
+                       StatusCode::InvalidDescription,
+                       "level {} needs {} box and {} score values; got {} and {}", level,
+                       level_rows * static_cast<std::size_t>(box_channels),
+                       level_rows * static_cast<std::size_t>(classes_), views.boxes.size(),
+                       views.scores.size());
 
             const std::int64_t bad_box = Detect::first_non_finite(views.boxes);
-            SA_THROW_IF(bad_box >= 0, "level {} box output {} is {}; every output must be finite",
-                        level, bad_box, views.boxes[static_cast<std::size_t>(bad_box)]);
+            SA_FAIL_IF(bad_box >= 0, StatusCode::InvalidDescription,
+                       "level {} box output {} is {}; every output must be finite",
+                       level, bad_box, views.boxes[static_cast<std::size_t>(bad_box)]);
             const std::int64_t bad_score = Detect::first_non_finite(views.scores);
-            SA_THROW_IF(bad_score >= 0, "level {} score {} is {}; every score must be finite",
-                        level, bad_score, views.scores[static_cast<std::size_t>(bad_score)]);
+            SA_FAIL_IF(bad_score >= 0, StatusCode::InvalidDescription,
+                       "level {} score {} is {}; every score must be finite",
+                       level, bad_score, views.scores[static_cast<std::size_t>(bad_score)]);
 
             Detect::Free::LevelPlacement placement{batch_, anchors_, box_channels,
                                                    offsets_[level], level_anchors};
@@ -314,9 +317,12 @@ namespace SushiAI::Vision::Training
             placement.channels = classes_;
             Detect::Free::join_level(views.scores, placement, view(probabilities_));
         }
+
+        return Status();
     }
 
-    void FreeAssignmentStage::refuse_non_finite_truth(const Detect::GroundTruthBatch& truth) const
+    Status FreeAssignmentStage::refuse_non_finite_truth(
+        const Detect::GroundTruthBatch& truth) const
     {
         constexpr std::size_t values = Detect::K_BOX_VALUES;
         for (std::size_t slot = 0; slot < truth.valid.size(); ++slot)
@@ -326,35 +332,42 @@ namespace SushiAI::Vision::Training
 
             const SushiRuntime::span<const float> box(truth.boxes.data() + slot * values, values);
             const std::int64_t bad = Detect::first_non_finite(box);
-            SA_THROW_IF(bad >= 0, "truth slot {} has the box value {} at {}; it must be finite",
-                        slot, box[static_cast<std::size_t>(bad)], bad);
+            SA_FAIL_IF(bad >= 0, StatusCode::InvalidDescription,
+                       "truth slot {} has the box value {} at {}; it must be finite",
+                       slot, box[static_cast<std::size_t>(bad)], bad);
         }
+
+        return Status();
     }
 
-    void FreeAssignmentStage::decode_predictions()
+    Status FreeAssignmentStage::decode_predictions()
     {
         predicted_boxes_.resize(static_cast<std::size_t>(batch_ * anchors_) *
                                 Detect::K_BOX_VALUES);
-        Detect::Free::expect_distances(view(box_outputs_), reg_max_, view(predicted_boxes_));
+        SA_TRY(Detect::Free::expect_distances(view(box_outputs_), reg_max_,
+                                              view(predicted_boxes_)));
         Detect::Free::decode_xyxy(view(predicted_boxes_), view(points_), view(predicted_boxes_));
         Detect::Free::scale_boxes(view(predicted_boxes_), view(strides_), view(predicted_boxes_));
         for (float& value : probabilities_)
             value = sigmoid(value);
+
+        return Status();
     }
 
-    void FreeAssignmentStage::write_leaf(std::size_t leaf, SushiRuntime::span<float> values) const
+    Status FreeAssignmentStage::write_leaf(std::size_t leaf,
+                                           SushiRuntime::span<float> values) const
     {
-        SA_THROW_IF(leaf >= leaves_.size(), "leaf {} is beyond the stage's {}", leaf,
+        SA_FATAL_IF(leaf >= leaves_.size(), "leaf {} is beyond the stage's {}", leaf,
                     leaves_.size());
         const FreeLeaf& described = leaves_[leaf];
-        SA_THROW_IF(static_cast<std::int64_t>(values.size()) != described.shape.num_elements(),
-                    "the leaf '{}' holds {} values; got {}", described.role,
-                    described.shape.num_elements(), values.size());
+        SA_FAIL_IF(static_cast<std::int64_t>(values.size()) != described.shape.num_elements(),
+                   StatusCode::InvalidDescription, "the leaf '{}' holds {} values; got {}",
+                   described.role, described.shape.num_elements(), values.size());
 
         if (described.kind == FreeLeafKind::TargetScoresSum)
         {
             values[0] = targets_.target_scores_sum[0];
-            return;
+            return Status();
         }
         std::int64_t channels = 0;
         const SushiRuntime::span<const float> joined = joined_source(described.kind, channels);
@@ -363,6 +376,7 @@ namespace SushiAI::Vision::Training
             batch_, anchors_, channels, offsets_[level],
             levels_[level].height * levels_[level].width};
         Detect::Free::split_level(joined, placement, values);
+        return Status();
     }
 
     SushiRuntime::span<const float> FreeAssignmentStage::joined_source(
@@ -394,8 +408,7 @@ namespace SushiAI::Vision::Training
             case FreeLeafKind::TargetScoresSum:
                 break;
         }
-        SA_THROW_IF(true, "the leaf kind {} is not cut from a joined array",
-                    static_cast<int>(kind));
+        SA_FATAL("the leaf kind {} is not cut from a joined array", static_cast<int>(kind));
         return {};
     }
 

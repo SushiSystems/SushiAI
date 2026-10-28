@@ -523,7 +523,7 @@ namespace SushiAI
                             SA_TRY(Vision::Training::truth_from_roles(batch, truth));
                         }
                         SA_ZONE("eval", "ap");
-                        Vision::Detect::add_batch(metric, detections, truth);
+                        SA_TRY(Vision::Detect::add_batch(metric, detections, truth));
                     }
                 }
 
@@ -625,7 +625,8 @@ namespace SushiAI
                            "'{}' publishes batches of {} images, but the data reads {}",
                            run.model_path.string(), published_batch, batch_size);
 
-                Vision::Training::FreeBatchDecoder decoder(facts, batch_size);
+                SA_TRY_ASSIGN(Vision::Training::FreeBatchDecoder decoder,
+                              Vision::Training::FreeBatchDecoder::make(facts, batch_size));
                 const auto anchors = static_cast<std::size_t>(decoder.anchors());
                 const auto images = static_cast<std::size_t>(batch_size);
 
@@ -667,7 +668,7 @@ namespace SushiAI
                     SA_TRY(run.step.run(batch.inputs));
                     {
                         SA_ZONE("eval", "decode");
-                        decoder.decode(levels, boxes, scores);
+                        SA_TRY(decoder.decode(levels, boxes, scores));
                     }
 
                     {
@@ -693,7 +694,7 @@ namespace SushiAI
                             SA_TRY(Vision::Training::truth_from_roles(batch, truth));
                         }
                         SA_ZONE("eval", "ap");
-                        Vision::Detect::add_batch(metric, detections, truth);
+                        SA_TRY(Vision::Detect::add_batch(metric, detections, truth));
                     }
                 }
 

@@ -31,7 +31,8 @@
 #include <cmath>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI::Vision::Training
 {
@@ -110,36 +111,40 @@ namespace SushiAI::Vision::Training
             return iou - (rho2 / c2 + v * alpha);
         }
 
-        /** @brief Throws unless @p values holds @p rows times @p per_row; names it @p what. */
-        void require_size(SushiRuntime::span<const double> values, std::size_t rows,
-                          std::size_t per_row, const char* what)
+        /** @brief Refuses @p values unless it holds @p rows times @p per_row; names it @p what. */
+        Status require_size(SushiRuntime::span<const double> values, std::size_t rows,
+                            std::size_t per_row, const char* what)
         {
-            SA_THROW_IF(values.size() != rows * per_row,
-                        "the {} hold {} values; {} rows of {} need {}", what, values.size(),
-                        rows, per_row, rows * per_row);
+            SA_FAIL_IF(values.size() != rows * per_row, StatusCode::InvalidDescription,
+                       "the {} hold {} values; {} rows of {} need {}", what, values.size(),
+                       rows, per_row, rows * per_row);
+            return Status();
         }
 
-        /** @brief Adds the terms of one level to @p terms. */
-        void add_level(const FreeLevelLossArrays& level, std::size_t bins, std::size_t classes,
-                       const FreeLossGains& gains, FreeLossTerms& terms)
+        /** @brief Adds the terms of one level to @p terms, or refuses a level of wrong sizes. */
+        Status add_level(const FreeLevelLossArrays& level, std::size_t bins, std::size_t classes,
+                         const FreeLossGains& gains, FreeLossTerms& terms)
         {
             const std::size_t rows = level.scores.size() / classes;
             const std::size_t box_channels = K_BOX_VALUES * bins;
-            require_size(level.boxes, rows, box_channels, "box outputs");
-            require_size(level.scores, rows, classes, "scores");
-            require_size(level.target_scores, rows, classes, "target scores");
-            require_size(level.box_mask, rows, K_BOX_VALUES, "box mask");
-            require_size(level.normalized_weight, rows, 1, "normalized weights");
-            require_size(level.target_boxes, rows, K_BOX_VALUES, "target boxes");
-            require_size(level.safe_boxes, rows, K_BOX_VALUES, "safe boxes");
-            require_size(level.anchor_points, rows, K_POINT_VALUES, "anchor points");
+            SA_TRY(require_size(level.boxes, rows, box_channels, "box outputs"));
+            SA_TRY(require_size(level.scores, rows, classes, "scores"));
+            SA_TRY(require_size(level.target_scores, rows, classes, "target scores"));
+            SA_TRY(require_size(level.box_mask, rows, K_BOX_VALUES, "box mask"));
+            SA_TRY(require_size(level.normalized_weight, rows, 1, "normalized weights"));
+            SA_TRY(require_size(level.target_boxes, rows, K_BOX_VALUES, "target boxes"));
+            SA_TRY(require_size(level.safe_boxes, rows, K_BOX_VALUES, "safe boxes"));
+            SA_TRY(require_size(level.anchor_points, rows, K_POINT_VALUES, "anchor points"));
             if (bins > 1)
-                require_size(level.distribution_weights, rows, box_channels,
-                             "distribution weights");
+            {
+                SA_TRY(require_size(level.distribution_weights, rows, box_channels,
+                                    "distribution weights"));
+            }
             if (gains.l1_gain > 0.0f)
             {
-                require_size(level.target_distances, rows, K_BOX_VALUES, "target distances");
-                require_size(level.l1_scale, rows, K_BOX_VALUES, "L1 scales");
+                SA_TRY(require_size(level.target_distances, rows, K_BOX_VALUES,
+                                    "target distances"));
+                SA_TRY(require_size(level.l1_scale, rows, K_BOX_VALUES, "L1 scales"));
             }
 
             for (std::size_t row = 0; row < rows; ++row)
@@ -190,23 +195,28 @@ namespace SushiAI::Vision::Training
                     }
                 }
             }
+
+            return Status();
         }
     } // namespace
 
-    FreeLossTerms evaluate_free_detection_loss(SushiRuntime::span<const FreeLevelLossArrays> levels,
-                                               std::int64_t reg_max, std::int64_t classes,
-                                               std::int64_t batch, double target_scores_sum,
-                                               const FreeLossGains& gains)
+    Result<FreeLossTerms> evaluate_free_detection_loss(
+        SushiRuntime::span<const FreeLevelLossArrays> levels, std::int64_t reg_max,
+        std::int64_t classes, std::int64_t batch, double target_scores_sum,
+        const FreeLossGains& gains)
     {
-        SA_THROW_IF(reg_max < 1 || classes < 1 || batch < 1 || !(target_scores_sum > 0.0),
-                    "the host loss reads reg_max {}, {} classes, a batch of {} and a score sum "
-                    "of {}; each is positive",
-                    reg_max, classes, batch, target_scores_sum);
+        SA_FAIL_IF(reg_max < 1 || classes < 1 || batch < 1 || !(target_scores_sum > 0.0),
+                   StatusCode::InvalidDescription,
+                   "the host loss reads reg_max {}, {} classes, a batch of {} and a score sum "
+                   "of {}; each is positive",
+                   reg_max, classes, batch, target_scores_sum);
 
         FreeLossTerms terms;
         for (const FreeLevelLossArrays& level : levels)
-            add_level(level, static_cast<std::size_t>(reg_max), static_cast<std::size_t>(classes),
-                      gains, terms);
+        {
+            SA_TRY(add_level(level, static_cast<std::size_t>(reg_max),
+                             static_cast<std::size_t>(classes), gains, terms));
+        }
         terms.classes /= target_scores_sum;
 
         const double images = static_cast<double>(batch);

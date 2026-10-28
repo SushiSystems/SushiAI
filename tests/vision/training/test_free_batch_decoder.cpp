@@ -34,8 +34,7 @@
 
 #include <gtest/gtest.h>
 
-#include <SushiAI/failure/error.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/training/free_batch_decoder.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
@@ -86,7 +85,8 @@ namespace
                        const std::vector<float>& level1_boxes,
                        const std::array<float, K_ANCHORS * 4>& expected)
     {
-        FreeBatchDecoder decoder(make_facts(reg_max), 1);
+        SA_ASSERT_OK_AND_ASSIGN(FreeBatchDecoder decoder,
+                                FreeBatchDecoder::make(make_facts(reg_max), 1));
         ASSERT_EQ(decoder.anchors(), static_cast<std::int64_t>(K_ANCHORS));
 
         const std::array<FreeLevelLogits, 2> levels = {
@@ -94,7 +94,7 @@ namespace
             FreeLevelLogits{level1_boxes, K_LEVEL1_SCORES}};
         std::vector<float> boxes(K_ANCHORS * 4);
         std::vector<float> scores(K_ANCHORS * 2);
-        decoder.decode(levels, boxes, scores);
+        SA_EXPECT_OK(decoder.decode(levels, boxes, scores));
 
         for (std::size_t at = 0; at < expected.size(); ++at)
             EXPECT_NEAR(boxes[at], expected[at], K_TOLERANCE) << "box value " << at;
@@ -130,22 +130,30 @@ TEST(Small_FreeBatchDecoder, TakesTheExpectationOfFourBins)
     expect_decode(4, level0, level1, expected);
 }
 
-/** @brief Tests that a level count other than the facts' throws. */
+/** @brief Tests that make refuses a batch below 1, naming it. */
+TEST(Small_FreeBatchDecoder, MakeRefusesABatchBelowOne)
+{
+    SA_EXPECT_FAILURE(FreeBatchDecoder::make(make_facts(1), 0), StatusCode::InvalidDescription,
+                      "batch 0");
+}
+
+/** @brief Tests that a level count other than the facts' is refused. */
 TEST(Small_FreeBatchDecoder, RejectsAMissingLevel)
 {
-    FreeBatchDecoder decoder(make_facts(1), 1);
+    SA_ASSERT_OK_AND_ASSIGN(FreeBatchDecoder decoder, FreeBatchDecoder::make(make_facts(1), 1));
     const std::vector<float> level0(8, 0.0f);
     const std::array<FreeLevelLogits, 1> levels = {FreeLevelLogits{level0, K_LEVEL0_SCORES}};
     std::vector<float> boxes(K_ANCHORS * 4);
     std::vector<float> scores(K_ANCHORS * 2);
 
-    EXPECT_THROW(decoder.decode(levels, boxes, scores), SushiAI::Error);
+    SA_EXPECT_FAILURE(decoder.decode(levels, boxes, scores), StatusCode::InvalidDescription,
+                      "got 1 levels");
 }
 
-/** @brief Tests that a NaN box output or an infinite score throws, naming level and index. */
+/** @brief Tests that a NaN box output or an infinite score is refused, naming level and index. */
 TEST(Small_FreeBatchDecoder, RefusesNonFiniteBoxOutputsAndScores)
 {
-    FreeBatchDecoder decoder(make_facts(1), 1);
+    SA_ASSERT_OK_AND_ASSIGN(FreeBatchDecoder decoder, FreeBatchDecoder::make(make_facts(1), 1));
     std::vector<float> level0(8, 0.0f);
     const std::vector<float> level1(4, 0.5f);
     std::vector<float> boxes(K_ANCHORS * 4);
@@ -154,11 +162,13 @@ TEST(Small_FreeBatchDecoder, RefusesNonFiniteBoxOutputsAndScores)
     level0[5] = std::numeric_limits<float>::quiet_NaN();
     std::array<FreeLevelLogits, 2> levels = {FreeLevelLogits{level0, K_LEVEL0_SCORES},
                                              FreeLevelLogits{level1, K_LEVEL1_SCORES}};
-    SA_EXPECT_ERROR(decoder.decode(levels, boxes, scores), "level 0 box output 5");
+    SA_EXPECT_FAILURE(decoder.decode(levels, boxes, scores), StatusCode::InvalidDescription,
+                      "level 0 box output 5");
 
     level0[5] = 0.0f;
     std::vector<float> bad_scores = K_LEVEL1_SCORES;
     bad_scores[1] = std::numeric_limits<float>::infinity();
     levels[1] = FreeLevelLogits{level1, bad_scores};
-    SA_EXPECT_ERROR(decoder.decode(levels, boxes, scores), "level 1 score 1");
+    SA_EXPECT_FAILURE(decoder.decode(levels, boxes, scores), StatusCode::InvalidDescription,
+                      "level 1 score 1");
 }

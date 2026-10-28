@@ -30,6 +30,7 @@
 #include <cstdint>
 
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -40,16 +41,16 @@ namespace SushiAI
 
         /**
          * @brief Writes the `[B, A, 4 * reg_max]` bin weights of `[B, A, 4]` target distances.
-         * @param normalized_weight `[B, A]`; a NaN or infinity here or in a target throws Error.
+         * @param normalized_weight `[B, A]`; a NaN or infinity here or in a target is refused.
          * @param reg_max Bins per side; must be at least 2.
-         * @param weights Receives the two linear weights of each clamped target, at the bins
-         *        around it, times a quarter of its row's normalized weight; 0 elsewhere.
+         * @param weights Receives two linear weights per clamped target, times its weight / 4.
+         * @return InvalidDescription for a bad reg_max, size or value; @p weights is untouched.
          * @see modules/vision/detect/README.md
          */
-        void fill_distribution_weights(SushiRuntime::span<const float> target_distances,
-                                       SushiRuntime::span<const float> normalized_weight,
-                                       std::int64_t reg_max,
-                                       SushiRuntime::span<float> weights);
+        [[nodiscard]] Status fill_distribution_weights(
+            SushiRuntime::span<const float> target_distances,
+            SushiRuntime::span<const float> normalized_weight, std::int64_t reg_max,
+            SushiRuntime::span<float> weights);
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

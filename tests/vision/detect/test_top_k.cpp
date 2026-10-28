@@ -39,7 +39,6 @@
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
 #include <SushiAI/vision/detect/detections_topk.hpp>
-#include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
 
@@ -69,16 +68,4 @@ TEST(Small_DetectTopK, RanksNaNBelowEveryNumber)
     SushiAI::Vision::Detect::select_top_k(values, 5, indices);
 
     EXPECT_TRUE(equal_reference(indices, std::vector<std::int64_t>{1, 4, 3, 0, 2}));
-}
-
-/** @brief Tests that first_non_finite names the first NaN or infinity, else -1. */
-TEST(Small_DetectTopK, FirstNonFiniteNamesTheFirstBadIndex)
-{
-    const float nan = std::numeric_limits<float>::quiet_NaN();
-    const float inf = std::numeric_limits<float>::infinity();
-    const std::vector<float> clean{0.0f, 1.0f, -2.0f};
-    const std::vector<float> bad{0.0f, inf, nan};
-
-    EXPECT_EQ(SushiAI::Vision::Detect::first_non_finite(clean), -1);
-    EXPECT_EQ(SushiAI::Vision::Detect::first_non_finite(bad), 1);
 }

@@ -29,7 +29,7 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
 
 namespace
@@ -62,7 +62,7 @@ TEST(Small_DetectDistributionExpectation, EachSideIsTheMeanOfItsBins)
     const std::vector<float> logits = hand_logits();
     std::vector<float> distances(4, -1.0f);
 
-    expect_distances(logits, K_BINS, distances);
+    SA_EXPECT_OK(expect_distances(logits, K_BINS, distances));
 
     EXPECT_NEAR(distances[0], 1.5f, K_EXPECTATION_TOLERANCE);
     EXPECT_NEAR(distances[1], 2.0f, K_EXPECTATION_TOLERANCE);
@@ -76,18 +76,19 @@ TEST(Small_DetectDistributionExpectation, OneBinCopiesTheLogits)
     const std::vector<float> logits = {-2.5f, 0.0f, 3.25f, 7.0f, 1.0f, 2.0f, 3.0f, 4.0f};
     std::vector<float> distances(8, 0.0f);
 
-    expect_distances(logits, 1, distances);
+    SA_EXPECT_OK(expect_distances(logits, 1, distances));
 
     EXPECT_EQ(distances, logits);
 }
 
-/** @brief Tests that logits of another size throw, naming the bins and both sizes. */
-TEST(Small_DetectDistributionExpectation, LogitsOfAnotherSizeThrow)
+/** @brief Tests that logits of another size are refused, naming the bins and both sizes. */
+TEST(Small_DetectDistributionExpectation, LogitsOfAnotherSizeAreRefused)
 {
     const std::vector<float> logits(15, 0.0f);
     std::vector<float> distances(4, 0.0f);
 
-    SA_EXPECT_ERROR(expect_distances(logits, K_BINS, distances), "4 * 4", "15", "4 values");
+    SA_EXPECT_FAILURE(expect_distances(logits, K_BINS, distances),
+                      SushiAI::StatusCode::InvalidDescription, "4 * 4", "15", "4 values");
 }
 
 /** @brief Tests that the projection holds 0, 1, ..., reg_max - 1. */
@@ -107,5 +108,6 @@ TEST(Small_DetectDistributionExpectation, RefusesANonFiniteLogitWithItsIndex)
     logits[6] = std::numeric_limits<float>::quiet_NaN();
     std::vector<float> distances(4, -1.0f);
 
-    SA_EXPECT_ERROR(expect_distances(logits, K_BINS, distances), "bin logit 6", "finite");
+    SA_EXPECT_FAILURE(expect_distances(logits, K_BINS, distances),
+                      SushiAI::StatusCode::InvalidDescription, "bin logit 6", "finite");
 }

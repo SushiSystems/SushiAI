@@ -131,7 +131,8 @@ namespace
         const std::vector<float> weights(leaves.normalized_weight.begin(),
                                          leaves.normalized_weight.end());
         std::vector<float> filled(static_cast<std::size_t>(K_ROWS * 4 * reg_max));
-        Vision::Detect::Free::fill_distribution_weights(targets, weights, reg_max, filled);
+        SA_EXPECT_OK(
+            Vision::Detect::Free::fill_distribution_weights(targets, weights, reg_max, filled));
         leaves.distribution_weights.assign(filled.begin(), filled.end());
         for (std::int64_t bin = 0; bin < reg_max; ++bin)
             leaves.projection.push_back(static_cast<double>(bin));
@@ -251,7 +252,7 @@ namespace
             }
 
             /** @brief Returns the host evaluation of the loss at @p point. */
-            FreeLossTerms host(SushiRuntime::span<const double> point) const
+            Result<FreeLossTerms> host(SushiRuntime::span<const double> point) const
             {
                 const std::size_t box_values = static_cast<std::size_t>(K_ROWS * 4 * reg_max_);
                 FreeLevelLossArrays level;
@@ -399,7 +400,7 @@ TEST_F(Medium_FreeDetectionLossEndToEnd, TheDistributionCaseEqualsTheHostEvaluat
 
     const std::vector<double> point = make_point(4);
     const double total = probe.value(point);
-    const FreeLossTerms host = probe.host(point);
+    SA_ASSERT_OK_AND_ASSIGN(const FreeLossTerms host, probe.host(point));
 
     EXPECT_NEAR(total, host.total, K_VALUE_TOLERANCE);
     EXPECT_NEAR(probe.term(probe.terms().box), host.box, K_VALUE_TOLERANCE);
@@ -417,7 +418,7 @@ TEST_F(Medium_FreeDetectionLossEndToEnd, TheRawDistanceCaseEqualsTheHostEvaluati
 
     const std::vector<double> point = make_point(1);
     const double total = probe.value(point);
-    const FreeLossTerms host = probe.host(point);
+    SA_ASSERT_OK_AND_ASSIGN(const FreeLossTerms host, probe.host(point));
 
     EXPECT_NEAR(total, host.total, K_VALUE_TOLERANCE);
     EXPECT_NEAR(probe.term(probe.terms().box), host.box, K_VALUE_TOLERANCE);

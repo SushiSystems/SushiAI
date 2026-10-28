@@ -31,27 +31,28 @@
 #include <cstddef>
 #include <cstdint>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI
 {
     namespace Vision::Detect
     {
-        void add_batch(AveragePrecision& metric,
-                       const std::vector<std::vector<float>>& detections,
-                       const GroundTruthBatch& truth)
+        Status add_batch(AveragePrecision& metric,
+                         const std::vector<std::vector<float>>& detections,
+                         const GroundTruthBatch& truth)
         {
             const auto images = static_cast<std::size_t>(truth.batch);
             const auto slots = static_cast<std::size_t>(truth.max_boxes);
-            SA_THROW_IF(detections.size() != images ||
-                            truth.labels.size() != images * slots ||
-                            truth.valid.size() != images * slots ||
-                            truth.boxes.size() != images * slots * K_BOX_VALUES,
-                        "a batch of {} images needs {} detection arrays and [{}, {}] truth rows; "
-                        "got {} arrays, {} labels, {} flags and {} box values",
-                        images, images, images, slots, detections.size(), truth.labels.size(),
-                        truth.valid.size(), truth.boxes.size());
+            SA_FAIL_IF(detections.size() != images ||
+                           truth.labels.size() != images * slots ||
+                           truth.valid.size() != images * slots ||
+                           truth.boxes.size() != images * slots * K_BOX_VALUES,
+                       StatusCode::InvalidDescription,
+                       "a batch of {} images needs {} detection arrays and [{}, {}] truth rows; "
+                       "got {} arrays, {} labels, {} flags and {} box values",
+                       images, images, images, slots, detections.size(), truth.labels.size(),
+                       truth.valid.size(), truth.boxes.size());
 
             // The arrays keep their storage from image to image.
             std::vector<float> boxes;
@@ -70,6 +71,8 @@ namespace SushiAI
                 }
                 metric.add_image(detections[image], boxes, classes);
             }
+
+            return Status();
         }
 
     } // namespace Vision::Detect

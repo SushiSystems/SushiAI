@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-- 2026-10-27 — config: Refused an unknown input `fit` through the registry lookup, whose message lists `'resize', 'letterbox'` (`model_config.cpp`).
 - 2026-10-28 — cli: Breaking change: Made sa build, test and run default to Debug in build/<name>-<type>, one tree per type, behind the memory gate, with --report and --jobs (`cli/sushiai/services/project.py`, `build_trees.py`).
 - 2026-10-28 — cli: Took the build type of the library packages from sushicore's `package_build_type`, so a Debug build links Release packages (`library_packages.py`).
+- 2026-10-27 — training: Made a `FreeObjective::loss` over outputs without a port its facts name stop the process, as a broken precondition, in place of throwing (`free_objective.cpp`).
+- 2026-10-27 — config: Refused an unknown input `fit` through the registry lookup, whose message lists `'resize', 'letterbox'` (`model_config.cpp`).
+- 2026-10-27 — training: Replaced the `FreeBatchDecoder` constructor with `FreeBatchDecoder::make`, which returns a `Result` (`free_batch_decoder.hpp`).
+- 2026-10-27 — training: Made `FreeAssignmentStage::assign` and `write_leaf`, `FreeBatchDecoder::decode` and `evaluate_free_detection_loss` return a status in place of throwing (`free_assignment_stage.hpp`).
+- 2026-10-27 — detect: Made the batch feed of the metric, the bin expectation and the bin targets return a `Status` in place of throwing `Error` (`add_batch`, `expect_distances`, `fill_distribution_weights`).
 - 2026-10-26 — cli: Added `sa build --sycl-targets`, which passes `-D SB_SYCL_TARGETS=<list>` to the SushiBLAS package (`cli/sushiai/services/sycl_targets.py`).
 - 2026-10-26 — build: Took SushiRuntime as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIRUNTIME_DIR` (`cmake/Runtime.cmake`).
 - 2026-10-26 — build: Took SushiBLAS as a package through `find_package`, with no `add_subdirectory` fallback and no `SUSHIBLAS_DIR` (`cmake/BLAS.cmake`).

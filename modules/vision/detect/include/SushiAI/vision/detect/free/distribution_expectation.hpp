@@ -30,6 +30,7 @@
 #include <cstdint>
 
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -37,15 +38,15 @@ namespace SushiAI
     {
         /**
          * @brief Decodes `[B, A, 4 * reg_max]` bin logits into `[B, A, 4]` expected distances.
-         * @param logits Channel `side * reg_max + bin`, sides in the order left, top, right,
-         *        bottom; every value must be finite, and the first that is not is refused.
+         * @param logits Channel `side * reg_max + bin`, sides left, top, right, bottom; finite.
          * @param reg_max Bins per side; must be positive. 1 copies the logits.
          * @param distances Receives `[B, A, 4]`: the softmax of a side's bins times 0..reg_max-1.
+         * @return InvalidDescription for a bad reg_max, size or logit; @p distances is untouched.
          * @see modules/vision/detect/README.md
          */
-        void expect_distances(SushiRuntime::span<const float> logits,
-                              std::int64_t reg_max,
-                              SushiRuntime::span<float> distances);
+        [[nodiscard]] Status expect_distances(SushiRuntime::span<const float> logits,
+                                              std::int64_t reg_max,
+                                              SushiRuntime::span<float> distances);
 
         /**
          * @brief Writes the bin values 0, 1, ..., reg_max - 1 into @p projection.

@@ -81,7 +81,8 @@ namespace
         const std::vector<float> targets = {0.5f, 1.25f, 2.0f, 2.75f, 1.0f, 1.0f, 1.0f, 1.0f};
         const std::vector<float> normalized = {K_FOREGROUND_WEIGHT, 0.0f};
         std::vector<float> weights(static_cast<std::size_t>(K_BOX_SHAPE.num_elements()));
-        Vision::Detect::Free::fill_distribution_weights(targets, normalized, K_BINS, weights);
+        SA_EXPECT_OK(
+            Vision::Detect::Free::fill_distribution_weights(targets, normalized, K_BINS, weights));
 
         return std::vector<double>(weights.begin(), weights.end());
     }

@@ -31,6 +31,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/result.hpp>
+
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 
 namespace SushiAI::Vision::Training
@@ -66,9 +68,10 @@ namespace SushiAI::Vision::Training
      * @param levels One entry per level; each array holds its rows times its values per row.
      * @param batch Images per step, which scales the total.
      * @param target_scores_sum The `[1]` leaf's value.
-     * @throws Error If an array's size does not fit the others, reg_max or the classes.
+     * @return The terms, or InvalidDescription for an array size that does not fit, or for a
+     *         reg_max, class count, batch or score sum that is not positive.
      */
-    [[nodiscard]] FreeLossTerms evaluate_free_detection_loss(
+    [[nodiscard]] Result<FreeLossTerms> evaluate_free_detection_loss(
         SushiRuntime::span<const FreeLevelLossArrays> levels, std::int64_t reg_max,
         std::int64_t classes, std::int64_t batch, double target_scores_sum,
         const FreeLossGains& gains);

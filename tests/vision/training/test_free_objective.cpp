@@ -21,26 +21,19 @@
 
 /**
  * @file test_free_objective.cpp
- * @brief Tests the anchor-free objective's leaves, its loss root, its factory and its metrics.
+ * @brief Tests the anchor-free objective's leaves, its loss root and its metrics.
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
-#include <string>
-#include <string_view>
 #include <utility>
-#include <vector>
 
 #include <gtest/gtest.h>
 
-#include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
@@ -49,88 +42,32 @@
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/detect/free/free_task.hpp>
-#include <SushiAI/vision/detect/free/head_contract.hpp>
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 #include <SushiAI/vision/training/free_objective.hpp>
-#include <SushiAI/vision/training/free_objective_factory.hpp>
+
+#include "free_objective_ports.hpp"
 
 using namespace SushiAI;
+using namespace SushiAI::FreeObjectiveTest;
 using Graph::GraphBuilder;
-using Train::ObjectiveContext;
-using Train::OutputShape;
-using Vision::Detect::Free::detect_port_name;
-using Vision::Detect::Free::K_DETECT_BOXES;
-using Vision::Detect::Free::K_DETECT_ONE_TO_MANY;
-using Vision::Detect::Free::K_DETECT_SCORES;
 using Vision::Training::FreeLossGains;
 using Vision::Training::FreeModelFacts;
 using Vision::Training::FreeObjective;
 
 namespace
 {
-    /** @brief Holds the images per step. */
-    constexpr std::int64_t K_BATCH = 2;
-
-    /** @brief Holds the classes of the ports. */
-    constexpr std::int64_t K_CLASSES = 2;
-
-    /** @brief Holds the distribution bins per box side. */
-    constexpr std::int64_t K_REG_MAX = 2;
-
-    /** @brief Holds the side of the square input in pixels. */
-    constexpr std::int64_t K_INPUT_SIDE = 32;
-
-    /** @brief Holds the side of each level: 4 at stride 8, 2 at stride 16. */
-    constexpr std::array<std::int64_t, 2> K_SIDES = {4, 2};
-
     /** @brief Holds the leaves the stage fills at reg_max 2: ten kinds on two levels, a sum. */
     constexpr std::size_t K_STAGE_LEAVES = 21;
 
     /** @brief Holds the stage leaves left out at l1_gain 0: strides, distances, L1 scale. */
     constexpr std::size_t K_SKIPPED_LEAVES = 6;
 
-    /** @brief Returns the shape of the box (@p boxes) or the score port of @p level. */
-    Shape port_shape(std::size_t level, bool boxes)
-    {
-        const std::int64_t side = K_SIDES[level];
-        return Shape{K_BATCH, side, side, boxes ? 4 * K_REG_MAX : K_CLASSES};
-    }
-
-    /** @brief Returns the one-to-many ports of both levels, as a trace lists them. */
-    std::vector<OutputShape> list_ports()
-    {
-        std::vector<OutputShape> outputs;
-        for (std::size_t level = 0; level < K_SIDES.size(); ++level)
-        {
-            outputs.push_back(OutputShape{detect_port_name(K_DETECT_ONE_TO_MANY, level,
-                                                           K_DETECT_BOXES),
-                                          port_shape(level, true)});
-            outputs.push_back(OutputShape{detect_port_name(K_DETECT_ONE_TO_MANY, level,
-                                                           K_DETECT_SCORES),
-                                          port_shape(level, false)});
-        }
-        return outputs;
-    }
-
-    /** @brief Returns the context of a [32, 32, 3] model that publishes both levels. */
-    ObjectiveContext make_context()
-    {
-        ObjectiveContext given;
-        given.batch = K_BATCH;
-        given.classes = K_CLASSES;
-        given.input_sample = Shape{K_INPUT_SIDE, K_INPUT_SIDE, 3};
-        given.task = Vision::Detect::Free::write_free_task(Vision::Detect::Free::FreeTask{})
-                         .value();
-        given.outputs = list_ports();
-        return given;
-    }
-
     /** @brief Returns the objective of make_context() under @p gains. */
     FreeObjective make_objective(const FreeLossGains& gains)
     {
-        const ObjectiveContext given = make_context();
+        const Train::ObjectiveContext given = make_context();
         FreeModelFacts facts =
             Vision::Training::derive_free_model_facts(given.input_sample, given.outputs).value();
         return FreeObjective::make(std::move(facts), Vision::Detect::Free::FreeTask{}, K_BATCH,
@@ -141,7 +78,7 @@ namespace
     /** @brief Adds every port of list_ports() to @p outputs as a parameter of its shape. */
     void add_ports(const GraphBuilder& builder, NN::ModelOutputs& outputs)
     {
-        for (const OutputShape& port : list_ports())
+        for (const Train::OutputShape& port : list_ports())
             SA_EXPECT_OK(outputs.add(port.name, builder.parameter(port.shape, port.name)));
     }
 } // namespace
@@ -203,8 +140,8 @@ TEST(Small_FreeObjective, TheLossIsAOneElementRoot)
     EXPECT_EQ(objective.name(), Vision::Training::K_FREE_OBJECTIVE_TYPE);
 }
 
-/** @brief Tests that a model without a port the facts name throws naming the port. */
-TEST(Small_FreeObjective, AMissingPortThrowsNamingThePort)
+/** @brief Tests that outputs without a port the facts name stop the process naming the port. */
+TEST(Small_FreeObjective, AMissingPortIsFatalNamingThePort)
 {
     const FreeObjective objective = make_objective(FreeLossGains{});
 
@@ -214,47 +151,8 @@ TEST(Small_FreeObjective, AMissingPortThrowsNamingThePort)
     objective.declare(builder, leaves);
     NN::ModelOutputs outputs;
 
-    SA_EXPECT_ERROR((void)objective.loss(builder, graph, outputs, leaves),
+    SA_EXPECT_FATAL((void)objective.loss(builder, graph, outputs, leaves),
                     "one2many.level0.boxes");
-}
-
-/** @brief Tests that the factory derives the facts and reads the gains of the section. */
-TEST(Small_FreeObjective, TheFactoryDerivesTheFactsAndReadsTheGains)
-{
-    const Config::Value section =
-        Config::parse_json(R"({"type": "anchor_free", "box_gain": 5.0})", "<test>");
-
-    SA_ASSERT_OK_AND_ASSIGN(const FreeObjective objective,
-                            Vision::Training::build_free_objective(make_context(), section));
-
-    EXPECT_EQ(objective.facts().levels.size(), K_SIDES.size());
-    EXPECT_EQ(objective.facts().reg_max, K_REG_MAX);
-    EXPECT_EQ(objective.facts().levels[1].stride, 16);
-    EXPECT_EQ(objective.gains().box_gain, 5.0f);
-    EXPECT_EQ(objective.gains().class_gain, FreeLossGains{}.class_gain);
-}
-
-/** @brief Tests that a key that is no gain is refused by name. */
-TEST(Small_FreeObjective, TheFactoryRefusesAKeyThatIsNoGain)
-{
-    const Config::Value section =
-        Config::parse_json(R"({"type": "anchor_free", "reg_max": 16})", "<test>");
-
-    SA_EXPECT_FAILURE(Vision::Training::build_free_objective(make_context(), section),
-                      StatusCode::InvalidDescription, "reg_max");
-}
-
-/** @brief Tests that the registry entry point builds an objective of the anchor-free type. */
-TEST(Small_FreeObjective, TheRegistryEntryBuildsTheObjective)
-{
-    const Config::Value section = Config::parse_json(R"({"type": "anchor_free"})", "<test>");
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Objective> objective,
-                            Vision::Training::make_free_objective(make_context(), section,
-                                                                  "the objective block"));
-
-    ASSERT_NE(objective, nullptr);
-    EXPECT_EQ(objective->name(), Vision::Training::K_FREE_OBJECTIVE_TYPE);
 }
 
 /** @brief Tests that the metrics name each loss term with its value. */

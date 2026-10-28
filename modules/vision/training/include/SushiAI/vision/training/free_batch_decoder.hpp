@@ -32,6 +32,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
 
@@ -54,10 +56,11 @@ namespace SushiAI::Vision::Training
         public:
             /**
              * @brief Prepares the anchors of @p facts for batches of @p batch images.
-             * @pre @p facts holds a level, a positive reg_max and classes; @p batch is
-             *      positive. A broken precondition throws Error.
+             * @return The decoder, or InvalidDescription when @p facts holds no level, a reg_max
+             *         or a class count below 1, or @p batch is below 1.
              */
-            FreeBatchDecoder(const FreeModelFacts& facts, std::int64_t batch);
+            [[nodiscard]] static Result<FreeBatchDecoder> make(const FreeModelFacts& facts,
+                                                               std::int64_t batch);
 
             /** @brief Returns the anchors of one image over every level, A. */
             [[nodiscard]] std::int64_t anchors() const noexcept;
@@ -67,13 +70,17 @@ namespace SushiAI::Vision::Training
              * @param levels One entry per level of the facts, finest first.
              * @param boxes Receives `[B, A, 4]` centre x, centre y, width, height in pixels.
              * @param scores Receives `[B, A, C]`, the sigmoid of each class logit.
-             * @pre Every span holds the extents above; a mismatch throws Error. So does a NaN
-             *      or an infinity in a level's boxes or scores, naming the level and the index.
+             * @return InvalidDescription when a span holds other extents, or for a NaN or an
+             *         infinity in a level, naming the level and the index.
              */
-            void decode(SushiRuntime::span<const FreeLevelLogits> levels,
-                        SushiRuntime::span<float> boxes, SushiRuntime::span<float> scores);
+            [[nodiscard]] Status decode(SushiRuntime::span<const FreeLevelLogits> levels,
+                                        SushiRuntime::span<float> boxes,
+                                        SushiRuntime::span<float> scores);
 
         private:
+            /** @brief Builds the anchors of checked @p facts for batches of @p batch images. */
+            FreeBatchDecoder(const FreeModelFacts& facts, std::int64_t batch);
+
             /** @brief Bins per box side. */
             std::int64_t reg_max_ = 0;
 

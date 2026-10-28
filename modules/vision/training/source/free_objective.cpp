@@ -34,7 +34,6 @@
 
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/vision/training/free_detection_loss.hpp>
 
@@ -42,12 +41,15 @@ namespace SushiAI::Vision::Training
 {
     namespace
     {
-        /** @brief Returns the id of output @p name, or throws Error naming it. */
+        /**
+         * @brief Returns the id of output @p name.
+         * @pre @p outputs are the outputs the objective's facts were derived from.
+         */
         [[nodiscard]] Graph::ValueID port_of(const NN::ModelOutputs& outputs,
                                              const std::string& name)
         {
             const Result<Graph::ValueID> found = outputs.at(name);
-            SA_THROW_IF(!found.has_value(), "{}", found.status().message());
+            SA_FATAL_IF(!found.has_value(), "{}", found.status().message());
             return found.value();
         }
 

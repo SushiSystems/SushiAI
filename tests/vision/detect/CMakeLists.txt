@@ -29,6 +29,7 @@ sushiai_add_test_program(OWNER vision/detect
         anchor/test_seeded_sequence.cpp
         anchor/test_shape_ratio_assignment.cpp
         anchor/test_shape_ratio_delta.cpp
+        anchor/test_target_assignment.cpp
         free/test_anchor_leaves.cpp
         free/test_anchors.cpp
         free/test_assigner.cpp
@@ -38,6 +39,7 @@ sushiai_add_test_program(OWNER vision/detect
         free/test_distribution_expectation.cpp
         free/test_distribution_targets.cpp
         free/test_free_task.cpp
+        free/test_head_contract.cpp
         free/test_level_rows.cpp
         free/test_target_leaves.cpp
         test_average_precision.cpp
@@ -46,6 +48,7 @@ sushiai_add_test_program(OWNER vision/detect
         test_detection_row.cpp
         test_detections_nms.cpp
         test_detections_topk.cpp
+        test_float_order.cpp
         test_ground_truth.cpp
         test_iou.cpp
         test_iou_gradient.cpp

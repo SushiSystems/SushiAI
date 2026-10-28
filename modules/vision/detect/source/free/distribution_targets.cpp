@@ -31,7 +31,7 @@
 #include <cmath>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
 
@@ -45,28 +45,32 @@ namespace SushiAI
             constexpr double K_SIDE_MEAN = 1.0 / static_cast<double>(K_BOX_VALUES);
         } // namespace
 
-        void fill_distribution_weights(SushiRuntime::span<const float> target_distances,
-                                       SushiRuntime::span<const float> normalized_weight,
-                                       std::int64_t reg_max,
-                                       SushiRuntime::span<float> weights)
+        Status fill_distribution_weights(SushiRuntime::span<const float> target_distances,
+                                         SushiRuntime::span<const float> normalized_weight,
+                                         std::int64_t reg_max,
+                                         SushiRuntime::span<float> weights)
         {
-            SA_THROW_IF(reg_max < 2, "the distribution focal loss needs reg_max of at least 2; "
-                                     "got {}",
-                        reg_max);
+            SA_FAIL_IF(reg_max < 2, StatusCode::InvalidDescription,
+                       "the distribution focal loss needs reg_max of at least 2; "
+                       "got {}",
+                       reg_max);
             const std::size_t bins = static_cast<std::size_t>(reg_max);
             const std::size_t rows = normalized_weight.size();
-            SA_THROW_IF(target_distances.size() != rows * K_BOX_VALUES ||
-                            weights.size() != rows * K_BOX_VALUES * bins,
-                        "distribution targets must be [B, A, 4] over [B, A] weights with "
-                        "[B, A, 4 * {}] bin weights; got {}, {} and {} values",
-                        bins, target_distances.size(), rows, weights.size());
+            SA_FAIL_IF(target_distances.size() != rows * K_BOX_VALUES ||
+                           weights.size() != rows * K_BOX_VALUES * bins,
+                       StatusCode::InvalidDescription,
+                       "distribution targets must be [B, A, 4] over [B, A] weights with "
+                       "[B, A, 4 * {}] bin weights; got {}, {} and {} values",
+                       bins, target_distances.size(), rows, weights.size());
 
             const std::int64_t bad_target = first_non_finite(target_distances);
-            SA_THROW_IF(bad_target >= 0, "target distance {} is {}; every target must be finite",
-                        bad_target, target_distances[static_cast<std::size_t>(bad_target)]);
+            SA_FAIL_IF(bad_target >= 0, StatusCode::InvalidDescription,
+                       "target distance {} is {}; every target must be finite",
+                       bad_target, target_distances[static_cast<std::size_t>(bad_target)]);
             const std::int64_t bad_weight = first_non_finite(normalized_weight);
-            SA_THROW_IF(bad_weight >= 0, "normalized weight {} is {}; every weight must be finite",
-                        bad_weight, normalized_weight[static_cast<std::size_t>(bad_weight)]);
+            SA_FAIL_IF(bad_weight >= 0, StatusCode::InvalidDescription,
+                       "normalized weight {} is {}; every weight must be finite",
+                       bad_weight, normalized_weight[static_cast<std::size_t>(bad_weight)]);
 
             std::fill(weights.begin(), weights.end(), 0.0f);
             const double ceiling = static_cast<double>(reg_max - 1) - K_DISTRIBUTION_MARGIN;
@@ -84,6 +88,8 @@ namespace SushiAI
                 row[left] = static_cast<float>(left_weight * scale);
                 row[left + 1] = static_cast<float>((1.0 - left_weight) * scale);
             }
+
+            return Status();
         }
 
     } // namespace Vision::Detect::Free

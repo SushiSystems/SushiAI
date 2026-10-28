@@ -31,7 +31,7 @@
 #include <cmath>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
 
@@ -39,20 +39,23 @@ namespace SushiAI
 {
     namespace Vision::Detect::Free
     {
-        void expect_distances(SushiRuntime::span<const float> logits,
-                              std::int64_t reg_max,
-                              SushiRuntime::span<float> distances)
+        Status expect_distances(SushiRuntime::span<const float> logits,
+                                std::int64_t reg_max,
+                                SushiRuntime::span<float> distances)
         {
-            SA_THROW_IF(reg_max < 1, "reg_max must be positive; got {}", reg_max);
+            SA_FAIL_IF(reg_max < 1, StatusCode::InvalidDescription,
+                       "reg_max must be positive; got {}", reg_max);
             const std::size_t bins = static_cast<std::size_t>(reg_max);
             const std::size_t sides = distances.size();
-            SA_THROW_IF(sides % K_BOX_VALUES != 0 || logits.size() != sides * bins,
-                        "bin logits must be [B, A, 4 * {}] over [B, A, 4] distances; got {} "
-                        "and {} values",
-                        bins, logits.size(), sides);
+            SA_FAIL_IF(sides % K_BOX_VALUES != 0 || logits.size() != sides * bins,
+                       StatusCode::InvalidDescription,
+                       "bin logits must be [B, A, 4 * {}] over [B, A, 4] distances; got {} "
+                       "and {} values",
+                       bins, logits.size(), sides);
             const std::int64_t bad = first_non_finite(logits);
-            SA_THROW_IF(bad >= 0, "bin logit {} is {}; every logit must be finite", bad,
-                        logits[static_cast<std::size_t>(bad)]);
+            SA_FAIL_IF(bad >= 0, StatusCode::InvalidDescription,
+                       "bin logit {} is {}; every logit must be finite", bad,
+                       logits[static_cast<std::size_t>(bad)]);
 
             for (std::size_t side = 0; side < sides; ++side)
             {
@@ -75,6 +78,8 @@ namespace SushiAI
                 }
                 distances[side] = static_cast<float>(moment / mass);
             }
+
+            return Status();
         }
 
         void fill_distribution_projection(SushiRuntime::span<float> projection)

@@ -4,7 +4,7 @@
 ## first_non_finite
 
 Returns the index of the first NaN or infinity of a span, or -1. The host stages call it on the
-values they receive and throw with the index it returns.
+values they receive and refuse them with a status naming the index it returns.
 
 ## ranks_above
 

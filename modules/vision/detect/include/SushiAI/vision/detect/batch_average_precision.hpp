@@ -30,6 +30,7 @@
 
 #include <vector>
 
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/average_precision.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 
@@ -41,12 +42,13 @@ namespace SushiAI
          * @brief Adds every image of a batch to @p metric, dropping the padding rows of the truth.
          * @param detections One `[n, 6]` array per image, as select_nms_detections writes them.
          * @param truth The batch's ground truth; its boxes are in the frame of @p detections.
-         * @pre @p detections holds `truth.batch` arrays.
+         * @return InvalidDescription when @p detections does not hold `truth.batch` arrays or an
+         *         array of @p truth is not `batch` times `max_boxes` rows.
          * @see modules/vision/detect/README.md
          */
-        void add_batch(AveragePrecision& metric,
+        [[nodiscard]] Status add_batch(AveragePrecision& metric,
                        const std::vector<std::vector<float>>& detections,
-                       const GroundTruthBatch& truth);
+                             const GroundTruthBatch& truth);
 
     } // namespace Vision::Detect
 } // namespace SushiAI

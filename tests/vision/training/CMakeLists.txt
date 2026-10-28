@@ -15,10 +15,12 @@ endif()
 sushiai_add_test_program(OWNER vision/training
     SOURCES
         test_anchor_bias_init.cpp
+        test_anchor_head.cpp
         test_anchor_objective.cpp
         test_anchor_objective_factory.cpp
         test_anchor_training_loop.cpp
         test_anchor_training_step.cpp
+        test_best_shape_head_delta_rule.cpp
         test_detection_run_check.cpp
         test_detection_truth_check.cpp
         test_dice_objective.cpp
@@ -30,11 +32,16 @@ sushiai_add_test_program(OWNER vision/training
         test_free_bias_init.cpp
         test_free_branch_weights.cpp
         test_free_detection_loss.cpp
+        test_free_detection_loss_host.cpp
         test_free_loss_gains.cpp
         test_free_model_facts.cpp
         test_free_objective.cpp
+        test_free_objective_factory.cpp
+        test_free_training_loop.cpp
         test_free_training_step.cpp
         test_head_delta_loss.cpp
+        test_head_delta_rule.cpp
+        test_head_delta_rule_choice.cpp
         test_pixel_cross_entropy_objective.cpp
         test_pixel_extents.cpp
         test_pixel_labels.cpp
@@ -42,6 +49,7 @@ sushiai_add_test_program(OWNER vision/training
         test_pixel_targets.cpp
         test_run_progress.cpp
         test_segmentation_metrics.cpp
+        test_shape_ratio_head_delta_rule.cpp
         test_truth_from_roles.cpp
     DEPENDS
         engine_fixture

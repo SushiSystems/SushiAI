@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/vision/detect/free/anchor_leaves.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
@@ -119,19 +120,21 @@ namespace SushiAI::Vision::Training
              * @brief Joins the levels, decodes them, assigns @p truth and fills every leaf.
              * @param levels One entry per level of the facts, finest first.
              * @param truth Pixel corners of @p batch images.
-             * @throws Error If a view or the truth does not match the facts and the batch, or if a
-             *         box output, a score or a valid truth box holds a NaN or an infinity; the
-             *         message names the level and the first bad index.
+             * @return InvalidDescription if a view or the truth does not match the facts and the
+             *         batch, or if a box output, a score or a valid truth box holds a NaN or an
+             *         infinity; the message names the level and the first bad index.
              */
-            void assign(SushiRuntime::span<const FreeLevelViews> levels,
-                        const Detect::GroundTruthBatch& truth);
+            [[nodiscard]] Status assign(SushiRuntime::span<const FreeLevelViews> levels,
+                                        const Detect::GroundTruthBatch& truth);
 
             /**
              * @brief Copies leaf @p leaf of the last assign() into @p values.
              * @param values Receives as many values as the leaf's shape holds.
-             * @throws Error If @p leaf is out of range or @p values has another size.
+             * @return InvalidDescription if @p values has another size.
+             *         An out-of-range @p leaf stops the process.
              */
-            void write_leaf(std::size_t leaf, SushiRuntime::span<float> values) const;
+            [[nodiscard]] Status write_leaf(std::size_t leaf,
+                                            SushiRuntime::span<float> values) const;
 
             /** @brief Returns the assignment of the last assign(), over the joined anchors. */
             [[nodiscard]] const Detect::Free::Assignment& assignment() const noexcept;
@@ -149,13 +152,14 @@ namespace SushiAI::Vision::Training
                                 FreeBranch branch);
 
             /** @brief Writes the joined logits and scores of @p levels after checking them. */
-            void join_levels(SushiRuntime::span<const FreeLevelViews> levels);
+            [[nodiscard]] Status join_levels(SushiRuntime::span<const FreeLevelViews> levels);
 
-            /** @brief Throws unless every box value of a valid slot of @p truth is finite. */
-            void refuse_non_finite_truth(const Detect::GroundTruthBatch& truth) const;
+            /** @brief Refuses @p truth unless every box value of a valid slot is finite. */
+            [[nodiscard]] Status refuse_non_finite_truth(
+                const Detect::GroundTruthBatch& truth) const;
 
             /** @brief Writes the predicted pixel boxes and the score probabilities. */
-            void decode_predictions();
+            [[nodiscard]] Status decode_predictions();
 
             /** @brief Returns the joined array and its channels for a per-level @p kind. */
             [[nodiscard]] SushiRuntime::span<const float> joined_source(

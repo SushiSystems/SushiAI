@@ -33,3 +33,6 @@ Each test file has a page beside it that says what its cases pin.
 | `anchor/test_head_delta.cpp, anchor/test_head_training_options.cpp` | [`anchor/test_head_delta.md`](anchor/test_head_delta.md) |
 | `free/test_box_coding.cpp, test_box_format.cpp, test_iou.cpp` | [`free/test_box_coding.md`](free/test_box_coding.md) |
 | `test_detections_nms.cpp, test_detections_topk.cpp, test_top_k.cpp` | [`test_detections_nms.md`](test_detections_nms.md) |
+| `anchor/test_target_assignment.cpp` | [`anchor/test_target_assignment.md`](anchor/test_target_assignment.md) |
+| `free/test_head_contract.cpp` | [`free/test_head_contract.md`](free/test_head_contract.md) |
+| `test_float_order.cpp` | [`test_float_order.md`](test_float_order.md) |

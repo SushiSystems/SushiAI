@@ -189,10 +189,10 @@ namespace SushiAI::Vision::Training
              * @brief Evaluates the loss terms over the ports and the leaves just written, each
              *        copy's terms times its weight.
              */
-            [[nodiscard]] FreeLossTerms measure_terms();
+            [[nodiscard]] Result<FreeLossTerms> measure_terms();
 
             /** @brief Evaluates the loss terms of one copy over its ports and leaves. */
-            [[nodiscard]] FreeLossTerms measure_branch(const Branch& branch);
+            [[nodiscard]] Result<FreeLossTerms> measure_branch(const Branch& branch);
 
             /// @brief Records and runs the copy of the input; not owned.
             SushiBLAS::Engine* engine_;

@@ -314,9 +314,9 @@ namespace SushiAI::Vision::Training
                         branch.views[level].scores = floats_of(*branch.ports[level * 2 + 1]);
                     }
                 }
-                branch.stage.assign(SushiRuntime::span<const FreeLevelViews>(
-                                        branch.views.data(), branch.views.size()),
-                                    truth);
+                SA_TRY(branch.stage.assign(SushiRuntime::span<const FreeLevelViews>(
+                                               branch.views.data(), branch.views.size()),
+                                           truth));
 
                 SA_ZONE("host", "assign");
                 for (std::size_t leaf = 0; leaf < branch.leaves.size(); ++leaf)
@@ -324,10 +324,10 @@ namespace SushiAI::Vision::Training
                     SushiBLAS::Tensor* const tensor = branch.leaves[leaf];
                     if (tensor == nullptr)
                         continue;
-                    branch.stage.write_leaf(leaf, SushiRuntime::span<float>(
-                                                      tensor->data_as<float>(),
-                                                      static_cast<std::size_t>(
-                                                          tensor->num_elements)));
+                    SA_TRY(branch.stage.write_leaf(leaf, SushiRuntime::span<float>(
+                                                             tensor->data_as<float>(),
+                                                             static_cast<std::size_t>(
+                                                                 tensor->num_elements))));
                 }
             }
 
@@ -349,7 +349,7 @@ namespace SushiAI::Vision::Training
         });
     }
 
-    FreeLossTerms FreeTrainingStep::measure_terms()
+    Result<FreeLossTerms> FreeTrainingStep::measure_terms()
     {
         if (branches_.size() == 1)
             return measure_branch(branches_.front());
@@ -359,7 +359,7 @@ namespace SushiAI::Vision::Training
         FreeLossTerms sum;
         for (std::size_t copy = 0; copy < branches_.size(); ++copy)
         {
-            const FreeLossTerms terms = measure_branch(branches_[copy]);
+            SA_TRY_ASSIGN(const FreeLossTerms terms, measure_branch(branches_[copy]));
             sum.total += weights[copy] * terms.total;
             sum.box += weights[copy] * terms.box;
             sum.classes += weights[copy] * terms.classes;
@@ -369,7 +369,7 @@ namespace SushiAI::Vision::Training
         return sum;
     }
 
-    FreeLossTerms FreeTrainingStep::measure_branch(const Branch& branch)
+    Result<FreeLossTerms> FreeTrainingStep::measure_branch(const Branch& branch)
     {
         const FreeModelFacts& facts = objective_.facts();
         const std::vector<FreeLeaf>& described = branch.stage.leaves();
@@ -443,11 +443,12 @@ namespace SushiAI::Vision::Training
                 view(host.distribution_weights), view(host.anchor_points)};
 
             // Every term is a sum over rows divided by one score sum, so levels add.
-            const FreeLossTerms terms = evaluate_free_detection_loss(
-                SushiRuntime::span<const FreeLevelLossArrays>(&arrays, 1), facts.reg_max,
-                facts.classes, objective_.batch(),
-                static_cast<double>(branch.stage.targets().target_scores_sum[0]),
-                objective_.gains());
+            SA_TRY_ASSIGN(const FreeLossTerms terms,
+                          evaluate_free_detection_loss(
+                              SushiRuntime::span<const FreeLevelLossArrays>(&arrays, 1),
+                              facts.reg_max, facts.classes, objective_.batch(),
+                              static_cast<double>(branch.stage.targets().target_scores_sum[0]),
+                              objective_.gains()));
             sum.total += terms.total;
             sum.box += terms.box;
             sum.classes += terms.classes;
@@ -485,7 +486,7 @@ namespace SushiAI::Vision::Training
                                             [this, &terms]() -> Status
             {
                 SA_ZONE("host", "loss");
-                terms = measure_terms();
+                SA_TRY_ASSIGN(terms, measure_terms());
                 return Status();
             });
         }));

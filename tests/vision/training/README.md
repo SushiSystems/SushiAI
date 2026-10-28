@@ -685,12 +685,28 @@ text of the exception.
 
 Suites: `Medium_FreeTrainingStep`, `Medium_FreeTrainingZones`.
 
-The `Medium_FreeTrainingZones` case, compiled only when `SA_ENABLE_PROFILER` is on, runs one anchor-free step of the two-level model under a
+`free_two_level_case.hpp` holds the two-level model, its step and the seeded inputs and truth that this file and `test_free_training_loop.cpp` share. The `Medium_FreeTrainingZones` case, compiled only when `SA_ENABLE_PROFILER` is on, runs one anchor-free step of the two-level model under a
 SushiProfiler session that follows `train.step`, and reads the record.
 
 ### AStepPutsReadbackAssignAndLossInItsPeriod
 
 The test opens a period, runs the step, and opens a second period, which ends the first. The
-record holds one period, and its zones are exactly `copy.input`, `device.run`, `host.assign`,
-`host.loss` and `host.readback`, each in the group its name starts with. The case skips itself
+record holds one period, and its SushiAI zones are exactly `copy.input`, `device.run`, `host.assign`,
+`host.loss` and `host.readback`, each in the group its name starts with. The zones of SushiRuntime and SushiBLAS, groups
+`Runtime` and `BLAS`, share the period and are left out by `sushiai_zones_of`. The case skips itself
 when `SA_PROFILE_LEVEL` is 0.
+
+## Test pages
+
+The files below have a page beside them that says what each case pins.
+
+| Test file | Page |
+| --- | --- |
+| `test_anchor_head.cpp` | [`test_anchor_head.md`](test_anchor_head.md) |
+| `test_head_delta_rule.cpp` | [`test_head_delta_rule.md`](test_head_delta_rule.md) |
+| `test_best_shape_head_delta_rule.cpp` | [`test_best_shape_head_delta_rule.md`](test_best_shape_head_delta_rule.md) |
+| `test_shape_ratio_head_delta_rule.cpp` | [`test_shape_ratio_head_delta_rule.md`](test_shape_ratio_head_delta_rule.md) |
+| `test_head_delta_rule_choice.cpp` | [`test_head_delta_rule_choice.md`](test_head_delta_rule_choice.md) |
+| `test_free_objective_factory.cpp` | [`test_free_objective_factory.md`](test_free_objective_factory.md) |
+| `test_free_detection_loss_host.cpp` | [`test_free_detection_loss_host.md`](test_free_detection_loss_host.md) |
+| `test_free_training_loop.cpp` | [`test_free_training_loop.md`](test_free_training_loop.md) |

@@ -17,6 +17,10 @@ With reg_max 1 the box channels are the distances. Left, top, right, bottom of
 With reg_max 4, uniform bins on level 0 expect 1.5 per side, so (4 4 24 24) and
 (12 4 24 24). Bin 2 at logit 50 on level 1 expects 2 per side, so (8 8 64 64).
 
+## MakeRefusesABatchBelowOne
+
+`make` with a batch of 0 returns `InvalidDescription` naming the batch.
+
 ## RejectsAMissingLevel
 
-One level against facts of two throws `Error`.
+One level against facts of two returns `InvalidDescription` naming the level count.
