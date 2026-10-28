@@ -56,6 +56,7 @@ using Vision::Training::make_anchor_objective;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the images per step. */
     constexpr std::int64_t K_BATCH = 2;
 
@@ -83,7 +84,7 @@ namespace
     /** @brief Parses @p text as a section of a model or a training file. */
     Config::Value section_from(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Returns the context of an [8, 8, 3] model that publishes both heads and a stem. */

@@ -46,10 +46,11 @@ using Vision::Training::FreeObjective;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns the objective section @p text states. */
     Config::Value section_from(const char* text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 } // namespace
 

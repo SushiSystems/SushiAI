@@ -36,6 +36,8 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/autograd/backward.hpp>
@@ -44,7 +46,6 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>

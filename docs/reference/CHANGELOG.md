@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — training: Breaking change: Made `FreeAssignmentStage` and `FreeBatchDecoder` take a built `TaskAlignedAssigner` in place of its config (`free_assignment_stage.hpp`).
 - 2026-10-28 — datasets: Forwarded the status of the imaging transforms through `fit_sample` and `fit_mask` (`fit_sample.cpp`).
 - 2026-10-28 — datasets: Stopped `ListImages` from swallowing a failed load, so `AugmentPipeline` returns its status (`augment_pipeline.cpp`).
 - 2026-10-28 — datasets: Parsed a label file through the `Result` of `parse_label_text`, naming the file in the failure (`yolo_txt.cpp`).

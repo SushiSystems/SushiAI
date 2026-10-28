@@ -187,13 +187,19 @@ namespace SushiAI::Vision::Training
                    one_to_one ? "one-to-one" : "one-to-many", config.topk, config.topk2,
                    anchors);
 
-        return Result<FreeAssignmentStage>(FreeAssignmentStage(facts, config, batch, branch));
+        SA_TRY_ASSIGN(Detect::Free::TaskAlignedAssigner assigner,
+                      Detect::Free::TaskAlignedAssigner::make(config));
+        FreeAssignmentStage stage(facts, std::move(assigner), batch, branch);
+        SA_TRY(stage.prepare_anchors());
+
+        return Result<FreeAssignmentStage>(std::move(stage));
     }
 
     FreeAssignmentStage::FreeAssignmentStage(const FreeModelFacts& facts,
-                                             const Detect::Free::AssignerConfig& config,
+                                             Detect::Free::TaskAlignedAssigner assigner,
                                              std::int64_t batch, FreeBranch branch)
-        : reg_max_(facts.reg_max), classes_(facts.classes), batch_(batch), assigner_(config)
+        : reg_max_(facts.reg_max), classes_(facts.classes), batch_(batch),
+          assigner_(std::move(assigner))
     {
         const FreeLevelFacts& finest = facts.levels.front();
         image_height_ = static_cast<float>(finest.height * finest.stride);
@@ -206,15 +212,6 @@ namespace SushiAI::Vision::Training
                 FeatureLevel{level.height, level.width, static_cast<float>(level.stride)});
             anchors_ += level.height * level.width;
         }
-
-        const SushiRuntime::span<const FeatureLevel> levels(levels_.data(), levels_.size());
-        const std::size_t anchors = static_cast<std::size_t>(anchors_);
-        points_.resize(anchors * Detect::Free::K_POINT_VALUES);
-        pixel_points_.resize(points_.size());
-        strides_.resize(anchors);
-        Detect::Free::make_anchors(levels, view(points_), view(strides_));
-        Detect::Free::scale_points(view(points_), view(strides_), view(pixel_points_));
-        Detect::Free::build_anchor_leaves(levels, batch_, anchor_leaves_);
 
         for (const FreeLeafKind kind : K_LEVEL_KINDS)
         {
@@ -232,6 +229,18 @@ namespace SushiAI::Vision::Training
         leaves_.push_back(FreeLeaf{role_prefix(branch).append(
                                        kind_name(FreeLeafKind::TargetScoresSum)),
                                    Shape{1}, FreeLeafKind::TargetScoresSum, 0, branch});
+    }
+
+    Status FreeAssignmentStage::prepare_anchors()
+    {
+        const SushiRuntime::span<const FeatureLevel> levels(levels_.data(), levels_.size());
+        const std::size_t anchors = static_cast<std::size_t>(anchors_);
+        points_.resize(anchors * Detect::Free::K_POINT_VALUES);
+        pixel_points_.resize(points_.size());
+        strides_.resize(anchors);
+        SA_TRY(Detect::Free::make_anchors(levels, view(points_), view(strides_)));
+        Detect::Free::scale_points(view(points_), view(strides_), view(pixel_points_));
+        return Detect::Free::build_anchor_leaves(levels, batch_, anchor_leaves_);
     }
 
     const std::vector<FreeLeaf>& FreeAssignmentStage::leaves() const noexcept
@@ -261,14 +270,14 @@ namespace SushiAI::Vision::Training
         inputs.gt_boxes = view(truth.boxes);
         inputs.gt_valid =
             SushiRuntime::span<const std::uint8_t>(truth.valid.data(), truth.valid.size());
-        assigner_.assign(inputs, assignment_);
+        SA_TRY(assigner_.assign(inputs, assignment_));
 
         Detect::Free::TargetLeafInputs geometry;
         geometry.anchor_points = view(points_);
         geometry.strides = view(strides_);
         geometry.image_height = image_height_;
         geometry.image_width = image_width_;
-        Detect::Free::build_target_leaves(assignment_, geometry, targets_);
+        SA_TRY(Detect::Free::build_target_leaves(assignment_, geometry, targets_));
 
         if (reg_max_ == 1)
             return Status();
@@ -313,9 +322,9 @@ namespace SushiAI::Vision::Training
 
             Detect::Free::LevelPlacement placement{batch_, anchors_, box_channels,
                                                    offsets_[level], level_anchors};
-            Detect::Free::join_level(views.boxes, placement, view(box_outputs_));
+            SA_TRY(Detect::Free::join_level(views.boxes, placement, view(box_outputs_)));
             placement.channels = classes_;
-            Detect::Free::join_level(views.scores, placement, view(probabilities_));
+            SA_TRY(Detect::Free::join_level(views.scores, placement, view(probabilities_)));
         }
 
         return Status();
@@ -375,8 +384,7 @@ namespace SushiAI::Vision::Training
         const Detect::Free::LevelPlacement placement{
             batch_, anchors_, channels, offsets_[level],
             levels_[level].height * levels_[level].width};
-        Detect::Free::split_level(joined, placement, values);
-        return Status();
+        return Detect::Free::split_level(joined, placement, values);
     }
 
     SushiRuntime::span<const float> FreeAssignmentStage::joined_source(

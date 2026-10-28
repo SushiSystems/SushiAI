@@ -56,8 +56,9 @@ namespace SushiAI::Vision::Training
         public:
             /**
              * @brief Prepares the anchors of @p facts for batches of @p batch images.
-             * @return The decoder, or InvalidDescription when @p facts holds no level, a reg_max
-             *         or a class count below 1, or @p batch is below 1.
+             * @return The decoder, or InvalidDescription when @p facts holds no level, a level
+             *         without cells or stride, a reg_max or a class count below 1, or @p batch is
+             *         below 1.
              */
             [[nodiscard]] static Result<FreeBatchDecoder> make(const FreeModelFacts& facts,
                                                                std::int64_t batch);
@@ -78,8 +79,11 @@ namespace SushiAI::Vision::Training
                                         SushiRuntime::span<float> scores);
 
         private:
-            /** @brief Builds the anchors of checked @p facts for batches of @p batch images. */
+            /** @brief Stores the extents of checked @p facts for batches of @p batch images. */
             FreeBatchDecoder(const FreeModelFacts& facts, std::int64_t batch);
+
+            /** @brief Builds the anchors and sizes the working arrays. */
+            [[nodiscard]] Status prepare_anchors();
 
             /** @brief Bins per box side. */
             std::int64_t reg_max_ = 0;

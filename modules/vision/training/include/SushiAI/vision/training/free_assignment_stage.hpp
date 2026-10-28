@@ -146,10 +146,13 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] const std::vector<float>& distribution_weights() const noexcept;
 
         private:
-            /** @brief Stores checked extents and builds the anchors and the leaf list. */
+            /** @brief Stores checked extents and builds the leaf list. */
             FreeAssignmentStage(const FreeModelFacts& facts,
-                                const Detect::Free::AssignerConfig& config, std::int64_t batch,
+                                Detect::Free::TaskAlignedAssigner assigner, std::int64_t batch,
                                 FreeBranch branch);
+
+            /** @brief Writes the anchor points, the strides and the anchor leaves of the levels. */
+            [[nodiscard]] Status prepare_anchors();
 
             /** @brief Writes the joined logits and scores of @p levels after checking them. */
             [[nodiscard]] Status join_levels(SushiRuntime::span<const FreeLevelViews> levels);

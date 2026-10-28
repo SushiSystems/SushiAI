@@ -56,7 +56,10 @@ namespace SushiAI::Vision::Training
                    "levels, reg_max {}, {} classes, batch {}",
                    facts.levels.size(), facts.reg_max, facts.classes, batch);
 
-        return Result<FreeBatchDecoder>(FreeBatchDecoder(facts, batch));
+        FreeBatchDecoder decoder(facts, batch);
+        SA_TRY(decoder.prepare_anchors());
+
+        return Result<FreeBatchDecoder>(std::move(decoder));
     }
 
     FreeBatchDecoder::FreeBatchDecoder(const FreeModelFacts& facts, std::int64_t batch)
@@ -67,15 +70,20 @@ namespace SushiAI::Vision::Training
             levels_.push_back(Detect::Free::FeatureLevel{level.height, level.width,
                                                          static_cast<float>(level.stride)});
 
-        anchors_ = Detect::Free::count_anchors(levels_);
+    }
+
+    Status FreeBatchDecoder::prepare_anchors()
+    {
+        SA_TRY_ASSIGN(anchors_, Detect::Free::count_anchors(levels_));
         const auto anchors = static_cast<std::size_t>(anchors_);
         points_.resize(anchors * Detect::Free::K_POINT_VALUES);
         strides_.resize(anchors);
-        Detect::Free::make_anchors(levels_, points_, strides_);
+        SA_TRY(Detect::Free::make_anchors(levels_, points_, strides_));
 
         const std::size_t rows = static_cast<std::size_t>(batch_) * anchors;
         bin_logits_.resize(rows * Detect::K_BOX_VALUES * static_cast<std::size_t>(reg_max_));
         distances_.resize(rows * Detect::K_BOX_VALUES);
+        return Status();
     }
 
     std::int64_t FreeBatchDecoder::anchors() const noexcept
@@ -110,14 +118,15 @@ namespace SushiAI::Vision::Training
             SA_FAIL_IF(bad_score >= 0, StatusCode::InvalidDescription,
                        "level {} score {} is {}; every score must be finite", k,
                        bad_score, levels[k].scores[static_cast<std::size_t>(bad_score)]);
-            Detect::Free::join_level(levels[k].boxes,
-                                     Detect::Free::LevelPlacement{batch_, anchors_, box_channels,
-                                                                  offset, level_anchors},
-                                     bin_logits_);
-            Detect::Free::join_level(levels[k].scores,
-                                     Detect::Free::LevelPlacement{batch_, anchors_, classes_,
-                                                                  offset, level_anchors},
-                                     scores);
+            SA_TRY(Detect::Free::join_level(
+                levels[k].boxes,
+                Detect::Free::LevelPlacement{batch_, anchors_, box_channels, offset,
+                                             level_anchors},
+                bin_logits_));
+            SA_TRY(Detect::Free::join_level(
+                levels[k].scores,
+                Detect::Free::LevelPlacement{batch_, anchors_, classes_, offset, level_anchors},
+                scores));
             offset += level_anchors;
         }
 

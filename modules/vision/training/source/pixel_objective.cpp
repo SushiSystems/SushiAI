@@ -156,12 +156,12 @@ namespace SushiAI::Vision::Training::Detail
         if (!attributes.has(K_IGNORE_INDEX_KEY))
             return Segment::K_DEFAULT_IGNORE_INDEX;
 
-        const Config::Value& stated = attributes.at(K_IGNORE_INDEX_KEY, context);
+        SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(K_IGNORE_INDEX_KEY, context));
         SA_FAIL_IF(stated.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
                    "{}: '{}' is a whole number, but the file holds a {}", context,
                    K_IGNORE_INDEX_KEY, Config::kind_name(stated.kind()));
 
-        const std::int64_t index = stated.as_int(context);
+        SA_TRY_ASSIGN(const std::int64_t index, stated.as_int(context));
         SA_FAIL_IF(index < std::numeric_limits<std::int32_t>::min()
                    || index > std::numeric_limits<std::int32_t>::max(),
                    StatusCode::InvalidDescription,

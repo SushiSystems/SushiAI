@@ -150,7 +150,7 @@ namespace
     /** @brief Parses @p text as the keys of an objective block. */
     Config::Value keys(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
     }
 
 } // namespace

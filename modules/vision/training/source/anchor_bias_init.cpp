@@ -117,10 +117,14 @@ namespace SushiAI::Vision::Training
             SA_FAIL_IF(layer.type != K_CONVOLUTION_ROW, StatusCode::InvalidDescription,
                        "the output '{}' ends in row {} of type '{}', and a head ends in a "
                        "'{}' row", name, row, layer.type, K_CONVOLUTION_ROW);
-            SA_FAIL_IF(layer.attributes.has("use_bias") &&
-                           !layer.attributes.at("use_bias", "use_bias").as_bool("use_bias"),
-                       StatusCode::InvalidDescription,
-                       "row {} has no bias, so output '{}' has none to start", row, name);
+            if (layer.attributes.has("use_bias"))
+            {
+                SA_TRY_ASSIGN(const Config::Value& stated,
+                              layer.attributes.at("use_bias", "use_bias"));
+                SA_TRY_ASSIGN(const bool has_bias, stated.as_bool("use_bias"));
+                SA_FAIL_IF(!has_bias, StatusCode::InvalidDescription,
+                           "row {} has no bias, so output '{}' has none to start", row, name);
+            }
             return row;
         }
 

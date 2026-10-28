@@ -117,14 +117,15 @@ namespace
     /** @brief Reads the model file @p text. */
     Config::ModelSpec spec_from(const char* text)
     {
-        return Config::parse_model(Config::parse_json(text, "<test>"), "<test>");
+        const Config::Value root = SaTest::require_value(Config::parse_json(text, "<test>"));
+        return SaTest::require_value(Config::parse_model(root, "<test>"));
     }
 
     /** @brief Reads the task of the cases. */
     Vision::Detect::Anchor::AnchorTask task_of_the_cases()
     {
-        return Vision::Detect::Anchor::read_anchor_task(Config::parse_json(K_TASK, "<test>"))
-            .value();
+        const Config::Value root = SaTest::require_value(Config::parse_json(K_TASK, "<test>"));
+        return SaTest::require_value(Vision::Detect::Anchor::read_anchor_task(root));
     }
 
     /** @brief Returns the outputs of the cases: strides 4 and 8 over the 64 pixel input. */
