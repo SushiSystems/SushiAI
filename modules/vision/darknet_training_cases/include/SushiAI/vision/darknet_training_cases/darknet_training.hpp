@@ -61,7 +61,7 @@ namespace SushiAI
          *         count of axes.
          */
         [[nodiscard]] Result<DarknetTensor> load_darknet_maps(std::string_view run,
-                                                              std::string_view name);
+                                                              std::string_view name) noexcept;
 
         /** @brief Holds what one run dumped of the training pass of one head. */
         struct DarknetHeadDump
@@ -84,7 +84,7 @@ namespace SushiAI
          *         delta or an assignment does not have the extents of the input.
          */
         [[nodiscard]] Result<DarknetHeadDump> load_darknet_head_dump(std::string_view run,
-                                                                     std::int64_t yolo_layer);
+                                                                     std::int64_t yolo_layer) noexcept;
 
         /**
          * @brief Loads the `truth` rows of a run as the padded batch a head delta reads.
@@ -94,7 +94,7 @@ namespace SushiAI
          *         names an image outside the batch or a class that is not a whole number.
          */
         [[nodiscard]] Result<Vision::Detect::GroundTruthBatch> load_darknet_truth(
-            std::string_view run, std::int64_t batch, Vision::Detect::Anchor::NetworkSize network);
+            std::string_view run, std::int64_t batch, Vision::Detect::Anchor::NetworkSize network) noexcept;
 
         /** @brief Holds the bounds a delta is measured against, by the kind of its entry. */
         struct DarknetDeltaBounds
@@ -114,7 +114,7 @@ namespace SushiAI
         [[nodiscard]] ::testing::AssertionResult delta_within(
             std::string_view what, SushiRuntime::span<const float> actual,
             SushiRuntime::span<const float> reference, std::int64_t slot_entries,
-            const DarknetDeltaBounds& bounds);
+            const DarknetDeltaBounds& bounds) noexcept;
 
         /** @brief Holds the bounds a training suite measures one model against. */
         struct DarknetTrainingBounds
@@ -150,7 +150,7 @@ namespace SushiAI
          * @brief Looks for the cfg, the weights and every reference the suite of @p stated reads.
          * @return Why the first of them is missing, or an empty string when all are found.
          */
-        [[nodiscard]] std::string find_missing_training_file(const DarknetTrainingCase& stated);
+        [[nodiscard]] std::string find_missing_training_file(const DarknetTrainingCase& stated) noexcept;
 
         /** @brief Runs on an engine, and skips every case when a file of its model is missing. */
         class DarknetTrainingTest : public EngineTest
@@ -170,19 +170,19 @@ namespace SushiAI
          * @brief Checks the training options read from the cfg against what the test states and
          *        against the settings the host run's delta descriptions hold for each head.
          */
-        void check_training_settings(const DarknetTrainingCase& stated);
+        void check_training_settings(const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the library's delta of every head the host run dumped: the assignments
          *        exactly, the delta within the host bounds and the stored cost.
          */
-        void check_host_deltas(const DarknetTrainingCase& stated);
+        void check_host_deltas(const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the library's delta of every head the step run dumped, two images each,
          *        within the host bounds, and the stored cost.
          */
-        void check_two_image_deltas(const DarknetTrainingCase& stated);
+        void check_two_image_deltas(const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks each head of one step under batch statistics against the step run
@@ -191,19 +191,19 @@ namespace SushiAI
          *
          * A NaN of a dumped [yolo] output is read as 0, the value its logistic has there.
          */
-        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
+        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the deltas the step fed, the summed cost against the layers' stored
          *        costs, and its mean over the heads against the network cost.
          */
-        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
+        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the weight and bias gradients of the convolution before each head, times
          *        minus the batch, against the updates the step run dumped.
          */
-        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated);
+        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks that the memory plans of the probe graph and the training graph overlap
@@ -211,7 +211,7 @@ namespace SushiAI
          *
          * The graphs are traced and planned on the host; nothing is allocated on the device.
          */
-        void check_training_plan(const DarknetTrainingCase& stated);
+        void check_training_plan(const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks that one step writes the same heads, deltas and gradients, bit for
@@ -220,7 +220,7 @@ namespace SushiAI
          * The second run packs nothing, so it fits only a model that is small unpacked.
          */
         void check_plan_changes_no_value(SushiBLAS::Engine& engine,
-                                         const DarknetTrainingCase& stated);
+                                         const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks that the weight, the scale and the shift of the first convolution each
@@ -229,14 +229,14 @@ namespace SushiAI
          * The dumped updates of that layer are not a reference and are not read.
          */
         void check_first_gradients(SushiBLAS::Engine& engine,
-                                   const DarknetTrainingCase& stated);
+                                   const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the rolling mean and variance of the first batch norm: equal to the
          *        dump before the step, within the rolling bound after it.
          */
         void check_rolling_statistics(SushiBLAS::Engine& engine,
-                                      const DarknetTrainingCase& stated);
+                                      const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks that `overfit_steps` steps on the batch and truth of the step run bring
@@ -247,7 +247,7 @@ namespace SushiAI
          * its step.
          */
         void check_one_batch_overfit(SushiBLAS::Engine& engine,
-                                     const DarknetTrainingCase& stated);
+                                     const DarknetTrainingCase& stated) noexcept;
 
     } // namespace Test
 } // namespace SushiAI

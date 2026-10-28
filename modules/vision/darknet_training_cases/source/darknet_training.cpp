@@ -312,7 +312,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<DarknetTensor> load_darknet_maps(std::string_view run, std::string_view name)
+        Result<DarknetTensor> load_darknet_maps(std::string_view run, std::string_view name) noexcept
         {
             SA_TRY_ASSIGN(DarknetTensor tensor, load_stored(run, name));
 
@@ -349,7 +349,7 @@ namespace SushiAI
         }
 
         Result<DarknetHeadDump> load_darknet_head_dump(std::string_view run,
-                                                       std::int64_t yolo_layer)
+                                                       std::int64_t yolo_layer) noexcept
         {
             const std::string delta_name = name_darknet_layer(yolo_layer, "yolo_delta");
             SA_TRY_ASSIGN(DarknetTensor input,
@@ -395,7 +395,7 @@ namespace SushiAI
         }
 
         Result<GroundTruthBatch> load_darknet_truth(std::string_view run, std::int64_t batch,
-                                                    Vision::Detect::Anchor::NetworkSize network)
+                                                    Vision::Detect::Anchor::NetworkSize network) noexcept
         {
             SA_TRY_ASSIGN(const DarknetTensor truth,
                           load_darknet_reference(run, K_DARKNET_TRUTH));
@@ -443,7 +443,7 @@ namespace SushiAI
                                                 SushiRuntime::span<const float> actual,
                                                 SushiRuntime::span<const float> reference,
                                                 std::int64_t slot_entries,
-                                                const DarknetDeltaBounds& bounds)
+                                                const DarknetDeltaBounds& bounds) noexcept
         {
             const std::size_t entries = static_cast<std::size_t>(slot_entries);
             if (slot_entries < 1 || actual.size() != reference.size() ||
@@ -1144,7 +1144,7 @@ namespace SushiAI
             }
         } // namespace
 
-        std::string find_missing_training_file(const DarknetTrainingCase& stated)
+        std::string find_missing_training_file(const DarknetTrainingCase& stated) noexcept
         {
             const std::vector<std::int64_t> layers =
                 find_darknet_parity_model(stated.stem).yolo_layers;
@@ -1171,7 +1171,7 @@ namespace SushiAI
                 GTEST_SKIP() << missing;
         }
 
-        void check_training_settings(const DarknetTrainingCase& stated)
+        void check_training_settings(const DarknetTrainingCase& stated) noexcept
         {
             SA_ASSERT_OK_AND_ASSIGN(const ImportedTraining imported,
                                     import_training(stated.stem));
@@ -1210,17 +1210,17 @@ namespace SushiAI
             }
         }
 
-        void check_host_deltas(const DarknetTrainingCase& stated)
+        void check_host_deltas(const DarknetTrainingCase& stated) noexcept
         {
             check_dumped_deltas(stated, stated.host_run);
         }
 
-        void check_two_image_deltas(const DarknetTrainingCase& stated)
+        void check_two_image_deltas(const DarknetTrainingCase& stated) noexcept
         {
             check_dumped_deltas(stated, stated.step_run);
         }
 
-        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
+        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1251,7 +1251,7 @@ namespace SushiAI
             }
         }
 
-        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
+        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1283,7 +1283,7 @@ namespace SushiAI
             EXPECT_NEAR(run.cost.stored / heads, network_cost, relative * network_cost);
         }
 
-        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
+        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1305,7 +1305,7 @@ namespace SushiAI
             }
         }
 
-        void check_training_plan(const DarknetTrainingCase& stated)
+        void check_training_plan(const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             DarknetTensor input;
@@ -1317,7 +1317,7 @@ namespace SushiAI
         }
 
         void check_plan_changes_no_value(SushiBLAS::Engine& engine,
-                                         const DarknetTrainingCase& stated)
+                                         const DarknetTrainingCase& stated) noexcept
         {
             StepValues packed;
             collect_step_values(engine, stated, true, packed);
@@ -1331,7 +1331,7 @@ namespace SushiAI
             expect_same_values("gradient", packed.gradients, unpacked.gradients);
         }
 
-        void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated)
+        void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1478,7 +1478,7 @@ namespace SushiAI
             }
         } // namespace
 
-        void check_rolling_statistics(SushiBLAS::Engine& engine,                                      const DarknetTrainingCase& stated)
+        void check_rolling_statistics(SushiBLAS::Engine& engine,                                      const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
             prepare_step(engine, stated, run);
@@ -1527,7 +1527,7 @@ namespace SushiAI
         }
 
         void check_one_batch_overfit(SushiBLAS::Engine& engine,
-                                     const DarknetTrainingCase& stated)
+                                     const DarknetTrainingCase& stated) noexcept
         {
             ASSERT_GT(stated.overfit_steps, 1) << "the case states no steps to compare";
             ASSERT_GT(stated.overfit_cost_share, 0.0) << "the case states no share to reach";

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — darknet_training_cases: Marked 16 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — darknet_import_cases: Marked 5 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — darknet_forward_cases: Marked 20 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — codecs: Marked 4 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
