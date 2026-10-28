@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — train: Dropped the include of the throwing bridge from the step builders (`steps.hpp`).
 - 2026-10-28 — nn: Breaking change: Made every layer factory and `build_layer_stack` return a `Result` (`layer_registry.hpp`).
 - 2026-10-28 — nn: Forwarded the refusal of a layer factory through the node registry without the throwing bridge (`node_registry.cpp`).
 - 2026-10-28 — nn: Breaking change: Made `LayerStack` and `DepthwiseConv2d::same_padded` stop the process for a layer or a width that cannot be right (`layer_stack.hpp`).

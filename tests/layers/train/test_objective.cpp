@@ -446,7 +446,7 @@ TEST(Small_Objective, AnEmptyLeafSetSaysSoRatherThanListingNothing)
 /** @brief Tests that the factory builds cross-entropy over the batch and classes it is given. */
 TEST(Small_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
 {
-    const Config::Value empty = Config::parse_json("{}", "<test>");
+    const Config::Value empty = SaTest::require_value(Config::parse_json("{}", "<test>"));
     Train::ObjectiveContext given;
     given.batch = 4;
     given.classes = 3;
@@ -466,7 +466,8 @@ TEST(Small_Objective, TheFactoryBuildsCrossEntropyOverTheContext)
 TEST(Small_Objective, CrossEntropyTakesNoKeysAtAll)
 {
     // Cross-entropy accepts no key; see tests/layers/train/README.md.
-    const Config::Value stray = Config::parse_json(R"({"label_smoothing": 0.1})", "<test>");
+    const Config::Value stray =
+        SaTest::require_value(Config::parse_json(R"({"label_smoothing": 0.1})", "<test>"));
     Train::ObjectiveContext given;
     given.batch = 4;
     given.classes = 3;
@@ -478,7 +479,7 @@ TEST(Small_Objective, CrossEntropyTakesNoKeysAtAll)
 /** @brief Tests that data which states no class count cannot build cross-entropy. */
 TEST(Small_Objective, CrossEntropyNeedsTheClassCountOfTheData)
 {
-    const Config::Value empty = Config::parse_json("{}", "<test>");
+    const Config::Value empty = SaTest::require_value(Config::parse_json("{}", "<test>"));
     Train::ObjectiveContext given;
     given.batch = 4;
 
@@ -507,7 +508,7 @@ namespace
     /** @brief Returns the attributes @p text spells. */
     Config::Value keys(const char* text)
     {
-        return Config::parse_json(text, "<test>");
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
     }
 
 } // namespace

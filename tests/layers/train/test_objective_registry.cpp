@@ -48,6 +48,7 @@ using Train::ObjectiveRegistry;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the batch the stand-in factory expects of its context. */
     constexpr std::int64_t K_BATCH = 4;
 
@@ -61,7 +62,7 @@ namespace
         given.batch = K_BATCH;
         given.classes = K_CLASSES;
         given.input_sample = Shape{6};
-        given.task = Config::parse_json(R"({"type": "stand_in"})", "<test>");
+        given.task = require_value(Config::parse_json(R"({"type": "stand_in"})", "<test>"));
         given.outputs.push_back(Train::OutputShape{"logits", Shape{K_BATCH, K_CLASSES}});
         return given;
     }
@@ -127,7 +128,8 @@ TEST(Small_ObjectiveRegistry, TheFactoryReceivesTheContextAndItsRegistry)
     ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
     SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
-    const Config::Value attributes = Config::parse_json(R"({"weight": 2.0})", "<test>");
+    const Config::Value attributes =
+        require_value(Config::parse_json(R"({"weight": 2.0})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
@@ -143,7 +145,7 @@ TEST(Small_ObjectiveRegistry, AnUnknownTypeListsWhatTheRegistryHolds)
     ObjectiveRegistry registry;
     SA_EXPECT_OK(Train::register_objectives(registry));
     SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
-    const Config::Value empty = Config::parse_json("{}", "<test>");
+    const Config::Value empty = require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(
         Train::make_objective(registry, "yolo", make_context(), empty, "objective"),
@@ -155,7 +157,7 @@ TEST(Small_ObjectiveRegistry, TheFailureOfAFactoryIsReturned)
 {
     ObjectiveRegistry registry;
     SA_EXPECT_OK(registry.add(ObjectiveEntry{"stand_in", &make_stand_in}));
-    const Config::Value empty = Config::parse_json("{}", "<test>");
+    const Config::Value empty = require_value(Config::parse_json("{}", "<test>"));
 
     SA_EXPECT_FAILURE(
         Train::make_objective(registry, "stand_in", make_context(), empty, "the objective"),

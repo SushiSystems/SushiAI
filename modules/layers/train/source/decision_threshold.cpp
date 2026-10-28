@@ -55,13 +55,13 @@ namespace SushiAI
             if (!attributes.has(K_THRESHOLD_KEY))
                 return K_DEFAULT_THRESHOLD;
 
-            const Config::Value& stated = attributes.at(K_THRESHOLD_KEY, context);
+            SA_TRY_ASSIGN(const Config::Value& stated, attributes.at(K_THRESHOLD_KEY, context));
             SA_FAIL_IF(stated.kind() != Config::Kind::Real && stated.kind() != Config::Kind::Int,
                        StatusCode::InvalidDescription,
                        "{}: '{}' is a number above 0 and below 1, but the file holds a {}",
                        context, K_THRESHOLD_KEY, Config::kind_name(stated.kind()));
 
-            const double threshold = stated.as_real(context);
+            SA_TRY_ASSIGN(const double threshold, stated.as_real(context));
             SA_TRY(validate_threshold(threshold));
 
             return threshold;

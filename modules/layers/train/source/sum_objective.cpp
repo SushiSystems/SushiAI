@@ -76,16 +76,17 @@ namespace SushiAI
                 if (reader.has(K_SUM_TERM_WEIGHT_KEY))
                 {
                     const std::string named = reader.member(K_SUM_TERM_WEIGHT_KEY);
-                    SA_TRY_ASSIGN(term.weight,
-                                  Config::read_real(entry.at(K_SUM_TERM_WEIGHT_KEY, named), named));
+                    SA_TRY_ASSIGN(const Config::Value* const weight,
+                                  reader.find(K_SUM_TERM_WEIGHT_KEY));
+                    SA_TRY_ASSIGN(term.weight, Config::read_real(*weight, named));
                 }
 
                 // The term's factory refuses a key it does not know, so it sees its own alone.
                 const Config::Value own =
                     entry.without(K_SUM_TERM_TYPE_KEY).without(K_SUM_TERM_WEIGHT_KEY);
+                SA_TRY_ASSIGN(const std::string& type_name, type->as_string(where));
                 SA_TRY_ASSIGN(term.objective,
-                              make_objective(*given.registry, type->as_string(where), given, own,
-                                             where));
+                              make_objective(*given.registry, type_name, given, own, where));
 
                 return Result<SumTerm>(std::move(term));
             }
@@ -251,7 +252,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const Config::Value* const listed,
                           reader.find_of(K_SUM_TERMS_KEY, Config::Kind::Array));
 
-            const std::vector<Config::Value>& entries = listed->as_array(context);
+            SA_TRY_ASSIGN(const std::vector<Config::Value>& entries, listed->as_array(context));
             const std::string where = reader.member(K_SUM_TERMS_KEY);
             std::vector<SumTerm> terms;
             SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]() -> Status

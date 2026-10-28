@@ -64,6 +64,7 @@ using Train::SumTerm;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the samples of a batch. */
     constexpr std::int64_t K_BATCH = 4;
 
@@ -201,7 +202,7 @@ namespace
                                                         std::string_view text)
     {
         return Train::make_objective(registry, "sum", make_context(),
-                                     Config::parse_json(text, "<test>"), K_CONTEXT);
+                                     require_value(Config::parse_json(text, "<test>")), K_CONTEXT);
     }
 } // namespace
 
@@ -424,6 +425,6 @@ TEST(Small_SumObjective, TheFactoryNeedsTheRegistryOfItsContext)
 {
     SA_EXPECT_FAILURE(
         Train::make_sum_objective(make_context(),
-                                  Config::parse_json(R"({"terms": []})", "<test>"), K_CONTEXT),
+                                  require_value(Config::parse_json(R"({"terms": []})", "<test>")), K_CONTEXT),
         StatusCode::InvalidDescription, "the objective block", "registry");
 }

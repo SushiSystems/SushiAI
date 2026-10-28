@@ -49,7 +49,6 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/training_graph.hpp>
@@ -219,11 +218,7 @@ namespace SushiAI
                 }
                 else
                 {
-                    SA_TRY_ASSIGN(const Graph::ValueID traced,
-                                  NN::Detail::bridge_throwing([&model, &trace, input]()
-                    {
-                        return NN::trace_layer(model, trace, input);
-                    }));
+                    const Graph::ValueID traced = NN::trace_layer(model, trace, input);
                     SA_TRY(trace.status());
 
                     return single_output(traced);
