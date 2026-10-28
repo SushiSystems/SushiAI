@@ -83,7 +83,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID SPPF::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID SPPF::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Graph::GraphBuilder& builder = trace.builder();
 
@@ -104,7 +104,7 @@ namespace SushiAI
             return trace.value_or_fail(builder.add(y, x), y);
         }
 
-        Result<Shape> SPPF::output_shape(const Shape& input) const
+        Result<Shape> SPPF::output_shape(const Shape& input) const noexcept
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
             SA_TRY_ASSIGN(const Shape narrowed, cv1.output_shape(input));
@@ -114,7 +114,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_sppf_node(NN::ShapeSpan inputs,
                                                          const Config::Value& attributes,
-                                                         std::string_view context)
+                                                         std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_SPPF_KEYS), context));
             SA_TRY_ASSIGN(const Shape input, Detail::read_feature_map(inputs, context));

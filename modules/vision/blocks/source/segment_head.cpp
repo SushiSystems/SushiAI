@@ -61,7 +61,7 @@ namespace SushiAI
         } // namespace
 
         SegmentHead::SegmentHead(int64_t in_channels, int64_t hidden, int64_t classes,
-                                 int64_t scale, NN::NormOptions norm)
+                                 int64_t scale, NN::NormOptions norm) noexcept
             : cv1(in_channels, hidden, K_FEATURE_KERNEL, Detail::K_POINTWISE, norm),
               cv2(biased_pointwise(hidden, classes)),
               up{scale}
@@ -69,7 +69,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID SegmentHead::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID SegmentHead::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             x = NN::trace_layer(cv1, trace, x);
             x = NN::trace_layer(cv2, trace, x);
@@ -77,7 +77,7 @@ namespace SushiAI
             return NN::trace_layer(up, trace, x);
         }
 
-        Result<Shape> SegmentHead::output_shape(const Shape& input) const
+        Result<Shape> SegmentHead::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Shape stem, cv1.output_shape(input));
             SA_TRY_ASSIGN(const Shape masks, cv2.output_shape(stem));
@@ -87,7 +87,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_segment_head_node(NN::ShapeSpan inputs,
                                                                  const Config::Value& attributes,
-                                                                 std::string_view context)
+                                                                 std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_SEGMENT_HEAD_KEYS),
                                                context));

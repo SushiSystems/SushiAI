@@ -69,10 +69,10 @@ namespace SushiAI
              * @pre @p channels is a positive multiple of @p head_count with two or more channels
              *      per head; a width read from a document is checked before this call.
              */
-            Attention(int64_t channels, int64_t head_count, NN::NormOptions norm);
+            Attention(int64_t channels, int64_t head_count, NN::NormOptions norm) noexcept;
 
             /** @brief Lists the three children that hold state, under "qkv", "proj" and "pe". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("qkv", &Attention::qkv),
@@ -87,13 +87,13 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, channels] value.
              * @return The [N, H, W, channels] result's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces, which is the input's.
              * @param input A per-sample [H, W, channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<Attention>,

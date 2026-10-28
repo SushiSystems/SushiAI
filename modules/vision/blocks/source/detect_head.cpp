@@ -342,7 +342,7 @@ namespace SushiAI
         Result<std::unique_ptr<DetectHead>> DetectHead::create(NN::ShapeSpan levels,
                                                                int64_t classes,
                                                                NN::NormOptions norm,
-                                                               const DetectOptions& options)
+                                                               const DetectOptions& options) noexcept
         {
             SA_FAIL_IF(levels.empty(), StatusCode::InvalidDescription,
                        "detect needs at least one feature level and was given none");
@@ -452,7 +452,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_detect_node(NN::ShapeSpan inputs,
                                                            const Config::Value& attributes,
-                                                           std::string_view context)
+                                                           std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_DETECT_KEYS),
                                                context));

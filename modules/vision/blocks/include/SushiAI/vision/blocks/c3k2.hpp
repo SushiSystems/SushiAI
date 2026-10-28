@@ -78,7 +78,7 @@ namespace SushiAI
              * @param inner The inner blocks, each mapping hidden channels to hidden channels.
              */
             C3k2(int64_t in_channels, int64_t out_channels, int64_t hidden_channels,
-                 NN::ModuleList<Inner> inner, NN::NormOptions norm)
+                 NN::ModuleList<Inner> inner, NN::NormOptions norm) noexcept
                 : hidden(hidden_channels),
                   cv1(in_channels, 2 * hidden_channels, 1, 1, norm),
                   cv2((2 + static_cast<int64_t>(inner.size())) * hidden_channels, out_channels,
@@ -89,7 +89,7 @@ namespace SushiAI
             }
 
             /** @brief Lists the three children, under "cv1", "cv2" and "m". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("cv1", &C3k2::cv1),
@@ -103,7 +103,7 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The [N, H, W, out_channels] result's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x)
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept
             {
                 const Graph::GraphBuilder& builder = trace.builder();
                 const Graph::ValueID stem = NN::trace_layer(cv1, trace, x);
@@ -129,7 +129,7 @@ namespace SushiAI
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
                 SA_TRY_ASSIGN(const Shape stem, cv1.output_shape(input));
@@ -163,7 +163,7 @@ namespace SushiAI
          *         "inner" is stated and is not "bottleneck".
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a C3k2 node whose inner blocks are C3k(hidden, hidden) of two bottlenecks.
@@ -173,7 +173,7 @@ namespace SushiAI
          *         "inner" is stated and is not "c3k".
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_of_c3k(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
         /**
          * @brief Builds a C3k2 node whose inner blocks are Bottleneck(hidden, hidden, hidden / 2)
@@ -184,7 +184,7 @@ namespace SushiAI
          *         head count does not split "hidden", or when "inner" is not "bottleneck_psa".
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck_psa(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
         /** @brief Lists every inner block a c3k2 row may name. */
         inline constexpr std::array<C3k2InnerEntry, 3> K_C3K2_INNER = {
@@ -202,7 +202,7 @@ namespace SushiAI
          *         "inner" names no row of K_C3K2_INNER.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k2_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

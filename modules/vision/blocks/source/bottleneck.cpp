@@ -50,7 +50,7 @@ namespace SushiAI
 
         Bottleneck::Bottleneck(int64_t in_channels, int64_t out_channels, int64_t hidden_channels,
                                bool shortcut, NN::NormOptions norm, int64_t kernel1,
-                               int64_t kernel2)
+                               int64_t kernel2) noexcept
             : cv1(in_channels, hidden_channels, kernel1, K_UNIT_STRIDE, norm),
               cv2(hidden_channels, out_channels, kernel2, K_UNIT_STRIDE, norm),
               adds_input(shortcut && in_channels == out_channels)
@@ -58,7 +58,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID Bottleneck::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID Bottleneck::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Graph::ValueID y = NN::trace_layer(cv2, trace, NN::trace_layer(cv1, trace, x));
             if (!adds_input)
@@ -67,7 +67,7 @@ namespace SushiAI
             return trace.value_or_fail(trace.builder().add(x, y), y);
         }
 
-        Result<Shape> Bottleneck::output_shape(const Shape& input) const
+        Result<Shape> Bottleneck::output_shape(const Shape& input) const noexcept
         {
             SA_TRY_ASSIGN(const Shape hidden, cv1.output_shape(input));
 
@@ -76,7 +76,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_bottleneck_node(NN::ShapeSpan inputs,
                                                                const Config::Value& attributes,
-                                                               std::string_view context)
+                                                               std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_BOTTLENECK_KEYS),
                                                context));

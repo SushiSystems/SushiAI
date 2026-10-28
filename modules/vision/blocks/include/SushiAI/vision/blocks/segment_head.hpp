@@ -64,10 +64,10 @@ namespace SushiAI
              * @param scale How many times larger H and W leave than they enter; at least 1.
              */
             SegmentHead(int64_t in_channels, int64_t hidden, int64_t classes, int64_t scale,
-                        NN::NormOptions norm);
+                        NN::NormOptions norm) noexcept;
 
             /** @brief Lists the two children that hold state, under "cv1" and "cv2". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("cv1", &SegmentHead::cv1),
@@ -80,13 +80,13 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The [N, H * scale, W * scale, classes] logits' id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<SegmentHead>,
@@ -99,7 +99,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_segment_head_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

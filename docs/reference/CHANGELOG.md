@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — blocks: Marked 51 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — train: Marked 65 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — sample_models: Marked 1 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).
 - 2026-10-28 — reference_files: Marked 8 public functions `noexcept`, so a failure is a status or a fatal stop and never an exception (the public headers of the module).

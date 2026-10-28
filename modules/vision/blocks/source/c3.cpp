@@ -52,7 +52,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c3_node(NN::ShapeSpan inputs,
                                                        const Config::Value& attributes,
-                                                       std::string_view context)
+                                                       std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_C3_KEYS), context));
             SA_TRY_ASSIGN(const Shape input, Detail::read_feature_map(inputs, context));

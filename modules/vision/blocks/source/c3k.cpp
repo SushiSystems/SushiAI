@@ -56,7 +56,7 @@ namespace SushiAI
         } // namespace
 
         C3k::C3k(int64_t in_channels, int64_t out_channels, int64_t repeats, bool shortcut,
-                 NN::NormOptions norm)
+                 NN::NormOptions norm) noexcept
             : C3k(in_channels, out_channels, hidden_width(out_channels), repeats, shortcut,
                   Bottleneck::K_DEFAULT_KERNEL, Bottleneck::K_DEFAULT_KERNEL, norm)
         {
@@ -64,7 +64,7 @@ namespace SushiAI
         }
 
         C3k::C3k(int64_t in_channels, int64_t out_channels, int64_t hidden, int64_t repeats,
-                 bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm)
+                 bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm) noexcept
             : cv1(in_channels, hidden, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
               cv2(in_channels, hidden, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
               cv3(2 * hidden, out_channels, Detail::K_POINTWISE, Detail::K_POINTWISE, norm)
@@ -73,7 +73,7 @@ namespace SushiAI
                 m.push_back(Bottleneck(hidden, hidden, hidden, shortcut, norm, kernel1, kernel2));
         }
 
-        Graph::ValueID C3k::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID C3k::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             Graph::ValueID chained = NN::trace_layer(cv1, trace, x);
             for (Bottleneck& block : m)
@@ -87,7 +87,7 @@ namespace SushiAI
             return NN::trace_layer(cv3, trace, joined);
         }
 
-        Result<Shape> C3k::output_shape(const Shape& input) const
+        Result<Shape> C3k::output_shape(const Shape& input) const noexcept
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
             SA_TRY_ASSIGN(const Shape narrowed, cv1.output_shape(input));
@@ -97,7 +97,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c3k_node(NN::ShapeSpan inputs,
                                                         const Config::Value& attributes,
-                                                        std::string_view context)
+                                                        std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_C3K_KEYS), context));
             SA_TRY_ASSIGN(const Shape input, Detail::read_feature_map(inputs, context));

@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace Vision::Blocks
     {
-        PSABlock::PSABlock(int64_t channels, int64_t heads, NN::NormOptions norm)
+        PSABlock::PSABlock(int64_t channels, int64_t heads, NN::NormOptions norm) noexcept
             : attn(channels, heads, norm),
               ffn(Conv(channels, 2 * channels, Detail::K_POINTWISE, Detail::K_POINTWISE, norm),
                   ConvLinear(2 * channels, channels, Detail::K_POINTWISE, Detail::K_POINTWISE,
@@ -43,7 +43,7 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID PSABlock::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID PSABlock::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Graph::GraphBuilder& builder = trace.builder();
             const Graph::ValueID attended = NN::trace_layer(attn, trace, x);
@@ -53,7 +53,7 @@ namespace SushiAI
             return trace.value_or_fail(builder.add(mixed, fed), mixed);
         }
 
-        Result<Shape> PSABlock::output_shape(const Shape& input) const
+        Result<Shape> PSABlock::output_shape(const Shape& input) const noexcept
         {
             // attn and ffn each keep the per-sample shape, and each refuses a width it cannot read.
             SA_TRY_ASSIGN(const Shape attended, attn.output_shape(input));

@@ -74,7 +74,7 @@ namespace SushiAI
                  bool shortcut, NN::NormOptions norm);
 
             /** @brief Lists the two children that hold state, under "cv1" and "cv2". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("cv1", &SPPF::cv1),
@@ -88,13 +88,13 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The [N, H, W, out_channels] result's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<SPPF>, "SPPF must satisfy the TraceModule contract");
@@ -108,7 +108,7 @@ namespace SushiAI
          *         "kernel" is even.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_sppf_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

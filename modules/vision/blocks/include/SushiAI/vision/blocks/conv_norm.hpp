@@ -70,7 +70,7 @@ namespace SushiAI
              * @param norm The epsilon and the momentum of the normalisation.
              */
             ConvNorm(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t stride,
-                     NN::NormOptions norm)
+                     NN::NormOptions norm) noexcept
                 : conv(Convolution::same_padded(in_channels, out_channels, kernel, stride)),
                   bn(out_channels, norm)
             {
@@ -82,7 +82,7 @@ namespace SushiAI
              * @param padding Rows and columns of zeros on each side; zero or more.
              */
             ConvNorm(int64_t in_channels, int64_t out_channels, int64_t kernel, int64_t stride,
-                     int64_t padding, NN::NormOptions norm)
+                     int64_t padding, NN::NormOptions norm) noexcept
                 : ConvNorm(in_channels, out_channels, kernel, stride, norm)
             {
                 conv.geometry.pad_top = padding;
@@ -90,7 +90,7 @@ namespace SushiAI
             }
 
             /** @brief Lists the two children that hold state, under "conv" and "bn". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("conv", &ConvNorm::conv),
@@ -104,7 +104,7 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The activated [N, out_h, out_w, out_channels] value's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x)
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept
             {
                 x = NN::trace_layer(conv, trace, x);
                 x = NN::trace_layer(bn, trace, x);
@@ -115,7 +115,7 @@ namespace SushiAI
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape that the window fits.
              */
-            Result<Shape> output_shape(const Shape& input) const
+            Result<Shape> output_shape(const Shape& input) const noexcept
             {
                 return conv.output_shape(input);
             }
@@ -148,7 +148,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_conv_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

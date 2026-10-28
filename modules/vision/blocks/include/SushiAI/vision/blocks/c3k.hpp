@@ -67,7 +67,7 @@ namespace SushiAI
              * @param shortcut Asks every bottleneck of the chain to add its input.
              */
             C3k(int64_t in_channels, int64_t out_channels, int64_t repeats, bool shortcut,
-                NN::NormOptions norm);
+                NN::NormOptions norm) noexcept;
 
             /**
              * @brief Builds the three convolutions and @p repeats bottlenecks of stated windows.
@@ -77,10 +77,10 @@ namespace SushiAI
              * @param kernel2 The side of the second window of each bottleneck; odd.
              */
             C3k(int64_t in_channels, int64_t out_channels, int64_t hidden, int64_t repeats,
-                bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm);
+                bool shortcut, int64_t kernel1, int64_t kernel2, NN::NormOptions norm) noexcept;
 
             /** @brief Lists the four children, under "cv1", "cv2", "cv3" and "m". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("cv1", &C3k::cv1),
@@ -95,13 +95,13 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, in_channels] value.
              * @return The [N, H, W, out_channels] result's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces.
              * @param input A per-sample [H, W, in_channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<C3k>, "C3k must satisfy the TraceModule contract");
@@ -113,7 +113,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c3k_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

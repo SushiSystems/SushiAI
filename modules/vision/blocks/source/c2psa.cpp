@@ -60,7 +60,7 @@ namespace SushiAI
                 m.push_back(PSABlock(hidden_channels, heads, norm));
         }
 
-        Graph::ValueID C2PSA::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID C2PSA::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             const Graph::GraphBuilder& builder = trace.builder();
             const Graph::ValueID stem = NN::trace_layer(cv1, trace, x);
@@ -79,7 +79,7 @@ namespace SushiAI
             return NN::trace_layer(cv2, trace, joined);
         }
 
-        Result<Shape> C2PSA::output_shape(const Shape& input) const
+        Result<Shape> C2PSA::output_shape(const Shape& input) const noexcept
         {
             // cv1 refuses an input that is not [H, W, in_channels] and keeps H and W.
             SA_TRY_ASSIGN(const Shape stem, cv1.output_shape(input));
@@ -89,7 +89,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c2psa_node(NN::ShapeSpan inputs,
                                                           const Config::Value& attributes,
-                                                          std::string_view context)
+                                                          std::string_view context) noexcept
         {
             SA_TRY(Detail::reject_unknown_keys(attributes, Detail::KeySpan(K_C2PSA_KEYS), context));
             SA_TRY_ASSIGN(const Shape input, Detail::read_feature_map(inputs, context));

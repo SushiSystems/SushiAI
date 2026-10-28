@@ -51,7 +51,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_c2f_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

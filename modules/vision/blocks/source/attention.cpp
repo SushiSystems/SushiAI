@@ -130,7 +130,7 @@ namespace SushiAI
 
         } // namespace
 
-        Attention::Attention(int64_t channels, int64_t head_count, NN::NormOptions norm)
+        Attention::Attention(int64_t channels, int64_t head_count, NN::NormOptions norm) noexcept
             : heads(head_count),
               head_dim(divide_into_heads(channels, head_count)),
               key_dim(head_dim / 2),
@@ -142,12 +142,12 @@ namespace SushiAI
 
         }
 
-        Graph::ValueID Attention::forward(const NN::Trace& trace, Graph::ValueID x)
+        Graph::ValueID Attention::forward(const NN::Trace& trace, Graph::ValueID x) noexcept
         {
             return trace.value_or_fail(trace_attention(*this, trace, x), x);
         }
 
-        Result<Shape> Attention::output_shape(const Shape& input) const
+        Result<Shape> Attention::output_shape(const Shape& input) const noexcept
         {
             // qkv refuses an input that is not [H, W, channels] and keeps H and W.
             SA_TRY_ASSIGN(const Shape mixed, qkv.output_shape(input));

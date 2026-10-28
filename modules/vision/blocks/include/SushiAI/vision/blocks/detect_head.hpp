@@ -108,7 +108,7 @@ namespace SushiAI
             NN::ModuleList<ClassType> one2one_cv3;
 
             /** @brief Lists the four children in checkpoint order. */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child(K_DETECT_BOX_BRANCH, &DetectBranches::cv2),
@@ -160,7 +160,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<DetectHead>> create(
                     NN::ShapeSpan levels, int64_t classes, NN::NormOptions norm,
-                    const DetectOptions& options = DetectOptions());
+                    const DetectOptions& options = DetectOptions()) noexcept;
 
                 /**
                  * @brief Traces both copies and appends one id per port, in the order of ports().
@@ -216,7 +216,7 @@ namespace SushiAI
          * @return The node, or InvalidDescription when @p inputs or a key does not fit.
          */
         [[nodiscard]] Result<std::unique_ptr<NN::Node>> make_detect_node(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context);
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept;
 
     } // namespace Vision::Blocks
 } // namespace SushiAI

@@ -62,10 +62,10 @@ namespace SushiAI
              * @param heads The head count the attention splits @p channels into.
              * @param norm The epsilon and the momentum of every normalisation.
              */
-            PSABlock(int64_t channels, int64_t heads, NN::NormOptions norm);
+            PSABlock(int64_t channels, int64_t heads, NN::NormOptions norm) noexcept;
 
             /** @brief Lists the two children, under "attn" and "ffn". */
-            static constexpr auto fields()
+            static constexpr auto fields() noexcept
             {
                 return std::tuple{
                     NN::child("attn", &PSABlock::attn),
@@ -79,13 +79,13 @@ namespace SushiAI
              * @param x An NHWC [N, H, W, channels] value.
              * @return The [N, H, W, channels] result's id.
              */
-            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x);
+            Graph::ValueID forward(const NN::Trace& trace, Graph::ValueID x) noexcept;
 
             /**
              * @brief Computes the per-sample shape forward() produces, which is the input's.
              * @param input A per-sample [H, W, channels] shape.
              */
-            Result<Shape> output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const noexcept;
         };
 
         static_assert(NN::TraceModule<PSABlock>, "PSABlock must satisfy the TraceModule contract");

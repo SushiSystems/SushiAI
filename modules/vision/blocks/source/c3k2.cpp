@@ -212,7 +212,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck(NN::ShapeSpan inputs,
                                                                   const Config::Value& attributes,
-                                                                  std::string_view context)
+                                                                  std::string_view context) noexcept
         {
             return make_c3k2_of<Bottleneck>(inputs, attributes, context, K_INNER_BOTTLENECK,
                                             &bottleneck_of);
@@ -220,13 +220,13 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c3k2_of_c3k(NN::ShapeSpan inputs,
                                                            const Config::Value& attributes,
-                                                           std::string_view context)
+                                                           std::string_view context) noexcept
         {
             return make_c3k2_of<C3k>(inputs, attributes, context, K_INNER_C3K, &c3k_of);
         }
 
         Result<std::unique_ptr<NN::Node>> make_c3k2_of_bottleneck_psa(
-            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context)
+            NN::ShapeSpan inputs, const Config::Value& attributes, std::string_view context) noexcept
         {
             SA_TRY_ASSIGN(const C3k2Row row,
                           read_row(inputs, attributes, context, K_INNER_BOTTLENECK_PSA));
@@ -244,7 +244,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<NN::Node>> make_c3k2_node(NN::ShapeSpan inputs,
                                                          const Config::Value& attributes,
-                                                         std::string_view context)
+                                                         std::string_view context) noexcept
         {
             SA_TRY_ASSIGN(const std::string_view inner,
                           read_inner_or(attributes, context, K_DEFAULT_INNER));
