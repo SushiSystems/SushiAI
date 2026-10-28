@@ -54,13 +54,16 @@ namespace SushiAI
                               Detail::checked_sequence(builder, x, block.dim, "FeedForward"));
 
                 return Detail::over_rows(builder, x, sequence, block.dim,
-                                         [&](Graph::ValueID rows)
+                                         [&](Graph::ValueID rows) -> Graph::Traced
                 {
                     const Graph::ValueID widened = NN::trace_layer(block.expand, trace, rows);
                     const Graph::ValueID active =
                         NN::trace_layer(block.activation, trace, widened);
 
-                    return NN::trace_layer(block.project, trace, active);
+                    const Graph::ValueID projected = NN::trace_layer(block.project, trace, active);
+                    SA_TRY(trace.status());
+
+                    return projected;
                 });
             }
         } // namespace
@@ -85,7 +88,7 @@ namespace SushiAI
             return forward(trace, x);
         }
 
-        Shape FeedForward::output_shape(const Shape& input) const
+        Result<Shape> FeedForward::output_shape(const Shape& input) const
         {
             return input;
         }

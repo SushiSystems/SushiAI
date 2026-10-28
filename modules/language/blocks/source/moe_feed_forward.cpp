@@ -29,7 +29,7 @@
 
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
+#include <SushiAI/graph/traced.hpp>
 #include "block_attributes.hpp"
 #include "expert_node.hpp"
 #include "sequence.hpp"
@@ -48,18 +48,17 @@ namespace SushiAI
 
             /**
              * @brief Emits the [R, E] @p gate with each column repeated @p hidden times.
-             * @return The [R, E * hidden] result's id; entry e * hidden + j is gate[r, e].
-             * @throws Error What an emitter throws for an operand that does not fit.
+             * @return The [R, E * hidden] result, whose entry e * hidden + j is gate[r, e],
+             *         or the refusal of an emitter.
              */
-            [[nodiscard]] Graph::ValueID widen_gate(const Graph::GraphBuilder& builder,
-                                                    Graph::ValueID gate, int64_t hidden)
+            [[nodiscard]] Graph::Traced widen_gate(const Graph::GraphBuilder& builder,
+                                                   Graph::ValueID gate, int64_t hidden)
             {
                 // By value: every emission below can reallocate the value vector.
                 const Shape shape = builder.graph().value(gate).shape;
 
                 // A row is one image row of E pixels, which the upsample repeats in place.
-                const Graph::ValueID map =
-                    builder.reshape(gate, Shape{shape[0], 1, shape[1], 1});
+                const Graph::Traced map = builder.reshape(gate, Shape{shape[0], 1, shape[1], 1});
 
                 return builder.reshape(builder.upsample2d(map, 1, hidden),
                                        Shape{shape[0], shape[1] * hidden});
@@ -77,38 +76,37 @@ namespace SushiAI
             /**
              * @brief Traces the router, the gate and the gated hidden values of every expert.
              * @param sequence The [N, T, dim] shape of @p x.
-             * @return The four ids, or InvalidDescription carrying what an emitter threw.
+             * @return The four ids, or the failure of an emitter or a child.
              */
             [[nodiscard]] Result<GatedRows> trace_gated_rows(MoEFeedForward& block,
                                                              const NN::Trace& trace,
                                                              Graph::ValueID x,
                                                              const Shape& sequence)
             {
-                return NN::Detail::bridge_throwing([&]()
-                {
-                    const Graph::GraphBuilder& builder = trace.builder();
-                    const Graph::ValueID rows =
-                        builder.reshape(x, Shape{sequence[0] * sequence[1], sequence[2]});
-                    const Graph::ValueID scores = NN::trace_layer(block.router, trace, rows);
-                    const Graph::ValueID probabilities = builder.softmax(scores);
+                const Graph::GraphBuilder& builder = trace.builder();
+                SA_TRY_ASSIGN(const Graph::ValueID rows,
+                              builder.reshape(x, Shape{sequence[0] * sequence[1], sequence[2]}));
+                const Graph::ValueID scores = NN::trace_layer(block.router, trace, rows);
+                SA_TRY(trace.status());
+                SA_TRY_ASSIGN(const Graph::ValueID probabilities, builder.softmax(scores));
 
-                    // The balance reads every probability, so a dropped expert is pulled back.
-                    const Detail::UsageBalance spread =
-                        Detail::trace_usage_balance(builder, probabilities);
+                // The balance reads every probability, so a dropped expert is pulled back.
+                SA_TRY_ASSIGN(const Detail::UsageBalance spread,
+                              Detail::trace_usage_balance(builder, probabilities));
 
-                    const Graph::ValueID gate = block.top_k == 0
-                        ? probabilities
-                        : builder.softmax(
-                              Detail::keep_top_scores(builder, scores, block.top_k));
+                SA_TRY_ASSIGN(const Graph::ValueID gate,
+                              block.top_k == 0
+                                  ? Graph::Traced(probabilities)
+                                  : builder.softmax(
+                                        Detail::keep_top_scores(builder, scores, block.top_k)));
 
-                    const Graph::ValueID widened = NN::trace_layer(block.expand, trace, rows);
-                    const Graph::ValueID active =
-                        NN::trace_layer(block.activation, trace, widened);
-                    const Graph::ValueID gated =
-                        builder.mul(active, widen_gate(builder, gate, block.hidden));
+                const Graph::ValueID widened = NN::trace_layer(block.expand, trace, rows);
+                const Graph::ValueID active = NN::trace_layer(block.activation, trace, widened);
+                SA_TRY(trace.status());
+                SA_TRY_ASSIGN(const Graph::ValueID gated,
+                              builder.mul(active, widen_gate(builder, gate, block.hidden)));
 
-                    return GatedRows{gated, gate, spread.usage, spread.balance};
-                });
+                return GatedRows{gated, gate, spread.usage, spread.balance};
             }
         } // namespace
 
@@ -137,10 +135,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const GatedRows rows, trace_gated_rows(*this, trace, x, sequence));
             SA_TRY_ASSIGN(const Graph::ValueID mixed,
                           project.mix(builder, rows.gated, rows.gate));
-            SA_TRY_ASSIGN(const Graph::ValueID output, NN::Detail::bridge_throwing([&]()
-            {
-                return builder.reshape(mixed, sequence);
-            }));
+            SA_TRY_ASSIGN(const Graph::ValueID output, builder.reshape(mixed, sequence));
 
             return ExpertTrace{output, rows.balance, rows.usage};
         }
@@ -170,7 +165,7 @@ namespace SushiAI
             return forward(trace, x);
         }
 
-        Shape MoEFeedForward::output_shape(const Shape& input) const
+        Result<Shape> MoEFeedForward::output_shape(const Shape& input) const
         {
             return input;
         }

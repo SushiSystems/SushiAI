@@ -210,7 +210,7 @@ TEST(Medium_BlockRotaryEmbedding, TheBlockHoldsNoState)
 
     EXPECT_TRUE(names.empty());
     EXPECT_TRUE(graph.state_leaves().empty());
-    EXPECT_EQ(block.output_shape(Shape{K_LENGTH, K_WIDTH}), (Shape{K_LENGTH, K_WIDTH}));
+    EXPECT_EQ(block.output_shape(Shape{K_LENGTH, K_WIDTH}).value(), (Shape{K_LENGTH, K_WIDTH}));
 }
 
 /** @brief Tests that one position is fed one row of cosines and one of sines, and no table. */

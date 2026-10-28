@@ -31,6 +31,7 @@
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 namespace SushiAI
 {
@@ -46,10 +47,10 @@ namespace SushiAI
              *        distinct value replaced by K_DROPPED_EXPERT_SCORE.
              * @param scores A [R, E] value of a real floating type.
              * @param top_k In [1, E]; equal scores are kept together, so a tie keeps more.
-             * @return The [R, E] result's id; the kept entries pass their gradient.
-             * @throws Error What an emitter throws for an operand that does not fit.
+             * @return The [R, E] result, whose kept entries pass their gradient, or the
+             *         refusal of an emitter.
              */
-            [[nodiscard]] inline Graph::ValueID keep_top_scores(
+            [[nodiscard]] inline Graph::Traced keep_top_scores(
                 const Graph::GraphBuilder& builder, Graph::ValueID scores, int64_t top_k)
             {
                 // By value: every emission below can reallocate the value vector.
@@ -61,22 +62,25 @@ namespace SushiAI
                 row_window.kernel_w = experts;
                 row_window.stride_w = experts;
 
-                const Graph::ValueID map =
-                    builder.reshape(scores, Shape{shape[0], 1, experts, 1});
-                const Graph::ValueID dropped =
-                    builder.constant_like(map, K_DROPPED_EXPERT_SCORE);
+                SA_TRY_ASSIGN(const Graph::ValueID map,
+                              builder.reshape(scores, Shape{shape[0], 1, experts, 1}));
+                SA_TRY_ASSIGN(const Graph::ValueID dropped,
+                              builder.constant_like(map, K_DROPPED_EXPERT_SCORE));
 
                 Graph::ValueID remaining = map;
                 Graph::ValueID kept = Graph::K_NO_VALUE;
                 for (int64_t level = 0; level < top_k; ++level)
                 {
                     if (level != 0)
-                        remaining = builder.select(kept, dropped, map);
+                    {
+                        SA_TRY_ASSIGN(remaining, builder.select(kept, dropped, map));
+                    }
 
-                    const Graph::ValueID largest =
-                        builder.maxpool2d(remaining, row_window).output;
-                    const Graph::ValueID threshold = builder.upsample2d(largest, 1, experts);
-                    kept = builder.less_equal(threshold, map);
+                    SA_TRY_ASSIGN(const Graph::PoolResult largest,
+                                  builder.maxpool2d(remaining, row_window));
+                    const Graph::Traced threshold =
+                        builder.upsample2d(largest.output, 1, experts);
+                    SA_TRY_ASSIGN(kept, builder.less_equal(threshold, map));
                 }
 
                 return builder.reshape(builder.select(kept, map, dropped), shape);

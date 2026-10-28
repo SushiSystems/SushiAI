@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-28 — language: Breaking change: Made `output_shape(const Shape&)` of every block return `Result<Shape>` (`blocks/include`).
+- 2026-10-28 — language: Breaking change: Made `ExpertProjection::mix` take `const Graph::Traced&` operands and return a `Graph::Traced`, refusing through `SA_REFUSE_IF` (`expert_projection.hpp`).
+- 2026-10-28 — language: Called the builder and `Parameter::declare` without the throwing bridge in the blocks and the two objectives (`blocks/source`, `next_token_objective.cpp`).
 - 2026-10-28 — train: Called `insert_casts`, `fuse` and `differentiate` without the throwing bridge (`steps.cpp`).
 - 2026-10-28 — train: Breaking change: Made the three dense loss emitters return `Graph::Traced` (`dense_losses.hpp`).
 - 2026-10-28 — train: Called the builder in the step builders without the throwing bridge (`steps.cpp`).

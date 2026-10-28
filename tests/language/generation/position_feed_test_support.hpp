@@ -46,7 +46,6 @@
 #include <SushiAI/language/generation/cached_generator.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
@@ -117,18 +116,11 @@ namespace SushiAI::Language::Generation::Support
             const Graph::GraphBuilder& builder = trace.builder();
             SA_TRY_ASSIGN(const Graph::ValueID index,
                           trace.feed(name, Shape{1, 1}, DType::Int32));
-            SA_TRY_ASSIGN(const Graph::ValueID rows, NN::Detail::bridge_throwing([&]()
-            {
-                return builder.reshape(value, Shape{1, 1, K_FEED_PAIRS});
-            }));
+            const Graph::Traced rows = builder.reshape(value, Shape{1, 1, K_FEED_PAIRS});
+            SA_TRY_ASSIGN(const Graph::ValueID added,
+                          builder.add(sum, builder.scatter_add_rows(rows, index, 1)));
 
-            const Graph::Traced placed = builder.scatter_add_rows(rows, index, 1);
-            SA_TRY(placed.status());
-
-            return NN::Detail::bridge_throwing([&]()
-            {
-                return builder.add(sum, placed.value());
-            });
+            return added;
         }
 
         /** @brief Traces the carried sum over every declared leaf, or returns the failure. */
@@ -139,10 +131,7 @@ namespace SushiAI::Language::Generation::Support
             const Shape row{1, K_FEED_PAIRS};
             SA_TRY_ASSIGN(const Graph::ValueID held,
                           trace.carried_leaf(row, "held", DType::Float32));
-            SA_TRY_ASSIGN(Graph::ValueID sum, NN::Detail::bridge_throwing([&]()
-            {
-                return builder.add(held, x);
-            }));
+            SA_TRY_ASSIGN(Graph::ValueID sum, builder.add(held, x));
 
             if (has_position)
             {
@@ -155,10 +144,8 @@ namespace SushiAI::Language::Generation::Support
                               trace.feed(K_FEED_COSINE, row, DType::Float32));
                 SA_TRY_ASSIGN(const Graph::ValueID sine,
                               trace.feed(K_FEED_SINE, row, DType::Float32));
-                SA_TRY_ASSIGN(const Graph::ValueID turned, NN::Detail::bridge_throwing([&]()
-                {
-                    return builder.add(builder.mul(x, cosine), sine);
-                }));
+                SA_TRY_ASSIGN(const Graph::ValueID turned,
+                              builder.add(builder.mul(x, cosine), sine));
                 SA_TRY_ASSIGN(sum, add_indexed(trace, K_FEED_SLOT, turned, sum));
             }
 
@@ -174,7 +161,7 @@ namespace SushiAI::Language::Generation::Support
         }
 
         /** @brief Returns @p input. */
-        Shape output_shape(const Shape& input) const
+        Result<Shape> output_shape(const Shape& input) const
         {
             return input;
         }

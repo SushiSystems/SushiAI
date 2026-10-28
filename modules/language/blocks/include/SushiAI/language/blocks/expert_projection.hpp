@@ -29,9 +29,9 @@
 
 #include <cstdint>
 #include <tuple>
-#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/traced.hpp>
 #include <SushiAI/nn/module.hpp>
 
 namespace SushiAI
@@ -70,10 +70,12 @@ namespace SushiAI
              *        projection of each, times its gate.
              * @param gated A [R, experts * hidden] value: each hidden value times its gate.
              * @param gate The [R, experts] gate, of the element type of @p gated.
-             * @return The [R, dim] result's id, or InvalidDescription when an operand misfits.
+             * @return The [R, dim] result, the failure an operand holds, or
+             *         InvalidDescription when an operand misfits.
              */
-            [[nodiscard]] Result<Graph::ValueID> mix(const Graph::GraphBuilder& builder,
-                                                     Graph::ValueID gated, Graph::ValueID gate);
+            [[nodiscard]] Graph::Traced mix(const Graph::GraphBuilder& builder,
+                                            const Graph::Traced& gated,
+                                            const Graph::Traced& gate);
         };
 
     } // namespace Language::Blocks

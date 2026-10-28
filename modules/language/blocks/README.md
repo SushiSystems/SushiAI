@@ -20,7 +20,9 @@ its result, a balance term and the usage of its experts, and its node has one po
 
 A block refuses a description or an input that does not fit by recording the failure on the
 trace and returning its input. No constructor throws. `trace_experts` of the two blocks with
-experts returns the failure and records nothing; their `forward` records it.
+experts returns the failure and records nothing; their `forward` records it. An emitter the
+block calls, and `Parameter::declare`, return a refusal as a `Graph::Traced` or a `Result`
+and mark the graph refused; the block hands that failure on unchanged.
 
 ## Depends on
 

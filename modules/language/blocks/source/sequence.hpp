@@ -37,7 +37,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
+#include <SushiAI/graph/traced.hpp>
 
 namespace SushiAI
 {
@@ -80,8 +80,9 @@ namespace SushiAI
              * @brief Traces @p trace_rows over the [N * T, C] rows of @p x and returns its
              *        result seen as [N, T, out_features].
              * @param sequence The [N, T, C] shape of @p x.
-             * @param trace_rows Maps the id of the rows to the id of [N * T, out_features].
-             * @return The result's id, or InvalidDescription carrying what an emitter threw.
+             * @param trace_rows Maps the id of the rows to a Graph::Traced of
+             *        [N * T, out_features], or to the failure that stopped it.
+             * @return The result's id, or the failure an emitter or @p trace_rows returned.
              */
             template<typename TraceRows>
             [[nodiscard]] Result<Graph::ValueID> over_rows(const Graph::GraphBuilder& builder,
@@ -90,15 +91,14 @@ namespace SushiAI
                                                            int64_t out_features,
                                                            TraceRows&& trace_rows)
             {
-                return NN::Detail::bridge_throwing([&]()
-                {
-                    const Graph::ValueID rows = builder.reshape(
-                        x, Shape{sequence[0] * sequence[1], sequence[2]});
-                    const Graph::ValueID mapped = std::forward<TraceRows>(trace_rows)(rows);
+                SA_TRY_ASSIGN(const Graph::ValueID rows,
+                              builder.reshape(x, Shape{sequence[0] * sequence[1], sequence[2]}));
+                const Graph::Traced mapped = std::forward<TraceRows>(trace_rows)(rows);
+                SA_TRY_ASSIGN(const Graph::ValueID result,
+                              builder.reshape(mapped,
+                                              Shape{sequence[0], sequence[1], out_features}));
 
-                    return builder.reshape(mapped,
-                                           Shape{sequence[0], sequence[1], out_features});
-                });
+                return result;
             }
 
         } // namespace Detail

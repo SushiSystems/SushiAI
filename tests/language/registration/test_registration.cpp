@@ -61,6 +61,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/graph/traced.hpp>
 #include <SushiAI/language/blocks/expert_trace.hpp>
 #include <SushiAI/language/blocks/moe_feed_forward.hpp>
 #include <SushiAI/language/decoder_models/decoder_model.hpp>
@@ -192,7 +193,7 @@ TEST(Medium_LanguageRegistration, ADecoderModelFileBuilds)
 
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelGraph model, NN::build_model(registry, spec));
     EXPECT_EQ(model.size(), 4u);
-    EXPECT_EQ(model.output_shape(Shape{8}), (Shape{8, 32}));
+    EXPECT_EQ(model.output_shape(Shape{8}).value(), (Shape{8, 32}));
 
     SA_EXPECT_FAILURE(NN::build_model(registry, untied_row), StatusCode::InvalidDescription,
                       "layer 2 'language_head'", "'tie'", "row 1", "no 'embedding' row");
@@ -514,16 +515,22 @@ namespace
 
                 const Shape rows{static_cast<int64_t>(K_ROWS), static_cast<int64_t>(K_DIM)};
                 targets_ = builder.input(rows, "targets", DType::Float64);
-                const ValueID fit = builder.nll_loss(
+                const Graph::Traced fit = builder.nll_loss(
                     builder.log_softmax(builder.reshape(traced.value().output, rows)), targets_);
-                loss_ = builder.add(
+                const Graph::Traced loss = builder.add(
                     fit, builder.scale(builder.reshape(traced.value().balance, Shape{1}),
                                        K_PROBE_BALANCE_WEIGHT));
+                SA_EXPECT_OK(loss.status());
+                if (!loss.has_value())
+                    return;
+
+                loss_ = loss.value();
 
                 const std::vector<ValueID> wrt = {variable_};
+                // The graph is fixed here, so a refusal is a defect: value() stops the test.
                 gradient_ = Autograd::differentiate(
                     graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));

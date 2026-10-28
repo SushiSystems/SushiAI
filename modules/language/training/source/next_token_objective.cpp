@@ -187,16 +187,19 @@ namespace SushiAI::Language::Training
         const std::int64_t rows = batch_ * length_;
 
         // LOG_SOFTMAX normalises each row, so every position becomes a row of V scores.
-        const Graph::ValueID log_probabilities =
+        const Graph::Traced log_probabilities =
             builder.log_softmax(builder.reshape(logits, Shape{rows, vocabulary_}));
 
         // As a table of rows * V single values, one index picks one log-probability.
-        const Graph::ValueID table =
+        const Graph::Traced table =
             builder.reshape(log_probabilities, Shape{rows * vocabulary_, 1});
-        const Graph::ValueID picked =
-            builder.gather_rows(table, leaves.at(K_NEXT_TOKEN_TARGETS_LEAF)).value();
+        const Graph::Traced picked =
+            builder.gather_rows(table, leaves.at(K_NEXT_TOKEN_TARGETS_LEAF));
+        SA_TRY_ASSIGN(const Graph::ValueID loss,
+                      builder.scale(builder.sum_rows(picked),
+                                    -1.0 / static_cast<double>(rows)));
 
-        return builder.scale(builder.sum_rows(picked), -1.0 / static_cast<double>(rows));
+        return loss;
     }
 
     Status NextTokenObjective::feed(const Data::Batch& batch,

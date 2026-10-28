@@ -35,12 +35,11 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/traced.hpp>
 #include <SushiAI/language/blocks/incremental.hpp>
 #include <SushiAI/language/blocks/rotary_positions.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include "sequence.hpp"
 #include "slice.hpp"
 
@@ -81,14 +80,18 @@ namespace SushiAI
                 return dtype == DType::Float64 ? DType::Float64 : DType::Float32;
             }
 
-            /** @brief Returns @p value, converted when its element type is not @p dtype. */
-            [[nodiscard]] Graph::ValueID as_type(const Graph::GraphBuilder& builder,
-                                                 Graph::ValueID value, DType dtype)
+            /**
+             * @brief Returns @p value, converted when its element type is not @p dtype.
+             * @return The value, or the failure @p value holds or the cast returns.
+             */
+            [[nodiscard]] Graph::Traced as_type(const Graph::GraphBuilder& builder,
+                                                const Graph::Traced& value, DType dtype)
             {
-                if (builder.graph().value(value).dtype == dtype)
-                    return value;
+                SA_TRY_ASSIGN(const Graph::ValueID id, value);
+                if (builder.graph().value(id).dtype == dtype)
+                    return id;
 
-                return builder.cast(value, dtype);
+                return builder.cast(id, dtype);
             }
 
             /**
@@ -96,10 +99,11 @@ namespace SushiAI
              *        returns the [rows * width] vector that weighs every channel of a row.
              * @param first The [1, rows, 1, pairs] weights of the first half of a group.
              * @param second The weights of its second half, shaped alike.
+             * @return The vector, or the refusal of an emitter.
              */
-            [[nodiscard]] Graph::ValueID spread(const Graph::GraphBuilder& builder,
-                                                Graph::ValueID first, Graph::ValueID second,
-                                                const Extents& e)
+            [[nodiscard]] Graph::Traced spread(const Graph::GraphBuilder& builder,
+                                               Graph::ValueID first, Graph::ValueID second,
+                                               const Extents& e)
             {
                 std::vector<Graph::ValueID> halves;
                 halves.reserve(static_cast<std::size_t>(K_PAIR * e.groups));
@@ -109,7 +113,7 @@ namespace SushiAI
                     halves.push_back(second);
                 }
 
-                const Graph::ValueID joined = builder.concat_channels(
+                const Graph::Traced joined = builder.concat_channels(
                     SushiRuntime::span<const Graph::ValueID>(halves.data(), halves.size()));
 
                 return builder.reshape(joined, Shape{e.rows * e.width});
@@ -119,11 +123,11 @@ namespace SushiAI
              * @brief Turns every pair of @p x: x * cos + swapped(x) * (-sin, sin), where
              *        swapped() exchanges the two halves of each group.
              * @param x A [batch, rows, width] value.
-             * @return The value turned, shaped as @p x is; an emitter's Error escapes.
+             * @return The value turned, shaped as @p x is, or the refusal of an emitter.
              */
-            [[nodiscard]] Graph::ValueID turn(const Graph::GraphBuilder& builder,
-                                              Graph::ValueID x, const Angles& angles,
-                                              const Extents& e)
+            [[nodiscard]] Result<Graph::ValueID> turn(const Graph::GraphBuilder& builder,
+                                                      Graph::ValueID x, const Angles& angles,
+                                                      const Extents& e)
             {
                 const int64_t group = e.width / e.groups;
                 const int64_t pairs = group / K_PAIR;
@@ -132,35 +136,38 @@ namespace SushiAI
                 // By value: every emission below grows the value table.
                 const DType dtype = builder.graph().value(x).dtype;
                 const Shape by_row{1, e.rows, 1, pairs};
-                const Graph::ValueID cosine =
-                    as_type(builder, builder.reshape(angles.cosine, by_row), dtype);
-                const Graph::ValueID sine =
-                    as_type(builder, builder.reshape(angles.sine, by_row), dtype);
+                SA_TRY_ASSIGN(const Graph::ValueID cosine,
+                              as_type(builder, builder.reshape(angles.cosine, by_row), dtype));
+                SA_TRY_ASSIGN(const Graph::ValueID sine,
+                              as_type(builder, builder.reshape(angles.sine, by_row), dtype));
 
-                const Graph::ValueID kept_weight = spread(builder, cosine, cosine, e);
-                const Graph::ValueID crossed_weight =
-                    spread(builder, builder.scale(sine, K_NEGATED), sine, e);
+                const Graph::Traced kept_weight = spread(builder, cosine, cosine, e);
+                SA_TRY_ASSIGN(const Graph::ValueID negated_sine, builder.scale(sine, K_NEGATED));
+                const Graph::Traced crossed_weight = spread(builder, negated_sine, sine, e);
                 const Graph::ValueID no_shift = builder.zeros(Shape{flat}, dtype);
 
                 // The channel emitters read rank 4, so a group stands as the channel axis.
-                const Graph::ValueID grouped =
-                    builder.reshape(x, Shape{e.batch, e.rows, e.groups, group});
-                const Graph::ValueID halves[] = {
-                    builder.slice_channels(grouped, pairs, pairs),
-                    builder.slice_channels(grouped, 0, pairs),
-                };
-                const Graph::ValueID swapped = builder.concat_channels(
+                SA_TRY_ASSIGN(const Graph::ValueID grouped,
+                              builder.reshape(x, Shape{e.batch, e.rows, e.groups, group}));
+                SA_TRY_ASSIGN(const Graph::ValueID second_half,
+                              builder.slice_channels(grouped, pairs, pairs));
+                SA_TRY_ASSIGN(const Graph::ValueID first_half,
+                              builder.slice_channels(grouped, 0, pairs));
+                const Graph::ValueID halves[] = {second_half, first_half};
+                const Graph::Traced swapped = builder.concat_channels(
                     SushiRuntime::span<const Graph::ValueID>(halves, K_PAIR));
 
                 // A weight per position and channel is a weight per channel of [N, 1, 1, T * C].
                 const Shape by_sequence{e.batch, 1, 1, flat};
-                const Graph::ValueID kept = builder.channel_affine(
+                const Graph::Traced kept = builder.channel_affine(
                     builder.reshape(x, by_sequence), kept_weight, no_shift);
-                const Graph::ValueID crossed = builder.channel_affine(
+                const Graph::Traced crossed = builder.channel_affine(
                     builder.reshape(swapped, by_sequence), crossed_weight, no_shift);
+                SA_TRY_ASSIGN(const Graph::ValueID turned,
+                              builder.reshape(builder.add(kept, crossed),
+                                              Shape{e.batch, e.rows, e.width}));
 
-                return builder.reshape(builder.add(kept, crossed),
-                                       Shape{e.batch, e.rows, e.width});
+                return turned;
             }
 
             /** @brief Declares the cosines and the sines of positions 0 to rows - 1. */
@@ -168,14 +175,8 @@ namespace SushiAI
                                                         int64_t pairs, DType dtype)
             {
                 const std::size_t count = static_cast<std::size_t>(rows * pairs);
-                SA_TRY_ASSIGN(std::vector<double> cosines, NN::Detail::bridge_throwing([count]()
-                {
-                    return std::vector<double>(count);
-                }));
-                SA_TRY_ASSIGN(std::vector<double> sines, NN::Detail::bridge_throwing([count]()
-                {
-                    return std::vector<double>(count);
-                }));
+                std::vector<double> cosines(count);
+                std::vector<double> sines(count);
 
                 for (int64_t row = 0; row < rows; ++row)
                 {
@@ -216,10 +217,7 @@ namespace SushiAI
                               declare_tables(trace, sequence[1], pairs, table_type(dtype)));
 
                 const Extents extents{sequence[0], sequence[1], block.width, block.groups};
-                return NN::Detail::bridge_throwing([&]()
-                {
-                    return turn(builder, x, angles, extents);
-                });
+                return turn(builder, x, angles, extents);
             }
 
             /** @brief Traces the turn of one fed position, or returns what does not fit. */
@@ -240,10 +238,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(angles.sine, trace.feed(K_ROTARY_SINE_LEAF, row, dtype));
 
                 const Extents extents{1, 1, block.width, block.groups};
-                return NN::Detail::bridge_throwing([&]()
-                {
-                    return turn(builder, x, angles, extents);
-                });
+                return turn(builder, x, angles, extents);
             }
         } // namespace
 
@@ -265,7 +260,7 @@ namespace SushiAI
             return trace.value_or_fail(trace_row(*this, trace, x, sample), x);
         }
 
-        Shape RotaryEmbedding::output_shape(const Shape& input) const
+        Result<Shape> RotaryEmbedding::output_shape(const Shape& input) const
         {
             return input;
         }

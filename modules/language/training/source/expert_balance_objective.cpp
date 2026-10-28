@@ -122,15 +122,25 @@ namespace SushiAI::Language::Training
                         "published {}",
                         name, shape.to_string());
 
-            const Graph::ValueID term = builder.reshape(found.value(), Shape{1});
-            total = total == Graph::K_NO_VALUE ? term : builder.add(total, term);
+            SA_TRY_ASSIGN(const Graph::ValueID term, builder.reshape(found.value(), Shape{1}));
+            if (total == Graph::K_NO_VALUE)
+            {
+                total = term;
+            }
+            else
+            {
+                SA_TRY_ASSIGN(total, builder.add(total, term));
+            }
         }
 
         // A mean over one term changes nothing, so it emits no node.
         if (balances_.size() == 1)
             return total;
 
-        return builder.scale(total, 1.0 / static_cast<double>(balances_.size()));
+        SA_TRY_ASSIGN(const Graph::ValueID mean,
+                      builder.scale(total, 1.0 / static_cast<double>(balances_.size())));
+
+        return mean;
     }
 
     Status ExpertBalanceObjective::feed(const Data::Batch&, const Train::ObjectiveLeaves&,

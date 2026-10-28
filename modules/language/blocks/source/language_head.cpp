@@ -114,16 +114,23 @@ namespace SushiAI
                 SA_TRY(trace.status());
 
                 return Detail::over_rows(builder, normalised, sequence, head.vocabulary,
-                                         [&](Graph::ValueID rows)
+                                         [&](Graph::ValueID rows) -> Graph::Traced
                 {
                     if (head.tied_weight == nullptr)
-                        return NN::trace_layer(head.linear, trace, rows);
+                    {
+                        const Graph::ValueID logits = NN::trace_layer(head.linear, trace, rows);
+                        SA_TRY(trace.status());
+
+                        return logits;
+                    }
 
                     // The table is [vocabulary, dim], which is a Linear weight's layout.
-                    const Graph::ValueID table = head.tied_weight->declare(
-                        builder, head.tied_weight->shape(), head.tied_weight->role(),
-                        head.tied_weight->init(), head.tied_weight->fan_in(),
-                        head.tied_weight->fan_out(), "weight", head.tied_weight->dtype());
+                    SA_TRY_ASSIGN(
+                        const Graph::ValueID table,
+                        head.tied_weight->declare(
+                            builder, head.tied_weight->shape(), head.tied_weight->role(),
+                            head.tied_weight->init(), head.tied_weight->fan_in(),
+                            head.tied_weight->fan_out(), "weight", head.tied_weight->dtype()));
                     return builder.matmul(rows, table, false, true);
                 });
             }
@@ -156,7 +163,7 @@ namespace SushiAI
             return forward(trace, x);
         }
 
-        Shape LanguageHead::output_shape(const Shape& input) const
+        Result<Shape> LanguageHead::output_shape(const Shape& input) const
         {
             SA_FATAL_IF(input.rank() != Detail::K_SAMPLE_RANK,
                         "LanguageHead::output_shape was given {}; a per-sample sequence is "

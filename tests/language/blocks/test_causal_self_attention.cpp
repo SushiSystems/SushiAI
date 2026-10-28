@@ -746,12 +746,14 @@ namespace
 
                 const Shape logit_shape = graph_.value(subject.logits).shape;
                 targets_ = builder.input(logit_shape, "targets", DType::Float64);
-                loss_ = builder.nll_loss(builder.log_softmax(subject.logits), targets_);
+                // A constructor cannot ASSERT; a Subject's logits are a well-formed [N, C].
+                loss_ = builder.nll_loss(builder.log_softmax(subject.logits), targets_).value();
 
                 const std::vector<ValueID> wrt = {variable_};
+                // The graph is fixed here, so a refusal is a defect: value() stops the test.
                 gradient_ = Autograd::differentiate(
                     graph_, loss_,
-                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).at(0);
+                    SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value().at(0);
                 EXPECT_NE(gradient_, Graph::K_NO_VALUE);
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
@@ -881,7 +883,9 @@ namespace
         const ValueID at = variable == AttentionVariable::Input
             ? x
             : block.qkv.weight.id_in(builder.graph());
-        return Subject{at, builder.reshape(y, Shape{K_GRADIENT_LENGTH, K_GRADIENT_DIM})};
+        // The trace succeeded above, so y is the [1, T, dim] the reshape reads.
+        return Subject{at,
+                       builder.reshape(y, Shape{K_GRADIENT_LENGTH, K_GRADIENT_DIM}).value()};
     }
 
     /** @brief Checks the gradient of a block with @p mask at @p variable. */
@@ -917,12 +921,13 @@ TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
     const GraphBuilder builder(graph);
     const ValueID x = builder.parameter(shape, "x", DType::Float64);
     const ValueID targets = builder.input(shape, "targets", DType::Float64);
-    const ValueID detoured = builder.scale(builder.log_softmax(x), 1.0);
-    const ValueID loss = builder.nll_loss(detoured, targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID detoured,
+                            builder.scale(builder.log_softmax(x), 1.0));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(detoured, targets));
 
     const std::vector<ValueID> wrt = {x};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_NE(gradients.at(0), Graph::K_NO_VALUE);
     ASSERT_EQ(count_gradient_nodes(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
 
@@ -972,7 +977,8 @@ TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
     {
         const ValueID x = builder.parameter(Shape{3, 4}, "x", DType::Float64);
         const ValueID mix = builder.input(Shape{4, 3}, "mix", DType::Float64);
-        return Subject{x, builder.matmul(builder.softmax(x), mix)};
+        // A lambda cannot ASSERT; a [3, 4] softmax times a [4, 3] matrix is well formed.
+        return Subject{x, builder.matmul(builder.softmax(x), mix).value()};
     });
 
     EXPECT_EQ(count_gradient_nodes(probe.graph(), Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
@@ -985,7 +991,8 @@ TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsRe
     Probe probe(*engine, 7300, [](const GraphBuilder& builder)
     {
         const ValueID x = builder.parameter(Shape{2, 3, 4}, "x", DType::Float64);
-        return Subject{x, builder.reshape(builder.softmax(x), Shape{6, 4})};
+        // A lambda cannot ASSERT; the [2, 3, 4] softmax holds the 24 elements of [6, 4].
+        return Subject{x, builder.reshape(builder.softmax(x), Shape{6, 4}).value()};
     });
 
     EXPECT_EQ(count_gradient_nodes(probe.graph(), Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
@@ -1184,13 +1191,13 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
     const GraphBuilder builder(graph);
     const ValueID scores = builder.parameter(Shape{4, 4}, "scores", DType::Float64);
     const ValueID targets = builder.input(Shape{4, 4}, "targets", DType::Float64);
-    const Graph::Traced masked = builder.causal_mask(scores, K_FILL);
-    ASSERT_TRUE(masked.has_value());
-    const ValueID loss = builder.nll_loss(builder.log_softmax(masked.value()), targets);
+    SA_ASSERT_OK_AND_ASSIGN(
+        const ValueID loss,
+        builder.nll_loss(builder.log_softmax(builder.causal_mask(scores, K_FILL)), targets));
 
     const std::vector<ValueID> wrt = {scores};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients, Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
     ASSERT_NE(gradients.at(0), Graph::K_NO_VALUE);
 
     // Row r targets class 0, which every row keeps.

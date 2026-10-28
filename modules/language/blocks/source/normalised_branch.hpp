@@ -32,7 +32,6 @@
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/nn/layer_norm.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include <SushiAI/nn/trace.hpp>
 
 namespace SushiAI
@@ -60,10 +59,8 @@ namespace SushiAI
                 const Graph::ValueID mapped = trace_child(branch, normalised);
                 SA_TRY(trace.status());
 
-                return NN::Detail::bridge_throwing([&]()
-                {
-                    return trace.builder().add(x, mapped);
-                });
+                SA_TRY_ASSIGN(const Graph::ValueID sum, trace.builder().add(x, mapped));
+                return sum;
             }
 
         } // namespace Detail

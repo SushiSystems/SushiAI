@@ -104,7 +104,7 @@ namespace SushiAI
                                                const Shape& sample);
 
             /** @brief Returns the per-sample shape forward() produces, which is @p input. */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(NN::TraceModule<TransformerBlock>,

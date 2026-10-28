@@ -73,7 +73,9 @@ role `labels` as int32 of `[T]` with no class count, so a token file of a smalle
 serves the same step.
 
 `NextTokenObjective::loss` stops the process when the model's output is not the `[N, T, V]`
-the objective was made for. A factory call has already compared the two.
+the objective was made for. A factory call has already compared the two. An emitter that
+refuses while the loss is traced returns its failure from `loss`, as it does in
+`ExpertBalanceObjective::loss`.
 
 ## Metrics
 

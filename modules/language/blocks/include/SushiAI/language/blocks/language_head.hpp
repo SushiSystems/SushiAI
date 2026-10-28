@@ -105,7 +105,7 @@ namespace SushiAI
              * @brief Returns [T, vocabulary] for a per-sample [T, dim] shape.
              * @pre @p input has rank 2; another rank is fatal.
              */
-            Shape output_shape(const Shape& input) const;
+            Result<Shape> output_shape(const Shape& input) const;
         };
 
         static_assert(NN::TraceModule<LanguageHead>,

@@ -30,7 +30,6 @@
 #include <utility>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 #include "normalised_branch.hpp"
 
 namespace SushiAI
@@ -61,10 +60,7 @@ namespace SushiAI
                 SA_TRY(trace.status());
 
                 SA_TRY_ASSIGN(ExpertTrace routed, trace_experts(normalised));
-                SA_TRY_ASSIGN(routed.output, NN::Detail::bridge_throwing([&]()
-                {
-                    return trace.builder().add(attended, routed.output);
-                }));
+                SA_TRY_ASSIGN(routed.output, trace.builder().add(attended, routed.output));
 
                 return routed;
             }
@@ -137,7 +133,7 @@ namespace SushiAI
             return output_or_fail(trace, trace_experts_incremental(trace, x, sample), x);
         }
 
-        Shape ExpertTransformerBlock::output_shape(const Shape& input) const
+        Result<Shape> ExpertTransformerBlock::output_shape(const Shape& input) const
         {
             return input;
         }

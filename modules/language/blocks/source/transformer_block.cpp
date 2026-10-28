@@ -105,7 +105,7 @@ namespace SushiAI
             return trace.value_or_fail(traced, x);
         }
 
-        Shape TransformerBlock::output_shape(const Shape& input) const
+        Result<Shape> TransformerBlock::output_shape(const Shape& input) const
         {
             return input;
         }

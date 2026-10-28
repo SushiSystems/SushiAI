@@ -199,9 +199,11 @@ TEST(Small_BlockLanguageHead, ATiedTableThatDoesNotFitFails)
                       "tied to a table no layer has declared");
 
     NN::Parameter narrow;
-    static_cast<void>(narrow.declare(builder, Shape{K_VOCABULARY, K_DIM - 1},
-                                     NN::ParameterRole::Embedding, K_DIM - 1, K_DIM - 1,
-                                     "table"));
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID narrow_table,
+                            narrow.declare(builder, Shape{K_VOCABULARY, K_DIM - 1},
+                                           NN::ParameterRole::Embedding, K_DIM - 1, K_DIM - 1,
+                                           "table"));
+    static_cast<void>(narrow_table);
     LanguageHead mismatched(K_DIM, K_VOCABULARY, NN::K_LAYER_NORM_EPSILON);
     mismatched.tie_to(narrow);
     const Trace second = Trace::evaluation(builder);
@@ -215,7 +217,7 @@ TEST(Small_BlockLanguageHead, OutputShapeReplacesTheWidthByTheVocabulary)
 {
     const LanguageHead head(K_DIM, K_VOCABULARY, NN::K_LAYER_NORM_EPSILON);
 
-    EXPECT_EQ(head.output_shape(Shape{5, K_DIM}), (Shape{5, K_VOCABULARY}));
+    EXPECT_EQ(head.output_shape(Shape{5, K_DIM}).value(), (Shape{5, K_VOCABULARY}));
 }
 
 /** @brief Tests that the factory reads "vocabulary" and "ln_epsilon" and refuses a bad row. */
