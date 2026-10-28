@@ -56,7 +56,7 @@ namespace SushiAI
              * @pre The rank does not exceed K_MAX_RANK and every extent is positive; extents read
              *      from a document or a file go through make().
              */
-            Shape(std::initializer_list<int64_t> dims)
+            Shape(std::initializer_list<int64_t> dims) noexcept
                 : Shape(SushiRuntime::span<const int64_t>(dims.begin(), dims.size()))
             {
             }
@@ -67,7 +67,7 @@ namespace SushiAI
              * @pre The rank does not exceed K_MAX_RANK and every extent is positive; extents read
              *      from a document or a file go through make().
              */
-            explicit Shape(SushiRuntime::span<const int64_t> dims)
+            explicit Shape(SushiRuntime::span<const int64_t> dims) noexcept
             {
                 const Status extents = check_extents(dims);
                 SA_FATAL_IF(!extents.is_ok(), "{}", extents.message());
@@ -102,7 +102,7 @@ namespace SushiAI
              * @return The extent at @p index.
              * @pre @p index names a dimension of this shape.
              */
-            int64_t dim(int32_t index) const
+            int64_t dim(int32_t index) const noexcept
             {
                 const int32_t i = index < 0 ? index + rank_ : index;
                 SA_FATAL_IF(i < 0 || i >= rank_,
@@ -144,7 +144,7 @@ namespace SushiAI
              * @brief A bracketed rendering such as "[64, 784]", for error messages.
              * @return A freshly built string; not cached.
              */
-            std::string to_string() const
+            std::string to_string() const noexcept
             {
                 std::string out = "[";
                 for (int32_t i = 0; i < rank_; ++i)

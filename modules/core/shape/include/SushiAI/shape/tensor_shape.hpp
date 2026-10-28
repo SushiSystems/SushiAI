@@ -41,7 +41,7 @@ namespace SushiAI
      * @pre The tensor describes a legal shape: every extent is positive and the rank does not
      *      exceed K_MAX_RANK. A tensor a caller supplied goes through checked_shape_of().
      */
-    [[nodiscard]] inline Shape shape_of(const SushiBLAS::Tensor& tensor)
+    [[nodiscard]] inline Shape shape_of(const SushiBLAS::Tensor& tensor) noexcept
     {
         return Shape(SushiRuntime::span<const int64_t>(tensor.shape.data(),
                                                        static_cast<std::size_t>(tensor.rank)));
