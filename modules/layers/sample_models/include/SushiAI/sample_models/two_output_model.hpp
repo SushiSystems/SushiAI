@@ -37,7 +37,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Builds Linear{6, 8}, GELU and Linear{8, 3}; publishes "features" and "logits". */
-        [[nodiscard]] inline Result<NN::ModelGraph> build_two_output_model()
+        [[nodiscard]] inline Result<NN::ModelGraph> build_two_output_model() noexcept
         {
             NN::ModelGraph model(Shape{6});
 
