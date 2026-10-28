@@ -84,7 +84,7 @@ namespace SushiAI::Language::Text
     } // namespace
 
     Result<Vocabulary> Vocabulary::make(std::vector<Merge> merges,
-                                        std::vector<std::string> special_names)
+                                        std::vector<std::string> special_names) noexcept
     {
         return Detail::at_boundary(K_UNIT, [&]() -> Result<Vocabulary>
         {

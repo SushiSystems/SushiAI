@@ -55,7 +55,7 @@ namespace SushiAI::Language::Text
      * @see modules/language/text/README.md, section "The vocabulary file".
      */
     [[nodiscard]] Status write_vocabulary_file(const std::filesystem::path& file,
-                                               const Vocabulary& vocabulary);
+                                               const Vocabulary& vocabulary) noexcept;
 
     /**
      * @brief Returns the vocabulary a serialised vocabulary file holds.
@@ -65,12 +65,12 @@ namespace SushiAI::Language::Text
      *         version this build does not read; InvalidDescription for a merge
      *         Vocabulary::make refuses.
      */
-    [[nodiscard]] Result<Vocabulary> parse_vocabulary_file(std::string_view bytes);
+    [[nodiscard]] Result<Vocabulary> parse_vocabulary_file(std::string_view bytes) noexcept;
 
     /**
      * @brief Reads a vocabulary file of any format version this build knows.
      * @return What parse_vocabulary_file returns, opening with the path; FileNotFound when
      *         the path names nothing; InvalidFile when it cannot be read.
      */
-    [[nodiscard]] Result<Vocabulary> read_vocabulary_file(const std::filesystem::path& file);
+    [[nodiscard]] Result<Vocabulary> read_vocabulary_file(const std::filesystem::path& file) noexcept;
 } // namespace SushiAI::Language::Text

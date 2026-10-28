@@ -115,7 +115,7 @@ namespace SushiAI::Language::Text
     } // namespace
 
     Status encode_text(const Vocabulary& vocabulary, std::string_view text,
-                       std::vector<TokenID>& ids)
+                       std::vector<TokenID>& ids) noexcept
     {
         return Detail::at_boundary(K_ENCODER, [&]() -> Status
         {
@@ -131,7 +131,7 @@ namespace SushiAI::Language::Text
     }
 
     Status decode_tokens(const Vocabulary& vocabulary, SushiRuntime::span<const TokenID> ids,
-                         std::string& text)
+                         std::string& text) noexcept
     {
         return Detail::at_boundary(K_DECODER, [&]() -> Status
         {

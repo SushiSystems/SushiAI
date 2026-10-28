@@ -62,5 +62,5 @@ namespace SushiAI::Language::Text
      * @see modules/language/text/README.md, section "The trainer".
      */
     [[nodiscard]] Result<Vocabulary> train_bpe(std::string_view corpus,
-                                               const BPETrainerOptions& options);
+                                               const BPETrainerOptions& options) noexcept;
 } // namespace SushiAI::Language::Text

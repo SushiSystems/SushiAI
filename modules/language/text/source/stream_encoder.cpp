@@ -59,7 +59,7 @@ namespace SushiAI::Language::Text
     } // namespace
 
     Status encode_stream(const Vocabulary& vocabulary, std::istream& in, std::size_t piece_bytes,
-                         std::vector<TokenID>& ids)
+                         std::vector<TokenID>& ids) noexcept
     {
         SA_FATAL_IF(piece_bytes == 0, "{} was asked to read 0 bytes at a time", K_STREAM_ENCODER);
 

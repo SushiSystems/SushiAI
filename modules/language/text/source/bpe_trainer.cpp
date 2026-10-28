@@ -312,7 +312,7 @@ namespace SushiAI::Language::Text
         }
     } // namespace
 
-    Result<Vocabulary> train_bpe(std::string_view corpus, const BPETrainerOptions& options)
+    Result<Vocabulary> train_bpe(std::string_view corpus, const BPETrainerOptions& options) noexcept
     {
         return Detail::at_boundary(K_UNIT, [&]() -> Result<Vocabulary>
         {

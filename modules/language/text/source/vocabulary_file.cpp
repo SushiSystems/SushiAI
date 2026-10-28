@@ -248,7 +248,7 @@ namespace SushiAI::Language::Text
         }
     } // namespace
 
-    Status write_vocabulary_file(const std::filesystem::path& file, const Vocabulary& vocabulary)
+    Status write_vocabulary_file(const std::filesystem::path& file, const Vocabulary& vocabulary) noexcept
     {
         return Detail::at_boundary(K_WRITER, [&]() -> Status
         {
@@ -256,7 +256,7 @@ namespace SushiAI::Language::Text
         }, file);
     }
 
-    Result<Vocabulary> parse_vocabulary_file(std::string_view bytes)
+    Result<Vocabulary> parse_vocabulary_file(std::string_view bytes) noexcept
     {
         return Detail::at_boundary(K_READER, [&]() -> Result<Vocabulary>
         {
@@ -277,7 +277,7 @@ namespace SushiAI::Language::Text
         });
     }
 
-    Result<Vocabulary> read_vocabulary_file(const std::filesystem::path& file)
+    Result<Vocabulary> read_vocabulary_file(const std::filesystem::path& file) noexcept
     {
         return Detail::at_boundary(K_READER, [&]() -> Result<Vocabulary>
         {

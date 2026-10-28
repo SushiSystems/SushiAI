@@ -49,7 +49,7 @@ namespace SushiAI::Language::Text
      * @see modules/language/text/README.md, section "Encoding".
      */
     [[nodiscard]] Status encode_text(const Vocabulary& vocabulary, std::string_view text,
-                                     std::vector<TokenID>& ids);
+                                     std::vector<TokenID>& ids) noexcept;
 
     /**
      * @brief Appends the bytes of each token; a special token appends none.
@@ -60,5 +60,5 @@ namespace SushiAI::Language::Text
      *         not hold; OutOfMemory when @p text cannot grow.
      */
     [[nodiscard]] Status decode_tokens(const Vocabulary& vocabulary,
-                                       SushiRuntime::span<const TokenID> ids, std::string& text);
+                                       SushiRuntime::span<const TokenID> ids, std::string& text) noexcept;
 } // namespace SushiAI::Language::Text

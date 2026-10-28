@@ -47,6 +47,6 @@ namespace SushiAI::Language::Text
      * @return Success, InvalidFile when the stream fails, or the failure of encode_text().
      */
     [[nodiscard]] Status encode_stream(const Vocabulary& vocabulary, std::istream& in,
-                                       std::size_t piece_bytes, std::vector<TokenID>& ids);
+                                       std::size_t piece_bytes, std::vector<TokenID>& ids) noexcept;
 
 } // namespace SushiAI::Language::Text

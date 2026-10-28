@@ -85,7 +85,7 @@ namespace SushiAI::Language::Text
              *         rule above or a limit of token.hpp, naming it.
              */
             [[nodiscard]] static Result<Vocabulary> make(
-                std::vector<Merge> merges, std::vector<std::string> special_names = {});
+                std::vector<Merge> merges, std::vector<std::string> special_names = {}) noexcept;
 
             /** @brief Returns the token count; every id is in [0, size()). */
             [[nodiscard]] std::int32_t size() const noexcept;
