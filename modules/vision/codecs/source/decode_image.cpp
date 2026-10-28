@@ -86,13 +86,14 @@ namespace SushiAI::Vision::Codecs
                 }
         };
 
-        /** @brief Decodes a raw image file; may throw what the reader of vision/imaging throws. */
+        /** @brief Decodes a raw image file through the reader of vision/imaging. */
         [[nodiscard]] Result<Imaging::Image> decode_raw_checked(
             SushiRuntime::span<const std::uint8_t> bytes, const DecodeOptions& options)
         {
             ByteStreamBuffer buffer(bytes);
             std::istream in(&buffer);
-            const Imaging::RawImageHeader header = Imaging::read_raw_image_header(in);
+            SA_TRY_ASSIGN(const Imaging::RawImageHeader header,
+                          Imaging::read_raw_image_header(in));
 
             const std::size_t declared = Imaging::K_RAW_IMAGE_HEADER_BYTES + header.pixel_bytes();
             SA_FAIL_IF(bytes.size() != declared, StatusCode::InvalidFile,
@@ -105,16 +106,16 @@ namespace SushiAI::Vision::Codecs
                        header.channels);
 
             Imaging::Image stored;
-            Imaging::read_raw_image_pixels(in, header, stored);
+            SA_TRY(Imaging::read_raw_image_pixels(in, header, stored));
             if (options.layout != ChannelLayout::Color || !is_gray)
                 return Result<Imaging::Image>(std::move(stored));
 
             Imaging::Image expanded;
-            Imaging::expand_gray(stored.view(), expanded);
+            SA_TRY(Imaging::expand_gray(stored.view(), expanded));
             return Result<Imaging::Image>(std::move(expanded));
         }
 
-        /** @brief Decodes a raw image file through the reader of vision/imaging. */
+        /** @brief Decodes a raw image file; an allocation that fails is an OutOfMemory status. */
         [[nodiscard]] Result<Imaging::Image> decode_raw(
             SushiRuntime::span<const std::uint8_t> bytes, const DecodeOptions& options)
         {

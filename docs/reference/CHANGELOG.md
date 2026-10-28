@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — codecs: Read a raw image through the `Status` of the imaging readers and kept the allocation guard around it (`decode_image.cpp`).
 - 2026-10-28 — imaging: Breaking change: Made the `validate_*` functions return a `Status` (`affine.hpp`, `mosaic.hpp`).
 - 2026-10-28 — imaging: Breaking change: Made `plan_affine`, `plan_flip` and `plan_hsv` return a `Result` (`affine.hpp`).
 - 2026-10-28 — imaging: Breaking change: Made `plan_letterbox`, `plan_mosaic` and `draw_mosaic` return a `Result` (`mosaic.hpp`).

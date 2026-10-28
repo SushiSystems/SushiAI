@@ -137,7 +137,7 @@ namespace
             image.data()[i] = samples[i];
 
         std::ostringstream out(std::ios::binary);
-        SushiAI::Vision::Imaging::write_raw_image(out, image.view(), order);
+        SA_EXPECT_OK(SushiAI::Vision::Imaging::write_raw_image(out, image.view(), order));
         const std::string text = out.str();
         return std::vector<std::uint8_t>(text.begin(), text.end());
     }
