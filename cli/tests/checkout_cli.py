@@ -12,8 +12,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+from sushiai.services import build_trees
+from sushiai.services.project import K_DEFAULT_TYPE
+
 # cli/tests/checkout_cli.py -> cli/tests -> cli
 K_CLI_ROOT = Path(__file__).resolve().parents[1]
+
+#: The tree `sa build` makes with no option, which the commands that run a program read.
+K_DEFAULT_TREE = build_trees.build_dir(K_CLI_ROOT.parent, K_DEFAULT_TYPE.value)
 
 
 def run_cli(*args: str, cwd: Path, timeout: float) -> subprocess.CompletedProcess:

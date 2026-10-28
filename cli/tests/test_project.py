@@ -81,8 +81,8 @@ def console(monkeypatch) -> _Console:
 
 @pytest.fixture
 def tree(tmp_path, monkeypatch) -> Path:
-    """Returns a project root that holds a build tree with one file in it."""
-    (tmp_path / "build").mkdir()
+    """Returns a project root that holds the default build tree and a file beside it."""
+    (tmp_path / "build" / "default-debug").mkdir(parents=True)
     (tmp_path / "build" / "CMakeCache.txt").write_text("", encoding="utf-8")
     monkeypatch.setattr(project, "find_project_root", lambda: tmp_path)
     return tmp_path
@@ -97,7 +97,7 @@ def test_build_rejects_a_malformed_define_before_it_removes_the_tree(console, tr
     """`sa build --clean -D BAD` exits 2 and leaves build/ as it was."""
     driver = _Driver(removes=True)
     monkeypatch.setattr(project, "_DRIVER", driver)
-    assert project.build(BuildType.release, clean=True, defines=["SA_BUILD_TESTS"]) == 2
+    assert project.build(project.K_DEFAULT_TYPE, clean=True, defines=["SA_BUILD_TESTS"]) == 2
     assert driver.calls == []
     assert (tree / "build" / "CMakeCache.txt").is_file()
     assert "SA_BUILD_TESTS" in console.errors()[0]

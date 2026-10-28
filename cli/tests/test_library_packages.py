@@ -12,11 +12,15 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from sushicore import build_admission
+from sushicore.build_admission import BuildStoppedError
+from sushicore.errors import ConfigError
 from sushicore.provision.sushi_packages import PackageError
 
 from sushiai.config import Config
-from sushiai.services import library_packages, project
+from sushiai.services import build_trees, library_packages, project
 from sushiai.services.project import BuildType
+from sushiai.services.sanitizer import Sanitizer
 
 pytestmark = pytest.mark.medium
 
@@ -43,6 +47,7 @@ class _Config:
     generator = "Ninja"
     is_windows = False
     platform = "linux"
+    ccache_exe = ""
     target_bin = "sushiai_example"
 
     def __init__(self, fail: bool = False) -> None:
@@ -77,6 +82,7 @@ class _Driver:
     def __init__(self) -> None:
         self.configured: list[list[str]] = []
         self.environments: list[dict[str, str]] = []
+        self.compiled: list[dict] = []
 
     def cmake(self, cfg) -> str:
         """Returns the cmake name."""
@@ -93,7 +99,8 @@ class _Driver:
         return 0
 
     def compile(self, cfg, build_dir, cwd, env, **options) -> int:
-        """Succeeds."""
+        """Records the options of the compile and succeeds."""
+        self.compiled.append(options)
         return 0
 
 
@@ -107,6 +114,11 @@ class _Console:
     def __getattr__(self, kind: str):
         """Returns a printer that records its text under *kind*."""
         return lambda text="", **_: self.lines.append((kind, str(text)))
+
+
+def _tree(root: Path, build_type: str = "release") -> Path:
+    """Returns the default build tree of *build_type* under *root*."""
+    return build_trees.build_dir(root, build_type)
 
 
 @pytest.fixture
@@ -198,8 +210,8 @@ def test_a_distributed_build_builds_the_packages_distributed(parts):
 
 def test_a_build_that_leaves_distributed_out_keeps_what_the_tree_has(parts):
     root, cfg, driver, console = parts
-    (root / "build").mkdir()
-    (root / "build" / "CMakeCache.txt").write_text("SA_ENABLE_DISTRIBUTED:BOOL=ON\n")
+    _tree(root).mkdir(parents=True)
+    (_tree(root) / "CMakeCache.txt").write_text("SA_ENABLE_DISTRIBUTED:BOOL=ON\n")
 
     assert project.build(BuildType.release) == 0
 
@@ -212,8 +224,8 @@ def test_the_run_dirs_lead_the_build_environment_and_a_later_run(parts):
     assert project.build(BuildType.release) == 0
 
     assert driver.environments[0]["LD_LIBRARY_PATH"].split(os.pathsep) == [*K_RUN_DIRS, "/old"]
-    assert library_packages.read_run_dirs(root / "build") == K_RUN_DIRS
-    assert project._run_env(cfg, root / "build")["LD_LIBRARY_PATH"].split(os.pathsep) == [
+    assert library_packages.read_run_dirs(_tree(root)) == K_RUN_DIRS
+    assert project._run_env(cfg, _tree(root))["LD_LIBRARY_PATH"].split(os.pathsep) == [
         *K_RUN_DIRS, "/old"]
 
 
@@ -230,7 +242,7 @@ def test_a_refused_closure_is_one_error_and_no_configure(parts):
 
 def test_a_program_runs_under_the_recorded_run_dirs(parts, monkeypatch):
     root, cfg, driver, console = parts
-    library_packages.record_run_dirs(root / "build", K_RUN_DIRS)
+    library_packages.record_run_dirs(_tree(root, "debug"), K_RUN_DIRS)
     seen = {}
 
     class _Runner:
@@ -271,8 +283,8 @@ def test_sycl_targets_go_to_the_blas_package_alone(parts):
 
 def test_a_build_that_leaves_the_targets_out_keeps_what_the_tree_has(parts):
     root, cfg, driver, console = parts
-    (root / "build").mkdir()
-    (root / "build" / ".sushiai_sycl_targets").write_text("spir64")
+    _tree(root).mkdir(parents=True)
+    (_tree(root) / ".sushiai_sycl_targets").write_text("spir64")
 
     assert project.build(BuildType.release) == 0
 
@@ -281,8 +293,8 @@ def test_a_build_that_leaves_the_targets_out_keeps_what_the_tree_has(parts):
 
 def test_an_empty_target_list_clears_the_targets_of_the_package(parts):
     root, cfg, driver, console = parts
-    (root / "build").mkdir()
-    (root / "build" / "CMakeCache.txt").write_text("SB_SYCL_TARGETS:STRING=spir64\n")
+    _tree(root).mkdir(parents=True)
+    (_tree(root) / "CMakeCache.txt").write_text("SB_SYCL_TARGETS:STRING=spir64\n")
 
     assert project.build(BuildType.release, sycl_targets="") == 0
 
@@ -349,3 +361,84 @@ def test_the_consumer_gets_the_package_libraries_beside_its_executable(tmp_path,
                                          dest, [str(package)]) is True
 
     assert (dest / "sushiruntime.dll").is_file()
+
+
+def test_the_default_build_type_is_debug():
+    assert project.K_DEFAULT_TYPE is BuildType.debug
+
+
+def test_a_plain_build_configures_the_debug_tree(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(project.K_DEFAULT_TYPE) == 0
+
+    assert driver.configured[0][driver.configured[0].index("-B") + 1] == str(_tree(root, "debug"))
+    assert "-DCMAKE_BUILD_TYPE=Debug" in driver.configured[0]
+
+
+def test_a_configure_of_another_type_into_an_existing_tree_is_refused(parts):
+    root, cfg, driver, console = parts
+    _tree(root, "debug").mkdir(parents=True)
+    (_tree(root, "debug") / "CMakeCache.txt").write_text("CMAKE_BUILD_TYPE:STRING=Release\n")
+
+    with pytest.raises(ConfigError):
+        project.build(BuildType.debug)
+
+    assert driver.configured == []
+
+
+def test_a_define_that_sets_the_build_type_is_refused(parts):
+    root, cfg, driver, console = parts
+
+    with pytest.raises(ConfigError):
+        project.build(BuildType.debug, defines=["CMAKE_BUILD_TYPE=Release"])
+
+    assert driver.configured == []
+
+
+def test_a_stopped_gate_refuses_the_build_before_any_configure(parts):
+    root, cfg, driver, console = parts
+    stop = build_admission.stop_file(_tree(root, "debug"))
+    stop.parent.mkdir(parents=True)
+    stop.write_text("")
+
+    with pytest.raises(BuildStoppedError):
+        project.build(BuildType.debug)
+
+    assert driver.configured == []
+
+
+def test_the_configure_carries_both_launcher_entries(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(BuildType.debug) == 0
+
+    arguments = driver.configured[0]
+    assert [item for item in arguments if item.startswith("-DCMAKE_CXX_COMPILER_LAUNCHER=")]
+    assert [item for item in arguments if item.startswith("-DCMAKE_CXX_LINKER_LAUNCHER=")]
+
+
+def test_the_compile_runs_the_hardware_threads_when_no_jobs_are_given(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(BuildType.debug) == 0
+
+    assert driver.compiled[0]["jobs"] == build_admission.hardware_threads()
+
+
+def test_the_compile_takes_the_jobs_the_user_gave(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(BuildType.debug, jobs=3) == 0
+
+    assert driver.compiled[0]["jobs"] == 3
+
+
+def test_a_sanitizer_build_configures_its_own_tree(parts):
+    root, cfg, driver, console = parts
+
+    assert project.build(BuildType.debug, sanitizer=Sanitizer.address_undefined) == 0
+
+    arguments = driver.configured[0]
+    assert arguments[arguments.index("-B") + 1] == str(root / "build" / "asan-debug")
+    assert "-DSA_SANITIZE=address,undefined" in arguments

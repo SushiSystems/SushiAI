@@ -21,13 +21,15 @@
 # SushiBLAS's four policy files the same way. The other three policy files
 # below (and their include() calls) are prefixed for the same reason.
 #
-# All three targets composed here (sushiai_warnings, sushiai_perf,
-# sushiai_sanitizers) are PRIVATE, in-tree-only policy. SushiAI does not own a
-# floating-point contract to export either: it receives SushiRuntime's
+# All five targets composed here (sushiai_warnings, sushiai_perf, sushiai_debug_info,
+# sushiai_sanitizers, and sushiai_device_link from SushiAISyclTarget.cmake) are PRIVATE,
+# in-tree-only policy. SushiAI does not own a floating-point contract to export either: it
+# receives SushiRuntime's
 # `sushiruntime_deterministic_fp` transitively, through the SushiRuntime target each
 # module links (SushiRuntime::core, SushiRuntime::api; see cmake/SushiAIModule.cmake).
 include(SushiAICompilerWarnings)  # -> sushiai_warnings
 include(SushiAIOptimization)      # -> sushiai_perf
+include(SushiAIDebugInformation)  # -> sushiai_debug_info
 include(SushiAISanitizers)        # -> sushiai_sanitizers
 
 # Applies the project's in-tree compile policy to one target. Pulls flag
@@ -45,6 +47,7 @@ function(sushiai_apply_build_policy target)
     target_compile_options(${target} PRIVATE
         "$<TARGET_PROPERTY:sushiai_warnings,INTERFACE_COMPILE_OPTIONS>"
         "$<TARGET_PROPERTY:sushiai_perf,INTERFACE_COMPILE_OPTIONS>"
+        "$<TARGET_PROPERTY:sushiai_debug_info,INTERFACE_COMPILE_OPTIONS>"
         "$<TARGET_PROPERTY:sushiai_sanitizers,INTERFACE_COMPILE_OPTIONS>"
     )
     target_compile_definitions(${target} PRIVATE
@@ -52,5 +55,6 @@ function(sushiai_apply_build_policy target)
     )
     target_link_options(${target} PRIVATE
         "$<TARGET_PROPERTY:sushiai_sanitizers,INTERFACE_LINK_OPTIONS>"
+        "$<TARGET_PROPERTY:sushiai_device_link,INTERFACE_LINK_OPTIONS>"
     )
 endfunction()

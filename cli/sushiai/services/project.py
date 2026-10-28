@@ -18,6 +18,8 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from sushicore import build_admission, build_report
+from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
 from sushicore.proc import Runner
@@ -29,7 +31,7 @@ from .. import console
 from .. import memory_limit
 from ..config import Config, PROFILE, find_project_root, load_config
 from ..env import load_build_env
-from . import discovery, library_packages
+from . import build_trees, discovery, library_packages
 from .distributed import K_DISTRIBUTED_VARIABLE, distributed_define
 from .sanitizer import Sanitizer, sanitize_define
 from .sycl_targets import read_sycl_targets, record_sycl_targets
@@ -39,6 +41,10 @@ class BuildType(str, enum.Enum):
     release = "release"
     debug = "debug"
     relwithdebinfo = "relwithdebinfo"
+
+
+#: The build type of a command that names none, taken from sushicore's rule.
+K_DEFAULT_TYPE = BuildType(K_DEFAULT_BUILD_TYPE.lower())
 
 
 class Suite(str, enum.Enum):
@@ -83,9 +89,27 @@ class DefineError(ValueError):
     """Reports a -D entry that is not VAR=VALUE."""
 
 
-def _build_dir(root: Path) -> Path:
-    """Returns the build tree of the project at *root*."""
+def _build_root(root: Path) -> Path:
+    """Returns the folder that holds every build tree, the gate's state and the generated docs."""
     return root / "build"
+
+
+def _build_hint(build_type: BuildType, sanitizer: Sanitizer | None) -> str:
+    """Returns the `sa build` command that makes the tree of *build_type* and *sanitizer*."""
+    hint = f"sa build --type {build_type.value}"
+    if sanitizer is not None and sanitizer is not Sanitizer.none:
+        hint += f" --sanitize {sanitizer.value}"
+    return hint
+
+
+def _built_tree(root: Path, build_type: BuildType,
+                sanitizer: Sanitizer | None = None) -> Path | None:
+    """Returns the tree of *build_type* and *sanitizer*, or None after naming the command to run."""
+    tree = build_trees.build_dir(root, build_type.value, sanitizer)
+    if tree.is_dir():
+        return tree
+    console.error(f"{tree} not found. Run `{_build_hint(build_type, sanitizer)}` first.")
+    return None
 
 
 _RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
@@ -225,12 +249,20 @@ def build(build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None,
           sanitizer: Sanitizer | None = None,
           distributed: bool | None = None,
-          sycl_targets: str | None = None) -> int:
-    """Configures and builds the project; a malformed -D entry returns 2 with build/ untouched.
+          sycl_targets: str | None = None,
+          report: bool = False,
+          jobs: int | None = None) -> int:
+    """Configures and builds the tree of *build_type*; a malformed -D entry returns 2.
 
-    *sanitizer* sets the sanitizers of host code and *distributed* the distributed layer and
-    *sycl_targets* the device targets of the SushiBLAS package; None keeps the
-    cached value of each.
+    *sanitizer* picks the tree and sets the sanitizers of its host code, *distributed* sets the
+    distributed layer and *sycl_targets* the device targets of the SushiBLAS package; None keeps
+    the cached value of each of those two. *report* prints and writes the measurements of the
+    compile, and *jobs* replaces the hardware thread count the compile runs.
+
+    Raises:
+        sushicore.errors.ConfigError: The tree was configured as another build type, or a -D
+            entry sets CMAKE_BUILD_TYPE.
+        sushicore.build_admission.BuildStoppedError: The gate's stop file exists.
     """
     console.header("Project Build")
     try:
@@ -242,7 +274,9 @@ def build(build_type: BuildType, clean: bool = False,
     root = find_project_root()
     cfg = load_config()
     cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
-    build_dir = _build_dir(root)
+    build_dir = build_trees.build_dir(root, build_type.value, sanitizer)
+    refuse_another_build_type(build_dir, cmake_build_type, defines or ())
+    build_admission.refuse_a_stopped_gate(build_dir)
 
     if clean and (rc := _clean_build_tree(build_dir)) != 0:
         return rc
@@ -251,11 +285,10 @@ def build(build_type: BuildType, clean: bool = False,
 
     env = load_build_env(cfg, build_dir)
 
-    fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root,
-                                    expect={"CMAKE_BUILD_TYPE": cmake_build_type})
+    fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root)
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
-        if not _remove_tree(build_dir):
+        if build_dir.is_dir() and not _remove_tree(build_dir):
             return 1
     else:
         console.info("Reconfiguring in place...")
@@ -271,8 +304,10 @@ def build(build_type: BuildType, clean: bool = False,
     run_dirs = packages.run_dirs(cfg.platform)
     library_packages.prepend_run_dirs(cfg, env, run_dirs)
 
+    launcher_args = [f"-D{entry}" for entry in build_admission.launcher_defines(
+        build_dir, build_admission.compiler_cache(cfg.ccache_exe))]
     configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, packages,
-                                     define_args)
+                                     launcher_args + define_args)
     rc = _DRIVER.configure(configure_args, cwd=root, env=env)
     if rc != 0:
         console.error("CMake configure failed.")
@@ -281,12 +316,24 @@ def build(build_type: BuildType, clean: bool = False,
     record_sycl_targets(build_dir, targets)
 
     console.info("Building...")
-    rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type)
+    offset = build_report.ninja_log_offset(build_dir)
+    rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
+                         jobs=jobs or build_admission.hardware_threads())
+    if report:
+        _print_report(build_dir, offset)
     if rc == 0:
         console.success("Build completed successfully!")
     else:
         console.error("Build failed.")
     return rc
+
+
+def _print_report(build_dir: Path, offset: int) -> None:
+    """Prints the measurements of the compile that appended to the tree's log from *offset*."""
+    measured = build_report.of_build(build_dir, offset, build_admission.state_dir(build_dir))
+    for line in measured.lines():
+        console.info(line)
+    console.info(f"Report: {measured.write(build_dir)}")
 
 
 def _enter_memory_limit(limit_gb: float | None) -> bool:
@@ -304,23 +351,24 @@ def _enter_memory_limit(limit_gb: float | None) -> bool:
 
 def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0,
          memory_limit_gb: float | None = None, cli: bool = False,
-         jobs: int | None = None) -> int:
+         jobs: int | None = None, build_type: BuildType = K_DEFAULT_TYPE,
+         sanitizer: Sanitizer | None = None) -> int:
     """Run the test suite via CTest labels.
 
     For GTest-level knobs (per-case filtering, shuffle, break-on-failure) run
     a module's program directly: sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*
 
     ``package`` is the one suite that is not a CTest label; it delegates to
-    :func:`test_package`, which builds a separate project.
+    :func:`test_package`, which builds a separate project. The tests run in the tree of
+    *build_type* and *sanitizer*.
     """
     console.header("Project Test")
     root = find_project_root()
     if cli:
         return test_cli(root, suite)
     cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sa build` first.")
+    build_dir = _built_tree(root, build_type, sanitizer)
+    if build_dir is None:
         return 1
 
     env = _run_env(cfg, build_dir)
@@ -491,7 +539,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     @param env The snapshotted build environment.
     @return 0 when the consumer builds and runs, non-zero otherwise.
     """
-    build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or "Release"
+    build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or K_DEFAULT_BUILD_TYPE
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
@@ -543,7 +591,8 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         return rc
 
     console.info("Building the consumer...")
-    rc = _DRIVER.compile(cfg, consumer, cwd=root, env=env, config=build_type)
+    rc = _DRIVER.compile(cfg, consumer, cwd=root, env=env, config=build_type,
+                         jobs=build_admission.hardware_threads())
     if rc != 0:
         console.error(
             "The consumer failed to compile against the installed headers.\n"
@@ -576,14 +625,14 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
 
 def run(target: str | None = None, sort: bool = False,
-        app_args: list[str] | None = None, memory_limit_gb: float | None = None) -> int:
-    """Runs a built executable from the project root, forwarding *app_args* to it."""
+        app_args: list[str] | None = None, memory_limit_gb: float | None = None,
+        build_type: BuildType = K_DEFAULT_TYPE, sanitizer: Sanitizer | None = None) -> int:
+    """Runs an executable of the tree of *build_type* and *sanitizer*, forwarding *app_args*."""
     console.header("Project Run")
     root = find_project_root()
     cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sa build` first.")
+    build_dir = _built_tree(root, build_type, sanitizer)
+    if build_dir is None:
         return 1
 
     env = _run_env(cfg, build_dir)
@@ -606,11 +655,12 @@ def demo_target(name: str) -> str | None:
 
 
 def is_built(target: str) -> bool:
-    """Returns whether the executable *target* exists in this checkout's build tree."""
+    """Returns whether the executable *target* exists in this checkout's default tree."""
     try:
-        build_dir = _build_dir(find_project_root())
+        root = find_project_root()
     except SystemExit:
         return False
+    build_dir = build_trees.build_dir(root, K_DEFAULT_TYPE.value)
     return build_dir.is_dir() and discovery.match_by_name(build_dir, target) is not None
 
 
@@ -626,18 +676,17 @@ def demo(name: str, app_args: Sequence[str] | None = None) -> int:
 
 
 def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
-    """Runs the built program *target* from the project root, forwarding *app_args* to it.
+    """Runs the built program *target* of the default tree, forwarding *app_args* to it.
 
     Returns:
-        1 when build/ or the program is missing, otherwise the program's own exit code.
+        1 when the tree or the program is missing, otherwise the program's own exit code.
     """
     console.header(title)
 
     root = find_project_root()
     cfg = load_config()
-    build_dir = _build_dir(root)
-    if not build_dir.is_dir():
-        console.error("build/ not found. Run `sa build` first.")
+    build_dir = _built_tree(root, K_DEFAULT_TYPE)
+    if build_dir is None:
         return 1
 
     exe = discovery.match_by_name(build_dir, target)
@@ -652,9 +701,9 @@ def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
 
 
 def clean() -> int:
-    """Removes the build tree and returns 1 when it is still there afterwards."""
+    """Removes every build tree and returns 1 when the folder is still there afterwards."""
     console.header("Project Clean")
-    return _clean_build_tree(_build_dir(find_project_root()))
+    return _clean_build_tree(_build_root(find_project_root()))
 
 
 def doxygen() -> int:
@@ -662,7 +711,7 @@ def doxygen() -> int:
     console.header("Doxygen Generation")
     root = find_project_root()
     cfg = load_config()
-    build_dir = _build_dir(root)
+    build_dir = _build_root(root)
     env = load_build_env(cfg, build_dir)
     (build_dir / "docs").mkdir(parents=True, exist_ok=True)
     return _DRIVER.doxygen(cfg, root / ".config" / "doxygen" / "Doxyfile", root, env)

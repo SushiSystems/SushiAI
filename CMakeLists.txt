@@ -21,6 +21,10 @@ include(Toolchain)  # pick the default SYCL compiler (clang++) before the probe
 
 project(SushiAI VERSION 0.1.0 LANGUAGES CXX C)
 
+# The C runtime and the imported-package mapping come before the first find_package, which reads
+# the mapping when it creates an imported target.
+include(SushiAIAbiPinning)
+
 # --- Post-project: Sushi libraries as packages --------------------------------
 # The CLI builds or reuses a package of each library and passes <Package>_DIR; nothing is built
 # from another repository in this tree. See cmake/Log.cmake, Profiler.cmake, Runtime.cmake and

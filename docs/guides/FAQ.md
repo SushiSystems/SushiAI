@@ -58,15 +58,15 @@ then run:
 ```bash
 hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
 sa setup                  # provisions the toolchain and writes cli/config.local.toml
-sa build                  # release build, the default
+sa build                  # debug build, the default
 sa test                   # unit, integration and regression suites
 sa run sushiai_core_graph_tests   # one module's cases in one process
 ```
 
 `sa` and `sushiai` are the same program. If a library checkout cannot be found, `sa build` stops
 and names which one; `sa config` prints what the CLI resolved and where each
-value came from. `sa build --type debug` and `sa build --type relwithdebinfo` select the other
-build types, and `-D VAR=VALUE` passes a CMake cache variable through to the configure step.
+value came from. `sa build --type release` and `sa build --type relwithdebinfo` select the other
+build types, each in a tree of its own, and `-D VAR=VALUE` passes a CMake cache variable through to the configure step.
 
 The [CLI guide](CLI_GUIDE.md) covers every command. The root [README](../../README.md) also
 gives a one-script quick start and the plain CMake invocation for building without the CLI.

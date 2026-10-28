@@ -55,7 +55,7 @@ checkout cannot be found, it fails immediately and names which one. `sa config` 
 thing to run when that happens.
 
 ```bash
-sa build --type release
+sa build
 sa test --label all
 ```
 

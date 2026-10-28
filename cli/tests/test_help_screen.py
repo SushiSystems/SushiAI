@@ -30,7 +30,7 @@ K_FORWARDING = {"train", "inference", "import", "tokenize", "profile"}
 K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("demo", "mlp")]
 
 K_EXAMPLES = {
-    "build": "sa build --type debug",
+    "build": "sa build --type release",
     "test": "sa test --label small",
     "run": "sa run --sort",
     "clean": "sa clean",

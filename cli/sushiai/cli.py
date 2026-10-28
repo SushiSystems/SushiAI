@@ -27,7 +27,7 @@ from .config import PROFILE, find_project_root, load_config
 from .services import profiler as profiler_svc
 from .services import project as project_svc
 from .services.diag import DIAGNOSTICS
-from .services.project import BuildType, Suite
+from .services.project import K_DEFAULT_TYPE, BuildType, Suite
 from .services.sanitizer import Sanitizer
 
 K_DISTRIBUTION = "sushiai-cli"
@@ -78,17 +78,20 @@ def _print_error(message: str) -> None:
 @app.command(
     "build",
     rich_help_panel=K_PROJECT,
-    epilog="sa build  # Build the release configuration\n"
-           "sa build --type debug\n"
+    epilog="sa build  # Build the debug configuration, in build/default-debug\n"
+           "sa build --type release  # Its own tree, build/default-release\n"
+           "sa build --sanitize address-undefined  # build/asan-debug\n"
            "sa build --clean  # Wipe the build tree first\n"
+           "sa build --report  # Measure time and memory per kind of edge\n"
            "sa build --distributed  # Also build the distributed layer and sushiai_worker\n"
            "sa build --sycl-targets \"spir64;nvidia_gpu_sm_86\"  # AOT device targets\n"
            "sa build -D SA_BUILD_TESTS=OFF  # Pass a CMake cache variable through",
 )
 def build(
     type: BuildType = typer.Option(
-        BuildType.release, "--type", "-t", case_sensitive=False,
-        help="Build type: release | debug | relwithdebinfo."),
+        K_DEFAULT_TYPE, "--type", "-t", case_sensitive=False,
+        help="Build type: release | debug | relwithdebinfo. Each type has its own tree, "
+             "build/<name>-<type>."),
     clean: bool = typer.Option(
         False, "--clean", help="Delete the build tree before configuring."),
     define: Optional[list[str]] = typer.Option(
@@ -98,7 +101,7 @@ def build(
     sanitize: Optional[Sanitizer] = typer.Option(
         None, "--sanitize", case_sensitive=False,
         help="Sanitizers for host code: none | address-undefined | thread. "
-             "Kept in the build tree until set again."),
+             "A set builds in a tree of its own, build/asan-<type> or build/tsan-<type>."),
     sycl_targets: Optional[str] = typer.Option(
         None, "--sycl-targets", metavar="LIST",
         help="Ahead-of-time device targets, e.g. \"spir64;nvidia_gpu_sm_86\". They go to the "
@@ -109,6 +112,14 @@ def build(
         help="Build the distributed layer of the stack, modules/core/distribution and "
              "sushiai_worker, or stop building them. Left out, the setting of the last "
              "build stays."),
+    report: bool = typer.Option(
+        False, "--report",
+        help="After the build, print the count and wall time per kind of edge, the peak "
+             "memory and the slowest edges, and write build_report.json into the tree."),
+    jobs: Optional[int] = typer.Option(
+        None, "--jobs", "-j", min=1,
+        help="Compile jobs. When omitted the hardware threads run, and "
+             "CMAKE_BUILD_PARALLEL_LEVEL is honoured."),
 ) -> None:
     """Configure and build the project.
 
@@ -116,7 +127,8 @@ def build(
     flag on a later run does not unset them; pass VAR= to clear one, or
     --clean to start over.
     """
-    raise typer.Exit(project_svc.build(type, clean, define, sanitize, distributed, sycl_targets))
+    raise typer.Exit(project_svc.build(type, clean, define, sanitize, distributed, sycl_targets,
+                                       report=report, jobs=jobs))
 
 
 @app.command(
@@ -124,6 +136,7 @@ def build(
     rich_help_panel=K_PROJECT,
     epilog="sa test  # Run the small and medium tests\n"
            "sa test --label small\n"
+           "sa test --type release  # Test build/default-release\n"
            "sa test --filter Small_Version --repeat 5  # Hunt a flaky test",
 )
 def test(
@@ -148,6 +161,12 @@ def test(
              "Defaults to SA_MEMORY_LIMIT_GB, or half of the machine's memory."),
     cli: bool = typer.Option(
         False, "--cli", help="Run this CLI's own pytest tests of the label instead."),
+    type: BuildType = typer.Option(
+        K_DEFAULT_TYPE, "--type", "-t", case_sensitive=False,
+        help="The build type whose tree runs the tests: release | debug | relwithdebinfo."),
+    sanitize: Optional[Sanitizer] = typer.Option(
+        None, "--sanitize", case_sensitive=False,
+        help="Run the tests of the sanitizer tree: address-undefined | thread."),
 ) -> None:
     """Run the test suite via CTest labels.
 
@@ -157,7 +176,8 @@ def test(
     --label package is the exception: it runs no CTest at all, so --filter,
     --repeat and --jobs are rejected there.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli, jobs))
+    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli, jobs,
+                                      build_type=type, sanitizer=sanitize))
 
 
 @app.command(
@@ -165,6 +185,7 @@ def test(
     rich_help_panel=K_PROJECT,
     epilog="sa run  # Run the configured default target\n"
            "sa run sushiai_example\n"
+           "sa run --type release sushiai_example  # Run from build/default-release\n"
            "sa run --sort  # Pick an executable from a list\n"
            "sa run sushiai_core_version_tests -- --gtest_filter=Small_Version.*  # Pass the rest on",
     context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
@@ -179,10 +200,17 @@ def run(
         None, "--memory-limit", min=0.0, metavar="GB",
         help="Ceiling on the memory the run may commit, in gigabytes; 0 applies none. "
              "Defaults to SA_MEMORY_LIMIT_GB, or half of the machine's memory."),
+    type: BuildType = typer.Option(
+        K_DEFAULT_TYPE, "--type", "-t", case_sensitive=False,
+        help="The build type whose tree holds the executable: release | debug | relwithdebinfo."),
+    sanitize: Optional[Sanitizer] = typer.Option(
+        None, "--sanitize", case_sensitive=False,
+        help="Run from the sanitizer tree: address-undefined | thread."),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
     raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args),
-                                     memory_limit_gb=memory_limit))
+                                     memory_limit_gb=memory_limit, build_type=type,
+                                     sanitizer=sanitize))
 
 
 @app.command(
@@ -191,7 +219,7 @@ def run(
     epilog="sa clean",
 )
 def clean() -> None:
-    """Remove the build/ tree, the generated API reference included."""
+    """Remove build/, every build tree and the generated API reference included."""
     raise typer.Exit(project_svc.clean())
 
 

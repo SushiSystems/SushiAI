@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from checkout_cli import run_cli
+from checkout_cli import K_DEFAULT_TREE, run_cli
 
 from sushiai.services import discovery
 
@@ -24,7 +24,7 @@ pytestmark = pytest.mark.medium
 
 # cli/tests/test_tokenize.py -> cli/tests -> cli -> <repo root>
 K_REPO_ROOT = Path(__file__).resolve().parents[2]
-K_BUILD_DIR = K_REPO_ROOT / "build"
+K_BUILD_DIR = K_DEFAULT_TREE
 K_TOKENIZE_TARGET = "sushiai_tokenize"
 
 # 256 bytes, end-of-text and three merges.

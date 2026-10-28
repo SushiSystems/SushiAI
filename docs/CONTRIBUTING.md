@@ -37,7 +37,7 @@ shared bundled SYCL toolchain:
 
 ```bash
 hub install-cli sushiai   # puts `sa` / `sushiai` on PATH
-sa build                 # Release (default)
+sa build                 # Debug (default), in build/default-debug
 sa test                  # functional suite
 ```
 
@@ -63,8 +63,8 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
 ## 3. Building and testing your change
 
 ```bash
-sa build                          # Release
-sa build --type debug             # Debug
+sa build                          # Debug, in build/default-debug
+sa build --type release           # Release, in build/default-release
 sa build --clean                  # wipe the build tree first
 sa build -D SB_SYCL_TARGETS=...   # any CMake cache variable, repeatable
 

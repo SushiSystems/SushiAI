@@ -91,16 +91,28 @@ run or a launched program is running stops it and exits 130.
 ## `sa build`
 
 ```bash
-sa build                  # Release build (the default)
-sa build --type debug     # Debug build
+sa build                  # Debug build (the default), in build/default-debug
+sa build --type release   # Release build, in build/default-release
 sa build --type relwithdebinfo
 sa build --clean          # delete the build tree first, then build from scratch
+sa build --report         # print the time and memory per kind of edge after the build
+sa build --jobs 4         # compile with four jobs; left out, the hardware threads
 sa build --distributed    # build the distributed layer and sushiai_worker
 sa build --no-distributed # stop building them
-sa build --sanitize address-undefined   # ASan and UBSan on host code; thread for TSan, none to clear
+sa build --sanitize address-undefined   # ASan and UBSan on host code, in build/asan-debug; thread for TSan, in build/tsan-debug
 ```
 
-The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`.
+The `--type` (`-t`) option accepts `release`, `debug`, or `relwithdebinfo`. Each type has a tree
+of its own, `build/<name>-<type>`, where `<name>` is `default`, `asan` or `tsan`. A configure
+never gives an existing tree another type, so switching types never recompiles a tree; a tree
+configured as another type, or a `-D CMAKE_BUILD_TYPE=...`, stops the build with a message.
+`sa test` and `sa run` take `--type` and `--sanitize` too and read the tree they name; `sa
+train`, `sa inference`, `sa import`, `sa tokenize` and `sa demo` read the default Debug tree.
+
+Every configure runs the compiles and links through the memory gate of sushicore, which admits
+an edge only when its measured peak fits in the free memory. The gate keeps its state in
+`build/build_gate/`; a file named `stop` there makes the build refuse. `--report` prints the
+measurements and writes `build_report.json` into the tree.
 
 `--distributed` sets `SA_ENABLE_DISTRIBUTED=ON` for SushiAI and forwards it to SushiRuntime and
 SushiBLAS, which builds `modules/core/distribution` and `sushiai_worker`. `--no-distributed` sets
@@ -113,7 +125,7 @@ builds a missing one once through the library's own CLI, reuses it afterwards, p
 their distributed layers. If a checkout is missing, `sa build` stops with a message that names
 it. `sushiruntime_dir` / `sushiblas_dir` in `cli/config.local.toml` (or `SUSHIRUNTIME_DIR` /
 `SUSHIBLAS_DIR` in the environment) point a package build at another checkout; they are not
-passed to CMake. The folders of the packages are written to `build/.sushiai_package_dirs.json`,
+passed to CMake. The folders of the packages are written to `.sushiai_package_dirs.json` in the tree,
 and `sa test`, `sa run`, `sa train`, `sa inference` and the demos put them first on the library
 search path.
 
@@ -154,6 +166,7 @@ sa test --label large            # a real GPU or a long run
 sa test --label quarantined      # the intermittent tests KNOWN_ISSUES.md names
 sa test --label all              # every CTest test
 sa test --label package          # the out-of-tree package consumer (no CTest)
+sa test --type release           # the tests of build/default-release
 sa test --cli                    # the CLI's own pytest tests, small and medium
 ```
 
@@ -176,10 +189,10 @@ configured with `-D SA_BUILD_TESTS=OFF` has no SushiAI tests registered.
 ### `--label package`
 
 Every other suite is a CTest label. This one is not, and runs no CTest at all.
-It installs SushiAI to `build/package/prefix`, configures `tests/package/`
-into `build/package/consumer` against that prefix, builds it and runs it:
+It installs SushiAI to `package/prefix` of the tree, configures `tests/package/`
+into `package/consumer` of the tree against that prefix, builds it and runs it:
 the way a third party consumes the library, through `find_package(SushiAI)`,
-with no access to this source tree. Both intermediates live under `build/`,
+with no access to this source tree. Both intermediates live under the tree,
 so `sa clean` reclaims them.
 
 This is the only test in the repo that can see what `find_package(SushiAI)`
@@ -229,7 +242,7 @@ rather than package concerns:
   entry and the package folders removed so the staging is actually load-bearing rather than shadowed by
   the developer's environment.
 
-Both `build/package/prefix` and `build/package/consumer` are deleted before
+Both `package/prefix` and `package/consumer` of the tree are deleted before
 each run: a stale prefix would let a header deleted from the tree keep
 satisfying an include, and a stale consumer directory would let a DLL staged by
 an earlier run keep satisfying the loader.
@@ -267,6 +280,7 @@ Runs a built executable. With no target it runs the configured default
 ```bash
 sa run                                # run the default target
 sa run sushiai_example
+sa run --type release sushiai_example # run from build/default-release
 sa run --sort                         # interactively pick from the list of executables
 
 sa run sushiai_core_version_tests -- --gtest_filter='Small_Version.*'
@@ -376,13 +390,13 @@ Two deliberate choices:
 ## `sa clean` and `sa docs`
 
 ```bash
-sa clean       # remove the build/ tree
+sa clean       # remove build/, every build tree with it
 sa docs        # build the Doxygen API reference
 sa docs bundle --release 1.2.3   # pack the documentation bundle
 ```
 
 `sa clean` removes the generated API reference too, because it lives under
-`build/`. If the tree is still there afterwards, for example because a program
+`build/`. If the folder is still there afterwards, for example because a program
 holds a file in it open, the command names the tree and exits 1.
 
 `sa docs` was `sa doxygen`. The old word still runs, prints one notice naming

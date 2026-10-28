@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from checkout_cli import run_cli
+from checkout_cli import K_DEFAULT_TREE, run_cli
 
 pytestmark = pytest.mark.medium
 
@@ -37,7 +37,7 @@ _DEMO_ARGS = [
 ]
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_runs_and_reports_one_compile():
     """`sa demo mlp` exits 0 and reports exactly one compile."""
@@ -57,7 +57,7 @@ _PRECISION_CASES = [
 ]
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 @pytest.mark.parametrize("mode,expected", _PRECISION_CASES, ids=[c[0] for c in _PRECISION_CASES])
 def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
@@ -74,7 +74,7 @@ def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
     """`--loss-scale` is forwarded, reported, and changes no fp32 number."""
@@ -104,7 +104,7 @@ def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
     )
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_a_non_dyadic_loss_scale():
     """A scale that is not a power of two fails rather than rounding quietly."""
@@ -117,7 +117,7 @@ def test_sa_demo_mlp_rejects_a_non_dyadic_loss_scale():
     assert "power of two" in (completed.stdout + completed.stderr)
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_an_unknown_precision():
     """An unrecognised `--precision` value fails rather than falling back."""
@@ -137,7 +137,7 @@ _ACTIVATION_CASES = [
 ]
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 @pytest.mark.parametrize("activation,form", _ACTIVATION_CASES,
                          ids=[c[0] for c in _ACTIVATION_CASES])
@@ -153,7 +153,7 @@ def test_sa_demo_mlp_activation_flag_reaches_the_demo(activation, form):
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@pytest.mark.skipif(not (REPO_ROOT / "build").is_dir(),
+@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
                     reason="no build tree — run `sa build` first")
 def test_sa_demo_mlp_rejects_an_unknown_activation():
     """An unrecognised `--activation` value fails rather than falling back."""

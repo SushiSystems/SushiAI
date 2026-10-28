@@ -129,6 +129,23 @@ compiles no source of another repository and provisions nothing. This mirrors
 SushiEngine's `se` CLI and not SushiBLAS's `sb`, which still models an older oneAPI build
 from before SB-0 and SB-2.
 
+### Build trees and the gate
+
+`build()` names its tree with `services/build_trees.py`: `build/<name>-<type>`, where the name is
+`default`, or `asan` and `tsan` for the two sanitizer sets, so a sanitizer set is fixed by its
+tree. `K_DEFAULT_TYPE` is sushicore's `K_DEFAULT_BUILD_TYPE`, Debug. Before a configure,
+`refuse_another_build_type` stops a tree that was configured as another type and a `-D` that
+sets `CMAKE_BUILD_TYPE`, and `refuse_a_stopped_gate` stops a build while the gate's `stop` file
+exists. The configure appends the compiler and linker launcher entries of
+`build_admission.launcher_defines`, which run every edge through the memory gate, and the compile
+runs `hardware_threads()` jobs unless `--jobs` says otherwise. `--report` reads the ninja log
+from the offset taken before the compile and prints and writes the report.
+
+`test` and `run` take the tree from `--type` and `--sanitize`. The commands that forward their
+arguments to a program, `train`, `inference`, `import`, `tokenize` and `demo`, would take any
+option of their own as the program's, so they read the default tree. `clean` removes `build/`
+whole, the gate's state and the generated docs with the trees.
+
 ### Sizes and CTest labels
 
 `cmake/SushiAITestProgram.cmake` registers tests through `gtest_discover_tests` and gives each

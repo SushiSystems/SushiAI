@@ -36,7 +36,8 @@ because what needs guarding is the whole path from the CLI through the demo bina
 printed contract. A demo nobody runs stops being true, and this one's output is quoted in
 `docs/README.md`.
 
-The tests run this checkout's CLI through `checkout_cli.run_cli`, which starts
+They read the programs of the default tree, `checkout_cli.K_DEFAULT_TREE`, and skip when it
+is absent. The tests run this checkout's CLI through `checkout_cli.run_cli`, which starts
 `python -m sushiai` with `cli/` first on `PYTHONPATH`, so no `sa` on PATH takes part. They
 skip, and do not fail, when the tree has not been built, which is the state of a clean
 checkout. The C++ suite pins the same claim where it always
