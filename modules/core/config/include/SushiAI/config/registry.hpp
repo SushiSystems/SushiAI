@@ -31,23 +31,26 @@
 #include <cstddef>
 #include <string>
 #include <string_view>
-#include <SushiAI/failure/error.hpp>
+#include <SushiLog/text/text_format.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
     namespace Config
     {
         /**
-         * @brief Finds the entry named @p type, or throws listing what exists.
+         * @brief Finds the entry named @p type, or refuses listing what exists.
          * @param table Registry constant table.
          * @param type Discriminator string to locate.
          * @param what Diagnostic label describing entry category.
-         * @return Reference to matching registry entry.
-         * @throws Error If @p type is not found in @p table.
+         * @return The matching registry entry, or InvalidDescription when @p type is not found
+         *         in @p table.
          */
         template<typename Entry, std::size_t N>
-        const Entry& find_entry(const std::array<Entry, N>& table,
-                                std::string_view type, std::string_view what)
+        [[nodiscard]] Result<const Entry&> find_entry(const std::array<Entry, N>& table,
+                                                      std::string_view type,
+                                                      std::string_view what)
         {
             for (const Entry& entry : table)
                 if (entry.type == type) return entry;
@@ -61,8 +64,11 @@ namespace SushiAI
                 available += "'";
             }
 
-            SA_THROW_IF(true, "unknown {} '{}'; this build has: {}", what, type, available);
-            return table[0];   // unreachable: SA_THROW_IF(true) always throws
+            return Status::from_message(StatusCode::InvalidDescription, [&]()
+            {
+                return SushiLog::format_text("unknown {} '{}'; this build has: {}", what, type,
+                                             available);
+            });
         }
 
     } // namespace Config

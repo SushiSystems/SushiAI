@@ -26,7 +26,9 @@
  */
 
 #include <SushiAI/config/value.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 #include <fstream>
 #include <iterator>
@@ -173,7 +175,7 @@ namespace SushiAI
 
         Value Value::object(std::vector<std::string> keys, std::vector<Value> values)
         {
-            SA_THROW_IF(keys.size() != values.size(),
+            SA_FATAL_IF(keys.size() != values.size(),
                         "a config object was built from {} keys and {} values",
                         keys.size(), values.size());
 
@@ -184,40 +186,40 @@ namespace SushiAI
             return node;
         }
 
-        bool Value::as_bool(std::string_view context) const
+        Result<bool> Value::as_bool(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::Bool,
-                        "{} must be a boolean, but it is {}", context, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::Bool, StatusCode::InvalidDescription,
+                       "{} must be a boolean, but it is {}", context, kind_name(kind_));
             return bool_;
         }
 
-        std::int64_t Value::as_int(std::string_view context) const
+        Result<std::int64_t> Value::as_int(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::Int,
-                        "{} must be a whole number, but it is {}", context, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::Int, StatusCode::InvalidDescription,
+                       "{} must be a whole number, but it is {}", context, kind_name(kind_));
             return int_;
         }
 
-        double Value::as_real(std::string_view context) const
+        Result<double> Value::as_real(std::string_view context) const
         {
             if (kind_ == Kind::Int) return static_cast<double>(int_);
 
-            SA_THROW_IF(kind_ != Kind::Real,
-                        "{} must be a number, but it is {}", context, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::Real, StatusCode::InvalidDescription,
+                       "{} must be a number, but it is {}", context, kind_name(kind_));
             return real_;
         }
 
-        const std::string& Value::as_string(std::string_view context) const
+        Result<const std::string&> Value::as_string(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::String,
-                        "{} must be a string, but it is {}", context, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::String, StatusCode::InvalidDescription,
+                       "{} must be a string, but it is {}", context, kind_name(kind_));
             return string_;
         }
 
-        const std::vector<Value>& Value::as_array(std::string_view context) const
+        Result<const std::vector<Value>&> Value::as_array(std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::Array,
-                        "{} must be an array, but it is {}", context, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::Array, StatusCode::InvalidDescription,
+                       "{} must be an array, but it is {}", context, kind_name(kind_));
             return array_;
         }
 
@@ -230,18 +232,20 @@ namespace SushiAI
             return false;
         }
 
-        const Value& Value::at(std::string_view key, std::string_view context) const
+        Result<const Value&> Value::at(std::string_view key, std::string_view context) const
         {
-            SA_THROW_IF(kind_ != Kind::Object,
-                        "{} must be an object carrying '{}', but it is {}",
-                        context, key, kind_name(kind_));
+            SA_FAIL_IF(kind_ != Kind::Object, StatusCode::InvalidDescription,
+                       "{} must be an object carrying '{}', but it is {}",
+                       context, key, kind_name(kind_));
 
             for (std::size_t i = 0; i < keys_.size(); ++i)
                 if (keys_[i] == key) return values_[i];
 
-            SA_THROW_IF(true, "{} has no '{}'; it carries {}",
-                        context, key, quoted_list(keys_));
-            return values_[0];   // unreachable: SA_THROW_IF(true) always throws
+            return Status::from_message(StatusCode::InvalidDescription, [&]()
+            {
+                return SushiLog::format_text("{} has no '{}'; it carries {}",
+                                             context, key, quoted_list(keys_));
+            });
         }
 
         const Value& Value::at_or(std::string_view key, const Value& fallback) const noexcept
@@ -253,11 +257,11 @@ namespace SushiAI
             return fallback;
         }
 
-        void Value::reject_unknown_keys(std::string_view context,
-                                        SushiRuntime::span<const std::string_view> allowed) const
+        Status Value::reject_unknown_keys(std::string_view context,
+                                          SushiRuntime::span<const std::string_view> allowed) const
         {
             // Non-object nodes contain no keys to validate against the allowed list.
-            if (kind_ != Kind::Object) return;
+            if (kind_ != Kind::Object) return Status();
 
             for (const std::string& key : keys_)
             {
@@ -265,13 +269,14 @@ namespace SushiAI
                 for (std::size_t i = 0; i < allowed.size(); ++i)
                     if (allowed[i] == key) { permitted = true; break; }
 
-                SA_THROW_IF(!permitted,
-                            "{} does not accept '{}'; it accepts {}. An unknown key is "
-                            "an error rather than an ignored one, because a typed key "
-                            "silently falling back to a default is a wrong answer with "
-                            "no symptom.",
-                            context, key, quoted_list(allowed));
+                SA_FAIL_IF(!permitted, StatusCode::InvalidDescription,
+                           "{} does not accept '{}'; it accepts {}. An unknown key is "
+                           "an error rather than an ignored one, because a typed key "
+                           "silently falling back to a default is a wrong answer with "
+                           "no symptom.",
+                           context, key, quoted_list(allowed));
             }
+            return Status();
         }
 
         Value Value::without(std::string_view key) const
@@ -292,28 +297,30 @@ namespace SushiAI
             return Value::object(std::move(keys), std::move(values));
         }
 
-        void require_version(const Value& root, std::string_view key,
-                             std::int64_t expected, std::string_view origin)
+        Status require_version(const Value& root, std::string_view key,
+                               std::int64_t expected, std::string_view origin)
         {
-            SA_THROW_IF(root.kind() != Kind::Object,
-                        "'{}' must be an object whose first key is '{}', but it is {}",
-                        origin, key, kind_name(root.kind()));
+            SA_FAIL_IF(root.kind() != Kind::Object, StatusCode::InvalidFile,
+                       "'{}' must be an object whose first key is '{}', but it is {}",
+                       origin, key, kind_name(root.kind()));
 
-            SA_THROW_IF(!root.has(key),
-                        "'{}' has no '{}'. Every SushiAI configuration document leads "
-                        "with its version, so that a format change is an error rather "
-                        "than a misread.", origin, key);
+            SA_FAIL_IF(!root.has(key), StatusCode::InvalidFile,
+                       "'{}' has no '{}'. Every SushiAI configuration document leads "
+                       "with its version, so that a format change is an error rather "
+                       "than a misread.", origin, key);
 
             const std::string context = "'" + std::string(origin) + "'s '"
                                       + std::string(key) + "'";
-            const std::int64_t version = root.at(key, origin).as_int(context);
+            SA_TRY_ASSIGN(const Value& stated, root.at(key, origin));
+            SA_TRY_ASSIGN(const std::int64_t version, stated.as_int(context));
 
-            SA_THROW_IF(version != expected,
-                        "'{}' is a {} version {} document; this build reads version {}",
-                        origin, key, version, expected);
+            SA_FAIL_IF(version != expected, StatusCode::InvalidFile,
+                       "'{}' is a {} version {} document; this build reads version {}",
+                       origin, key, version, expected);
+            return Status();
         }
 
-        Value parse_json(std::string_view text, std::string_view origin)
+        Result<Value> parse_json(std::string_view text, std::string_view origin)
         {
             try
             {
@@ -322,19 +329,23 @@ namespace SushiAI
             }
             catch (const nlohmann::json::exception& error)
             {
-                SA_THROW_IF(true, "'{}' is not valid JSON: {}", origin, error.what());
+                return Status::from_message(StatusCode::InvalidFile, [&]()
+                {
+                    return SushiLog::format_text("'{}' is not valid JSON: {}", origin,
+                                                 error.what());
+                });
             }
-            return Value{};   // unreachable: SA_THROW_IF(true) always throws
         }
 
-        Value parse_json_file(const std::filesystem::path& path)
+        Result<Value> parse_json_file(const std::filesystem::path& path)
         {
             std::ifstream in(path, std::ios::binary);
-            SA_THROW_IF(!in, "could not open '{}' for reading", path.string());
+            SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
+                       path.string());
 
             const std::string text{std::istreambuf_iterator<char>(in),
                                    std::istreambuf_iterator<char>()};
-            SA_THROW_IF(in.bad(), "failed reading '{}'", path.string());
+            SA_FAIL_IF(in.bad(), StatusCode::InvalidFile, "failed reading '{}'", path.string());
 
             return parse_json(text, path.string());
         }

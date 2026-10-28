@@ -197,7 +197,7 @@ namespace SushiAI
             Status write_array(std::string& out, const Value& value, std::size_t depth,
                                std::size_t expanded_depth)
             {
-                const std::vector<Value>& entries = value.as_array(K_WRITTEN_VALUE);
+                SA_TRY_ASSIGN(const std::vector<Value>& entries, value.as_array(K_WRITTEN_VALUE));
                 if (entries.empty())
                 {
                     out += "[]";
@@ -267,8 +267,8 @@ namespace SushiAI
                     append_string(out, keys[i]);
                     out += ": ";
 
-                    const Status written = write_value(out, value.at(keys[i], K_WRITTEN_VALUE),
-                                                       depth + 1, expanded_depth);
+                    SA_TRY_ASSIGN(const Value& member, value.at(keys[i], K_WRITTEN_VALUE));
+                    const Status written = write_value(out, member, depth + 1, expanded_depth);
                     if (!written.is_ok())
                         return SA_ANNOTATE(written, "key '{}'", keys[i]);
                 }
@@ -292,16 +292,22 @@ namespace SushiAI
                         return Status();
 
                     case Kind::Bool:
-                        out += value.as_bool(K_WRITTEN_VALUE) ? "true" : "false";
+                    {
+                        SA_TRY_ASSIGN(const bool flag, value.as_bool(K_WRITTEN_VALUE));
+                        out += flag ? "true" : "false";
                         return Status();
+                    }
 
                     case Kind::Int:
-                        append_integer(out, value.as_int(K_WRITTEN_VALUE));
+                    {
+                        SA_TRY_ASSIGN(const std::int64_t whole, value.as_int(K_WRITTEN_VALUE));
+                        append_integer(out, whole);
                         return Status();
+                    }
 
                     case Kind::Real:
                     {
-                        const double real = value.as_real(K_WRITTEN_VALUE);
+                        SA_TRY_ASSIGN(const double real, value.as_real(K_WRITTEN_VALUE));
                         SA_FAIL_IF(!std::isfinite(real), StatusCode::InvalidDescription,
                                    "a number is {}, and JSON spells finite numbers only",
                                    std::isnan(real) ? "not a number" : "infinite");
@@ -311,7 +317,7 @@ namespace SushiAI
 
                     case Kind::String:
                     {
-                        const std::string& text = value.as_string(K_WRITTEN_VALUE);
+                        SA_TRY_ASSIGN(const std::string& text, value.as_string(K_WRITTEN_VALUE));
                         SA_FAIL_IF(!is_utf8(text), StatusCode::InvalidDescription,
                                    "a string holds bytes that are not UTF-8");
                         append_string(out, text);

@@ -22,8 +22,7 @@ run state a run goes on from. `check_start` returns `InvalidDescription` for a f
 both. `TrainSpec::seed` holds the optional integer `seed` of a training file, 0 when the file
 has none; a value of another kind is refused by `parse_train` with the key. `read_run_seed`
 returns it as the `uint64_t` a training graph takes, or `InvalidDescription` with the file and
-the value when it is negative. The range check sits there and not in `parse_train` because
-`parse_train` reports by throwing and a new failure site returns a status. A `data` block
+the value when it is negative. A `data` block
 that spells `reader` and no `type` parses into a `DataSpec` whose type is `K_READER_DATA_TYPE` and
 whose attributes are the whole block; any other block needs a `type`, as before.
 `write_json` turns a `Value` back into JSON text and `write_model` turns a `ModelSpec`
@@ -45,7 +44,7 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/config/value.hpp` | `Kind`, `kind_name`, `Value` with its static factories `boolean`, `integer`, `real`, `string`, `array` and `object`, and its accessors `as_bool`, `as_int`, `as_real`, `as_string`, `as_array`, `has`, `at`, `at_or`, `reject_unknown_keys`, `without`, `require_version`, `parse_json`, `parse_json_file` |
+| `SushiAI/config/value.hpp` | `Kind`, `kind_name`, `Value` with its static factories `boolean`, `integer`, `real`, `string`, `array` and `object`, and its accessors `as_bool`, `as_int`, `as_real`, `as_string`, `as_array`, `has`, `at`, `at_or`, `keys`, `values`, `reject_unknown_keys`, `without`, `require_version`, `parse_json`, `parse_json_file` |
 | `SushiAI/config/json_writer.hpp` | `K_JSON_EXPANDED_DEPTH`, `write_json` |
 | `SushiAI/config/data_fit.hpp` | `fit_data_to_model` |
 | `SushiAI/config/model_config.hpp` | `K_MODEL_VERSION`, `K_FIT_RESIZE`, `K_FIT_LETTERBOX`, `K_MODEL_INPUT`, `SourceSpec`, `OutputSpec`, `LayerSpec`, `ModelSpec`, `parse_model`, `load_model` |
@@ -92,10 +91,18 @@ The parser is the SAX interface of `nlohmann_json`, 3.12.0 as installed; its typ
 `tests/core/config/test_json_events.cpp` covers the order of the events, a document longer than the buffer,
 a handler that stops and each refusal.
 
-## Reading a section without throwing
+## Reading a document
 
-`Value::as_int` and its siblings throw. A module whose reader returns a `Status` checks the
-kind first, and `section_reader.hpp` holds those checks once. `SectionReader(section, where)`
+Every read of a document returns a status. `Value::as_bool`, `as_int`, `as_real`, `as_string`,
+`as_array` and `at` return a `Result`, `reject_unknown_keys` and `require_version` return a
+`Status`, and `parse_json`, `parse_json_file`, `parse_model`, `load_model`, `parse_train`,
+`load_train`, `parse_data`, `load_data` and `find_entry` return a `Result`. A kind that does not fit
+and a key that is absent are `InvalidDescription`. A text that is no JSON, a version this build
+does not read and a missing version key are `InvalidFile`; a file that cannot be opened is
+`FileNotFound`. `Value::object` holds a precondition: the two vectors have one length, and it
+stops the process otherwise.
+
+`section_reader.hpp` holds the reads of one object once. `SectionReader(section, where)`
 binds an object and the name a refusal gives it; `member_of` and `entry_of` build the names of
 a key and of a list entry from it.
 

@@ -34,7 +34,7 @@
 #include <vector>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 
 namespace SushiAI
@@ -129,18 +129,18 @@ namespace SushiAI
          * @brief Parses a model document of any version this build reads into a @ref ModelSpec.
          * @param root Parsed configuration value tree; a version 1 tree is upgraded in memory.
          * @param origin Context description for diagnostics.
-         * @return Parsed model specification.
+         * @return The parsed specification; InvalidFile for a version this build does not read,
+         *         InvalidDescription for any other wrong content.
          */
-        ModelSpec parse_model(const Value& root, std::string_view origin);
+        [[nodiscard]] Result<ModelSpec> parse_model(const Value& root, std::string_view origin);
 
         /**
          * @brief Reads, parses and validates the model file at @p path.
          * @param path The file to read.
-         * @return The spec.
-         * @throws Error If the file cannot be read, is not valid JSON, or is
-         *         not a valid model document.
+         * @return The spec; FileNotFound or InvalidFile when the file cannot be read or is not
+         *         valid JSON, else what parse_model returns.
          */
-        ModelSpec load_model(const std::filesystem::path& path);
+        [[nodiscard]] Result<ModelSpec> load_model(const std::filesystem::path& path);
 
     } // namespace Config
 } // namespace SushiAI

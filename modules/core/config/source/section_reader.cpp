@@ -34,15 +34,6 @@ namespace SushiAI
 {
     namespace Config
     {
-        namespace
-        {
-            /** @brief Reports whether @p kind is a whole number or a real. */
-            [[nodiscard]] bool is_number(Kind kind) noexcept
-            {
-                return kind == Kind::Int || kind == Kind::Real;
-            }
-        } // namespace
-
         std::string member_of(std::string_view where, std::string_view key)
         {
             std::string text(where);
@@ -71,16 +62,11 @@ namespace SushiAI
 
         Result<double> read_real(const Value& member, std::string_view where)
         {
-            SA_FAIL_IF(!is_number(member.kind()), StatusCode::InvalidDescription,
-                       "{} must be a number, but it is {}", where, kind_name(member.kind()));
             return member.as_real(where);
         }
 
         Result<std::int64_t> read_whole(const Value& member, std::string_view where)
         {
-            SA_FAIL_IF(member.kind() != Kind::Int, StatusCode::InvalidDescription,
-                       "{} must be a whole number, but it is {}", where,
-                       kind_name(member.kind()));
             return member.as_int(where);
         }
 
@@ -97,16 +83,14 @@ namespace SushiAI
 
         Result<const std::string*> read_string(const Value& member, std::string_view where)
         {
-            SA_FAIL_IF(member.kind() != Kind::String, StatusCode::InvalidDescription,
-                       "{} must be a string, but it is {}", where, kind_name(member.kind()));
-            return &member.as_string(where);
+            SA_TRY_ASSIGN(const std::string& text, member.as_string(where));
+            return &text;
         }
 
         Result<const std::vector<Value>*> read_array(const Value& member, std::string_view where)
         {
-            SA_FAIL_IF(member.kind() != Kind::Array, StatusCode::InvalidDescription,
-                       "{} must be an array, but it is {}", where, kind_name(member.kind()));
-            return &member.as_array(where);
+            SA_TRY_ASSIGN(const std::vector<Value>& entries, member.as_array(where));
+            return &entries;
         }
 
         SectionReader::SectionReader(const Value& section, std::string_view where) noexcept
@@ -145,8 +129,8 @@ namespace SushiAI
                 return Status();
 
             const std::string where = member(key);
-            SA_TRY_ASSIGN(const std::string* const stated,
-                          read_string(section_->at(key, where), where));
+            SA_TRY_ASSIGN(const Value& member_value, section_->at(key, where));
+            SA_TRY_ASSIGN(const std::string* const stated, read_string(member_value, where));
             SA_FAIL_IF(*stated != expected, StatusCode::InvalidDescription,
                        "{} is '{}'; {} states '{}'", where, *stated, what, expected);
             return Status();
@@ -166,7 +150,8 @@ namespace SushiAI
         {
             SA_FAIL_IF(!section_->has(key), StatusCode::InvalidDescription, "{} has no '{}'",
                        where_, key);
-            return &section_->at(key, where_);
+            SA_TRY_ASSIGN(const Value& found, section_->at(key, where_));
+            return &found;
         }
 
         Result<const Value*> SectionReader::find_of(std::string_view key, Kind kind) const

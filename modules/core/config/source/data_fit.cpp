@@ -54,9 +54,14 @@ namespace SushiAI
 
             if (data.has(K_FIT_KEY))
             {
-                const Value& stated = data.at(K_FIT_KEY, K_DATA_BLOCK);
-                const bool same = stated.kind() == Kind::String
-                                  && stated.as_string(K_DATA_BLOCK) == model.input_fit;
+                SA_TRY_ASSIGN(const Value& stated, data.at(K_FIT_KEY, K_DATA_BLOCK));
+                bool same = false;
+                if (stated.kind() == Kind::String)
+                {
+                    SA_TRY_ASSIGN(const std::string& fit, stated.as_string(K_DATA_BLOCK));
+                    same = fit == model.input_fit;
+                }
+
                 SA_FAIL_IF(!same, StatusCode::InvalidDescription,
                            "'{}' fits its images by '{}', and {} states another 'fit'", model_name,
                            model.input_fit, K_DATA_BLOCK);
@@ -64,10 +69,8 @@ namespace SushiAI
             }
 
             std::vector<std::string> keys = data.keys();
-            std::vector<Value> values;
+            std::vector<Value> values = data.values();
             values.reserve(keys.size() + 1);
-            for (const std::string& key : keys)
-                values.push_back(data.at(key, K_DATA_BLOCK));
 
             keys.emplace_back(K_FIT_KEY);
             values.push_back(Value::string(model.input_fit));

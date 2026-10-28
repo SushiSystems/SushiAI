@@ -197,8 +197,10 @@ namespace SushiAI
                                "layer {} '{}' holds the attribute '{}', which a model file "
                                "reads as the row's own key", row, layer.type, key);
 
+                    SA_TRY_ASSIGN(const Value& attribute,
+                                  layer.attributes.at(key, K_WRITTEN_ATTRIBUTE));
                     keys.push_back(key);
-                    values.push_back(layer.attributes.at(key, K_WRITTEN_ATTRIBUTE));
+                    values.push_back(attribute);
                 }
 
                 return Value::object(std::move(keys), std::move(values));
@@ -288,12 +290,12 @@ namespace SushiAI
                            "the model's task states no 'type', and a model file names the "
                            "task its object describes");
 
-                const Value& type = task.at("type", K_WRITTEN_TASK);
+                SA_TRY_ASSIGN(const Value& type, task.at("type", K_WRITTEN_TASK));
                 SA_FAIL_IF(type.kind() != Kind::String, StatusCode::InvalidDescription,
                            "the model's task states a 'type' that is {}; it is a string",
                            kind_name(type.kind()));
-                SA_FAIL_IF(type.as_string(K_WRITTEN_TASK).empty(),
-                           StatusCode::InvalidDescription,
+                SA_TRY_ASSIGN(const std::string& type_text, type.as_string(K_WRITTEN_TASK));
+                SA_FAIL_IF(type_text.empty(), StatusCode::InvalidDescription,
                            "the model's task states a 'type' that is an empty string; it "
                            "names the task the rest of the object describes");
                 return Status();

@@ -26,7 +26,6 @@
  */
 
 #include <SushiAI/config/train_config.hpp>
-#include <SushiAI/failure/error.hpp>
 
 #include <cstdint>
 #include <string>
@@ -86,25 +85,25 @@ namespace SushiAI
              * @brief Reads the version of a train document: this build's or an older one.
              * @param root The document root.
              * @param origin What to call the document in a diagnostic.
-             * @return The version, from 1 to K_TRAIN_VERSION.
-             * @throws Error If the version is absent, no integer, or outside that range.
+             * @return The version, from 1 to K_TRAIN_VERSION; InvalidFile when the version is
+             *         absent, no integer, or outside that range.
              */
-            std::int64_t read_train_version(const Value& root, std::string_view origin)
+            Result<std::int64_t> read_train_version(const Value& root, std::string_view origin)
             {
                 // A version this build reads is checked as itself; any other as the current.
                 std::int64_t expected = K_TRAIN_VERSION;
                 if (root.kind() == Kind::Object && root.has("sushiai_train"))
                 {
-                    const Value& stated = root.at("sushiai_train", origin);
+                    SA_TRY_ASSIGN(const Value& stated, root.at("sushiai_train", origin));
                     if (stated.kind() == Kind::Int)
                     {
-                        const std::int64_t version = stated.as_int("'sushiai_train'");
+                        SA_TRY_ASSIGN(const std::int64_t version, stated.as_int("'sushiai_train'"));
                         if (version >= 1 && version <= K_TRAIN_VERSION)
                             expected = version;
                     }
                 }
 
-                require_version(root, "sushiai_train", expected, origin);
+                SA_TRY(require_version(root, "sushiai_train", expected, origin));
                 return expected;
             }
 
@@ -116,22 +115,25 @@ namespace SushiAI
              * @param type Set to the block's "type".
              * @param attributes Set to everything else the block carried.
              */
-            void read_typed_block(const Value& root, std::string_view key,
-                                  std::string_view origin,
-                                  std::string& type, Value& attributes)
+            Status read_typed_block(const Value& root, std::string_view key,
+                                    std::string_view origin,
+                                    std::string& type, Value& attributes)
             {
                 const std::string context = "'" + std::string(origin) + "'s '"
                                           + std::string(key) + "'";
-                const Value& block = root.at(key, origin);
+                SA_TRY_ASSIGN(const Value& block, root.at(key, origin));
 
-                SA_THROW_IF(block.kind() != Kind::Object,
-                            "{} must be an object, but it is {}",
-                            context, kind_name(block.kind()));
+                SA_FAIL_IF(block.kind() != Kind::Object, StatusCode::InvalidDescription,
+                           "{} must be an object, but it is {}",
+                           context, kind_name(block.kind()));
 
-                type = block.at("type", context).as_string(context + " 'type'");
+                SA_TRY_ASSIGN(const Value& stated_type, block.at("type", context));
+                SA_TRY_ASSIGN(const std::string& stated, stated_type.as_string(context + " 'type'"));
+                type = stated;
 
                 // Stripping the type discriminator isolates component-specific attributes.
                 attributes = block.without("type");
+                return Status();
             }
 
             /**
@@ -141,7 +143,7 @@ namespace SushiAI
              * @param data A block with "reader" and no "type" gets the type
              *             K_READER_DATA_TYPE and keeps every key; any other is a typed block.
              */
-            void read_data_block(const Value& root, std::string_view origin, DataSpec& data)
+            Status read_data_block(const Value& root, std::string_view origin, DataSpec& data)
             {
                 const Value absent;
                 const Value& block = root.at_or("data", absent);
@@ -150,86 +152,111 @@ namespace SushiAI
                 {
                     data.type = std::string(K_READER_DATA_TYPE);
                     data.attributes = block;
-                    return;
+                    return Status();
                 }
 
-                read_typed_block(root, "data", origin, data.type, data.attributes);
+                return read_typed_block(root, "data", origin, data.type, data.attributes);
+            }
+
+            /**
+             * @brief Reads the string under @p key of @p root as a path resolved against @p base.
+             * @return The path, or InvalidDescription when the key is absent or no string.
+             */
+            Result<std::filesystem::path> read_path(const Value& root, std::string_view key,
+                                                    std::string_view origin,
+                                                    const std::filesystem::path& base)
+            {
+                SA_TRY_ASSIGN(const Value& stated, root.at(key, origin));
+                SA_TRY_ASSIGN(const std::string& text,
+                              stated.as_string("'" + std::string(origin) + "'s '"
+                                               + std::string(key) + "'"));
+                return resolve(base, text);
             }
         }
 
-        TrainSpec parse_train(const Value& root, std::string_view origin,
-                              const std::filesystem::path& base)
+        Result<TrainSpec> parse_train(const Value& root, std::string_view origin,
+                                      const std::filesystem::path& base)
         {
             // An older version refuses the keys it predates as unknown keys.
-            const std::int64_t version = read_train_version(root, origin);
+            SA_TRY_ASSIGN(const std::int64_t version, read_train_version(root, origin));
             if (version < K_TRAIN_CLUSTER_VERSION)
-                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_CLUSTER));
+            {
+                SA_TRY(root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_CLUSTER)));
+            }
             else if (version < K_TRAIN_DETERMINISTIC_VERSION)
-                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS_BEFORE_DETERMINISTIC));
+            {
+                SA_TRY(root.reject_unknown_keys(origin,
+                                                as_span(K_TRAIN_KEYS_BEFORE_DETERMINISTIC)));
+            }
             else
-                root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS));
+            {
+                SA_TRY(root.reject_unknown_keys(origin, as_span(K_TRAIN_KEYS)));
+            }
 
             TrainSpec spec;
             spec.base = base;
             const std::string origin_text(origin);
 
-            spec.model_path = resolve(
-                base, root.at("model", origin).as_string("'" + origin_text + "'s 'model'"));
+            SA_TRY_ASSIGN(spec.model_path, read_path(root, "model", origin, base));
 
-            read_typed_block(root, "objective", origin,
-                             spec.objective_type, spec.objective_attributes);
-            read_typed_block(root, "optimizer", origin,
-                             spec.optimizer_type, spec.optimizer_attributes);
-            read_data_block(root, origin, spec.data);
+            SA_TRY(read_typed_block(root, "objective", origin,
+                                    spec.objective_type, spec.objective_attributes));
+            SA_TRY(read_typed_block(root, "optimizer", origin,
+                                    spec.optimizer_type, spec.optimizer_attributes));
+            SA_TRY(read_data_block(root, origin, spec.data));
 
             // The section stays opaque here; an absent key leaves the null value.
             spec.schedule = root.at_or("schedule", Value());
 
             const Value one = Value::integer(1);
-            spec.epochs = root.at_or("epochs", one).as_int("'" + origin_text + "'s 'epochs'");
-            SA_THROW_IF(spec.epochs <= 0,
-                        "'{}'s 'epochs' must be positive, but it is {}", origin, spec.epochs);
+            SA_TRY_ASSIGN(spec.epochs,
+                          root.at_or("epochs", one).as_int("'" + origin_text + "'s 'epochs'"));
+            SA_FAIL_IF(spec.epochs <= 0, StatusCode::InvalidDescription,
+                       "'{}'s 'epochs' must be positive, but it is {}", origin, spec.epochs);
 
             // The range of the seed is checked by read_run_seed(), which returns a status.
             const Value zero = Value::integer(0);
-            spec.seed = root.at_or("seed", zero).as_int("'" + origin_text + "'s 'seed'");
+            SA_TRY_ASSIGN(spec.seed,
+                          root.at_or("seed", zero).as_int("'" + origin_text + "'s 'seed'"));
 
             // Starting weights are optional; a run without them initialises the model.
             if (root.has("weights"))
-                spec.weights = resolve(
-                    base, root.at("weights", origin)
-                              .as_string("'" + origin_text + "'s 'weights'"));
+            {
+                SA_TRY_ASSIGN(spec.weights, read_path(root, "weights", origin, base));
+            }
 
             // A resumed run takes its model state and its run state from one checkpoint.
             if (root.has("resume"))
-                spec.resume = resolve(
-                    base, root.at("resume", origin)
-                              .as_string("'" + origin_text + "'s 'resume'"));
+            {
+                SA_TRY_ASSIGN(spec.resume, read_path(root, "resume", origin, base));
+            }
 
             // Checkpoint path is optional; training can run without writing snapshots.
             if (root.has("checkpoint"))
-                spec.checkpoint = resolve(
-                    base, root.at("checkpoint", origin)
-                              .as_string("'" + origin_text + "'s 'checkpoint'"));
+            {
+                SA_TRY_ASSIGN(spec.checkpoint, read_path(root, "checkpoint", origin, base));
+            }
 
             // The section stays opaque here, as "schedule" does; an absent key leaves null.
             spec.cluster = root.at_or("cluster", Value());
 
             // No key asks for an unordered path yet, so a true value refuses none.
             const Value ordered = Value::boolean(true);
-            spec.deterministic = root.at_or("deterministic", ordered)
-                                     .as_bool("'" + origin_text + "'s 'deterministic'");
+            SA_TRY_ASSIGN(spec.deterministic,
+                          root.at_or("deterministic", ordered)
+                              .as_bool("'" + origin_text + "'s 'deterministic'"));
 
             return spec;
         }
 
-        TrainSpec load_train(const std::filesystem::path& path)
+        Result<TrainSpec> load_train(const std::filesystem::path& path)
         {
             // Relative paths resolve against the configuration file's parent directory.
             std::filesystem::path base = path.parent_path();
             if (base.empty()) base = ".";
 
-            return parse_train(parse_json_file(path), path.string(), base);
+            SA_TRY_ASSIGN(const Value root, parse_json_file(path));
+            return parse_train(root, path.string(), base);
         }
 
         Status check_start(const TrainSpec& spec, std::string_view origin)
@@ -250,19 +277,20 @@ namespace SushiAI
             return static_cast<std::uint64_t>(spec.seed);
         }
 
-        DataSpec parse_data(const Value& root, std::string_view origin)
+        Result<DataSpec> parse_data(const Value& root, std::string_view origin)
         {
-            require_version(root, "sushiai_data", K_DATA_VERSION, origin);
-            root.reject_unknown_keys(origin, as_span(K_DATA_KEYS));
+            SA_TRY(require_version(root, "sushiai_data", K_DATA_VERSION, origin));
+            SA_TRY(root.reject_unknown_keys(origin, as_span(K_DATA_KEYS)));
 
             DataSpec data;
-            read_data_block(root, origin, data);
+            SA_TRY(read_data_block(root, origin, data));
             return data;
         }
 
-        DataSpec load_data(const std::filesystem::path& path)
+        Result<DataSpec> load_data(const std::filesystem::path& path)
         {
-            return parse_data(parse_json_file(path), path.string());
+            SA_TRY_ASSIGN(const Value root, parse_json_file(path));
+            return parse_data(root, path.string());
         }
 
     } // namespace Config

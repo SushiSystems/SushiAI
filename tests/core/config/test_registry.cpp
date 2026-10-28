@@ -30,7 +30,8 @@
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/config/registry.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace
 {
@@ -52,7 +53,8 @@ namespace
 /** @brief Tests that a known type returns the table's own row, not a copy. */
 TEST(Small_ConfigRegistry, AKnownTypeReturnsTheTablesOwnRow)
 {
-    const Row& found = SushiAI::Config::find_entry(K_ROWS, "adamw", "optimizer");
+    SA_ASSERT_OK_AND_ASSIGN(const Row& found,
+                            SushiAI::Config::find_entry(K_ROWS, "adamw", "optimizer"));
 
     EXPECT_EQ(&found, &K_ROWS[1]);
     EXPECT_EQ(found.value, 2);
@@ -61,14 +63,14 @@ TEST(Small_ConfigRegistry, AKnownTypeReturnsTheTablesOwnRow)
 /** @brief Tests that a type is matched whole, so a prefix of a row's type is unknown. */
 TEST(Small_ConfigRegistry, APrefixOfATypeIsNotAMatch)
 {
-    SA_EXPECT_ERROR((void)SushiAI::Config::find_entry(K_ROWS, "adam", "optimizer"),
-                    "unknown optimizer 'adam'");
+    SA_EXPECT_FAILURE(SushiAI::Config::find_entry(K_ROWS, "adam", "optimizer"),
+                      SushiAI::StatusCode::InvalidDescription, "unknown optimizer 'adam'");
 }
 
-/** @brief Tests that an unknown type throws naming the category and every row, in table order. */
-TEST(Small_ConfigRegistry, AnUnknownTypeThrowsListingEveryRow)
+/** @brief Tests that an unknown type is refused naming the category and every row, in order. */
+TEST(Small_ConfigRegistry, AnUnknownTypeIsRefusedListingEveryRow)
 {
-    SA_EXPECT_ERROR((void)SushiAI::Config::find_entry(K_ROWS, "rmsprop", "optimizer"),
-                    "unknown optimizer 'rmsprop'",
-                    "this build has: 'sgd', 'adamw', 'lamb'");
+    SA_EXPECT_FAILURE(SushiAI::Config::find_entry(K_ROWS, "rmsprop", "optimizer"),
+                      SushiAI::StatusCode::InvalidDescription,
+                      "unknown optimizer 'rmsprop'", "this build has: 'sgd', 'adamw', 'lamb'");
 }

@@ -332,7 +332,7 @@ A `schedule` that is the string "later" parses, and `spec.schedule` has the kind
 
 ### AKeyBesideTheScheduleIsStillRefused
 
-A member named `schedules` raises an error naming `'schedules'`.
+A member named `schedules` returns `InvalidDescription` naming `'schedules'`.
 
 ### AFileWithoutWeightsHoldsAnEmptyPath
 
@@ -345,7 +345,7 @@ model path is `runs/model.json`.
 
 ### WeightsThatAreNoStringAreRefused
 
-`"weights": 3` raises an error naming `'weights'`.
+`"weights": 3` returns `InvalidDescription` naming `'weights'`.
 
 ### TheResumePathResolvesAgainstTheFile
 
@@ -354,7 +354,7 @@ Without a `resume` member the path is empty. Parsed with the directory `runs`,
 
 ### AResumeThatIsNoStringIsRefused
 
-`"resume": true` raises an error naming `'resume'`.
+`"resume": true` returns `InvalidDescription` naming `'resume'`.
 
 ### WeightsAndResumeTogetherAreRefused
 
@@ -387,7 +387,7 @@ with `true` parses with it true.
 
 ### ADeterministicKeyThatIsNoBooleanNamesTheKey
 
-`"deterministic": 1` raises an error naming `'deterministic'`.
+`"deterministic": 1` returns `InvalidDescription` naming `'deterministic'`.
 
 ### ADeterministicKeyInAVersionTwoFileIsRefused
 
@@ -411,4 +411,4 @@ still hold `reader`.
 
 ### ADataBlockWithNeitherKeyIsRefused
 
-A `data` block with only `root` raises an error naming `'type'`.
+A `data` block with only `root` returns `InvalidDescription` naming `'type'`.

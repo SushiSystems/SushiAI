@@ -33,7 +33,8 @@
 #include <string_view>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -95,7 +96,7 @@ namespace SushiAI
                  * @param keys Its keys, in file order; moved in.
                  * @param values Its values, positionally matching @p keys; moved in.
                  * @return The node.
-                 * @throws Error If the two vectors are of different lengths.
+                 * @pre The two vectors have the same length.
                  */
                 static Value object(std::vector<std::string> keys, std::vector<Value> values);
 
@@ -108,42 +109,41 @@ namespace SushiAI
                 /**
                  * @brief Reads this value as a boolean.
                  * @param context What this value is, for the diagnostic, e.g. "layer 3 'use_bias'".
-                 * @return The boolean.
-                 * @throws Error If this is not a boolean; names @p context and the kind found.
+                 * @return The boolean, or InvalidDescription naming @p context and the kind found.
                  */
-                bool as_bool(std::string_view context) const;
+                [[nodiscard]] Result<bool> as_bool(std::string_view context) const;
 
                 /**
                  * @brief Reads this value as a whole number.
                  * @param context What this value is, for the diagnostic.
-                 * @return The number.
-                 * @throws Error If this is not a whole number; names @p context and the kind found.
+                 * @return The number, or InvalidDescription naming @p context and the kind found.
                  */
-                std::int64_t as_int(std::string_view context) const;
+                [[nodiscard]] Result<std::int64_t> as_int(std::string_view context) const;
 
                 /**
                  * @brief Reads this value as a real number, widening integers.
-                 * @param context Context string for error diagnostics.
-                 * @return Floating-point numeric value.
-                 * @throws Error If value is neither real nor integer.
+                 * @param context What this value is, for the diagnostic.
+                 * @return The number, or InvalidDescription when the value is neither real nor
+                 *         integer.
                  */
-                double as_real(std::string_view context) const;
+                [[nodiscard]] Result<double> as_real(std::string_view context) const;
 
                 /**
                  * @brief Reads this value as a string.
                  * @param context What this value is, for the diagnostic.
-                 * @return The string.
-                 * @throws Error If this is not a string; names @p context and the kind found.
+                 * @return The string, which this value owns, or InvalidDescription naming
+                 *         @p context and the kind found.
                  */
-                const std::string& as_string(std::string_view context) const;
+                [[nodiscard]] Result<const std::string&> as_string(std::string_view context) const;
 
                 /**
                  * @brief Reads this value as an array.
                  * @param context What this value is, for the diagnostic.
-                 * @return Its entries.
-                 * @throws Error If this is not an array; names @p context and the kind found.
+                 * @return Its entries, which this value owns, or InvalidDescription naming
+                 *         @p context and the kind found.
                  */
-                const std::vector<Value>& as_array(std::string_view context) const;
+                [[nodiscard]] Result<const std::vector<Value>&> as_array(
+                    std::string_view context) const;
 
                 /**
                  * @brief Whether this object holds @p key; false for any non-object.
@@ -155,11 +155,12 @@ namespace SushiAI
                 /**
                  * @brief Accesses child value associated with @p key.
                  * @param key Property key to look up.
-                 * @param context Context string for error diagnostics.
-                 * @return Const reference to value mapped to @p key.
-                 * @throws Error If node is not an object or key is absent.
+                 * @param context What this value is, for the diagnostic.
+                 * @return The value mapped to @p key, or InvalidDescription when this is not an
+                 *         object or @p key is absent.
                  */
-                const Value& at(std::string_view key, std::string_view context) const;
+                [[nodiscard]] Result<const Value&> at(std::string_view key,
+                                                      std::string_view context) const;
 
                 /**
                  * @brief This object's value for @p key, or @p fallback when absent.
@@ -172,14 +173,18 @@ namespace SushiAI
                 /** @brief This object's keys, in the order the file spelled them. */
                 const std::vector<std::string>& keys() const noexcept { return keys_; }
 
+                /** @brief This object's values, positionally matching keys(). */
+                const std::vector<Value>& values() const noexcept { return values_; }
+
                 /**
                  * @brief Rejects any key of this object absent from @p allowed.
-                 * @param context Context string for error diagnostics.
+                 * @param context What this value is, for the diagnostic.
                  * @param allowed Permitted property key names.
-                 * @throws Error If an unrecognized key is present.
+                 * @return InvalidDescription naming the first unrecognised key, else success.
                  */
-                void reject_unknown_keys(std::string_view context,
-                                         SushiRuntime::span<const std::string_view> allowed) const;
+                [[nodiscard]] Status reject_unknown_keys(
+                    std::string_view context,
+                    SushiRuntime::span<const std::string_view> allowed) const;
 
                 /**
                  * @brief Returns a copy of this object with @p key removed.
@@ -201,32 +206,31 @@ namespace SushiAI
 
         /**
          * @brief Validates document version field against expected version.
-         * @param root Document root configuration object.
-         * @param key Version property key name.
+         * @param root Document root, which holds the version under @p key.
          * @param expected Expected integer version identifier.
          * @param origin Origin context description for diagnostics.
-         * @throws Error If version property is missing or mismatched.
+         * @return InvalidFile when the version property is missing or mismatched, or
+         *         InvalidDescription when it is no whole number, else success.
          */
-        void require_version(const Value& root, std::string_view key,
-                             std::int64_t expected, std::string_view origin);
+        [[nodiscard]] Status require_version(const Value& root, std::string_view key,
+                                             std::int64_t expected, std::string_view origin);
 
         /**
          * @brief Parses @p text as a JSON document.
          * @param text The document.
          * @param origin What to call it in a diagnostic, usually a path.
-         * @return The parsed tree.
-         * @throws Error If @p text is not valid JSON; names @p origin and the
-         *         parser's own complaint.
+         * @return The parsed tree, or InvalidFile naming @p origin and the parser's own
+         *         complaint when @p text is not valid JSON.
          */
-        Value parse_json(std::string_view text, std::string_view origin);
+        [[nodiscard]] Result<Value> parse_json(std::string_view text, std::string_view origin);
 
         /**
          * @brief Reads and parses the file at @p path.
          * @param path The file to read.
-         * @return The parsed tree.
-         * @throws Error If the file cannot be read, or is not valid JSON.
+         * @return The parsed tree, FileNotFound when the file cannot be opened, or InvalidFile
+         *         when it cannot be read or is not valid JSON.
          */
-        Value parse_json_file(const std::filesystem::path& path);
+        [[nodiscard]] Result<Value> parse_json_file(const std::filesystem::path& path);
 
     } // namespace Config
 } // namespace SushiAI

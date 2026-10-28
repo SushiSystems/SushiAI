@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- 2026-10-28 — config: Breaking change: Made `Value::at` and the `as_*` readers return a `Result` (`value.hpp`).
+- 2026-10-28 — config: Breaking change: Made `reject_unknown_keys` and `require_version` return a `Status` (`value.hpp`).
+- 2026-10-28 — config: Breaking change: Made `parse_json` and `parse_json_file` return a `Result` in place of throwing (`value.hpp`).
+- 2026-10-28 — config: Breaking change: Made `parse_model`, `load_model` and `parse_data` return a `Result` (`model_config.hpp`).
+- 2026-10-28 — config: Breaking change: Made `parse_train`, `load_train` and `load_data` return a `Result` (`train_config.hpp`).
+- 2026-10-28 — config: Breaking change: Made `find_entry` return a `Result`, refusing an unknown type as InvalidDescription (`registry.hpp`).
+- 2026-10-28 — config: Made the `Value` object constructor stop the process for keys and values of unequal count, and added `Value::values` (`value.hpp`).
 - 2026-10-28 — failure_expectations: Added `require_value`, which returns the value of a `Result` or stops the process with its failure, for the helper of a test that cannot use an assertion (`status_expectations.hpp`).
 - 2026-10-28 — graph: Breaking change: Made the id, order and single-assignment checks of `Graph` stop the process in place of throwing (`ir.hpp`).
 - 2026-10-28 — graph: Breaking change: Added `MixedPrecisionPolicy::make`, which returns `InvalidDescription` for a low type that is not a real float, and made the explicit constructor private (`precision.hpp`).

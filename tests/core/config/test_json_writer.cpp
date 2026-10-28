@@ -49,6 +49,7 @@ using SushiAI::Config::write_json;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the depth that writes a whole document on one line. */
     constexpr std::size_t K_ONE_LINE = 0;
 
@@ -70,15 +71,15 @@ namespace
     void read_back(const Value& value, Value& read)
     {
         SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(value, K_ONE_LINE));
-        read = parse_json(text, "<written>");
+        read = require_value(parse_json(text, "<written>"));
     }
 }
 
 TEST(Small_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
 {
-    const Value root = parse_json(
+    const Value root = require_value(parse_json(
         R"({"zebra": 1, "apple": 2.5, "c": "text", "d": true, "e": null, "f": [1, 2],
-            "g": {}, "h": [], "i": {"nested": [false]}})", "<test>");
+            "g": {}, "h": [], "i": {"nested": [false]}})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(root, K_ONE_LINE));
     EXPECT_EQ(text,
@@ -88,10 +89,10 @@ TEST(Small_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
 
 TEST(Small_JsonWriter, ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine)
 {
-    const Value root = parse_json(
+    const Value root = require_value(parse_json(
         R"({"format_version": 2, "input": {"shape": [28, 28, 1]},
             "layers": [{"type": "relu"}, {"type": "concat", "from": [-1, 0]}],
-            "empty": []})", "<test>");
+            "empty": []})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(root));
     EXPECT_EQ(text,
@@ -110,7 +111,7 @@ TEST(Small_JsonWriter, ExpandsTheFirstTwoLevelsAndKeepsDeeperOnesOnOneLine)
 
 TEST(Small_JsonWriter, EndsEveryLineWithALineFeedAndTheTextWithOne)
 {
-    const Value root = parse_json(R"({"a": {"b": [1, 2]}, "c": "text"})", "<test>");
+    const Value root = require_value(parse_json(R"({"a": {"b": [1, 2]}, "c": "text"})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(root));
     ASSERT_FALSE(text.empty());
@@ -127,7 +128,8 @@ TEST(Small_JsonWriter, WritesARootScalarAlone)
 
 TEST(Small_JsonWriter, SpellsNumbersInTheShortestFormThatReadsBack)
 {
-    const Value root = parse_json("[7, -3, 0, 0.001, 1e-3, 2.5, 1.0, 1e300]", "<test>");
+    const Value root =
+        require_value(parse_json("[7, -3, 0, 0.001, 1e-3, 2.5, 1.0, 1e300]", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(root, K_ONE_LINE));
     EXPECT_EQ(text, "[7, -3, 0, 0.001, 0.001, 2.5, 1.0, 1e+300]\n");
@@ -148,12 +150,12 @@ TEST(Small_JsonWriter, AnIntegerReadsBackAsTheSameInteger)
     Value read;
     ASSERT_NO_FATAL_FAILURE(read_back(Value::array(entries), read));
 
-    const std::vector<Value>& found = read.as_array("<written>");
+    const std::vector<Value>& found = require_value(read.as_array("<written>"));
     ASSERT_EQ(found.size(), integers.size());
     for (std::size_t i = 0; i < integers.size(); ++i)
     {
         ASSERT_EQ(found[i].kind(), Kind::Int) << "entry " << i;
-        EXPECT_EQ(found[i].as_int("<written>"), integers[i]) << "entry " << i;
+        EXPECT_EQ(require_value(found[i].as_int("<written>")), integers[i]) << "entry " << i;
     }
 }
 
@@ -177,14 +179,14 @@ TEST(Small_JsonWriter, ARealReadsBackAsTheSameBits)
     Value read;
     ASSERT_NO_FATAL_FAILURE(read_back(Value::array(entries), read));
 
-    const std::vector<Value>& found = read.as_array("<written>");
+    const std::vector<Value>& found = require_value(read.as_array("<written>"));
     ASSERT_EQ(found.size(), reals.size());
     for (std::size_t i = 0; i < reals.size(); ++i)
     {
         ASSERT_EQ(found[i].kind(), Kind::Real) << "entry " << i;
-        EXPECT_TRUE(same_bits(found[i].as_real("<written>"), reals[i]))
+        EXPECT_TRUE(same_bits(require_value(found[i].as_real("<written>")), reals[i]))
             << "entry " << i << " was written from " << reals[i] << " and read back as "
-            << found[i].as_real("<written>");
+            << require_value(found[i].as_real("<written>"));
     }
 }
 
@@ -197,7 +199,7 @@ TEST(Small_JsonWriter, EscapesQuotesBackslashesAndControlCharacters)
 
     Value read;
     ASSERT_NO_FATAL_FAILURE(read_back(Value::string(raw), read));
-    EXPECT_EQ(read.as_string("<written>"), raw);
+    EXPECT_EQ(require_value(read.as_string("<written>")), raw);
 }
 
 TEST(Small_JsonWriter, WritesUTF8AsItsOwnBytes)
@@ -211,7 +213,7 @@ TEST(Small_JsonWriter, WritesUTF8AsItsOwnBytes)
 
     Value read;
     ASSERT_NO_FATAL_FAILURE(read_back(Value::string(raw), read));
-    EXPECT_EQ(read.as_string("<written>"), raw);
+    EXPECT_EQ(require_value(read.as_string("<written>")), raw);
 }
 
 TEST(Small_JsonWriter, EscapesAKeyAsItEscapesAString)

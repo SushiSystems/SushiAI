@@ -56,6 +56,7 @@ using Test::model_from;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds a chain of three rows that states neither "from" nor "outputs". */
     constexpr std::string_view K_CHAIN_MODEL = R"({
         "format_version": 2,
@@ -148,27 +149,31 @@ namespace
                 return;
 
             case Kind::Bool:
-                EXPECT_EQ(found.as_bool(where), wanted.as_bool(where)) << where;
+                EXPECT_EQ(require_value(found.as_bool(where)),
+                          require_value(wanted.as_bool(where))) << where;
                 return;
 
             case Kind::Int:
-                EXPECT_EQ(found.as_int(where), wanted.as_int(where)) << where;
+                EXPECT_EQ(require_value(found.as_int(where)),
+                          require_value(wanted.as_int(where))) << where;
                 return;
 
             case Kind::Real:
-                EXPECT_TRUE(same_bits(found.as_real(where), wanted.as_real(where)))
-                    << where << " is " << found.as_real(where) << ", wanted "
-                    << wanted.as_real(where);
+                EXPECT_TRUE(same_bits(require_value(found.as_real(where)),
+                                      require_value(wanted.as_real(where))))
+                    << where << " is " << require_value(found.as_real(where)) << ", wanted "
+                    << require_value(wanted.as_real(where));
                 return;
 
             case Kind::String:
-                EXPECT_EQ(found.as_string(where), wanted.as_string(where)) << where;
+                EXPECT_EQ(require_value(found.as_string(where)),
+                          require_value(wanted.as_string(where))) << where;
                 return;
 
             case Kind::Array:
             {
-                const std::vector<Value>& found_entries = found.as_array(where);
-                const std::vector<Value>& wanted_entries = wanted.as_array(where);
+                const std::vector<Value>& found_entries = require_value(found.as_array(where));
+                const std::vector<Value>& wanted_entries = require_value(wanted.as_array(where));
                 ASSERT_EQ(found_entries.size(), wanted_entries.size()) << where;
 
                 for (std::size_t i = 0; i < wanted_entries.size(); ++i)
@@ -181,7 +186,8 @@ namespace
                 ASSERT_EQ(found.keys(), wanted.keys()) << where;
 
                 for (const std::string& key : wanted.keys())
-                    expect_same_value(found.at(key, where), wanted.at(key, where),
+                    expect_same_value(require_value(found.at(key, where)),
+                                      require_value(wanted.at(key, where)),
                                       where + "." + key);
                 return;
         }
@@ -281,14 +287,14 @@ TEST(Small_ModelWriter, RoundTripsTheMNISTExample)
 {
     const std::filesystem::path root = repository_root();
 
-    expect_round_trip(Config::load_model(example_model_path(root, "mnist_cnn")));
+    expect_round_trip(require_value(Config::load_model(example_model_path(root, "mnist_cnn"))));
 }
 
 TEST(Small_ModelWriter, RoundTripsTheYOLO26Example)
 {
     const std::filesystem::path root = repository_root();
 
-    expect_round_trip(Config::load_model(example_model_path(root, "yolo26")));
+    expect_round_trip(require_value(Config::load_model(example_model_path(root, "yolo26"))));
 }
 
 TEST(Small_ModelWriter, RoundTripsEveryAttributeKindAndEveryFormOfFromAndOutputs)

@@ -46,6 +46,7 @@ using Config::Value;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Names the section in a diagnostic. */
     constexpr std::string_view K_WHERE = "schedule";
 
@@ -55,7 +56,7 @@ namespace
     /** @brief Parses @p text as a section. */
     Value section_from(std::string_view text)
     {
-        return Config::parse_json(text, "<test>");
+        return require_value(Config::parse_json(text, "<test>"));
     }
 
     /** @brief Returns K_KEYS as the view check_keys() takes. */

@@ -13,10 +13,10 @@ Looking up "adamw" returns a reference to `K_ROWS[1]` itself, whose value is 2.
 
 ## APrefixOfATypeIsNotAMatch
 
-"adam", a prefix of "adamw", throws an `Error` whose message contains
+"adam", a prefix of "adamw", returns `InvalidDescription` whose message contains
 "unknown optimizer 'adam'".
 
-## AnUnknownTypeThrowsListingEveryRow
+## AnUnknownTypeIsRefusedListingEveryRow
 
-"rmsprop" throws an `Error` whose message contains "unknown optimizer 'rmsprop'" and
+"rmsprop" returns `InvalidDescription` whose message contains "unknown optimizer 'rmsprop'" and
 "this build has: 'sgd', 'adamw', 'lamb'", the rows in table order.

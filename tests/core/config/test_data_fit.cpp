@@ -39,6 +39,7 @@ using namespace SushiAI::Config;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Returns a data block of two keys, with "fit" as a third when @p fit is not empty. */
     Value data_block(const std::string& fit)
     {
@@ -78,8 +79,9 @@ TEST(Small_DataFit, ABlockWithoutAFitTakesTheModels)
 
     ASSERT_EQ(fitted.keys().size(), 3u);
     EXPECT_EQ(fitted.keys()[2], "fit");
-    EXPECT_EQ(fitted.at("fit", "test").as_string("test"), K_FIT_RESIZE);
-    EXPECT_EQ(fitted.at("batch_size", "test").as_int("test"), 4);
+    EXPECT_EQ(require_value(require_value(fitted.at("fit", "test")).as_string("test")),
+              K_FIT_RESIZE);
+    EXPECT_EQ(require_value(require_value(fitted.at("batch_size", "test")).as_int("test")), 4);
 }
 
 /** @brief Tests that a block stating the model's fit is kept and one stating another refused. */
@@ -90,7 +92,7 @@ TEST(Small_DataFit, ABlockStatingAnotherFitIsRefused)
     SA_ASSERT_OK_AND_ASSIGN(
         const Value same,
         fit_data_to_model(data_block(std::string(K_FIT_RESIZE)), model, "model.json"));
-    EXPECT_EQ(same.at("fit", "test").as_string("test"), K_FIT_RESIZE);
+    EXPECT_EQ(require_value(require_value(same.at("fit", "test")).as_string("test")), K_FIT_RESIZE);
 
     SA_EXPECT_FAILURE(
         fit_data_to_model(data_block(std::string(K_FIT_LETTERBOX)), model, "model.json"),
