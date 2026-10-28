@@ -74,7 +74,7 @@ namespace SushiAI
                  *         an option below 1; the failure of starting a thread.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ThreadedLoader>> make(
-                    std::unique_ptr<Dataset> inner, const LoaderOptions& options);
+                    std::unique_ptr<Dataset> inner, const LoaderOptions& options) noexcept;
 
                 ThreadedLoader(const ThreadedLoader&) = delete;
                 ThreadedLoader& operator=(const ThreadedLoader&) = delete;

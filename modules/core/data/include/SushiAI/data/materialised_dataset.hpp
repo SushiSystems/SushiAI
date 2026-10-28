@@ -60,7 +60,7 @@ namespace SushiAI
                  */
                 MaterialisedDataset(std::vector<Batch> batches, int64_t batch_size,
                                     const InputDescription& input,
-                                    std::vector<TargetDescription> targets, std::string name);
+                                    std::vector<TargetDescription> targets, std::string name) noexcept;
 
                 int64_t batch_size() const noexcept override { return batch_size_; }
                 Shape sample_shape() const override { return input_.sample_shape; }
@@ -102,7 +102,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
                                                    const InputDescription& input,
-                                                   const std::vector<TargetDescription>& targets);
+                                                   const std::vector<TargetDescription>& targets) noexcept;
 
         /**
          * @brief Makes @p batch share the tensors of @p held; no element is copied.
@@ -130,7 +130,7 @@ namespace SushiAI
         [[nodiscard]] Status prepare_batch(SushiBLAS::Engine& engine, int64_t rows,
                                            const InputDescription& input,
                                            const std::vector<TargetDescription>& targets,
-                                           Batch& batch);
+                                           Batch& batch) noexcept;
 
     } // namespace Data
 } // namespace SushiAI

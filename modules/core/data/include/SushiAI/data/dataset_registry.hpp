@@ -73,7 +73,7 @@ namespace SushiAI
                  *            factory is fatal.
                  * @return InvalidDescription when a row holds the type.
                  */
-                [[nodiscard]] Status add(const DatasetEntry& row);
+                [[nodiscard]] Status add(const DatasetEntry& row) noexcept;
 
                 /** @brief Returns the row of @p type, or null when none holds it. */
                 [[nodiscard]] const DatasetEntry* find(std::string_view type) const noexcept;
@@ -94,7 +94,7 @@ namespace SushiAI
          * @param registry The registry the row joins.
          * @return Success, or InvalidDescription when "rings" is already held.
          */
-        [[nodiscard]] Status register_datasets(DatasetRegistry& registry);
+        [[nodiscard]] Status register_datasets(DatasetRegistry& registry) noexcept;
 
         /**
          * @brief Builds the dataset named @p type from the rows of @p registry.
@@ -108,7 +108,7 @@ namespace SushiAI
             SushiBLAS::Engine& engine,
             std::string_view type,
             const Config::Value& attributes,
-            std::string_view context);
+            std::string_view context) noexcept;
 
     } // namespace Data
 } // namespace SushiAI

@@ -136,7 +136,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<SyntheticClassification>> SyntheticClassification::make(
             SushiBLAS::Engine& engine,
-            SyntheticOptions options)
+            SyntheticOptions options) noexcept
         {
             SA_FAIL_IF(options.batch_size <= 0 || options.batches <= 0
                        || options.features <= 0 || options.classes <= 0,
@@ -235,7 +235,7 @@ namespace SushiAI
 
         }
 
-        Result<std::unique_ptr<Rings>> Rings::make(SushiBLAS::Engine& engine, RingsOptions options)
+        Result<std::unique_ptr<Rings>> Rings::make(SushiBLAS::Engine& engine, RingsOptions options) noexcept
         {
             SA_FAIL_IF(options.batch_size <= 0 || options.batches <= 0 || options.classes <= 0,
                        StatusCode::InvalidDescription,
@@ -323,7 +323,7 @@ namespace SushiAI
 
         Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
                                                     const Config::Value& attributes,
-                                                    std::string_view context)
+                                                    std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_RINGS_KEYS)));
 

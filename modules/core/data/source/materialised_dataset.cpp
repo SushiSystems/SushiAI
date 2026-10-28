@@ -113,7 +113,7 @@ namespace SushiAI
         MaterialisedDataset::MaterialisedDataset(std::vector<Batch> batches, int64_t batch_size,
                                                  const InputDescription& input,
                                                  std::vector<TargetDescription> targets,
-                                                 std::string name)
+                                                 std::string name) noexcept
             : batches_(std::move(batches)), batch_size_(batch_size), input_(input),
               targets_(std::move(targets)), name_(std::move(name))
         {
@@ -136,7 +136,7 @@ namespace SushiAI
 
         Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
                                      const InputDescription& input,
-                                     const std::vector<TargetDescription>& targets)
+                                     const std::vector<TargetDescription>& targets) noexcept
         {
             Batch batch;
             SA_TRY_ASSIGN(batch.inputs,
@@ -188,7 +188,7 @@ namespace SushiAI
 
         Status prepare_batch(SushiBLAS::Engine& engine, int64_t rows,
                              const InputDescription& input,
-                             const std::vector<TargetDescription>& targets, Batch& batch)
+                             const std::vector<TargetDescription>& targets, Batch& batch) noexcept
         {
             if (holds_layout(batch, rows, input, targets))
                 return Status();

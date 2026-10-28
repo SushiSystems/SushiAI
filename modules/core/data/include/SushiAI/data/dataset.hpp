@@ -123,7 +123,7 @@ namespace SushiAI
         };
 
         /** @brief Returns the per-sample shape and the element type of the inputs of a dataset. */
-        [[nodiscard]] inline InputDescription describe_input(const Dataset& dataset)
+        [[nodiscard]] inline InputDescription describe_input(const Dataset& dataset) noexcept
         {
             return InputDescription{dataset.sample_shape(), dataset.sample_dtype()};
         }
@@ -186,7 +186,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SyntheticClassification>> make(
                     SushiBLAS::Engine& engine,
-                    SyntheticOptions options = {});
+                    SyntheticOptions options = {}) noexcept;
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
                 Shape sample_shape() const override { return Shape{options_.features}; }
@@ -266,7 +266,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<Rings>> make(
                     SushiBLAS::Engine& engine,
-                    RingsOptions options = {});
+                    RingsOptions options = {}) noexcept;
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }
                 Shape sample_shape() const override
@@ -306,7 +306,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
                                                                   const Config::Value& attributes,
-                                                                  std::string_view context);
+                                                                  std::string_view context) noexcept;
 
     } // namespace Data
 } // namespace SushiAI

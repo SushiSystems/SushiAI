@@ -277,7 +277,7 @@ namespace SushiAI
         };
 
         Result<std::unique_ptr<ThreadedLoader>> ThreadedLoader::make(
-            std::unique_ptr<Dataset> inner, const LoaderOptions& options)
+            std::unique_ptr<Dataset> inner, const LoaderOptions& options) noexcept
         {
             SA_FAIL_IF(inner == nullptr, StatusCode::InvalidDescription,
                        "{}: there is no dataset to read", K_LOADER);

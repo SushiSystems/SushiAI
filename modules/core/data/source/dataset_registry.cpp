@@ -59,7 +59,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status DatasetRegistry::add(const DatasetEntry& row)
+        Status DatasetRegistry::add(const DatasetEntry& row) noexcept
         {
             SA_FATAL_IF(row.type.empty(), "A dataset row needs a non-empty type");
             SA_FATAL_IF(row.make == nullptr, "The dataset row '{}' has no factory", row.type);
@@ -90,7 +90,7 @@ namespace SushiAI
             return SushiRuntime::span<const DatasetEntry>(rows_.data(), rows_.size());
         }
 
-        Status register_datasets(DatasetRegistry& registry)
+        Status register_datasets(DatasetRegistry& registry) noexcept
         {
             return registry.add(DatasetEntry{"rings", &make_rings});
         }
@@ -99,7 +99,7 @@ namespace SushiAI
                                                       SushiBLAS::Engine& engine,
                                                       std::string_view type,
                                                       const Config::Value& attributes,
-                                                      std::string_view context)
+                                                      std::string_view context) noexcept
         {
             const DatasetEntry* const row = registry.find(type);
             SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
