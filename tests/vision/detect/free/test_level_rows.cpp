@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 
 namespace
@@ -59,7 +60,7 @@ TEST(Small_DetectLevelRows, AJoinKeepsTheRowsOfOtherLevels)
     const std::vector<float> level{5.0f, 6.0f};
     std::vector<float> joined(4, K_UNTOUCHED);
 
-    join_level(level, placement, joined);
+    SA_EXPECT_OK(join_level(level, placement, joined));
 
     expect_values(joined, {K_UNTOUCHED, 5.0f, 6.0f, K_UNTOUCHED});
 }
@@ -74,9 +75,9 @@ TEST(Small_DetectLevelRows, ASplitAfterAJoinReturnsTheLevel)
         level[i] = static_cast<float>(i) + 0.5f;
     std::vector<float> joined(2 * 6 * 3, K_UNTOUCHED);
 
-    join_level(level, placement, joined);
+    SA_EXPECT_OK(join_level(level, placement, joined));
     std::vector<float> returned(level.size(), K_UNTOUCHED);
-    split_level(joined, placement, returned);
+    SA_EXPECT_OK(split_level(joined, placement, returned));
 
     expect_values(returned, level);
 }

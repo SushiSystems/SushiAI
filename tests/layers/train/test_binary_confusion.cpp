@@ -27,6 +27,7 @@
  */
 
 #include <cmath>
+#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -151,17 +152,26 @@ TEST(Small_DecisionThreshold, LogitOfInvertsTheSigmoid)
     }
 }
 
+namespace
+{
+    /** @brief Parses @p text, a JSON document the test states; a refusal stops the test. */
+    Config::Value parsed(std::string_view text)
+    {
+        return SaTest::require_value(Config::parse_json(text, "<test>"));
+    }
+} // namespace
+
 /** @brief Tests that the reader returns the stated threshold and one half for none. */
 TEST(Small_DecisionThreshold, TheReaderDefaultsToOneHalf)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const double absent,
-        Train::read_threshold(Config::parse_json("{}", "<test>"), "objective"));
+        Train::read_threshold(parsed("{}"), "objective"));
     EXPECT_EQ(absent, Train::K_DEFAULT_THRESHOLD);
 
     SA_ASSERT_OK_AND_ASSIGN(
         const double stated,
-        Train::read_threshold(Config::parse_json(R"({"threshold": 0.25})", "<test>"),
+        Train::read_threshold(parsed(R"({"threshold": 0.25})"),
                               "objective"));
     EXPECT_EQ(stated, 0.25);
 }
@@ -170,17 +180,17 @@ TEST(Small_DecisionThreshold, TheReaderDefaultsToOneHalf)
 TEST(Small_DecisionThreshold, TheReaderRefusesWhatIsNoProbability)
 {
     SA_EXPECT_FAILURE(
-        Train::read_threshold(Config::parse_json(R"({"cut": 0.5})", "<test>"), "objective"),
+        Train::read_threshold(parsed(R"({"cut": 0.5})"), "objective"),
         StatusCode::InvalidDescription, "objective", "'cut'", "'threshold'");
     SA_EXPECT_FAILURE(
-        Train::read_threshold(Config::parse_json(R"({"threshold": "high"})", "<test>"),
+        Train::read_threshold(parsed(R"({"threshold": "high"})"),
                               "objective"),
         StatusCode::InvalidDescription, "objective", "number");
 
     for (const char* const text : {R"({"threshold": 0})", R"({"threshold": 1})",
                                    R"({"threshold": -0.5})", R"({"threshold": 1.5})"})
     {
-        SA_EXPECT_FAILURE(Train::read_threshold(Config::parse_json(text, "<test>"), "objective"),
+        SA_EXPECT_FAILURE(Train::read_threshold(parsed(text), "objective"),
                           StatusCode::InvalidDescription, "above 0 and below 1");
     }
 }

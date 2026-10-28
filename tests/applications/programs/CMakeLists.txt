@@ -41,6 +41,7 @@ if(SA_ENABLE_DISTRIBUTED)
         source/test_served_kernel.cpp
         source/test_training_cluster_section.cpp
         source/test_training_replica_model.cpp
+        source/test_training_setup.cpp
         source/test_worker_arguments.cpp)
     list(APPEND SUSHIAI_PROGRAM_TEST_CLUSTER_DEPENDS distribution)
 endif()
@@ -55,7 +56,6 @@ sushiai_add_test_program(APPLICATION programs
         source/test_run_start.cpp
         source/test_trainer_run.cpp
         source/test_training_run.cpp
-        source/test_training_setup.cpp
         source/test_profile_arguments.cpp
         ${SUSHIAI_PROGRAM_TEST_PROFILED}
         ${SUSHIAI_PROGRAM_TEST_CLUSTER}

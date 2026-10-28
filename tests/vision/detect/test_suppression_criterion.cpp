@@ -224,7 +224,7 @@ TEST(Small_DetectSuppressionCriterion, SelectionAppliesTheConfiguredCriterion)
     config.criterion = Detect::SuppressionCriterion::DistanceIoU;
 
     std::vector<std::vector<float>> detections;
-    Detect::select_nms_detections(boxes, scores, shape, config, detections);
+    SA_EXPECT_OK(Detect::select_nms_detections(boxes, scores, shape, config, detections));
     const std::vector<float> expected{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f,
                                       0.0f, 6.0f, 10.0f, 16.0f, 0.8f, 0.0f};
     ASSERT_EQ(detections.size(), 1u);

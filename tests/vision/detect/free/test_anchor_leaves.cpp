@@ -28,6 +28,7 @@
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/anchor_leaves.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 
@@ -55,7 +56,7 @@ TEST(Small_DetectAnchorLeaves, OneImageHoldsTheCellCentresAndTheirStride)
     const std::vector<FeatureLevel> levels{{1, 2, 8.0f}};
     AnchorLeaves leaves;
 
-    build_anchor_leaves(levels, 1, leaves);
+    SA_EXPECT_OK(build_anchor_leaves(levels, 1, leaves));
 
     expect_values(leaves.points, {0.5f, 0.5f, 1.5f, 0.5f});
     expect_values(leaves.strides, std::vector<float>(8, 8.0f));
@@ -66,10 +67,10 @@ TEST(Small_DetectAnchorLeaves, RebuildingForASmallerBatchShrinksTheLeaves)
 {
     const std::vector<FeatureLevel> levels{{2, 2, 8.0f}, {1, 1, 16.0f}};
     AnchorLeaves leaves;
-    build_anchor_leaves(levels, 3, leaves);
+    SA_EXPECT_OK(build_anchor_leaves(levels, 3, leaves));
     ASSERT_EQ(leaves.points.size(), 3u * 5u * 2u);
 
-    build_anchor_leaves(levels, 1, leaves);
+    SA_EXPECT_OK(build_anchor_leaves(levels, 1, leaves));
 
     // Five anchors of one image: two values per point and four per stride row.
     EXPECT_EQ(leaves.points.size(), 5u * 2u);
