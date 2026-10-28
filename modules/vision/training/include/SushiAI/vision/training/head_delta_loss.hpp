@@ -42,6 +42,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Graph::Traced emit_head_delta_loss(const Graph::GraphBuilder& builder,
                                                      Graph::ValueID head, Graph::ValueID delta,
-                                                     double scale);
+                                                     double scale) noexcept;
 
 } // namespace SushiAI::Vision::Training

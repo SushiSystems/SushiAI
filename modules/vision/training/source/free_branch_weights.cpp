@@ -52,7 +52,7 @@ namespace SushiAI::Vision::Training
             {K_FREE_BRANCH_WEIGHT_KEYS[1], &FreeBranchWeights::end}};
     } // namespace
 
-    Status validate_free_branch_weights(const FreeBranchWeights& weights)
+    Status validate_free_branch_weights(const FreeBranchWeights& weights) noexcept
     {
         for (const WeightField& field : K_FIELDS)
         {
@@ -66,7 +66,7 @@ namespace SushiAI::Vision::Training
         return Status();
     }
 
-    Result<FreeBranchWeights> read_free_branch_weights(const Config::Value& section)
+    Result<FreeBranchWeights> read_free_branch_weights(const Config::Value& section) noexcept
     {
         const Config::SectionReader reader(section, K_SECTION);
         SA_TRY(reader.check_object());

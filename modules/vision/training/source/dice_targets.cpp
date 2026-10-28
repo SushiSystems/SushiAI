@@ -117,7 +117,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Status fill_dice_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
-                             std::int32_t ignore_index, const DiceLeaves& leaves)
+                             std::int32_t ignore_index, const DiceLeaves& leaves) noexcept
     {
         SA_FATAL_IF(leaves.score_indices == nullptr || leaves.class_indices == nullptr
                     || leaves.kept == nullptr || leaves.class_pixels == nullptr

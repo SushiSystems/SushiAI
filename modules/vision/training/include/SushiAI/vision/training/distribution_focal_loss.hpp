@@ -42,6 +42,6 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Graph::Traced emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
                                                              const Graph::Graph& graph,
                                                              Graph::ValueID box,
-                                                             Graph::ValueID weights);
+                                                             Graph::ValueID weights) noexcept;
 
 } // namespace SushiAI::Vision::Training

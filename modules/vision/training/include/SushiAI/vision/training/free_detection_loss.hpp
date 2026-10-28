@@ -80,6 +80,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<FreeLossTermIDs> emit_free_detection_loss(
         const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-        const FreeModelFacts& facts, const FreeLossValues& values, const FreeLossGains& gains);
+        const FreeModelFacts& facts, const FreeLossValues& values, const FreeLossGains& gains) noexcept;
 
 } // namespace SushiAI::Vision::Training

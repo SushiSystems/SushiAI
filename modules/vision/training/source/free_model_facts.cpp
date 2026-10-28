@@ -191,7 +191,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<FreeModelFacts> derive_free_model_facts(const Shape& input_sample,
-                                                   const std::vector<Train::OutputShape>& outputs)
+                                                   const std::vector<Train::OutputShape>& outputs) noexcept
     {
         SA_FAIL_IF(input_sample.rank() != K_SAMPLE_RANK, StatusCode::InvalidDescription,
                    "the model reads samples of {}; an anchor-free model needs [H, W, C]",

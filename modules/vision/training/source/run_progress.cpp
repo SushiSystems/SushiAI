@@ -30,7 +30,7 @@
 
 namespace SushiAI::Vision::Training
 {
-    Status notify_guarded(const std::function<void()>& notify)
+    Status notify_guarded(const std::function<void()>& notify) noexcept
     {
         if (!notify)
             return Status();

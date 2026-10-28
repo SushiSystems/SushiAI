@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<FreeBatchDecoder> FreeBatchDecoder::make(const FreeModelFacts& facts,
-                                                    std::int64_t batch)
+                                                    std::int64_t batch) noexcept
     {
         SA_FAIL_IF(facts.levels.empty() || facts.reg_max < 1 || facts.classes < 1 || batch < 1,
                    StatusCode::InvalidDescription,
@@ -93,7 +93,7 @@ namespace SushiAI::Vision::Training
 
     Status FreeBatchDecoder::decode(SushiRuntime::span<const FreeLevelLogits> levels,
                                     SushiRuntime::span<float> boxes,
-                                    SushiRuntime::span<float> scores)
+                                    SushiRuntime::span<float> scores) noexcept
     {
         const auto rows = static_cast<std::size_t>(batch_ * anchors_);
         SA_FAIL_IF(levels.size() != levels_.size() || boxes.size() != distances_.size()

@@ -74,6 +74,6 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Result<FreeLossTerms> evaluate_free_detection_loss(
         SushiRuntime::span<const FreeLevelLossArrays> levels, std::int64_t reg_max,
         std::int64_t classes, std::int64_t batch, double target_scores_sum,
-        const FreeLossGains& gains);
+        const FreeLossGains& gains) noexcept;
 
 } // namespace SushiAI::Vision::Training

@@ -39,7 +39,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Status check_truth_layout(const Detect::GroundTruthBatch& truth, std::int64_t batch,
-                              std::string_view declared_for)
+                              std::string_view declared_for) noexcept
     {
         SA_FAIL_IF(truth.batch != batch, StatusCode::Incompatible,
                    "The truth holds {} images, but the {} a batch of {}", truth.batch,
@@ -61,7 +61,7 @@ namespace SushiAI::Vision::Training
     }
 
     Status check_truth_labels(const Detect::GroundTruthBatch& truth, std::int64_t classes,
-                              std::string_view holder)
+                              std::string_view holder) noexcept
     {
         for (std::size_t row = 0; row < truth.valid.size(); ++row)
         {

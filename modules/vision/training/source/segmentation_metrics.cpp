@@ -82,7 +82,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Status measure_segmentation(const Train::StepView& step, const PixelExtents& extents,
-                                std::int32_t ignore_index, Train::Metrics& metrics)
+                                std::int32_t ignore_index, Train::Metrics& metrics) noexcept
     {
         const std::int64_t pixels = extents.pixels();
         SA_TRY_ASSIGN(const SushiBLAS::Tensor* const logits, Train::only_output(step));

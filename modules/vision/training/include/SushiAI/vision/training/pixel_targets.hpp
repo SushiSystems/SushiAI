@@ -44,6 +44,6 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Status fill_pixel_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
                                             std::int32_t ignore_index,
                                             SushiBLAS::Tensor& indices,
-                                            SushiBLAS::Tensor& weights);
+                                            SushiBLAS::Tensor& weights) noexcept;
 
 } // namespace SushiAI::Vision::Training

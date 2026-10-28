@@ -83,7 +83,7 @@ namespace SushiAI::Vision::Training
 
     Result<AnchorObjective> AnchorObjective::make(Detect::Anchor::NetworkSize network,
                                                   Detect::Anchor::AnchorLayout layout,
-                                                  std::vector<AnchorHead> heads)
+                                                  std::vector<AnchorHead> heads) noexcept
     {
         SA_TRY_ASSIGN(std::shared_ptr<const HeadDeltaRule> rule,
                       ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
@@ -99,7 +99,7 @@ namespace SushiAI::Vision::Training
     Result<AnchorObjective> AnchorObjective::make(Detect::Anchor::NetworkSize network,
                                                   Detect::Anchor::AnchorLayout layout,
                                                   std::vector<AnchorHead> heads,
-                                                  std::shared_ptr<const HeadDeltaRule> rule)
+                                                  std::shared_ptr<const HeadDeltaRule> rule) noexcept
     {
         SA_FATAL_IF(rule == nullptr, "AnchorObjective::make was given no head delta rule");
         SA_FAIL_IF(network.height < 1 || network.width < 1, StatusCode::InvalidDescription,
@@ -179,7 +179,7 @@ namespace SushiAI::Vision::Training
     Result<Detect::Anchor::HeadCost> AnchorObjective::compute_deltas(
         SushiRuntime::span<const SushiRuntime::span<const float>> outputs,
         const Detect::GroundTruthBatch& truth,
-        SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const
+        SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const noexcept
     {
         SA_FATAL_IF(outputs.size() != heads_.size() || deltas.size() != heads_.size(),
                     "compute_deltas was given {} outputs and {} deltas for {} heads",
@@ -217,7 +217,7 @@ namespace SushiAI::Vision::Training
         return sum;
     }
 
-    std::string AnchorObjective::leaf_role(std::size_t head) const
+    std::string AnchorObjective::leaf_role(std::size_t head) const noexcept
     {
         SA_FATAL_IF(head >= heads_.size(), "head {} is outside an objective of {} heads", head,
                     heads_.size());

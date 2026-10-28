@@ -82,6 +82,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<AnchorRunReport> run_anchor_training(
         AnchorTrainingStep& step, const Data::Dataset& dataset,
-        const AnchorLoopOptions& options = {});
+        const AnchorLoopOptions& options = {}) noexcept;
 
 } // namespace SushiAI::Vision::Training

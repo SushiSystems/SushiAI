@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Training
 
     Graph::Traced emit_distribution_focal_loss(const Graph::GraphBuilder& builder,
                                                const Graph::Graph& graph, Graph::ValueID box,
-                                               Graph::ValueID weights)
+                                               Graph::ValueID weights) noexcept
     {
         // By value: the emissions below can reallocate the value vector.
         const Shape shape = graph.value(box).shape;

@@ -36,7 +36,7 @@
 namespace SushiAI::Vision::Training
 {
     Result<std::shared_ptr<const HeadDeltaRule>> choose_head_delta_rule(
-        const Detect::Anchor::AssignmentChoice& choice)
+        const Detect::Anchor::AssignmentChoice& choice) noexcept
     {
         switch (choice.rule)
         {

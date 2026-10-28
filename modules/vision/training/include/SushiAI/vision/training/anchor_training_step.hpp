@@ -73,7 +73,7 @@ namespace SushiAI::Vision::Training
                 SushiBLAS::Engine& engine, const AnchorObjective& objective,
                 const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
                 Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
-                Train::TrainingStepOptions options = {});
+                Train::TrainingStepOptions options = {}) noexcept;
 
             AnchorTrainingStep(const AnchorTrainingStep&) = delete;
             AnchorTrainingStep& operator=(const AnchorTrainingStep&) = delete;
@@ -90,7 +90,7 @@ namespace SushiAI::Vision::Training
              *         label that names no class; or the failure of a feed or of a replay.
              */
             [[nodiscard]] Result<Detect::Anchor::HeadCost> run(
-                const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth);
+                const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth) noexcept;
 
             /** @brief Returns the delta of each head as the last run() fed it, in head order. */
             [[nodiscard]] SushiRuntime::span<const Detect::Anchor::HeadDelta> deltas()
@@ -101,7 +101,7 @@ namespace SushiAI::Vision::Training
              * @return A tensor the pool owns, holding what the last run() computed, or
              *         InvalidDescription for a name the model did not publish.
              */
-            [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const;
+            [[nodiscard]] Result<const SushiBLAS::Tensor*> output(std::string_view name) const noexcept;
 
             /** @brief Returns the training step, for its counters. */
             [[nodiscard]] const Train::TrainingStep& training() const noexcept;
@@ -114,7 +114,7 @@ namespace SushiAI::Vision::Training
              * @param count What run_count() of the saved run returned.
              * @return What Train::TrainingStep::restore_run_count() returns.
              */
-            [[nodiscard]] Status restore_run_count(std::size_t count);
+            [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
             /** @brief Returns the objective that describes the heads. */
             [[nodiscard]] const AnchorObjective& objective() const noexcept;

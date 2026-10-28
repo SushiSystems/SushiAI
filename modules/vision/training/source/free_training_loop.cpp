@@ -62,7 +62,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<FreeRunReport> run_free_training(FreeTrainingStep& step, const Data::Dataset& dataset,
-                                            const FreeLoopOptions& options)
+                                            const FreeLoopOptions& options) noexcept
     {
         SA_TRY(check_run(step, dataset, options));
 

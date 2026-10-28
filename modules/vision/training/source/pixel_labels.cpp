@@ -32,7 +32,7 @@
 namespace SushiAI::Vision::Training
 {
     Status validate_pixel_labels(const SushiBLAS::Tensor& mask, std::int64_t pixels,
-                                 std::int64_t classes, std::int32_t ignore_index)
+                                 std::int64_t classes, std::int32_t ignore_index) noexcept
     {
         SA_FAIL_IF(mask.dtype != DType::Int32, StatusCode::Incompatible,
                    "The batch's mask is {}; a class index per pixel is read as {}",

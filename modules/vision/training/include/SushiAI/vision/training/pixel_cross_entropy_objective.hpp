@@ -77,7 +77,7 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] static Result<std::unique_ptr<PixelCrossEntropyObjective>> make(
                 const PixelExtents& extents,
                 std::int32_t ignore_index = Segment::K_DEFAULT_IGNORE_INDEX,
-                DType dtype = DType::Float32);
+                DType dtype = DType::Float32) noexcept;
 
             /** @brief Declares the two leaves and requires the INT32 [H, W] mask role. */
             void declare(const Graph::GraphBuilder& builder,
@@ -146,6 +146,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_pixel_cross_entropy_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Vision::Training

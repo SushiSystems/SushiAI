@@ -52,6 +52,6 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Status measure_segmentation(const Train::StepView& step,
                                               const PixelExtents& extents,
                                               std::int32_t ignore_index,
-                                              Train::Metrics& metrics);
+                                              Train::Metrics& metrics) noexcept;
 
 } // namespace SushiAI::Vision::Training

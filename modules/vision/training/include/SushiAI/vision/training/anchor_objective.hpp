@@ -71,7 +71,7 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] static Result<AnchorObjective> make(
                 Detect::Anchor::NetworkSize network, Detect::Anchor::AnchorLayout layout,
-                std::vector<AnchorHead> heads);
+                std::vector<AnchorHead> heads) noexcept;
 
             /**
              * @brief Checks the description and builds the objective with @p rule.
@@ -80,7 +80,7 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] static Result<AnchorObjective> make(
                 Detect::Anchor::NetworkSize network, Detect::Anchor::AnchorLayout layout,
-                std::vector<AnchorHead> heads, std::shared_ptr<const HeadDeltaRule> rule);
+                std::vector<AnchorHead> heads, std::shared_ptr<const HeadDeltaRule> rule) noexcept;
 
             /**
              * @brief Declares one float32 leaf per head, in the shape of the head's output.
@@ -111,7 +111,7 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] Result<Detect::Anchor::HeadCost> compute_deltas(
                 SushiRuntime::span<const SushiRuntime::span<const float>> outputs,
                 const Detect::GroundTruthBatch& truth,
-                SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const;
+                SushiRuntime::span<Detect::Anchor::HeadDelta> deltas) const noexcept;
 
             /**
              * @brief Returns measure_head_cost of every head summed, field by field.
@@ -124,7 +124,7 @@ namespace SushiAI::Vision::Training
              * @brief Returns the role and debug name of a head's leaf, "delta." and its output.
              * @pre @p head is below the head count; a larger index is fatal.
              */
-            [[nodiscard]] std::string leaf_role(std::size_t head) const;
+            [[nodiscard]] std::string leaf_role(std::size_t head) const noexcept;
 
             /** @brief Returns the size the truth's pixel corners are divided by. */
             [[nodiscard]] Detect::Anchor::NetworkSize network() const noexcept;

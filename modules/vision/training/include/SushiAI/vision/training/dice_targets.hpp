@@ -52,6 +52,6 @@ namespace SushiAI::Vision::Training
      *         that INT32 cannot index; OutOfMemory.
      */
     [[nodiscard]] Status fill_dice_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
-                                           std::int32_t ignore_index, const DiceLeaves& leaves);
+                                           std::int32_t ignore_index, const DiceLeaves& leaves) noexcept;
 
 } // namespace SushiAI::Vision::Training

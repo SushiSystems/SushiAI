@@ -42,6 +42,6 @@ namespace SushiAI::Vision::Training
     [[nodiscard]] Graph::Traced emit_distribution_expectation(const Graph::GraphBuilder& builder,
                                                               const Graph::Graph& graph,
                                                               Graph::ValueID box,
-                                                              Graph::ValueID projection);
+                                                              Graph::ValueID projection) noexcept;
 
 } // namespace SushiAI::Vision::Training

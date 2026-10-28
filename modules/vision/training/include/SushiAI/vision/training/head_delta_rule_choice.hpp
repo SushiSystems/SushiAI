@@ -43,6 +43,6 @@ namespace SushiAI::Vision::Training
      *         validate_shape_ratio_options refuses.
      */
     [[nodiscard]] Result<std::shared_ptr<const HeadDeltaRule>> choose_head_delta_rule(
-        const Detect::Anchor::AssignmentChoice& choice);
+        const Detect::Anchor::AssignmentChoice& choice) noexcept;
 
 } // namespace SushiAI::Vision::Training

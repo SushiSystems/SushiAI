@@ -72,6 +72,6 @@ namespace SushiAI::Vision::Training
      *         input or differs between H and W, or channels that differ between levels.
      */
     [[nodiscard]] Result<FreeModelFacts> derive_free_model_facts(
-        const Shape& input_sample, const std::vector<Train::OutputShape>& outputs);
+        const Shape& input_sample, const std::vector<Train::OutputShape>& outputs) noexcept;
 
 } // namespace SushiAI::Vision::Training

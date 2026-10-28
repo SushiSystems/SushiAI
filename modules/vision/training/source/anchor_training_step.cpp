@@ -88,7 +88,7 @@ namespace SushiAI::Vision::Training
         SushiBLAS::Engine& engine, const AnchorObjective& objective,
         const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
         Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
-        Train::TrainingStepOptions options)
+        Train::TrainingStepOptions options) noexcept
     {
         SA_FAIL_IF(built.spec.inputs == Graph::K_NO_VALUE
                        || !training_pool.is_bound(built.spec.inputs),
@@ -250,7 +250,7 @@ namespace SushiAI::Vision::Training
     }
 
     Result<Detect::Anchor::HeadCost> AnchorTrainingStep::run(
-        const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth)
+        const SushiBLAS::Tensor& inputs, const Detect::GroundTruthBatch& truth) noexcept
     {
         SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
         SA_TRY(check_truth(truth));
@@ -275,7 +275,7 @@ namespace SushiAI::Vision::Training
         return cost_;
     }
 
-    Result<const SushiBLAS::Tensor*> AnchorTrainingStep::output(std::string_view name) const
+    Result<const SushiBLAS::Tensor*> AnchorTrainingStep::output(std::string_view name) const noexcept
     {
         SA_TRY_ASSIGN(const Graph::ValueID id, outputs_.at(name));
 
@@ -299,7 +299,7 @@ namespace SushiAI::Vision::Training
         return training_->step().run_count();
     }
 
-    Status AnchorTrainingStep::restore_run_count(std::size_t count)
+    Status AnchorTrainingStep::restore_run_count(std::size_t count) noexcept
     {
         return training_->restore_run_count(count);
     }

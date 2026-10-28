@@ -71,7 +71,7 @@ namespace SushiAI::Vision::Training
                 SushiBLAS::Engine& engine, const FreeObjective& objective,
                 const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
                 Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
-                Train::TrainingStepOptions options = {});
+                Train::TrainingStepOptions options = {}) noexcept;
 
             FreeTrainingStep(const FreeTrainingStep&) = delete;
             FreeTrainingStep& operator=(const FreeTrainingStep&) = delete;
@@ -88,7 +88,7 @@ namespace SushiAI::Vision::Training
              *         names no class; or the failure of a feed, the stage or a replay.
              */
             [[nodiscard]] Result<FreeLossTerms> run(const SushiBLAS::Tensor& inputs,
-                                                    const Detect::GroundTruthBatch& truth);
+                                                    const Detect::GroundTruthBatch& truth) noexcept;
 
             /** @brief Returns the one-to-many stage as the last run() left it. */
             [[nodiscard]] const FreeAssignmentStage& stage() const noexcept;
@@ -113,7 +113,7 @@ namespace SushiAI::Vision::Training
              * @brief Sets the run count of both parts of the step to that of a saved run.
              * @return What Train::TrainingStep::restore_run_count() returns.
              */
-            [[nodiscard]] Status restore_run_count(std::size_t count);
+            [[nodiscard]] Status restore_run_count(std::size_t count) noexcept;
 
             /** @brief Returns the objective that describes the ports and the leaves. */
             [[nodiscard]] const FreeObjective& objective() const noexcept;

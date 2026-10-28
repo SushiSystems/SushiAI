@@ -47,7 +47,7 @@ namespace SushiAI::Vision::Training
      *         publish; Incompatible for other extents or classes; or a reader's refusal.
      */
     [[nodiscard]] Result<AnchorObjective> build_anchor_objective(
-        const Train::ObjectiveContext& given, const Config::Value& attributes);
+        const Train::ObjectiveContext& given, const Config::Value& attributes) noexcept;
 
     /**
      * @brief Builds the anchor objective as a row of a Train::ObjectiveRegistry builds it.
@@ -56,6 +56,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_anchor_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Vision::Training

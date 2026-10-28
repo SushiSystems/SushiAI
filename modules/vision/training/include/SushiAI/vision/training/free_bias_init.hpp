@@ -37,7 +37,7 @@
 namespace SushiAI::Vision::Training
 {
     /** @brief Returns the class bias log(5 / classes / (640 / stride)^2). */
-    [[nodiscard]] double free_class_bias(std::int64_t classes, std::int64_t stride);
+    [[nodiscard]] double free_class_bias(std::int64_t classes, std::int64_t stride) noexcept;
 
     /**
      * @brief Sets the last box bias of every level to 1 and the last class bias to
@@ -49,6 +49,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Status initialize_free_biases(const FreeModelFacts& facts,
                                                 std::string_view head_prefix,
-                                                NN::ModelState& state);
+                                                NN::ModelState& state) noexcept;
 
 } // namespace SushiAI::Vision::Training

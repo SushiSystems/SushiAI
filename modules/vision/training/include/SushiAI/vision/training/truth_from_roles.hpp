@@ -50,7 +50,7 @@ namespace SushiAI::Vision::Training
      *         that order; InvalidDescription for an M below 1 or a negative class count.
      */
     [[nodiscard]] Result<std::vector<Data::TargetDescription>> describe_truth_roles(
-        std::int64_t max_objects, std::int64_t classes);
+        std::int64_t max_objects, std::int64_t classes) noexcept;
 
     /**
      * @brief Copies the boxes, classes and valid roles of @p batch into @p truth.
@@ -61,6 +61,6 @@ namespace SushiAI::Vision::Training
      *         element type, or one whose values the host cannot read in order.
      */
     [[nodiscard]] Status truth_from_roles(const Data::Batch& batch,
-                                          Detect::GroundTruthBatch& truth);
+                                          Detect::GroundTruthBatch& truth) noexcept;
 
 } // namespace SushiAI::Vision::Training

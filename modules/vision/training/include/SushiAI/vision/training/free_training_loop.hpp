@@ -81,6 +81,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<FreeRunReport> run_free_training(FreeTrainingStep& step,
                                                           const Data::Dataset& dataset,
-                                                          const FreeLoopOptions& options = {});
+                                                          const FreeLoopOptions& options = {}) noexcept;
 
 } // namespace SushiAI::Vision::Training

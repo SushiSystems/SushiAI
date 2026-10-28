@@ -64,7 +64,7 @@ namespace SushiAI::Vision::Training
 
     Result<AnchorRunReport> run_anchor_training(AnchorTrainingStep& step,
                                                 const Data::Dataset& dataset,
-                                                const AnchorLoopOptions& options)
+                                                const AnchorLoopOptions& options) noexcept
     {
         SA_TRY(check_run(step, dataset, options));
 

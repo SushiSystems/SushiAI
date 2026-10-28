@@ -138,7 +138,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<std::vector<Data::TargetDescription>> describe_truth_roles(std::int64_t max_objects,
-                                                                      std::int64_t classes)
+                                                                      std::int64_t classes) noexcept
     {
         SA_FAIL_IF(max_objects < 1, StatusCode::InvalidDescription,
                    "A detection step reads at least 1 object slot per image; got {}",
@@ -153,7 +153,7 @@ namespace SushiAI::Vision::Training
             {std::string(K_VALID_FORM.role), Shape{max_objects}, K_VALID_FORM.dtype, 0}};
     }
 
-    Status truth_from_roles(const Data::Batch& batch, Detect::GroundTruthBatch& truth)
+    Status truth_from_roles(const Data::Batch& batch, Detect::GroundTruthBatch& truth) noexcept
     {
         SA_TRY_ASSIGN(const SushiBLAS::Tensor* const boxes, find_role(batch, K_BOXES_FORM));
         SA_TRY_ASSIGN(const SushiBLAS::Tensor* const classes, find_role(batch, K_CLASSES_FORM));

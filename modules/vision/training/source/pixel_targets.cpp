@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Training
 
     Status fill_pixel_targets(const SushiBLAS::Tensor& mask, std::int64_t classes,
                               std::int32_t ignore_index, SushiBLAS::Tensor& indices,
-                              SushiBLAS::Tensor& weights)
+                              SushiBLAS::Tensor& weights) noexcept
     {
         const std::int64_t pixels = indices.num_elements;
         SA_FAIL_IF(indices.dtype != DType::Int32 || !Detail::holds_reals(weights),

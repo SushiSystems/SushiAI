@@ -144,7 +144,7 @@ namespace SushiAI::Vision::Training
 
     Result<FreeAssignmentStage> FreeAssignmentStage::make(const FreeModelFacts& facts,
                                                           const FreeTask& task,
-                                                          std::int64_t batch, FreeBranch branch)
+                                                          std::int64_t batch, FreeBranch branch) noexcept
     {
         SA_FAIL_IF(branch == FreeBranch::OneToOne && !facts.has_one_to_one,
                    StatusCode::InvalidDescription,
@@ -249,7 +249,7 @@ namespace SushiAI::Vision::Training
     }
 
     Status FreeAssignmentStage::assign(SushiRuntime::span<const FreeLevelViews> levels,
-                                       const Detect::GroundTruthBatch& truth)
+                                       const Detect::GroundTruthBatch& truth) noexcept
     {
         SA_ZONE("host", "assign");
         SA_FAIL_IF(truth.batch != batch_, StatusCode::InvalidDescription,
@@ -364,7 +364,7 @@ namespace SushiAI::Vision::Training
     }
 
     Status FreeAssignmentStage::write_leaf(std::size_t leaf,
-                                           SushiRuntime::span<float> values) const
+                                           SushiRuntime::span<float> values) const noexcept
     {
         SA_FATAL_IF(leaf >= leaves_.size(), "leaf {} is beyond the stage's {}", leaf,
                     leaves_.size());

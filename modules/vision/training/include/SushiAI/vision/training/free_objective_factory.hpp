@@ -46,7 +46,7 @@ namespace SushiAI::Vision::Training
      *         a data class count the ports do not hold; or a reader's refusal.
      */
     [[nodiscard]] Result<FreeObjective> build_free_objective(const Train::ObjectiveContext& given,
-                                                             const Config::Value& attributes);
+                                                             const Config::Value& attributes) noexcept;
 
     /**
      * @brief Builds the anchor-free objective as a row of a Train::ObjectiveRegistry builds it.
@@ -55,6 +55,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_free_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Vision::Training

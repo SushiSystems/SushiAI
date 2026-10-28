@@ -53,7 +53,7 @@ namespace SushiAI::Vision::Training
             {K_FREE_LOSS_GAIN_KEYS[3], &FreeLossGains::l1_gain}};
     } // namespace
 
-    Status validate_free_loss_gains(const FreeLossGains& gains)
+    Status validate_free_loss_gains(const FreeLossGains& gains) noexcept
     {
         for (const GainField& field : K_FIELDS)
         {
@@ -66,7 +66,7 @@ namespace SushiAI::Vision::Training
         return Status();
     }
 
-    Result<FreeLossGains> read_free_loss_gains(const Config::Value& section)
+    Result<FreeLossGains> read_free_loss_gains(const Config::Value& section) noexcept
     {
         const Config::SectionReader reader(section, K_SECTION);
         SA_TRY(reader.check_object());

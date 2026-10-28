@@ -111,7 +111,7 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] static Result<FreeAssignmentStage> make(
                 const FreeModelFacts& facts, const Detect::Free::FreeTask& task,
-                std::int64_t batch, FreeBranch branch = FreeBranch::OneToMany);
+                std::int64_t batch, FreeBranch branch = FreeBranch::OneToMany) noexcept;
 
             /** @brief Returns every leaf, each kind over the levels in order, the sum last. */
             [[nodiscard]] const std::vector<FreeLeaf>& leaves() const noexcept;
@@ -125,7 +125,7 @@ namespace SushiAI::Vision::Training
              *         infinity; the message names the level and the first bad index.
              */
             [[nodiscard]] Status assign(SushiRuntime::span<const FreeLevelViews> levels,
-                                        const Detect::GroundTruthBatch& truth);
+                                        const Detect::GroundTruthBatch& truth) noexcept;
 
             /**
              * @brief Copies leaf @p leaf of the last assign() into @p values.
@@ -134,7 +134,7 @@ namespace SushiAI::Vision::Training
              *         An out-of-range @p leaf stops the process.
              */
             [[nodiscard]] Status write_leaf(std::size_t leaf,
-                                            SushiRuntime::span<float> values) const;
+                                            SushiRuntime::span<float> values) const noexcept;
 
             /** @brief Returns the assignment of the last assign(), over the joined anchors. */
             [[nodiscard]] const Detect::Free::Assignment& assignment() const noexcept;

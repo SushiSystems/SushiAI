@@ -45,7 +45,7 @@ namespace SushiAI::Vision::Training
 
     Graph::Traced emit_distribution_expectation(const Graph::GraphBuilder& builder,
                                                 const Graph::Graph& graph, Graph::ValueID box,
-                                                Graph::ValueID projection)
+                                                Graph::ValueID projection) noexcept
     {
         // By value: the emissions below can reallocate the value vector.
         const Shape shape = graph.value(box).shape;

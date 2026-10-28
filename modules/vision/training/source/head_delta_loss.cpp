@@ -34,7 +34,7 @@
 namespace SushiAI::Vision::Training
 {
     Graph::Traced emit_head_delta_loss(const Graph::GraphBuilder& builder, Graph::ValueID head,
-                                       Graph::ValueID delta, double scale)
+                                       Graph::ValueID delta, double scale) noexcept
     {
         SA_TRY_ASSIGN(const Graph::ValueID product, builder.mul(delta, head));
 

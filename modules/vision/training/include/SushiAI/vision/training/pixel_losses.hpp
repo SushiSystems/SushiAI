@@ -47,7 +47,7 @@ namespace SushiAI::Vision::Training
                                                          const Graph::Graph& graph,
                                                          Graph::ValueID logits,
                                                          Graph::ValueID indices,
-                                                         Graph::ValueID weights);
+                                                         Graph::ValueID weights) noexcept;
 
     /** @brief Holds the five leaves fill_dice_targets() writes, as values of one graph. */
     struct DiceOperands
@@ -69,6 +69,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Graph::Traced emit_soft_dice(const Graph::GraphBuilder& builder,
                                                const Graph::Graph& graph, Graph::ValueID logits,
-                                               const DiceOperands& operands);
+                                               const DiceOperands& operands) noexcept;
 
 } // namespace SushiAI::Vision::Training

@@ -80,6 +80,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Status check_detection_run(const Data::Dataset& dataset,
                                              const DetectionRunSubject& subject,
-                                             const DetectionRunPlan& plan);
+                                             const DetectionRunPlan& plan) noexcept;
 
 } // namespace SushiAI::Vision::Training

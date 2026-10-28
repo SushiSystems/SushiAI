@@ -186,20 +186,20 @@ namespace SushiAI::Vision::Training
         }
     } // namespace
 
-    double anchor_objectness_bias(std::int64_t stride)
+    double anchor_objectness_bias(std::int64_t stride) noexcept
     {
         const double cells = K_REFERENCE_IMAGE_SIDE / static_cast<double>(stride);
         return std::log(K_OBJECTS_PER_IMAGE / (cells * cells));
     }
 
-    double anchor_class_bias(std::int64_t classes)
+    double anchor_class_bias(std::int64_t classes) noexcept
     {
         return std::log(K_CLASS_NUMERATOR / (static_cast<double>(classes) - K_CLASS_OFFSET));
     }
 
     Result<std::vector<AnchorBiasHead>> derive_anchor_bias_heads(
         const Config::ModelSpec& spec, const Shape& input_sample,
-        const Detect::Anchor::AnchorTask& task, const std::vector<Train::OutputShape>& outputs)
+        const Detect::Anchor::AnchorTask& task, const std::vector<Train::OutputShape>& outputs) noexcept
     {
         SA_FAIL_IF(input_sample.rank() != K_SAMPLE_RANK, StatusCode::InvalidDescription,
                    "the input sample is {}; it must be [H, W, C]", input_sample.to_string());
@@ -227,7 +227,7 @@ namespace SushiAI::Vision::Training
 
     Status initialize_anchor_biases(const Detect::Anchor::AnchorTask& task,
                                     const std::vector<AnchorBiasHead>& heads,
-                                    NN::ModelState& state)
+                                    NN::ModelState& state) noexcept
     {
         SA_FAIL_IF(heads.size() != task.layout.head_anchors.size(),
                    StatusCode::InvalidDescription,

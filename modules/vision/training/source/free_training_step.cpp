@@ -100,7 +100,7 @@ namespace SushiAI::Vision::Training
         SushiBLAS::Engine& engine, const FreeObjective& objective,
         const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
         Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
-        Train::TrainingStepOptions options)
+        Train::TrainingStepOptions options) noexcept
     {
         SA_FAIL_IF(built.spec.inputs == Graph::K_NO_VALUE
                        || !training_pool.is_bound(built.spec.inputs),
@@ -460,7 +460,7 @@ namespace SushiAI::Vision::Training
     }
 
     Result<FreeLossTerms> FreeTrainingStep::run(const SushiBLAS::Tensor& inputs,
-                                                const Detect::GroundTruthBatch& truth)
+                                                const Detect::GroundTruthBatch& truth) noexcept
     {
         SA_TRY(Train::check_feed(inputs, *input_, "inputs"));
         SA_TRY(check_truth(truth));
@@ -519,7 +519,7 @@ namespace SushiAI::Vision::Training
         return training_->step().run_count();
     }
 
-    Status FreeTrainingStep::restore_run_count(std::size_t count)
+    Status FreeTrainingStep::restore_run_count(std::size_t count) noexcept
     {
         return training_->restore_run_count(count);
     }

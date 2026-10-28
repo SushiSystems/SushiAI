@@ -43,7 +43,7 @@ namespace SushiAI::Vision::Training
      *         or box array of another size.
      */
     [[nodiscard]] Status check_truth_layout(const Detect::GroundTruthBatch& truth,
-                                            std::int64_t batch, std::string_view declared_for);
+                                            std::int64_t batch, std::string_view declared_for) noexcept;
 
     /**
      * @brief Checks that every valid row of @p truth names a class below @p classes.
@@ -54,6 +54,6 @@ namespace SushiAI::Vision::Training
      *         negative or at least @p classes.
      */
     [[nodiscard]] Status check_truth_labels(const Detect::GroundTruthBatch& truth,
-                                            std::int64_t classes, std::string_view holder);
+                                            std::int64_t classes, std::string_view holder) noexcept;
 
 } // namespace SushiAI::Vision::Training

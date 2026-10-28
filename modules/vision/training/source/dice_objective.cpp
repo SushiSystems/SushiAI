@@ -50,7 +50,7 @@ namespace SushiAI::Vision::Training
 
     Result<std::unique_ptr<DiceObjective>> DiceObjective::make(const PixelExtents& extents,
                                                                std::int32_t ignore_index,
-                                                               DType dtype)
+                                                               DType dtype) noexcept
     {
         SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype, K_LARGEST_INDEX,
                                                 K_DICE_TYPE));
@@ -130,7 +130,7 @@ namespace SushiAI::Vision::Training
 
     Result<std::unique_ptr<Train::Objective>> make_dice_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context)
+        std::string_view context) noexcept
     {
         SA_TRY_ASSIGN(const std::int32_t ignore_index,
                       Detail::read_ignore_index(attributes, context));

@@ -61,7 +61,7 @@ namespace SushiAI::Vision::Training
              *         below 1.
              */
             [[nodiscard]] static Result<FreeBatchDecoder> make(const FreeModelFacts& facts,
-                                                               std::int64_t batch);
+                                                               std::int64_t batch) noexcept;
 
             /** @brief Returns the anchors of one image over every level, A. */
             [[nodiscard]] std::int64_t anchors() const noexcept;
@@ -76,7 +76,7 @@ namespace SushiAI::Vision::Training
              */
             [[nodiscard]] Status decode(SushiRuntime::span<const FreeLevelLogits> levels,
                                         SushiRuntime::span<float> boxes,
-                                        SushiRuntime::span<float> scores);
+                                        SushiRuntime::span<float> scores) noexcept;
 
         private:
             /** @brief Stores the extents of checked @p facts for batches of @p batch images. */

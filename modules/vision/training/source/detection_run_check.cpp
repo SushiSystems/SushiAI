@@ -44,7 +44,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Status check_detection_run(const Data::Dataset& dataset, const DetectionRunSubject& subject,
-                               const DetectionRunPlan& plan)
+                               const DetectionRunPlan& plan) noexcept
     {
         SA_FAIL_IF(plan.epochs < 1, StatusCode::InvalidDescription,
                    "{} needs at least one epoch; got {}", subject.run_name, plan.epochs);

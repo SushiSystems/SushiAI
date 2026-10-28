@@ -100,13 +100,13 @@ namespace SushiAI::Vision::Training
         }
     } // namespace
 
-    double free_class_bias(std::int64_t classes, std::int64_t stride)
+    double free_class_bias(std::int64_t classes, std::int64_t stride) noexcept
     {
         return Detect::Free::detect_class_bias(classes, static_cast<double>(stride));
     }
 
     Status initialize_free_biases(const FreeModelFacts& facts, std::string_view head_prefix,
-                                  NN::ModelState& state)
+                                  NN::ModelState& state) noexcept
     {
         std::vector<BiasWrite> writes;
         for (std::size_t level = 0; level < facts.levels.size(); ++level)

@@ -37,7 +37,7 @@ namespace SushiAI::Vision::Training
      * @param notify The call to make; an empty function succeeds without a call.
      * @return Success, or the failure the throw of @p notify became.
      */
-    [[nodiscard]] Status notify_guarded(const std::function<void()>& notify);
+    [[nodiscard]] Status notify_guarded(const std::function<void()>& notify) noexcept;
 
     /**
      * @brief Hands @p progress to @p callback, when it holds one, and guards its throw.
@@ -48,7 +48,7 @@ namespace SushiAI::Vision::Training
      */
     template <typename Progress>
     [[nodiscard]] Status report_run_progress(
-        const std::function<void(const Progress&)>& callback, const Progress& progress)
+        const std::function<void(const Progress&)>& callback, const Progress& progress) noexcept
     {
         if (!callback)
             return Status();

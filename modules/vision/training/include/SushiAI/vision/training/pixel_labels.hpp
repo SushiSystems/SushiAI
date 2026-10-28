@@ -43,6 +43,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Status validate_pixel_labels(const SushiBLAS::Tensor& mask,
                                                std::int64_t pixels, std::int64_t classes,
-                                               std::int32_t ignore_index);
+                                               std::int32_t ignore_index) noexcept;
 
 } // namespace SushiAI::Vision::Training

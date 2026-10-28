@@ -71,7 +71,7 @@ namespace SushiAI::Vision::Training
 
     Graph::Traced emit_pixel_cross_entropy(const Graph::GraphBuilder& builder,
                                            const Graph::Graph& graph, Graph::ValueID logits,
-                                           Graph::ValueID indices, Graph::ValueID weights)
+                                           Graph::ValueID indices, Graph::ValueID weights) noexcept
     {
         const Shape shape = require_rows(graph, logits, "per-pixel cross entropy");
         const std::int64_t rows = shape[0];
@@ -87,7 +87,7 @@ namespace SushiAI::Vision::Training
     }
 
     Graph::Traced emit_soft_dice(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                 Graph::ValueID logits, const DiceOperands& operands)
+                                 Graph::ValueID logits, const DiceOperands& operands) noexcept
     {
         const Shape shape = require_rows(graph, logits, "soft Dice");
         const std::int64_t rows = shape[0];

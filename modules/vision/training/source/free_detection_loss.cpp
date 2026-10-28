@@ -248,7 +248,7 @@ namespace SushiAI::Vision::Training
                                                      const Graph::Graph& graph,
                                                      const FreeModelFacts& facts,
                                                      const FreeLossValues& values,
-                                                     const FreeLossGains& gains)
+                                                     const FreeLossGains& gains) noexcept
     {
         SA_FATAL_IF(!validate_free_loss_gains(gains).is_ok(),
                     "The free detection loss reads gains validate_free_loss_gains() refuses");

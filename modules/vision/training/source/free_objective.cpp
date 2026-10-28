@@ -87,7 +87,7 @@ namespace SushiAI::Vision::Training
 
     Result<FreeObjective> FreeObjective::make(FreeModelFacts facts, Detect::Free::FreeTask task,
                                               std::int64_t batch, FreeLossGains gains,
-                                              FreeBranchWeights weights)
+                                              FreeBranchWeights weights) noexcept
     {
         SA_TRY(validate_free_loss_gains(gains));
         SA_TRY(validate_free_branch_weights(weights));
@@ -253,7 +253,7 @@ namespace SushiAI::Vision::Training
         return weights_;
     }
 
-    Status add_free_loss_metrics(const FreeLossTerms& terms, Train::Metrics& metrics)
+    Status add_free_loss_metrics(const FreeLossTerms& terms, Train::Metrics& metrics) noexcept
     {
         SA_TRY(metrics.add(Train::Metric{"box", terms.box, false}));
         SA_TRY(metrics.add(Train::Metric{"class", terms.classes, false}));

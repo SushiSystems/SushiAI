@@ -203,7 +203,7 @@ namespace SushiAI::Vision::Training
     Result<FreeLossTerms> evaluate_free_detection_loss(
         SushiRuntime::span<const FreeLevelLossArrays> levels, std::int64_t reg_max,
         std::int64_t classes, std::int64_t batch, double target_scores_sum,
-        const FreeLossGains& gains)
+        const FreeLossGains& gains) noexcept
     {
         SA_FAIL_IF(reg_max < 1 || classes < 1 || batch < 1 || !(target_scores_sum > 0.0),
                    StatusCode::InvalidDescription,

@@ -56,7 +56,7 @@ namespace SushiAI::Vision::Training
      * @brief Checks that both weights are finite and lie in 0..1.
      * @return Success, or InvalidDescription naming the first weight that does not.
      */
-    [[nodiscard]] Status validate_free_branch_weights(const FreeBranchWeights& weights);
+    [[nodiscard]] Status validate_free_branch_weights(const FreeBranchWeights& weights) noexcept;
 
     /**
      * @brief Reads the branch weight keys of an objective section; other keys are left alone.
@@ -64,7 +64,7 @@ namespace SushiAI::Vision::Training
      * @return The weights, a key left out keeping its default, or InvalidDescription naming
      *         the key that is no finite float32 number in 0..1.
      */
-    [[nodiscard]] Result<FreeBranchWeights> read_free_branch_weights(const Config::Value& section);
+    [[nodiscard]] Result<FreeBranchWeights> read_free_branch_weights(const Config::Value& section) noexcept;
 
     /**
      * @brief Returns the one-to-many weight of epoch @p epoch of a run of @p epochs epochs.

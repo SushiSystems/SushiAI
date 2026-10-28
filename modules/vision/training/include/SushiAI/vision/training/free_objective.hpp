@@ -80,7 +80,7 @@ namespace SushiAI::Vision::Training
                                                             Detect::Free::FreeTask task,
                                                             std::int64_t batch,
                                                             FreeLossGains gains,
-                                                            FreeBranchWeights weights = {});
+                                                            FreeBranchWeights weights = {}) noexcept;
 
             /**
              * @brief Declares one float32 leaf per stage leaf the loss reads, the projection
@@ -164,6 +164,6 @@ namespace SushiAI::Vision::Training
      * @return Success, or the refusal of Train::Metrics::add().
      */
     [[nodiscard]] Status add_free_loss_metrics(const FreeLossTerms& terms,
-                                               Train::Metrics& metrics);
+                                               Train::Metrics& metrics) noexcept;
 
 } // namespace SushiAI::Vision::Training

@@ -49,7 +49,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<std::unique_ptr<PixelCrossEntropyObjective>> PixelCrossEntropyObjective::make(
-        const PixelExtents& extents, std::int32_t ignore_index, DType dtype)
+        const PixelExtents& extents, std::int32_t ignore_index, DType dtype) noexcept
     {
         SA_TRY(Detail::validate_pixel_objective(extents, ignore_index, dtype, K_LARGEST_INDEX,
                                                 K_PIXEL_CROSS_ENTROPY_TYPE));
@@ -118,7 +118,7 @@ namespace SushiAI::Vision::Training
 
     Result<std::unique_ptr<Train::Objective>> make_pixel_cross_entropy_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context)
+        std::string_view context) noexcept
     {
         SA_TRY_ASSIGN(const std::int32_t ignore_index,
                       Detail::read_ignore_index(attributes, context));

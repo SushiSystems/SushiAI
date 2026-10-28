@@ -49,10 +49,10 @@ namespace SushiAI::Vision::Training
     };
 
     /** @brief Returns the objectness bias log(8 / (640 / stride)^2). */
-    [[nodiscard]] double anchor_objectness_bias(std::int64_t stride);
+    [[nodiscard]] double anchor_objectness_bias(std::int64_t stride) noexcept;
 
     /** @brief Returns the class bias log(0.6 / (classes - 0.99)). */
-    [[nodiscard]] double anchor_class_bias(std::int64_t classes);
+    [[nodiscard]] double anchor_class_bias(std::int64_t classes) noexcept;
 
     /**
      * @brief Finds, per head of @p task, the bias entry it ends in and its level's stride.
@@ -63,7 +63,7 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Result<std::vector<AnchorBiasHead>> derive_anchor_bias_heads(
         const Config::ModelSpec& spec, const Shape& input_sample,
-        const Detect::Anchor::AnchorTask& task, const std::vector<Train::OutputShape>& outputs);
+        const Detect::Anchor::AnchorTask& task, const std::vector<Train::OutputShape>& outputs) noexcept;
 
     /**
      * @brief Adds the objectness and class biases to every anchor slot of every head, by
@@ -75,6 +75,6 @@ namespace SushiAI::Vision::Training
      */
     [[nodiscard]] Status initialize_anchor_biases(const Detect::Anchor::AnchorTask& task,
                                                   const std::vector<AnchorBiasHead>& heads,
-                                                  NN::ModelState& state);
+                                                  NN::ModelState& state) noexcept;
 
 } // namespace SushiAI::Vision::Training

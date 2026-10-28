@@ -52,7 +52,7 @@ namespace SushiAI::Vision::Training
      * @brief Checks that every gain of @p gains is finite and not negative.
      * @return Success, or InvalidDescription naming the first gain that is not.
      */
-    [[nodiscard]] Status validate_free_loss_gains(const FreeLossGains& gains);
+    [[nodiscard]] Status validate_free_loss_gains(const FreeLossGains& gains) noexcept;
 
     /**
      * @brief Reads the gain keys of an objective section; every other key is left to its caller.
@@ -61,6 +61,6 @@ namespace SushiAI::Vision::Training
      *         the key: a section that is no object, a value that is no finite float32 number,
      *         or a negative gain.
      */
-    [[nodiscard]] Result<FreeLossGains> read_free_loss_gains(const Config::Value& section);
+    [[nodiscard]] Result<FreeLossGains> read_free_loss_gains(const Config::Value& section) noexcept;
 
 } // namespace SushiAI::Vision::Training

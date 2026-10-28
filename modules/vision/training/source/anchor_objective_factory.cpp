@@ -103,7 +103,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<AnchorObjective> build_anchor_objective(const Train::ObjectiveContext& given,
-                                                   const Config::Value& attributes)
+                                                   const Config::Value& attributes) noexcept
     {
         SA_FAIL_IF(given.task.is_null(), StatusCode::InvalidDescription,
                    "the model file has no 'task' section, which states the anchors and the "
@@ -149,7 +149,7 @@ namespace SushiAI::Vision::Training
 
     Result<std::unique_ptr<Train::Objective>> make_anchor_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context)
+        std::string_view context) noexcept
     {
         Result<AnchorObjective> built = build_anchor_objective(given, attributes);
         SA_TRY(SA_ANNOTATE(built.status(), "{}", context));
