@@ -43,6 +43,6 @@ namespace SushiAI::Language::Training
      */
     [[nodiscard]] Status fill_next_token_targets(const SushiBLAS::Tensor& labels,
                                                  std::int64_t vocabulary,
-                                                 SushiBLAS::Tensor& targets);
+                                                 SushiBLAS::Tensor& targets) noexcept;
 
 } // namespace SushiAI::Language::Training

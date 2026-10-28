@@ -129,7 +129,7 @@ namespace SushiAI::Language::Training
     } // namespace
 
     Result<std::unique_ptr<NextTokenObjective>> NextTokenObjective::make(
-        std::int64_t batch, std::int64_t length, std::int64_t vocabulary, std::string output)
+        std::int64_t batch, std::int64_t length, std::int64_t vocabulary, std::string output) noexcept
     {
         SA_FAIL_IF(batch < 1 || length < 1 || vocabulary < 1, StatusCode::InvalidDescription,
                    "A next-token objective needs a batch, a length and a vocabulary of at "
@@ -223,7 +223,7 @@ namespace SushiAI::Language::Training
 
     Result<std::unique_ptr<Train::Objective>> make_next_token_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context)
+        std::string_view context) noexcept
     {
         SA_TRY_ASSIGN(std::string name, read_output_name(attributes, context));
         SA_FAIL_IF(given.input_sample.rank() != 1, StatusCode::InvalidDescription,

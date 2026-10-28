@@ -35,7 +35,7 @@
 namespace SushiAI::Language::Training
 {
     Status fill_next_token_targets(const SushiBLAS::Tensor& labels, std::int64_t vocabulary,
-                                   SushiBLAS::Tensor& targets)
+                                   SushiBLAS::Tensor& targets) noexcept
     {
         SA_FAIL_IF(labels.dtype != DType::Int32 || targets.dtype != DType::Int32,
                    StatusCode::Incompatible,

@@ -87,7 +87,7 @@ namespace SushiAI::Language::Training
              *         empty name or a usage of no expert.
              */
             [[nodiscard]] static Result<std::unique_ptr<ExpertBalanceObjective>> make(
-                std::vector<std::string> balances, std::vector<ExpertUsageOutput> usages);
+                std::vector<std::string> balances, std::vector<ExpertUsageOutput> usages) noexcept;
 
             /** @brief Declares nothing: the objective reads the model's outputs alone. */
             void declare(const Graph::GraphBuilder& builder,
@@ -160,6 +160,6 @@ namespace SushiAI::Language::Training
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_expert_balance_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Training

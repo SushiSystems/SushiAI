@@ -73,7 +73,7 @@ namespace SushiAI::Language::Training
              */
             [[nodiscard]] static Result<std::unique_ptr<NextTokenObjective>> make(
                 std::int64_t batch, std::int64_t length, std::int64_t vocabulary,
-                std::string output = {});
+                std::string output = {}) noexcept;
 
             /** @brief Declares the INT32 [N * T] "targets" leaf and requires the labels role. */
             void declare(const Graph::GraphBuilder& builder,
@@ -149,6 +149,6 @@ namespace SushiAI::Language::Training
      */
     [[nodiscard]] Result<std::unique_ptr<Train::Objective>> make_next_token_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context);
+        std::string_view context) noexcept;
 
 } // namespace SushiAI::Language::Training

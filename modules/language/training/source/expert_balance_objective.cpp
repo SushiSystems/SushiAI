@@ -61,7 +61,7 @@ namespace SushiAI::Language::Training
     } // namespace
 
     Result<std::unique_ptr<ExpertBalanceObjective>> ExpertBalanceObjective::make(
-        std::vector<std::string> balances, std::vector<ExpertUsageOutput> usages)
+        std::vector<std::string> balances, std::vector<ExpertUsageOutput> usages) noexcept
     {
         SA_FAIL_IF(balances.empty() || usages.empty(), StatusCode::InvalidDescription,
                    "An expert_balance objective reads at least one balance output and one "
@@ -178,7 +178,7 @@ namespace SushiAI::Language::Training
 
     Result<std::unique_ptr<Train::Objective>> make_expert_balance_objective(
         const Train::ObjectiveContext& given, const Config::Value& attributes,
-        std::string_view context)
+        std::string_view context) noexcept
     {
         SA_FAIL_IF(!attributes.keys().empty(), StatusCode::InvalidDescription,
                    "{} states the key '{}', but an expert_balance objective has no keys",
