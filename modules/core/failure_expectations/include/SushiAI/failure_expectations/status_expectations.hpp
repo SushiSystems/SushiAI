@@ -42,7 +42,7 @@ namespace SushiAI
     namespace Test
     {
         /** @brief Checks that @p status is a success, or fails quoting its code and message. */
-        inline ::testing::AssertionResult status_is_ok(const Status& status)
+        inline ::testing::AssertionResult status_is_ok(const Status& status) noexcept
         {
             if (status.is_ok())
                 return ::testing::AssertionSuccess();
@@ -59,7 +59,7 @@ namespace SushiAI
          */
         inline ::testing::AssertionResult status_names(
             const Status& status, StatusCode expected,
-            std::initializer_list<std::string_view> needles)
+            std::initializer_list<std::string_view> needles) noexcept
         {
             if (status.is_ok())
                 return ::testing::AssertionFailure()
@@ -83,7 +83,7 @@ namespace SushiAI
         /** @brief Forwards a pack of needles to status_names, so a macro may pass none. */
         template<typename... Needles>
         ::testing::AssertionResult failure_names(const Status& status, StatusCode expected,
-                                                 const Needles&... needles)
+                                                 const Needles&... needles) noexcept
         {
             return status_names(status, expected, {std::string_view(needles)...});
         }
@@ -93,7 +93,7 @@ namespace SushiAI
          * @param needles Substrings in the order the fatal message prints them.
          * @return A pattern for a death test, valid in POSIX and in GoogleTest's own syntax.
          */
-        inline std::string death_pattern(std::initializer_list<std::string_view> needles)
+        inline std::string death_pattern(std::initializer_list<std::string_view> needles) noexcept
         {
             constexpr std::string_view K_SPECIAL = "\\.*+?^$()[]{}|";
 
@@ -123,7 +123,7 @@ namespace SushiAI
          * A test of a refusal expects the failure itself.
          */
         template<typename T>
-        [[nodiscard]] T require_value(Result<T> outcome)
+        [[nodiscard]] T require_value(Result<T> outcome) noexcept
         {
             SA_FATAL_IF(!outcome.has_value(), "the test's fixture is refused: {}",
                         outcome.status().message());
@@ -134,7 +134,7 @@ namespace SushiAI
 
         /** @brief Returns the reference @p outcome holds, or stops the process with its failure. */
         template<typename T>
-        [[nodiscard]] T& require_value(Result<T&> outcome)
+        [[nodiscard]] T& require_value(Result<T&> outcome) noexcept
         {
             SA_FATAL_IF(!outcome.has_value(), "the test's fixture is refused: {}",
                         outcome.status().message());
