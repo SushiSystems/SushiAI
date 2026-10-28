@@ -22,7 +22,7 @@ for exactly why the flag has to be `PUBLIC` there: SushiAI inherits it
 unchanged.
 
 One consequence worth planning around: `modules/layers/umbrella/include/SushiAI/SushiAI.hpp` pulls in
-both lanes. The **host lane** (`dtype/dtype.hpp`, `failure/error.hpp`, `ops/ops.hpp`,
+both lanes. The **host lane** (`dtype/dtype.hpp`, `ops/ops.hpp`,
 `shape/shape.hpp`, `failure/check.hpp`, `failure/status.hpp`, `failure/result.hpp`,
 `graph/ir.hpp`, `graph/builder.hpp`, `graph/memory_plan.hpp`,
 `graph/fusion.hpp`, `graph/precision.hpp`, `graph/cast_insertion.hpp`,
@@ -178,7 +178,7 @@ are `[[nodiscard]]` and return a `Status` or a `Result<T>`: `Trainer::make`,
 `NN::initialize`, `Trainer::fit`. Test `is_ok()` or `has_value()` before
 `value()`; reading the value of a failed `Result` stops the process. Host-lane
 calls such as `Train::build_classifier` and `Autograd::differentiate` report a
-bad graph by throwing `SushiAI::Error`.
+bad graph through a `Status` or a `Result`.
 
 **Link errors on a BLAS symbol you expected `SushiAI` to provide.** SushiAI
 defines no ops of its own: check you're calling `SushiBLAS::sushiblas`'s API

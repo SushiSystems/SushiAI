@@ -98,7 +98,7 @@ The pieces C++20 had been supplying are C++17 spellings now:
 | was | is | where |
 |---|---|---|
 | `std::span` | `SushiRuntime::span` | 105 sites across 31 files: the same type wherever `std::span` exists |
-| `std::format` | `SushiLog::format_text` | `SA_FAIL_IF`, `SA_FATAL_IF`, `SA_THROW_IF` and every report/diagnostic string |
+| `std::format` | `SushiLog::format_text` | `SA_FAIL_IF`, `SA_FATAL_IF` and every report/diagnostic string |
 | `concept Module` / `ModuleContainer` | `constexpr bool` variable templates over `std::void_t` detectors | `nn/module.hpp` |
 | `template<Module... Ls>` | `template<typename... Ls>` + a `static_assert` fold | `nn/layers.hpp`'s `Sequential` |
 | `consteval` | `constexpr` (called only from `static_assert`, so still proven at compile time) | `ops/ops.hpp`, `modules/core/graph/source/fusion.cpp` |
@@ -236,12 +236,11 @@ SA_TRY(step->run());
 ```
 Source: not compiled
 
-No unit of the library throws `SushiAI::Error`. A content check returns a `Status` or a
+No unit of the library throws a type of its own. A content check returns a `Status` or a
 `Result`; a handle, call-order or state check stops the process through `SA_FATAL_IF`. The two
 throws that remain are at the boundary of a sibling library: `modules/core/seam/source/seam.cpp` rethrows the
 exception in flight to read its type, and `modules/core/distribution/source/replica_kernel.cpp` throws the failed
-`Status` of a replica into the kernel registry of SushiRuntime. `SA_THROW_IF` and `Error` stay
-declared in `failure/error.hpp` until their removal.
+`Status` of a replica into the kernel registry of SushiRuntime.
 
 ---
 

@@ -150,9 +150,9 @@ stream classes by `CheckpointWriter::create` and `CheckpointReader::open`; each 
 `Result`. `initialize`, `save_checkpoint` and `load_checkpoint` return a `Status`.
 `seam/seam.hpp` turns an exception of SushiBLAS or SushiRuntime into a status.
 
-Code that touches no device still throws `SushiAI::Error`: the graph builder, the layers' `forward`,
-`Autograd::differentiate` and `build_layer_stack`. Reading `value()` from a failed `Result` is a
-misuse and stops the process.
+Code that touches no device returns a `Status` or a `Result` as well: the graph builder, the
+layers' `forward`, `Autograd::differentiate` and `build_layer_stack`. Reading `value()` from a
+failed `Result` is a misuse and stops the process.
 
 ## Does SushiAI support mixed precision?
 

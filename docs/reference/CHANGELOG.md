@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — docs: Replaced the passages that said the library throws `SushiAI::Error` with the status and fatal contract (`ARCHITECTURE.md`, `INTEGRATION.md`, `FAQ.md`).
 - 2026-10-28 — tools: Changed `check_contract.py` to fail on any use of `SA_THROW_IF`, `SushiAI::Error` or the removed headers in the library, the programs and the tests; dropped the ratchet and the bridge count (`check_contract.py`).
 - 2026-10-28 — data: Dropped the row text that said a `SushiAI::Error` stops the loader; the type is gone (`README.md`).
 - 2026-10-28 — training: Corrected the doc comment of `AnchorObjective::loss`, which promised a thrown `Error` (`anchor_objective.hpp`).
