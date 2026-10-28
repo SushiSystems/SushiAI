@@ -42,8 +42,8 @@ from the built model.
 ## Training and inference
 
 `train.json` trains from scratch: it names no `weights` file. Its `checkpoint` is
-`../../../build/yolo11n/trained.sushi`, and `data.root` is an absolute path to coco128 that you edit to
-your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
+`../../../build/yolo11n/trained.sushi`, and `data.root` is `../../../datasets/coco128`, the
+repository's git-ignored `datasets/coco128`; edit it to where coco128 lies on your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
 
 The data block reads coco128 at `[640, 640]` in batches of 16 and states no `fit`, so the
 detection default, `letterbox`, applies. The `objective` is `anchor_free` with `box_gain` 7.5,

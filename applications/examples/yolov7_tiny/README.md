@@ -15,7 +15,7 @@ The values in `train.json` are untuned first guesses.
 | `train.json` | Written by hand | Yes |
 | `model.json` | `sushiai import darknet yolov7-tiny.cfg yolov7-tiny.weights --output <directory>` | No |
 | `weights.sushi` | The same import step | No |
-| `data/coco128/` | A dataset in the YOLO layout, copied by the user | No |
+| `datasets/coco128/` | A dataset in the YOLO layout, copied by the user to the repository root | No |
 
 `sushiai import` is written and has not been built or run;
 [`docs/design/MODEL_IMPORT/README.md`](../../../docs/design/MODEL_IMPORT/README.md) describes it as phase 4.
@@ -48,7 +48,7 @@ The `data` block names a reader and a task instead of a `type`:
 | --- | --- | --- |
 | `reader` | `yolo_txt` | The on-disk layout |
 | `task` | `detection` | The roles a batch carries: `boxes`, `classes` and `valid`. Images are fitted as the model file's `fit` says |
-| `root` | `data/coco128` | The directory of the dataset |
+| `root` | `../../../datasets/coco128` | The directory of the dataset, against the directory of `train.json` |
 | `split` | `train` | The image list `root/train.txt`, or the folder `root/images/train` |
 | `batch_size` | `8` | Images per batch; the images past the last whole batch are not read |
 | `input` | `[416, 416]` | Height and width every image is fitted to |
@@ -61,7 +61,7 @@ equal the `classes` of its `task` section; the driver stops with an error when e
 A YOLO-layout folder holds the images and one text file per image:
 
 ```
-data/coco128/
+datasets/coco128/
     images/train/000000000009.jpg
     labels/train/000000000009.txt
 ```
@@ -70,9 +70,9 @@ Each row of a label file is `class cx cy w h`, in fractions of the image. An ima
 label file has no object. The reader finds the label file by replacing the last `images` folder
 on the path with `labels`. The images may be `.jpg`, `.jpeg` or `.png`.
 
-`sa` starts the driver from the repository root, so `data/coco128` is
-`<repository>/data/coco128`. The `data` block is passed through as written; `root` is not
-resolved against the configuration file. Write an absolute `root` to keep the dataset elsewhere.
+`root` resolves against the directory of the configuration file, so
+`../../../datasets/coco128` is `<repository>/datasets/coco128` wherever `sa` is called from.
+Write an absolute `root` to keep the dataset elsewhere.
 The repository ships no dataset and downloads none.
 
 ## The rate

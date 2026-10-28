@@ -1,6 +1,6 @@
 {
   "sushiai_data": 1,
   "data": { "reader": "yolo_txt", "task": "detection",
-            "root": "datasets/coco128", "split": "train2017",
+            "root": "../../../datasets/coco128", "split": "train2017",
             "batch_size": 16, "input": [416, 416], "max_objects": 128, "classes": 80 }
 }

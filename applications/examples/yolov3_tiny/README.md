@@ -38,7 +38,7 @@ paths changed.
 | `model` | `../../../build/yolov3_tiny/model.json` | Against the directory of `train.json`, the repository's `build/yolov3_tiny` |
 | `weights` | `../../../build/yolov3_tiny/weights.sushi` | The same folder |
 | `checkpoint` | `../../../build/yolov3_tiny/trained.sushi` | The same folder; the run writes the file there |
-| `data.root` | `datasets/coco128` | The `data` block is passed through as written and is not resolved against the file, so this is against the directory the command runs in: the repository root, where `datasets/` is git-ignored |
+| `data.root` | `../../../datasets/coco128` | Against the directory of `train.json`, the repository's `datasets/coco128`, which is git-ignored |
 
 Edit `data.root` to where the dataset lies on your machine. The dataset follows the YOLO
 layout: `images/train2017/*.jpg` with one `labels/train2017/*.txt` per image, each row

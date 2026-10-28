@@ -118,7 +118,7 @@ namespace SushiAI::Apps::TinyYoloTest
         const Config::DataSpec data_spec = Test::require_value(Config::parse_data(
             Test::require_value(Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}",
                                              "<test>")),
-            "<test>"));
+            "<test>", {}));
         return run_inference_file(model_path, checkpoint, model_spec, data_spec, engine);
     }
 } // namespace SushiAI::Apps::TinyYoloTest

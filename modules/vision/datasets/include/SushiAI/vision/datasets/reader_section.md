@@ -9,7 +9,7 @@
 | --- | --- | --- | --- |
 | `reader` | string | required | A row of the reader table |
 | `task` | string | required | A row of the task table |
-| `root` | string | required | The directory of the dataset; a relative one resolves against the working directory |
+| `root` | string | required | The directory of the dataset; `Config::load_train` and `Config::load_data` resolve a relative one against the file's directory |
 | `split` | string | `"train"` | The split, as the reader takes it |
 | `batch_size` | whole number | `16` | Samples per batch |
 | `input` | `[height, width]` | required for a task of images | The input size every image is fitted to |

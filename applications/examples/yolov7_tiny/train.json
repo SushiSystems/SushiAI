@@ -3,7 +3,7 @@
   "model": "model.json",
   "weights": "weights.sushi",
   "objective": { "type": "anchor" },
-  "data":      { "reader": "yolo_txt", "task": "detection", "root": "data/coco128",
+  "data":      { "reader": "yolo_txt", "task": "detection", "root": "../../../datasets/coco128",
                  "split": "train", "batch_size": 8, "input": [416, 416],
                  "max_objects": 128, "classes": 80 },
   "optimizer": { "type": "sgd", "momentum": 0.9, "weight_decay": 0.0005 },

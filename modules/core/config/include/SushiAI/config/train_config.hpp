@@ -175,10 +175,12 @@ namespace SushiAI
          * @brief Turns a parsed data document into a @ref DataSpec.
          * @param root The parsed document.
          * @param origin What to call it in a diagnostic, usually a path.
-         * @return The spec; InvalidFile when the version is absent or wrong, InvalidDescription
-         *         when a key is unknown.
+         * @param base Directory a relative data folder resolves against; empty keeps it.
+         * @return The spec; InvalidFile for an absent or wrong version, InvalidDescription for
+         *         an unknown key.
          */
-        [[nodiscard]] Result<DataSpec> parse_data(const Value& root, std::string_view origin) noexcept;
+        [[nodiscard]] Result<DataSpec> parse_data(const Value& root, std::string_view origin,
+                                                  const std::filesystem::path& base) noexcept;
 
         /**
          * @brief Reads, parses and validates the data file at @p path.

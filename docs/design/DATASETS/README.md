@@ -92,7 +92,7 @@ reader feeds detection and, through its polygons, segmentation.
 The training file names them:
 
 ```json
-"data": { "reader": "yolo_txt", "task": "detection", "root": "data/coco128",
+"data": { "reader": "yolo_txt", "task": "detection", "root": "../../../datasets/coco128",
           "split": "train", "batch_size": 16, "input": [640, 640], "pipeline": "default" }
 ```
 

@@ -589,7 +589,8 @@ namespace SushiAI::Config
         noexcept(read_run_seed(std::declval<const TrainSpec&>(), std::declval<std::string_view>())),
         "read_run_seed is noexcept");
     static_assert(
-        noexcept(parse_data(std::declval<const Value&>(), std::declval<std::string_view>())),
+        noexcept(parse_data(std::declval<const Value&>(), std::declval<std::string_view>(),
+                            std::declval<const std::filesystem::path&>())),
         "parse_data is noexcept");
     static_assert(
         noexcept(load_data(std::declval<const std::filesystem::path&>())),

@@ -24,12 +24,11 @@ change `directory` in `train.json` and `eval.json`. When the split's two files a
 `directory`, the driver stops with an error that names the directory, the paths it looked for
 and the four file names.
 
-`sa` starts both drivers from the repository root, so `data/mnist` is
-`<repository>/data/mnist` and the paths on the command line are relative to the repository
-root, wherever `sa` is called from. `modules/core/config/source/train_config.cpp` resolves `model` and
-`checkpoint` against the directory of the configuration file, but passes the `data` block
-through as written (see `make_mnist` in `modules/core/data/source/dataset.cpp`). Write an absolute `directory`
-to keep the files elsewhere.
+`modules/core/config/source/train_config.cpp` resolves `model`, `checkpoint` and the data
+block's `directory` against the directory of the configuration file, so
+`../../../data/mnist` is `<repository>/data/mnist` wherever `sa` is called from. The paths on the
+command line are relative to the repository root, where `sa` starts both drivers. Write an
+absolute `directory` to keep the files elsewhere.
 
 ## Running it
 

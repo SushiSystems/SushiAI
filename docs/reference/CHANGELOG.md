@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — config: Breaking change: Resolved a data block's relative `root` or `directory` against the file's directory, which `parse_data` takes as `base` (`train_config.cpp`).
+- 2026-10-28 — examples: Named the dataset folders from each example's directory, `../../../datasets/coco128` and `../../../data/mnist` (`train.json`).
 - 2026-10-28 — build: Breaking change: Linked one test program per tier, `sushiai_<tier>_tests`, from each module's object library, one device link per tier; applications keep theirs (`SushiAITestProgram.cmake`).
 - 2026-10-28 — tests: Renamed the fixture suite of `darknet_import_cases` `Medium_DarknetImportCases`, which shared its name with a plain suite of `importers` (`test_darknet_import.cpp`).
 - 2026-10-28 — examples: Took the dataset root of the 12 example JSON files from `datasets/coco128` under the repository root, not the path of one machine (`train.json`).

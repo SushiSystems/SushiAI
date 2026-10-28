@@ -313,8 +313,8 @@ Suites: `Medium_TrainConfig`.
 
 Tests `Config::parse_train`, `Config::check_start` and `Config::read_run_seed`. Most cases
 parse a file that states `sushiai_train`, `model`, `objective`, `data` and an `sgd` optimizer,
-followed by the members the case adds. The last four cases parse a file whose `data` block the
-case supplies.
+followed by the members the case adds. Four cases parse a file whose `data` block the case
+supplies, and three read the `root` of a data block against a base.
 
 ### AFileWithoutAScheduleHoldsTheNullValue
 
@@ -412,3 +412,16 @@ still hold `reader`.
 ### ADataBlockWithNeitherKeyIsRefused
 
 A `data` block with only `root` returns `InvalidDescription` naming `'type'`.
+
+### ADataRootResolvesAgainstTheDocumentsDirectory
+
+A reader block whose `root` is `datasets/coco128`, parsed with the base `examples/yolo`, holds
+`examples/yolo/datasets/coco128`.
+
+### AnAbsoluteDataRootIsKeptAsStated
+
+`parse_data` with a base keeps an absolute `root` as the file states it.
+
+### AnEmptyBaseKeepsARelativeDataRoot
+
+`parse_data` with an empty base keeps the relative `root` `datasets/coco128`.

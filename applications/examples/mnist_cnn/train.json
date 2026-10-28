@@ -2,7 +2,7 @@
   "sushiai_train": 1,
   "model": "model.json",
   "objective": { "type": "cross_entropy" },
-  "data":      { "type": "mnist", "directory": "data/mnist", "split": "train",
+  "data":      { "type": "mnist", "directory": "../../../data/mnist", "split": "train",
                  "layout": "image", "batch_size": 64, "max_samples": 8192 },
   "optimizer": { "type": "adamw", "learning_rate": 1e-3, "weight_decay": 0.01 },
   "epochs": 3,

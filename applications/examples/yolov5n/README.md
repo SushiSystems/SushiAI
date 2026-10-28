@@ -53,7 +53,7 @@ from the initializer and the anchor biases above. Its paths:
 | --- | --- | --- |
 | `model` | `model.json` | Against the directory of `train.json`, this directory |
 | `checkpoint` | `../../../build/yolov5n/trained.sushi` | The repository's `build/yolov5n`; the run writes the file there |
-| `data.root` | `datasets/coco128` | Not resolved against the file, so against the directory the command runs in; run it from the repository root, where `datasets/` is git-ignored |
+| `data.root` | `../../../datasets/coco128` | Against the directory of `train.json`, the repository's `datasets/coco128`, which is git-ignored |
 
 The data block reads coco128 at `[640, 640]` in batches of 16. The model's input block says
 `letterbox`, so an image keeps its aspect ratio and is padded to the input. The `objective` is

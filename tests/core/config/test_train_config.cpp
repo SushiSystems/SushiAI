@@ -535,7 +535,7 @@ TEST(Medium_TrainConfig, ParsesAnEvalDocument)
             "data": {"type": "rings", "batch_size": 512, "batches": 1, "seed": 3735928575}
         })", "eval.json"));
     SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::DataSpec data,
-                            SushiAI::Config::parse_data(root, "eval.json"));
+                            SushiAI::Config::parse_data(root, "eval.json", {}));
 
     EXPECT_EQ(data.type, "rings");
     SA_ASSERT_OK_AND_ASSIGN(const Value& batch, data.attributes.at("batch_size", "data"));
@@ -553,8 +553,47 @@ TEST(Medium_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
         const Value root,
         parse_json(R"({"sushiai_data": 1, "data": {"type": "rings"}, "model": "m.json"})",
                    "eval.json"));
-    SA_EXPECT_FAILURE(SushiAI::Config::parse_data(root, "eval.json"),
+    SA_EXPECT_FAILURE(SushiAI::Config::parse_data(root, "eval.json", {}),
                       StatusCode::InvalidDescription, "'model'", "'data'");
+}
+
+TEST(Medium_TrainConfig, ADataRootResolvesAgainstTheDocumentsDirectory)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::TrainSpec spec, parse_text(R"({
+        "sushiai_train": 1, "model": "m.json",
+        "objective": {"type": "cross_entropy"},
+        "data": {"reader": "yolo_txt", "root": "datasets/coco128"},
+        "optimizer": {"type": "adamw"}
+    })", "examples/yolo"));
+    SA_ASSERT_OK_AND_ASSIGN(const Value& root, spec.data.attributes.at("root", "data"));
+    SA_ASSERT_OK_AND_ASSIGN(const std::string& text, root.as_string("root"));
+    EXPECT_EQ(text, "examples/yolo/datasets/coco128");
+}
+
+TEST(Medium_TrainConfig, AnAbsoluteDataRootIsKeptAsStated)
+{
+    const std::filesystem::path absolute =
+        std::filesystem::temp_directory_path() / "elsewhere" / "coco128";
+    SA_ASSERT_OK_AND_ASSIGN(const Value document, parse_json(
+        R"({"sushiai_data": 1, "data": {"type": "rings", "root": ")" + absolute.generic_string()
+            + R"("}})", "eval.json"));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::DataSpec data,
+                            SushiAI::Config::parse_data(document, "eval.json", "examples/yolo"));
+    SA_ASSERT_OK_AND_ASSIGN(const Value& root, data.attributes.at("root", "data"));
+    SA_ASSERT_OK_AND_ASSIGN(const std::string& text, root.as_string("root"));
+    EXPECT_EQ(std::filesystem::path(text), absolute);
+}
+
+TEST(Medium_TrainConfig, AnEmptyBaseKeepsARelativeDataRoot)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value document, parse_json(
+        R"({"sushiai_data": 1, "data": {"reader": "yolo_txt", "root": "datasets/coco128"}})",
+        "eval.json"));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::DataSpec data,
+                            SushiAI::Config::parse_data(document, "eval.json", {}));
+    SA_ASSERT_OK_AND_ASSIGN(const Value& root, data.attributes.at("root", "data"));
+    SA_ASSERT_OK_AND_ASSIGN(const std::string& text, root.as_string("root"));
+    EXPECT_EQ(text, "datasets/coco128");
 }
 
 TEST(Medium_TrainConfig, LoadingAnAbsentFileNamesThePath)

@@ -104,7 +104,7 @@ A `data` block with `reader`:
 | --- | --- | --- |
 | `reader` | required | `yolo_txt`, `image_folder`, `idx` or `cifar` |
 | `task` | required | `detection` or `classification` |
-| `root` | required | The dataset's directory, resolved against the working directory |
+| `root` | required | The dataset's directory, resolved against the directory of the file that states it |
 | `split` | `"train"` | As the reader takes it |
 | `batch_size` | 16 | |
 | `input` | required | `[height, width]` of the network input |

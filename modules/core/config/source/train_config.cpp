@@ -27,9 +27,12 @@
 
 #include <SushiAI/config/train_config.hpp>
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <string>
 #include <utility>
+#include <vector>
 #include <SushiRuntime/core/span.hpp>
 
 namespace SushiAI
@@ -136,14 +139,44 @@ namespace SushiAI
                 return Status();
             }
 
+            /** @brief Names the keys of a data block that hold the dataset's folder. */
+            constexpr std::string_view K_DATA_FOLDER_KEYS[] = {"root", "directory"};
+
+            /**
+             * @brief Returns @p block with each relative string folder key resolved against @p base.
+             * @param base The document's directory; empty leaves every folder as stated.
+             * @return @p block itself when it is no object, holds no such string, or @p base is
+             *         empty.
+             */
+            Value with_resolved_folders(const Value& block, const std::filesystem::path& base)
+            {
+                if (base.empty() || block.kind() != Kind::Object)
+                    return block;
+                std::vector<std::string> keys = block.keys();
+                std::vector<Value> values = block.values();
+                for (std::size_t index = 0; index < keys.size(); ++index)
+                {
+                    const bool folder = std::find(std::begin(K_DATA_FOLDER_KEYS),
+                                                  std::end(K_DATA_FOLDER_KEYS),
+                                                  keys[index]) != std::end(K_DATA_FOLDER_KEYS);
+                    if (!folder || values[index].kind() != Kind::String)
+                        continue;
+                    Result<const std::string&> stated = values[index].as_string(keys[index]);
+                    values[index] = Value::string(resolve(base, stated.value()).generic_string());
+                }
+                return Value::object(std::move(keys), std::move(values));
+            }
+
             /**
              * @brief Reads the "data" block: a typed block, or one that states a reader.
              * @param root The document root.
              * @param origin What to call the document in a diagnostic.
+             * @param base The document's directory, which a relative data folder resolves against.
              * @param data A block with "reader" and no "type" gets the type
              *             K_READER_DATA_TYPE and keeps every key; any other is a typed block.
              */
-            Status read_data_block(const Value& root, std::string_view origin, DataSpec& data)
+            Status read_data_block(const Value& root, std::string_view origin,
+                                   const std::filesystem::path& base, DataSpec& data)
             {
                 const Value absent;
                 const Value& block = root.at_or("data", absent);
@@ -151,11 +184,13 @@ namespace SushiAI
                 if (block.has(K_READER_DATA_TYPE) && !block.has("type"))
                 {
                     data.type = std::string(K_READER_DATA_TYPE);
-                    data.attributes = block;
+                    data.attributes = with_resolved_folders(block, base);
                     return Status();
                 }
 
-                return read_typed_block(root, "data", origin, data.type, data.attributes);
+                SA_TRY(read_typed_block(root, "data", origin, data.type, data.attributes));
+                data.attributes = with_resolved_folders(data.attributes, base);
+                return Status();
             }
 
             /**
@@ -203,7 +238,7 @@ namespace SushiAI
                                     spec.objective_type, spec.objective_attributes));
             SA_TRY(read_typed_block(root, "optimizer", origin,
                                     spec.optimizer_type, spec.optimizer_attributes));
-            SA_TRY(read_data_block(root, origin, spec.data));
+            SA_TRY(read_data_block(root, origin, base, spec.data));
 
             // The section stays opaque here; an absent key leaves the null value.
             spec.schedule = root.at_or("schedule", Value());
@@ -277,20 +312,25 @@ namespace SushiAI
             return static_cast<std::uint64_t>(spec.seed);
         }
 
-        Result<DataSpec> parse_data(const Value& root, std::string_view origin) noexcept
+        Result<DataSpec> parse_data(const Value& root, std::string_view origin,
+                                    const std::filesystem::path& base) noexcept
         {
             SA_TRY(require_version(root, "sushiai_data", K_DATA_VERSION, origin));
             SA_TRY(root.reject_unknown_keys(origin, as_span(K_DATA_KEYS)));
 
             DataSpec data;
-            SA_TRY(read_data_block(root, origin, data));
+            SA_TRY(read_data_block(root, origin, base, data));
             return data;
         }
 
         Result<DataSpec> load_data(const std::filesystem::path& path) noexcept
         {
+            // A relative "root" resolves against the data file's parent directory.
+            std::filesystem::path base = path.parent_path();
+            if (base.empty()) base = ".";
+
             SA_TRY_ASSIGN(const Value root, parse_json_file(path));
-            return parse_data(root, path.string());
+            return parse_data(root, path.string(), base);
         }
 
     } // namespace Config

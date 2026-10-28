@@ -16,7 +16,10 @@ module checks that it is an object with a string `type` and reads nothing else i
 names no task type. `TrainSpec::schedule` holds the `schedule` object of a training file the same
 way, null when the file has none; this module checks nothing in it, and `Optim::read_rate_schedule`
 reads it. `TrainSpec::weights` holds the `weights` path of a training file, resolved against the
-file's directory as `model` and `checkpoint` are, and empty when the file has none.
+file's directory as `model` and `checkpoint` are, and empty when the file has none. A relative
+`root` or `directory` of the `data` block resolves against the same directory, in `parse_train`
+and in `parse_data`, whose `base` is the data file's directory under `load_data`; an empty `base`
+keeps it as stated.
 `TrainSpec::resume` holds the `resume` path the same way: the checkpoint whose model state and
 run state a run goes on from. `check_start` returns `InvalidDescription` for a file that states
 both. `TrainSpec::seed` holds the optional integer `seed` of a training file, 0 when the file

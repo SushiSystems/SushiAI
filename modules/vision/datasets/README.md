@@ -292,7 +292,6 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
   has been executed.
 - `make_reader_dataset` has not run. The `idx` row cannot name its two files, and no row sets
   the letterbox settings; both take their defaults.
-- A `root` is not resolved against the training file, as `directory` of `mnist` is not.
 - Nothing in the collators, `fit_sample` or `ReaderDataset` has run either.
 - No trainer has read a `ReaderDataset`. `Train::match_roles` and `Trainer::fit` take a
   `const Data::Dataset&`, which it now is.

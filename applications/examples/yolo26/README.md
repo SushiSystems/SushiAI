@@ -84,8 +84,8 @@ The design is the model graph spec in the version history, sections 2.6 and 2.10
 ## Training and inference
 
 `train.json` trains from scratch: it names no `weights` file. Its `checkpoint` is
-`../../../build/yolo26/trained.sushi`, and `data.root` is an absolute path to coco128 that you edit to
-your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
+`../../../build/yolo26/trained.sushi`, and `data.root` is `../../../datasets/coco128`, the
+repository's git-ignored `datasets/coco128`; edit it to where coco128 lies on your machine. The path rules are those of `applications/examples/yolov5n/README.md`.
 
 The data block, `anchor_free` objective, optimizer and epoch count are those of
 `applications/examples/yolo11n/train.json`; `letterbox` is the detection default. The model's
