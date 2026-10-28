@@ -30,7 +30,10 @@
 #include <initializer_list>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 
@@ -110,6 +113,34 @@ namespace SushiAI
             }
 
             return pattern;
+        }
+
+        /**
+         * @brief Returns the value of @p outcome, or stops the process with the failure it holds.
+         *
+         * For a test helper that returns a value and so cannot use SA_ASSERT_OK_AND_ASSIGN: a
+         * fixture the test wrote is a precondition, and a refusal of it is a defect of the test.
+         * A test of a refusal expects the failure itself.
+         */
+        template<typename T>
+        [[nodiscard]] T require_value(Result<T> outcome)
+        {
+            SA_FATAL_IF(!outcome.has_value(), "the test's fixture is refused: {}",
+                        outcome.status().message());
+
+            // The value is held, so value() succeeds.
+            return std::move(outcome).value();
+        }
+
+        /** @brief Returns the reference @p outcome holds, or stops the process with its failure. */
+        template<typename T>
+        [[nodiscard]] T& require_value(Result<T&> outcome)
+        {
+            SA_FATAL_IF(!outcome.has_value(), "the test's fixture is refused: {}",
+                        outcome.status().message());
+
+            // The reference is held, so value() succeeds.
+            return outcome.value();
         }
 
     } // namespace Test

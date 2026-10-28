@@ -38,6 +38,7 @@ namespace
     using SushiAI::Status;
     using SushiAI::StatusCode;
     using SushiAI::Test::death_pattern;
+    using SushiAI::Test::require_value;
     using SushiAI::Test::status_is_ok;
     using SushiAI::Test::status_names;
 
@@ -100,4 +101,21 @@ TEST(Small_StatusExpectations, TheMacrosReadAStatusAndAResult)
     SA_ASSERT_OK_AND_ASSIGN(const int value, Result<int>(7));
 
     EXPECT_EQ(value, 7);
+}
+
+/** @brief Tests that require_value returns the value or the reference a Result holds. */
+TEST(Small_StatusExpectations, RequireValueReturnsWhatTheResultHolds)
+{
+    EXPECT_EQ(require_value(Result<int>(7)), 7);
+
+    int target = 3;
+    int& held = require_value(Result<int&>(target));
+    EXPECT_EQ(&held, &target);
+}
+
+/** @brief Tests that require_value stops the process with the message of a failure. */
+TEST(Small_StatusExpectations, RequireValueStopsTheProcessOnAFailure)
+{
+    SA_EXPECT_FATAL((void)require_value(Result<int>(short_header())), "fixture is refused",
+                    "the header of 'a.bin' is short");
 }

@@ -13,6 +13,9 @@ another code, or a message without a needle, fails with the code and the message
 `Result` to a declaration or fails the test with the message. `SA_EXPECT_FATAL` runs a statement
 that stops the process and matches the report against the needles; `death_pattern` joins the
 needles in order and escapes the regular-expression characters in each.
+`require_value` returns the value of a `Result`, or stops the process with the failure it holds: a
+test helper that returns a value uses it for a fixture the test wrote, where an assertion cannot
+be used.
 
 `SA_EXPECT_ERROR` does the same for a thrown `Error`. `EXPECT_THROW` proves only that something
 went wrong; every `SA_THROW_IF` in the library names the actual problem, and a refactor that
@@ -32,5 +35,5 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/failure_expectations/status_expectations.hpp` | `status_is_ok`, `status_names`, `failure_names`, `death_pattern`, `SA_EXPECT_FAILURE`, `SA_EXPECT_OK`, `SA_ASSERT_OK_AND_ASSIGN`, `SA_EXPECT_FATAL` |
+| `SushiAI/failure_expectations/status_expectations.hpp` | `status_is_ok`, `status_names`, `failure_names`, `death_pattern`, `require_value`, `SA_EXPECT_FAILURE`, `SA_EXPECT_OK`, `SA_ASSERT_OK_AND_ASSIGN`, `SA_EXPECT_FATAL` |
 | `SushiAI/failure_expectations/throw_expectations.hpp` | `ThrowOutcome`, `capture_error`, `error_names`, `SA_EXPECT_ERROR` |

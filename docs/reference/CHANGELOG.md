@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — failure_expectations: Added `require_value`, which returns the value of a `Result` or stops the process with its failure, for the helper of a test that cannot use an assertion (`status_expectations.hpp`).
 - 2026-10-28 — graph: Breaking change: Made the id, order and single-assignment checks of `Graph` stop the process in place of throwing (`ir.hpp`).
 - 2026-10-28 — graph: Breaking change: Added `MixedPrecisionPolicy::make`, which returns `InvalidDescription` for a low type that is not a real float, and made the explicit constructor private (`precision.hpp`).
 - 2026-10-28 — shape: Breaking change: Made the `Shape` constructors and `Shape::dim` stop the process in place of throwing, and added `Shape::make` for extents a document or a file supplied (`shape.hpp`).

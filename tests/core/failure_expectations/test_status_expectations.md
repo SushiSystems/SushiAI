@@ -4,7 +4,7 @@
 Suites: `Small_StatusExpectations`.
 
 Tests the assertions every test program uses to check a `Status`: `status_is_ok`,
-`status_names`, `death_pattern` and the macros built on them.
+`status_names`, `death_pattern`, `require_value` and the macros built on them.
 
 This file needs no device. `short_header` returns an `InvalidFile` failure whose message names
 "a.bin" and "short", and every failing case reads that one status.
@@ -33,3 +33,13 @@ character, so "[2, 3]" and "(c)*" match literally. No needle gives an empty patt
 
 `SA_EXPECT_OK` passes for a success, `SA_EXPECT_FAILURE` passes for the failure as a `Status`
 and wrapped in a `Result`, and `SA_ASSERT_OK_AND_ASSIGN` binds 7 from a successful `Result`.
+
+## RequireValueReturnsWhatTheResultHolds
+
+`require_value` returns 7 for a `Result<int>` holding 7, and the same object for a `Result<int&>`
+over a local.
+
+## RequireValueStopsTheProcessOnAFailure
+
+`require_value` over the failed `Result` of `short_header` stops the process with a report that
+holds "fixture is refused" and the failure's message.
