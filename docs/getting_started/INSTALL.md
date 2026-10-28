@@ -12,12 +12,12 @@ You need:
 - A SYCL 2020 compiler. `sa setup` installs the intel/llvm bundle SushiAI builds with.
 - Network access, for the toolchain and the C++ dependencies.
 
-SushiAI builds on SushiRuntime and SushiBLAS. Clone them beside this repository; `sa build` builds
-a package of each, and of SushiLog and SushiProfiler, at the tags `cli/sushistack.deps.toml` pins.
+SushiAI builds on SushiRuntime and SushiBLAS. You clone neither: `sa setup` fetches them, and
+SushiLog and SushiProfiler, at the tags `cli/sushistack.deps.toml` pins, and `sa build` builds a
+package of each. A checkout beside this one, or the folder `SUSHIRUNTIME_DIR` or `SUSHIBLAS_DIR`
+names, is used instead when it exists.
 
 ```bash
-git clone https://github.com/SushiSystems/SushiRuntime.git
-git clone https://github.com/SushiSystems/SushiBLAS.git
 git clone https://github.com/SushiSystems/SushiAI.git
 cd SushiAI
 pip install -e ./cli

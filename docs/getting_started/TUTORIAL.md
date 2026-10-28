@@ -33,14 +33,15 @@ loss is an IR rewrite rather than a callback.
 
 ## 2. Getting it to build
 
-You need two sibling checkouts and a SYCL toolchain, which `sa setup` provisions;
+You need a SYCL toolchain and the two libraries below, which `sa setup` provisions;
 [`INSTALL.md`](INSTALL.md) gives the standalone and the SushiHub route:
 
 ```
 <workspace>/
-  sushiruntime/     # the backbone
-  sushiblas/        # the tensor + BLAS engine
   sushiai/          # you are here
+
+sushiruntime, the backbone, and sushiblas, the tensor + BLAS engine, are fetched at the pinned
+tags, or used from a checkout beside sushiai when there is one.
 ```
 
 ```bash

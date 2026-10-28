@@ -26,8 +26,7 @@ replayed for every batch.
 
 ## Build
 
-Standalone, with Git, Python 3.11, CMake, and SushiRuntime and SushiBLAS cloned beside this
-repository:
+Standalone, with Git, Python 3.11 and CMake; `sa setup` fetches SushiRuntime and SushiBLAS:
 
 ```bash
 git clone https://github.com/SushiSystems/SushiAI.git

@@ -24,8 +24,7 @@ Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
 ## 1. Getting set up
 
-With SushiRuntime and SushiBLAS sibling checkouts, install the CLI and let it provision the
-rest; [`INSTALL.md`](getting_started/INSTALL.md) gives this route and the SushiHub route:
+Install the CLI and let it provision the rest, SushiRuntime and SushiBLAS included; [`INSTALL.md`](getting_started/INSTALL.md) gives this route and the SushiHub route:
 
 ```bash
 pip install -e ./cli      # puts `sa` / `sushiai` on PATH
