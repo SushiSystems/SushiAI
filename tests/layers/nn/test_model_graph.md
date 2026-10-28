@@ -101,11 +101,12 @@ A `ModelGraph` holding a `Linear{6, 8}` named "dense" is added to an outer graph
 "inner", with a ReLU after it. `shape_of` of the nested node is [8], the one output is
 [4, 8], and the outer walk yields "inner.dense.weight:[8, 6]" and "inner.dense.bias:[8]".
 
-## ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace
+## ANestedGraphThatPublishesTwoOutputsIsRefusedByTheOuterAdd
 
-An inner graph that publishes "first" and "second" is added as a node. The outer `trace` fails
-with `InvalidDescription` and a message containing "node 'inner'", "exactly one model output",
-"first" and "second".
+An inner graph publishes "first" and "second". `add` reads the shape of the node it adds through
+`output_shape`, which has no single shape to give, so `add` returns `InvalidDescription` with a
+message containing "node 'inner'", "exactly one model output" and "publishes 2", and the outer
+graph holds no node.
 
 ## ASequentialAndALayerStackAreNodesOfAGraph
 

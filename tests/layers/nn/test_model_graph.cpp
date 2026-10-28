@@ -395,8 +395,8 @@ TEST(Small_ModelGraph, AGraphIsANodeOfAnotherGraph)
         "inner.dense.weight:[8, 6]", "inner.dense.bias:[8]"}));
 }
 
-/** @brief Tests that a nested graph with two outputs fails the outer trace under its name. */
-TEST(Small_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
+/** @brief Tests that the outer graph refuses to add a nested graph with two outputs. */
+TEST(Small_ModelGraph, ANestedGraphThatPublishesTwoOutputsIsRefusedByTheOuterAdd)
 {
     ModelGraph inner(Shape{6});
     SA_ASSERT_OK_AND_ASSIGN(const NodeRef relu, inner.add("act", NN::ReLU{}, inner.input()));
@@ -404,17 +404,10 @@ TEST(Small_ModelGraph, ANestedGraphThatPublishesTwoOutputsFailsTheOuterTrace)
     SA_EXPECT_OK(inner.output("second", relu));
 
     ModelGraph outer(Shape{6});
-    SA_ASSERT_OK_AND_ASSIGN(const NodeRef nested,
-                            outer.add("inner", std::move(inner), outer.input()));
-    SA_EXPECT_OK(outer.output("output", nested));
-
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{4, 6}, "x");
-
-    SA_EXPECT_FAILURE(outer.trace(Trace::evaluation(builder), x),
+    SA_EXPECT_FAILURE(outer.add("inner", std::move(inner), outer.input()),
                       StatusCode::InvalidDescription, "node 'inner'",
-                      "exactly one model output", "first", "second");
+                      "exactly one model output", "publishes 2");
+    EXPECT_EQ(outer.size(), 0u);
 }
 
 /** @brief Tests that a Sequential and a LayerStack are each one node of a graph. */
