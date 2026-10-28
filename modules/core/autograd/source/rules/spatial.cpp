@@ -104,7 +104,7 @@ namespace SushiAI
             }
         }
 
-        void im2col_backward(const GradientTape& tape)
+        void im2col_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -125,7 +125,7 @@ namespace SushiAI
                 dy, image_shape, g, out_h, out_w));
         }
 
-        void col2im_backward(const GradientTape& tape)
+        void col2im_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -143,7 +143,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().im2col_with_extents(dy, g, out_h, out_w));
         }
 
-        void maxpool2d_backward(const GradientTape& tape)
+        void maxpool2d_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -157,7 +157,7 @@ namespace SushiAI
                 geometry_of(node)));
         }
 
-        void avgpool2d_backward(const GradientTape& tape)
+        void avgpool2d_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -170,7 +170,7 @@ namespace SushiAI
                 dy, tape.graph().value(node.inputs[0]).shape, geometry_of(node)));
         }
 
-        void upsample2d_backward(const GradientTape& tape)
+        void upsample2d_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -184,7 +184,7 @@ namespace SushiAI
                 static_cast<int64_t>(node.attributes.get(1))));
         }
 
-        void spatial_mean_backward(const GradientTape& tape)
+        void spatial_mean_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -196,7 +196,7 @@ namespace SushiAI
                 dy, tape.graph().value(node.inputs[0]).shape));
         }
 
-        void concat_channels_backward(const GradientTape& tape)
+        void concat_channels_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -220,7 +220,7 @@ namespace SushiAI
             }
         }
 
-        void slice_channels_backward(const GradientTape& tape)
+        void slice_channels_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -236,7 +236,7 @@ namespace SushiAI
             tape.contribute_input(0, pad_channels(tape, dy, in, offset, taken));
         }
 
-        void depthwise_conv2d_backward(const GradientTape& tape)
+        void depthwise_conv2d_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;

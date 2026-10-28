@@ -98,7 +98,7 @@ namespace SushiAI
             std::size_t probes = 0;
 
             /** @brief A one-line summary suitable for a test failure message. */
-            std::string to_string() const;
+            std::string to_string() const noexcept;
         };
 
         /**
@@ -124,7 +124,7 @@ namespace SushiAI
          * @param inputs The point to adjust.
          * @param options Supplies the step size and the margin.
          */
-        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options = {});
+        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options = {}) noexcept;
 
         /**
          * @brief Compares every coordinate of the gradient against a central difference.
@@ -136,7 +136,7 @@ namespace SushiAI
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
                                             SushiRuntime::span<double> inputs,
-                                            const GradCheckOptions& options = {});
+                                            const GradCheckOptions& options = {}) noexcept;
 
         /**
          * @brief Compares the gradient against central differences along random directions.
@@ -150,7 +150,7 @@ namespace SushiAI
                                           const GradientFunction& gradient,
                                           SushiRuntime::span<double> inputs,
                                           std::size_t directions = 8,
-                                          const GradCheckOptions& options = {});
+                                          const GradCheckOptions& options = {}) noexcept;
 
     } // namespace Autograd
 } // namespace SushiAI

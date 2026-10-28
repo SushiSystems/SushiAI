@@ -49,18 +49,18 @@ namespace SushiAI
             }
         } // namespace
 
-        const Graph::Node& GradientTape::node() const
+        const Graph::Node& GradientTape::node() const noexcept
         {
             return owner_->current_node();
         }
 
-        Graph::Traced GradientTape::apply_seed_factor(const Graph::Traced& gradient) const
+        Graph::Traced GradientTape::apply_seed_factor(const Graph::Traced& gradient) const noexcept
         {
             if (seed_factor_ == Graph::K_NO_VALUE) return gradient;
             return builder_.dynamic_scale(gradient, seed_factor_, "loss_scaled_grad");
         }
 
-        Graph::ValueID GradientTape::input(std::size_t index) const
+        Graph::ValueID GradientTape::input(std::size_t index) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.inputs.size(),
@@ -68,7 +68,7 @@ namespace SushiAI
             return n.inputs[index];
         }
 
-        Graph::ValueID GradientTape::output(std::size_t index) const
+        Graph::ValueID GradientTape::output(std::size_t index) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.outputs.size(),
@@ -76,7 +76,7 @@ namespace SushiAI
             return n.outputs[index];
         }
 
-        Graph::ValueID GradientTape::output_grad(std::size_t index) const
+        Graph::ValueID GradientTape::output_grad(std::size_t index) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.outputs.size(),
@@ -84,7 +84,7 @@ namespace SushiAI
             return owner_->resolve(n.outputs[index]);
         }
 
-        bool GradientTape::output_is_root(std::size_t index) const
+        bool GradientTape::output_is_root(std::size_t index) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.outputs.size(),
@@ -92,7 +92,7 @@ namespace SushiAI
             return owner_->is_root(n.outputs[index]);
         }
 
-        bool GradientTape::input_requires_grad(std::size_t index) const
+        bool GradientTape::input_requires_grad(std::size_t index) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.inputs.size(),
@@ -100,13 +100,13 @@ namespace SushiAI
             return owner_->graph().value(n.inputs[index]).requires_grad;
         }
 
-        void GradientTape::contribute(Graph::ValueID primal, const Graph::Traced& gradient) const
+        void GradientTape::contribute(Graph::ValueID primal, const Graph::Traced& gradient) const noexcept
         {
             observe(forward_contribution(*owner_, primal, gradient));
         }
 
         void GradientTape::contribute_input(std::size_t index,
-                                            const Graph::Traced& gradient) const
+                                            const Graph::Traced& gradient) const noexcept
         {
             const Graph::Node& n = node();
             SA_FATAL_IF(index >= n.inputs.size(),
@@ -130,7 +130,7 @@ namespace SushiAI
                                         Ops::name_of(node().op), node_));
         }
 
-        void GradientTape::skip(Graph::NodeID node_to_skip) const
+        void GradientTape::skip(Graph::NodeID node_to_skip) const noexcept
         {
             owner_->skip(node_to_skip);
         }

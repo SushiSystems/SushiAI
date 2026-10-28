@@ -58,7 +58,7 @@ namespace SushiAI
             }
         } // namespace
 
-        void batchnorm2d_backward(const GradientTape& tape)
+        void batchnorm2d_backward(const GradientTape& tape) noexcept
         {
             // The saved mean, the inverse deviation and the batch variance carry no gradient.
             if (tape.output_grad(1) != Graph::K_NO_VALUE
@@ -85,7 +85,7 @@ namespace SushiAI
                                                           node.outputs[1], node.outputs[2])));
         }
 
-        void channel_affine_backward(const GradientTape& tape)
+        void channel_affine_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -107,7 +107,7 @@ namespace SushiAI
                 tape.contribute_input(2, tape.builder().sum_channels(dy));
         }
 
-        void layer_norm_backward(const GradientTape& tape)
+        void layer_norm_backward(const GradientTape& tape) noexcept
         {
             SA_FATAL_IF(tape.output_grad(1) != Graph::K_NO_VALUE
                         || tape.output_grad(2) != Graph::K_NO_VALUE,

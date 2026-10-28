@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void dropout_backward(const GradientTape& tape)
+        void dropout_backward(const GradientTape& tape) noexcept
         {
             SA_FATAL_IF(tape.output_grad(1) != Graph::K_NO_VALUE,
                         "DROPOUT's saved mask received a gradient; it is read by this node's "

@@ -31,7 +31,7 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void reshape_backward(const GradientTape& tape)
+        void reshape_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 
@@ -42,7 +42,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().reshape(dy, tape.graph().value(x).shape));
         }
 
-        void layout_convert_backward(const GradientTape& tape)
+        void layout_convert_backward(const GradientTape& tape) noexcept
         {
             if (!tape.input_requires_grad(0)) return;
 

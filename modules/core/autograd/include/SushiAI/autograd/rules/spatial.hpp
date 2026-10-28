@@ -39,41 +39,41 @@ namespace SushiAI
          *        pixels its window read, summing where windows overlapped.
          * @param tape The differentiation state for this node.
          */
-        void im2col_backward(const GradientTape& tape);
+        void im2col_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief COL2IM's gradient: im2col with the forward's own geometry,
          *        the adjoint of the adjoint.
          * @param tape The differentiation state for this node.
          */
-        void col2im_backward(const GradientTape& tape);
+        void col2im_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief MAXPOOL2D's gradient: routes each gradient through the
          *        argmax indices its own forward wrote.
          * @param tape The differentiation state for this node.
          */
-        void maxpool2d_backward(const GradientTape& tape);
+        void maxpool2d_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief AVGPOOL2D's gradient: spreads each gradient evenly over the
          *        window it came from, dividing by the constant window area.
          * @param tape The differentiation state for this node.
          */
-        void avgpool2d_backward(const GradientTape& tape);
+        void avgpool2d_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief UPSAMPLE2D's gradient: sums each source pixel's replicas.
          * @param tape The differentiation state for this node.
          */
-        void upsample2d_backward(const GradientTape& tape);
+        void upsample2d_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief SPATIAL_MEAN's gradient: broadcasts the [N,C] gradient back
          *        over [N,H,W,C], scaled by 1/(H*W).
          * @param tape The differentiation state for this node.
          */
-        void spatial_mean_backward(const GradientTape& tape);
+        void spatial_mean_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief CONCAT_CHANNELS's gradient: each operand receives the slice
@@ -81,7 +81,7 @@ namespace SushiAI
          *        channel offset.
          * @param tape The differentiation state for this node.
          */
-        void concat_channels_backward(const GradientTape& tape);
+        void concat_channels_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief SLICE_CHANNELS's gradient: a scatter into zeros, expressed as
@@ -89,14 +89,14 @@ namespace SushiAI
          *        the incoming gradient itself.
          * @param tape The differentiation state for this node.
          */
-        void slice_channels_backward(const GradientTape& tape);
+        void slice_channels_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief DEPTHWISE_CONV2D's gradient: the input gradient and the taps gradient,
          *        each emitted only when its operand needs one.
          * @param tape The differentiation state for this node.
          */
-        void depthwise_conv2d_backward(const GradientTape& tape);
+        void depthwise_conv2d_backward(const GradientTape& tape) noexcept;
 
         /** @brief Spatial operations' backward rules. */
         inline constexpr std::array<RuleEntry, 9> K_SPATIAL_RULES = {{

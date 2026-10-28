@@ -57,7 +57,7 @@ namespace SushiAI
          */
         template<std::size_t N, std::size_t M>
         constexpr std::array<RuleEntry, N + M> concat_rules(
-            const std::array<RuleEntry, N>& a, const std::array<RuleEntry, M>& b)
+            const std::array<RuleEntry, N>& a, const std::array<RuleEntry, M>& b) noexcept
         {
             std::array<RuleEntry, N + M> out{};
             for (std::size_t i = 0; i < N; ++i) out[i] = a[i];

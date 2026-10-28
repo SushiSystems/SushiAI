@@ -38,19 +38,19 @@ namespace SushiAI
          * @brief Differentiates 2D batch normalization across input, scale, and shift.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void batchnorm2d_backward(const GradientTape& tape);
+        void batchnorm2d_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief Differentiates channel affine transformation with per-channel parameter sums.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void channel_affine_backward(const GradientTape& tape);
+        void channel_affine_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief Differentiates layer normalization across input, gain, and bias.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void layer_norm_backward(const GradientTape& tape);
+        void layer_norm_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for normalization operations. */
         inline constexpr std::array<RuleEntry, 3> K_NORM_RULES = {{

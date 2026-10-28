@@ -35,19 +35,19 @@ namespace SushiAI
     namespace Autograd
     {
         /** @brief Differentiates 2D matrix multiplication across transposition configurations. */
-        void matmul_backward(const GradientTape& tape);
+        void matmul_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates row-vector bias addition: identity in X, row-summed in bias. */
-        void bias_add_backward(const GradientTape& tape);
+        void bias_add_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates matrix row summation by broadcasting incoming gradients. */
-        void sum_rows_backward(const GradientTape& tape);
+        void sum_rows_backward(const GradientTape& tape) noexcept;
 
         /** @brief Differentiates a row gather by scatter-adding its gradient into the table's. */
-        void gather_rows_backward(const GradientTape& tape);
+        void gather_rows_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates a row scatter-add by gathering its gradient's rows back. */
-        void scatter_add_rows_backward(const GradientTape& tape);
+        void scatter_add_rows_backward(const GradientTape& tape) noexcept;
 
         /** @brief Differentiates the causal mask by zeroing the gradient above the diagonal. */
-        void causal_mask_backward(const GradientTape& tape);
+        void causal_mask_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for linear algebra operations. */
         inline constexpr std::array<RuleEntry, 6> K_LINALG_RULES = {{

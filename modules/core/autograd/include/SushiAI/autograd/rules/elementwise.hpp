@@ -35,29 +35,29 @@ namespace SushiAI
     namespace Autograd
     {
         /** @brief Differentiates binary addition: d(a+b) = [dy, dy]. */
-        void add_backward(const GradientTape& tape);
+        void add_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates binary subtraction: d(a-b) = [dy, -dy]. */
-        void sub_backward(const GradientTape& tape);
+        void sub_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates binary multiplication: d(a*b) = [dy*b, dy*a]. */
-        void mul_backward(const GradientTape& tape);
+        void mul_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates scalar scaling: d(alpha*x) = alpha*dy. */
-        void scale_backward(const GradientTape& tape);
+        void scale_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates elementwise exponential: d(exp x) = dy * exp(x). */
-        void exp_backward(const GradientTape& tape);
+        void exp_backward(const GradientTape& tape) noexcept;
         /** @brief Propagates accumulation gradients to both operands. */
-        void accumulate_backward(const GradientTape& tape);
+        void accumulate_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates division: d(a/b) = [dy/b, -(dy/b)*(a/b)]. */
-        void div_backward(const GradientTape& tape);
+        void div_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates the minimum: dy goes to a where a <= b, to b elsewhere. */
-        void minimum_backward(const GradientTape& tape);
+        void minimum_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates the maximum: dy goes to a where a >= b, to b elsewhere. */
-        void maximum_backward(const GradientTape& tape);
+        void maximum_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates the absolute value: d|x| = dy * sign(x), zero at x = 0. */
-        void abs_backward(const GradientTape& tape);
+        void abs_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates the arctangent: d(atan x) = dy / (1 + x*x). */
-        void atan_backward(const GradientTape& tape);
+        void atan_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates selection: dy goes to a where the condition holds, else to b. */
-        void select_backward(const GradientTape& tape);
+        void select_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for elementwise operations. */
         inline constexpr std::array<RuleEntry, 12> K_ELEMENTWISE_RULES = {{

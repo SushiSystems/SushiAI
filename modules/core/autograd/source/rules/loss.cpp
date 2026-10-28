@@ -33,7 +33,7 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void log_softmax_backward(const GradientTape& tape)
+        void log_softmax_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -78,7 +78,7 @@ namespace SushiAI
             }
         } // namespace
 
-        void nll_loss_backward(const GradientTape& tape)
+        void nll_loss_backward(const GradientTape& tape) noexcept
         {
 
             if (!tape.output_is_root(0) && tape.output_grad(0) == Graph::K_NO_VALUE) return;

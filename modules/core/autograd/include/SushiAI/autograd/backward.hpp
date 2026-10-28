@@ -58,7 +58,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<std::vector<Graph::ValueID>> differentiate(
             Graph::Graph& graph, Graph::ValueID loss, SushiRuntime::span<const Graph::ValueID> wrt,
-            Graph::ValueID seed_factor = Graph::K_NO_VALUE, Provenance* provenance = nullptr);
+            Graph::ValueID seed_factor = Graph::K_NO_VALUE, Provenance* provenance = nullptr) noexcept;
 
     } // namespace Autograd
 } // namespace SushiAI

@@ -69,7 +69,7 @@ namespace SushiAI
             }
         }
 
-        std::string GradCheckResult::to_string() const
+        std::string GradCheckResult::to_string() const noexcept
         {
             return SushiLog::format_text(
                 "gradcheck {}: max relative error {} over {} probe(s); worst at index {} "
@@ -79,7 +79,7 @@ namespace SushiAI
                 SushiLog::scientific(worst_numeric, 9));
         }
 
-        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options)
+        void push_off_kinks(SushiRuntime::span<double> inputs, const GradCheckOptions& options) noexcept
         {
             for (double& v : inputs)
             {
@@ -92,7 +92,7 @@ namespace SushiAI
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
                                             SushiRuntime::span<double> inputs,
-                                            const GradCheckOptions& options)
+                                            const GradCheckOptions& options) noexcept
         {
             SA_FATAL_IF(inputs.empty(), "check_full_jacobian needs at least one input");
 
@@ -138,7 +138,7 @@ namespace SushiAI
                                           const GradientFunction& gradient,
                                           SushiRuntime::span<double> inputs,
                                           std::size_t directions,
-                                          const GradCheckOptions& options)
+                                          const GradCheckOptions& options) noexcept
         {
             SA_FATAL_IF(inputs.empty(), "check_directional needs at least one input");
             SA_FATAL_IF(directions == 0, "check_directional needs at least one direction");

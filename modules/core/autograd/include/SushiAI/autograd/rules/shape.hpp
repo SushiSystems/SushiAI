@@ -35,9 +35,9 @@ namespace SushiAI
     namespace Autograd
     {
         /** @brief Differentiates reshape operations by restoring operand shape on incoming gradients. */
-        void reshape_backward(const GradientTape& tape);
+        void reshape_backward(const GradientTape& tape) noexcept;
         /** @brief Differentiates layout conversions by restoring operand layout on incoming gradients. */
-        void layout_convert_backward(const GradientTape& tape);
+        void layout_convert_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for structural shape and layout operations. */
         inline constexpr std::array<RuleEntry, 2> K_SHAPE_RULES = {{

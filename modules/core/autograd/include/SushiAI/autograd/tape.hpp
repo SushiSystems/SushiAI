@@ -58,7 +58,7 @@ namespace SushiAI
                 const Graph::GraphBuilder& builder() const noexcept { return builder_; }
 
                 /** @brief The node currently being differentiated. */
-                const Graph::Node& node() const;
+                const Graph::Node& node() const noexcept;
 
                 /** @brief The id of the node currently being differentiated. */
                 Graph::NodeID node_id() const noexcept { return node_; }
@@ -67,30 +67,30 @@ namespace SushiAI
                  * @brief Returns the forward value the node reads as operand @p index.
                  * @pre @p index is below the operand count; a larger index is fatal.
                  */
-                Graph::ValueID input(std::size_t index) const;
+                Graph::ValueID input(std::size_t index) const noexcept;
 
                 /**
                  * @brief Returns the forward value the node writes as result @p index.
                  * @pre @p index is below the result count; a larger index is fatal.
                  */
-                Graph::ValueID output(std::size_t index) const;
+                Graph::ValueID output(std::size_t index) const noexcept;
 
                 /**
                  * @brief Returns the gradient ValueID of the node's result.
                  * @param index Output index on the current node.
                  * @return Gradient ValueID, or Graph::NO_VALUE if unseeded or inactive.
                  */
-                Graph::ValueID output_grad(std::size_t index) const;
+                Graph::ValueID output_grad(std::size_t index) const noexcept;
 
                 /** @brief Whether the node's @p index-th result is the differentiation root. */
-                bool output_is_root(std::size_t index) const;
+                bool output_is_root(std::size_t index) const noexcept;
 
                 /**
                  * @brief Whether a gradient should be produced for the node's @p index-th operand.
                  * @param index Which operand.
                  * @return True when that operand is on a path from something that requires one.
                  */
-                bool input_requires_grad(std::size_t index) const;
+                bool input_requires_grad(std::size_t index) const noexcept;
 
                 /**
                  * @brief Registers a gradient contribution to a forward primal value.
@@ -98,10 +98,10 @@ namespace SushiAI
                  * @param gradient Contribution to accumulate. A failure is recorded on the
                  *        graph through observe() and contributes nothing.
                  */
-                void contribute(Graph::ValueID primal, const Graph::Traced& gradient) const;
+                void contribute(Graph::ValueID primal, const Graph::Traced& gradient) const noexcept;
 
                 /** @brief Convenience: contribute to the current node's @p index-th operand. */
-                void contribute_input(std::size_t index, const Graph::Traced& gradient) const;
+                void contribute_input(std::size_t index, const Graph::Traced& gradient) const noexcept;
 
                 /**
                  * @brief Records a failure a rule met while emitting its gradient.
@@ -116,7 +116,7 @@ namespace SushiAI
                  * @brief Marks an upstream node as already handled by the current rule.
                  * @param node Node identifier to skip during reverse traversal.
                  */
-                void skip(Graph::NodeID node) const;
+                void skip(Graph::NodeID node) const noexcept;
 
                 /**
                  * @brief Returns the optional device-resident scaling factor for the root gradient.
@@ -130,7 +130,7 @@ namespace SushiAI
                  * @return The scaled gradient, @p gradient unchanged if unscaled, or the
                  *         failure @p gradient holds.
                  */
-                [[nodiscard]] Graph::Traced apply_seed_factor(const Graph::Traced& gradient) const;
+                [[nodiscard]] Graph::Traced apply_seed_factor(const Graph::Traced& gradient) const noexcept;
 
                 /** @brief Internal: constructs a tape over a differentiation run. */
                 GradientTape(Graph::GraphBuilder builder, Differentiator& owner,

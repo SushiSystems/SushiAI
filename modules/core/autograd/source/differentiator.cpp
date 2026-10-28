@@ -321,7 +321,7 @@ namespace SushiAI
         Result<std::vector<Graph::ValueID>> differentiate(
             Graph::Graph& graph, Graph::ValueID loss,
             SushiRuntime::span<const Graph::ValueID> wrt, Graph::ValueID seed_factor,
-            Provenance* provenance)
+            Provenance* provenance) noexcept
         {
             SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
                        "differentiate() was given a graph in which an emitter refused part of "

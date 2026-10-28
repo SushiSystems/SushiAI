@@ -59,7 +59,7 @@ namespace SushiAI
             }
         } // namespace
 
-        void add_backward(const GradientTape& tape)
+        void add_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
@@ -68,7 +68,7 @@ namespace SushiAI
             if (tape.input_requires_grad(1)) tape.contribute_input(1, dc);
         }
 
-        void sub_backward(const GradientTape& tape)
+        void sub_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
@@ -77,7 +77,7 @@ namespace SushiAI
             if (tape.input_requires_grad(1)) tape.contribute_input(1, tape.builder().scale(dc, -1.0));
         }
 
-        void mul_backward(const GradientTape& tape)
+        void mul_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE) return;
@@ -89,7 +89,7 @@ namespace SushiAI
                 tape.contribute_input(1, builder.mul(dc, tape.input(0)));
         }
 
-        void scale_backward(const GradientTape& tape)
+        void scale_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -98,7 +98,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().scale(dy, tape.node().attributes.get(0)));
         }
 
-        void exp_backward(const GradientTape& tape)
+        void exp_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -108,7 +108,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().mul(dy, tape.output(0)));
         }
 
-        void accumulate_backward(const GradientTape& tape)
+        void accumulate_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dout = tape.output_grad(0);
             if (dout == Graph::K_NO_VALUE) return;
@@ -117,7 +117,7 @@ namespace SushiAI
             if (tape.input_requires_grad(1)) tape.contribute_input(1, dout);
         }
 
-        void div_backward(const GradientTape& tape)
+        void div_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
@@ -137,7 +137,7 @@ namespace SushiAI
                     1, builder.scale(builder.mul(quotient, tape.output(0)), -1.0));
         }
 
-        void minimum_backward(const GradientTape& tape)
+        void minimum_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
@@ -151,7 +151,7 @@ namespace SushiAI
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
-        void maximum_backward(const GradientTape& tape)
+        void maximum_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dc = tape.output_grad(0);
             if (dc == Graph::K_NO_VALUE)
@@ -165,7 +165,7 @@ namespace SushiAI
             route_gradient(tape, dc, first_wins, 0, 1);
         }
 
-        void abs_backward(const GradientTape& tape)
+        void abs_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)
@@ -187,7 +187,7 @@ namespace SushiAI
             tape.contribute_input(0, builder.mul(dy, sign));
         }
 
-        void atan_backward(const GradientTape& tape)
+        void atan_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)
@@ -203,7 +203,7 @@ namespace SushiAI
             tape.contribute_input(0, builder.div(dy, denominator));
         }
 
-        void select_backward(const GradientTape& tape)
+        void select_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE)

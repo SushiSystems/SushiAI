@@ -31,7 +31,7 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void matmul_backward(const GradientTape& tape)
+        void matmul_backward(const GradientTape& tape) noexcept
         {
             const Graph::Node& node = tape.node();
             const Graph::ValueID dc = tape.output_grad(0);
@@ -65,7 +65,7 @@ namespace SushiAI
             }
         }
 
-        void bias_add_backward(const GradientTape& tape)
+        void bias_add_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -75,7 +75,7 @@ namespace SushiAI
             if (tape.input_requires_grad(1)) tape.contribute_input(1, tape.builder().sum_rows(dy));
         }
 
-        void sum_rows_backward(const GradientTape& tape)
+        void sum_rows_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID ds = tape.output_grad(0);
             if (ds == Graph::K_NO_VALUE) return;
@@ -89,7 +89,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().bias_add(zeros, ds));
         }
 
-        void gather_rows_backward(const GradientTape& tape)
+        void gather_rows_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -103,7 +103,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().scatter_add_rows(dy, indices, table_rows));
         }
 
-        void scatter_add_rows_backward(const GradientTape& tape)
+        void scatter_add_rows_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;
@@ -115,7 +115,7 @@ namespace SushiAI
             tape.contribute_input(0, tape.builder().gather_rows(dy, indices));
         }
 
-        void causal_mask_backward(const GradientTape& tape)
+        void causal_mask_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;

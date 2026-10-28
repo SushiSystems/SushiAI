@@ -38,7 +38,7 @@ namespace SushiAI
          * @brief Differentiates activation operations using metadata in Ops::ACTIVATIONS.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void activation_backward(const GradientTape& tape);
+        void activation_backward(const GradientTape& tape) noexcept;
 
         /** @brief Activation operations' backward rules. */
         inline constexpr std::array<RuleEntry, 7> K_ACTIVATION_RULES = {{

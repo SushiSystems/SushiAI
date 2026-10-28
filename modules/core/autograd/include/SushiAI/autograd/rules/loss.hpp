@@ -38,13 +38,13 @@ namespace SushiAI
          * @brief Differentiates a log-softmax that no fused cross-entropy absorbed.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void log_softmax_backward(const GradientTape& tape);
+        void log_softmax_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief Differentiates negative log-likelihood loss, fusing adjacent log-softmax if present.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void nll_loss_backward(const GradientTape& tape);
+        void nll_loss_backward(const GradientTape& tape) noexcept;
 
         /**
          * @brief Reports whether the rule of @p op starts from the implicit scalar seed.

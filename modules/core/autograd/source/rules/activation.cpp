@@ -32,7 +32,7 @@ namespace SushiAI
 {
     namespace Autograd
     {
-        void activation_backward(const GradientTape& tape)
+        void activation_backward(const GradientTape& tape) noexcept
         {
             const Graph::ValueID dy = tape.output_grad(0);
             if (dy == Graph::K_NO_VALUE) return;

@@ -54,7 +54,7 @@ namespace SushiAI
              * @brief Returns the forward node that @p backward_node was emitted for.
              * @param backward_node A node id at or above forward_node_count.
              */
-            Graph::NodeID origin_of(Graph::NodeID backward_node) const
+            Graph::NodeID origin_of(Graph::NodeID backward_node) const noexcept
             {
                 SA_FATAL_IF(backward_node < forward_node_count
                                 || backward_node - forward_node_count >= origin.size(),

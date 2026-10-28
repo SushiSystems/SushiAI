@@ -38,7 +38,7 @@ namespace SushiAI
          * @brief Differentiates dropout by multiplying the gradient by the mask the forward saved.
          * @param tape Traversal context providing forward nodes and gradient emitters.
          */
-        void dropout_backward(const GradientTape& tape);
+        void dropout_backward(const GradientTape& tape) noexcept;
 
         /** @brief Holds backward rule entries for the operations that draw at each replay. */
         inline constexpr std::array<RuleEntry, 1> K_RANDOM_RULES = {{
