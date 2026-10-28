@@ -62,6 +62,9 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
+      # The design and backlog checkers read their rules from sushicore, which the CLI pins.
+      - name: python -m pip install ./cli
+        run: python -m pip install ./cli
       - name: python tools/check_all.py .
         run: python tools/check_all.py .
       - name: python -m unittest discover -s tools/tests
