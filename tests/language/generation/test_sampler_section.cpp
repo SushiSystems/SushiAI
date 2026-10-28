@@ -29,6 +29,7 @@
 #include <memory>
 #include <string_view>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -43,13 +44,14 @@ using namespace SushiAI::Language::Generation;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Names the section in every diagnostic of these tests. */
     constexpr std::string_view K_CONTEXT = "the task section 'sampler'";
 
     /** @brief Builds the sampler of a section written as JSON. */
     Result<std::unique_ptr<Sampler>> sampler_of(std::string_view text)
     {
-        return make_sampler(Config::parse_json(text, "<test>"), K_CONTEXT);
+        return make_sampler(require_value(Config::parse_json(text, "<test>")), K_CONTEXT);
     }
 } // namespace
 

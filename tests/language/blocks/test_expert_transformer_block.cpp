@@ -61,6 +61,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 8;
 
@@ -102,7 +103,7 @@ namespace
     {
         const Shape input{5, K_DIM};
         return Language::Blocks::make_transformer_block_node(
-            NN::ShapeSpan(&input, 1), Config::parse_json(text, "<test>"), "layer 3");
+            NN::ShapeSpan(&input, 1), require_value(Config::parse_json(text, "<test>")), "layer 3");
     }
 }
 

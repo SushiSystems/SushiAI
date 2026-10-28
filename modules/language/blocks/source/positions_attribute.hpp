@@ -76,12 +76,12 @@ namespace SushiAI
                 if (!attributes.has(K_POSITIONS_KEY))
                     return K_POSITIONS_NAMES[0].positions;
 
-                const Config::Value& value = attributes.at(K_POSITIONS_KEY, context);
+                SA_TRY_ASSIGN(const Config::Value& value, attributes.at(K_POSITIONS_KEY, context));
                 SA_FAIL_IF(value.kind() != Config::Kind::String, StatusCode::InvalidDescription,
                            "{} '{}' must be a string, but it is {}", context, K_POSITIONS_KEY,
                            Config::kind_name(value.kind()));
 
-                const std::string& word = value.as_string(K_POSITIONS_KEY);
+                SA_TRY_ASSIGN(const std::string& word, value.as_string(K_POSITIONS_KEY));
                 const PositionsName* found = nullptr;
                 for (const PositionsName& row : K_POSITIONS_NAMES)
                 {

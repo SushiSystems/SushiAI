@@ -34,6 +34,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include "datasets_test_support.hpp"
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -75,7 +76,7 @@ namespace
             /** @brief Parses a data block whose "file" is @p file and whose rest is @p keys. */
             Config::Value section_of(const std::string& file, const std::string& keys)
             {
-                return Config::parse_json("{\"file\": \"" + file + "\"" + keys + "}", "<test>");
+                return SaTest::require_value(Config::parse_json("{\"file\": \"" + file + "\"" + keys + "}", "<test>"));
             }
     };
 } // namespace
@@ -132,7 +133,7 @@ TEST_F(Medium_LanguageDatasetsTokensSection, AKeyThatDoesNotFitIsRefused)
     SA_EXPECT_FAILURE(make_tokens_dataset(*engine, section_of(file, ""), "the data block"),
                       StatusCode::InvalidDescription, "the data block", "has no 'window'");
     SA_EXPECT_FAILURE(make_tokens_dataset(*engine,
-                                          Config::parse_json(R"({"window": 4})", "<test>"),
+                                          SaTest::require_value(Config::parse_json(R"({"window": 4})", "<test>")),
                                           "the data block"),
                       StatusCode::InvalidDescription, "the data block", "has no 'file'");
     SA_EXPECT_FAILURE(make_tokens_dataset(*engine, section_of(file, R"(, "window": "four")"),

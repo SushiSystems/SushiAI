@@ -146,7 +146,7 @@ namespace
     /** @brief Returns the attributes of an objective that states no key. */
     Config::Value no_keys()
     {
-        return Config::parse_json("{}", "<test>");
+        return SaTest::require_value(Config::parse_json("{}", "<test>"));
     }
 } // namespace
 
@@ -250,7 +250,8 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesWhatDoesNotFit)
 {
     SA_EXPECT_FAILURE(
         make_next_token_objective(make_context(),
-                                  Config::parse_json(R"({"smoothing": 0.1})", "<test>"),
+                                  SaTest::require_value(Config::parse_json(R"({"smoothing": 0.1})",
+                                                                           "<test>")),
                                   "objective"),
         StatusCode::InvalidDescription, "objective states the key 'smoothing'");
 
@@ -311,7 +312,9 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongS
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
-        make_next_token_objective(several, Config::parse_json(R"({"output": "out"})", "<test>"),
+        make_next_token_objective(several,
+                                  SaTest::require_value(Config::parse_json(R"({"output": "out"})",
+                                                                           "<test>")),
                                   "objective"));
 
     Graph::Graph graph;
@@ -337,7 +340,8 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesAnOutputItCanno
     several.outputs.push_back(Train::OutputShape{"balance", Shape{1, 1}});
     const auto make = [&several](const char* text)
     {
-        return make_next_token_objective(several, Config::parse_json(text, "<test>"),
+        return make_next_token_objective(several,
+                                         SaTest::require_value(Config::parse_json(text, "<test>")),
                                          "objective");
     };
 

@@ -52,6 +52,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 8;
 
@@ -184,9 +185,9 @@ TEST(Small_BlockTransformerBlock, AnInputThatDoesNotFitFails)
 TEST(Small_BlockTransformerBlock, TheFactoryReadsItsKeysOverTheirDefaults)
 {
     const Shape input{5, K_DIM};
-    const Config::Value plain = Config::parse_json(R"({"heads": 2})", "<test>");
-    const Config::Value stated = Config::parse_json(
-        R"({"heads": 4, "hidden": 16, "causal": false, "ln_epsilon": 0.001})", "<test>");
+    const Config::Value plain = require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
+    const Config::Value stated = require_value(Config::parse_json(
+        R"({"heads": 4, "hidden": 16, "causal": false, "ln_epsilon": 0.001})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -217,9 +218,10 @@ TEST(Small_BlockTransformerBlock, TheFactoryReadsItsKeysOverTheirDefaults)
 TEST(Small_BlockTransformerBlock, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5, K_DIM};
-    const Config::Value stray = Config::parse_json(R"({"heads": 2, "depth": 3})", "<test>");
-    const Config::Value absent = Config::parse_json(R"({"hidden": 16})", "<test>");
-    const Config::Value uneven = Config::parse_json(R"({"heads": 5})", "<test>");
+    const Config::Value stray =
+        require_value(Config::parse_json(R"({"heads": 2, "depth": 3})", "<test>"));
+    const Config::Value absent = require_value(Config::parse_json(R"({"hidden": 16})", "<test>"));
+    const Config::Value uneven = require_value(Config::parse_json(R"({"heads": 5})", "<test>"));
 
     SA_EXPECT_FAILURE(
         Language::Blocks::make_transformer_block_node(NN::ShapeSpan(&input, 1), stray,
@@ -307,9 +309,9 @@ TEST(Small_BlockTransformerBlock, TheFactoryPassesThePositionsToItsAttention)
 {
     const Shape input{5, K_DIM};
     const Shape odd{5, 6};
-    const Config::Value plain = Config::parse_json(R"({"heads": 2})", "<test>");
+    const Config::Value plain = require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
     const Config::Value rotary =
-        Config::parse_json(R"({"heads": 2, "positions": "rotary"})", "<test>");
+        require_value(Config::parse_json(R"({"heads": 2, "positions": "rotary"})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> learned,

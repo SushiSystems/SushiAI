@@ -84,12 +84,13 @@ namespace SushiAI::Language::Training
             if (!attributes.has(K_NEXT_TOKEN_OUTPUT_KEY))
                 return std::string();
 
-            const Config::Value& stated = attributes.at(K_NEXT_TOKEN_OUTPUT_KEY, context);
+            SA_TRY_ASSIGN(const Config::Value& stated,
+                          attributes.at(K_NEXT_TOKEN_OUTPUT_KEY, context));
             SA_FAIL_IF(stated.kind() != Config::Kind::String, StatusCode::InvalidDescription,
                        "{} '{}' names a published output, but it is {}", context,
                        K_NEXT_TOKEN_OUTPUT_KEY, Config::kind_name(stated.kind()));
 
-            const std::string& name = stated.as_string(context);
+            SA_TRY_ASSIGN(const std::string& name, stated.as_string(context));
             SA_FAIL_IF(name.empty(), StatusCode::InvalidDescription,
                        "{} '{}' names a published output, but it is empty", context,
                        K_NEXT_TOKEN_OUTPUT_KEY);

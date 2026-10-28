@@ -52,6 +52,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 6;
 
@@ -170,10 +171,10 @@ TEST(Small_BlockPositionEmbedding, TheFactoryReadsTheLength)
 {
     const Shape input{K_LENGTH, K_DIM};
     const Shape flat{K_DIM};
-    const Config::Value absent = Config::parse_json("{}", "<test>");
-    const Config::Value longer = Config::parse_json(R"({"length": 9})", "<test>");
-    const Config::Value shorter = Config::parse_json(R"({"length": 4})", "<test>");
-    const Config::Value unknown = Config::parse_json(R"({"rows": 9})", "<test>");
+    const Config::Value absent = require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value longer = require_value(Config::parse_json(R"({"length": 9})", "<test>"));
+    const Config::Value shorter = require_value(Config::parse_json(R"({"length": 4})", "<test>"));
+    const Config::Value unknown = require_value(Config::parse_json(R"({"rows": 9})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,

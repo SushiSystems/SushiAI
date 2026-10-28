@@ -73,7 +73,7 @@ namespace
     /** @brief Returns the attributes of an objective that states no key. */
     Config::Value no_keys()
     {
-        return Config::parse_json("{}", "<test>");
+        return SaTest::require_value(Config::parse_json("{}", "<test>"));
     }
 
     /** @brief Returns what a factory is given for a decoder of two blocks with experts. */
@@ -220,7 +220,8 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, TheFactoryRefusesWhatDoesNotF
 {
     SA_EXPECT_FAILURE(
         make_expert_balance_objective(make_context(),
-                                      Config::parse_json(R"({"weight": 2})", "<test>"),
+                                      SaTest::require_value(Config::parse_json(R"({"weight": 2})",
+                                                                               "<test>")),
                                       "objective"),
         StatusCode::InvalidDescription, "objective states the key 'weight'");
 

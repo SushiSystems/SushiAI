@@ -52,6 +52,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 6;
 
@@ -231,7 +232,7 @@ TEST(Small_BlockMoeFeedForward, TheFactoryBuildsANodeOfThreePorts)
 {
     const Shape input{5, K_DIM};
     const Config::Value good =
-        Config::parse_json(R"({"experts": 4, "hidden": 8, "top_k": 2})", "<test>");
+        require_value(Config::parse_json(R"({"experts": 4, "hidden": 8, "top_k": 2})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -276,7 +277,7 @@ TEST(Small_BlockMoeFeedForward, TheFactoryRefusesARowThatDoesNotFit)
     const auto make = [&input](const char* text)
     {
         return Language::Blocks::make_moe_feed_forward_node(
-            NN::ShapeSpan(&input, 1), Config::parse_json(text, "<test>"), "layer 3");
+            NN::ShapeSpan(&input, 1), require_value(Config::parse_json(text, "<test>")), "layer 3");
     };
 
     SA_EXPECT_FAILURE(make(R"({"hidden": 8})"), StatusCode::InvalidDescription, "layer 3",

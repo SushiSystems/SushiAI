@@ -55,6 +55,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 6;
 
@@ -226,8 +227,8 @@ TEST(Small_BlockLanguageHead, TheFactoryReadsTheVocabulary)
     const Shape input{5, K_DIM};
     const Shape flat{K_DIM};
     const Config::Value good =
-        Config::parse_json(R"({"vocabulary": 11, "ln_epsilon": 0.001})", "<test>");
-    const Config::Value absent = Config::parse_json("{}", "<test>");
+        require_value(Config::parse_json(R"({"vocabulary": 11, "ln_epsilon": 0.001})", "<test>"));
+    const Config::Value absent = require_value(Config::parse_json("{}", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -265,10 +266,11 @@ TEST(Small_BlockLanguageHead, TheFactoryTiesTheHeadToAnEmbeddingRow)
 
     const NN::BuiltRows above(model);
     const Shape input{5, K_DIM};
-    const Config::Value tied = Config::parse_json(R"({"tie": 0})", "<test>");
-    const Config::Value before = Config::parse_json(R"({"tie": -1})", "<test>");
-    const Config::Value resized = Config::parse_json(R"({"tie": 0, "vocabulary": 12})", "<test>");
-    const Config::Value below = Config::parse_json(R"({"tie": 2})", "<test>");
+    const Config::Value tied = require_value(Config::parse_json(R"({"tie": 0})", "<test>"));
+    const Config::Value before = require_value(Config::parse_json(R"({"tie": -1})", "<test>"));
+    const Config::Value resized =
+        require_value(Config::parse_json(R"({"tie": 0, "vocabulary": 12})", "<test>"));
+    const Config::Value below = require_value(Config::parse_json(R"({"tie": 2})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,

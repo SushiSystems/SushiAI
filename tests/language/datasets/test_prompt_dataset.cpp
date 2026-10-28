@@ -133,11 +133,11 @@ TEST_F(Medium_LanguageDatasetsPromptDataset, TheDataBlockEncodesItsText)
 
     const std::string stated = "\"vocabulary\": \"" + file.generic_string() + "\"";
     const Config::Value section =
-        Config::parse_json("{\"text\": \"hi\", \"window\": 4, " + stated + "}", "<test>");
+        SaTest::require_value(Config::parse_json("{\"text\": \"hi\", \"window\": 4, " + stated + "}", "<test>"));
     const Config::Value without_text =
-        Config::parse_json("{\"window\": 4, " + stated + "}", "<test>");
-    const Config::Value with_unknown = Config::parse_json(
-        "{\"text\": \"hi\", \"window\": 4, \"tokens\": 9, " + stated + "}", "<test>");
+        SaTest::require_value(Config::parse_json("{\"window\": 4, " + stated + "}", "<test>"));
+    const Config::Value with_unknown = SaTest::require_value(Config::parse_json(
+        "{\"text\": \"hi\", \"window\": 4, \"tokens\": 9, " + stated + "}", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> dataset,
                             make_prompt_dataset(*engine, section, "the data block"));

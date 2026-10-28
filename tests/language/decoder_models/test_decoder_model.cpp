@@ -43,6 +43,12 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /** @brief Returns the whole number under @p key of @p value; a refusal fails the test run. */
+    std::int64_t int_of(const Config::Value& value, std::string_view key)
+    {
+        return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_int(key));
+    }
+
     /** @brief Counts the rows of @p spec whose type is @p type. */
     std::int64_t count_rows(const Config::ModelSpec& spec, std::string_view type)
     {
@@ -65,9 +71,11 @@ TEST(Small_DecoderModel, TheTokenTableHasTheVocabularyAndTheWidth)
     ASSERT_FALSE(spec.layers.empty());
     const Config::LayerSpec& table = spec.layers.front();
     EXPECT_EQ(table.type, "embedding");
-    EXPECT_EQ(table.attributes.at("num_embeddings", "<test>").as_int("<test>"),
+    EXPECT_EQ(int_of(table.attributes, "num_embeddings"),
+              
               SaTest::K_DECODER_VOCABULARY);
-    EXPECT_EQ(table.attributes.at("embedding_dim", "<test>").as_int("<test>"),
+    EXPECT_EQ(int_of(table.attributes, "embedding_dim"),
+              
               SaTest::K_DECODER_DIM);
     EXPECT_EQ(count_rows(spec, "transformer_block"), SaTest::K_DECODER_BLOCKS);
     EXPECT_EQ(count_rows(spec, "position_embedding"), 1);

@@ -159,7 +159,7 @@ TEST(Medium_LanguageRegistration, TheNextTokenRowBuildsBesideTheRowsOfTrain)
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Objective> objective,
         Train::make_objective(registry, "next_token", given,
-                              Config::parse_json("{}", "<test>"), "objective"));
+                              SaTest::require_value(Config::parse_json("{}", "<test>")), "objective"));
     EXPECT_EQ(objective->name(), "next_token");
 
     SA_EXPECT_FAILURE(Language::register_objectives(registry),
@@ -252,10 +252,10 @@ TEST(Medium_LanguageRegistration, ADecoderWithExpertsPublishesWhatTheBalanceRowR
     given.input_sample = Shape{8};
     SA_ASSERT_OK_AND_ASSIGN(given.outputs, Train::list_output_shapes(graph, outputs));
 
-    const Config::Value sum = Config::parse_json(R"({"terms": [
+    const Config::Value sum = SaTest::require_value(Config::parse_json(R"({"terms": [
         {"type": "next_token", "output": "output"},
         {"type": "expert_balance", "weight": 0.01}
-    ]})", "<test>");
+    ]})", "<test>"));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Objective> objective,
                             Train::make_objective(objectives, "sum", given, sum, "objective"));
     EXPECT_EQ(objective->name(), "sum");
@@ -788,7 +788,8 @@ namespace
 
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Objective> objective,
                       Train::make_objective(objectives, type, given,
-                                            Config::parse_json(attributes, "<test>"),
+                                            SaTest::require_value(Config::parse_json(attributes,
+                                                                                     "<test>")),
                                             "objective"));
 
         Train::GraphOptions graph_options;

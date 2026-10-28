@@ -47,7 +47,9 @@ namespace SushiAI::Language::Generation::Detail
         SA_TRY_ASSIGN(const Config::Value* const member,
                       reader.find_of(key, Config::Kind::String));
 
-        return member->as_string(key);
+        SA_TRY_ASSIGN(const std::string& text, member->as_string(key));
+
+        return text;
     }
 
     /**

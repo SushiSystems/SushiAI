@@ -124,12 +124,12 @@ namespace SushiAI
                 if (!attributes.has(key))
                     return fallback;
 
-                const Config::Value& value = attributes.at(key, context);
+                SA_TRY_ASSIGN(const Config::Value& value, attributes.at(key, context));
                 SA_FAIL_IF(value.kind() != Config::Kind::Int, StatusCode::InvalidDescription,
                            "{} '{}' must be a whole number, but it is {}", context, key,
                            Config::kind_name(value.kind()));
 
-                const int64_t number = value.as_int(key);
+                SA_TRY_ASSIGN(const int64_t number, value.as_int(key));
                 SA_FAIL_IF(number < 0, StatusCode::InvalidDescription,
                            "{} '{}' must be zero or more, but it is {}", context, key, number);
 

@@ -50,6 +50,7 @@ using NN::Trace;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Holds the width of the sequence every case reads. */
     constexpr int64_t K_DIM = 6;
 
@@ -143,9 +144,10 @@ TEST(Small_BlockFeedForward, AnInputOrADescriptionThatDoesNotFitFails)
 TEST(Small_BlockFeedForward, TheFactoryReadsTheHiddenWidth)
 {
     const Shape input{5, K_DIM};
-    const Config::Value good = Config::parse_json(R"({"hidden": 24})", "<test>");
-    const Config::Value absent = Config::parse_json("{}", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"hidden": 24, "bias": true})", "<test>");
+    const Config::Value good = require_value(Config::parse_json(R"({"hidden": 24})", "<test>"));
+    const Config::Value absent = require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value stray =
+        require_value(Config::parse_json(R"({"hidden": 24, "bias": true})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,

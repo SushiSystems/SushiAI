@@ -28,6 +28,7 @@
 
 #include <string_view>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -40,13 +41,14 @@ using namespace SushiAI::Language::Generation;
 
 namespace
 {
+    using SushiAI::Test::require_value;
     /** @brief Names the section in every diagnostic of these tests. */
     constexpr std::string_view K_CONTEXT = "the task section";
 
     /** @brief Reads the task of a section written as JSON. */
     Result<GenerationTask> task_of(std::string_view text)
     {
-        return read_generation_task(Config::parse_json(text, "<test>"), K_CONTEXT);
+        return read_generation_task(require_value(Config::parse_json(text, "<test>")), K_CONTEXT);
     }
 } // namespace
 

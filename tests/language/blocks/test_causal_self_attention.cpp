@@ -253,8 +253,10 @@ TEST(Medium_BlockCausalSelfAttention, ABlockDescribedWrongFails)
 TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsTheHeadsAndTheMask)
 {
     const Shape input{5, K_DIM};
-    const Config::Value plain = Config::parse_json(R"({"heads": 4})", "<test>");
-    const Config::Value open = Config::parse_json(R"({"heads": 2, "causal": false})", "<test>");
+    const Config::Value plain =
+        SaTest::require_value(Config::parse_json(R"({"heads": 4})", "<test>"));
+    const Config::Value open =
+        SaTest::require_value(Config::parse_json(R"({"heads": 2, "causal": false})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> node,
@@ -283,10 +285,13 @@ TEST(Medium_BlockCausalSelfAttention, TheFactoryRefusesARowThatDoesNotFit)
 {
     const Shape input{5, K_DIM};
     const Shape map{4, 4, K_DIM};
-    const Config::Value good = Config::parse_json(R"({"heads": 2})", "<test>");
-    const Config::Value stray = Config::parse_json(R"({"heads": 2, "dropout": 0.1})", "<test>");
-    const Config::Value absent = Config::parse_json("{}", "<test>");
-    const Config::Value uneven = Config::parse_json(R"({"heads": 3})", "<test>");
+    const Config::Value good =
+        SaTest::require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
+    const Config::Value stray =
+        SaTest::require_value(Config::parse_json(R"({"heads": 2, "dropout": 0.1})", "<test>"));
+    const Config::Value absent = SaTest::require_value(Config::parse_json("{}", "<test>"));
+    const Config::Value uneven =
+        SaTest::require_value(Config::parse_json(R"({"heads": 3})", "<test>"));
 
     SA_EXPECT_FAILURE(
         Language::Blocks::make_causal_self_attention_node(NN::ShapeSpan(&input, 1), stray,
@@ -578,12 +583,16 @@ TEST(Medium_BlockCausalSelfAttention, TheFactoryReadsThePositions)
 {
     const Shape input{5, K_DIM};
     const Shape odd{5, 6};
-    const Config::Value plain = Config::parse_json(R"({"heads": 2})", "<test>");
+    const Config::Value plain =
+        SaTest::require_value(Config::parse_json(R"({"heads": 2})", "<test>"));
     const Config::Value rotary =
-        Config::parse_json(R"({"heads": 2, "positions": "rotary"})", "<test>");
+        SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": "rotary"})",
+                                                 "<test>"));
     const Config::Value unknown =
-        Config::parse_json(R"({"heads": 2, "positions": "sinusoidal"})", "<test>");
-    const Config::Value number = Config::parse_json(R"({"heads": 2, "positions": 1})", "<test>");
+        SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": "sinusoidal"})",
+                                                 "<test>"));
+    const Config::Value number =
+        SaTest::require_value(Config::parse_json(R"({"heads": 2, "positions": 1})", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<NN::Node> learned,
