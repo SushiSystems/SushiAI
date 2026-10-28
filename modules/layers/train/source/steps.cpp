@@ -220,11 +220,13 @@ namespace SushiAI
             Status add_loss(TrainingGraph& built, const Graph::GraphBuilder& builder,
                             const Objective& objective)
             {
-                SA_TRY_ASSIGN(built.spec.loss,
+                // A loss reports a refusal as a Status, but the builder it emits through throws.
+                SA_TRY_ASSIGN(const Result<Graph::ValueID> emitted,
                               NN::Detail::bridge_throwing([&built, &builder, &objective]()
                 {
                     return objective.loss(builder, built.graph, built.outputs, built.leaves);
                 }));
+                SA_TRY_ASSIGN(built.spec.loss, emitted);
 
                 if (built.leaves.has("targets"))
                 {

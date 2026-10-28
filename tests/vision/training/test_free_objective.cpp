@@ -133,7 +133,8 @@ TEST(Small_FreeObjective, TheLossIsAOneElementRoot)
     NN::ModelOutputs outputs;
     add_ports(builder, outputs);
 
-    const Graph::ValueID root = objective.loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID root,
+                            objective.loss(builder, graph, outputs, leaves));
 
     ASSERT_NE(root, Graph::K_NO_VALUE);
     EXPECT_EQ(graph.value(root).shape, (Shape{1}));

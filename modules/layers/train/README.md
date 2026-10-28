@@ -7,7 +7,9 @@ traces a model in training mode, appends the loss of an `Objective` and differen
 `build_probe_graph` traces a forward-only graph with the buffer updates dropped,
 `build_evaluation_graph` traces one in evaluation mode, and `build_classifier` wraps
 `build_training_graph` for a cross-entropy objective over [batch, features]. `Objective` is the
-interface of a loss, of the fill of its target leaves and of its metrics. This tier implements
+interface of a loss, of the fill of its target leaves and of its metrics. `loss` returns a
+`Result<Graph::ValueID>`: an objective that cannot read the model's outputs refuses with a
+status, and `add_loss` in `steps.cpp` also turns what the builder throws into one. This tier implements
 it four times: `CrossEntropyObjective`, `BinaryCrossEntropyObjective`, `MultiLabelObjective`
 and `MeanSquaredErrorObjective`. `SumObjective` is the composite: it owns other objectives and
 adds their weighted losses. An `ObjectiveRegistry` holds the types a training file may

@@ -85,9 +85,10 @@ namespace SushiAI::Language::Training
              * @pre @p outputs holds the [N, T, V] value make() was told of, alone or under
              *      the name it was given; anything else stops the process.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override;
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override;
 
             /**
              * @brief Writes the index of every label with fill_next_token_targets().

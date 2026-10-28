@@ -132,8 +132,9 @@ namespace
             }
 
             /** @brief Returns the absent value; the tests never build a graph with it. */
-            Graph::ValueID loss(const Graph::GraphBuilder&, const Graph::Graph&,
-                                const NN::ModelOutputs&, const ObjectiveLeaves&) const override
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
+                const ObjectiveLeaves&) const override
             {
                 return Graph::K_NO_VALUE;
             }
@@ -228,6 +229,37 @@ TEST(Small_Objective, CrossEntropyRequiresTheLabelsRole)
     EXPECT_EQ(required.front().sample_shape, Shape{});
     EXPECT_EQ(required.front().dtype, DType::Int32);
     EXPECT_EQ(required.front().classes, 3);
+}
+
+/** @brief Tests that cross-entropy refuses an output of another shape with a Status. */
+TEST(Small_Objective, CrossEntropyRefusesAnOutputOfAnotherShape)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const CrossEntropyObjective objective(4, 3);
+    ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+    NN::ModelOutputs outputs;
+    SA_EXPECT_OK(outputs.add("logits", builder.input(Shape{4, 5}, "logits")));
+
+    SA_EXPECT_FAILURE(objective.loss(builder, graph, outputs, leaves),
+                      StatusCode::InvalidDescription, "[4, 5]", "[4, 3]");
+}
+
+/** @brief Tests that cross-entropy refuses a model with two outputs with a Status. */
+TEST(Small_Objective, CrossEntropyRefusesAModelWithTwoOutputs)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const CrossEntropyObjective objective(4, 3);
+    ObjectiveLeaves leaves;
+    objective.declare(builder, leaves);
+    NN::ModelOutputs outputs;
+    SA_EXPECT_OK(outputs.add("first", builder.input(Shape{4, 3}, "first")));
+    SA_EXPECT_OK(outputs.add("second", builder.input(Shape{4, 3}, "second")));
+
+    SA_EXPECT_FAILURE(objective.loss(builder, graph, outputs, leaves),
+                      StatusCode::InvalidDescription, "exactly one model output", "second");
 }
 
 /** @brief Tests that the leaves keep every required role, in the order they were required. */

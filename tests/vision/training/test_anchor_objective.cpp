@@ -162,7 +162,8 @@ TEST(Small_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
     SA_EXPECT_OK(outputs.add("head.0", fine));
     const std::size_t first = graph.node_count();
 
-    const ValueID root = objective.loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID root,
+                            objective.loss(builder, graph, outputs, leaves));
 
     ASSERT_EQ(op_names(graph, first), (std::vector<std::string>{
         "sushiai.mul", "sushiai.reshape", "sushiai.sum_rows", "sushiai.scale",
@@ -188,7 +189,7 @@ TEST(Small_AnchorObjective, TheRootSumsOneDeltaLossPerHeadScaledByTheBatch)
 }
 
 /** @brief Tests that a model that does not publish a head is refused by the head's name. */
-TEST(Small_AnchorObjective, AModelWithoutAHeadThrowsNamingTheHead)
+TEST(Small_AnchorObjective, AModelWithoutAHeadIsRefusedNamingTheHead)
 {
     SA_ASSERT_OK_AND_ASSIGN(const AnchorObjective objective,
                             AnchorObjective::make(network(), two_head_layout(), two_heads()));
@@ -201,7 +202,8 @@ TEST(Small_AnchorObjective, AModelWithoutAHeadThrowsNamingTheHead)
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("head.0", builder.parameter(Shape{2, 4, 4, 14}, "fine")));
 
-    SA_EXPECT_ERROR((void)objective.loss(builder, graph, outputs, leaves), "head.1");
+    SA_EXPECT_FAILURE(objective.loss(builder, graph, outputs, leaves),
+                      StatusCode::InvalidDescription, "head.1");
 }
 
 /** @brief Tests that a head whose shape differs from the declared one throws both shapes. */

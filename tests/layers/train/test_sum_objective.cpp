@@ -87,8 +87,9 @@ namespace
             }
 
             /** @brief Returns the absent value; the tests never build a graph with it. */
-            Graph::ValueID loss(const Graph::GraphBuilder&, const Graph::Graph&,
-                                const NN::ModelOutputs&, const ObjectiveLeaves&) const override
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
+                const ObjectiveLeaves&) const override
             {
                 return Graph::K_NO_VALUE;
             }
@@ -115,8 +116,9 @@ namespace
             }
 
             /** @brief Returns the absent value; the tests never build a graph with it. */
-            Graph::ValueID loss(const Graph::GraphBuilder&, const Graph::Graph&,
-                                const NN::ModelOutputs&, const ObjectiveLeaves&) const override
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder&, const Graph::Graph&, const NN::ModelOutputs&,
+                const ObjectiveLeaves&) const override
             {
                 return Graph::K_NO_VALUE;
             }
@@ -281,7 +283,8 @@ TEST(Small_SumObjective, TheLossAddsTheWeightedLossesInTheGraph)
     NN::ModelOutputs outputs;
     SA_EXPECT_OK(outputs.add("output", logits));
 
-    const Graph::ValueID loss = objective->loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            objective->loss(builder, graph, outputs, leaves));
 
     EXPECT_EQ(graph.value(loss).shape, (Shape{1}));
     EXPECT_EQ(count_nodes(graph, Ops::K_NLL_LOSS.id), 2u);

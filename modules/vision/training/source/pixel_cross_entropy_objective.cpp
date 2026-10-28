@@ -80,10 +80,9 @@ namespace SushiAI::Vision::Training
         leaves.require(Detail::describe_mask_role(extents_));
     }
 
-    Graph::ValueID PixelCrossEntropyObjective::loss(const Graph::GraphBuilder& builder,
-                                                    const Graph::Graph& graph,
-                                                    const NN::ModelOutputs& outputs,
-                                                    const Train::ObjectiveLeaves& leaves) const
+    Result<Graph::ValueID> PixelCrossEntropyObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         const Graph::ValueID rows = Detail::emit_pixel_rows(builder, graph, outputs, extents_,
                                                             K_PIXEL_CROSS_ENTROPY_TYPE);

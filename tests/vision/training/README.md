@@ -23,9 +23,9 @@ leaf of its head's name and then that head's output, although the model publishe
 first. Each SCALE carries -1/2 to 1e-12. The ADD reads the two SCALE results and writes the
 root, whose shape is [1].
 
-### AModelWithoutAHeadThrowsNamingTheHead
+### AModelWithoutAHeadIsRefusedNamingTheHead
 
-`loss` over outputs that hold "head.0" alone throws an error naming "head.1".
+`loss` over outputs that hold "head.0" alone returns an `InvalidDescription` status naming "head.1".
 
 ### AHeadOfAnotherShapeThrowsNamingBothShapes
 

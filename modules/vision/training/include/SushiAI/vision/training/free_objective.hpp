@@ -95,9 +95,10 @@ namespace SushiAI::Vision::Training
              * @return The id of the `[1]` total.
              * @pre @p outputs are the outputs the facts were derived from.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override;
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override;
 
             /** @brief Returns K_FREE_OBJECTIVE_TYPE. */
             std::string_view name() const noexcept override;

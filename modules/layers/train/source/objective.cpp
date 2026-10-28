@@ -133,22 +133,19 @@ namespace SushiAI
                                                    DType::Int32, classes_});
         }
 
-        Graph::ValueID CrossEntropyObjective::loss(const Graph::GraphBuilder& builder,
-                                                   const Graph::Graph& graph,
-                                                   const NN::ModelOutputs& outputs,
-                                                   const ObjectiveLeaves& leaves) const
+        Result<Graph::ValueID> CrossEntropyObjective::loss(
+            const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             // Cross-entropy reads exactly one output; a model with several must be refused.
-            const Result<Graph::ValueID> single = outputs.only();
-            SA_THROW_IF(!single.has_value(), "{}", single.status().message());
-            const Graph::ValueID output = single.value();
+            SA_TRY_ASSIGN(const Graph::ValueID output, outputs.only());
 
             // By value: every emission below can reallocate the value vector.
             const Shape output_shape = graph.value(output).shape;
             const Shape expected_shape{batch_, classes_};
-            SA_THROW_IF(output_shape != expected_shape,
-                        "The model produced {} but the loss needs {}",
-                        output_shape.to_string(), expected_shape.to_string());
+            SA_FAIL_IF(output_shape != expected_shape, StatusCode::InvalidDescription,
+                       "The model produced {} but the loss needs {}", output_shape.to_string(),
+                       expected_shape.to_string());
 
             return NN::CrossEntropyLoss{}.forward(builder, output, leaves.at("targets"));
         }

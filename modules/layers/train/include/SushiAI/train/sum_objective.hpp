@@ -92,9 +92,9 @@ namespace SushiAI
                  * @pre Every term's loss is one element of one element type; anything else
                  *      stops the process.
                  */
-                Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                    const NN::ModelOutputs& outputs,
-                                    const ObjectiveLeaves& leaves) const override;
+                [[nodiscard]] Result<Graph::ValueID> loss(
+                    const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                    const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
 
                 /** @brief Feeds every term from @p batch, in order; the first refusal ends it. */
                 [[nodiscard]] Status feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,

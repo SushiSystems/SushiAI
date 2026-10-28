@@ -107,9 +107,10 @@ head carries the same batch.
 
 - `declare` adds one float32 leaf per head, shaped `[B, H, W, A * (5 + C)]`, under the role
   `delta.<output name>`.
-- `loss` adds `emit_head_delta_loss` over the heads with `scale = 1 / batch`. It throws, as the
-  objectives of `train` do, when the model does not publish a head or publishes it in another
-  shape.
+- `loss` adds `emit_head_delta_loss` over the heads with `scale = 1 / batch`. It returns an
+  `InvalidDescription` status when the model does not publish a head. A head of another shape
+  stops in the builder's `MUL`, which throws; the step that compiles the loss turns it into a
+  status.
 - `measure_cost(deltas)` returns the `HeadCost` of every head summed field by field.
 - It keeps the default `feed`, which reports that the objective is fed by its own step, and it
   reports no metric through `measure`; `measure_cost` reports the cost of its heads instead.

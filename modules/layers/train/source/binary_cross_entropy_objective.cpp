@@ -75,10 +75,9 @@ namespace SushiAI
                                                    DType::Float32, 0});
         }
 
-        Graph::ValueID BinaryCrossEntropyObjective::loss(const Graph::GraphBuilder& builder,
-                                                         const Graph::Graph& graph,
-                                                         const NN::ModelOutputs& outputs,
-                                                         const ObjectiveLeaves& leaves) const
+        Result<Graph::ValueID> BinaryCrossEntropyObjective::loss(
+            const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             const Graph::ValueID logits = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, 1}, K_BINARY_CROSS_ENTROPY_TYPE);

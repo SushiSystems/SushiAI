@@ -143,10 +143,9 @@ namespace SushiAI::Vision::Training
         }
     }
 
-    Graph::ValueID FreeObjective::loss(const Graph::GraphBuilder& builder,
-                                       const Graph::Graph& graph,
-                                       const NN::ModelOutputs& outputs,
-                                       const Train::ObjectiveLeaves& leaves) const
+    Result<Graph::ValueID> FreeObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         const Graph::ValueID one_to_many =
             branch_loss(builder, graph, outputs, leaves, FreeBranch::OneToMany);

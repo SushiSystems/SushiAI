@@ -196,9 +196,10 @@ namespace
              * @brief Emits the cross-entropy of the named output against "targets".
              * @pre @p outputs holds the name; a missing one stops the process.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph&,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override
             {
                 const Graph::ValueID logits = outputs.at(output_).value();
                 return NN::CrossEntropyLoss{}.forward(builder, logits, leaves.at("targets"));

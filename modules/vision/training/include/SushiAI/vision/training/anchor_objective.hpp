@@ -94,9 +94,10 @@ namespace SushiAI::Vision::Training
              * @return The id of the [1] root; its value carries no meaning.
              * @throws Error If @p outputs lacks a head, or a head differs from its leaf.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override;
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override;
 
             /** @brief Returns "anchor_delta". */
             std::string_view name() const noexcept override;

@@ -70,9 +70,9 @@ namespace SushiAI
                  * @brief Emits the mean squared error of the model's only output.
                  * @pre @p outputs holds one [N, K] value; anything else stops the process.
                  */
-                Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                    const NN::ModelOutputs& outputs,
-                                    const ObjectiveLeaves& leaves) const override;
+                [[nodiscard]] Result<Graph::ValueID> loss(
+                    const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                    const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
 
                 /** @brief Copies the values role into the leaf with fill_dense_targets(). */
                 [[nodiscard]] Status feed(const Data::Batch& batch, const ObjectiveLeaves& leaves,

@@ -323,7 +323,8 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheOutputKeyNamesTheLogitsAmongS
     Train::ObjectiveLeaves leaves;
     objective->declare(builder, leaves);
 
-    const Graph::ValueID loss = objective->loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID loss,
+                            objective->loss(builder, graph, outputs, leaves));
 
     EXPECT_EQ(graph.value(loss).shape.num_elements(), 1);
     EXPECT_EQ(count_nodes(graph, Ops::K_LOG_SOFTMAX.id), 1u);

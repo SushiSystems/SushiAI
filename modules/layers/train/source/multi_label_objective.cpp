@@ -74,10 +74,9 @@ namespace SushiAI
                                                    Shape{classes_}, DType::Float32, 0});
         }
 
-        Graph::ValueID MultiLabelObjective::loss(const Graph::GraphBuilder& builder,
-                                                 const Graph::Graph& graph,
-                                                 const NN::ModelOutputs& outputs,
-                                                 const ObjectiveLeaves& leaves) const
+        Result<Graph::ValueID> MultiLabelObjective::loss(
+            const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             const Graph::ValueID logits = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, classes_}, K_MULTI_LABEL_TYPE);

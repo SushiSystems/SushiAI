@@ -98,9 +98,10 @@ namespace SushiAI::Language::Training
              * @pre @p outputs holds every name make() was given as one element of one
              *      element type; anything else stops the process.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override;
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override;
 
             /** @brief Returns success: the objective has no leaf to fill. */
             [[nodiscard]] Status feed(const Data::Batch& batch,

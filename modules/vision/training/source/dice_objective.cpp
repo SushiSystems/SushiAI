@@ -86,10 +86,9 @@ namespace SushiAI::Vision::Training
         leaves.require(Detail::describe_mask_role(extents_));
     }
 
-    Graph::ValueID DiceObjective::loss(const Graph::GraphBuilder& builder,
-                                       const Graph::Graph& graph,
-                                       const NN::ModelOutputs& outputs,
-                                       const Train::ObjectiveLeaves& leaves) const
+    Result<Graph::ValueID> DiceObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         const Graph::ValueID rows =
             Detail::emit_pixel_rows(builder, graph, outputs, extents_, K_DICE_TYPE);

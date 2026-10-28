@@ -146,12 +146,11 @@ namespace SushiAI
                  * @param graph The graph, for checking shapes.
                  * @param outputs The model's outputs; the objective names the ones it reads.
                  * @param leaves Declared auxiliary leaves.
-                 * @return The scalar loss value identifier.
+                 * @return The loss value identifier, or InvalidDescription for an unread output.
                  */
-                virtual Graph::ValueID loss(const Graph::GraphBuilder& builder,
-                                            const Graph::Graph& graph,
-                                            const NN::ModelOutputs& outputs,
-                                            const ObjectiveLeaves& leaves) const = 0;
+                [[nodiscard]] virtual Result<Graph::ValueID> loss(
+                    const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                    const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const = 0;
 
                 /**
                  * @brief Writes the leaves declare() recorded from the roles of @p batch.
@@ -207,10 +206,9 @@ namespace SushiAI
                 void declare(const Graph::GraphBuilder& builder,
                              ObjectiveLeaves& leaves) const override;
 
-                Graph::ValueID loss(const Graph::GraphBuilder& builder,
-                                    const Graph::Graph& graph,
-                                    const NN::ModelOutputs& outputs,
-                                    const ObjectiveLeaves& leaves) const override;
+                [[nodiscard]] Result<Graph::ValueID> loss(
+                    const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                    const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const override;
 
                 /** @brief Writes the one-hot row of every label with fill_one_hot(). */
                 [[nodiscard]] Status feed(const Data::Batch& batch,

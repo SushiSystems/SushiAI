@@ -32,7 +32,6 @@
 
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/dtype/dtype.hpp>
-#include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -147,20 +146,19 @@ namespace SushiAI::Vision::Training
         }
     }
 
-    Graph::ValueID AnchorObjective::loss(const Graph::GraphBuilder& builder, const Graph::Graph&,
-                                         const NN::ModelOutputs& outputs,
-                                         const Train::ObjectiveLeaves& leaves) const
+    Result<Graph::ValueID> AnchorObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph&, const NN::ModelOutputs& outputs,
+        const Train::ObjectiveLeaves& leaves) const
     {
         const double scale = 1.0 / static_cast<double>(heads_.front().shape.batch);
         Graph::ValueID total = Graph::K_NO_VALUE;
 
         for (std::size_t index = 0; index < heads_.size(); ++index)
         {
-            const Result<Graph::ValueID> head = outputs.at(heads_[index].output);
-            SA_THROW_IF(!head.has_value(), "{}", head.status().message());
+            SA_TRY_ASSIGN(const Graph::ValueID head, outputs.at(heads_[index].output));
 
             const Graph::ValueID term = emit_head_delta_loss(
-                builder, head.value(), leaves.at(leaf_role(index)), scale);
+                builder, head, leaves.at(leaf_role(index)), scale);
             total = index == 0 ? term : builder.add(total, term);
         }
 

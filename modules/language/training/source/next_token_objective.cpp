@@ -167,10 +167,9 @@ namespace SushiAI::Language::Training
                                                Shape{length_}, DType::Int32, 0});
     }
 
-    Graph::ValueID NextTokenObjective::loss(const Graph::GraphBuilder& builder,
-                                            const Graph::Graph& graph,
-                                            const NN::ModelOutputs& outputs,
-                                            const Train::ObjectiveLeaves& leaves) const
+    Result<Graph::ValueID> NextTokenObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves& leaves) const
     {
         const Result<Graph::ValueID> found =
             output_.empty() ? outputs.only() : outputs.at(output_);

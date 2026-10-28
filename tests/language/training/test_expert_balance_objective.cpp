@@ -176,7 +176,8 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceO
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<ExpertBalanceObjective> single,
         ExpertBalanceObjective::make({"balance3"}, {ExpertUsageOutput{"usage", K_EXPERTS}}));
-    const Graph::ValueID one = single->loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID one,
+                            single->loss(builder, graph, outputs, leaves));
 
     EXPECT_EQ(graph.value(one).shape, (Shape{1}));
     const Graph::Node& viewed = graph.node(graph.value(one).producer);
@@ -188,7 +189,8 @@ TEST(Small_LanguageTrainingExpertBalanceObjective, TheLossIsTheMeanOfTheBalanceO
         const std::unique_ptr<ExpertBalanceObjective> both,
         ExpertBalanceObjective::make({"balance2", "balance3"},
                                      {ExpertUsageOutput{"usage", K_EXPERTS}}));
-    const Graph::ValueID mean = both->loss(builder, graph, outputs, leaves);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID mean,
+                            both->loss(builder, graph, outputs, leaves));
 
     EXPECT_EQ(graph.value(mean).shape, (Shape{1}));
     const Graph::Node& halved = graph.node(graph.value(mean).producer);

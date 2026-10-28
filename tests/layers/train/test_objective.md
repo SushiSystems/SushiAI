@@ -33,6 +33,16 @@ appearing to compare one.
 The training graph under `CrossEntropyObjective(4, 3)` requires one role: `K_ROLE_LABELS`
 with an empty sample shape, `Int32` and 3 classes.
 
+## CrossEntropyRefusesAnOutputOfAnotherShape
+
+`CrossEntropyObjective(4, 3)` over a model output of shape [4, 5] returns an `InvalidDescription`
+status that names both shapes, in place of throwing.
+
+## CrossEntropyRefusesAModelWithTwoOutputs
+
+The same objective over a model that publishes two outputs returns an `InvalidDescription`
+status that says exactly one output was expected and names the second.
+
 ## LeavesKeepEveryRequiredRoleInOrder
 
 `ObjectiveLeaves` starts with no required role. After `require` of labels, boxes and labels

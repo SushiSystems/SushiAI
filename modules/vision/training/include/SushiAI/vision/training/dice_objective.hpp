@@ -97,9 +97,10 @@ namespace SushiAI::Vision::Training
              * @pre @p outputs holds one NHWC value of the extents make() was given; anything
              *      else stops the process.
              */
-            Graph::ValueID loss(const Graph::GraphBuilder& builder, const Graph::Graph& graph,
-                                const NN::ModelOutputs& outputs,
-                                const Train::ObjectiveLeaves& leaves) const override;
+            [[nodiscard]] Result<Graph::ValueID> loss(
+                const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+                const NN::ModelOutputs& outputs,
+                const Train::ObjectiveLeaves& leaves) const override;
 
             /**
              * @brief Writes the five leaves from the mask role with fill_dice_targets().

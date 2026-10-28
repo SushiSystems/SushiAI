@@ -104,10 +104,9 @@ namespace SushiAI::Language::Training
 
     }
 
-    Graph::ValueID ExpertBalanceObjective::loss(const Graph::GraphBuilder& builder,
-                                                const Graph::Graph& graph,
-                                                const NN::ModelOutputs& outputs,
-                                                const Train::ObjectiveLeaves&) const
+    Result<Graph::ValueID> ExpertBalanceObjective::loss(
+        const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+        const NN::ModelOutputs& outputs, const Train::ObjectiveLeaves&) const
     {
         Graph::ValueID total = Graph::K_NO_VALUE;
         for (const std::string& name : balances_)

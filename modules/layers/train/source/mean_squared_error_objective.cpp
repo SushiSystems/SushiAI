@@ -74,10 +74,9 @@ namespace SushiAI
                                                    Shape{width_}, DType::Float32, 0});
         }
 
-        Graph::ValueID MeanSquaredErrorObjective::loss(const Graph::GraphBuilder& builder,
-                                                       const Graph::Graph& graph,
-                                                       const NN::ModelOutputs& outputs,
-                                                       const ObjectiveLeaves& leaves) const
+        Result<Graph::ValueID> MeanSquaredErrorObjective::loss(
+            const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             const Graph::ValueID predicted = Detail::require_matrix_output(
                 graph, outputs, Shape{batch_, width_}, K_MEAN_SQUARED_ERROR_TYPE);

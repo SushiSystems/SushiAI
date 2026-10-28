@@ -146,10 +146,9 @@ namespace SushiAI
             }
         }
 
-        Graph::ValueID SumObjective::loss(const Graph::GraphBuilder& builder,
-                                          const Graph::Graph& graph,
-                                          const NN::ModelOutputs& outputs,
-                                          const ObjectiveLeaves& leaves) const
+        Result<Graph::ValueID> SumObjective::loss(
+            const Graph::GraphBuilder& builder, const Graph::Graph& graph,
+            const NN::ModelOutputs& outputs, const ObjectiveLeaves& leaves) const
         {
             Graph::ValueID total = Graph::K_NO_VALUE;
             DType total_dtype = DType::Float32;
@@ -157,7 +156,8 @@ namespace SushiAI
             {
                 const SumTerm& term = terms_[index];
                 const ObjectiveLeaves own = leaves_of_term(leaves, index);
-                Graph::ValueID value = term.objective->loss(builder, graph, outputs, own);
+                SA_TRY_ASSIGN(Graph::ValueID value,
+                          term.objective->loss(builder, graph, outputs, own));
 
                 // By value: every emission below can reallocate the value vector.
                 const Shape shape = graph.value(value).shape;
