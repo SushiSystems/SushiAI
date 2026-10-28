@@ -135,10 +135,14 @@ def parts(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize(("requested", "expected"),
-                         [("debug", "debug"), ("release", "release"), ("asan", "release"),
-                          ("minsizerel", "release")])
-def test_a_sanitizer_or_size_build_links_release_packages(requested, expected):
-    assert library_packages.package_build_type(requested) == expected
+                         [("debug", "release"), ("release", "release"), ("asan", "release"),
+                          ("minsizerel", "release"), ("relwithdebinfo", "relwithdebinfo")])
+def test_a_tree_links_the_package_type_sushicore_names_for_its_build_type(requested, expected):
+    cfg = _Config()
+
+    library_packages.resolve(cfg, Path("."), requested, "clang++", False, "", print, print)
+
+    assert cfg.asked[0]["build_type"] == expected
 
 
 def test_distributed_becomes_the_distributed_option_of_both_packages():
@@ -197,7 +201,7 @@ def test_the_build_names_its_compiler_and_type_to_the_resolver(parts):
 
     assert project.build(BuildType.debug) == 0
 
-    assert cfg.asked == [{"build_type": "debug", "options": {}, "compiler": "clang++"}]
+    assert cfg.asked == [{"build_type": "release", "options": {}, "compiler": "clang++"}]
 
 
 def test_a_distributed_build_builds_the_packages_distributed(parts):
@@ -323,7 +327,7 @@ def test_the_package_suite_resolves_again_and_hands_the_consumer_the_packages(pa
 
     assert project.test_package(cfg, root, build, {}) == 0
 
-    assert cfg.asked[0]["build_type"] == "debug"
+    assert cfg.asked[0]["build_type"] == "release"
     assert set(cfg.asked[0]["options"]) == {"sushiruntime", "sushiblas"}
     consumer = driver.configured[0]
     assert f"-DSushiRuntime_DIR={K_RUNTIME_CONFIG}" in consumer

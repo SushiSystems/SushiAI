@@ -13,6 +13,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from sushicore.build_tree import package_build_type
 from sushicore.provision.sushi_packages import PackageSet, RunDirs
 from sushicore.provision.sushi_packages import configure_arguments  # noqa: F401  (callers take it from here)
 
@@ -29,19 +30,6 @@ K_DISTRIBUTED_FLAG = "--distributed"
 #: The library that takes the device target list, and the flag that carries it.
 K_BLAS = "sushiblas"
 K_DEFINE_FLAG = "-D"
-
-#: The build types whose library packages are built as release.
-K_RELEASE_PACKAGE_TYPES = ("asan", "minsizerel")
-K_PACKAGE_BUILD_TYPE = "release"
-
-
-def package_build_type(build_type: str) -> str:
-    """Return the build type the library packages are built in for a SushiAI *build_type*.
-
-    A library CLI's ``--type`` does not take ``asan`` or ``minsizerel``, so a build of either
-    links release packages.
-    """
-    return K_PACKAGE_BUILD_TYPE if build_type in K_RELEASE_PACKAGE_TYPES else build_type
 
 
 def package_options(distributed: bool, sycl_targets: str = "") -> Mapping[str, tuple[str, ...]]:
