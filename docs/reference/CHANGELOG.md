@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — build: Fixed device units failing under -Werror by giving the device -O3 as one `-Xarch_device` flag, since the driver reports the per-triple spelling unused while applying it (`SushiAISyclTarget.cmake`).
 - 2026-10-28 — cli: Breaking change: Made sa build, test and run default to Debug in build/<name>-<type>, one tree per type, behind the memory gate, with --report and --jobs (`cli/sushiai/services/project.py`, `build_trees.py`).
 - 2026-10-28 — cli: Took the build type of the library packages from sushicore's `package_build_type`, so a Debug build links Release packages (`library_packages.py`).
 - 2026-10-27 — training: Made a `FreeObjective::loss` over outputs without a port its facts name stop the process, as a broken precondition, in place of throwing (`free_objective.cpp`).
