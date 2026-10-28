@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — docs: Wrote the standalone and SushiHub routes side by side in `INSTALL.md`, the README, the tutorial, `CONTRIBUTING.md` and the CLI guide (`INSTALL.md`).
+- 2026-10-28 — cmake: Removed the `SUSHISTACK_HOME` search for vcpkg, since `sa build` hands `VCPKG_ROOT` itself (`Vcpkg.cmake`).
 - 2026-10-28 — tests: Added `test_noexcept_surface.cpp`, one `static_assert` per `noexcept` public function of the core and layers modules; the umbrella test moved to `test_SushiAI/test_engine_smoke.cpp` beside it.
 - 2026-10-28 — detect: Fixed `pad_ground_truth` and `build_target_leaves`, which fell off the end of a function returning a `Status`; `ground_truth.hpp` now includes `failure/status.hpp`.
 - 2026-10-28 — docs: Corrected the model-file guide for `build_layer_stack`, which returns a `Result<LayerStack>`, and dropped the FAQ line that `K_LOG_SOFTMAX` cannot be differentiated alone.

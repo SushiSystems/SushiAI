@@ -33,7 +33,8 @@ loss is an IR rewrite rather than a callback.
 
 ## 2. Getting it to build
 
-You need the SushiStack toolchain and two sibling checkouts:
+You need two sibling checkouts and a SYCL toolchain, which `sa setup` provisions;
+[`INSTALL.md`](INSTALL.md) gives the standalone and the SushiHub route:
 
 ```
 <workspace>/
@@ -43,12 +44,12 @@ You need the SushiStack toolchain and two sibling checkouts:
 ```
 
 ```bash
-hub install-cli sushiai   # puts `sa` and `sushiai` on your PATH
+pip install -e ./cli     # puts `sa` and `sushiai` on your PATH
 sa setup                 # provisions the toolchain (compiler, cmake, ninja, doxygen)
 sa config                # shows what the CLI resolved, and where each value came from
 ```
 
-`hub install` provisions several checkouts at once; `sa setup` covers this one.
+`sa setup` covers this checkout; with SushiHub, `hub install` provisions several at once.
 
 `sa build` builds a package of each sibling the first time and reuses it afterwards. If a
 checkout cannot be found, it fails immediately and names which one. `sa config` is the first

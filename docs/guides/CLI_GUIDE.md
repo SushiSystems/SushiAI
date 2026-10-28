@@ -19,8 +19,8 @@ so you don't have to retype long compiler flags.
   [INTEGRATION.md](INTEGRATION.md#3-what-you-inherit-and-what-you-must-supply) says what that
   means for a consumer.
 
-The one-line install, `curl -fsSL https://sushisystems.io/install.sh | bash` or
-`irm https://sushisystems.io/install.ps1 | iex` on Windows, provisions all of it.
+`sa setup` provisions the toolchain and the C++ dependencies.
+[`INSTALL.md`](../getting_started/INSTALL.md) gives the standalone route and the SushiHub route.
 
 ## Installing the CLI
 
@@ -33,17 +33,15 @@ and it puts two commands on your `PATH`:
 They are identical; every example below uses `sa`.
 
 ```bash
-hub install-cli sushiai      # always editable, against this checkout
+pip install -e ./cli         # or, with SushiHub: hub install-cli sushiai
 ```
 
-This installs through **pipx** on every platform, into an isolated venv.
-`sushicore`, the package the stack's CLIs share, is a PyPI dependency declared
-in `cli/pyproject.toml`, so pipx resolves it with the rest. The install is
-always editable and there is no flag to make it otherwise: a frozen copy would
-stop tracking `git pull`s on this checkout without ever saying so.
+Either way the install is editable. `sushicore`, the package the stack's CLIs share, is a
+PyPI dependency declared in `cli/pyproject.toml`, so pip resolves it with the rest. A frozen
+copy would stop tracking `git pull`s on this checkout without ever saying so.
 
 ```bash
-pipx uninstall sushiai-cli   # to remove it later
+pip uninstall sushiai-cli    # to remove it later
 ```
 
 ### How the CLI finds your compiler and siblings
@@ -57,7 +55,7 @@ SushiRuntime and SushiBLAS, which it builds from their checkouts once. The CLI r
 
 With sibling `../sushiruntime` and `../sushiblas` checkouts, or inside a
 SushiStack workspace, run `sa setup` once: it provisions the toolchain and
-writes `cli/config.local.toml` for you. `hub install` does the same for
+writes `cli/config.local.toml` for you. With SushiHub, `hub install` does the same for
 several checkouts at once. Run `sa config` to see what the CLI resolved.
 
 ## Command overview
@@ -465,8 +463,8 @@ module when SushiRuntime or SushiBLAS has no checkout.
 - `--toolchain <name>` also installs that toolchain. Repeatable.
 - `--no-gpu` skips the GPU toolkit.
 
-`hub install` provisions several checkouts at once; `sa setup` covers this one
-and the two it builds on.
+`sa setup` covers this one and the two it builds on; with SushiHub, `hub install`
+provisions several checkouts at once.
 
 ## `sa doctor`
 
@@ -484,5 +482,6 @@ non-zero when a required check fails.
 
 ## Building without the CLI
 
-The CLI is a convenience, not a requirement. See **Building with CMake
-directly** in the top-level [README.md](../../README.md).
+The CLI builds a package of each library SushiAI needs and hands each to CMake as
+`SushiRuntime_DIR`, `SushiBLAS_DIR`, `SushiLog_DIR` and `SushiProfiler_DIR`. A configure without
+the CLI has to supply the same four.

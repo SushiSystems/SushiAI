@@ -24,19 +24,12 @@ Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 
 ## 1. Getting set up
 
-```bash
-curl -fsSL https://sushisystems.io/install.sh | bash
-```
-
-```powershell
-irm https://sushisystems.io/install.ps1 | iex
-```
-
-If you already have SushiRuntime and SushiBLAS sibling checkouts and the
-shared bundled SYCL toolchain:
+With SushiRuntime and SushiBLAS sibling checkouts, install the CLI and let it provision the
+rest; [`INSTALL.md`](getting_started/INSTALL.md) gives this route and the SushiHub route:
 
 ```bash
-hub install-cli sushiai   # puts `sa` / `sushiai` on PATH
+pip install -e ./cli      # puts `sa` / `sushiai` on PATH
+sa setup                  # the toolchain and the C++ dependencies
 sa build                 # Debug (default), in build/default-debug
 sa test                  # functional suite
 ```
@@ -256,7 +249,7 @@ commit; `sa setup` fetches it when no `<NAME>_DIR` or sibling checkout provides 
 provisions, add a top-level TOML table the way SushiRuntime's own fragment
 documents (description/required/linux_apt/windows_vcpkg/check_cmd), then
 update `CMakeLists.txt` to find and link it. Verify with `sa setup --dry-run`
-and `sa doctor`; `hub install` provisions several checkouts at once.
+and `sa doctor`.
 
 ---
 

@@ -26,16 +26,23 @@ replayed for every batch.
 
 ## Build
 
+Standalone, with Git, Python 3.11, CMake, and SushiRuntime and SushiBLAS cloned beside this
+repository:
+
 ```bash
-hub install-cli sushiai          # puts sa and sushiai on PATH
+git clone https://github.com/SushiSystems/SushiAI.git
+cd SushiAI
+pip install -e ./cli             # puts sa and sushiai on PATH
 sa setup                         # provisions the toolchain and the C++ dependencies
 sa build
 sa test                          # small and medium tests
 sa demo mlp                      # trains a small classifier end to end
 ```
 
-[`docs/guides/CLI_GUIDE.md`](docs/guides/CLI_GUIDE.md) lists the requirements and every
-command.
+With SushiHub: `hub add sushiai` and `hub install-cli sushiai`, or `hub link sushiai <path>` for
+a checkout you already have. [`docs/getting_started/INSTALL.md`](docs/getting_started/INSTALL.md)
+has the prerequisites for both, and [`docs/guides/CLI_GUIDE.md`](docs/guides/CLI_GUIDE.md) lists
+every command.
 
 ## Status
 

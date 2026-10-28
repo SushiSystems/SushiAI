@@ -21,15 +21,10 @@ if(NOT WIN32)
     return()
 endif()
 
-# Prefer an explicit VCPKG_ROOT (env or cache), then the shared workspace vcpkg
-# tree, so a direct CMake configure inside a SushiStack workspace finds it without
-# the `sa` CLI injecting it.
+# Prefer an explicit VCPKG_ROOT (env or cache). `sa build` passes -DVCPKG_ROOT itself, from the
+# vcpkg tree `sa setup` found, so a workspace layout is read by the CLI and not here.
 if((NOT DEFINED VCPKG_ROOT OR VCPKG_ROOT STREQUAL "") AND DEFINED ENV{VCPKG_ROOT})
     set(VCPKG_ROOT "$ENV{VCPKG_ROOT}" CACHE PATH "Path to vcpkg root")
-endif()
-if((NOT DEFINED VCPKG_ROOT OR VCPKG_ROOT STREQUAL "") AND DEFINED ENV{SUSHISTACK_HOME}
-   AND EXISTS "$ENV{SUSHISTACK_HOME}/dependencies/vcpkg")
-    set(VCPKG_ROOT "$ENV{SUSHISTACK_HOME}/dependencies/vcpkg" CACHE PATH "Path to vcpkg root")
 endif()
 
 if(VCPKG_ROOT AND (NOT DEFINED CMAKE_TOOLCHAIN_FILE OR CMAKE_TOOLCHAIN_FILE STREQUAL ""))

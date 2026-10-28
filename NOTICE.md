@@ -34,7 +34,7 @@ installed in the SushiStack workspace on 2026-10-05 where the licence was read f
 | --- | --- | --- | --- | --- |
 | SushiRuntime | `cmake/Runtime.cmake`, `cli/sushistack.deps.toml` | https://github.com/SushiSystems/SushiRuntime | built as a package from the sibling checkout, no pin | Its own; see that repository's `LICENSE` and `NOTICE.md` |
 | SushiBLAS | `cmake/BLAS.cmake`, `cli/sushistack.deps.toml` | https://github.com/SushiSystems/SushiBLAS | built as a package from the sibling checkout, no pin | Its own; see that repository's `LICENSE` and `NOTICE.md`, which lists the kernels ported from portBLAS |
-| sushicore | `cli/pyproject.toml` | https://pypi.org/project/sushicore/ | `>=0.7.0` | The licence the installed release carries |
+| sushicore | `cli/pyproject.toml` | https://pypi.org/project/sushicore/ | `==0.9.7` | The licence the installed release carries |
 
 ## Earlier versions
 

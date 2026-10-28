@@ -5,6 +5,7 @@ the manual.
 
 | Document | Holds |
 | --- | --- |
+| [Install](getting_started/INSTALL.md) | The two ways to install, standalone and with SushiHub, and what each needs |
 | [Tutorial](getting_started/TUTORIAL.md) | An empty checkout to a trained model, then what each pipeline stage did with it |
 | [How it works](getting_started/HOW_IT_WORKS.md) | One training program written against the library, step by step |
 | [Architecture](architecture/ARCHITECTURE.md) | What SushiAI is, the sibling chain, the library target, the IR and autograd |
