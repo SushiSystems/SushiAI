@@ -56,6 +56,7 @@ namespace SushiAI
         /**
          * @brief Writes the IoU of row i of @p boxes1 with row i of @p boxes2.
          * @param ious Receives `[N]` for two `[N, 4]` inputs.
+         * @pre The spans hold [N, 4], [N, 4] and [N] values.
          */
         void elementwise_iou(SushiRuntime::span<const float> boxes1,
                              SushiRuntime::span<const float> boxes2,
@@ -64,6 +65,7 @@ namespace SushiAI
         /**
          * @brief Writes the complete IoU of row i of @p boxes1 with row i of @p boxes2.
          * @param ious Receives `[N]` for two `[N, 4]` inputs.
+         * @pre The spans hold [N, 4], [N, 4] and [N] values.
          */
         void elementwise_complete_iou(SushiRuntime::span<const float> boxes1,
                                       SushiRuntime::span<const float> boxes2,
@@ -72,6 +74,7 @@ namespace SushiAI
         /**
          * @brief Writes the IoU of every row of @p boxes1 with every row of @p boxes2.
          * @param ious Receives `[N, M]` for `[N, 4]` and `[M, 4]` inputs.
+         * @pre The spans hold [N, 4], [M, 4] and [N, M] values.
          * @see modules/vision/detect/README.md
          */
         void pairwise_iou(SushiRuntime::span<const float> boxes1,

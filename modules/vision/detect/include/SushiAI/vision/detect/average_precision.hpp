@@ -34,6 +34,8 @@
 #include <vector>
 
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -87,25 +89,26 @@ namespace SushiAI
 
         /**
          * @brief Marks, for each IoU threshold, the detections that match a ground-truth box.
-         * @param detections `[N, 6]` rows of x1 y1 x2 y2 score class.
-         * @param truth_boxes `[M, 4]` x1 y1 x2 y2 in the frame of @p detections.
-         * @param truth_classes `[M]` class indices.
+         * @param detections `[N, 6]` rows; @p truth_boxes `[M, 4]`; @p truth_classes `[M]`.
          * @param correct Receives `[N, K_IOU_THRESHOLD_COUNT]`; 1 where the detection matched.
+         * @return InvalidDescription for an array of the wrong extent, a negative class or a score
+         *         that is not finite.
          * @see U/engine/validator.py:332-353, U/models/yolo/detect/val.py:391-394
          */
-        void match_detections(SushiRuntime::span<const float> detections,
-                              SushiRuntime::span<const float> truth_boxes,
-                              SushiRuntime::span<const std::int64_t> truth_classes,
-                              SushiRuntime::span<std::uint8_t> correct);
+        [[nodiscard]] Status match_detections(SushiRuntime::span<const float> detections,
+                                              SushiRuntime::span<const float> truth_boxes,
+                                              SushiRuntime::span<const std::int64_t> truth_classes,
+                                              SushiRuntime::span<std::uint8_t> correct);
 
         /**
          * @brief Returns the area under a precision envelope sampled at 101 recall points.
          * @param recall Recall after each detection in descending score; never decreases.
-         * @param precision Precision after each detection; as long as @p recall.
+         * @param precision Precision after each detection.
+         * @return The area, or InvalidDescription when the two curves differ in length.
          * @see U/utils/metrics.py:782-793
          */
-        [[nodiscard]] double integrate_precision(SushiRuntime::span<const double> recall,
-                                                 SushiRuntime::span<const double> precision);
+        [[nodiscard]] Result<double> integrate_precision(
+            SushiRuntime::span<const double> recall, SushiRuntime::span<const double> precision);
 
         /**
          * @brief Accumulates matched detections image by image and reports the validation table.
@@ -116,15 +119,16 @@ namespace SushiAI
             public:
                 /**
                  * @brief Matches one image's detections to its ground truth and stores the result.
-                 * @param detections `[N, 6]` rows of x1 y1 x2 y2 score class; N may be 0.
-                 * @param truth_boxes `[M, 4]` in the frame of @p detections; M may be 0.
-                 * @param truth_classes `[M]` class indices, none negative.
+                 * @param detections `[N, 6]` rows; @p truth_boxes `[M, 4]`; @p truth_classes `[M]`.
+                 * @return InvalidDescription for an array of the wrong extent, a negative class or
+                 *         a bad score; nothing is stored then.
                  * @pre The detections passed the validation confidence and the per-image limit.
                  * @see U/models/yolo/detect/val.py:198, U/engine/validator.py:144-145
                  */
-                void add_image(SushiRuntime::span<const float> detections,
-                               SushiRuntime::span<const float> truth_boxes,
-                               SushiRuntime::span<const std::int64_t> truth_classes);
+                [[nodiscard]] Status add_image(
+                    SushiRuntime::span<const float> detections,
+                    SushiRuntime::span<const float> truth_boxes,
+                    SushiRuntime::span<const std::int64_t> truth_classes);
 
                 /**
                  * @brief Computes the table over every image added since the last clear().

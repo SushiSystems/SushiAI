@@ -97,7 +97,7 @@ namespace SushiAI
                 Config::KeySpan(K_ASSIGNMENT_KEYS, std::size(K_ASSIGNMENT_KEYS))));
 
             SA_TRY_ASSIGN(const Value* const rule, reader.find_of("rule", Kind::String));
-            const std::string& stated = rule->as_string(where);
+            SA_TRY_ASSIGN(const std::string& stated, rule->as_string(where));
             const RuleName* found = nullptr;
             for (const RuleName& row : K_RULE_NAMES)
                 if (row.name == stated)

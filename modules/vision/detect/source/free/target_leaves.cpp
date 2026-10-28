@@ -31,7 +31,9 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
@@ -45,10 +47,16 @@ namespace SushiAI
             /** @brief Holds the factor that averages the four distance errors of a row. */
             constexpr float K_SIDE_MEAN = 0.25f;
 
-            /** @brief Throws unless the assignment and the geometry describe the same anchors. */
-            void check_leaf_inputs(const Assignment& assignment, const TargetLeafInputs& inputs)
+            /**
+             * @brief Checks that the assignment and the geometry describe the same anchors.
+             * @return InvalidDescription for geometry that does not match the assignment's
+             *         anchors or an image size that is not positive.
+             * @pre @p assignment came from TaskAlignedAssigner::assign(): its extents are positive
+             *      and its arrays match them.
+             */
+            Status check_leaf_inputs(const Assignment& assignment, const TargetLeafInputs& inputs)
             {
-                SA_THROW_IF(assignment.batch <= 0 || assignment.anchors <= 0 ||
+                SA_FATAL_IF(assignment.batch <= 0 || assignment.anchors <= 0 ||
                                 assignment.num_classes <= 0,
                             "target leaves need an assignment with positive extents; got batch "
                             "{}, {} anchors and {} classes",
@@ -57,21 +65,24 @@ namespace SushiAI
                 const std::size_t anchors = static_cast<std::size_t>(assignment.anchors);
                 const std::size_t rows = static_cast<std::size_t>(assignment.batch) * anchors;
                 const std::size_t classes = static_cast<std::size_t>(assignment.num_classes);
-                SA_THROW_IF(assignment.foreground_mask.size() != rows ||
+                SA_FATAL_IF(assignment.foreground_mask.size() != rows ||
                                 assignment.target_boxes.size() != rows * K_BOX_VALUES ||
                                 assignment.target_scores.size() != rows * classes,
                             "the assignment's arrays do not match its extents: {} mask, {} box "
                             "and {} score values for {} rows of {} classes",
                             assignment.foreground_mask.size(), assignment.target_boxes.size(),
                             assignment.target_scores.size(), rows, classes);
-                SA_THROW_IF(inputs.anchor_points.size() != anchors * K_POINT_VALUES ||
-                                inputs.strides.size() != anchors,
-                            "target leaves need [{}, 2] anchor points and [{}] strides; got {} "
-                            "and {} values",
-                            anchors, anchors, inputs.anchor_points.size(), inputs.strides.size());
-                SA_THROW_IF(!(inputs.image_height > 0.0f) || !(inputs.image_width > 0.0f),
-                            "target leaves need a positive image size; got {} by {}",
-                            inputs.image_height, inputs.image_width);
+                SA_FAIL_IF(inputs.anchor_points.size() != anchors * K_POINT_VALUES ||
+                               inputs.strides.size() != anchors,
+                           StatusCode::InvalidDescription,
+                           "target leaves need [{}, 2] anchor points and [{}] strides; got {} "
+                           "and {} values",
+                           anchors, anchors, inputs.anchor_points.size(), inputs.strides.size());
+                SA_FAIL_IF(!(inputs.image_height > 0.0f) || !(inputs.image_width > 0.0f),
+                           StatusCode::InvalidDescription,
+                           "target leaves need a positive image size; got {} by {}",
+                           inputs.image_height, inputs.image_width);
+                return Status();
             }
 
             /** @brief Writes each row's score sum and returns the sum over all rows. */
@@ -92,11 +103,11 @@ namespace SushiAI
             }
         } // namespace
 
-        void build_target_leaves(const Assignment& assignment,
-                                 const TargetLeafInputs& inputs,
-                                 TargetLeaves& leaves)
+        Status build_target_leaves(const Assignment& assignment,
+                                   const TargetLeafInputs& inputs,
+                                   TargetLeaves& leaves)
         {
-            check_leaf_inputs(assignment, inputs);
+            SA_TRY(check_leaf_inputs(assignment, inputs));
 
             const std::size_t anchors = static_cast<std::size_t>(assignment.anchors);
             const std::size_t rows = static_cast<std::size_t>(assignment.batch) * anchors;

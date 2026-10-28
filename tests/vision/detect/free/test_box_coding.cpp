@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
@@ -79,7 +79,8 @@ namespace
         ReferenceGrid grid;
         grid.points.resize(K_REFERENCE_ANCHORS * 2);
         grid.strides.resize(K_REFERENCE_ANCHORS);
-        SushiAI::Vision::Detect::Free::make_anchors(K_REFERENCE_LEVELS, grid.points, grid.strides);
+        SA_EXPECT_OK(SushiAI::Vision::Detect::Free::make_anchors(K_REFERENCE_LEVELS, grid.points,
+                                                                 grid.strides));
         return grid;
     }
 
@@ -101,8 +102,9 @@ namespace
                 return raw.reason;
 
             const std::int64_t cells = level.height * level.width;
-            SushiAI::Vision::Detect::Free::join_level(raw.floats(), {1, 8400, 4, offset, cells},
-                                                      joined);
+            SA_EXPECT_OK(SushiAI::Vision::Detect::Free::join_level(raw.floats(),
+                                                                   {1, 8400, 4, offset, cells},
+                                                                   joined));
             offset += cells;
         }
         return {};
@@ -181,7 +183,7 @@ TEST(Medium_DetectBoxes, RejectsRowsThatDoNotCoverTheAnchors)
     const std::vector<float> points{0.5f, 0.5f, 1.5f, 0.5f};
     const std::vector<float> distances(12, 1.0f);
     std::vector<float> boxes(12);
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes),
+    SA_EXPECT_FATAL(SushiAI::Vision::Detect::Free::decode_xyxy(distances, points, boxes),
                     "2 anchors", "12");
 }
 

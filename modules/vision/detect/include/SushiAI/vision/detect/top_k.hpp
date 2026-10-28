@@ -39,7 +39,8 @@ namespace SushiAI
     {
         /**
          * @brief Writes the indices of the @p k largest values, largest first.
-         * @param k At least 0 and at most the number of values.
+         * @pre @p k is at least 0 and at most the number of values.
+         * @param k How many indices to select.
          * @param indices Receives k indices; equal values are ordered by ascending index,
          *        and a NaN ranks below every number.
          * @see modules/vision/detect/README.md

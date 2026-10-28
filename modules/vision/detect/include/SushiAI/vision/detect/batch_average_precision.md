@@ -13,6 +13,7 @@ reaches the metric as a box of class 0. The detections and the truth boxes must 
 anchor report passes both in pixels of the network input. The function returns `InvalidDescription`
 when the number of detection arrays is not `truth.batch`, or when an array of the truth does not
 have `batch` times `max_boxes` rows, and adds nothing. The checks of `add_image` apply to each
-image; an image whose `add_image` throws leaves the images before it in the metric.
+image; an image whose `add_image` returns a failure leaves the images before it in the metric,
+and `add_batch` returns that failure.
 
 **Cost.** Two vectors hold one image's boxes and classes and keep their storage between images.

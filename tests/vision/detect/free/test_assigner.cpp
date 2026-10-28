@@ -32,7 +32,8 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/free/assigner.hpp>
@@ -43,6 +44,8 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::Free::AssignerConfig;
     using SushiAI::Vision::Detect::Free::AssignerInputs;
     using SushiAI::Vision::Detect::Free::Assignment;
@@ -233,6 +236,12 @@ namespace
     /** @brief Holds the row of the reference ground truth that is smaller than a stride. */
     constexpr std::int64_t K_SMALL_BOX_ROW = 3;
 
+    /** @brief Builds an assigner over @p config; a config the builder refuses fails the test. */
+    TaskAlignedAssigner make_assigner(const AssignerConfig& config)
+    {
+        return require_value(TaskAlignedAssigner::make(config));
+    }
+
     /** @brief Pads the reference's "batch." rows; returns why not when one is missing. */
     std::string pad_reference_truth(SushiAI::Test::ReferenceFile& loss, GroundTruthBatch& padded)
     {
@@ -250,10 +259,10 @@ namespace
         const std::vector<float> box_values = boxes.floats();
         const std::vector<std::int64_t> image_indices(image_values.begin(), image_values.end());
         const std::vector<std::int64_t> class_indices(class_values.begin(), class_values.end());
-        SushiAI::Vision::Detect::pad_ground_truth(
+        const SushiAI::Status status = SushiAI::Vision::Detect::pad_ground_truth(
             {image_indices, class_indices, box_values}, 1, K_REFERENCE_IMAGE_SIDE,
             K_REFERENCE_IMAGE_SIDE, padded);
-        return {};
+        return std::string(status.message());
     }
 
     /** @brief Returns how many foreground anchors of @p mask hold box @p row. */
@@ -298,7 +307,8 @@ namespace
         const std::vector<float> point_values = points.floats();
         AssignerInputs inputs;
         inputs.batch = 1;
-        inputs.anchors = SushiAI::Vision::Detect::Free::count_anchors(K_REFERENCE_LEVELS);
+        inputs.anchors = require_value(
+            SushiAI::Vision::Detect::Free::count_anchors(K_REFERENCE_LEVELS));
         inputs.max_boxes = truth.max_boxes;
         inputs.scores = score_values;
         inputs.boxes = box_values;
@@ -307,9 +317,9 @@ namespace
         inputs.gt_boxes = truth.boxes;
         inputs.gt_valid = truth.valid;
 
-        TaskAlignedAssigner assigner(config);
+        TaskAlignedAssigner assigner = make_assigner(config);
         Assignment assignment;
-        assigner.assign(inputs, assignment);
+        SA_EXPECT_OK(assigner.assign(inputs, assignment));
 
         const std::vector<std::int32_t> reference_mask = mask.int32s();
         const std::vector<std::int64_t> reference_indices = target_indices.int64s();
@@ -407,9 +417,12 @@ TEST(Medium_DetectAssigner, RejectsAConfigWithoutCandidatesOrWithANegativeMargin
     AssignerConfig negative_eps = make_hand_config(3, 3);
     negative_eps.eps = -1.0f;
 
-    SA_EXPECT_ERROR((void)TaskAlignedAssigner(no_candidates), "positive topk", "got 0, 3 and 2");
-    SA_EXPECT_ERROR((void)TaskAlignedAssigner(negative_stride), "stride_val", "at least 0", "-1");
-    SA_EXPECT_ERROR((void)TaskAlignedAssigner(negative_eps), "eps of at least 0", "-1");
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(no_candidates), StatusCode::InvalidDescription,
+                      "positive topk", "got 0, 3 and 2");
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(negative_stride), StatusCode::InvalidDescription,
+                      "stride_val", "at least 0", "-1");
+    SA_EXPECT_FAILURE(TaskAlignedAssigner::make(negative_eps), StatusCode::InvalidDescription,
+                      "eps of at least 0", "-1");
 }
 
 /** @brief Tests that the metric is the score to the power alpha times the overlap to beta. */
@@ -433,8 +446,8 @@ TEST(Medium_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
     two.topk2 = 2;
     Assignment best;
     Assignment both;
-    TaskAlignedAssigner(one).assign(scene.inputs(), best);
-    TaskAlignedAssigner(two).assign(scene.inputs(), both);
+    SA_EXPECT_OK(make_assigner(one).assign(scene.inputs(), best));
+    SA_EXPECT_OK(make_assigner(two).assign(scene.inputs(), both));
 
     // Anchor 10 covers 576 of 1024 px and pays a centre term of 32 / 2048: an overlap of 35 / 64.
     const float overlap = 576.0f / 1024.0f - 32.0f / 2048.0f;
@@ -463,9 +476,9 @@ TEST(Medium_DetectAssigner, NormalisesByTheLargestOverlapOfTheBox)
     scene.predict(1, offset);
     scene.scores[0 * K_CLASSES] = 0.8f;
     scene.scores[1 * K_CLASSES] = 0.4f;
-    TaskAlignedAssigner assigner(make_hand_config(2, 2));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(2, 2));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     // The boxes share 64 of 448 px and the centre term is 128 / 1152: an overlap of 2 / 63.
     const float overlap = 64.0f / 448.0f - 128.0f / 1152.0f;
@@ -489,8 +502,8 @@ TEST(Medium_DetectAssigner, APredictionApartFromItsBoxHasNoOverlap)
     scene.scores[5 * K_CLASSES] = 0.1f;
     Assignment two;
     Assignment three;
-    TaskAlignedAssigner(make_hand_config(2, 2)).assign(scene.inputs(), two);
-    TaskAlignedAssigner(make_hand_config(3, 3)).assign(scene.inputs(), three);
+    SA_EXPECT_OK(make_assigner(make_hand_config(2, 2)).assign(scene.inputs(), two));
+    SA_EXPECT_OK(make_assigner(make_hand_config(3, 3)).assign(scene.inputs(), three));
 
     // Anchors 0 and 1 score 0.9 but predict the far box, whose complete IoU with the box is -0.84.
     EXPECT_TRUE(equal_reference(foreground_anchors(two), std::vector<std::int64_t>{4, 5}));
@@ -510,9 +523,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorOfEqualOverlapsGoesToTheFirstBox)
     scene.add_truth(0, truth);
     scene.add_truth(1, truth);
     scene.predict(5, truth);
-    TaskAlignedAssigner assigner(make_hand_config(1, 1));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(1, 1));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     // Both boxes keep anchor 5 with metric 0.5 * 1, and its overlap with each of them is 1.
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment), std::vector<std::int64_t>{5}));
@@ -535,9 +548,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
     scene.scores[5 * K_CLASSES] = 0.9f;
     scene.scores[5 * K_CLASSES + 1] = 0.1f;
     scene.scores[2 * K_CLASSES + 1] = 0.9f;
-    TaskAlignedAssigner assigner(make_hand_config(1, 1));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(1, 1));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     // Boxes 0 and 1 keep anchor 5 at 0.9 * (1 / 3 - 64 / 832); box 2 keeps anchor 2 at 0.9 * 1.
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment), std::vector<std::int64_t>{2, 5}));
@@ -556,9 +569,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
 TEST(Medium_DetectAssigner, AnImageWithoutGroundTruthGetsNoForeground)
 {
     const Scene scene(0.5f);
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     EXPECT_TRUE(foreground_anchors(assignment).empty());
     EXPECT_TRUE(equal_reference(assignment.target_labels,
@@ -576,9 +589,9 @@ TEST(Medium_DetectAssigner, APaddingRowAssignsNothing)
 {
     Scene scene = make_crowded_scene();
     scene.gt_valid[0] = 0;
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     EXPECT_TRUE(foreground_anchors(assignment).empty());
     EXPECT_TRUE(near_reference(assignment.target_scores,
@@ -589,9 +602,9 @@ TEST(Medium_DetectAssigner, APaddingRowAssignsNothing)
 TEST(Medium_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
 {
     const Scene scene = make_crowded_scene();
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     // Every prediction equals the box, so the overlap is 1 and the metric is the class score.
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment),
@@ -608,9 +621,9 @@ TEST(Medium_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
 TEST(Medium_DetectAssigner, TheSecondTopKKeepsTheBestAnchorOfABox)
 {
     const Scene scene = make_crowded_scene();
-    TaskAlignedAssigner assigner(make_hand_config(3, 1));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 1));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment), std::vector<std::int64_t>{5}));
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 1.0f, K_SCORE_TOLERANCE);
@@ -622,9 +635,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorGoesToTheHigherOverlap)
     const std::vector<float> first{0.0f, 0.0f, 16.0f, 16.0f};
     const std::vector<float> second{8.0f, 8.0f, 24.0f, 24.0f};
     const Scene scene = make_contested_scene(first, second, second);
-    TaskAlignedAssigner assigner(make_hand_config(4, 4));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(4, 4));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     // Anchor 5 predicts the second box: overlap 1 with it, 64 / 448 - 128 / 1152 with the first.
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment),
@@ -647,9 +660,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorCanGoToTheFirstBox)
     const std::vector<float> first{0.0f, 0.0f, 16.0f, 16.0f};
     const std::vector<float> second{8.0f, 8.0f, 24.0f, 24.0f};
     const Scene scene = make_contested_scene(first, second, first);
-    TaskAlignedAssigner assigner(make_hand_config(4, 4));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(4, 4));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     EXPECT_TRUE(equal_reference(
         assignment.target_indices,
@@ -673,8 +686,8 @@ TEST(Medium_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
     plain.stride_val = 1.0f;
     Assignment enlarged;
     Assignment unchanged;
-    TaskAlignedAssigner(enlarging).assign(scene.inputs(), enlarged);
-    TaskAlignedAssigner(plain).assign(scene.inputs(), unchanged);
+    SA_EXPECT_OK(make_assigner(enlarging).assign(scene.inputs(), enlarged));
+    SA_EXPECT_OK(make_assigner(plain).assign(scene.inputs(), unchanged));
 
     // Centre 14 with side 16 spans 6 to 22, which holds the centres 12 and 20 on both axes.
     EXPECT_TRUE(equal_reference(foreground_anchors(enlarged),
@@ -709,9 +722,9 @@ TEST(Medium_DetectAssigner, AssignsEachImageFromItsOwnRows)
     inputs.gt_labels = labels;
     inputs.gt_boxes = truths;
     inputs.gt_valid = valid;
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(inputs, assignment);
+    SA_EXPECT_OK(assigner.assign(inputs, assignment));
 
     // Image 1 starts at row 16, so its anchors 2, 5 and 10 are rows 18, 21 and 26.
     EXPECT_TRUE(equal_reference(foreground_anchors(assignment),
@@ -725,12 +738,14 @@ TEST(Medium_DetectAssigner, RejectsTooFewAnchorsAndAnUnknownClass)
 {
     Scene scene = make_crowded_scene();
     Assignment assignment;
-    TaskAlignedAssigner wide(make_hand_config(17, 17));
-    SA_EXPECT_ERROR(wide.assign(scene.inputs(), assignment), "16 anchors", "topk 17");
+    TaskAlignedAssigner wide = make_assigner(make_hand_config(17, 17));
+    SA_EXPECT_FAILURE(wide.assign(scene.inputs(), assignment), StatusCode::InvalidDescription,
+                      "16 anchors", "topk 17");
 
     scene.gt_labels[0] = 2;
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
-    SA_EXPECT_ERROR(assigner.assign(scene.inputs(), assignment), "class 2 of 2");
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
+    SA_EXPECT_FAILURE(assigner.assign(scene.inputs(), assignment), StatusCode::InvalidDescription,
+                      "class 2 of 2");
 }
 
 /** @brief Tests that label rows are padded per image and converted to pixel corners. */
@@ -741,7 +756,8 @@ TEST(Medium_DetectGroundTruth, PadsLabelRowsPerImage)
     const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.25f, 0.25f, 0.75f,
                                    0.5f, 0.5f, 0.5f, 0.5f,  1.0f,  1.0f};
     GroundTruthBatch padded;
-    SushiAI::Vision::Detect::pad_ground_truth({images, classes, boxes}, 3, 64.0f, 32.0f, padded);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::pad_ground_truth({images, classes, boxes}, 3, 64.0f,
+                                                           32.0f, padded));
 
     // Row 0: centre (32, 16), half size (16, 4). Row 1: centre (16, 24), half size (16, 8).
     const std::vector<float> expected_boxes{16.0f, 12.0f, 48.0f, 20.0f, 0.0f, 16.0f, 32.0f, 32.0f,
@@ -760,7 +776,8 @@ TEST(Medium_DetectGroundTruth, MarksARowWithoutExtentInvalid)
     const std::vector<std::int64_t> classes{4, 5};
     const std::vector<float> boxes{0.0f, 0.0f, 0.0f, 0.0f, 0.5f, 0.5f, 0.5f, 0.5f};
     GroundTruthBatch padded;
-    SushiAI::Vision::Detect::pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::pad_ground_truth({images, classes, boxes}, 1, 32.0f,
+                                                           32.0f, padded));
 
     EXPECT_EQ(padded.max_boxes, 2);
     EXPECT_TRUE(equal_reference(padded.valid, std::vector<std::int64_t>{0, 1}));
@@ -773,7 +790,8 @@ TEST(Medium_DetectGroundTruth, PadsNoRowsToABatchWithoutBoxes)
     const std::vector<std::int64_t> none;
     const std::vector<float> no_boxes;
     GroundTruthBatch padded;
-    SushiAI::Vision::Detect::pad_ground_truth({none, none, no_boxes}, 2, 32.0f, 32.0f, padded);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::pad_ground_truth({none, none, no_boxes}, 2, 32.0f, 32.0f,
+                                                           padded));
 
     EXPECT_EQ(padded.batch, 2);
     EXPECT_EQ(padded.max_boxes, 0);
@@ -789,27 +807,26 @@ TEST(Medium_DetectGroundTruth, RejectsARowOutsideTheBatch)
     const std::vector<std::int64_t> classes{0};
     const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.5f};
     GroundTruthBatch padded;
-    SA_EXPECT_ERROR(
-        SushiAI::Vision::Detect::pad_ground_truth(
-            {images, classes, boxes}, 3, 32.0f, 32.0f, padded),
-        "row 0 names image 3", "batch of 3");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::pad_ground_truth( {images, classes, boxes}, 3, 32.0f,
+                                                                32.0f, padded),
+                      StatusCode::InvalidDescription, "row 0 names image 3", "batch of 3");
 }
 
 /** @brief Tests that the leaves carry the mask, the weights and the scaled targets of a row. */
 TEST(Small_DetectTargetLeaves, BuildsTheLossLeavesOfAnAssignment)
 {
     const Scene scene = make_crowded_scene();
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides));
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::Free::build_target_leaves(
-        assignment, {points, strides, 32.0f, 64.0f}, leaves);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::build_target_leaves(
+                     assignment, {points, strides, 32.0f, 64.0f}, leaves));
 
     // The three weights are 1, 2/3 and 1/3, so their sum is 2 and anchor 5 holds half of it.
     EXPECT_NEAR(leaves.target_scores_sum[0], 2.0f, K_SCORE_TOLERANCE);
@@ -839,13 +856,13 @@ TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
     const std::vector<FeatureLevel> levels{{2, 2, 8.0f}, {1, 1, 16.0f}};
     std::vector<float> points(10);
     std::vector<float> strides(5);
-    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides));
     Assignment assignment = make_idle_assignment(2, 5);
     set_foreground(assignment, 1, {2.0f, 0.0f, 18.0f, 20.0f}, {0.5f, 0.0f});
     set_foreground(assignment, 9, {0.0f, 4.0f, 16.0f, 12.0f}, {0.25f, 0.75f});
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::Free::build_target_leaves(
-        assignment, {points, strides, 32.0f, 64.0f}, leaves);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::build_target_leaves(
+                     assignment, {points, strides, 32.0f, 64.0f}, leaves));
 
     // The weights are 0.5 and 1, so their sum is 1.5 and the rows hold 1/3 and 2/3 of it.
     EXPECT_NEAR(leaves.target_scores_sum[0], 1.5f, K_SCORE_TOLERANCE);
@@ -883,17 +900,17 @@ TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
 TEST(Small_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
 {
     const Scene scene = make_crowded_scene();
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides));
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::Free::build_target_leaves(
-        assignment, {points, strides, 32.0f, 32.0f}, leaves);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::build_target_leaves(
+                     assignment, {points, strides, 32.0f, 32.0f}, leaves));
 
     const std::vector<float> safe{0.0f, 0.0f, 1.0f, 1.0f};
     const std::vector<float> zeros(4, 0.0f);
@@ -917,17 +934,17 @@ TEST(Small_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
 TEST(Small_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
 {
     const Scene scene(0.5f);
-    TaskAlignedAssigner assigner(make_hand_config(3, 3));
+    TaskAlignedAssigner assigner = make_assigner(make_hand_config(3, 3));
     Assignment assignment;
-    assigner.assign(scene.inputs(), assignment);
+    SA_EXPECT_OK(assigner.assign(scene.inputs(), assignment));
 
     const std::vector<FeatureLevel> levels{{4, 4, K_GRID_STRIDE}};
     std::vector<float> points(K_GRID_ANCHORS * 2);
     std::vector<float> strides(K_GRID_ANCHORS);
-    SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::make_anchors(levels, points, strides));
     TargetLeaves leaves;
-    SushiAI::Vision::Detect::Free::build_target_leaves(
-        assignment, {points, strides, 32.0f, 32.0f}, leaves);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::Free::build_target_leaves(
+                     assignment, {points, strides, 32.0f, 32.0f}, leaves));
 
     EXPECT_NEAR(leaves.target_scores_sum[0], 1.0f, K_EXACT);
 }

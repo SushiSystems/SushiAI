@@ -32,7 +32,9 @@
 #include <cstddef>
 
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
@@ -176,7 +178,7 @@ namespace SushiAI
                                std::vector<std::int64_t>& kept)
         {
             const std::size_t count = scores.size();
-            SA_THROW_IF(boxes.size() != count * K_BOX_VALUES,
+            SA_FATAL_IF(boxes.size() != count * K_BOX_VALUES,
                         "a suppression needs [N, 4] boxes and [N] scores; got {} and {} values",
                         boxes.size(), count);
             suppress_overlaps(boxes, scores, iou_threshold, SuppressionCriterion::IoU,
@@ -236,32 +238,36 @@ namespace SushiAI
             }
         }
 
-        void select_nms_detections(SushiRuntime::span<const float> boxes,
-                                   SushiRuntime::span<const float> scores,
-                                   const PredictionShape& shape,
-                                   const NMSConfig& config,
-                                   std::vector<std::vector<float>>& detections)
+        Status select_nms_detections(SushiRuntime::span<const float> boxes,
+                                     SushiRuntime::span<const float> scores,
+                                     const PredictionShape& shape,
+                                     const NMSConfig& config,
+                                     std::vector<std::vector<float>>& detections)
         {
-            SA_THROW_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0,
-                        "a suppression postprocess needs positive extents; got batch {}, {} "
-                        "anchors and {} classes",
-                        shape.batch, shape.anchors, shape.num_classes);
+            SA_FAIL_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0,
+                       StatusCode::InvalidDescription,
+                       "a suppression postprocess needs positive extents; got batch {}, {} "
+                       "anchors and {} classes",
+                       shape.batch, shape.anchors, shape.num_classes);
             const std::size_t batch = static_cast<std::size_t>(shape.batch);
             const std::size_t anchors = static_cast<std::size_t>(shape.anchors);
             const std::size_t classes = static_cast<std::size_t>(shape.num_classes);
-            SA_THROW_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
-                            scores.size() != batch * anchors * classes,
-                        "a suppression postprocess needs [{}, {}, 4] boxes and [{}, {}, {}] "
-                        "scores; got {} and {} values",
-                        batch, anchors, batch, anchors, classes, boxes.size(), scores.size());
+            SA_FAIL_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
+                           scores.size() != batch * anchors * classes,
+                       StatusCode::InvalidDescription,
+                       "a suppression postprocess needs [{}, {}, 4] boxes and [{}, {}, {}] "
+                       "scores; got {} and {} values",
+                       batch, anchors, batch, anchors, classes, boxes.size(), scores.size());
             const float confidence = config.confidence_threshold;
-            SA_THROW_IF(!(confidence >= 0.0f && confidence <= 1.0f) ||
-                            !(config.iou_threshold >= 0.0f && config.iou_threshold <= 1.0f),
-                        "the confidence and IoU thresholds must lie in [0, 1]; got {} and {}",
-                        config.confidence_threshold, config.iou_threshold);
-            SA_THROW_IF(config.max_detections <= 0 || config.max_candidates <= 0,
-                        "the detection and candidate limits must be positive; got {} and {}",
-                        config.max_detections, config.max_candidates);
+            SA_FAIL_IF(!(confidence >= 0.0f && confidence <= 1.0f) ||
+                           !(config.iou_threshold >= 0.0f && config.iou_threshold <= 1.0f),
+                       StatusCode::InvalidDescription,
+                       "the confidence and IoU thresholds must lie in [0, 1]; got {} and {}",
+                       config.confidence_threshold, config.iou_threshold);
+            SA_FAIL_IF(config.max_detections <= 0 || config.max_candidates <= 0,
+                       StatusCode::InvalidDescription,
+                       "the detection and candidate limits must be positive; got {} and {}",
+                       config.max_detections, config.max_candidates);
 
             detections.resize(batch);
             for (std::size_t image = 0; image < batch; ++image)
@@ -271,6 +277,7 @@ namespace SushiAI
                     scores.subspan(image * anchors * classes, anchors * classes), classes, config,
                     detections[image]);
             }
+            return Status();
         }
 
     } // namespace Vision::Detect

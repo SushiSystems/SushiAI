@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- 2026-10-28 — detect: Breaking change: Made `match_detections` and `AveragePrecision::add_image` return a `Status` (`average_precision.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `make_anchors` and `build_anchor_leaves` return a `Status` (`free/anchors.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `join_level` and `split_level` return a `Status` (`free/level_rows.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `pad_ground_truth` and `build_target_leaves` return a `Status` (`ground_truth.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `select_top_detections`, `keep_confident_detections` and `select_nms_detections` return a `Status` (`detections_topk.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `integrate_precision`, `count_anchors` and `count_top_detections` return a `Result` (`average_precision.hpp`).
+- 2026-10-28 — detect: Breaking change: Added `TaskAlignedAssigner::make`, made `assign` return a `Status` and the constructor private (`free/assigner.hpp`).
+- 2026-10-28 — detect: Breaking change: Made `elementwise_iou`, `select_top_k`, `scale_points` and the box coding stop the process for spans of the wrong size (`iou.hpp`).
 - 2026-10-28 — language: Read the attributes of the blocks, datasets, generation task and objectives through the `Result` of the config readers (`section.hpp`).
 - 2026-10-28 — blocks: Breaking change: Made the `Attention` constructor stop the process for a width its head count does not divide (`attention.hpp`).
 - 2026-10-28 — umbrella: Dropped the include of `nn/throwing_bridge.hpp` (`SushiAI.hpp`).

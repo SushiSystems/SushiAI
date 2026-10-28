@@ -31,7 +31,8 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI
@@ -48,23 +49,24 @@ namespace SushiAI
             }
         } // namespace
 
-        void build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
-                                 std::int64_t batch,
-                                 AnchorLeaves& leaves)
+        Status build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
+                                   std::int64_t batch,
+                                   AnchorLeaves& leaves)
         {
-            SA_THROW_IF(batch <= 0 || levels.empty(),
-                        "anchor leaves need a positive batch and at least one level; got batch "
-                        "{} and {} levels",
-                        batch, levels.size());
+            SA_FAIL_IF(batch <= 0 || levels.empty(), StatusCode::InvalidDescription,
+                       "anchor leaves need a positive batch and at least one level; got batch "
+                       "{} and {} levels",
+                       batch, levels.size());
 
-            const std::size_t anchors = static_cast<std::size_t>(count_anchors(levels));
+            SA_TRY_ASSIGN(const std::int64_t anchor_count, count_anchors(levels));
+            const std::size_t anchors = static_cast<std::size_t>(anchor_count);
             const std::size_t images = static_cast<std::size_t>(batch);
             std::vector<float> strides(anchors);
             leaves.points.resize(images * anchors * K_POINT_VALUES);
             leaves.strides.resize(images * anchors * K_BOX_VALUES);
-            make_anchors(levels,
-                         SushiRuntime::span<float>(leaves.points.data(), anchors * K_POINT_VALUES),
-                         strides);
+            SA_TRY(make_anchors(
+                levels, SushiRuntime::span<float>(leaves.points.data(), anchors * K_POINT_VALUES),
+                strides));
 
             for (std::size_t anchor = 0; anchor < anchors; ++anchor)
                 std::fill_n(leaves.strides.begin() + anchor * K_BOX_VALUES, K_BOX_VALUES,
@@ -72,6 +74,7 @@ namespace SushiAI
 
             repeat_first_image(leaves.points, anchors * K_POINT_VALUES);
             repeat_first_image(leaves.strides, anchors * K_BOX_VALUES);
+            return Status();
         }
 
     } // namespace Vision::Detect::Free

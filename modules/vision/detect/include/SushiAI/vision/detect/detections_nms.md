@@ -74,9 +74,10 @@ six-argument form takes the criterion and its exponent and walks the same order:
 removes every later box whose `measure_suppression` against it exceeds the threshold. A row whose
 score is 0 is never kept and removes nothing; the reference keeps such a row.
 `select_nms_detections` passes only scores above a threshold of at least 0, so no zero score
-reaches the suppression from it. The four-argument form throws on boxes that are not `[N, 4]`
-for `[N]` scores; the six-argument form stops the process on those and on a criterion outside
-the enumeration.
+reaches the suppression from it. Both forms stop the process on boxes that are not `[N, 4]`
+for `[N]` scores; the six-argument form also stops it on a criterion outside the enumeration.
+`select_nms_detections` returns `InvalidDescription` for an extent that is not positive, arrays
+that do not hold the extents, a threshold outside `[0, 1]` and a limit below 1.
 
 `non_max_suppression` calls `torchvision.ops.nms` in place of `TorchNMS.nms` when torchvision is
 already imported (`U/utils/nms.py:154-159`). The exporter's run reached `TorchNMS.nms`

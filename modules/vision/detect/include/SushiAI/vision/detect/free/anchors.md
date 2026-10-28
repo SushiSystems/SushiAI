@@ -4,8 +4,10 @@
 ## count_anchors
 
 The anchor count A of a list of levels is the sum of `height * width`: one anchor per cell
-(`U/utils/tal.py:453`, `h * w` rows per level). It throws on a level without cells or with a
-stride that is not positive. Every other unit sizes its `[A, ...]` arrays by this count.
+(`U/utils/tal.py:453`, `h * w` rows per level). `count_anchors` returns `InvalidDescription` for a level
+without cells or with a stride that is not positive, and `make_anchors` returns the same refusal.
+`make_anchors` and `scale_points` stop the process when an array does not hold the sizes the
+levels give. Every other unit sizes its `[A, ...]` arrays by this count.
 
 `K_POINT_VALUES` is 2, the width of an anchor point, x then y.
 

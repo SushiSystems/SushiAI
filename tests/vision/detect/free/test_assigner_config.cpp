@@ -27,7 +27,7 @@
 
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
 
 namespace
@@ -49,8 +49,8 @@ TEST(Small_DetectAssignerConfig, BothPresetsCarryTheClassCount)
 /** @brief Tests that both presets refuse a class count of zero or below. */
 TEST(Small_DetectAssignerConfig, BothPresetsRefuseAClassCountBelowOne)
 {
-    SA_EXPECT_ERROR(static_cast<void>(one_to_many_assigner_config(0, K_STRIDES)),
+    SA_EXPECT_FATAL(static_cast<void>(one_to_many_assigner_config(0, K_STRIDES)),
                     "positive class count", "got 0");
-    SA_EXPECT_ERROR(static_cast<void>(one_to_one_assigner_config(-2, K_STRIDES)),
+    SA_EXPECT_FATAL(static_cast<void>(one_to_one_assigner_config(-2, K_STRIDES)),
                     "positive class count", "got -2");
 }

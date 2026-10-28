@@ -32,12 +32,15 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/average_precision.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 
 namespace
 {
+    using SushiAI::Test::require_value;
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::AveragePrecision;
     using SushiAI::Vision::Detect::K_IOU_THRESHOLD_COUNT;
     using SushiAI::Vision::Detect::MetricsSummary;
@@ -94,17 +97,17 @@ namespace
     {
         const std::size_t rows = detections.size() / SushiAI::Vision::Detect::K_DETECTION_VALUES;
         std::vector<std::uint8_t> correct(rows * K_IOU_THRESHOLD_COUNT, 7);
-        SushiAI::Vision::Detect::match_detections(detections, boxes, classes, correct);
+        SA_EXPECT_OK(SushiAI::Vision::Detect::match_detections(detections, boxes, classes,
+                                                               correct));
         return correct;
     }
 
     /** @brief Adds one image whose arrays are vectors. */
-    void add_image(AveragePrecision& metric,
-                   const std::vector<float>& detections,
-                   const std::vector<float>& boxes,
-                   const std::vector<std::int64_t>& classes)
+    SushiAI::Status add_image(AveragePrecision& metric, const std::vector<float>& detections,
+                              const std::vector<float>& boxes,
+                              const std::vector<std::int64_t>& classes)
     {
-        metric.add_image(detections, boxes, classes);
+        return metric.add_image(detections, boxes, classes);
     }
 
     /** @brief Returns the table of a single image. */
@@ -113,7 +116,7 @@ namespace
                                    const std::vector<std::int64_t>& classes)
     {
         AveragePrecision metric;
-        add_image(metric, detections, boxes, classes);
+        SA_EXPECT_OK(add_image(metric, detections, boxes, classes));
         return metric.summarize();
     }
 }
@@ -136,7 +139,8 @@ TEST(Small_AveragePrecision, IntegratesAnEmptyCurveToOneHalf)
     const std::vector<double> none;
 
     // Recall 0 1 1 with envelope 1 0 0 gives 1 - x, whose 100 trapezoids sum to 0.5.
-    EXPECT_NEAR(SushiAI::Vision::Detect::integrate_precision(none, none), 0.5, K_TOLERANCE);
+    EXPECT_NEAR(require_value(SushiAI::Vision::Detect::integrate_precision(none, none)),
+                0.5, K_TOLERANCE);
 }
 
 /** @brief Tests that the envelope lifts a precision dip to the larger value at higher recall. */
@@ -146,7 +150,7 @@ TEST(Small_AveragePrecision, IntegratesUnderThePrecisionEnvelope)
     const std::vector<double> precision{1.0, 0.5, 2.0 / 3.0};
 
     // 50 points at 1, 50 at 2/3, the last at 0: 0.49 + 0.05 / 6 + 0.98 / 3 + 0.01 / 3.
-    EXPECT_NEAR(SushiAI::Vision::Detect::integrate_precision(recall, precision),
+    EXPECT_NEAR(require_value(SushiAI::Vision::Detect::integrate_precision(recall, precision)),
                 0.49 + 0.05 / 6.0 + 0.98 / 3.0 + 0.01 / 3.0, K_TOLERANCE);
 }
 
@@ -155,16 +159,16 @@ TEST(Small_AveragePrecision, RejectsCurvesOfUnequalLength)
 {
     const std::vector<double> recall{0.5, 1.0};
     const std::vector<double> precision{1.0};
-    SA_EXPECT_ERROR((void)SushiAI::Vision::Detect::integrate_precision(recall, precision),
-                    "1 and 2");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::integrate_precision(recall, precision),
+                      StatusCode::InvalidDescription, "1 and 2");
 }
 
 /** @brief Tests that a detector that finds every box exactly scores 0.995 and not 1. */
 TEST(Small_AveragePrecision, PerfectDetectorScoresTheInterpolationCeiling)
 {
     AveragePrecision metric;
-    add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0});
-    add_image(metric, make_row(K_BOX_B, 0.8f, 1.0f), K_BOX_B, {1});
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0}));
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_B, 0.8f, 1.0f), K_BOX_B, {1}));
     const MetricsSummary summary = metric.summarize();
 
     // Recall 0 1 1 1, envelope 1 1 0 0: 100 points at 1 and the point at recall 1 at 0.
@@ -333,8 +337,8 @@ TEST(Small_AveragePrecision, LooseDetectionCountsAtTheLowThresholdsOnly)
 TEST(Small_AveragePrecision, ImageWithoutGroundTruthAddsFalsePositives)
 {
     AveragePrecision metric;
-    add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0});
-    add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_NO_VALUES, K_NO_CLASSES);
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0}));
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_NO_VALUES, K_NO_CLASSES));
     const MetricsSummary summary = metric.summarize();
 
     // The unlabelled image's detection ranks first: recall 0 1, precision 0 1/2, so 0.4975.
@@ -351,8 +355,8 @@ TEST(Small_AveragePrecision, ImageWithoutGroundTruthAddsFalsePositives)
 TEST(Small_AveragePrecision, ImageWithoutDetectionsLowersRecall)
 {
     AveragePrecision metric;
-    add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0});
-    add_image(metric, K_NO_VALUES, K_BOX_A, {0});
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.6f, 0.0f), K_BOX_A, {0}));
+    SA_EXPECT_OK(add_image(metric, K_NO_VALUES, K_BOX_A, {0}));
     const MetricsSummary summary = metric.summarize();
 
     // Recall 1/2, precision 1: 50 points at 1, then 0 from recall 1/2 on: 0.49 + 0.005.
@@ -422,7 +426,7 @@ TEST(Small_AveragePrecision, NoGroundTruthGivesNoRows)
     AveragePrecision metric;
     EXPECT_TRUE(metric.summarize().classes.empty());
 
-    add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_NO_VALUES, K_NO_CLASSES);
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_NO_VALUES, K_NO_CLASSES));
     const MetricsSummary summary = metric.summarize();
     EXPECT_EQ(summary.images, 1);
     EXPECT_TRUE(summary.classes.empty());
@@ -436,11 +440,11 @@ TEST(Small_AveragePrecision, NoGroundTruthGivesNoRows)
 TEST(Small_AveragePrecision, ClearDropsEveryImage)
 {
     AveragePrecision metric;
-    add_image(metric, make_row(K_BOX_FAR, 0.9f, 0.0f), K_BOX_A, {0});
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_FAR, 0.9f, 0.0f), K_BOX_A, {0}));
     metric.clear();
     EXPECT_EQ(metric.image_count(), 0);
 
-    add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0});
+    SA_EXPECT_OK(add_image(metric, make_row(K_BOX_A, 0.9f, 0.0f), K_BOX_A, {0}));
     const MetricsSummary summary = metric.summarize();
     EXPECT_EQ(summary.images, 1);
     EXPECT_EQ(summary.instances, 1);
@@ -456,20 +460,24 @@ TEST(Small_AveragePrecision, RejectsMalformedImages)
     const std::vector<float> short_row(5, 0.0f);
     const float not_a_number = std::numeric_limits<float>::quiet_NaN();
 
-    SA_EXPECT_ERROR(add_image(metric, short_row, K_BOX_A, {0}), "[N, 6]", "got 5");
-    SA_EXPECT_ERROR(add_image(metric, row, K_BOX_A, {0, 1}), "4 values", "2 classes");
-    SA_EXPECT_ERROR(add_image(metric, row, K_BOX_A, {-1}), "box 0", "negative class -1");
-    SA_EXPECT_ERROR(add_image(metric, make_row(K_BOX_A, 0.9f, 0.5f), K_BOX_A, {0}),
-                    "detection 0", "not a class index");
-    SA_EXPECT_ERROR(add_image(metric, make_row(K_BOX_A, not_a_number, 0.0f), K_BOX_A, {0}),
-                    "detection 0", "score");
+    SA_EXPECT_FAILURE(add_image(metric, short_row, K_BOX_A, {0}), StatusCode::InvalidDescription,
+                      "[N, 6]", "got 5");
+    SA_EXPECT_FAILURE(add_image(metric, row, K_BOX_A, {0, 1}), StatusCode::InvalidDescription,
+                      "4 values", "2 classes");
+    SA_EXPECT_FAILURE(add_image(metric, row, K_BOX_A, {-1}), StatusCode::InvalidDescription,
+                      "box 0", "negative class -1");
+    SA_EXPECT_FAILURE(add_image(metric, make_row(K_BOX_A, 0.9f, 0.5f), K_BOX_A, {0}),
+                      StatusCode::InvalidDescription, "detection 0", "not a class index");
+    SA_EXPECT_FAILURE(add_image(metric, make_row(K_BOX_A, not_a_number, 0.0f), K_BOX_A, {0}),
+                      StatusCode::InvalidDescription, "detection 0", "score");
     EXPECT_EQ(metric.image_count(), 0);
     EXPECT_TRUE(metric.summarize().classes.empty());
 
     std::vector<std::uint8_t> correct(9);
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::match_detections(row, K_BOX_A, K_NO_CLASSES, correct),
-                    "0 classes");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::match_detections(row, K_BOX_A, K_NO_CLASSES,
+                                                                correct),
+                      StatusCode::InvalidDescription, "0 classes");
     const std::vector<std::int64_t> classes{0};
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::match_detections(row, K_BOX_A, classes, correct),
-                    "need 10 values", "got 9");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::match_detections(row, K_BOX_A, classes, correct),
+                      StatusCode::InvalidDescription, "need 10 values", "got 9");
 }

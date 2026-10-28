@@ -33,6 +33,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/status.hpp>
+
 #include <SushiAI/vision/detect/free/assignment.hpp>
 
 namespace SushiAI
@@ -87,11 +89,14 @@ namespace SushiAI
 
         /**
          * @brief Writes the loss leaves of @p assignment into @p leaves.
+         * @return InvalidDescription for anchor points or strides that do not match the
+         *         assignment's anchors, or an image size that is not positive.
+         * @pre @p assignment came from TaskAlignedAssigner::assign().
          * @see modules/vision/detect/README.md
          */
-        void build_target_leaves(const Assignment& assignment,
-                                 const TargetLeafInputs& inputs,
-                                 TargetLeaves& leaves);
+        [[nodiscard]] Status build_target_leaves(const Assignment& assignment,
+                                                 const TargetLeafInputs& inputs,
+                                                 TargetLeaves& leaves);
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

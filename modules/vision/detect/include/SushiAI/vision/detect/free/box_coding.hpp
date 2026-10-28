@@ -37,6 +37,8 @@ namespace SushiAI
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into x1 y1 x2 y2.
          * @param boxes Receives `[B, A, 4]` in the units of @p anchor_points; may be @p distances.
+         * @pre The spans hold the [B, A, 4] and [A, 2] sizes their names give, and the output
+         *      holds as many values as the boxes.
          * @see modules/vision/detect/README.md
          */
         void decode_xyxy(SushiRuntime::span<const float> distances,
@@ -46,6 +48,8 @@ namespace SushiAI
         /**
          * @brief Decodes `[B, A, 4]` distances about `[A, 2]` anchor points into centre and size.
          * @param boxes Receives `[B, A, 4]` in the units of @p anchor_points; may be @p distances.
+         * @pre The spans hold the [B, A, 4] and [A, 2] sizes their names give, and the output
+         *      holds as many values as the boxes.
          * @see modules/vision/detect/README.md
          */
         void decode_xywh(SushiRuntime::span<const float> distances,
@@ -55,6 +59,8 @@ namespace SushiAI
         /**
          * @brief Encodes `[B, A, 4]` x1 y1 x2 y2 boxes as distances about `[A, 2]` anchor points.
          * @param distances Receives `[B, A, 4]`, not clamped; may be @p boxes.
+         * @pre The spans hold the [B, A, 4] and [A, 2] sizes their names give, and the output
+         *      holds as many values as the boxes.
          * @see modules/vision/detect/README.md
          */
         void encode_distances(SushiRuntime::span<const float> anchor_points,
@@ -64,6 +70,8 @@ namespace SushiAI
         /**
          * @brief Multiplies `[B, A, 4]` boxes by the `[A]` stride of their anchor.
          * @param scaled Receives `[B, A, 4]`; may be @p boxes.
+         * @pre The spans hold the [B, A, 4] and [A, 2] sizes their names give, and the output
+         *      holds as many values as the boxes.
          * @see modules/vision/detect/README.md
          */
         void scale_boxes(SushiRuntime::span<const float> boxes,

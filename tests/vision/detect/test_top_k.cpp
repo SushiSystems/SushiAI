@@ -34,7 +34,7 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
@@ -56,7 +56,7 @@ TEST(Small_DetectTopK, OrdersByValueThenIndex)
     SushiAI::Vision::Detect::select_top_k(values, 4, indices);
 
     EXPECT_TRUE(equal_reference(indices, std::vector<std::int64_t>{1, 4, 0, 2}));
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::select_top_k(values, 6, indices), "6", "5 values");
+    SA_EXPECT_FATAL(SushiAI::Vision::Detect::select_top_k(values, 6, indices), "6", "5 values");
 }
 
 /** @brief Tests that a NaN ranks below every number and NaNs keep ascending index order. */

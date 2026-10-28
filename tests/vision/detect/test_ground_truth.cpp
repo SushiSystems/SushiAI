@@ -29,11 +29,14 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 
 namespace
 {
+    using SushiAI::Test::require_value;
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::GroundTruthBatch;
     using SushiAI::Vision::Detect::pad_ground_truth;
 
@@ -60,13 +63,14 @@ TEST(Small_DetectGroundTruth, PaddingIntoAUsedBatchKeepsNoEarlierRow)
     const std::vector<std::int64_t> wide_classes{1, 2, 3, 4};
     const std::vector<float> wide_boxes(16, 0.5f);
     GroundTruthBatch padded;
-    pad_ground_truth({wide_images, wide_classes, wide_boxes}, 2, 32.0f, 32.0f, padded);
+    SA_EXPECT_OK(pad_ground_truth({wide_images, wide_classes, wide_boxes}, 2, 32.0f, 32.0f,
+                                  padded));
     ASSERT_EQ(padded.max_boxes, 3);
 
     const std::vector<std::int64_t> images{0};
     const std::vector<std::int64_t> classes{6};
     const std::vector<float> boxes{0.5f, 0.5f, 0.5f, 0.5f};
-    pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded);
+    SA_EXPECT_OK(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded));
 
     // One image of one box: the centre (16, 16) and the size (16, 16) give corners 8 and 24.
     EXPECT_EQ(padded.batch, 1);
@@ -87,8 +91,9 @@ TEST(Small_DetectGroundTruth, RefusesNoImagesAndRowArraysOfUnequalLengths)
     const std::vector<float> boxes(8, 0.5f);
     GroundTruthBatch padded;
 
-    SA_EXPECT_ERROR(pad_ground_truth({images, images, boxes}, 0, 32.0f, 32.0f, padded),
-                    "positive batch", "batch 0");
-    SA_EXPECT_ERROR(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded),
-                    "[n], [n] and [n, 4] rows", "2, 1 and 8 values");
+    SA_EXPECT_FAILURE(pad_ground_truth({images, images, boxes}, 0, 32.0f, 32.0f, padded),
+                      StatusCode::InvalidDescription, "positive batch", "batch 0");
+    SA_EXPECT_FAILURE(pad_ground_truth({images, classes, boxes}, 1, 32.0f, 32.0f, padded),
+                      StatusCode::InvalidDescription, "[n], [n] and [n, 4] rows",
+                      "2, 1 and 8 values");
 }

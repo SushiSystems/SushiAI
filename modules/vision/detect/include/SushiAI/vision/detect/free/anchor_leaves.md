@@ -19,4 +19,4 @@ target leaves. `points` is what the two halves of the distances are subtracted f
 `K_SCALE` by the level's stride and leave this leaf unbound.
 
 Both arrays depend on the input size and the batch size alone. A trainer builds them once and
-rebuilds them when either changes. The call throws on a batch below 1 and on an empty level list.
+rebuilds them when either changes. The call returns `InvalidDescription` for a batch below 1 and for an empty level list.

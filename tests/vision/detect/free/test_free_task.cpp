@@ -42,6 +42,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Vision::Detect::K_DEFAULT_DISTANCE_EXPONENT;
@@ -66,7 +67,7 @@ namespace
     /** @brief Parses @p text as a task section. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 
     /** @brief Reports whether @p left and @p right are the same float, bit for bit. */

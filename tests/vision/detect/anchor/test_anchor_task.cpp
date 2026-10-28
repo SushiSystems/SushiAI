@@ -48,6 +48,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Vision::Detect::K_DEFAULT_DISTANCE_EXPONENT;
@@ -118,7 +119,7 @@ namespace
     /** @brief Parses @p text as a task section. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 
     /** @brief Parses the section whose five members are those of @p text. */
@@ -311,18 +312,23 @@ TEST(Small_DetectAnchorTask, WritesTheTypeTheKeysInOrderAndEachFloatAsItsDouble)
 
     EXPECT_EQ(section.keys(),
               (std::vector<std::string>{"type", "classes", "anchors", "heads", "suppression"}));
-    EXPECT_EQ(section.at("type", "task").as_string("type"), K_ANCHOR_TASK_TYPE);
-    EXPECT_EQ(section.at("classes", "task").as_int("classes"), 3);
+    EXPECT_EQ(require_value(require_value(section.at("type", "task")).as_string("type")),
+              K_ANCHOR_TASK_TYPE);
+    EXPECT_EQ(require_value(require_value(section.at("classes", "task")).as_int("classes")), 3);
 
-    const Value& head = section.at("heads", "task").as_array("heads")[1];
+    const Value& head =
+        require_value(require_value(section.at("heads", "task")).as_array("heads"))[1];
     EXPECT_EQ(head.keys(),
               (std::vector<std::string>{"output", "anchors", "coding", "scale_xy"}));
 
     // The tolerance is zero: a float widens to exactly one double.
-    EXPECT_EQ(head.at("scale_xy", "head").as_real("scale_xy"), static_cast<double>(1.05f));
-    const Value& anchor = section.at("anchors", "task").as_array("anchors")[2];
-    EXPECT_EQ(anchor.as_array("anchor")[0].as_real("width"), static_cast<double>(0.09f));
-    EXPECT_EQ(anchor.as_array("anchor")[1].as_real("height"), static_cast<double>(0.14f));
+    EXPECT_EQ(require_value(require_value(head.at("scale_xy", "head")).as_real("scale_xy")),
+              static_cast<double>(1.05f));
+    const Value& anchor =
+        require_value(require_value(section.at("anchors", "task")).as_array("anchors"))[2];
+    const std::vector<Value>& sizes = require_value(anchor.as_array("anchor"));
+    EXPECT_EQ(require_value(sizes[0].as_real("width")), static_cast<double>(0.09f));
+    EXPECT_EQ(require_value(sizes[1].as_real("height")), static_cast<double>(0.14f));
 }
 
 /** @brief Tests that both strings of "coding" are read and written as their enumerators. */
@@ -344,8 +350,10 @@ TEST(Small_DetectAnchorTask, ReadsAndWritesEachCodingString)
         EXPECT_EQ(read.heads[0].options.coding, entry.coding) << entry.name;
 
         SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
-        const Value& head = written.at("heads", "task").as_array("heads")[0];
-        EXPECT_EQ(head.at("coding", "head").as_string("coding"), entry.name);
+        const Value& head =
+            require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
+        EXPECT_EQ(require_value(require_value(head.at("coding", "head")).as_string("coding")),
+                  entry.name);
     }
 }
 
@@ -358,15 +366,18 @@ TEST(Small_DetectAnchorTask, ReadsAndWritesTheSizeFormOfALogitHead)
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask read, read_anchor_task(section_from(squared)));
     EXPECT_EQ(read.heads[0].options.size, SizeForm::SquaredSigmoid);
     SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
-    const Value& head = written.at("heads", "task").as_array("heads")[0];
-    EXPECT_EQ(head.at("size", "head").as_string("size"), "squared_sigmoid");
+    const Value& head =
+        require_value(require_value(written.at("heads", "task")).as_array("heads"))[0];
+    EXPECT_EQ(require_value(require_value(head.at("size", "head")).as_string("size")),
+              "squared_sigmoid");
 
     SectionText plain;
     plain.heads = "[" + head_text("\"logit\"", "1.0") + "]";
     SA_ASSERT_OK_AND_ASSIGN(const AnchorTask exponential, read_anchor_task(section_from(plain)));
     EXPECT_EQ(exponential.heads[0].options.size, SizeForm::Exponential);
     SA_ASSERT_OK_AND_ASSIGN(const Value bare, write_anchor_task(exponential));
-    EXPECT_FALSE(bare.at("heads", "task").as_array("heads")[0].has("size"));
+    EXPECT_FALSE(require_value(require_value(bare.at("heads",
+                                                     "task")).as_array("heads"))[0].has("size"));
 
     SectionText activated;
     activated.heads = R"([{"output": "a", "anchors": [0, 1], "coding": "activated",
@@ -403,8 +414,10 @@ TEST(Small_DetectAnchorTask, ReadsAndWritesEachCriterionString)
         EXPECT_EQ(read.criterion, entry.criterion) << entry.name;
 
         SA_ASSERT_OK_AND_ASSIGN(const Value written, write_anchor_task(read));
-        const Value& suppression = written.at("suppression", "task");
-        EXPECT_EQ(suppression.at("criterion", "suppression").as_string("criterion"),
+        const Value& suppression = require_value(written.at("suppression", "task"));
+        EXPECT_EQ(require_value(require_value(suppression.at("criterion",
+                                                             "suppression")).as_string("criterion")),
+                  
                   entry.name);
     }
 }
@@ -415,7 +428,7 @@ TEST(Small_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
     AnchorTask plain = make_two_head_task();
     plain.distance_exponent = 0.25f;
     SA_ASSERT_OK_AND_ASSIGN(const Value plain_section, write_anchor_task(plain));
-    EXPECT_EQ(plain_section.at("suppression", "task").keys(),
+    EXPECT_EQ(require_value(plain_section.at("suppression", "task")).keys(),
               (std::vector<std::string>{"criterion"}));
 
     // The tolerance is zero: an exponent the section leaves out reads as the default.
@@ -426,10 +439,12 @@ TEST(Small_DetectAnchorTask, TheExponentBelongsToTheCriterionThatReadsIt)
     distance.criterion = SuppressionCriterion::DistanceIoU;
     distance.distance_exponent = 0.25f;
     SA_ASSERT_OK_AND_ASSIGN(const Value distance_section, write_anchor_task(distance));
-    const Value& suppression = distance_section.at("suppression", "task");
+    const Value& suppression = require_value(distance_section.at("suppression", "task"));
     EXPECT_EQ(suppression.keys(),
               (std::vector<std::string>{"criterion", "distance_exponent"}));
-    EXPECT_EQ(suppression.at("distance_exponent", "suppression").as_real("exponent"), 0.25);
+    EXPECT_EQ(require_value(require_value(suppression.at("distance_exponent",
+                                                         "suppression")).as_real("exponent")),
+              0.25);
 }
 
 /** @brief Tests that a whole number is read where a section states a real. */

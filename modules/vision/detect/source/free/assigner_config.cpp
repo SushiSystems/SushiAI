@@ -28,7 +28,7 @@
 
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -60,7 +60,7 @@ namespace SushiAI
                                               std::int64_t num_classes,
                                               SushiRuntime::span<const float> strides)
             {
-                SA_THROW_IF(num_classes <= 0, "an assigner needs a positive class count; got {}",
+                SA_FATAL_IF(num_classes <= 0, "an assigner needs a positive class count; got {}",
                             num_classes);
 
                 AssignerConfig config;

@@ -66,7 +66,7 @@ corners.
 
 ## RejectsRowsThatDoNotCoverTheAnchors
 
-Three rows of distances over two anchor points throw with a message containing "2 anchors" and
+Three rows of distances over two anchor points fail with a message containing "2 anchors" and
 "12".
 
 ## ReproducesTheReferenceOneToManyDecode

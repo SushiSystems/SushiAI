@@ -32,7 +32,9 @@
 #include <cstddef>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/top_k.hpp>
@@ -41,29 +43,31 @@ namespace SushiAI
 {
     namespace Vision::Detect
     {
-        std::int64_t count_top_detections(const PredictionShape& shape,
-                                          std::int64_t max_detections)
+        Result<std::int64_t> count_top_detections(const PredictionShape& shape,
+                                                  std::int64_t max_detections)
         {
-            SA_THROW_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0 ||
-                            max_detections <= 0,
-                        "a top-k postprocess needs positive extents; got batch {}, {} anchors, "
-                        "{} classes and a limit of {}",
-                        shape.batch, shape.anchors, shape.num_classes, max_detections);
+            SA_FAIL_IF(shape.batch <= 0 || shape.anchors <= 0 || shape.num_classes <= 0 ||
+                           max_detections <= 0,
+                       StatusCode::InvalidDescription,
+                       "a top-k postprocess needs positive extents; got batch {}, {} anchors, "
+                       "{} classes and a limit of {}",
+                       shape.batch, shape.anchors, shape.num_classes, max_detections);
             return std::min(max_detections, shape.anchors);
         }
 
-        void select_top_detections(SushiRuntime::span<const float> boxes,
-                                   SushiRuntime::span<const float> scores,
-                                   const PredictionShape& shape,
-                                   std::int64_t max_detections,
-                                   SushiRuntime::span<float> detections)
+        Status select_top_detections(SushiRuntime::span<const float> boxes,
+                                     SushiRuntime::span<const float> scores,
+                                     const PredictionShape& shape,
+                                     std::int64_t max_detections,
+                                     SushiRuntime::span<float> detections)
         {
-            const std::size_t kept =
-                static_cast<std::size_t>(count_top_detections(shape, max_detections));
+            SA_TRY_ASSIGN(const std::int64_t kept_count,
+                          count_top_detections(shape, max_detections));
+            const std::size_t kept = static_cast<std::size_t>(kept_count);
             const std::size_t batch = static_cast<std::size_t>(shape.batch);
             const std::size_t anchors = static_cast<std::size_t>(shape.anchors);
             const std::size_t classes = static_cast<std::size_t>(shape.num_classes);
-            SA_THROW_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
+            SA_FATAL_IF(boxes.size() != batch * anchors * K_BOX_VALUES ||
                             scores.size() != batch * anchors * classes ||
                             detections.size() != batch * kept * K_DETECTION_VALUES,
                         "a top-k postprocess needs [{}, {}, 4] boxes, [{}, {}, {}] scores and "
@@ -109,21 +113,25 @@ namespace SushiAI
                     detection[K_DETECTION_CLASS] = static_cast<float>(flat % classes);
                 }
             }
+            return Status();
         }
 
-        void keep_confident_detections(SushiRuntime::span<const float> detections,
-                                       std::int64_t batch,
-                                       float confidence_threshold,
-                                       std::vector<std::vector<float>>& kept)
+        Status keep_confident_detections(SushiRuntime::span<const float> detections,
+                                         std::int64_t batch,
+                                         float confidence_threshold,
+                                         std::vector<std::vector<float>>& kept)
         {
-            SA_THROW_IF(batch <= 0, "a confidence filter needs a positive batch; got {}", batch);
+            SA_FAIL_IF(batch <= 0, StatusCode::InvalidDescription,
+                       "a confidence filter needs a positive batch; got {}", batch);
             const std::size_t images = static_cast<std::size_t>(batch);
-            SA_THROW_IF(detections.size() % (images * K_DETECTION_VALUES) != 0,
-                        "a confidence filter needs [{}, k, 6] detections; got {} values", batch,
-                        detections.size());
-            SA_THROW_IF(!(confidence_threshold >= 0.0f && confidence_threshold <= 1.0f),
-                        "the confidence threshold must lie in [0, 1]; got {}",
-                        confidence_threshold);
+            SA_FAIL_IF(detections.size() % (images * K_DETECTION_VALUES) != 0,
+                       StatusCode::InvalidDescription,
+                       "a confidence filter needs [{}, k, 6] detections; got {} values", batch,
+                       detections.size());
+            SA_FAIL_IF(!(confidence_threshold >= 0.0f && confidence_threshold <= 1.0f),
+                       StatusCode::InvalidDescription,
+                       "the confidence threshold must lie in [0, 1]; got {}",
+                       confidence_threshold);
 
             const std::size_t rows = detections.size() / (images * K_DETECTION_VALUES);
             kept.resize(images);
@@ -139,6 +147,7 @@ namespace SushiAI
                         confident.insert(confident.end(), row, row + K_DETECTION_VALUES);
                 }
             }
+            return Status();
         }
 
     } // namespace Vision::Detect

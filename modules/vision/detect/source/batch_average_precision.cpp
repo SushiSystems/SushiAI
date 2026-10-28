@@ -69,7 +69,7 @@ namespace SushiAI
                     boxes.insert(boxes.end(), corners, corners + K_BOX_VALUES);
                     classes.push_back(truth.labels[slot]);
                 }
-                metric.add_image(detections[image], boxes, classes);
+                SA_TRY(metric.add_image(detections[image], boxes, classes));
             }
 
             return Status();

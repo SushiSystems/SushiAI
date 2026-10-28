@@ -31,7 +31,9 @@
 #include <algorithm>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -48,20 +50,25 @@ namespace SushiAI
                 std::size_t offset = 0;       /**< First value of the level in a joined image. */
             };
 
-            /** @brief Returns the element counts of @p placement; throws on a size mismatch. */
-            LevelExtents check_placement(const LevelPlacement& placement,
-                                         std::size_t level_size,
-                                         std::size_t joined_size)
+            /**
+             * @brief Returns the element counts of @p placement.
+             * @return InvalidDescription when the level does not fit its anchors.
+             * @pre @p level_size and @p joined_size are the sizes the placement gives.
+             */
+            Result<LevelExtents> check_placement(const LevelPlacement& placement,
+                                                 std::size_t level_size,
+                                                 std::size_t joined_size)
             {
-                SA_THROW_IF(placement.batch <= 0 || placement.anchors <= 0 ||
-                                placement.channels <= 0 || placement.level_anchors <= 0 ||
-                                placement.anchor_offset < 0 ||
-                                placement.anchor_offset + placement.level_anchors >
-                                    placement.anchors,
-                            "a level of {} anchors at offset {} does not fit {} anchors with "
-                            "batch {} and {} channels",
-                            placement.level_anchors, placement.anchor_offset, placement.anchors,
-                            placement.batch, placement.channels);
+                SA_FAIL_IF(placement.batch <= 0 || placement.anchors <= 0 ||
+                               placement.channels <= 0 || placement.level_anchors <= 0 ||
+                               placement.anchor_offset < 0 ||
+                               placement.anchor_offset + placement.level_anchors >
+                                   placement.anchors,
+                           StatusCode::InvalidDescription,
+                           "a level of {} anchors at offset {} does not fit {} anchors with "
+                           "batch {} and {} channels",
+                           placement.level_anchors, placement.anchor_offset, placement.anchors,
+                           placement.batch, placement.channels);
 
                 LevelExtents extents;
                 extents.batch = static_cast<std::size_t>(placement.batch);
@@ -72,7 +79,7 @@ namespace SushiAI
                 extents.offset =
                     static_cast<std::size_t>(placement.anchor_offset * placement.channels);
 
-                SA_THROW_IF(level_size != extents.batch * extents.level_image ||
+                SA_FATAL_IF(level_size != extents.batch * extents.level_image ||
                                 joined_size != extents.batch * extents.joined_image,
                             "the placement needs {} level values and {} joined values; got {} "
                             "and {}",
@@ -82,24 +89,27 @@ namespace SushiAI
             }
         } // namespace
 
-        void join_level(SushiRuntime::span<const float> level,
-                        const LevelPlacement& placement,
-                        SushiRuntime::span<float> joined)
+        Status join_level(SushiRuntime::span<const float> level,
+                          const LevelPlacement& placement,
+                          SushiRuntime::span<float> joined)
         {
-            const LevelExtents extents = check_placement(placement, level.size(), joined.size());
+            SA_TRY_ASSIGN(const LevelExtents extents,
+                          check_placement(placement, level.size(), joined.size()));
             for (std::size_t image = 0; image < extents.batch; ++image)
             {
                 const float* source = level.data() + image * extents.level_image;
                 std::copy(source, source + extents.level_image,
                           joined.data() + image * extents.joined_image + extents.offset);
             }
+            return Status();
         }
 
-        void split_level(SushiRuntime::span<const float> joined,
-                         const LevelPlacement& placement,
-                         SushiRuntime::span<float> level)
+        Status split_level(SushiRuntime::span<const float> joined,
+                           const LevelPlacement& placement,
+                           SushiRuntime::span<float> level)
         {
-            const LevelExtents extents = check_placement(placement, level.size(), joined.size());
+            SA_TRY_ASSIGN(const LevelExtents extents,
+                          check_placement(placement, level.size(), joined.size()));
             for (std::size_t image = 0; image < extents.batch; ++image)
             {
                 const float* source =
@@ -107,6 +117,7 @@ namespace SushiAI
                 std::copy(source, source + extents.level_image,
                           level.data() + image * extents.level_image);
             }
+            return Status();
         }
 
     } // namespace Vision::Detect::Free

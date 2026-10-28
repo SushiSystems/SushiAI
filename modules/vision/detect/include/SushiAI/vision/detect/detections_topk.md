@@ -8,8 +8,10 @@ their row counts differ between images.
 
 ## count_top_detections
 
-Returns the rows per image, `k = min(max_det, anchors)` (`U/nn/modules/head.py:279`), and throws
-on an extent or a limit that is not positive. The limit is an argument of the two top-k functions;
+Returns the rows per image, `k = min(max_det, anchors)` (`U/nn/modules/head.py:279`), and returns
+`InvalidDescription` for an extent or a limit that is not positive. `select_top_detections`
+returns the same refusal and stops the process when an array does not hold the sizes the shape
+gives. The limit is an argument of the two top-k functions;
 the reference's value is `K_MAX_DETECTIONS`.
 
 ## select_top_detections
@@ -44,7 +46,7 @@ U/utils/nms.py:78  output.append(pred[idx].float())
 
 A score equal to the threshold is dropped and the rows keep their order. The function takes the
 rows and the batch size and nothing else: the rows per image are the row count over the batch,
-and it throws when the batch does not divide them.
+and it returns `InvalidDescription` when the batch does not divide them.
 
 The `[:max_det]` cut is not ported. The caller keeps `k`, the limit it gave
 `select_top_detections`, at or below the validator's row limit. Both are 300 in the reference

@@ -119,7 +119,7 @@ A default `AssignerConfig` has `topk` 13, `topk2` 13, 80 classes, `alpha` 1, `be
 
 ## RejectsAConfigWithoutCandidatesOrWithANegativeMargin
 
-Constructing a `TaskAlignedAssigner` throws for `topk` 0, with a message containing "positive
+Constructing a `TaskAlignedAssigner` returns `InvalidDescription` for `topk` 0, with a message containing "positive
 topk" and "got 0, 3 and 2", for `stride_val` -1, with "stride_val", "at least 0" and "-1", and
 for `eps` -1, with "eps of at least 0" and "-1".
 
@@ -206,8 +206,8 @@ that of row 16 is 1.
 
 ## RejectsTooFewAnchorsAndAnUnknownClass
 
-`assign` with `topk` 17 on sixteen anchors throws with a message containing "16 anchors" and
-"topk 17". A valid box of class 2 with two classes throws with "class 2 of 2".
+`assign` with `topk` 17 on sixteen anchors returns `InvalidDescription` with a message containing "16 anchors" and
+"topk 17". A valid box of class 2 with two classes returns `InvalidDescription` with "class 2 of 2".
 
 ## PadsLabelRowsPerImage
 
@@ -226,7 +226,7 @@ With no label rows and a batch of 2, `max_boxes` is 0 and the labels, boxes and 
 
 ## RejectsARowOutsideTheBatch
 
-A row naming image 3 in a batch of 3 throws with a message containing "row 0 names image 3" and
+A row naming image 3 in a batch of 3 returns `InvalidDescription` with a message containing "row 0 names image 3" and
 "batch of 3".
 
 ## BuildsTheLossLeavesOfAnAssignment

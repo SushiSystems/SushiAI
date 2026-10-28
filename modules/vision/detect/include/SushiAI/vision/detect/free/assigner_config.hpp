@@ -54,6 +54,7 @@ namespace SushiAI
         /**
          * @brief Returns the settings of the one-to-many branch.
          * @param strides Strides of the model's levels; empty means 8, 16 and 32.
+         * @pre @p num_classes is at least 1; the task reader checks the count a file states.
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_many_assigner_config(
@@ -62,6 +63,7 @@ namespace SushiAI
         /**
          * @brief Returns the settings of the one-to-one branch.
          * @param strides Strides of the model's levels; empty means 8, 16 and 32.
+         * @pre @p num_classes is at least 1; the task reader checks the count a file states.
          * @see modules/vision/detect/README.md
          */
         [[nodiscard]] AssignerConfig one_to_one_assigner_config(

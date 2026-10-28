@@ -31,7 +31,7 @@
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
@@ -164,6 +164,6 @@ TEST(Medium_DetectBoxes, RejectsElementwiseInputsOfDifferentLength)
     const std::vector<float> first(8, 0.0f);
     const std::vector<float> second(4, 0.0f);
     std::vector<float> ious(2);
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::elementwise_iou(first, second, ious),
+    SA_EXPECT_FATAL(SushiAI::Vision::Detect::elementwise_iou(first, second, ious),
                     "got 8, 4 and 2");
 }

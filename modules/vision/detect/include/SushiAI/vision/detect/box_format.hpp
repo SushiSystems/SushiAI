@@ -42,6 +42,7 @@ namespace SushiAI
         /**
          * @brief Converts `[N, 4]` boxes from x1 y1 x2 y2 to centre x, centre y, width, height.
          * @param converted Receives `[N, 4]`; may be @p boxes.
+         * @pre @p boxes and @p converted hold the same whole number of boxes.
          * @see modules/vision/detect/README.md
          */
         void xyxy_to_xywh(SushiRuntime::span<const float> boxes,
@@ -50,6 +51,7 @@ namespace SushiAI
         /**
          * @brief Converts `[N, 4]` boxes from centre x, centre y, width, height to x1 y1 x2 y2.
          * @param converted Receives `[N, 4]`; may be @p boxes.
+         * @pre @p boxes and @p converted hold the same whole number of boxes.
          * @see modules/vision/detect/README.md
          */
         void xywh_to_xyxy(SushiRuntime::span<const float> boxes,

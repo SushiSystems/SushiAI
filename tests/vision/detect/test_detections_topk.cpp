@@ -32,7 +32,8 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
@@ -42,6 +43,8 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::PredictionShape;
 
     using SushiAI::Test::equal_reference;
@@ -99,7 +102,8 @@ TEST(Medium_DetectPostprocess, SelectsTheHighestScoringAnchorClassPairs)
     const std::vector<float> scores{0.1f, 0.7f, 0.9f, 0.2f, 0.3f, 0.4f};
     const PredictionShape shape{1, 3, 2};
     std::vector<float> detections(12);
-    SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 2, detections);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 2,
+                                                                detections));
 
     // Anchors 1 and 0 lead with 0.9 and 0.7; anchor 1 wins with class 0 and anchor 0 with class 1.
     const std::vector<float> expected{2.0f, 2.0f, 3.0f, 3.0f, 0.9f, 0.0f,
@@ -115,7 +119,8 @@ TEST(Medium_DetectPostprocess, OneAnchorCanYieldTwoDetections)
     const std::vector<float> scores{0.6f, 0.1f, 0.8f, 0.7f, 0.2f, 0.1f};
     const PredictionShape shape{1, 3, 2};
     std::vector<float> detections(12);
-    SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 2, detections);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 2,
+                                                                detections));
 
     // Anchors 1 and 0 lead; the gathered rows are 0.8 0.7 0.6 0.1, so flat indices 0 and 1 win.
     const std::vector<float> expected{2.0f, 2.0f, 3.0f, 3.0f, 0.8f, 0.0f,
@@ -126,8 +131,12 @@ TEST(Medium_DetectPostprocess, OneAnchorCanYieldTwoDetections)
 /** @brief Tests that the row count is the anchor count when the limit is larger. */
 TEST(Medium_DetectPostprocess, LimitsRowsToTheAnchorCount)
 {
-    EXPECT_EQ(SushiAI::Vision::Detect::count_top_detections({1, 3, 2}, 300), 3);
-    EXPECT_EQ(SushiAI::Vision::Detect::count_top_detections({1, 8400, 80}, 300), 300);
+    EXPECT_EQ(require_value(
+                  SushiAI::Vision::Detect::count_top_detections({1, 3, 2}, 300)),
+              3);
+    EXPECT_EQ(require_value(
+                  SushiAI::Vision::Detect::count_top_detections({1, 8400, 80}, 300)),
+              300);
 }
 
 /** @brief Tests that each image of a batch is selected from its own rows. */
@@ -138,7 +147,8 @@ TEST(Medium_DetectPostprocess, SelectsEachImageFromItsOwnRows)
     const std::vector<float> scores{0.2f, 0.3f, 0.6f, 0.1f, 0.5f, 0.4f, 0.1f, 0.9f};
     const PredictionShape shape{2, 2, 2};
     std::vector<float> detections(12);
-    SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 1, detections);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_top_detections(boxes, scores, shape, 1,
+                                                                detections));
 
     const std::vector<float> expected{2.0f, 2.0f, 3.0f, 3.0f, 0.6f, 0.0f,
                                       6.0f, 6.0f, 7.0f, 7.0f, 0.9f, 1.0f};
@@ -151,9 +161,9 @@ TEST(Medium_DetectPostprocess, RejectsADetectionArrayOfTheWrongSize)
     const std::vector<float> boxes(12, 0.0f);
     const std::vector<float> scores(6, 0.0f);
     std::vector<float> detections(6);
-    SA_EXPECT_ERROR(
-        SushiAI::Vision::Detect::select_top_detections(boxes, scores, {1, 3, 2}, 2, detections),
-        "[1, 2, 6] detections", "6 values");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::select_top_detections(boxes, scores, {1, 3, 2}, 2,
+                                                                     detections),
+                      StatusCode::InvalidDescription, "[1, 2, 6] detections", "6 values");
 }
 
 /** @brief Tests that the top-k path reproduces the reference detections up to tied scores. */
@@ -169,8 +179,8 @@ TEST(Medium_DetectPostprocess, ReproducesTheReferenceDetections)
     const std::vector<float> reference = reference_tensor.floats();
     const PredictionShape shape{1, 8400, 80};
     std::vector<float> detections(reference.size());
-    SushiAI::Vision::Detect::select_top_detections(
-        boxes, scores, shape, SushiAI::Vision::Detect::K_MAX_DETECTIONS, detections);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_top_detections(
+                     boxes, scores, shape, SushiAI::Vision::Detect::K_MAX_DETECTIONS, detections));
 
     std::vector<float> score_column;
     std::vector<float> reference_scores;
@@ -204,7 +214,7 @@ TEST(Medium_DetectPostprocess, TheConfidenceFilterDropsAScoreAtTheThreshold)
                                   3.0f, 3.0f, 0.25f, 1.0f, 4.0f, 4.0f, 5.0f, 5.0f,
                                   0.26f, 0.0f, 6.0f, 6.0f, 7.0f, 7.0f, 0.1f,  2.0f};
     std::vector<std::vector<float>> kept;
-    SushiAI::Vision::Detect::keep_confident_detections(rows, 1, 0.25f, kept);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::keep_confident_detections(rows, 1, 0.25f, kept));
 
     // 0.5 and 0.26 exceed 0.25; the row at 0.25 and the row at 0.1 do not.
     const std::vector<float> expected{0.0f, 0.0f, 1.0f, 1.0f, 0.5f,  3.0f,
@@ -220,8 +230,8 @@ TEST(Medium_DetectPostprocess, TheConfidenceFilterKeepsEachImagesRows)
                                   3.0f, 3.0f, 0.0f, 1.0f, 4.0f, 4.0f, 5.0f, 5.0f,
                                   0.0f, 0.0f, 6.0f, 6.0f, 7.0f, 7.0f, 0.0f, 1.0f};
     std::vector<std::vector<float>> kept;
-    SushiAI::Vision::Detect::keep_confident_detections(
-        rows, 2, SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE, kept);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::keep_confident_detections(
+                     rows, 2, SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE, kept));
 
     const std::vector<float> expected_first{0.0f, 0.0f, 1.0f, 1.0f, 0.9f, 0.0f};
     ASSERT_EQ(kept.size(), 2u);
@@ -235,10 +245,10 @@ TEST(Medium_DetectPostprocess, TheConfidenceFilterRejectsRowsTheBatchDoesNotDivi
     // Three rows of six values cannot be split between two images.
     const std::vector<float> rows(18, 0.0f);
     std::vector<std::vector<float>> kept;
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::keep_confident_detections(rows, 2, 0.25f, kept),
-                    "[2, k, 6] detections", "18 values");
-    SA_EXPECT_ERROR(SushiAI::Vision::Detect::keep_confident_detections(rows, 0, 0.25f, kept),
-                    "positive batch", "got 0");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::keep_confident_detections(rows, 2, 0.25f, kept),
+                      StatusCode::InvalidDescription, "[2, k, 6] detections", "18 values");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::keep_confident_detections(rows, 0, 0.25f, kept),
+                      StatusCode::InvalidDescription, "positive batch", "got 0");
 }
 
 /** @brief Tests that the confidence filter keeps the reference's rows as its validator does. */
@@ -250,9 +260,9 @@ TEST(Medium_DetectPostprocess, TheConfidenceFilterKeepsTheRowsTheReferenceValida
     const std::vector<float> reference = reference_tensor.floats();
     std::vector<std::vector<float>> confident;
     std::vector<std::vector<float>> positive;
-    SushiAI::Vision::Detect::keep_confident_detections(
-        reference, 1, SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE, confident);
-    SushiAI::Vision::Detect::keep_confident_detections(reference, 1, 0.0f, positive);
+    SA_EXPECT_OK(SushiAI::Vision::Detect::keep_confident_detections(
+                     reference, 1, SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE, confident));
+    SA_EXPECT_OK(SushiAI::Vision::Detect::keep_confident_detections(reference, 1, 0.0f, positive));
 
     // 0 is "validation.row_count.one2one" of forward.sacp in MANIFEST.json: no score reaches 0.001.
     ASSERT_EQ(confident.size(), 1u);

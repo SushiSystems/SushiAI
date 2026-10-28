@@ -146,7 +146,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Value* const list,
                               SectionReader(task, K_TASK).find_of("anchors", Kind::Array));
 
-                const std::vector<Value>& entries = list->as_array(where);
+                SA_TRY_ASSIGN(const std::vector<Value>& entries, list->as_array(where));
                 anchors.reserve(entries.size());
                 for (std::size_t i = 0; i < entries.size(); ++i)
                 {
@@ -155,7 +155,7 @@ namespace SushiAI
                                "{} must be [width, height], but it is {}", entry,
                                Config::kind_name(entries[i].kind()));
 
-                    const std::vector<Value>& sides = entries[i].as_array(entry);
+                    SA_TRY_ASSIGN(const std::vector<Value>& sides, entries[i].as_array(entry));
                     SA_FAIL_IF(sides.size() != 2, StatusCode::InvalidDescription,
                                "{} must be [width, height], but it lists {} values", entry,
                                sides.size());
@@ -176,7 +176,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Value* const list,
                               SectionReader(head, where).find_of("anchors", Kind::Array));
 
-                const std::vector<Value>& indices = list->as_array(mask_where);
+                SA_TRY_ASSIGN(const std::vector<Value>& indices, list->as_array(mask_where));
                 mask.reserve(indices.size());
                 for (std::size_t slot = 0; slot < indices.size(); ++slot)
                 {
@@ -184,7 +184,8 @@ namespace SushiAI
                                "{} must be a whole number, but it is {}",
                                entry_of(mask_where, slot),
                                Config::kind_name(indices[slot].kind()));
-                    mask.push_back(indices[slot].as_int(mask_where));
+                    SA_TRY_ASSIGN(const std::int64_t index, indices[slot].as_int(mask_where));
+                    mask.push_back(index);
                 }
                 return Status();
             }
@@ -202,12 +203,12 @@ namespace SushiAI
                 SA_TRY(reader.check_keys(KeySpan(K_HEAD_KEYS, std::size(K_HEAD_KEYS))));
 
                 SA_TRY_ASSIGN(const Value* const output, reader.find_of("output", Kind::String));
-                head.output = output->as_string(where);
+                SA_TRY_ASSIGN(head.output, output->as_string(where));
 
                 SA_TRY(read_mask(entry, where, mask));
 
                 SA_TRY_ASSIGN(const Value* const coding, reader.find_of("coding", Kind::String));
-                const std::string& stated = coding->as_string(where);
+                SA_TRY_ASSIGN(const std::string& stated, coding->as_string(where));
                 const CodingName* const row = find_by_name(K_CODING_NAMES, stated);
                 SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
                            "{} is '{}'; it is one of {}", member_of(where, "coding"), stated,
@@ -220,7 +221,7 @@ namespace SushiAI
                 if (reader.has("size"))
                 {
                     SA_TRY_ASSIGN(const Value* const size, reader.find_of("size", Kind::String));
-                    const std::string& form = size->as_string(where);
+                    SA_TRY_ASSIGN(const std::string& form, size->as_string(where));
                     const SizeName* const named = find_by_name(K_SIZE_NAMES, form);
                     SA_FAIL_IF(named == nullptr, StatusCode::InvalidDescription,
                                "{} is '{}'; it is one of {}", member_of(where, "size"), form,
@@ -243,7 +244,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Value* const list,
                               SectionReader(task, K_TASK).find_of("heads", Kind::Array));
 
-                const std::vector<Value>& entries = list->as_array(where);
+                SA_TRY_ASSIGN(const std::vector<Value>& entries, list->as_array(where));
                 result.heads.resize(entries.size());
                 result.layout.head_anchors.resize(entries.size());
                 for (std::size_t k = 0; k < entries.size(); ++k)
@@ -265,7 +266,7 @@ namespace SushiAI
 
                 SA_TRY_ASSIGN(const Value* const criterion,
                               reader.find_of("criterion", Kind::String));
-                const std::string& stated = criterion->as_string(where);
+                SA_TRY_ASSIGN(const std::string& stated, criterion->as_string(where));
                 const CriterionName* const row = find_by_name(K_CRITERION_NAMES, stated);
                 SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
                            "{} is '{}'; it is one of {}", member_of(where, "criterion"), stated,
@@ -455,16 +456,16 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(const Value* const type,
                           reader.find_of("type", Kind::String));
-            SA_FAIL_IF(type->as_string(K_TASK) != K_ANCHOR_TASK_TYPE,
-                       StatusCode::InvalidDescription,
+            SA_TRY_ASSIGN(const std::string& stated_type, type->as_string(K_TASK));
+            SA_FAIL_IF(stated_type != K_ANCHOR_TASK_TYPE, StatusCode::InvalidDescription,
                        "{} is '{}'; an anchor task states '{}'", member_of(K_TASK, "type"),
-                       type->as_string(K_TASK), K_ANCHOR_TASK_TYPE);
+                       stated_type, K_ANCHOR_TASK_TYPE);
             SA_TRY(reader.check_keys(Config::KeySpan(K_TASK_KEYS, std::size(K_TASK_KEYS))));
 
             AnchorTask result;
             SA_TRY_ASSIGN(const Value* const classes,
                           reader.find_of("classes", Kind::Int));
-            result.num_classes = classes->as_int(K_TASK);
+            SA_TRY_ASSIGN(result.num_classes, classes->as_int(K_TASK));
 
             SA_TRY(read_anchors(task, result.layout.anchors));
             SA_TRY(read_heads(task, result));

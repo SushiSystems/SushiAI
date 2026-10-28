@@ -80,7 +80,7 @@ U/utils/tal.py:176  target_scores = target_scores * norm_align_metric
 **Not ported.** The out-of-memory retry (`U/utils/tal.py:99-138`) and
 `RotatedTaskAlignedAssigner`.
 
-**Refusals the reference does not make by name.** `assign` throws when the anchor count is below
+**Refusals the reference does not make by name.** `assign` returns `InvalidDescription` when the anchor count is below
 `topk` or `topk2` (torch's `topk` would fail there) and when a valid box has a class outside
 `[0, num_classes)`. Every refusal happens before `assignment` is written.
 

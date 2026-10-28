@@ -30,32 +30,36 @@
 
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
     namespace Vision::Detect::Free
     {
-        std::int64_t count_anchors(SushiRuntime::span<const FeatureLevel> levels)
+        Result<std::int64_t> count_anchors(SushiRuntime::span<const FeatureLevel> levels)
         {
             std::int64_t count = 0;
             for (const FeatureLevel& level : levels)
             {
-                SA_THROW_IF(level.height <= 0 || level.width <= 0 || !(level.stride > 0.0f),
-                            "a feature level needs positive extents and a positive stride; got "
-                            "height {}, width {}, stride {}",
-                            level.height, level.width, level.stride);
+                SA_FAIL_IF(level.height <= 0 || level.width <= 0 || !(level.stride > 0.0f),
+                           StatusCode::InvalidDescription,
+                           "a feature level needs positive extents and a positive stride; got "
+                           "height {}, width {}, stride {}",
+                           level.height, level.width, level.stride);
                 count += level.height * level.width;
             }
             return count;
         }
 
-        void make_anchors(SushiRuntime::span<const FeatureLevel> levels,
-                          SushiRuntime::span<float> points,
-                          SushiRuntime::span<float> strides)
+        Status make_anchors(SushiRuntime::span<const FeatureLevel> levels,
+                            SushiRuntime::span<float> points,
+                            SushiRuntime::span<float> strides)
         {
-            const std::size_t count = static_cast<std::size_t>(count_anchors(levels));
-            SA_THROW_IF(points.size() != count * K_POINT_VALUES || strides.size() != count,
+            SA_TRY_ASSIGN(const std::int64_t anchor_count, count_anchors(levels));
+            const std::size_t count = static_cast<std::size_t>(anchor_count);
+            SA_FATAL_IF(points.size() != count * K_POINT_VALUES || strides.size() != count,
                         "make_anchors needs {} point values and {} strides; got {} and {}",
                         count * K_POINT_VALUES, count, points.size(), strides.size());
 
@@ -74,13 +78,14 @@ namespace SushiAI
                     }
                 }
             }
+            return Status();
         }
 
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,
                           SushiRuntime::span<float> scaled)
         {
-            SA_THROW_IF(points.size() != strides.size() * K_POINT_VALUES ||
+            SA_FATAL_IF(points.size() != strides.size() * K_POINT_VALUES ||
                             scaled.size() != points.size(),
                         "scale_points needs [A, 2] points, [A] strides and [A, 2] output; got "
                         "{}, {} and {} values",

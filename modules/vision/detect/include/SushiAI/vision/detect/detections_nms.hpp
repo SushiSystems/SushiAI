@@ -33,6 +33,7 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
@@ -83,6 +84,7 @@ namespace SushiAI
          * @param boxes `[N, 4]` x1 y1 x2 y2.
          * @param scores `[N]`; equal scores are visited by ascending index, and a score of 0
          *        is never kept.
+         * @pre @p boxes holds four values per score.
          * @see modules/vision/detect/README.md
          */
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
@@ -96,6 +98,7 @@ namespace SushiAI
          * @param scores `[N]`; a score of 0 is never kept and suppresses nothing.
          * @param threshold A measure above it suppresses the lower-scoring box.
          * @param kept Receives the survivors, highest score first; equal scores by index.
+         * @pre @p boxes holds four values per score and @p criterion is IoU or DistanceIoU.
          */
         void suppress_overlaps(SushiRuntime::span<const float> boxes,
                                SushiRuntime::span<const float> scores,
@@ -109,13 +112,14 @@ namespace SushiAI
          * @param boxes `[B, A, 4]` centre x, centre y, width, height.
          * @param scores `[B, A, C]` class probabilities.
          * @param detections Receives one `[n, 6]` array per image, highest score first.
-         * @see modules/vision/detect/README.md
+         * @return InvalidDescription for an extent that is not positive, arrays that do not match
+         *         the shape, a threshold outside [0, 1] or a limit below 1.
          */
-        void select_nms_detections(SushiRuntime::span<const float> boxes,
-                                   SushiRuntime::span<const float> scores,
-                                   const PredictionShape& shape,
-                                   const NMSConfig& config,
-                                   std::vector<std::vector<float>>& detections);
+        [[nodiscard]] Status select_nms_detections(SushiRuntime::span<const float> boxes,
+                                                   SushiRuntime::span<const float> scores,
+                                                   const PredictionShape& shape,
+                                                   const NMSConfig& config,
+                                                   std::vector<std::vector<float>>& detections);
 
     } // namespace Vision::Detect
 } // namespace SushiAI

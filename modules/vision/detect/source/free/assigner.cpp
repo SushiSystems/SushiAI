@@ -31,7 +31,9 @@
 #include <algorithm>
 #include <cmath>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
@@ -93,19 +95,29 @@ namespace SushiAI
             }
         } // namespace
 
-        TaskAlignedAssigner::TaskAlignedAssigner(const AssignerConfig& config) : config_(config)
+        TaskAlignedAssigner::TaskAlignedAssigner(const AssignerConfig& config) noexcept
+            : config_(config)
         {
-            SA_THROW_IF(config.topk <= 0 || config.topk2 <= 0 || config.num_classes <= 0,
-                        "an assigner needs positive topk, topk2 and class count; got {}, {} and {}",
-                        config.topk, config.topk2, config.num_classes);
-            SA_THROW_IF(!(config.stride_val >= 0.0f) || !(config.eps >= 0.0f),
-                        "an assigner needs a stride_val and an eps of at least 0; got {} and {}",
-                        config.stride_val, config.eps);
+
         }
 
-        void TaskAlignedAssigner::assign(const AssignerInputs& inputs, Assignment& assignment)
+        Result<TaskAlignedAssigner> TaskAlignedAssigner::make(const AssignerConfig& config)
         {
-            check_inputs(inputs);
+            SA_FAIL_IF(config.topk <= 0 || config.topk2 <= 0 || config.num_classes <= 0,
+                       StatusCode::InvalidDescription,
+                       "an assigner needs positive topk, topk2 and class count; got {}, {} and {}",
+                       config.topk, config.topk2, config.num_classes);
+            SA_FAIL_IF(!(config.stride_val >= 0.0f) || !(config.eps >= 0.0f),
+                       StatusCode::InvalidDescription,
+                       "an assigner needs a stride_val and an eps of at least 0; got {} and {}",
+                       config.stride_val, config.eps);
+
+            return TaskAlignedAssigner(config);
+        }
+
+        Status TaskAlignedAssigner::assign(const AssignerInputs& inputs, Assignment& assignment)
+        {
+            SA_TRY(check_inputs(inputs));
 
             const std::size_t rows = static_cast<std::size_t>(inputs.batch * inputs.anchors);
             const std::size_t classes = static_cast<std::size_t>(config_.num_classes);
@@ -120,7 +132,7 @@ namespace SushiAI
             assignment.target_labels.assign(rows, idle_label);
             assignment.target_indices.assign(rows, 0);
             if (inputs.max_boxes == 0)
-                return;
+                return Status();
 
             const std::size_t anchors = static_cast<std::size_t>(inputs.anchors);
             const std::size_t max_boxes = static_cast<std::size_t>(inputs.max_boxes);
@@ -139,41 +151,46 @@ namespace SushiAI
                 keep_second_top_k(inputs, image);
                 write_targets(inputs, image, assignment);
             }
+            return Status();
         }
 
-        void TaskAlignedAssigner::check_inputs(const AssignerInputs& inputs) const
+        Status TaskAlignedAssigner::check_inputs(const AssignerInputs& inputs) const
         {
-            SA_THROW_IF(inputs.batch <= 0 || inputs.anchors <= 0 || inputs.max_boxes < 0,
-                        "an assignment needs a positive batch and anchor count and a box count "
-                        "of at least 0; got {}, {} and {}",
-                        inputs.batch, inputs.anchors, inputs.max_boxes);
+            SA_FAIL_IF(inputs.batch <= 0 || inputs.anchors <= 0 || inputs.max_boxes < 0,
+                       StatusCode::InvalidDescription,
+                       "an assignment needs a positive batch and anchor count and a box count "
+                       "of at least 0; got {}, {} and {}",
+                       inputs.batch, inputs.anchors, inputs.max_boxes);
 
             const std::size_t batch = static_cast<std::size_t>(inputs.batch);
             const std::size_t rows = batch * static_cast<std::size_t>(inputs.anchors);
             const std::size_t classes = static_cast<std::size_t>(config_.num_classes);
-            SA_THROW_IF(inputs.scores.size() != rows * classes ||
-                            inputs.boxes.size() != rows * K_BOX_VALUES ||
-                            inputs.anchor_points.size() != rows / batch * K_POINT_VALUES,
-                        "predictions must be [{}, {}, {}] scores, [{}, {}, 4] boxes and [{}, 2] "
-                        "anchor points; got {}, {} and {} values",
-                        inputs.batch, inputs.anchors, config_.num_classes, inputs.batch,
-                        inputs.anchors, inputs.anchors, inputs.scores.size(), inputs.boxes.size(),
-                        inputs.anchor_points.size());
+            SA_FAIL_IF(inputs.scores.size() != rows * classes ||
+                           inputs.boxes.size() != rows * K_BOX_VALUES ||
+                           inputs.anchor_points.size() != rows / batch * K_POINT_VALUES,
+                       StatusCode::InvalidDescription,
+                       "predictions must be [{}, {}, {}] scores, [{}, {}, 4] boxes and [{}, 2] "
+                       "anchor points; got {}, {} and {} values",
+                       inputs.batch, inputs.anchors, config_.num_classes, inputs.batch,
+                       inputs.anchors, inputs.anchors, inputs.scores.size(), inputs.boxes.size(),
+                       inputs.anchor_points.size());
 
             const std::size_t slots = static_cast<std::size_t>(inputs.batch * inputs.max_boxes);
-            SA_THROW_IF(inputs.gt_labels.size() != slots ||
-                            inputs.gt_boxes.size() != slots * K_BOX_VALUES ||
-                            inputs.gt_valid.size() != slots,
-                        "ground truth must be [{}, {}] labels, [{}, {}, 4] boxes and [{}, {}] "
-                        "flags; got {}, {} and {} values",
-                        inputs.batch, inputs.max_boxes, inputs.batch, inputs.max_boxes,
-                        inputs.batch, inputs.max_boxes, inputs.gt_labels.size(),
-                        inputs.gt_boxes.size(), inputs.gt_valid.size());
+            SA_FAIL_IF(inputs.gt_labels.size() != slots ||
+                           inputs.gt_boxes.size() != slots * K_BOX_VALUES ||
+                           inputs.gt_valid.size() != slots,
+                       StatusCode::InvalidDescription,
+                       "ground truth must be [{}, {}] labels, [{}, {}, 4] boxes and [{}, {}] "
+                       "flags; got {}, {} and {} values",
+                       inputs.batch, inputs.max_boxes, inputs.batch, inputs.max_boxes,
+                       inputs.batch, inputs.max_boxes, inputs.gt_labels.size(),
+                       inputs.gt_boxes.size(), inputs.gt_valid.size());
 
-            SA_THROW_IF(inputs.max_boxes > 0 &&
-                            (inputs.anchors < config_.topk || inputs.anchors < config_.topk2),
-                        "{} anchors are fewer than topk {} or topk2 {}", inputs.anchors,
-                        config_.topk, config_.topk2);
+            SA_FAIL_IF(inputs.max_boxes > 0 &&
+                           (inputs.anchors < config_.topk || inputs.anchors < config_.topk2),
+                       StatusCode::InvalidDescription,
+                       "{} anchors are fewer than topk {} or topk2 {}", inputs.anchors,
+                       config_.topk, config_.topk2);
 
             for (std::size_t slot = 0; slot < slots; ++slot)
             {
@@ -181,12 +198,14 @@ namespace SushiAI
                     continue;
 
                 const std::int64_t label = inputs.gt_labels[slot];
-                SA_THROW_IF(label < 0 || label >= config_.num_classes,
-                            "ground-truth box {} of image {} has class {} of {}",
-                            slot % static_cast<std::size_t>(inputs.max_boxes),
-                            slot / static_cast<std::size_t>(inputs.max_boxes), label,
-                            config_.num_classes);
+                SA_FAIL_IF(label < 0 || label >= config_.num_classes,
+                           StatusCode::InvalidDescription,
+                           "ground-truth box {} of image {} has class {} of {}",
+                           slot % static_cast<std::size_t>(inputs.max_boxes),
+                           slot / static_cast<std::size_t>(inputs.max_boxes), label,
+                           config_.num_classes);
             }
+            return Status();
         }
 
         void TaskAlignedAssigner::select_candidates(const AssignerInputs& inputs, std::size_t image)

@@ -135,7 +135,7 @@ namespace SushiAI
 
                 SA_TRY_ASSIGN(const Value* const criterion,
                               reader.find_of("criterion", Kind::String));
-                const std::string& stated = criterion->as_string(where);
+                SA_TRY_ASSIGN(const std::string& stated, criterion->as_string(where));
                 const CriterionName* const row = criterion_by_name(stated);
                 SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
                            "{} is '{}'; it is one of {}", member_of(where, "criterion"), stated,
@@ -169,9 +169,9 @@ namespace SushiAI
                 SA_TRY(reader.check_keys(KeySpan(K_BRANCH_KEYS, std::size(K_BRANCH_KEYS))));
 
                 SA_TRY_ASSIGN(const Value* const top_k, reader.find_of("top_k", Kind::Int));
-                config.topk = top_k->as_int(where);
+                SA_TRY_ASSIGN(config.topk, top_k->as_int(where));
                 SA_TRY_ASSIGN(const Value* const top_k2, reader.find_of("top_k2", Kind::Int));
-                config.topk2 = top_k2->as_int(where);
+                SA_TRY_ASSIGN(config.topk2, top_k2->as_int(where));
 
                 SA_TRY_ASSIGN(const Value* const alpha, reader.find("alpha"));
                 SA_TRY_ASSIGN(config.alpha, read_float32(*alpha, reader.member("alpha")));
@@ -285,9 +285,10 @@ namespace SushiAI
             SA_TRY(reader.check_object());
 
             SA_TRY_ASSIGN(const Value* const type, reader.find_of("type", Kind::String));
-            SA_FAIL_IF(type->as_string(K_TASK) != K_FREE_TASK_TYPE,
-                       StatusCode::InvalidDescription, "{} is '{}'; an anchor-free task states '{}'",
-                       member_of(K_TASK, "type"), type->as_string(K_TASK), K_FREE_TASK_TYPE);
+            SA_TRY_ASSIGN(const std::string& stated_type, type->as_string(K_TASK));
+            SA_FAIL_IF(stated_type != K_FREE_TASK_TYPE, StatusCode::InvalidDescription,
+                       "{} is '{}'; an anchor-free task states '{}'", member_of(K_TASK, "type"),
+                       stated_type, K_FREE_TASK_TYPE);
             SA_TRY(reader.check_keys(KeySpan(K_TASK_KEYS, std::size(K_TASK_KEYS))));
 
             FreeTask result;

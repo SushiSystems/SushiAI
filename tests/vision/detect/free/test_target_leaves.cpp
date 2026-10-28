@@ -29,12 +29,15 @@
 #include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/assignment.hpp>
 #include <SushiAI/vision/detect/free/target_leaves.hpp>
 
 namespace
 {
+    using SushiAI::Test::require_value;
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::Free::Assignment;
     using SushiAI::Vision::Detect::Free::build_target_leaves;
     using SushiAI::Vision::Detect::Free::K_MIN_TARGET_SCORES_SUM;
@@ -95,7 +98,7 @@ TEST(Small_DetectTargetLeaves, EveryLeafHasTheRowsOfTheAssignment)
     const std::vector<float> strides(3, 8.0f);
     TargetLeaves leaves;
 
-    build_target_leaves(assignment, {points, strides, 32.0f, 32.0f}, leaves);
+    SA_EXPECT_OK(build_target_leaves(assignment, {points, strides, 32.0f, 32.0f}, leaves));
 
     // Two images of three anchors: six rows, four values per box row.
     EXPECT_EQ(leaves.box_mask.size(), 24u);
@@ -117,10 +120,10 @@ TEST(Small_DetectTargetLeaves, RebuildingFromASmallerAssignmentKeepsNoEarlierRow
     const std::vector<float> points = make_points(3);
     const std::vector<float> strides(3, 8.0f);
     TargetLeaves leaves;
-    build_target_leaves(first, {points, strides, 32.0f, 32.0f}, leaves);
+    SA_EXPECT_OK(build_target_leaves(first, {points, strides, 32.0f, 32.0f}, leaves));
 
     const Assignment second = make_idle_assignment(1, 3, 2);
-    build_target_leaves(second, {points, strides, 32.0f, 32.0f}, leaves);
+    SA_EXPECT_OK(build_target_leaves(second, {points, strides, 32.0f, 32.0f}, leaves));
 
     ASSERT_EQ(leaves.box_mask.size(), 12u);
     for (std::size_t i = 0; i < leaves.box_mask.size(); ++i)
@@ -137,9 +140,10 @@ TEST(Small_DetectTargetLeaves, RefusesGeometryOfAnotherAnchorCountAndNoImageSize
     const std::vector<float> short_strides(2, 8.0f);
     TargetLeaves leaves;
 
-    SA_EXPECT_ERROR(
-        build_target_leaves(assignment, {points, short_strides, 32.0f, 32.0f}, leaves),
-        "[3, 2] anchor points and [3] strides", "got 6 and 2 values");
-    SA_EXPECT_ERROR(build_target_leaves(assignment, {points, strides, 0.0f, 32.0f}, leaves),
-                    "positive image size");
+    SA_EXPECT_FAILURE(build_target_leaves(assignment, {points, short_strides, 32.0f, 32.0f},
+                                          leaves),
+                      StatusCode::InvalidDescription, "[3, 2] anchor points and [3] strides",
+                      "got 6 and 2 values");
+    SA_EXPECT_FAILURE(build_target_leaves(assignment, {points, strides, 0.0f, 32.0f}, leaves),
+                      StatusCode::InvalidDescription, "positive image size");
 }

@@ -30,7 +30,7 @@
 
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/free/anchors.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
@@ -41,7 +41,8 @@ namespace SushiAI
         namespace
         {
             /**
-             * @brief Returns the anchor count A, or throws unless the rows are `[B, A, 4]`.
+             * @brief Returns the anchor count A, and stops the process unless the rows are
+             *        `[B, A, 4]`.
              * @param anchor_values Values of the per-anchor array.
              * @param values_per_anchor Width of the per-anchor array: K_POINT_VALUES or 1.
              */
@@ -51,7 +52,7 @@ namespace SushiAI
                                           std::size_t output_values)
             {
                 const std::size_t anchors = anchor_values / values_per_anchor;
-                SA_THROW_IF(anchor_values % values_per_anchor != 0 || anchors == 0 ||
+                SA_FATAL_IF(anchor_values % values_per_anchor != 0 || anchors == 0 ||
                                 row_values % (anchors * K_BOX_VALUES) != 0 ||
                                 output_values != row_values,
                             "box rows must be [B, A, 4] over {} anchors with an output of the "

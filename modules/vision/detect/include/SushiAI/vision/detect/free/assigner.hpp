@@ -34,6 +34,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/free/assigner_config.hpp>
 #include <SushiAI/vision/detect/free/assignment.hpp>
 
@@ -66,16 +68,22 @@ namespace SushiAI
         class TaskAlignedAssigner final
         {
             public:
-                /** @brief Stores @p config after checking its counts, stride_val and eps. */
-                explicit TaskAlignedAssigner(const AssignerConfig& config);
+                /**
+                 * @brief Builds an assigner over @p config.
+                 * @return The assigner, or InvalidDescription for a topk, a topk2 or a class count
+                 *         below 1, or a stride_val or an eps below 0.
+                 */
+                [[nodiscard]] static Result<TaskAlignedAssigner> make(const AssignerConfig& config);
 
                 /**
                  * @brief Writes the targets of every anchor of @p inputs into @p assignment.
+                 * @return InvalidDescription for extents that are not positive, arrays that do not
+                 *         match them, fewer anchors than topk or topk2, or a label outside the
+                 *         classes.
                  * @pre No score, predicted box or valid ground-truth box value is NaN or infinite;
                  *      FreeAssignmentStage refuses them before it calls this.
-                 * @see modules/vision/detect/README.md
                  */
-                void assign(const AssignerInputs& inputs, Assignment& assignment);
+                [[nodiscard]] Status assign(const AssignerInputs& inputs, Assignment& assignment);
 
                 /** @brief Returns the settings this assigner was built with. */
                 [[nodiscard]] const AssignerConfig& config() const noexcept
@@ -84,8 +92,11 @@ namespace SushiAI
                 }
 
             private:
-                /** @brief Throws unless the arrays and the labels of @p inputs fit its shape. */
-                void check_inputs(const AssignerInputs& inputs) const;
+                /** @brief Stores @p config, which make() has checked. */
+                explicit TaskAlignedAssigner(const AssignerConfig& config) noexcept;
+
+                /** @brief Checks that the arrays and the labels of @p inputs fit its shape. */
+                [[nodiscard]] Status check_inputs(const AssignerInputs& inputs) const;
 
                 /** @brief Fills the metric, the overlap and the first top-k mask of one image. */
                 void select_candidates(const AssignerInputs& inputs, std::size_t image);

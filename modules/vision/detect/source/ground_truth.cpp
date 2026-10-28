@@ -32,34 +32,36 @@
 #include <cstddef>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI
 {
     namespace Vision::Detect
     {
-        void pad_ground_truth(const GroundTruthRows& rows,
-                              std::int64_t batch,
-                              float image_width,
-                              float image_height,
-                              GroundTruthBatch& padded)
+        Status pad_ground_truth(const GroundTruthRows& rows,
+                                std::int64_t batch,
+                                float image_width,
+                                float image_height,
+                                GroundTruthBatch& padded)
         {
             const std::size_t row_count = rows.image_indices.size();
-            SA_THROW_IF(batch <= 0 || rows.classes.size() != row_count ||
-                            rows.boxes.size() != row_count * K_BOX_VALUES,
-                        "ground truth needs a positive batch and [n], [n] and [n, 4] rows; got "
-                        "batch {} and {}, {} and {} values",
-                        batch, row_count, rows.classes.size(), rows.boxes.size());
+            SA_FAIL_IF(batch <= 0 || rows.classes.size() != row_count ||
+                           rows.boxes.size() != row_count * K_BOX_VALUES,
+                       StatusCode::InvalidDescription,
+                       "ground truth needs a positive batch and [n], [n] and [n, 4] rows; got "
+                       "batch {} and {}, {} and {} values",
+                       batch, row_count, rows.classes.size(), rows.boxes.size());
 
             const std::size_t images = static_cast<std::size_t>(batch);
             std::vector<std::int64_t> filled(images, 0);
             for (std::size_t row = 0; row < row_count; ++row)
             {
                 const std::int64_t image = rows.image_indices[row];
-                SA_THROW_IF(image < 0 || image >= batch,
-                            "ground truth row {} names image {} of a batch of {}", row, image,
-                            batch);
+                SA_FAIL_IF(image < 0 || image >= batch, StatusCode::InvalidDescription,
+                           "ground truth row {} names image {} of a batch of {}", row, image,
+                           batch);
                 ++filled[static_cast<std::size_t>(image)];
             }
 

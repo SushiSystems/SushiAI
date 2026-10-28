@@ -33,7 +33,8 @@
 #include <limits>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/detections_nms.hpp>
@@ -43,6 +44,7 @@
 
 namespace
 {
+    using SushiAI::StatusCode;
     using SushiAI::Vision::Detect::ClassMode;
 
     using SushiAI::Vision::Detect::LabelMode;
@@ -103,7 +105,8 @@ namespace
     {
         const PredictionShape shape{1, static_cast<std::int64_t>(boxes.size() / 4), classes};
         std::vector<std::vector<float>> detections;
-        SushiAI::Vision::Detect::select_nms_detections(boxes, scores, shape, config, detections);
+        SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(boxes, scores, shape, config,
+                                                                    detections));
         return detections.front();
     }
 
@@ -121,9 +124,9 @@ TEST(Medium_DetectPostprocess, SuppressionReproducesTheReferenceRows)
     NMSConfig config;
     config.confidence_threshold = K_SUPPRESSION_CONFIDENCE;
     std::vector<std::vector<float>> detections;
-    SushiAI::Vision::Detect::select_nms_detections(
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(
         box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, config,
-        detections);
+        detections));
 
     // 1542 scores pass and the reference keeps 300 rows: "suppression" in MANIFEST.json.
     ASSERT_EQ(detections.size(), 1u);
@@ -151,9 +154,9 @@ TEST(Medium_DetectPostprocess, NoReferenceScorePassesTheValidationConfidence)
     SA_READ_REFERENCE_OR_FAIL(score_tensor, forward, "one2many.decoded.scores");
 
     std::vector<std::vector<float>> detections;
-    SushiAI::Vision::Detect::select_nms_detections(
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(
         box_tensor.floats(), score_tensor.floats(), PredictionShape{1, 8400, 80}, NMSConfig{},
-        detections);
+        detections));
 
     // 0 is "validation.row_count.one2many" of forward.sacp in MANIFEST.json.
     ASSERT_EQ(detections.size(), 1u);
@@ -313,11 +316,12 @@ TEST(Medium_DetectPostprocess, RejectsAThresholdOutsideTheUnitInterval)
 {
     const std::vector<float> boxes{5.0f, 5.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.6f};
-    SA_EXPECT_ERROR(
-        (void)suppress_one_image(
-            boxes, scores, 1,
-            make_nms_config(1.5f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware)),
-        "[0, 1]", "1.5");
+    std::vector<std::vector<float>> detections;
+    SA_EXPECT_FAILURE(
+        SushiAI::Vision::Detect::select_nms_detections(
+            boxes, scores, PredictionShape{1, 1, 1},
+            make_nms_config(1.5f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware), detections),
+        StatusCode::InvalidDescription, "[0, 1]", "1.5");
 }
 
 /** @brief Tests that an image whose scores all stay at or below the threshold yields no rows. */
@@ -339,9 +343,9 @@ TEST(Medium_DetectPostprocess, SuppressesEachImageFromItsOwnRows)
                                    25.0f, 25.0f, 10.0f, 10.0f, 45.0f, 45.0f, 10.0f, 10.0f};
     const std::vector<float> scores{0.9f, 0.8f, 0.3f, 0.6f};
     std::vector<std::vector<float>> detections;
-    SushiAI::Vision::Detect::select_nms_detections(
+    SA_EXPECT_OK(SushiAI::Vision::Detect::select_nms_detections(
         boxes, scores, PredictionShape{2, 2, 1},
-        make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware), detections);
+        make_nms_config(0.25f, 0.5f, LabelMode::BestClass, ClassMode::ClassAware), detections));
 
     // Image 0 holds one box twice, so 0.8 falls to 0.9; image 1 holds two boxes that are apart.
     const std::vector<float> expected_first{0.0f, 0.0f, 10.0f, 10.0f, 0.9f, 0.0f};
@@ -358,10 +362,9 @@ TEST(Medium_DetectPostprocess, RejectsScoresThatDoNotFillTheShape)
     const std::vector<float> boxes(8, 0.0f);
     const std::vector<float> scores(6, 0.5f);
     std::vector<std::vector<float>> detections;
-    SA_EXPECT_ERROR(
-        SushiAI::Vision::Detect::select_nms_detections(
-            boxes, scores, PredictionShape{1, 2, 2}, NMSConfig{}, detections),
-        "[1, 2, 2] scores", "8 and 6 values");
+    SA_EXPECT_FAILURE(SushiAI::Vision::Detect::select_nms_detections(
+                          boxes, scores, PredictionShape{1, 2, 2}, NMSConfig{}, detections),
+                      StatusCode::InvalidDescription, "[1, 2, 2] scores", "8 and 6 values");
 }
 
 /** @brief Tests that a NaN first class score does not hide the finite row maximum. */

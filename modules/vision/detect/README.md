@@ -12,7 +12,7 @@ and the validation metric. Every unit is a function or a small class over `Sushi
 with the shape written in its comment. Nothing here reaches an engine, SYCL or `graph/lowering`,
 so every unit is tested without a device.
 
-The module depends on `failure` (`SA_THROW_IF`, `Error`, `Status`, `SA_FATAL_IF`) and on `config`
+The module depends on `failure` (`Status`, `Result`, `SA_FAIL_IF`, `SA_FATAL_IF`) and on `config`
 (`Config::Value`, which `anchor/anchor_task.hpp` reads and writes). Nothing depends on
 it yet. It adds no IR operation, so nothing in it waits for a lowering. The requirements are sections 2, 4 and 7 of
 `docs/agent/2026_10_07_YOLO26/SPEC.md`; the rulings that put label assignment on the host and ask
@@ -221,6 +221,16 @@ neither depends on the other.
 ## batch_average_precision.hpp
 
 [`include/SushiAI/vision/detect/batch_average_precision.md`](include/SushiAI/vision/detect/batch_average_precision.md) describes it.
+
+## Failures of the free functions
+
+The free functions follow one rule. A caller-allocated output span whose size the caller computes from the same extents is a precondition: `elementwise_iou`,
+`pairwise_iou`, `xyxy_to_xywh`, `decode_xyxy`, `scale_points` and the like stop the process on a
+wrong size. An array or an extent that a model or a dataset supplies is content: `count_anchors`,
+`make_anchors`, `build_anchor_leaves`, `join_level`, `build_target_leaves`, `pad_ground_truth`,
+`select_nms_detections`, `select_top_detections`, `keep_confident_detections`, `match_detections`,
+`AveragePrecision::add_image` and `TaskAlignedAssigner::assign` return a `Status`, and
+`TaskAlignedAssigner::make`, `count_top_detections` and `integrate_precision` a `Result`.
 
 ## The anchor part
 

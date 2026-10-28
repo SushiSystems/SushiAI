@@ -37,6 +37,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Vision::Detect::Anchor::AnchorTask;
@@ -54,7 +55,7 @@ namespace
             "suppression": {"criterion": "iou"})";
         if (!assignment.empty())
             text += R"(, "assignment": )" + std::string(assignment);
-        return SushiAI::Config::parse_json(text + "}", "<test>");
+        return require_value(SushiAI::Config::parse_json(text + "}", "<test>"));
     }
 } // namespace
 

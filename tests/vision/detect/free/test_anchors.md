@@ -46,17 +46,17 @@ second.
 
 ## ScaleRejectsStridesThatDoNotMatchThePoints
 
-Seven strides for eight points throw with a message containing "[A] strides" and "got 16, 7 and
+Seven strides for eight points fail with a message containing "[A] strides" and "got 16, 7 and
 16 values".
 
 ## RejectsALevelWithoutCellsOrStride
 
-`count_anchors` throws on a level of height 0 with a message containing "height 0" and
+`count_anchors` returns `InvalidDescription` on a level of height 0 with a message containing "height 0" and
 "width 3", and on a level of stride 0 with a message containing "stride 0".
 
 ## RejectsOutputsOfTheWrongSize
 
-`make_anchors` given a point array of 15 values throws with a message containing "16 point
+`make_anchors` given a point array of 15 values returns `InvalidDescription` with a message containing "16 point
 values" and "got 15".
 
 ## MatchesTheReferenceAnchorPoints
@@ -82,8 +82,8 @@ writes the strides with four values per anchor: 24 values of 8 and 8 values of 1
 
 ## RejectsABatchWithoutImagesAndAModelWithoutLevels
 
-A batch of 0 throws with a message containing "positive batch" and "batch 0 and 2 levels". An
-empty level list throws with a message containing "at least one level" and "batch 1 and 0
+A batch of 0 returns `InvalidDescription` with a message containing "positive batch" and "batch 0 and 2 levels". An
+empty level list returns `InvalidDescription` with a message containing "at least one level" and "batch 1 and 0
 levels".
 
 ## JoinPlacesALevelAtItsAnchorOffset
@@ -98,10 +98,10 @@ values 2 to 7 of image 0 and 12 to 17 of image 1.
 
 ## RejectsALevelPastTheLastAnchor
 
-A level of two anchors at offset 4 of five throws with a message containing "2 anchors",
+A level of two anchors at offset 4 of five returns `InvalidDescription` with a message containing "2 anchors",
 "offset 4" and "5 anchors".
 
 ## SplitRejectsALevelArrayOfTheWrongSize
 
-`split_level` into an array of 10 values, where the placement needs 12, throws with a message
+`split_level` into an array of 10 values, where the placement needs 12, returns `InvalidDescription` with a message
 containing "12 level values", "20 joined values" and "got 10 and 20".

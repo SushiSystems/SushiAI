@@ -174,7 +174,7 @@ With `max_candidates` 1 the same input yields the row at 0.9 alone.
 
 ## RejectsAThresholdOutsideTheUnitInterval
 
-A confidence threshold of 1.5 throws with a message containing "[0, 1]" and "1.5".
+A confidence threshold of 1.5 returns `InvalidDescription` with a message containing "[0, 1]" and "1.5".
 
 ## AnImageBelowTheThresholdYieldsNoRows
 
@@ -187,5 +187,5 @@ remains. Image 1 holds two boxes that are apart, and its rows are 0.6 then 0.3.
 
 ## RejectsScoresThatDoNotFillTheShape
 
-Six scores where the shape `[1, 2, 2]` needs four throw with a message containing "[1, 2, 2]
+Six scores where the shape `[1, 2, 2]` needs four fail with a message containing "[1, 2, 2]
 scores" and "8 and 6 values".

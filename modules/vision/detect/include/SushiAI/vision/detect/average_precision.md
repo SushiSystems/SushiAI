@@ -52,10 +52,11 @@ pin each:
 A detection whose IoU is not a number matches at no threshold. `iou >= threshold` is false for
 NaN in the reference, and both comparisons of the port are written in that direction.
 
-The function throws when the detection array is not a whole number of rows, when the box count
-and the class count disagree, when a ground-truth class is negative, when a detection's score is
-not finite, when a detection's class is not a whole number in `[0, 2^24)`, and when `correct`
-does not hold ten values per detection. A box coordinate that is NaN or infinite is not refused:
+The function returns `InvalidDescription` when the detection array is not a whole number of rows,
+when the box count and the class count disagree, when a ground-truth class is negative, when a
+detection's score is not finite, and when a detection's class is not a whole number in
+`[0, 2^24)`. It stops the process when `correct` does not hold ten values per detection. A box
+coordinate that is NaN or infinite is not refused:
 such a row is matched to nothing and counts as a false positive, as in the reference.
 
 Not ported: the `use_scipy` branch (`U/engine/validator.py:338-344`).
@@ -78,8 +79,8 @@ and the 100 trapezoids are summed. The last sample is at recall 1, where the env
 detector that finds every box scores 0.99 + 0.01 / 2 = 0.995 and not 1. An empty curve gives 0.5,
 the area under the line from 1 to 0.
 
-The function takes recall and precision after each detection in descending score and throws
-when the two differ in length. It does not check that recall never decreases.
+The function takes recall and precision after each detection in descending score and returns
+`InvalidDescription` when the two differ in length. It does not check that recall never decreases.
 
 ## AveragePrecision
 

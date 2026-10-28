@@ -33,6 +33,8 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/status.hpp>
+
 #include <SushiAI/vision/detect/free/anchors.hpp>
 
 namespace SushiAI
@@ -51,12 +53,14 @@ namespace SushiAI
 
         /**
          * @brief Writes the points and the strides of @p levels once for each image.
-         * @param batch Images, B; must be positive.
+         * @param batch Images, B.
+         * @return InvalidDescription for a batch below 1, an empty level list or a level
+         *         count_anchors() refuses.
          * @see modules/vision/detect/README.md
          */
-        void build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
-                                 std::int64_t batch,
-                                 AnchorLeaves& leaves);
+        [[nodiscard]] Status build_anchor_leaves(SushiRuntime::span<const FeatureLevel> levels,
+                                                 std::int64_t batch,
+                                                 AnchorLeaves& leaves);
 
     } // namespace Vision::Detect::Free
 } // namespace SushiAI

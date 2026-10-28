@@ -32,7 +32,7 @@
 #include <cstddef>
 #include <numeric>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
 
 namespace SushiAI
@@ -43,7 +43,7 @@ namespace SushiAI
                           std::int64_t k,
                           std::vector<std::int64_t>& indices)
         {
-            SA_THROW_IF(k < 0 || static_cast<std::size_t>(k) > values.size(),
+            SA_FATAL_IF(k < 0 || static_cast<std::size_t>(k) > values.size(),
                         "a top-k of {} was asked of {} values", k, values.size());
 
             indices.resize(values.size());

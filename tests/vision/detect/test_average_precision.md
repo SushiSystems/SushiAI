@@ -69,7 +69,7 @@ follows it at higher recall.
 
 ## RejectsCurvesOfUnequalLength
 
-Two recall values with one precision value throw with a message containing "1 and 2".
+Two recall values with one precision value fail with a message containing "1 and 2".
 
 ## PerfectDetectorScoresTheInterpolationCeiling
 
@@ -175,9 +175,9 @@ image remains.
 
 ## RejectsMalformedImages
 
-`add_image` throws for a detection array of 5 values ("[N, 6]", "got 5"), for one box with two
+`add_image` returns `InvalidDescription` for a detection array of 5 values ("[N, 6]", "got 5"), for one box with two
 classes ("4 values", "2 classes"), for a ground-truth class of -1 ("box 0", "negative class
 -1"), for a detection class of 0.5 ("detection 0", "not a class index") and for a NaN score
 ("detection 0", "score"). The accumulator still holds no image and no rows afterwards.
-`match_detections` throws for a box without a class ("0 classes") and for a flag array of 9
+`match_detections` returns `InvalidDescription` for a box without a class ("0 classes") and for a flag array of 9
 values ("need 10 values", "got 9").

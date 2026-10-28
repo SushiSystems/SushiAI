@@ -32,7 +32,9 @@
 #include <cmath>
 #include <numeric>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 #include <SushiAI/vision/detect/detection_row.hpp>
 #include <SushiAI/vision/detect/float_order.hpp>
@@ -142,37 +144,45 @@ namespace SushiAI
                 return static_cast<std::int64_t>(row[K_DETECTION_CLASS]);
             }
 
-            /** @brief Throws unless one image's detections and ground truth are well formed. */
-            void check_image(SushiRuntime::span<const float> detections,
-                             SushiRuntime::span<const float> truth_boxes,
-                             SushiRuntime::span<const std::int64_t> truth_classes)
+            /**
+             * @brief Checks that one image's detections and ground truth are well formed.
+             * @return InvalidDescription for an array of the wrong extent, a negative class, a
+             *         score that is not finite or a class that is no index.
+             */
+            Status check_image(SushiRuntime::span<const float> detections,
+                               SushiRuntime::span<const float> truth_boxes,
+                               SushiRuntime::span<const std::int64_t> truth_classes)
             {
-                SA_THROW_IF(detections.size() % K_DETECTION_VALUES != 0,
-                            "detections need [N, {}] values; got {}", K_DETECTION_VALUES,
-                            detections.size());
-                SA_THROW_IF(truth_boxes.size() != truth_classes.size() * K_BOX_VALUES,
-                            "ground truth needs [M, 4] boxes and [M] classes; got {} values "
-                            "and {} classes",
-                            truth_boxes.size(), truth_classes.size());
+                SA_FAIL_IF(detections.size() % K_DETECTION_VALUES != 0,
+                           StatusCode::InvalidDescription,
+                           "detections need [N, {}] values; got {}", K_DETECTION_VALUES,
+                           detections.size());
+                SA_FAIL_IF(truth_boxes.size() != truth_classes.size() * K_BOX_VALUES,
+                           StatusCode::InvalidDescription,
+                           "ground truth needs [M, 4] boxes and [M] classes; got {} values "
+                           "and {} classes",
+                           truth_boxes.size(), truth_classes.size());
 
                 for (std::size_t box = 0; box < truth_classes.size(); ++box)
                 {
-                    SA_THROW_IF(truth_classes[box] < 0,
-                                "ground-truth box {} has the negative class {}", box,
-                                truth_classes[box]);
+                    SA_FAIL_IF(truth_classes[box] < 0, StatusCode::InvalidDescription,
+                               "ground-truth box {} has the negative class {}", box,
+                               truth_classes[box]);
                 }
 
                 for (std::size_t at = 0; at < detections.size(); at += K_DETECTION_VALUES)
                 {
                     const float score = detections[at + K_DETECTION_SCORE];
                     const float label = detections[at + K_DETECTION_CLASS];
-                    SA_THROW_IF(!std::isfinite(score), "detection {} has the score {}",
-                                at / K_DETECTION_VALUES, score);
-                    SA_THROW_IF(!(label >= 0.0f) || label >= K_CLASS_LIMIT ||
-                                    label != std::floor(label),
-                                "detection {} has the class {}, which is not a class index",
-                                at / K_DETECTION_VALUES, label);
+                    SA_FAIL_IF(!std::isfinite(score), StatusCode::InvalidDescription,
+                               "detection {} has the score {}", at / K_DETECTION_VALUES, score);
+                    SA_FAIL_IF(!(label >= 0.0f) || label >= K_CLASS_LIMIT ||
+                                   label != std::floor(label),
+                               StatusCode::InvalidDescription,
+                               "detection {} has the class {}, which is not a class index",
+                               at / K_DETECTION_VALUES, label);
                 }
+                return Status();
             }
 
             /**
@@ -281,6 +291,42 @@ namespace SushiAI
             }
 
             /**
+             * @brief Returns the area under the precision envelope of two equally long curves.
+             * @pre @p recall and @p precision hold the same number of values.
+             */
+            double integrate_envelope(SushiRuntime::span<const double> recall,
+                                      SushiRuntime::span<const double> precision)
+            {
+                const std::size_t count = recall.size();
+                std::vector<double> envelope_recall(count + 3);
+                std::vector<double> envelope(count + 3);
+                envelope_recall[0] = 0.0;
+                envelope[0] = 1.0;
+                std::copy(recall.begin(), recall.end(), envelope_recall.begin() + 1);
+                std::copy(precision.begin(), precision.end(), envelope.begin() + 1);
+                envelope_recall[count + 1] = count == 0 ? 1.0 : recall[count - 1];
+                envelope_recall[count + 2] = 1.0;
+                envelope[count + 1] = 0.0;
+                envelope[count + 2] = 0.0;
+
+                for (std::size_t at = count + 2; at-- > 0;)
+                    envelope[at] = std::max(envelope[at], envelope[at + 1]);
+
+                double strips[K_RECALL_POINTS - 1];
+                double previous = interpolate(0.0, envelope_recall, envelope, 1.0, 0.0);
+                for (std::size_t point = 1; point < K_RECALL_POINTS; ++point)
+                {
+                    const double width =
+                        grid_point(point, K_RECALL_POINTS) - grid_point(point - 1, K_RECALL_POINTS);
+                    const double next = interpolate(grid_point(point, K_RECALL_POINTS),
+                                                    envelope_recall, envelope, 1.0, 0.0);
+                    strips[point - 1] = width * (next + previous) / 2.0;
+                    previous = next;
+                }
+                return sum_pairwise(strips, K_RECALL_POINTS - 1);
+            }
+
+            /**
              * @brief Writes one class's AP at each IoU and its curves at IoU 0.5.
              * @param ap Receives `[K_IOU_THRESHOLD_COUNT]`.
              * @param precision_curve Receives `[K_CONFIDENCE_POINTS]`.
@@ -306,7 +352,7 @@ namespace SushiAI
                         precision[rank] =
                             static_cast<double>(hits) / static_cast<double>(rank + 1);
                     }
-                    ap[level] = integrate_precision(recall, precision);
+                    ap[level] = integrate_envelope(recall, precision);
                 }
 
                 std::vector<double> negated_scores(run.count);
@@ -376,60 +422,36 @@ namespace SushiAI
             }
         } // namespace
 
-        void match_detections(SushiRuntime::span<const float> detections,
-                              SushiRuntime::span<const float> truth_boxes,
-                              SushiRuntime::span<const std::int64_t> truth_classes,
-                              SushiRuntime::span<std::uint8_t> correct)
+        Status match_detections(SushiRuntime::span<const float> detections,
+                                SushiRuntime::span<const float> truth_boxes,
+                                SushiRuntime::span<const std::int64_t> truth_classes,
+                                SushiRuntime::span<std::uint8_t> correct)
         {
-            check_image(detections, truth_boxes, truth_classes);
+            SA_TRY(check_image(detections, truth_boxes, truth_classes));
             const std::size_t count = detections.size() / K_DETECTION_VALUES;
-            SA_THROW_IF(correct.size() != count * K_IOU_THRESHOLD_COUNT,
+            SA_FATAL_IF(correct.size() != count * K_IOU_THRESHOLD_COUNT,
                         "the match flags of {} detections need {} values; got {}", count,
                         count * K_IOU_THRESHOLD_COUNT, correct.size());
             mark_matches(detections, truth_boxes, truth_classes, correct.data());
+            return Status();
         }
 
-        double integrate_precision(SushiRuntime::span<const double> recall,
-                                   SushiRuntime::span<const double> precision)
+        Result<double> integrate_precision(SushiRuntime::span<const double> recall,
+                                           SushiRuntime::span<const double> precision)
         {
-            SA_THROW_IF(recall.size() != precision.size(),
-                        "a precision curve needs one value per recall value; got {} and {}",
-                        precision.size(), recall.size());
+            SA_FAIL_IF(recall.size() != precision.size(), StatusCode::InvalidDescription,
+                       "a precision curve needs one value per recall value; got {} and {}",
+                       precision.size(), recall.size());
 
-            const std::size_t count = recall.size();
-            std::vector<double> envelope_recall(count + 3);
-            std::vector<double> envelope(count + 3);
-            envelope_recall[0] = 0.0;
-            envelope[0] = 1.0;
-            std::copy(recall.begin(), recall.end(), envelope_recall.begin() + 1);
-            std::copy(precision.begin(), precision.end(), envelope.begin() + 1);
-            envelope_recall[count + 1] = count == 0 ? 1.0 : recall[count - 1];
-            envelope_recall[count + 2] = 1.0;
-            envelope[count + 1] = 0.0;
-            envelope[count + 2] = 0.0;
-
-            for (std::size_t at = count + 2; at-- > 0;)
-                envelope[at] = std::max(envelope[at], envelope[at + 1]);
-
-            double strips[K_RECALL_POINTS - 1];
-            double previous = interpolate(0.0, envelope_recall, envelope, 1.0, 0.0);
-            for (std::size_t point = 1; point < K_RECALL_POINTS; ++point)
-            {
-                const double width =
-                    grid_point(point, K_RECALL_POINTS) - grid_point(point - 1, K_RECALL_POINTS);
-                const double next = interpolate(grid_point(point, K_RECALL_POINTS),
-                                                envelope_recall, envelope, 1.0, 0.0);
-                strips[point - 1] = width * (next + previous) / 2.0;
-                previous = next;
-            }
-            return sum_pairwise(strips, K_RECALL_POINTS - 1);
+            return integrate_envelope(recall, precision);
         }
 
-        void AveragePrecision::add_image(SushiRuntime::span<const float> detections,
-                                         SushiRuntime::span<const float> truth_boxes,
-                                         SushiRuntime::span<const std::int64_t> truth_classes)
+        
+        Status AveragePrecision::add_image(SushiRuntime::span<const float> detections,
+                                           SushiRuntime::span<const float> truth_boxes,
+                                           SushiRuntime::span<const std::int64_t> truth_classes)
         {
-            check_image(detections, truth_boxes, truth_classes);
+            SA_TRY(check_image(detections, truth_boxes, truth_classes));
 
             const std::size_t count = detections.size() / K_DETECTION_VALUES;
             const std::size_t held = scores_.size();
@@ -453,6 +475,7 @@ namespace SushiAI
                                                         truth_classes.end())))
                 image_classes_.push_back(entry.label);
             ++images_;
+            return Status();
         }
 
         MetricsSummary AveragePrecision::summarize() const

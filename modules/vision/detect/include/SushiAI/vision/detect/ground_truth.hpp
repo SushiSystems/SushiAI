@@ -60,16 +60,17 @@ namespace SushiAI
 
         /**
          * @brief Pads label rows into per-image arrays and converts the boxes to pixel corners.
-         * @param batch Images in the batch; every image index must be below it.
+         * @param batch Images in the batch.
          * @param image_width Input width in pixels; scales x and width.
          * @param image_height Input height in pixels; scales y and height.
-         * @see modules/vision/detect/README.md
+         * @return InvalidDescription for a batch below 1, arrays of unequal row counts or a row
+         *         that names an image outside the batch.
          */
-        void pad_ground_truth(const GroundTruthRows& rows,
-                              std::int64_t batch,
-                              float image_width,
-                              float image_height,
-                              GroundTruthBatch& padded);
+        [[nodiscard]] Status pad_ground_truth(const GroundTruthRows& rows,
+                                              std::int64_t batch,
+                                              float image_width,
+                                              float image_height,
+                                              GroundTruthBatch& padded);
 
     } // namespace Vision::Detect
 } // namespace SushiAI

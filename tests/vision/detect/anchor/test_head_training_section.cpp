@@ -44,6 +44,7 @@
 
 namespace
 {
+    using SushiAI::Test::require_value;
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Vision::Detect::BoxGradient;
@@ -79,7 +80,7 @@ namespace
     /** @brief Parses @p text as an objective section. */
     Value section_from(std::string_view text)
     {
-        return SushiAI::Config::parse_json(text, "<test>");
+        return require_value(SushiAI::Config::parse_json(text, "<test>"));
     }
 
     /** @brief Parses the section that states the one member @p member, as JSON text. */
@@ -238,13 +239,20 @@ TEST(Small_DetectAnchorTrainingSection, WritesTheTypeEveryKeyInOrderAndAFloatAsI
                                         "box_weight", "object_weight", "max_delta",
                                         "class_gate", "box_gain", "class_gain",
                                         "objectness_gain"}));
-    EXPECT_EQ(section.at("type", "objective").as_string("type"), K_ANCHOR_OBJECTIVE_TYPE);
-    EXPECT_EQ(section.at("box_loss", "objective").as_string("box_loss"), "complete_iou");
+    EXPECT_EQ(require_value(require_value(section.at("type", "objective")).as_string("type")),
+              K_ANCHOR_OBJECTIVE_TYPE);
+    EXPECT_EQ(require_value(require_value(section.at("box_loss",
+                                                     "objective")).as_string("box_loss")),
+              "complete_iou");
 
     // The tolerance is zero: a float widens to exactly one double.
-    EXPECT_EQ(section.at("match_threshold", "objective").as_real("match_threshold"),
+    EXPECT_EQ(require_value(require_value(section.at("match_threshold",
+                                                     "objective")).as_real("match_threshold")),
+              
               static_cast<double>(0.213f));
-    EXPECT_EQ(section.at("box_weight", "objective").as_real("box_weight"),
+    EXPECT_EQ(require_value(require_value(section.at("box_weight",
+                                                     "objective")).as_real("box_weight")),
+              
               static_cast<double>(0.07f));
 }
 
@@ -255,25 +263,37 @@ TEST(Small_DetectAnchorTrainingSection, ReadsAndWritesEachEnumeratorString)
 
     options.box_loss = BoxLoss::SquaredError;
     SA_ASSERT_OK_AND_ASSIGN(const Value squared, write_head_training_section(options));
-    EXPECT_EQ(squared.at("box_loss", "objective").as_string("box_loss"), "squared_error");
+    EXPECT_EQ(require_value(require_value(squared.at("box_loss",
+                                                     "objective")).as_string("box_loss")),
+              "squared_error");
     options.box_loss = BoxLoss::CompleteIoU;
     SA_ASSERT_OK_AND_ASSIGN(const Value complete, write_head_training_section(options));
-    EXPECT_EQ(complete.at("box_loss", "objective").as_string("box_loss"), "complete_iou");
+    EXPECT_EQ(require_value(require_value(complete.at("box_loss",
+                                                      "objective")).as_string("box_loss")),
+              "complete_iou");
 
     options.box_gradient = BoxGradient::Analytic;
     SA_ASSERT_OK_AND_ASSIGN(const Value analytic, write_head_training_section(options));
-    EXPECT_EQ(analytic.at("box_gradient", "objective").as_string("box_gradient"), "analytic");
+    EXPECT_EQ(require_value(require_value(analytic.at("box_gradient",
+                                                      "objective")).as_string("box_gradient")),
+              "analytic");
     options.box_gradient = BoxGradient::DarknetCompatible;
     SA_ASSERT_OK_AND_ASSIGN(const Value compatible, write_head_training_section(options));
-    EXPECT_EQ(compatible.at("box_gradient", "objective").as_string("box_gradient"),
+    EXPECT_EQ(require_value(require_value(compatible.at("box_gradient",
+                                                        "objective")).as_string("box_gradient")),
+              
               "darknet_compatible");
 
     options.objectness_target = ObjectnessTarget::One;
     SA_ASSERT_OK_AND_ASSIGN(const Value one, write_head_training_section(options));
-    EXPECT_EQ(one.at("objectness_target", "objective").as_string("objectness_target"), "one");
+    EXPECT_EQ(require_value(require_value(one.at("objectness_target",
+                                                 "objective")).as_string("objectness_target")),
+              "one");
     options.objectness_target = ObjectnessTarget::BestIoU;
     SA_ASSERT_OK_AND_ASSIGN(const Value best, write_head_training_section(options));
-    EXPECT_EQ(best.at("objectness_target", "objective").as_string("objectness_target"),
+    EXPECT_EQ(require_value(require_value(best.at("objectness_target",
+                                                  "objective")).as_string("objectness_target")),
+              
               "best_iou");
 
     SA_ASSERT_OK_AND_ASSIGN(

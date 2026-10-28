@@ -32,7 +32,7 @@
 #include <cmath>
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/vision/detect/box_format.hpp>
 
 namespace SushiAI
@@ -83,10 +83,10 @@ namespace SushiAI
                 return overlap;
             }
 
-            /** @brief Throws unless two `[N, 4]` inputs and an `[N]` output were given. */
+            /** @brief Stops the process unless `[N, 4]`, `[N, 4]` and `[N]` arrays were given. */
             void check_elementwise(std::size_t size1, std::size_t size2, std::size_t output_size)
             {
-                SA_THROW_IF(size1 % K_BOX_VALUES != 0 || size2 != size1 ||
+                SA_FATAL_IF(size1 % K_BOX_VALUES != 0 || size2 != size1 ||
                                 output_size != size1 / K_BOX_VALUES,
                             "an elementwise IoU needs two [N, 4] inputs and an [N] output; got "
                             "{}, {} and {} values",
@@ -156,7 +156,7 @@ namespace SushiAI
         {
             const std::size_t count1 = boxes1.size() / K_BOX_VALUES;
             const std::size_t count2 = boxes2.size() / K_BOX_VALUES;
-            SA_THROW_IF(boxes1.size() % K_BOX_VALUES != 0 || boxes2.size() % K_BOX_VALUES != 0 ||
+            SA_FATAL_IF(boxes1.size() % K_BOX_VALUES != 0 || boxes2.size() % K_BOX_VALUES != 0 ||
                             ious.size() != count1 * count2,
                         "a pairwise IoU needs [N, 4] and [M, 4] inputs and an [N, M] output; got "
                         "{}, {} and {} values",

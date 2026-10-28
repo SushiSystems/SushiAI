@@ -33,6 +33,9 @@
 
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
+
 namespace SushiAI
 {
     namespace Vision::Detect::Free
@@ -53,25 +56,31 @@ namespace SushiAI
 
         /**
          * @brief Returns the number of anchors over @p levels, one per cell.
+         * @return The count, or InvalidDescription for a level without cells or without a
+         *         positive stride.
          * @see modules/vision/detect/README.md
          */
-        [[nodiscard]] std::int64_t count_anchors(SushiRuntime::span<const FeatureLevel> levels);
+        [[nodiscard]] Result<std::int64_t> count_anchors(
+            SushiRuntime::span<const FeatureLevel> levels);
 
         /**
          * @brief Writes each anchor's cell centre in grid units and its stride.
          * @param points Receives `[A, 2]` as x then y, levels in order, row-major in a level.
          * @param strides Receives `[A]`.
+         * @return InvalidDescription for a level count_anchors() refuses.
+         * @pre @p points and @p strides hold [A, 2] and [A] values.
          * @see modules/vision/detect/README.md
          */
-        void make_anchors(SushiRuntime::span<const FeatureLevel> levels,
-                          SushiRuntime::span<float> points,
-                          SushiRuntime::span<float> strides);
+        [[nodiscard]] Status make_anchors(SushiRuntime::span<const FeatureLevel> levels,
+                                          SushiRuntime::span<float> points,
+                                          SushiRuntime::span<float> strides);
 
         /**
          * @brief Multiplies each anchor point by its stride, which gives the point in pixels.
          * @param points `[A, 2]` in grid units.
          * @param strides `[A]`.
          * @param scaled Receives `[A, 2]`; may be @p points.
+         * @pre The spans hold [A, 2], [A] and [A, 2] values.
          */
         void scale_points(SushiRuntime::span<const float> points,
                           SushiRuntime::span<const float> strides,

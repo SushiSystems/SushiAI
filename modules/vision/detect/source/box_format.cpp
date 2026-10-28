@@ -30,7 +30,7 @@
 
 #include <cstddef>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -38,10 +38,10 @@ namespace SushiAI
     {
         namespace
         {
-            /** @brief Throws unless both arrays hold the same whole number of boxes. */
+            /** @brief Stops the process unless both arrays hold the same whole number of boxes. */
             void check_box_arrays(std::size_t source_size, std::size_t converted_size)
             {
-                SA_THROW_IF(source_size % K_BOX_VALUES != 0 || converted_size != source_size,
+                SA_FATAL_IF(source_size % K_BOX_VALUES != 0 || converted_size != source_size,
                             "a box conversion needs [N, 4] input and output; got {} and {} values",
                             source_size, converted_size);
             }
