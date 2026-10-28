@@ -28,10 +28,12 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -43,16 +45,31 @@ using Graph::DTypeMismatch;
 using Graph::GraphBuilder;
 using Graph::ValueID;
 
+namespace
+{
+    /** @brief A policy that asks every operation to compute in a 32-bit integer. */
+    class IntegerPolicy final : public Graph::PrecisionPolicy
+    {
+        public:
+            Graph::PrecisionChoice choose(const Graph::PrecisionQuery&) const override
+            {
+                return Graph::PrecisionChoice{DType::Int32, "integer"};
+            }
+
+            std::string_view name() const noexcept override { return "integer"; }
+    };
+}
+
 /** @brief Tests that a pass with nothing to convert reports no cast and the short summary. */
 TEST(Small_CastInsertion, APassWithNothingToConvertGivesTheShortReport)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2, 3}, "x");
-    builder.relu(x);
+    SA_EXPECT_OK(builder.relu(x));
     const std::size_t nodes = graph.node_count();
 
-    const CastReport report = Graph::insert_casts(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(graph));
 
     EXPECT_EQ(report.count(), 0u);
     EXPECT_EQ(report.count_into(DType::Half), 0u);
@@ -73,7 +90,7 @@ TEST(Small_CastInsertion, AGraphAlreadyNarrowHasNoMismatchUnderTheMixedPolicy)
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{4, 3}, "x", DType::Half);
     const ValueID w = builder.parameter(Shape{5, 3}, "w", DType::Half);
-    builder.matmul(x, w, false, true);
+    SA_EXPECT_OK(builder.matmul(x, w, false, true));
 
     const Graph::MixedPrecisionPolicy policy;
 
@@ -98,4 +115,37 @@ TEST(Small_CastInsertion, TheDescriptionNamesTheNodeTheTypesAndTheSide)
 
     mismatch.is_result = false;
     EXPECT_NE(Graph::describe(mismatch).find("its operand value 7"), std::string::npos);
+}
+
+/** @brief Tests that a policy asking for a non-float conversion is refused and changes nothing. */
+TEST(Small_CastInsertion, APolicyAskingForAnIntegerConversionIsRefused)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2, 3}, "x");
+    SA_EXPECT_OK(builder.relu(x));
+    const std::size_t nodes = graph.node_count();
+    const std::size_t values = graph.value_count();
+
+    const IntegerPolicy policy;
+    Graph::CastOptions options;
+    options.policy = &policy;
+
+    SA_EXPECT_FAILURE(Graph::insert_casts(graph, options), StatusCode::InvalidDescription,
+                      Ops::name_of(Ops::K_RELU.id), dtype_name(DType::Float32),
+                      dtype_name(DType::Int32), "real floating types");
+    EXPECT_EQ(graph.node_count(), nodes);
+    EXPECT_EQ(graph.value_count(), values);
+}
+
+/** @brief Tests that a node writing no value stops the process. */
+TEST(Small_CastInsertion, ANodeWithoutAResultIsFatal)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2, 3}, "x");
+    graph.add_node(Ops::K_RELU.id, {x}, {});
+
+    SA_EXPECT_FATAL((void)Graph::insert_casts(graph), Ops::name_of(Ops::K_RELU.id),
+                    "declares no result");
 }

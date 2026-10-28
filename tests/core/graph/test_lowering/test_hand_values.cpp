@@ -95,8 +95,9 @@ TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
     const ValueID w = builder.input(Shape{3, 2}, "w");
     const ValueID b = builder.input(Shape{3}, "b");
 
-    const ValueID y = builder.bias_add(builder.matmul(x, w, false, true), b);
-    const ValueID z = builder.relu(y);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                            builder.bias_add(builder.matmul(x, w, false, true), b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID z, builder.relu(y));
 
     OneShot run(*engine, graph);
 
@@ -126,7 +127,7 @@ TEST_F(Medium_Forward, SumRowsProducesColumnSums)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{3, 2}, "x");
-    const ValueID sums = builder.sum_rows(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.sum_rows(x));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6});
@@ -146,7 +147,7 @@ TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{3, 4}, "x");
-    const ValueID y = builder.reshape(x, Shape{2, 6});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.reshape(x, Shape{2, 6}));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
@@ -167,7 +168,7 @@ TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
 
     // N=1, H=1, W=2, C=3: small enough to hand-trace every element's move.
     const ValueID x = builder.input(Shape{1, 1, 2, 3}, "x");
-    const ValueID y = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
     OneShot run(*engine, graph);
 
@@ -193,11 +194,11 @@ TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
     const ValueID a = builder.input(Shape{2, 2}, "a");
     const ValueID b = builder.input(Shape{2, 2}, "b");
 
-    const ValueID sum = builder.add(a, b);
-    const ValueID difference = builder.sub(a, b);
-    const ValueID product = builder.mul(a, b);
-    const ValueID scaled = builder.scale(a, -2.5);
-    const ValueID exponent = builder.exp(b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.mul(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(a, -2.5));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(b));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
@@ -237,10 +238,10 @@ TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 4}, "x");
-    const ValueID r = builder.relu(x);
-    const ValueID s = builder.sigmoid(x);
-    const ValueID t = builder.tanh(x);
-    const ValueID lr = builder.leaky_relu(x, 0.1);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID r, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID s, builder.sigmoid(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID t, builder.tanh(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID lr, builder.leaky_relu(x, 0.1));
 
     OneShot run(*engine, graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
@@ -276,7 +277,7 @@ TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{2, 3}, "x");
-    const ValueID l = builder.log_softmax(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
     OneShot run(*engine, graph);
     // Row two is row one shifted by a constant; see tests/core/graph/README.md.
@@ -311,7 +312,7 @@ TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
 
     const ValueID x = builder.input(Shape{4, 5}, "x");
     const ValueID targets = builder.input(Shape{4, 5}, "targets");
-    const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(builder.log_softmax(x), targets));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>(20, 0.0));
@@ -333,7 +334,7 @@ TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
 
     const ValueID x = builder.input(Shape{1, 3}, "x");
     const ValueID targets = builder.input(Shape{1, 3}, "targets");
-    const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(builder.log_softmax(x), targets));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0});
@@ -353,7 +354,7 @@ TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
 
     const ValueID a = builder.input(Shape{4}, "a");
     const ValueID b = builder.input(Shape{4}, "b");
-    const ValueID total = builder.accumulate(a, b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID total, builder.accumulate(a, b));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
@@ -379,7 +380,7 @@ TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
 
     const ValueID zeros = builder.zeros(Shape{2, 3}, DType::Float32);
     const ValueID bias = builder.input(Shape{3}, "bias");
-    const ValueID broadcast = builder.bias_add(zeros, bias);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID broadcast, builder.bias_add(zeros, bias));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(bias), std::vector<double>{1.0, -2.0, 3.0});
@@ -406,7 +407,7 @@ TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueID cols = builder.im2col(x, g);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -431,7 +432,7 @@ TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueID image = builder.col2im(cols, Shape{1, 3, 3, 1}, g);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID image, builder.col2im(cols, Shape{1, 3, 3, 1}, g));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
@@ -457,7 +458,7 @@ TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDe
     Graph::ConvGeometry g;
     g.kernel_h = 3; g.kernel_w = 3;
     g.pad_top = 1;  g.pad_left = 1;
-    const ValueID cols = builder.im2col_with_extents(x, g, 5, 4);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col_with_extents(x, g, 5, 4));
 
     OneShot run(*engine, graph);
     std::vector<double> image(20);
@@ -506,7 +507,7 @@ TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, g));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -527,12 +528,16 @@ TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 
     // Values 1..8 are distinct, in NHWC order; see tests/core/graph/README.md.
     const ValueID x = builder.input(Shape{1, 2, 2, 2}, "x");
-    const ValueID nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
-    const ValueID back = builder.layout_convert(nchw, Graph::TensorLayout::NHWC);
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID back,
+                            builder.layout_convert(nchw, Graph::TensorLayout::NHWC));
+    SA_EXPECT_OK(graph.finalise());
 
-    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
-    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+    SA_EXPECT_OK(Graph::insert_casts(graph, Graph::CastOptions{}));
+    const Graph::FusionReport fusion = Graph::fuse(graph, Graph::FusionOptions{});
+    ASSERT_TRUE(fusion.enabled());
+    ASSERT_EQ(fusion.nodes_after(), graph.node_count());
 
     // Extents match only because H, W and C are 2; see tests/core/graph/README.md.
     EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
@@ -573,20 +578,24 @@ TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradi
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
 
-    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
-    const ValueID logits = builder.spatial_mean(pooled.output);
-    const ValueID loss = builder.nll_loss(builder.log_softmax(logits), target);
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, g));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits, builder.spatial_mean(pooled.output));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            builder.nll_loss(builder.log_softmax(logits), target));
+    SA_EXPECT_OK(graph.finalise());
 
     const std::array<ValueID, 1> wrt = {x};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_EQ(graph.value(pooled.indices).dtype, DType::Int64);
 
-    ASSERT_NO_THROW(Graph::insert_casts(graph, Graph::CastOptions{}));
-    ASSERT_NO_THROW(Graph::fuse(graph, Graph::FusionOptions{}));
+    SA_EXPECT_OK(Graph::insert_casts(graph, Graph::CastOptions{}));
+    const Graph::FusionReport fusion = Graph::fuse(graph, Graph::FusionOptions{});
+    ASSERT_TRUE(fusion.enabled());
+    ASSERT_EQ(fusion.nodes_after(), graph.node_count());
 
     EXPECT_EQ(graph.value(pooled.indices).dtype, DType::Int64)
         << "the pass retyped the index buffer, so the backward is routing gradients by "
@@ -625,7 +634,7 @@ TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
 
     Graph::ConvGeometry g;
     g.kernel_h = 2; g.kernel_w = 2;
-    const ValueID pooled = builder.avgpool2d(x, g);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID pooled, builder.avgpool2d(x, g));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -645,7 +654,7 @@ TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 1, 1, 1}, "x");
-    const ValueID up = builder.upsample2d(x, 2, 2);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID up, builder.upsample2d(x, 2, 2));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
@@ -667,7 +676,7 @@ TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
-    const ValueID mean = builder.spatial_mean(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID mean, builder.spatial_mean(x));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
@@ -689,8 +698,9 @@ TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
     const ValueID left = builder.input(Shape{1, 1, 1, 1}, "left");
     const ValueID right = builder.input(Shape{1, 1, 1, 1}, "right");
     const std::array<ValueID, 2> parts = {left, right};
-    const ValueID cat = builder.concat_channels(
-        SushiRuntime::span<const ValueID>(parts.data(), parts.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID cat,
+                            builder.concat_channels(
+                                SushiRuntime::span<const ValueID>(parts.data(), parts.size())));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
@@ -713,7 +723,7 @@ TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 1, 1, 4}, "x");
-    const ValueID sliced = builder.slice_channels(x, 1, 2);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sliced, builder.slice_channels(x, 1, 2));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
@@ -737,7 +747,7 @@ TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     const ValueID x = builder.input(Shape{1, 1, 2, 2}, "x");
     const ValueID gamma = builder.input(Shape{2}, "gamma");
     const ValueID beta = builder.input(Shape{2}, "beta");
-    const ValueID y = builder.channel_affine(x, gamma, beta);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.channel_affine(x, gamma, beta));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
@@ -766,7 +776,8 @@ TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     const ValueID x = builder.input(Shape{2, 2, 1, 2}, "x");
     const ValueID gamma = builder.input(Shape{2}, "gamma");
     const ValueID beta = builder.input(Shape{2}, "beta");
-    const Graph::BatchNormResult bn = builder.batchnorm2d(x, gamma, beta, K_EPSILON);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult bn,
+                            builder.batchnorm2d(x, gamma, beta, K_EPSILON));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 10, 2, 20, 3, 30, 4, 40});
@@ -811,7 +822,7 @@ TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbag
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{2, 2}, "x");
-    (void)builder.relu(x);
+    SA_EXPECT_OK(builder.relu(x));
 
     TensorPool pool(*engine);
     SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),

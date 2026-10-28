@@ -88,7 +88,7 @@ TEST(Small_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
     const ValueID a = builder.input(Shape{3, 4}, "a");
     const ValueID b = builder.input(Shape{5, 4}, "b");
 
-    const ValueID out = builder.matmul(a, b, false, true);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(a, b, false, true));
 
     EXPECT_EQ(graph.value(out).shape, Shape({3, 5}));
     const Graph::Node& node = producer_of(graph, out);
@@ -111,7 +111,7 @@ TEST(Small_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
         const ValueID a = builder.input(transpose_a ? Shape{2, 4, 3} : Shape{2, 3, 4}, "a");
         const ValueID b = builder.input(transpose_b ? Shape{2, 5, 4} : Shape{2, 4, 5}, "b");
 
-        const ValueID out = builder.matmul(a, b, transpose_a, transpose_b);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(a, b, transpose_a, transpose_b));
 
         EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 5})) << "flags " << flags;
         const Graph::Node& node = producer_of(graph, out);
@@ -130,7 +130,7 @@ TEST(Small_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
     const ValueID a = builder.input(Shape{7, 2, 3}, "a");
     const ValueID b = builder.input(Shape{7, 3, 6}, "b");
 
-    const ValueID out = builder.matmul(a, b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(a, b));
 
     EXPECT_EQ(graph.value(out).shape, Shape({7, 2, 6}));
     EXPECT_EQ(graph.value(out).layout, graph.value(a).layout);
@@ -149,10 +149,10 @@ TEST(Small_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
     const ValueID quad_b = builder.input(Shape{2, 4, 5, 1}, "quad_b");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.matmul(matrix, batch), Error);
-    EXPECT_THROW((void)builder.matmul(batch, matrix), Error);
-    EXPECT_THROW((void)builder.matmul(vector, batch), Error);
-    EXPECT_THROW((void)builder.matmul(quad_a, quad_b), Error);
+    SA_EXPECT_FAILURE(builder.matmul(matrix, batch), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(batch, matrix), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(vector, batch), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(quad_a, quad_b), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -166,8 +166,8 @@ TEST(Small_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
     const ValueID wrong_inner = builder.input(Shape{2, 5, 3}, "wrong_inner");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.matmul(a, other_batch), Error);
-    EXPECT_THROW((void)builder.matmul(a, wrong_inner), Error);
+    SA_EXPECT_FAILURE(builder.matmul(a, other_batch), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(a, wrong_inner), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -179,7 +179,7 @@ TEST(Small_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
     const ValueID x = builder.input(Shape{2, 3, 3}, "x");
     const std::size_t nodes_before = graph.node_count();
 
-    const ValueID out = builder.softmax(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.softmax(x));
 
     ASSERT_EQ(graph.node_count(), nodes_before + 4);
     const Graph::Node& last = producer_of(graph, out);
@@ -209,7 +209,7 @@ TEST(Small_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{4, 5}, "x");
 
-    const ValueID out = builder.softmax(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.softmax(x));
 
     EXPECT_EQ(graph.value(out).shape, Shape({4, 5}));
     const Graph::Node& exp_node = producer_of(graph, producer_of(graph, out).inputs[0]);
@@ -225,7 +225,7 @@ TEST(Small_BatchedMatmul, SoftmaxRefusesRankBelowTwo)
     const ValueID vector = builder.input(Shape{5}, "vector");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.softmax(vector), Error);
+    SA_EXPECT_FAILURE(builder.softmax(vector), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -251,7 +251,7 @@ TEST(Small_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
     const GraphBuilder builder(graph);
     const ValueID scores = builder.input(Shape{2, 5, 5}, "scores", DType::Float64);
 
-    const Traced out = builder.causal_mask(scores, K_FILL);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.causal_mask(scores, K_FILL));
 
     SA_EXPECT_OK(out);
     ASSERT_TRUE(out.has_value());
@@ -274,8 +274,8 @@ TEST(Small_CausalMaskOps, TheMaskAcceptsAnyNumberOfLeadingAxes)
     const ValueID matrix = builder.input(Shape{3, 3}, "matrix");
     const ValueID heads = builder.input(Shape{2, 4, 3, 3}, "heads");
 
-    const Traced one = builder.causal_mask(matrix, K_FILL);
-    const Traced many = builder.causal_mask(heads, K_FILL);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced one, builder.causal_mask(matrix, K_FILL));
+    SA_ASSERT_OK_AND_ASSIGN(const Traced many, builder.causal_mask(heads, K_FILL));
 
     ASSERT_TRUE(one.has_value());
     ASSERT_TRUE(many.has_value());
@@ -317,7 +317,7 @@ namespace
     }
 
     /** @brief Declares a rank-4 input and converts it to NCHW; the extents survive the permute. */
-    ValueID nchw_input(const GraphBuilder& builder, std::string_view debug_name,
+    Traced nchw_input(const GraphBuilder& builder, std::string_view debug_name,
                        DType dtype = DType::Float32)
     {
         const ValueID nhwc = builder.input(Shape{2, 5, 5, 3}, debug_name, dtype);
@@ -347,7 +347,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dWritesItsIdentityOverInputAndTapsInOrder
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
-    const ValueID out = builder.depthwise_conv2d(x, w, same_3x3());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.depthwise_conv2d(x, w, same_3x3()));
 
     expect_produced_by(graph, out, Ops::K_DEPTHWISE_CONV2D.id, {x, w});
 }
@@ -361,12 +361,14 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dYieldsTheWindowGridOverThePaddedInput)
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
     Graph::ConvGeometry unit = same_3x3();
-    EXPECT_EQ(graph.value(builder.depthwise_conv2d(x, w, unit)).shape, Shape({2, 5, 5, 3}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID unit_out, builder.depthwise_conv2d(x, w, unit));
+    EXPECT_EQ(graph.value(unit_out).shape, Shape({2, 5, 5, 3}));
 
     Graph::ConvGeometry strided = same_3x3();
     strided.stride_h = 2;
     strided.stride_w = 2;
-    EXPECT_EQ(graph.value(builder.depthwise_conv2d(x, w, strided)).shape, Shape({2, 3, 3, 3}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID strided_out, builder.depthwise_conv2d(x, w, strided));
+    EXPECT_EQ(graph.value(strided_out).shape, Shape({2, 3, 3, 3}));
 }
 
 /** @brief Tests that the forward emitter keeps the input's layout, element type and lifetime. */
@@ -377,7 +379,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
 
-    const ValueID out = builder.depthwise_conv2d(x, w, same_3x3());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.depthwise_conv2d(x, w, same_3x3()));
 
     EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(out).dtype, DType::Float64);
@@ -398,7 +400,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
     g.pad_top = 1;
     g.pad_left = 2;
 
-    const ValueID out = builder.depthwise_conv2d(x, w, g);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.depthwise_conv2d(x, w, g));
 
     const Graph::Node& node = graph.node(graph.value(out).producer);
     const double expected[8] = {3.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0};
@@ -415,7 +417,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
     const ValueID w = builder.parameter(Shape{3, 3, 3, 1}, "w");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, w, same_3x3()), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -430,9 +432,12 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount
     const ValueID narrow = builder.parameter(Shape{3, 3, 4}, "narrow");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, tall, same_3x3()), Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, wide, same_3x3()), Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, narrow, same_3x3()), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, tall, same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, wide, same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, narrow, same_3x3()),
+                      StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -441,10 +446,10 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID x = nchw_input(builder, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, nchw_input(builder, "x"));
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, w, same_3x3()), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the forward emitter refuses taps of another element type. */
@@ -455,7 +460,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherDType)
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float32);
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w", DType::Float64);
 
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, w, same_3x3()), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, w, same_3x3()), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the forward emitter refuses a window that does not fit the padded input. */
@@ -470,7 +475,7 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesAWindowThatDoesNotFit)
     unpadded.pad_top = 0;
     unpadded.pad_left = 0;
 
-    EXPECT_THROW((void)builder.depthwise_conv2d(x, w, unpadded), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, w, unpadded), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the input-gradient emitter writes its identity over [gradient, taps]. */
@@ -481,8 +486,9 @@ TEST(Small_DepthwiseOps, BackwardInputWritesItsIdentityOverGradientAndTapsInOrde
     const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
 
-    const ValueID dx =
-        builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3}, same_3x3());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx,
+                            builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3},
+                                                                    same_3x3()));
 
     expect_produced_by(graph, dx, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, {dy, w});
 }
@@ -499,7 +505,9 @@ TEST(Small_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
     strided.stride_h = 2;
     strided.stride_w = 2;
 
-    const ValueID dx = builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3}, strided);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx,
+                            builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3},
+                                                                    strided));
 
     EXPECT_EQ(graph.value(dx).shape, Shape({2, 5, 5, 3}));
     EXPECT_EQ(graph.value(dx).layout, Graph::TensorLayout::NHWC);
@@ -517,13 +525,15 @@ TEST(Small_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_input(short_grid, w, Shape{2, 5, 5, 3},
-                                                               same_3x3()), Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_input(wide_channels, w,
-                                                               Shape{2, 5, 5, 3}, same_3x3()),
-                 Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_input(flat, w, Shape{2, 5, 5, 3},
-                                                               same_3x3()), Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(short_grid, w, Shape{2, 5, 5, 3},
+                                                              same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(wide_channels, w, Shape{2, 5, 5, 3},
+                                                              same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(flat, w, Shape{2, 5, 5, 3},
+                                                              same_3x3()),
+                      StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -535,7 +545,8 @@ TEST(Small_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOr
     const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
 
-    const ValueID dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dw,
+                            builder.depthwise_conv2d_backward_weight(dy, x, same_3x3()));
 
     expect_produced_by(graph, dw, Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id, {dy, x});
 }
@@ -548,7 +559,8 @@ TEST(Small_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
     const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy", DType::Float64);
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x", DType::Float64);
 
-    const ValueID dw = builder.depthwise_conv2d_backward_weight(dy, x, same_3x3());
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dw,
+                            builder.depthwise_conv2d_backward_weight(dy, x, same_3x3()));
 
     EXPECT_EQ(graph.value(dw).shape, Shape({3, 3, 3}));
     EXPECT_EQ(graph.value(dw).layout, Graph::TensorLayout::NHWC);
@@ -568,13 +580,14 @@ TEST(Small_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
     const ValueID rank_three = builder.input(Shape{2, 5, 3}, "rank_three");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_weight(dy, other_batch, same_3x3()),
-                 Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_weight(dy, other_channels, same_3x3()),
-                 Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_weight(dy, wide, same_3x3()), Error);
-    EXPECT_THROW((void)builder.depthwise_conv2d_backward_weight(rank_three, dy, same_3x3()),
-                 Error);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, other_batch, same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, other_channels, same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, wide, same_3x3()),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(rank_three, dy, same_3x3()),
+                      StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -583,17 +596,27 @@ namespace
     /** @brief Names one two-operand emitter and the identity it must write. */
     struct BinaryEmitter
     {
-        std::string_view name;                                   /**< @brief Label for a failure. */
-        OpID op;                                                 /**< @brief Expected identity. */
-        ValueID (GraphBuilder::*emit)(ValueID, ValueID) const;   /**< @brief The emitter. */
+        /** @brief Label for a failure. */
+        std::string_view name;
+
+        /** @brief Expected identity. */
+        OpID op;
+
+        /** @brief The emitter. */
+        Traced (GraphBuilder::*emit)(const Traced&, const Traced&) const;
     };
 
     /** @brief Names one single-operand emitter and the identity it must write. */
     struct UnaryEmitter
     {
-        std::string_view name;                          /**< @brief Label for a failure. */
-        OpID op;                                        /**< @brief Expected identity. */
-        ValueID (GraphBuilder::*emit)(ValueID) const;   /**< @brief The emitter. */
+        /** @brief Label for a failure. */
+        std::string_view name;
+
+        /** @brief Expected identity. */
+        OpID op;
+
+        /** @brief The emitter. */
+        Traced (GraphBuilder::*emit)(const Traced&) const;
     };
 
     /** @brief Lists every two-operand emitter under test. */
@@ -619,8 +642,8 @@ namespace
     }};
 
     /** @brief Declares a rank-4 input and converts it to NCHW; the extents survive the permute. */
-    ValueID small_nchw_input(const GraphBuilder& builder, std::string_view debug_name,
-                             DType dtype = DType::Float32)
+    Traced small_nchw_input(const GraphBuilder& builder, std::string_view debug_name,
+                            DType dtype = DType::Float32)
     {
         const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, debug_name, dtype);
         return builder.layout_convert(nhwc, Graph::TensorLayout::NCHW);
@@ -648,7 +671,7 @@ TEST(Small_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrd
         const ValueID a = builder.input(Shape{4, 3}, "a");
         const ValueID b = builder.input(Shape{4, 3}, "b");
 
-        const ValueID out = (builder.*emitter.emit)(a, b);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
 
         expect_produced_by(graph, out, emitter.op, {a, b});
     }
@@ -663,10 +686,10 @@ TEST(Small_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueID a = small_nchw_input(builder, "a", DType::Float64);
-        const ValueID b = small_nchw_input(builder, "b", DType::Float64);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a", DType::Float64));
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b", DType::Float64));
 
-        const ValueID out = (builder.*emitter.emit)(a, b);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
 
         expect_described_like(graph, out, a);
         EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
@@ -688,9 +711,9 @@ TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
         const ValueID row = builder.input(Shape{3}, "row");
         const std::size_t nodes_before = graph.node_count();
 
-        EXPECT_THROW((void)(builder.*emitter.emit)(matrix, column), Error);
-        EXPECT_THROW((void)(builder.*emitter.emit)(column, matrix), Error);
-        EXPECT_THROW((void)(builder.*emitter.emit)(matrix, row), Error);
+        SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, column), StatusCode::InvalidDescription);
+        SA_EXPECT_FAILURE((builder.*emitter.emit)(column, matrix), StatusCode::InvalidDescription);
+        SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, row), StatusCode::InvalidDescription);
         EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
     }
 }
@@ -707,8 +730,8 @@ TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
         const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
         const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
-        EXPECT_THROW((void)(builder.*emitter.emit)(single, wide), Error);
-        EXPECT_THROW((void)(builder.*emitter.emit)(wide, single), Error);
+        SA_EXPECT_FAILURE((builder.*emitter.emit)(single, wide), StatusCode::InvalidDescription);
+        SA_EXPECT_FAILURE((builder.*emitter.emit)(wide, single), StatusCode::InvalidDescription);
     }
 }
 
@@ -722,7 +745,8 @@ TEST(Small_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
         const ValueID a = builder.input(Shape{4, 3}, "a", dtype);
         const ValueID b = builder.input(Shape{4, 3}, "b", dtype);
 
-        EXPECT_EQ(graph.value(builder.less_equal(a, b)).dtype, dtype);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID mask, builder.less_equal(a, b));
+        EXPECT_EQ(graph.value(mask).dtype, dtype);
     }
 }
 
@@ -737,7 +761,7 @@ TEST(Small_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
         const GraphBuilder builder(graph);
         const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        const ValueID out = (builder.*emitter.emit)(x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
 
         EXPECT_NE(out, x) << "the emitter must write a new value, not its operand";
         expect_produced_by(graph, out, emitter.op, {x});
@@ -753,9 +777,9 @@ TEST(Small_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueID x = small_nchw_input(builder, "x", DType::Float64);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID x, small_nchw_input(builder, "x", DType::Float64));
 
-        const ValueID out = (builder.*emitter.emit)(x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
 
         expect_described_like(graph, out, x);
         EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
@@ -772,7 +796,7 @@ TEST(Small_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
     const ValueID a = builder.input(Shape{4, 3}, "a");
     const ValueID b = builder.input(Shape{4, 3}, "b");
 
-    const ValueID out = builder.select(condition, a, b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.select(condition, a, b));
 
     expect_produced_by(graph, out, Ops::K_SELECT.id, {condition, a, b});
 }
@@ -782,11 +806,12 @@ TEST(Small_ElementwiseOps, SelectKeepsShapeDTypeAndLayout)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID condition = small_nchw_input(builder, "condition", DType::Float64);
-    const ValueID a = small_nchw_input(builder, "a", DType::Float64);
-    const ValueID b = small_nchw_input(builder, "b", DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID condition,
+                            small_nchw_input(builder, "condition", DType::Float64));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a", DType::Float64));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b", DType::Float64));
 
-    const ValueID out = builder.select(condition, a, b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.select(condition, a, b));
 
     expect_described_like(graph, out, a);
     EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
@@ -802,7 +827,7 @@ TEST(Small_ElementwiseOps, SelectRejectsAConditionOfAnotherShape)
     const ValueID b = builder.input(Shape{4, 3}, "b");
     const std::size_t nodes_before = graph.node_count();
 
-    EXPECT_THROW((void)builder.select(per_row, a, b), Error);
+    SA_EXPECT_FAILURE(builder.select(per_row, a, b), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
@@ -815,7 +840,7 @@ TEST(Small_ElementwiseOps, SelectRejectsAConditionOfAnotherDType)
     const ValueID a = builder.input(Shape{4, 3}, "a", DType::Float32);
     const ValueID b = builder.input(Shape{4, 3}, "b", DType::Float32);
 
-    EXPECT_THROW((void)builder.select(condition, a, b), Error);
+    SA_EXPECT_FAILURE(builder.select(condition, a, b), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that SELECT refuses two branches of unequal shape. */
@@ -827,8 +852,8 @@ TEST(Small_ElementwiseOps, SelectRejectsBranchesOfUnequalShape)
     const ValueID a = builder.input(Shape{4, 3}, "a");
     const ValueID narrow = builder.input(Shape{4, 1}, "narrow");
 
-    EXPECT_THROW((void)builder.select(condition, a, narrow), Error);
-    EXPECT_THROW((void)builder.select(condition, narrow, a), Error);
+    SA_EXPECT_FAILURE(builder.select(condition, a, narrow), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.select(condition, narrow, a), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that SELECT refuses two branches of unequal element type. */
@@ -840,8 +865,8 @@ TEST(Small_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
     const ValueID a = builder.input(Shape{4, 3}, "a", DType::Float32);
     const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
-    EXPECT_THROW((void)builder.select(condition, a, wide), Error);
-    EXPECT_THROW((void)builder.select(condition, wide, a), Error);
+    SA_EXPECT_FAILURE(builder.select(condition, a, wide), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.select(condition, wide, a), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that the activation-gradient emitter writes each input-reading gradient. */
@@ -856,7 +881,7 @@ TEST(Small_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
         const ValueID dy = builder.input(Shape{4, 3}, "dy");
         const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        const ValueID dx = builder.activation_backward(gradient, dy, x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID dx, builder.activation_backward(gradient, dy, x));
 
         expect_produced_by(graph, dx, gradient, {dy, x});
         expect_described_like(graph, dx, dy);
@@ -875,7 +900,8 @@ TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
         const ValueID dy = builder.input(Shape{4, 1}, "dy");
         const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        EXPECT_THROW((void)builder.activation_backward(gradient, dy, x), Error);
+        SA_EXPECT_FAILURE(builder.activation_backward(gradient, dy, x),
+                          StatusCode::InvalidDescription);
     }
 }
 
@@ -891,8 +917,10 @@ TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
         const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
         const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
-        EXPECT_THROW((void)builder.activation_backward(gradient, single, wide), Error);
-        EXPECT_THROW((void)builder.activation_backward(gradient, wide, single), Error);
+        SA_EXPECT_FAILURE(builder.activation_backward(gradient, single, wide),
+                          StatusCode::InvalidDescription);
+        SA_EXPECT_FAILURE(builder.activation_backward(gradient, wide, single),
+                          StatusCode::InvalidDescription);
     }
 }
 
@@ -904,9 +932,12 @@ TEST(Small_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivat
     const ValueID dy = builder.input(Shape{4, 3}, "dy");
     const ValueID x = builder.input(Shape{4, 3}, "x");
 
-    EXPECT_THROW((void)builder.activation_backward(Ops::K_SILU.id, dy, x), Error);
-    EXPECT_THROW((void)builder.activation_backward(Ops::K_SOFTPLUS.id, dy, x), Error);
-    EXPECT_THROW((void)builder.activation_backward(Ops::K_DIV.id, dy, x), Error);
+    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_SILU.id, dy, x),
+                    "is not an activation gradient");
+    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_SOFTPLUS.id, dy, x),
+                    "is not an activation gradient");
+    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_DIV.id, dy, x),
+                    "is not an activation gradient");
 }
 
 /** @brief Tests that Graph::finalise accepts a graph that uses every emitter in one layout. */
@@ -914,17 +945,17 @@ TEST(Small_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID a = small_nchw_input(builder, "a");
-    const ValueID b = small_nchw_input(builder, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a"));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b"));
 
-    ValueID chained = a;
+    Traced chained = a;
     for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
         chained = (builder.*emitter.emit)(chained, b);
     for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
         chained = (builder.*emitter.emit)(chained);
-    (void)builder.select(builder.less_equal(a, b), chained, b);
+    SA_EXPECT_OK(builder.select(builder.less_equal(a, b), chained, b));
 
-    EXPECT_NO_THROW(graph.finalise());
+    SA_EXPECT_OK(graph.finalise());
 }
 
 /** @brief Tests that Graph::finalise refuses an emitted node whose operands sit in two layouts. */
@@ -936,12 +967,13 @@ TEST(Small_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
 
         Graph::Graph graph;
         const GraphBuilder builder(graph);
-        const ValueID nchw = small_nchw_input(builder, "nchw");
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw, small_nchw_input(builder, "nchw"));
         const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, "nhwc");
 
         (void)(builder.*emitter.emit)(nchw, nhwc);
 
-        EXPECT_THROW(graph.finalise(), Error);
+        SA_EXPECT_FAILURE(graph.finalise(), StatusCode::InvalidDescription,
+                          "reads operands in two different layouts");
     }
 }
 
@@ -951,12 +983,13 @@ TEST(Small_ElementwiseOps, FinaliseRejectsASelectConditionInAnotherLayout)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID condition = builder.input(Shape{2, 2, 2, 2}, "condition");
-    const ValueID a = small_nchw_input(builder, "a");
-    const ValueID b = small_nchw_input(builder, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a"));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b"));
 
-    (void)builder.select(condition, a, b);
+    SA_EXPECT_OK(builder.select(condition, a, b));
 
-    EXPECT_THROW(graph.finalise(), Error);
+    SA_EXPECT_FAILURE(graph.finalise(), StatusCode::InvalidDescription,
+                      "reads operands in two different layouts");
 }
 
 /** @brief Tests that a result computed from a parameter requires a gradient after finalise. */
@@ -967,9 +1000,11 @@ TEST(Small_ElementwiseOps, ResultsOfAParameterRequireAGradient)
     const ValueID weight = builder.parameter(Shape{4, 3}, "weight");
     const ValueID constant = builder.input(Shape{4, 3}, "constant");
 
-    const ValueID from_parameter = builder.silu(builder.div(weight, constant));
-    const ValueID from_inputs = builder.atan(builder.maximum(constant, constant));
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID from_parameter,
+                            builder.silu(builder.div(weight, constant)));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID from_inputs,
+                            builder.atan(builder.maximum(constant, constant)));
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_TRUE(graph.value(from_parameter).requires_grad);
     EXPECT_FALSE(graph.value(from_inputs).requires_grad);
@@ -983,9 +1018,9 @@ TEST(Small_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
     const ValueID weight = builder.parameter(Shape{4, 3}, "weight");
     const ValueID bound = builder.input(Shape{4, 3}, "bound");
 
-    const ValueID mask = builder.less_equal(weight, bound);
-    const ValueID selected = builder.select(mask, bound, bound);
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID mask, builder.less_equal(weight, bound));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID selected, builder.select(mask, bound, bound));
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_FALSE(graph.value(mask).requires_grad);
     EXPECT_FALSE(graph.value(selected).requires_grad);
@@ -1000,7 +1035,8 @@ TEST(Small_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    const ValueID out = builder.constant(Shape{4, 3}, K_VALUE, DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out,
+                            builder.constant(Shape{4, 3}, K_VALUE, DType::Float64));
 
     expect_produced_by(graph, out, Ops::K_CONSTANT.id, {});
     EXPECT_NEAR(graph.node(graph.value(out).producer).attributes.get(0), K_VALUE,
@@ -1017,7 +1053,8 @@ TEST(Small_ElementwiseOps, ConstantDefaultsToFloat32)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
-    EXPECT_EQ(graph.value(builder.constant(Shape{2}, 1.0)).dtype, DType::Float32);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID filled, builder.constant(Shape{2}, 1.0));
+    EXPECT_EQ(graph.value(filled).dtype, DType::Float32);
 }
 
 /** @brief Tests that constant() refuses an element type that is not real floating. */
@@ -1028,8 +1065,10 @@ TEST(Small_ElementwiseOps, ConstantRejectsAnElementTypeThatIsNotRealFloating)
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
-    EXPECT_THROW((void)builder.constant(Shape{2}, 1.0, DType::Int64), Error);
-    EXPECT_THROW((void)builder.constant(Shape{2}, 1.0, DType::Complex32), Error);
+    SA_EXPECT_FAILURE(builder.constant(Shape{2}, 1.0, DType::Int64),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.constant(Shape{2}, 1.0, DType::Complex32),
+                      StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
     EXPECT_EQ(graph.value_count(), values_before) << "a rejected call left a value behind";
 }
@@ -1039,9 +1078,9 @@ TEST(Small_ElementwiseOps, ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingIt
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID x = small_nchw_input(builder, "x", DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, small_nchw_input(builder, "x", DType::Float64));
 
-    const ValueID out = builder.constant_like(x, 0.5);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.constant_like(x, 0.5));
 
     expect_produced_by(graph, out, Ops::K_CONSTANT.id, {});
     expect_described_like(graph, out, x);
@@ -1058,7 +1097,7 @@ TEST(Small_ElementwiseOps, ConstantLikeRejectsAValueThatIsNotRealFloating)
     const std::size_t nodes_before = graph.node_count();
     const std::size_t values_before = graph.value_count();
 
-    EXPECT_THROW((void)builder.constant_like(x, 1.0), Error);
+    SA_EXPECT_FAILURE(builder.constant_like(x, 1.0), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
     EXPECT_EQ(graph.value_count(), values_before) << "a rejected call left a value behind";
 }
@@ -1068,11 +1107,11 @@ TEST(Small_ElementwiseOps, AConstantLikeAValueIsAnOperandThatFinaliseAccepts)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID x = small_nchw_input(builder, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, small_nchw_input(builder, "x"));
 
-    const ValueID shifted = builder.add(x, builder.constant_like(x, 1e-7));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID shifted, builder.add(x, builder.constant_like(x, 1e-7)));
 
-    EXPECT_NO_THROW(graph.finalise());
+    SA_EXPECT_OK(graph.finalise());
     EXPECT_FALSE(graph.value(shifted).requires_grad);
 }
 
@@ -1084,7 +1123,8 @@ TEST(Small_ElementwiseOps, ZerosStillWritesTheZeroIdentity)
     const ValueID x = builder.input(Shape{4, 3}, "x");
 
     expect_produced_by(graph, builder.zeros(Shape{4, 3}), Ops::K_ZERO.id, {});
-    expect_produced_by(graph, builder.zeros_like(x, Shape{4, 3}), Ops::K_ZERO.id, {});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID zeroed, builder.zeros_like(x, Shape{4, 3}));
+    expect_produced_by(graph, zeroed, Ops::K_ZERO.id, {});
 }
 
 namespace
@@ -1105,7 +1145,7 @@ TEST(Small_GatherOps, GatherRowsWritesItsIdentityOverTheTableAndTheIndex)
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
 
-    const Traced out = builder.gather_rows(table, indices);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.gather_rows(table, indices));
 
     SA_EXPECT_OK(out);
     ASSERT_TRUE(out.has_value());
@@ -1126,8 +1166,8 @@ TEST(Small_GatherOps, GatherRowsAppendsTheRowLengthToAnIndexOfAnyRank)
     const ValueID indices = builder.input(Shape{2, 4}, "indices", DType::Int32);
     const ValueID deep = builder.input(Shape{2, 1, 3, 1, 2}, "deep", DType::Int32);
 
-    const Traced out = builder.gather_rows(table, indices);
-    const Traced deepest = builder.gather_rows(table, deep);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.gather_rows(table, indices));
+    SA_ASSERT_OK_AND_ASSIGN(const Traced deepest, builder.gather_rows(table, deep));
 
     ASSERT_TRUE(out.has_value());
     ASSERT_TRUE(deepest.has_value());
@@ -1198,7 +1238,8 @@ TEST(Small_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
     const ValueID rows = builder.input(Shape{2, 4, K_ROW_LENGTH}, "rows", DType::Float64);
     const ValueID indices = builder.input(Shape{2, 4}, "indices", DType::Int32);
 
-    const Traced out = builder.scatter_add_rows(rows, indices, K_TABLE_ROWS);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
 
     SA_EXPECT_OK(out);
     ASSERT_TRUE(out.has_value());
@@ -1239,10 +1280,10 @@ TEST(Small_GatherOps, AnInt32InputLeafRequiresNoGradient)
     const GraphBuilder builder(graph);
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const Traced out = builder.gather_rows(table, indices);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.gather_rows(table, indices));
     ASSERT_TRUE(out.has_value());
 
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_EQ(graph.value(indices).lifetime, Graph::Lifetime::Input);
     EXPECT_FALSE(graph.value(indices).requires_grad);
@@ -1260,14 +1301,14 @@ TEST(Small_GatherOps, TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared)
     const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
     const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
     const ValueID weight = builder.parameter(Shape{K_ROW_LENGTH, 2}, "weight");
-    const Traced gathered = builder.gather_rows(table, indices);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced gathered, builder.gather_rows(table, indices));
     ASSERT_TRUE(gathered.has_value());
-    const ValueID product = builder.matmul(gathered.value(), weight);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(gathered.value(), weight));
 
     const Graph::MixedPrecisionPolicy policy;
     Graph::CastOptions options;
     options.policy = &policy;
-    const Graph::CastReport report = Graph::insert_casts(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::CastReport report, Graph::insert_casts(graph, options));
 
     EXPECT_EQ(graph.value(indices).dtype, DType::Int32);
     EXPECT_EQ(graph.value(table).dtype, DType::Float32);
@@ -1451,9 +1492,9 @@ TEST(Small_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{4, 3}, "x", DType::Float64);
     const ValueID dy = builder.input(Shape{4, 3}, "dy", DType::Float64);
-    const ValueID log_probs = builder.log_softmax(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID log_probs, builder.log_softmax(x));
 
-    const Traced out = builder.log_softmax_backward(dy, log_probs);
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.log_softmax_backward(dy, log_probs));
 
     SA_EXPECT_OK(out);
     ASSERT_TRUE(out.has_value());
@@ -1496,8 +1537,8 @@ TEST(Small_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
     const ValueID a = builder.input(Shape{4, 5}, "a");
     const ValueID b = builder.input(Shape{7, 3}, "b");
 
-    SA_EXPECT_ERROR((void)builder.matmul(a, b),
-                    "MATMUL contracts 5 against 7", "[4, 5]", "[7, 3]");
+    SA_EXPECT_FAILURE(builder.matmul(a, b), StatusCode::InvalidDescription,
+                      "MATMUL contracts 5 against 7", "[4, 5]", "[7, 3]");
 }
 
 TEST(Small_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
@@ -1509,10 +1550,10 @@ TEST(Small_Diagnostics, MatmulRejectsARank1OperandAndPrintsWhatItGot)
     const ValueID vector = builder.input(Shape{5}, "v");
     const ValueID matrix = builder.input(Shape{5, 3}, "m");
 
-    SA_EXPECT_ERROR((void)builder.matmul(vector, matrix),
-                    "MATMUL needs two rank-2 operands", "[5]", "[5, 3]");
-    SA_EXPECT_ERROR((void)builder.matmul(matrix, vector),
-                    "MATMUL needs two rank-2 operands", "[5, 3]", "[5]");
+    SA_EXPECT_FAILURE(builder.matmul(vector, matrix), StatusCode::InvalidDescription,
+                      "MATMUL needs two rank-2 operands", "[5]", "[5, 3]");
+    SA_EXPECT_FAILURE(builder.matmul(matrix, vector), StatusCode::InvalidDescription,
+                      "MATMUL needs two rank-2 operands", "[5, 3]", "[5]");
 }
 
 TEST(Small_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
@@ -1523,8 +1564,8 @@ TEST(Small_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
     const ValueID a = builder.input(Shape{4, 5}, "a", DType::Float32);
     const ValueID b = builder.input(Shape{5, 3}, "b", DType::Float64);
 
-    SA_EXPECT_ERROR((void)builder.matmul(a, b),
-                    "MATMUL needs operands of one element type", "float32", "float64");
+    SA_EXPECT_FAILURE(builder.matmul(a, b), StatusCode::InvalidDescription,
+                      "MATMUL needs operands of one element type", "float32", "float64");
 }
 
 TEST(Small_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
@@ -1537,12 +1578,12 @@ TEST(Small_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
     const ValueID rank_two_bias = builder.input(Shape{1, 3}, "b13");
     const ValueID vector = builder.input(Shape{3}, "v");
 
-    SA_EXPECT_ERROR((void)builder.bias_add(x, wrong_length),
-                    "BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns");
-    SA_EXPECT_ERROR((void)builder.bias_add(x, rank_two_bias),
-                    "BIAS_ADD needs a rank-1 bias", "[1, 3]");
-    SA_EXPECT_ERROR((void)builder.bias_add(vector, vector),
-                    "BIAS_ADD needs a rank-2 left operand", "[3]");
+    SA_EXPECT_FAILURE(builder.bias_add(x, wrong_length), StatusCode::InvalidDescription,
+                      "BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns");
+    SA_EXPECT_FAILURE(builder.bias_add(x, rank_two_bias), StatusCode::InvalidDescription,
+                      "BIAS_ADD needs a rank-1 bias", "[1, 3]");
+    SA_EXPECT_FAILURE(builder.bias_add(vector, vector), StatusCode::InvalidDescription,
+                      "BIAS_ADD needs a rank-2 left operand", "[3]");
 }
 
 TEST(Small_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
@@ -1552,8 +1593,10 @@ TEST(Small_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
 
     const ValueID vector = builder.input(Shape{6}, "v");
 
-    SA_EXPECT_ERROR((void)builder.sum_rows(vector), "SUM_ROWS needs a rank-2 operand", "[6]");
-    SA_EXPECT_ERROR((void)builder.log_softmax(vector), "LOG_SOFTMAX needs a rank-2 operand", "[6]");
+    SA_EXPECT_FAILURE(builder.sum_rows(vector), StatusCode::InvalidDescription,
+                      "SUM_ROWS needs a rank-2 operand", "[6]");
+    SA_EXPECT_FAILURE(builder.log_softmax(vector), StatusCode::InvalidDescription,
+                      "LOG_SOFTMAX needs a rank-2 operand", "[6]");
 }
 
 TEST(Small_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
@@ -1565,13 +1608,16 @@ TEST(Small_Diagnostics, ElementwiseOperationsNameBothShapesAndBothDtypes)
     const ValueID b = builder.input(Shape{4, 2}, "b");
     const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
-    SA_EXPECT_ERROR((void)builder.add(a, b), "ADD needs equally shaped operands",
-                    "[4, 3]", "[4, 2]");
-    SA_EXPECT_ERROR((void)builder.sub(a, b), "SUB needs equally shaped operands");
-    SA_EXPECT_ERROR((void)builder.mul(a, b), "MUL needs equally shaped operands");
-    SA_EXPECT_ERROR((void)builder.mul(a, wide), "MUL needs operands of one element type",
-                    "float32", "float64");
-    SA_EXPECT_ERROR((void)builder.accumulate(a, b), "ACCUMULATE needs equally shaped operands");
+    SA_EXPECT_FAILURE(builder.add(a, b), StatusCode::InvalidDescription,
+                      "ADD needs equally shaped operands", "[4, 3]", "[4, 2]");
+    SA_EXPECT_FAILURE(builder.sub(a, b), StatusCode::InvalidDescription,
+                      "SUB needs equally shaped operands");
+    SA_EXPECT_FAILURE(builder.mul(a, b), StatusCode::InvalidDescription,
+                      "MUL needs equally shaped operands");
+    SA_EXPECT_FAILURE(builder.mul(a, wide), StatusCode::InvalidDescription,
+                      "MUL needs operands of one element type", "float32", "float64");
+    SA_EXPECT_FAILURE(builder.accumulate(a, b), StatusCode::InvalidDescription,
+                      "ACCUMULATE needs equally shaped operands");
 }
 
 TEST(Small_Diagnostics, NLLLossNamesTheShapeItCannotServe)
@@ -1583,10 +1629,10 @@ TEST(Small_Diagnostics, NLLLossNamesTheShapeItCannotServe)
     const ValueID mismatched = builder.input(Shape{4, 5}, "targets");
     const ValueID vector = builder.input(Shape{4}, "v");
 
-    SA_EXPECT_ERROR((void)builder.nll_loss(log_probs, mismatched),
-                    "NLL_LOSS needs equally shaped operands", "[4, 3]", "[4, 5]");
-    SA_EXPECT_ERROR((void)builder.nll_loss(vector, vector),
-                    "NLL_LOSS needs rank-2 operands", "[4]");
+    SA_EXPECT_FAILURE(builder.nll_loss(log_probs, mismatched), StatusCode::InvalidDescription,
+                      "NLL_LOSS needs equally shaped operands", "[4, 3]", "[4, 5]");
+    SA_EXPECT_FAILURE(builder.nll_loss(vector, vector), StatusCode::InvalidDescription,
+                      "NLL_LOSS needs rank-2 operands", "[4]");
 }
 
 TEST(Small_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
@@ -1596,6 +1642,171 @@ TEST(Small_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
 
     const ValueID dy = builder.input(Shape{4, 3}, "dy");
 
-    SA_EXPECT_ERROR((void)builder.activation_backward(Ops::K_RELU.id, dy, dy),
-                    "sushiai.relu", "is not an activation gradient");
+    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_RELU.id, dy, dy), "sushiai.relu",
+                    "is not an activation gradient");
+}
+
+namespace
+{
+    /** @brief Holds a fresh graph and a builder over it, for the refusal-family tests. */
+    struct RefusalBench
+    {
+        Graph::Graph graph;              /**< @brief The graph the builder appends to. */
+        GraphBuilder builder{graph};     /**< @brief The builder under test. */
+
+        /** @brief Declares an NHWC [2,4,4,3] float32 input. */
+        ValueID image() const
+        {
+            return builder.input(Shape{2, 4, 4, 3}, "image");
+        }
+    };
+
+    /** @brief Returns a 2x2 window of unit stride and dilation and no padding. */
+    Graph::ConvGeometry window_2x2()
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 2;
+        g.kernel_w = 2;
+        return g;
+    }
+
+    /** @brief Returns a window that no 4x4 input holds. */
+    Graph::ConvGeometry window_9x9()
+    {
+        Graph::ConvGeometry g;
+        g.kernel_h = 9;
+        g.kernel_w = 9;
+        return g;
+    }
+}
+
+/** @brief Tests that the free window helpers return InvalidDescription for a bad geometry. */
+TEST(Small_RefusalFamilies, WindowHelpersReturnTheirRefusal)
+{
+    Graph::ConvGeometry zero = window_2x2();
+    zero.stride_h = 0;
+    SA_EXPECT_FAILURE(Graph::window_extents(4, 4, zero), StatusCode::InvalidDescription,
+                      "positive stride");
+    SA_EXPECT_FAILURE(Graph::window_extents(4, 4, window_9x9()), StatusCode::InvalidDescription,
+                      "fit its padded input");
+    SA_EXPECT_FAILURE(Graph::upsampled_extents(4, 4, 0, 2), StatusCode::InvalidDescription,
+                      "scales of at least one");
+    SA_EXPECT_FAILURE(Graph::upsampled_extents(std::numeric_limits<int64_t>::max(), 4, 2, 2),
+                      StatusCode::InvalidDescription, "fit in 64 bits");
+
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::SpatialExtents fitted,
+                            Graph::window_extents(4, 4, window_2x2()));
+    EXPECT_EQ(fitted.height, 3);
+    EXPECT_EQ(fitted.width, 3);
+}
+
+/** @brief Tests that an emitter handed a failed operand returns it and emits nothing. */
+TEST(Small_RefusalFamilies, AFailedOperandPassesThroughWithoutANode)
+{
+    RefusalBench bench;
+    const ValueID x = bench.builder.input(Shape{4, 3}, "x");
+    const std::size_t nodes = bench.graph.node_count();
+
+    const Traced refused = bench.builder.reshape(x, Shape{5});
+    const Traced chained = bench.builder.relu(bench.builder.matmul(refused, x, false, true));
+
+    SA_EXPECT_FAILURE(chained, StatusCode::InvalidDescription, "element count");
+    EXPECT_EQ(chained.status().message().data(), refused.status().message().data());
+    EXPECT_EQ(bench.graph.node_count(), nodes);
+    EXPECT_TRUE(bench.graph.has_refusal());
+}
+
+/** @brief Tests the refusals of the scaling, activation, cast, layout and reshape emitters. */
+TEST(Small_RefusalFamilies, ScaleActivationCastAndLayoutEmittersRefuse)
+{
+    RefusalBench bench;
+    const GraphBuilder& builder = bench.builder;
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID pair = builder.input(Shape{2}, "pair");
+    const ValueID index = builder.input(Shape{4, 3}, "index", DType::Int32);
+    const ValueID target = builder.input(Shape{4, 5}, "target", DType::Float64);
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_refused(bench.graph, builder.dynamic_scale(x, pair), nodes, "single element");
+    expect_refused(bench.graph, builder.leaky_relu(x, 1.0), nodes, "slope must be in (0, 1)");
+    expect_refused(bench.graph, builder.cast(index, DType::Float32), nodes,
+                   "real floating types only");
+    expect_refused(bench.graph, builder.cast_into(x, target), nodes, "one shape");
+    expect_refused(bench.graph, builder.layout_convert(x, Graph::TensorLayout::NCHW), nodes,
+                   "rank-4 operand");
+    expect_refused(bench.graph, builder.reshape(x, Shape{5}), nodes, "element count");
+}
+
+/** @brief Tests the refusals of the window emitters and of their gradients. */
+TEST(Small_RefusalFamilies, WindowEmittersRefuse)
+{
+    RefusalBench bench;
+    const GraphBuilder& builder = bench.builder;
+    const ValueID image = bench.image();
+    const ValueID flat = builder.input(Shape{4, 3}, "flat");
+    const ValueID weight = builder.parameter(Shape{5, 2, 2, 4}, "weight");
+    const ValueID dy = builder.input(Shape{2, 3, 3, 3}, "dy");
+    const ValueID floats = builder.input(Shape{2, 3, 3, 3}, "floats");
+    const Shape image_shape{2, 4, 4, 3};
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_refused(bench.graph, builder.im2col(image, window_9x9()), nodes, "fit its padded");
+    expect_refused(bench.graph, builder.im2col_with_extents(image, window_2x2(), 0, 3), nodes,
+                   "non-positive output extents");
+    expect_refused(bench.graph, builder.col2im(flat, Shape{2, 4, 4}, window_2x2()), nodes,
+                   "rank-4 [N,H,W,C] image");
+    expect_refused(bench.graph,
+                   builder.col2im_with_extents(flat, image_shape, window_2x2(), 3, 3), nodes,
+                   "column matrix");
+    expect_refused(bench.graph, builder.conv2d(image, weight, Traced(), window_2x2()), nodes,
+                   "conv2d with a 2x2 window");
+    expect_refused(bench.graph, builder.maxpool2d(flat, window_2x2()), nodes, "rank-4");
+    expect_refused(bench.graph, builder.maxpool2d_with_extents(image, window_2x2(), 3, 0), nodes,
+                   "non-positive output extents");
+    expect_refused(bench.graph, builder.avgpool2d(image, window_9x9()), nodes, "fit its padded");
+    expect_refused(bench.graph, builder.upsample2d(image, 0, 1), nodes, "at least one");
+    expect_refused(bench.graph, builder.spatial_mean(flat), nodes, "rank-4");
+    expect_refused(bench.graph,
+                   builder.maxpool2d_backward(dy, floats, image_shape, window_2x2()), nodes,
+                   "INT64");
+    expect_refused(bench.graph, builder.avgpool2d_backward(flat, image_shape, window_2x2()),
+                   nodes, "rank-4 [N,H,W,C] output gradient");
+    expect_refused(bench.graph, builder.upsample2d_backward(dy, image_shape, 1, 0), nodes,
+                   "at least one");
+    expect_refused(bench.graph, builder.spatial_mean_backward(dy, image_shape), nodes,
+                   "rank-2 [N,C]");
+}
+
+/** @brief Tests the refusals of the channel emitters and of batch normalisation. */
+TEST(Small_RefusalFamilies, ChannelAndBatchNormEmittersRefuse)
+{
+    RefusalBench bench;
+    const GraphBuilder& builder = bench.builder;
+    const ValueID image = bench.image();
+    const ValueID shallow = builder.input(Shape{2, 3, 4, 3}, "shallow");
+    const ValueID flat = builder.input(Shape{4, 3}, "flat");
+    const ValueID gamma = builder.parameter(Shape{3}, "gamma");
+    const ValueID wide = builder.parameter(Shape{4}, "wide");
+    const ValueID doubled = builder.parameter(Shape{3}, "doubled", DType::Float64);
+    const std::array<ValueID, 2> mismatched = {image, shallow};
+    const std::size_t nodes = bench.graph.node_count();
+
+    expect_refused(bench.graph, builder.concat_channels(SushiRuntime::span<const ValueID>()),
+                   nodes, "at least one operand");
+    expect_refused(bench.graph,
+                   builder.concat_channels(SushiRuntime::span<const ValueID>(
+                       mismatched.data(), mismatched.size())),
+                   nodes, "agree on N, H and W");
+    expect_refused(bench.graph, builder.slice_channels(image, 2, 2), nodes, "does not fit");
+    expect_refused(bench.graph, builder.channel_affine(image, gamma, wide), nodes,
+                   "per-channel parameters must be [3]");
+    expect_refused(bench.graph, builder.sum_channels(flat), nodes, "rank-4");
+    expect_refused(bench.graph, builder.batchnorm2d(image, gamma, gamma, 0.0), nodes,
+                   "epsilon must be positive");
+    expect_refused(bench.graph, builder.batchnorm2d(image, gamma, doubled, 1e-5), nodes,
+                   "element type");
+    expect_refused(bench.graph, builder.batchnorm2d_backward(flat, image, gamma, gamma, gamma),
+                   nodes, "rank-4 [N,H,W,C] output gradient");
+    expect_refused(bench.graph, builder.batchnorm_fold(gamma, wide, gamma, gamma, 1e-5), nodes,
+                   "beta shaped like gamma");
 }

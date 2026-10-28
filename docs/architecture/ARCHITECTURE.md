@@ -314,9 +314,11 @@ shape for the same reason.
 `Value` carries a `TensorLayout`, and `K_LAYOUT_CONVERT` is the only node allowed
 to have operands and results that disagree about it. `finalise()` closes the
 forward graph (it propagates `requires_grad` and then proves uniformity), so a
-builder-emitted graph that mixes NCHW into an NHWC chain fails there, naming
-the node, instead of reaching a kernel that reads the right number of elements
-in the wrong order.
+builder-emitted graph that mixes NCHW into an NHWC chain fails there with
+`InvalidDescription`, naming the node, instead of reaching a kernel that reads
+the right number of elements in the wrong order. No emitter declares a result
+in another layout than its operands, so a node that does was built by hand, and
+the proof stops the process on it.
 
 That is a claim about the graph the builder emits, and it is worth being exact
 about how far it carries. `finalise()` is called once, before differentiation,
@@ -325,7 +327,12 @@ copy the value table entry by entry, and `Graph::add_value` defaults the layout
 to NHWC, so a field one of them forgets to copy is not lost but *changed*:
 silently, because the shapes still agree. Both passes therefore re-prove
 uniformity over the graph they produce, which is why the proof is public rather
-than a private step of `finalise()`. Backward-emitted nodes are still only
+than a private step of `finalise()`. `insert_casts()` proves its input first and
+returns the failure, so a graph that reaches it unproven is refused unchanged;
+`fuse()` takes a proven graph as a precondition and stops the process on one
+that is not. A rebuilt graph that fails the proof is a defect in the pass, and
+both stop the process on it. `Lowering::record()` proves the graph it records
+and returns the failure. Backward-emitted nodes are still only
 covered by whichever pass runs after them; a graph that is differentiated and
 then handed straight to lowering is not re-proved anywhere.
 

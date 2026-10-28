@@ -33,6 +33,7 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/rule.hpp>
@@ -104,7 +105,7 @@ TEST(Small_LoweringRule, AScratchRuleAppendsTheBuffersOfItsNode)
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
     const Graph::ValueID x = builder.input(Shape{2}, "x");
-    const Graph::ValueID y = builder.relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, builder.relu(x));
     const Graph::NodeID node = graph.value(y).producer;
 
     std::vector<ScratchRequest> requests;

@@ -32,7 +32,6 @@
 #include <utility>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
 
 namespace SushiAI
 {
@@ -257,9 +256,9 @@ namespace SushiAI
             };
         }
 
-        const Placement& MemoryPlan::placement(ValueID id) const
+        const Placement& MemoryPlan::placement(ValueID id) const noexcept
         {
-            SA_THROW_IF(id >= placements_.size(),
+            SA_FATAL_IF(id >= placements_.size(),
                         "Value {} has no placement; this plan covers {} values",
                         id, placements_.size());
             return placements_[id];
@@ -287,12 +286,12 @@ namespace SushiAI
             return total;
         }
 
-        MemoryPlan MemoryPlan::build(const Graph& graph, const PlanOptions& options,
-                                     SushiRuntime::span<const ScratchRequest> scratch)
+        Result<MemoryPlan> MemoryPlan::build(const Graph& graph, const PlanOptions& options,
+                                             SushiRuntime::span<const ScratchRequest> scratch)
         {
-            SA_THROW_IF(options.alignment == 0,
-                        "PlanOptions::alignment must be positive; an offset cannot be rounded "
-                        "to a multiple of zero");
+            SA_FAIL_IF(options.alignment == 0, StatusCode::InvalidDescription,
+                       "PlanOptions::alignment must be positive; an offset cannot be rounded "
+                       "to a multiple of zero");
 
             MemoryPlan plan;
 
@@ -311,7 +310,7 @@ namespace SushiAI
                 plan.reuse_note_ = "live-range overlap was switched off by PlanOptions::reuse; "
                                    "every buffer has its own slot";
 
-            if (value_count == 0) return plan;
+            if (value_count == 0) return std::move(plan);
 
             // Verifies topological ordering to ensure downstream reachability closure validity.
             std::vector<std::vector<NodeID>> consumers(value_count);
@@ -320,7 +319,7 @@ namespace SushiAI
                 for (ValueID in : graph.node(id).inputs)
                 {
                     const NodeID producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
+                    SA_FATAL_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The memory "
                                 "planner needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
@@ -434,7 +433,7 @@ namespace SushiAI
             // Caller-pinned buffers bypass packing regardless of lifetime class.
             for (ValueID pinned : options.pinned)
             {
-                SA_THROW_IF(pinned >= value_count,
+                SA_FATAL_IF(pinned >= value_count,
                             "PlanOptions::pinned names value {}, which this graph does not have",
                             pinned);
                 buffers[buffer_of_owner.at(aliases.find(pinned))].packable = false;
@@ -544,7 +543,7 @@ namespace SushiAI
                     for (ValueID member : buffer.members)
                         plan.placements_[member].buffer = buffer.owner;
 
-            return plan;
+            return std::move(plan);
         }
 
     } // namespace Graph

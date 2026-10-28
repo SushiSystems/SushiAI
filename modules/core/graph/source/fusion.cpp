@@ -31,7 +31,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiAI/graph/fusion.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -234,7 +234,7 @@ namespace SushiAI
 
                         for (ValueID id : options.observed)
                         {
-                            SA_THROW_IF(id >= graph.value_count(),
+                            SA_FATAL_IF(id >= graph.value_count(),
                                         "FusionOptions::observed names value {}, which this "
                                         "graph does not have", id);
                             observed_[id] = true;
@@ -575,12 +575,19 @@ namespace SushiAI
                 for (ValueID in : graph.node(id).inputs)
                 {
                     const NodeID producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
+                    SA_FATAL_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The fusion "
                                 "pass needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
                                 id, in, producer);
                 }
+
+            const Status input_proof = graph.prove_layout_uniformity();
+            SA_FATAL_IF(!input_proof.is_ok(),
+                        "fuse() needs a graph whose layouts are proven uniform: {}. Run "
+                        "insert_casts() or Graph::finalise() first; either one returns this "
+                        "failure as a status.",
+                        input_proof.message());
 
             Matcher matcher(graph, options);
             matcher.run();
@@ -640,8 +647,12 @@ namespace SushiAI
 
             graph = std::move(rebuilt);
 
-            // Validates that rebuilt values preserve required layout uniformity.
-            graph.prove_layout_uniformity();
+            // The input was proven on entry, so a rebuilt graph that fails is a defect here.
+            const Status rebuilt_proof = graph.prove_layout_uniformity();
+            SA_FATAL_IF(!rebuilt_proof.is_ok(),
+                        "fuse() broke the layout uniformity of a proven graph: {}. This is a "
+                        "defect in the fusion pass, not in the caller's graph.",
+                        rebuilt_proof.message());
 
             return report;
         }

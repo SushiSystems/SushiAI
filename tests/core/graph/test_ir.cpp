@@ -39,6 +39,7 @@
 #include <SushiAI/failure/error.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
@@ -108,13 +109,13 @@ TEST(Small_Ir, PropagateRequiresGradFlowsForwardThroughTheWholeChain)
 
     const ValueID x = builder.input(Shape{4, 3}, "x");
     const ValueID w = builder.parameter(Shape{5, 3}, "w");
-    const ValueID y = builder.matmul(x, w, false, true);
-    const ValueID z = builder.relu(y);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.matmul(x, w, false, true));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID z, builder.relu(y));
 
     EXPECT_FALSE(graph.value(y).requires_grad);
     EXPECT_FALSE(graph.value(z).requires_grad);
 
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_FALSE(graph.value(x).requires_grad);
     EXPECT_TRUE(graph.value(w).requires_grad);
@@ -128,11 +129,11 @@ TEST(Small_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{4, 3}, "x");
-    const ValueID frozen = builder.relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID frozen, builder.relu(x));
     const ValueID w = builder.parameter(Shape{3, 3}, "w");
-    const ValueID live = builder.matmul(x, w, false, false);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID live, builder.matmul(x, w, false, false));
 
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_FALSE(graph.value(frozen).requires_grad);
     EXPECT_TRUE(graph.value(live).requires_grad);
@@ -148,10 +149,14 @@ TEST(Small_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
     const ValueID b = builder.input(Shape{3, 5}, "b");    // [k, n]
     const ValueID bt = builder.input(Shape{5, 3}, "bt");  // [n, k]
 
-    EXPECT_EQ(graph.value(builder.matmul(a, b, false, false)).shape, Shape({4, 5}));
-    EXPECT_EQ(graph.value(builder.matmul(at, b, true, false)).shape, Shape({4, 5}));
-    EXPECT_EQ(graph.value(builder.matmul(a, bt, false, true)).shape, Shape({4, 5}));
-    EXPECT_EQ(graph.value(builder.matmul(at, bt, true, true)).shape, Shape({4, 5}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(a, b, false, false));
+    EXPECT_EQ(graph.value(product).shape, Shape({4, 5}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_at, builder.matmul(at, b, true, false));
+    EXPECT_EQ(graph.value(product_at).shape, Shape({4, 5}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_bt, builder.matmul(a, bt, false, true));
+    EXPECT_EQ(graph.value(product_bt).shape, Shape({4, 5}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_atbt, builder.matmul(at, bt, true, true));
+    EXPECT_EQ(graph.value(product_atbt).shape, Shape({4, 5}));
 }
 
 TEST(Small_Ir, BuilderRejectsAContractionMismatch)
@@ -162,7 +167,7 @@ TEST(Small_Ir, BuilderRejectsAContractionMismatch)
     const ValueID a = builder.input(Shape{4, 3}, "a");
     const ValueID b = builder.input(Shape{7, 5}, "b");
 
-    EXPECT_THROW((void)builder.matmul(a, b, false, false), Error);
+    SA_EXPECT_FAILURE(builder.matmul(a, b, false, false), StatusCode::InvalidDescription);
 }
 
 TEST(Small_Ir, BuilderChecksBiasAndLossShapes)
@@ -174,16 +179,19 @@ TEST(Small_Ir, BuilderChecksBiasAndLossShapes)
     const ValueID good = builder.input(Shape{5}, "good");
     const ValueID bad = builder.input(Shape{4}, "bad");
 
-    EXPECT_EQ(graph.value(builder.bias_add(x, good)).shape, Shape({4, 5}));
-    EXPECT_THROW((void)builder.bias_add(x, bad), Error);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID biased, builder.bias_add(x, good));
+    EXPECT_EQ(graph.value(biased).shape, Shape({4, 5}));
+    SA_EXPECT_FAILURE(builder.bias_add(x, bad), StatusCode::InvalidDescription);
 
-    EXPECT_EQ(graph.value(builder.sum_rows(x)).shape, Shape({5}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID column_sums, builder.sum_rows(x));
+    EXPECT_EQ(graph.value(column_sums).shape, Shape({5}));
 
     const ValueID targets = builder.input(Shape{4, 5}, "targets");
-    EXPECT_EQ(graph.value(builder.nll_loss(x, targets)).shape, Shape({1}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(x, targets));
+    EXPECT_EQ(graph.value(loss).shape, Shape({1}));
 
     const ValueID wrong = builder.input(Shape{4, 6}, "wrong");
-    EXPECT_THROW((void)builder.nll_loss(x, wrong), Error);
+    SA_EXPECT_FAILURE(builder.nll_loss(x, wrong), StatusCode::InvalidDescription);
 }
 
 TEST(Small_Ir, BuilderRejectsMixedElementTypes)
@@ -194,8 +202,9 @@ TEST(Small_Ir, BuilderRejectsMixedElementTypes)
     const ValueID single = builder.input(Shape{4, 4}, "f32", DType::Float32);
     const ValueID doubled = builder.input(Shape{4, 4}, "f64", DType::Float64);
 
-    EXPECT_THROW((void)builder.add(single, doubled), Error);
-    EXPECT_THROW((void)builder.matmul(single, doubled, false, false), Error);
+    SA_EXPECT_FAILURE(builder.add(single, doubled), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(single, doubled, false, false),
+                      StatusCode::InvalidDescription);
 }
 
 TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
@@ -205,8 +214,8 @@ TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{2, 2}, "x");
-    const ValueID y = builder.relu(x);
-    const ValueID z = builder.tanh(y);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID z, builder.tanh(y));
     (void)z;
 
     for (std::size_t i = 0; i < graph.node_count(); ++i)
@@ -281,9 +290,10 @@ TEST(Small_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
 
     const ValueID x = builder.input(Shape{4, 3}, "x");
     const ValueID running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
-    const ValueID y = builder.bias_add(x, builder.buffer(Shape{3}, "shift"));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                            builder.bias_add(x, builder.buffer(Shape{3}, "shift")));
 
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     EXPECT_EQ(graph.value(running).shape, Shape({3}));
     EXPECT_EQ(graph.value(running).dtype, DType::Float64);
@@ -362,12 +372,13 @@ TEST(Small_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
-    const ValueID x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
+                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
     const ValueID weight = builder.parameter(Shape{2, 3}, "weight");
     const ValueID running = builder.buffer(Shape{3}, "running", DType::Half);
     graph.bind_state_leaf(StateID{11}, weight);
     graph.bind_state_leaf(StateID{12}, running);
-    graph.finalise();
+    SA_EXPECT_OK(graph.finalise());
 
     const Graph::Graph stripped = graph.without_nodes();
 

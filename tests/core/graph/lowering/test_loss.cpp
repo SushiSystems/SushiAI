@@ -122,7 +122,7 @@ TEST_F(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorr
         const GraphBuilder builder(graph);
 
         const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueID l = builder.log_softmax(x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -165,7 +165,8 @@ TEST_F(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 
         const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
         const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                                builder.nll_loss(builder.log_softmax(x), targets));
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -202,11 +203,12 @@ TEST_F(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
 
         const ValueID x = builder.parameter(Shape{2, K_CLASSES}, "x");
         const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        const ValueID loss = builder.nll_loss(builder.log_softmax(x), targets);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                                builder.nll_loss(builder.log_softmax(x), targets));
 
         const std::vector<ValueID> wrt = {x};
         const std::vector<ValueID> grads = Autograd::differentiate(
-            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
         ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
 
         TensorPool pool(*engine);
@@ -252,7 +254,7 @@ TEST_F(Medium_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
         const GraphBuilder builder(graph);
 
         const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueID l = builder.log_softmax(x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
         TensorPool pool(*engine);
         SA_EXPECT_OK(pool.materialise_leaves(graph));

@@ -45,17 +45,17 @@ for each of the four combinations of the two transpose flags.
 
 ## BuilderRejectsAContractionMismatch
 
-`matmul` of [4, 3] and [7, 5] throws `Error`.
+`matmul` of [4, 3] and [7, 5] fails with `InvalidDescription`.
 
 ## BuilderChecksBiasAndLossShapes
 
-Over a [4, 5] value, `bias_add` with a [5] bias gives [4, 5] and with a [4] bias throws
-`Error`. `sum_rows` gives [5]. `nll_loss` with [4, 5] targets gives [1] and with [4, 6]
-targets throws `Error`.
+Over a [4, 5] value, `bias_add` with a [5] bias gives [4, 5] and with a [4] bias fails with
+`InvalidDescription`. `sum_rows` gives [5]. `nll_loss` with [4, 5] targets gives [1] and with [4, 6]
+targets fails with `InvalidDescription`.
 
 ## BuilderRejectsMixedElementTypes
 
-`add` and `matmul` of a `Float32` and a `Float64` operand both throw `Error`.
+`add` and `matmul` of a `Float32` and a `Float64` operand both fail with `InvalidDescription`.
 
 ## NodesAreEmittedInTopologicalOrder
 

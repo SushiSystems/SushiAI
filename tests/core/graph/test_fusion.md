@@ -195,3 +195,13 @@ The report lists one fused form and the graph holds one K_GEMM_BIAS_RELU node, s
 rebuild the graph. Both `state_leaf` lookups and the whole `state_leaves()` table are what they
 were. The buffer keeps the lifetime `BUFFER` and no gradient, the weight still requires one,
 and `has_refusal()` is still true.
+
+## ObservingAValueThatDoesNotExistIsFatal
+
+`fuse` with an observed id five past the graph's value count stops the process with a report
+naming "FusionOptions::observed" and "which this graph does not have".
+
+## AGraphThatIsNotInTopologicalOrderIsFatal
+
+Two RELU nodes added by hand, the first reading the value the second writes, make `fuse` stop
+the process with a report naming "Node 0 reads value 1" and "which node 1 writes later".

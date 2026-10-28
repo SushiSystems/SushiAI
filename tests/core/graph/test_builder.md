@@ -25,12 +25,12 @@ element type `Float32`.
 
 ## RefusesMixedRanksAndRanksOutsideTwoAndThree
 
-`matmul` throws `Error` for a rank-2 operand with a rank-3 one in either order, for a rank-1
+`matmul` fails with `InvalidDescription` for a rank-2 operand with a rank-3 one in either order, for a rank-1
 operand with a rank-3 one, and for two rank-4 operands.
 
 ## RefusesUnequalBatchesAndInnerExtents
 
-Against a [2, 3, 4] operand, `matmul` throws `Error` for a [3, 4, 5] operand, whose batch
+Against a [2, 3, 4] operand, `matmul` fails with `InvalidDescription` for a [3, 4, 5] operand, whose batch
 differs, and for a [2, 5, 3] operand, whose inner extent differs.
 
 ## SoftmaxEmitsReshapeLogSoftmaxExpReshape
@@ -46,7 +46,7 @@ yields [6, 3], and the result has the shape [2, 3, 3].
 
 ## SoftmaxRefusesRankBelowTwo
 
-`softmax` over a [5] input throws `Error` and adds no node.
+`softmax` over a [5] input fails with `InvalidDescription` and adds no node.
 
 Suites: `Small_CausalMaskOps`.
 
@@ -98,25 +98,25 @@ first eight attribute values are 3, 5, 1, 1, 1, 1, 1 and 2.
 
 ## DepthwiseConv2dRefusesARankFourWeight
 
-Taps of the shape [3, 3, 3, 1] make the emitter throw `Error`, and the node count does not
+Taps of the shape [3, 3, 3, 1] make the emitter fail with `InvalidDescription`, and the node count does not
 change.
 
 ## DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount
 
-Taps of the shapes [5, 3, 3], [3, 5, 3] and [3, 3, 4] each make the emitter throw `Error`
+Taps of the shapes [5, 3, 3], [3, 5, 3] and [3, 3, 4] each make the emitter fail with `InvalidDescription`
 against the 3x3 geometry and three channels, and the node count does not change.
 
 ## DepthwiseConv2dRefusesAnNCHWInput
 
-An input converted to NCHW with `layout_convert` makes the emitter throw `Error`.
+An input converted to NCHW with `layout_convert` makes the emitter fail with `InvalidDescription`.
 
 ## DepthwiseConv2dRefusesTapsOfAnotherDType
 
-A `Float32` input with `Float64` taps makes the emitter throw `Error`.
+A `Float32` input with `Float64` taps makes the emitter fail with `InvalidDescription`.
 
 ## DepthwiseConv2dRefusesAWindowThatDoesNotFit
 
-A 3x3 window without padding over a [2, 2, 2, 3] input makes the emitter throw `Error`.
+A 3x3 window without padding over a [2, 2, 2, 3] input makes the emitter fail with `InvalidDescription`.
 
 ## BackwardInputWritesItsIdentityOverGradientAndTapsInOrder
 
@@ -131,7 +131,7 @@ shape [2, 5, 5, 3], the layout NHWC and the element type `Float32`.
 ## BackwardInputRefusesAGradientOnAnotherGrid
 
 For the input shape [2, 5, 5, 3], gradients of the shapes [2, 4, 5, 3], [2, 5, 5, 4] and
-[2, 5, 3] each make the emitter throw `Error`, and the node count does not change.
+[2, 5, 3] each make the emitter fail with `InvalidDescription`, and the node count does not change.
 
 ## BackwardWeightWritesItsIdentityOverGradientAndInputInOrder
 
@@ -146,7 +146,7 @@ Over `Float64` operands the result has the shape [3, 3, 3], the layout NHWC, the
 ## BackwardWeightRefusesMismatchedBatchChannelsOrDType
 
 Against a [2, 5, 5, 3] gradient, an input of another batch, of another channel count or of
-another element type makes the emitter throw `Error`, as does a rank-3 gradient. The node count
+another element type makes the emitter fail with `InvalidDescription`, as does a rank-3 gradient. The node count
 does not change.
 
 Suites: `Small_ElementwiseOps`.
@@ -206,13 +206,13 @@ shape and is FLOAT64 and NCHW.
 
 ## BinaryEmittersRejectUnequalShapesWithoutBroadcasting
 
-Each two-operand emitter throws for a [4, 3] operand with a [4, 1] one, in both orders, and
+Each two-operand emitter fails with `InvalidDescription` for a [4, 3] operand with a [4, 1] one, in both orders, and
 with a [3] one. These are the pairs a broadcasting library accepts. The node count is unchanged
 after the three calls.
 
 ## BinaryEmittersRejectUnequalDtypes
 
-Each two-operand emitter throws for a FLOAT32 operand with a FLOAT64 one, in both orders.
+Each two-operand emitter fails with `InvalidDescription` for a FLOAT32 operand with a FLOAT64 one, in both orders.
 
 ## LessEqualYieldsAMaskInTheOperandsOwnDType
 
@@ -241,19 +241,19 @@ With three FLOAT64 NCHW operands the result has the shape, element type and layo
 
 ## SelectRejectsAConditionOfAnotherShape
 
-A [4, 1] condition over [4, 3] branches throws, and the node count is unchanged.
+A [4, 1] condition over [4, 3] branches fails with `InvalidDescription`, and the node count is unchanged.
 
 ## SelectRejectsAConditionOfAnotherDType
 
-An INT64 condition over FLOAT32 branches throws.
+An INT64 condition over FLOAT32 branches fails with `InvalidDescription`.
 
 ## SelectRejectsBranchesOfUnequalShape
 
-A [4, 3] branch with a [4, 1] branch throws in both orders.
+A [4, 3] branch with a [4, 1] branch fails with `InvalidDescription` in both orders.
 
 ## SelectRejectsBranchesOfUnequalDType
 
-A FLOAT32 branch with a FLOAT64 branch throws in both orders.
+A FLOAT32 branch with a FLOAT64 branch fails with `InvalidDescription` in both orders.
 
 ## ActivationBackwardEmitsTheInputReadingGradients
 
@@ -262,15 +262,15 @@ of that identity whose inputs are `dy` then `x`, and the result is described lik
 
 ## InputReadingGradientsRejectAGradientOfAnotherShape
 
-A [4, 1] `dy` with a [4, 3] `x` throws for both gradients.
+A [4, 1] `dy` with a [4, 3] `x` fails with `InvalidDescription` for both gradients.
 
 ## InputReadingGradientsRejectAGradientOfAnotherDType
 
-A FLOAT32 value with a FLOAT64 one throws for both gradients, in both orders.
+A FLOAT32 value with a FLOAT64 one fails with `InvalidDescription` for both gradients, in both orders.
 
 ## ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient
 
-`activation_backward` throws when the identity is K_SILU, K_SOFTPLUS or K_DIV. The first two are
+`activation_backward` stops the process, reporting "is not an activation gradient", when the identity is K_SILU, K_SOFTPLUS or K_DIV. The first two are
 forward identities of `Ops::K_ACTIVATIONS` and the third is not in the table.
 
 ## FinaliseAcceptsAGraphUsingEveryEmitter
@@ -282,12 +282,13 @@ throw.
 ## FinaliseRejectsOperandsInTwoLayouts
 
 For each two-operand emitter, a node that reads one NCHW operand and one NHWC operand is
-emitted, and `finalise()` throws. The emitter itself accepts the pair because the shapes are
+emitted, and `finalise()` returns `InvalidDescription`. The emitter itself accepts the pair because the shapes are
 equal.
 
 ## FinaliseRejectsASelectConditionInAnotherLayout
 
-A `select` with an NHWC condition over NCHW branches is emitted, and `finalise()` throws.
+A `select` with an NHWC condition over NCHW branches is emitted, and `finalise()` returns
+`InvalidDescription`.
 
 ## ResultsOfAParameterRequireAGradient
 
@@ -311,7 +312,7 @@ holds 1e-7 within 1e-20, and the value is [4, 3], FLOAT64, NHWC and ACTIVATION. 
 
 ## ConstantRejectsAnElementTypeThatIsNotRealFloating
 
-`constant` throws for INT64 and for COMPLEX32, and the node count and the value count are
+`constant` fails with `InvalidDescription` for INT64 and for COMPLEX32, and the node count and the value count are
 unchanged.
 
 ## ConstantLikeCopiesShapeDTypeAndLayoutWithoutReadingItsOperand
@@ -321,7 +322,7 @@ result is described like `x`. The value it names is not an operand of the node.
 
 ## ConstantLikeRejectsAValueThatIsNotRealFloating
 
-`constant_like` over an INT64 value throws, and the node count and the value count are
+`constant_like` over an INT64 value fails with `InvalidDescription`, and the node count and the value count are
 unchanged.
 
 ## AConstantLikeAValueIsAnOperandThatFinaliseAccepts
@@ -443,3 +444,45 @@ Four calls fail with `InvalidDescription`: rank-3 operands ("rank-2 log-probabil
 operands ("half, float32 or float64 log-probabilities"), a [4, 5] gradient ("[4, 5]") and a
 float64 gradient under float32 log-probabilities ("a gradient like them"). After each the node
 count is unchanged and `has_refusal()` is true.
+
+Suites: `Small_RefusalFamilies`.
+
+Tests the refusal of each emitter family that the cases above do not reach. Each call fails with
+`InvalidDescription` and the named part of its message, leaves the node count as it was and sets
+`has_refusal()`, through `expect_refused`.
+
+## RefusalBench, window_2x2 and window_9x9
+
+`RefusalBench` holds a graph and a builder over it and declares an NHWC [2, 4, 4, 3] image.
+`window_2x2` is a 2x2 window of unit stride, and no 4x4 input holds the 9x9 window `window_9x9`.
+
+## WindowHelpersReturnTheirRefusal
+
+`window_extents` refuses a zero stride ("positive stride") and a window the input does not hold
+("fit its padded input"). `upsampled_extents` refuses a zero scale and a product beyond 64 bits.
+A 2x2 window over a 4x4 input yields 3x3.
+
+## AFailedOperandPassesThroughWithoutANode
+
+A refused `reshape` passed to `matmul` and that result to `relu` comes back as the same failure
+block, with no node added and `has_refusal()` true.
+
+## ScaleActivationCastAndLayoutEmittersRefuse
+
+`dynamic_scale` with a two-element factor, `leaky_relu` with slope 1, `cast` of an INT32 value,
+`cast_into` across two shapes, `layout_convert` of a rank-2 value and `reshape` to another
+element count.
+
+## WindowEmittersRefuse
+
+`im2col`, `im2col_with_extents`, `col2im`, `col2im_with_extents`, `conv2d`, `maxpool2d`,
+`maxpool2d_with_extents`, `avgpool2d`, `upsample2d`, `spatial_mean` and the gradients of the
+three pools, the upsampling and the spatial mean, each over one operand or window that does not
+fit.
+
+## ChannelAndBatchNormEmittersRefuse
+
+`concat_channels` with no operand and with two that disagree on H, `slice_channels` past the
+last channel, `channel_affine` with a [4] beta over three channels, `sum_channels` of a rank-2
+value, `batchnorm2d` with a zero epsilon and with a float64 beta, `batchnorm2d_backward` with a
+rank-2 gradient, and `batchnorm_fold` with a [4] beta.

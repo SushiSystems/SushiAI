@@ -148,7 +148,7 @@ namespace
 TEST(Small_MemoryPlan, AnEmptyGraphAsksForNothing)
 {
     const Graph::Graph graph;
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_EQ(plan.value_count(), 0u);
     EXPECT_TRUE(plan.arenas().empty());
@@ -161,9 +161,9 @@ TEST(Small_MemoryPlan, ASingleActivationGetsOneArenaAndOffsetZero)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID y = builder.relu(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     ASSERT_EQ(plan.arenas().size(), 1u);
     EXPECT_EQ(plan.arenas()[0].lifetime, Lifetime::Activation);
@@ -184,7 +184,7 @@ TEST(Small_MemoryPlan, AGraphOfOnlyLeavesPacksNothing)
     builder.input(unit_shape(), "x");
     builder.parameter(unit_shape(), "w");
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_TRUE(plan.arenas().empty());
     EXPECT_EQ(plan.arena_bytes(), 0u);
@@ -197,12 +197,12 @@ TEST(Small_MemoryPlan, AChainPingPongsBetweenTwoBuffers)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID a = builder.relu(x);
-    const ValueID b = builder.relu(a);
-    const ValueID c = builder.relu(b);
-    const ValueID d = builder.relu(c);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID c, builder.relu(b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID d, builder.relu(c));
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_TRUE(plan.reuse_enabled());
     EXPECT_EQ(plan.arena_bytes(), 256u) << "four 128-byte activations should fit in two slots";
@@ -223,15 +223,15 @@ TEST(Small_MemoryPlan, TwoUnorderedBranchesNeverShareBytes)
 
     const ValueID x = builder.input(unit_shape(), "x");
 
-    const ValueID a1 = builder.relu(x);
-    const ValueID a2 = builder.relu(a1);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a1, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a2, builder.relu(a1));
 
-    const ValueID b1 = builder.sigmoid(x);
-    const ValueID b2 = builder.sigmoid(b1);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b1, builder.sigmoid(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b2, builder.sigmoid(b1));
 
-    const ValueID out = builder.add(a2, b2);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.add(a2, b2));
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     ASSERT_TRUE(plan.is_packed(a1));
     ASSERT_TRUE(plan.is_packed(b1));
@@ -271,7 +271,7 @@ TEST(Small_MemoryPlan, OnlyTheNonPersistentClassesArePacked)
     const ValueID state = graph.add_value(unit_shape(), DType::Float32, Lifetime::OptimizerState, "m");
     graph.add_node(Ops::K_RELU.id, {gradient}, {state});
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_FALSE(plan.is_packed(parameter));
     EXPECT_FALSE(plan.is_packed(input));
@@ -305,7 +305,7 @@ TEST(Small_MemoryPlan, TwoUnorderedScratchBuffersShareBytesInNodeOrder)
     const ValueID right = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "r");
     graph.add_node(Ops::K_RELU.id, {second}, {right});
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     ASSERT_TRUE(plan.is_packed(first));
     ASSERT_TRUE(plan.is_packed(second));
@@ -328,7 +328,7 @@ TEST(Small_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
     const ValueID sum = graph.add_value(unit_shape(), DType::Float32, Lifetime::Gradient, "g");
     graph.add_node(Ops::K_ADD.id, {first, second}, {sum});
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     ASSERT_TRUE(plan.is_packed(first));
     ASSERT_TRUE(plan.is_packed(second));
@@ -341,8 +341,8 @@ TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID a = builder.relu(x);
-    const ValueID b = builder.relu(a);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
     const NodeID first = graph.value(a).producer;
     const NodeID second = graph.value(b).producer;
 
@@ -352,8 +352,10 @@ TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot
         {second, 0, unit_shape(), DType::Float32},
     };
 
-    const MemoryPlan plan = MemoryPlan::build(
-        graph, PlanOptions{}, SushiRuntime::span<const Graph::ScratchRequest>(requests, 3));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const MemoryPlan plan,
+        MemoryPlan::build(graph, PlanOptions{},
+                          SushiRuntime::span<const Graph::ScratchRequest>(requests, 3)));
 
     const Graph::Placement* const one = plan.scratch_placement(first, 0);
     const Graph::Placement* const two = plan.scratch_placement(first, 1);
@@ -376,7 +378,7 @@ TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    (void)builder.relu(builder.input(unit_shape(), "x"));
+    SA_EXPECT_OK(builder.relu(builder.input(unit_shape(), "x")));
 
     const Graph::ScratchRequest request{static_cast<NodeID>(graph.node_count()), 0, unit_shape(),
                                         DType::Float32};
@@ -393,11 +395,11 @@ TEST(Small_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{4, 8}, "x");
-    const ValueID a = builder.relu(x);
-    const ValueID flat = builder.reshape(a, Shape{32});
-    (void)builder.relu(flat);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID flat, builder.reshape(a, Shape{32}));
+    SA_EXPECT_OK(builder.relu(flat));
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_EQ(plan.buffer_of(flat), plan.buffer_of(a));
     ASSERT_TRUE(plan.is_packed(flat));
@@ -410,16 +412,16 @@ TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{4, 8}, "x");
-    const ValueID a = builder.relu(x);
-    const ValueID written = builder.reshape(a, Shape{32});
-    (void)builder.accumulate(written, builder.relu(written));
-    const ValueID kept = builder.reshape(a, Shape{8, 4});
-    (void)builder.relu(kept);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID written, builder.reshape(a, Shape{32}));
+    SA_EXPECT_OK(builder.accumulate(written, builder.relu(written)));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID kept, builder.reshape(a, Shape{8, 4}));
+    SA_EXPECT_OK(builder.relu(kept));
 
     const ValueID pinned[] = {kept};
     PlanOptions options;
     options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
     EXPECT_NE(plan.buffer_of(written), plan.buffer_of(a));
     EXPECT_NE(plan.buffer_of(kept), plan.buffer_of(a));
@@ -436,7 +438,7 @@ TEST(Small_MemoryPlan, AValueNothingWritesKeepsItsOwnAllocation)
     const ValueID out = graph.add_value(unit_shape(), DType::Float32, Lifetime::Activation, "y");
     graph.add_node(Ops::K_RELU.id, {orphan}, {out});
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_FALSE(plan.is_packed(orphan));
     EXPECT_TRUE(plan.is_packed(out));
@@ -449,12 +451,12 @@ TEST(Small_MemoryPlan, AnAccumulateChainIsOneBufferWithOneLiveRange)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID first = builder.relu(x);
-    const ValueID second = builder.sigmoid(x);
-    const ValueID accumulated = builder.accumulate(first, second);
-    const ValueID sink = builder.relu(accumulated);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID first, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID second, builder.sigmoid(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID accumulated, builder.accumulate(first, second));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sink, builder.relu(accumulated));
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     EXPECT_EQ(plan.buffer_of(accumulated), plan.buffer_of(first));
     EXPECT_EQ(plan.placement(accumulated).offset, plan.placement(first).offset);
@@ -488,7 +490,7 @@ TEST(Small_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
     PlanOptions options;
     options.alignment = 1;
 
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
     EXPECT_EQ(plan.placement(narrow).offset % dtype_size(DType::Float32), 0u);
     EXPECT_EQ(plan.placement(wide).offset % dtype_size(DType::Float64), 0u);
@@ -504,15 +506,15 @@ TEST(Small_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID a = builder.relu(x);
-    const ValueID b = builder.relu(a);
-    const ValueID c = builder.relu(b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID c, builder.relu(b));
     (void)c;
 
     PlanOptions options;
     options.reuse = false;
 
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
     EXPECT_FALSE(plan.reuse_enabled());
     EXPECT_FALSE(plan.reuse_note().empty());
@@ -526,14 +528,17 @@ TEST(Small_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    ValueID last = builder.relu(x);
-    for (int i = 0; i < 4; ++i) last = builder.relu(last);
+    SA_ASSERT_OK_AND_ASSIGN(ValueID last, builder.relu(x));
+    for (int i = 0; i < 4; ++i)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(last, builder.relu(last));
+    }
     (void)last;
 
     PlanOptions options;
     options.reuse_node_limit = 2;
 
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
     EXPECT_FALSE(plan.reuse_enabled());
     EXPECT_NE(plan.reuse_note().find("reuse_node_limit"), std::string_view::npos);
@@ -546,21 +551,21 @@ TEST(Small_MemoryPlan, APinnedValueKeepsItsOwnAllocation)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID a = builder.relu(x);
-    const ValueID b = builder.relu(a);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
 
     const ValueID pinned[] = {a};
 
     PlanOptions options;
     options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
 
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
     EXPECT_FALSE(plan.is_packed(a));
     EXPECT_TRUE(plan.is_packed(b));
 }
 
-TEST(Small_MemoryPlan, PinningAValueThatDoesNotExistThrows)
+TEST(Small_MemoryPlan, PinningAValueThatDoesNotExistIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -571,19 +576,21 @@ TEST(Small_MemoryPlan, PinningAValueThatDoesNotExistThrows)
     PlanOptions options;
     options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
 
-    EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
+    SA_EXPECT_FATAL((void)MemoryPlan::build(graph, options), "PlanOptions::pinned",
+                    "value 99");
 }
 
-TEST(Small_MemoryPlan, ZeroAlignmentThrows)
+TEST(Small_MemoryPlan, ZeroAlignmentIsRefused)
 {
     Graph::Graph graph;
     PlanOptions options;
     options.alignment = 0;
 
-    EXPECT_THROW((void)MemoryPlan::build(graph, options), Error);
+    SA_EXPECT_FAILURE(MemoryPlan::build(graph, options), StatusCode::InvalidDescription,
+                      "PlanOptions::alignment", "multiple of zero");
 }
 
-TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
+TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderIsFatal)
 {
     // The pass relies on topological order; see tests/core/graph/README.md.
     Graph::Graph graph;
@@ -594,7 +601,20 @@ TEST(Small_MemoryPlan, AGraphThatIsNotInTopologicalOrderThrows)
     graph.add_node(Ops::K_RELU.id, {a}, {b});
     graph.add_node(Ops::K_RELU.id, {b}, {a});
 
-    EXPECT_THROW((void)MemoryPlan::build(graph), Error);
+    SA_EXPECT_FATAL((void)MemoryPlan::build(graph), "Node 0 reads value 0",
+                    "which node 1 writes later");
+}
+
+TEST(Small_MemoryPlan, AskingForAValueThePlanDoesNotCoverIsFatal)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    (void)builder.input(unit_shape(), "x");
+
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
+
+    SA_EXPECT_FATAL((void)plan.placement(7), "Value 7 has no placement",
+                    "this plan covers 1 values");
 }
 
 TEST(Small_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
@@ -604,14 +624,14 @@ TEST(Small_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(unit_shape(), "x");
-    const ValueID a = builder.relu(x);
-    const ValueID b = builder.sigmoid(x);
-    const ValueID c = builder.add(a, b);
-    const ValueID d = builder.tanh(c);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.sigmoid(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID c, builder.add(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID d, builder.tanh(c));
     (void)d;
 
-    const MemoryPlan first = MemoryPlan::build(graph);
-    const MemoryPlan second = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan first, MemoryPlan::build(graph));
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan second, MemoryPlan::build(graph));
 
     ASSERT_EQ(first.value_count(), second.value_count());
     for (ValueID id = 0; id < static_cast<ValueID>(first.value_count()); ++id)
@@ -644,7 +664,7 @@ TEST(Small_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)
                                              Lifetime::Activation, "dx");
     graph.add_node(Ops::K_GELU_BACKWARD.id, {downstream, spill}, {gradient});
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
 
     ASSERT_TRUE(plan.is_packed(result));
     ASSERT_TRUE(plan.is_packed(spill));
@@ -682,19 +702,20 @@ TEST(Small_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackward)
     g.kernel_h = 2; g.kernel_w = 2;
     g.stride_h = 2; g.stride_w = 2;
 
-    const Graph::PoolResult pooled = builder.maxpool2d(x, g);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, g));
 
     // Activations live and die while the argmax waits; see tests/core/graph/README.md.
-    const ValueID mean = builder.spatial_mean(pooled.output);
-    const ValueID rows = builder.reshape(mean, Shape{2, 4});
-    const ValueID hidden = builder.relu(builder.matmul(rows, w));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID mean, builder.spatial_mean(pooled.output));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID rows, builder.reshape(mean, Shape{2, 4}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID hidden, builder.relu(builder.matmul(rows, w)));
     const ValueID target = builder.input(Shape{2, 4}, "target", DType::Float64);
-    const ValueID loss = builder.nll_loss(builder.log_softmax(hidden), target);
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            builder.nll_loss(builder.log_softmax(hidden), target));
+    SA_EXPECT_OK(graph.finalise());
 
     const std::array<ValueID, 2> wrt = {w, x};
-    (void)Autograd::differentiate(graph, loss,
-        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_EXPECT_OK(Autograd::differentiate(graph, loss,
+        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     // Differentiation emitted a reader of the indices; see tests/core/graph/README.md.
     bool backward_reads_the_indices = false;
@@ -706,7 +727,7 @@ TEST(Small_ArgmaxLifetime, ThePlannerKeepsMaxPoolsIndicesAliveUntilItsBackward)
     ASSERT_TRUE(backward_reads_the_indices)
         << "no MAXPOOL2D_BACKWARD consumes the forward's indices; this test's premise is gone";
 
-    const MemoryPlan plan = MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
     ASSERT_TRUE(plan.reuse_enabled())
         << "the planner declined to overlap anything, so nothing here is under test: "
         << plan.reuse_note();

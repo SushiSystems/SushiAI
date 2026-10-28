@@ -61,7 +61,10 @@ Each header is named by its include path under `include/`.
 ## Memory plan
 
 `MemoryPlan::build` packs the Activation and the Scratch values into one arena each and decides
-which buffers of an arena may share bytes.
+which buffers of an arena may share bytes. It returns `Result<MemoryPlan>`: a zero
+`PlanOptions::alignment` is `InvalidDescription`. A graph out of topological order, a pinned
+value or a scratch request the graph does not hold stops the process, as does
+`MemoryPlan::placement` for a value the plan does not cover.
 
 Two Activation buffers share bytes only when every use of one reaches the first write of the
 other in the graph. Two branches nothing orders therefore never share, and the runtime can run
@@ -95,10 +98,32 @@ may read a packed value after the other has run. The anchor training step does t
 forward-only pass has finished, and the host has read its pinned outputs, before the replay
 starts.
 
+## Emitting and refusing
+
+`input`, `parameter`, `buffer`, `zeros`, `like` and `declare_like` declare a value and return
+its `ValueID`. Every other emitter takes its operands as `const Traced&`, so a `ValueID` or
+another emitter's result can be passed, and returns a `Traced`. An emitter that writes more than
+one value returns a `Result` of its struct (`maxpool2d`, `batchnorm2d`, `batchnorm2d_backward`,
+`batchnorm_fold`, `layer_norm`, `layer_norm_backward`, `dropout`), and `cast_into` returns a
+`Status`. `window_extents` and `upsampled_extents` return a `Result<SpatialExtents>`.
+
+An emitter handed a failed operand returns that failure and appends nothing. An emitter that
+refuses its operands appends nothing, calls `GraphBuilder::refuse` through `SA_REFUSE_IF`, and
+returns `InvalidDescription` with the message. `refuse` and `observe` set the graph's
+`has_refusal()` flag, which `CompiledStep::compile` reads: a graph with the flag set does not
+compile, even when the failed result was dropped. `activation_backward` given an operation that
+is not an activation gradient stops the process.
+
+No emitter compares the layouts of its operands. `Graph::prove_layout_uniformity` does, and
+returns `InvalidDescription` for a node other than `LAYOUT_CONVERT` whose operands sit in two
+layouts; a node whose result differs in layout from its operands stops the process.
+`Graph::finalise`, `insert_casts` and `Lowering::record` return that failure. `fuse` requires a
+proven graph and stops the process on one that is not.
+
 ## Row gathers and integer leaves
 
-`GraphBuilder::gather_rows` and `scatter_add_rows` return a `Traced`: a refusal marks the
-graph and comes back as an `InvalidDescription`, where the older emitters throw. Both lower to
+`GraphBuilder::gather_rows` and `scatter_add_rows` refuse as every emitter does (see
+"Emitting and refusing"). Both lower to
 `SushiBLAS::SparseOps::spmm` over a CSR matrix that holds a single one in each row, at the
 column the index names. The gather is the plain product, which copies rows. The scatter-add is
 the transposed product, which adds the rows in index order inside one work-item per column, so

@@ -133,7 +133,7 @@ TEST_F(Medium_AttentionOperations, BatchedProductWithTransposedRightOperandMatch
 
     const ValueID a = builder.input(Shape{2, 3, 4}, "a");
     const ValueID b = builder.input(Shape{2, 5, 4}, "b");
-    const ValueID y = builder.matmul(a, b, false, true);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.matmul(a, b, false, true));
 
     const std::vector<double> left = patterned(2 * 3 * 4, 7, 0.1);
     const std::vector<double> right = patterned(2 * 5 * 4, 5, 0.05);
@@ -170,7 +170,7 @@ TEST_F(Medium_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{2, 3, 3}, "x");
-    const ValueID y = builder.softmax(x);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.softmax(x));
 
     const std::vector<double> logits = patterned(2 * 3 * 3, 3, 0.4);
     const std::vector<double> expected = host_softmax_rows(logits, 3);
@@ -197,12 +197,14 @@ TEST_F(Medium_AttentionOperations, BatchedProductGradientEmitsRankThreeProducts)
 
     const ValueID a = builder.parameter(Shape{2, 3, 4}, "a");
     const ValueID b = builder.parameter(Shape{2, 5, 4}, "b");
-    const ValueID product = builder.matmul(a, b, false, true);
-    const ValueID loss = builder.sum_rows(builder.reshape(product, Shape{30, 1}));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(a, b, false, true));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            builder.sum_rows(builder.reshape(product, Shape{30, 1})));
 
     const std::array<ValueID, 2> wrt = {a, b};
-    const std::vector<ValueID> gradients = Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
+                            Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_EQ(gradients.size(), 2u);
     ASSERT_NE(gradients[0], Graph::K_NO_VALUE);

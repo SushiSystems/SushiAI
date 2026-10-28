@@ -117,7 +117,7 @@ TEST_F(Medium_ElementwiseLowerings, DynamicScaleReadsItsFactorOnEveryRun)
 
     const ValueID x = builder.input(Shape{4}, "x");
     const ValueID factor = builder.input(Shape{1}, "factor");
-    const ValueID y = builder.dynamic_scale(x, factor);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.dynamic_scale(x, factor));
 
     const std::vector<double> values = {1.0, -2.0, 0.5, 4.0};
 
@@ -148,7 +148,7 @@ TEST_F(Medium_ElementwiseLowerings, CastConvertsEachElementToTheResultType)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{3}, "x");
-    const ValueID wide = builder.cast(x, DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID wide, builder.cast(x, DType::Float64));
 
     const std::vector<double> values = {0.25, -1.5, 3.0};
 

@@ -63,7 +63,7 @@ namespace SushiAI
                        "The node range [{}, {}) does not lie in a graph of {} nodes",
                        nodes.first, end, count);
 
-            graph.prove_layout_uniformity();
+            SA_TRY(graph.prove_layout_uniformity());
 
             for (NodeID id = nodes.first; id < end; ++id)
             {

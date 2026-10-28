@@ -32,6 +32,7 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -73,8 +74,9 @@ namespace
         layer.x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
         layer.weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
         layer.bias = builder.parameter(Shape{K_OUT_FEATURES}, "b");
-        layer.product = builder.matmul(layer.x, layer.weight, false, true);
-        layer.biased = builder.bias_add(layer.product, layer.bias);
+        // The extents above fit, so a refusal is a defect of the builder: value() stops the test.
+        layer.product = builder.matmul(layer.x, layer.weight, false, true).value();
+        layer.biased = builder.bias_add(layer.product, layer.bias).value();
         return layer;
     }
 
@@ -192,7 +194,7 @@ TEST_F(Small_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueID activated = builder.relu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.relu(layer.biased));
 
     const std::vector<ValueID> observed{activated};
     FusionOptions options;
@@ -212,9 +214,9 @@ TEST_F(Small_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 
     const ValueID log_probs = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "log_probs");
     const ValueID targets = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "targets");
-    const ValueID probabilities = builder.exp(log_probs);
-    const ValueID difference = builder.sub(probabilities, targets);
-    const ValueID scaled = builder.scale(difference, 0.25);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID probabilities, builder.exp(log_probs));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(probabilities, targets));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(difference, 0.25));
 
     const std::vector<ValueID> observed{scaled};
     FusionOptions options;
@@ -241,9 +243,9 @@ TEST_F(Small_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 
     const ValueID a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
     const ValueID b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
-    const ValueID exponent = builder.exp(a);
-    const ValueID difference = builder.sub(b, exponent);
-    const ValueID scaled = builder.scale(difference, 0.5);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(a));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(b, exponent));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(difference, 0.5));
 
     const std::vector<ValueID> observed{scaled};
     FusionOptions options;
@@ -262,7 +264,7 @@ TEST_F(Small_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     const LinearTrace layer = trace_linear(builder);
 
     // The MATMUL result has a second reader; see tests/core/graph/README.md.
-    const ValueID also = builder.scale(layer.product, 2.0);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID also, builder.scale(layer.product, 2.0));
 
     const std::vector<ValueID> observed{layer.biased, also};
     FusionOptions options;
@@ -281,7 +283,7 @@ TEST_F(Small_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueID activated = builder.relu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.relu(layer.biased));
 
     // The training loop reads `biased` after every replay; see tests/core/graph/README.md.
     const std::vector<ValueID> observed{layer.biased, activated};
@@ -305,13 +307,13 @@ TEST_F(Small_Fusion, AParameterIsProtectedWithoutBeingListed)
 
     const ValueID a = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "a");
     const ValueID b = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "b");
-    const ValueID exponent = builder.exp(a);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(a));
 
     // The exp's result is forced into a persistent class; see tests/core/graph/README.md.
     graph.value(exponent).lifetime = Graph::Lifetime::OptimizerState;
 
-    const ValueID difference = builder.sub(exponent, b);
-    (void)builder.scale(difference, 0.5);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(exponent, b));
+    SA_EXPECT_OK(builder.scale(difference, 0.5));
 
     const FusionReport report = Graph::fuse(graph, FusionOptions{});
 
@@ -326,10 +328,11 @@ TEST_F(Small_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntr
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueID activated = builder.gelu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.gelu(layer.biased));
     const ValueID upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
-    const ValueID gradient =
-        builder.activation_backward(Ops::K_GELU_BACKWARD.id, upstream, layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gradient,
+                            builder.activation_backward(Ops::K_GELU_BACKWARD.id, upstream,
+                                                        layer.biased));
 
     const std::vector<ValueID> observed{activated, gradient};
     FusionOptions options;
@@ -375,8 +378,8 @@ TEST_F(Small_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
     const LinearTrace layer = trace_linear(builder);
 
     // Emitted *before* the GELU, unlike the backward node in the case above.
-    const ValueID early = builder.scale(layer.biased, 2.0);
-    const ValueID activated = builder.gelu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID early, builder.scale(layer.biased, 2.0));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.gelu(layer.biased));
 
     const std::vector<ValueID> observed{early, activated};
     FusionOptions options;
@@ -407,7 +410,7 @@ TEST_F(Small_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueID activated = builder.gelu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.gelu(layer.biased));
 
     const std::vector<ValueID> observed{layer.biased, activated};
     FusionOptions options;
@@ -427,8 +430,8 @@ TEST_F(Small_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueID also = builder.scale(layer.product, 2.0);
-    const ValueID activated = builder.gelu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID also, builder.scale(layer.product, 2.0));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.gelu(layer.biased));
 
     const std::vector<ValueID> observed{also, activated};
     FusionOptions options;
@@ -446,7 +449,7 @@ TEST_F(Small_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueID activated = builder.gelu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.gelu(layer.biased));
 
     const std::vector<ValueID> observed{activated};
     const std::vector<FusedForm> off{FusedForm::GEMMBiasGELU};
@@ -473,10 +476,11 @@ TEST_F(Small_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
 
-    const ValueID activated = builder.relu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.relu(layer.biased));
     const ValueID upstream = builder.input(Shape{K_ROWS, K_OUT_FEATURES}, "dy");
-    const ValueID gradient =
-        builder.activation_backward(Ops::K_RELU_BACKWARD.id, upstream, activated);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID gradient,
+                            builder.activation_backward(Ops::K_RELU_BACKWARD.id, upstream,
+                                                        activated));
 
     const std::vector<ValueID> observed{gradient};
     FusionOptions options;
@@ -493,7 +497,7 @@ TEST_F(Small_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    (void)builder.relu(layer.biased);
+    SA_EXPECT_OK(builder.relu(layer.biased));
 
     const std::size_t nodes = graph.node_count();
     const std::size_t values = graph.value_count();
@@ -515,7 +519,7 @@ TEST_F(Small_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    const ValueID activated = builder.relu(layer.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.relu(layer.biased));
 
     const std::vector<ValueID> observed{activated};
     const std::vector<FusedForm> off{FusedForm::GEMMBiasReLU};
@@ -537,7 +541,7 @@ TEST_F(Small_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    (void)builder.relu(layer.biased);
+    SA_EXPECT_OK(builder.relu(layer.biased));
 
     std::vector<Shape> shapes;
     std::vector<Graph::Lifetime> lifetimes;
@@ -567,11 +571,11 @@ TEST_F(Small_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
     const GraphBuilder builder(graph);
 
     const LinearTrace first = trace_linear(builder);
-    const ValueID hidden = builder.relu(first.biased);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID hidden, builder.relu(first.biased));
     const ValueID weight = builder.parameter(Shape{K_OUT_FEATURES, K_OUT_FEATURES}, "w2");
     const ValueID bias = builder.parameter(Shape{K_OUT_FEATURES}, "b2");
-    const ValueID product = builder.matmul(hidden, weight, false, true);
-    (void)builder.bias_add(product, bias);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(hidden, weight, false, true));
+    SA_EXPECT_OK(builder.bias_add(product, bias));
 
     (void)Graph::fuse(graph, FusionOptions{});
 
@@ -590,7 +594,7 @@ TEST_F(Small_Fusion, TheReportNamesEverySubtreeItCollapsed)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const LinearTrace layer = trace_linear(builder);
-    (void)builder.relu(layer.biased);
+    SA_EXPECT_OK(builder.relu(layer.biased));
 
     const FusionReport report = Graph::fuse(graph, FusionOptions{});
     const std::string text = report.to_string();
@@ -608,7 +612,7 @@ TEST_F(Small_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
     const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
     const ValueID weight = builder.parameter(Shape{K_OUT_FEATURES, K_IN_FEATURES}, "w");
     const ValueID shift = builder.buffer(Shape{K_OUT_FEATURES}, "running_shift");
-    (void)builder.relu(builder.bias_add(builder.matmul(x, weight, false, true), shift));
+    SA_EXPECT_OK(builder.relu(builder.bias_add(builder.matmul(x, weight, false, true), shift)));
 
     graph.bind_state_leaf(Graph::StateID{21}, weight);
     graph.bind_state_leaf(Graph::StateID{22}, shift);
@@ -628,4 +632,35 @@ TEST_F(Small_Fusion, StateLeavesAndTheRefusalMarkSurviveTheRewrite)
     EXPECT_FALSE(graph.value(shift).requires_grad);
     EXPECT_TRUE(graph.value(weight).requires_grad);
     EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that an observed value the graph does not have stops the process. */
+TEST_F(Small_Fusion, ObservingAValueThatDoesNotExistIsFatal)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+    SA_EXPECT_OK(builder.relu(x));
+
+    const ValueID missing[] = {static_cast<ValueID>(graph.value_count() + 5)};
+    FusionOptions options;
+    options.observed = SushiRuntime::span<const ValueID>(missing, 1);
+
+    SA_EXPECT_FATAL((void)Graph::fuse(graph, options), "FusionOptions::observed",
+                    "which this graph does not have");
+}
+
+/** @brief Tests that a graph out of topological order stops the process. */
+TEST_F(Small_Fusion, AGraphThatIsNotInTopologicalOrderIsFatal)
+{
+    Graph::Graph graph;
+    const ValueID a = graph.add_value(Shape{K_ROWS}, DType::Float32, Graph::Lifetime::Activation,
+                                      "a");
+    const ValueID b = graph.add_value(Shape{K_ROWS}, DType::Float32, Graph::Lifetime::Activation,
+                                      "b");
+    graph.add_node(Ops::K_RELU.id, {b}, {a});
+    graph.add_node(Ops::K_RELU.id, {a}, {b});
+
+    SA_EXPECT_FATAL((void)Graph::fuse(graph, FusionOptions{}), "Node 0 reads value 1",
+                    "which node 1 writes later");
 }

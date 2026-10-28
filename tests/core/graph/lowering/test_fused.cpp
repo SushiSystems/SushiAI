@@ -124,7 +124,8 @@ TEST_F(Medium_FusedLowerings, TheGEMMWithBiasAndReLUMatchesTheHost)
     const ValueID x = builder.input(Shape{2, 3}, "x");
     const ValueID w = builder.parameter(Shape{4, 3}, "w");
     const ValueID b = builder.parameter(Shape{4}, "b");
-    const ValueID y = builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                            builder.relu(builder.bias_add(builder.matmul(x, w, false, true), b)));
 
     const std::vector<ValueID> observed{y};
     Graph::FusionOptions options;

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- 2026-10-28 — graph: Breaking change: Made `Graph::prove_layout_uniformity` and `Graph::finalise` return a `Status`, refusing operands in two layouts as InvalidDescription (`ir.hpp`).
+- 2026-10-28 — graph: Made the layout proof stop the process on a result whose layout differs from its operands (`ir.hpp`).
+- 2026-10-28 — graph: Made `insert_casts` return the layout proof's failure before it rewrites the graph (`cast_insertion.cpp`).
+- 2026-10-28 — graph: Made `fuse` stop the process on a graph whose layouts are not proven (`fusion.cpp`).
+- 2026-10-28 — graph: Made `Lowering::record` return the layout proof's failure (`lowering.cpp`).
+- 2026-10-28 — graph: Breaking change: Made the `GraphBuilder` emitters take `Traced` operands and return a Traced, Result or Status, refusing a description through `SA_REFUSE_IF` in place of throwing (`builder.hpp`).
+- 2026-10-28 — graph: Breaking change: Made `insert_casts` return `Result<CastReport>`, refusing a non-float conversion a policy asks for, and stop the process on a broken precondition or its own defect (`cast_insertion.hpp`).
+- 2026-10-28 — graph: Breaking change: Made `MemoryPlan::build` return `Result<MemoryPlan>`, refusing a zero alignment, and stop the process on a broken precondition, as `placement` now does (`memory_plan.hpp`).
+- 2026-10-28 — graph: Made `fuse` stop the process on a graph out of topological order or an unknown observed value, in place of throwing (`fusion.cpp`).
 - 2026-10-28 — train: Made `ObjectiveLeaves::add` on a declared role and `ObjectiveLeaves::at` on an undeclared one stop the process, as broken preconditions, in place of throwing (`objective.cpp`).
 - 2026-10-28 — profile: Added the one list of SushiAI's zone groups, which `SA_ZONE` checks at compile time (`zone_groups.hpp`).
 - 2026-10-28 — profile_records: Removed `K_SUSHIAI_ZONE_GROUPS`, which the list of the profile module replaces (`profile_records.hpp`).

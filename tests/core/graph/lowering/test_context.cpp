@@ -91,7 +91,7 @@ namespace
                 SaTest::EngineTest::SetUp();
                 const GraphBuilder builder(graph);
                 x = builder.input(Shape{2, 3}, "x");
-                y = builder.relu(x);
+                SA_ASSERT_OK_AND_ASSIGN(y, builder.relu(x));
                 node = graph.value(y).producer;
                 pool = std::make_unique<TensorPool>(*engine);
                 SA_EXPECT_OK(pool->materialise_leaves(graph));

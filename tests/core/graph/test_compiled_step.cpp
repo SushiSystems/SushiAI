@@ -217,8 +217,8 @@ TEST_F(Medium_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
-    const ValueID doubled = builder.scale(leaf, 2.0);
-    const ValueID tripled = builder.scale(doubled, 3.0);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, builder.scale(leaf, 2.0));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID tripled, builder.scale(doubled, 3.0));
     const Graph::NodeID cut = graph.value(doubled).producer + 1;
     ASSERT_LT(cut, graph.node_count());
 
@@ -264,6 +264,22 @@ TEST_F(Medium_CompiledStep, ARangeOutsideTheGraphIsRefused)
     SA_EXPECT_FAILURE(
         CompiledStep::compile(*engine, graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
         StatusCode::InvalidDescription, "[1, 0)");
+}
+
+/** @brief Tests that compile refuses a graph whose refused emitter result was dropped. */
+TEST_F(Medium_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, builder.scale(leaf, 2.0));
+    static_cast<void>(builder.reshape(doubled, Shape{static_cast<int64_t>(5)}));
+    ASSERT_TRUE(graph.has_refusal());
+
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SA_EXPECT_FAILURE(CompiledStep::compile(*engine, graph, pool), StatusCode::InvalidDescription,
+                      "refused operation");
 }
 
 namespace
@@ -398,14 +414,14 @@ namespace
         std::unique_ptr<Chain> made = std::make_unique<Chain>(engine);
         const GraphBuilder builder(made->graph);
         made->input = builder.parameter(Shape{K_CHAIN_ELEMENTS}, "input");
-        made->first = builder.relu(made->input);
-        made->view = builder.reshape(made->first, Shape{2, K_CHAIN_ELEMENTS / 2});
-        made->second = builder.relu(made->view);
+        SA_TRY_ASSIGN(made->first, builder.relu(made->input));
+        SA_TRY_ASSIGN(made->view, builder.reshape(made->first, Shape{2, K_CHAIN_ELEMENTS / 2}));
+        SA_TRY_ASSIGN(made->second, builder.relu(made->view));
 
         // A step runs on a planned pool, where the reshape's result is a view of its operand.
         Graph::PlanOptions plan_options;
         plan_options.reuse = false;
-        SA_TRY(made->pool.adopt(Graph::MemoryPlan::build(made->graph, plan_options)));
+        SA_TRY(made->pool.adopt(Graph::MemoryPlan::build(made->graph, plan_options).value()));
         SA_TRY(made->pool.materialise_leaves(made->graph));
         if (with_trailing)
         {

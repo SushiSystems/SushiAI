@@ -48,6 +48,7 @@ namespace SaTest = SushiAI::Test;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
+using Graph::Traced;
 using Graph::ValueID;
 using SaTest::read_tensor;
 using SaTest::write_tensor;
@@ -74,10 +75,10 @@ namespace
     constexpr Tolerance K_FLOAT64_TOLERANCE = {1e-12, 1e-9};
 
     /** @brief Names a builder emitter that takes one operand. */
-    using UnaryEmitter = ValueID (GraphBuilder::*)(ValueID) const;
+    using UnaryEmitter = Traced (GraphBuilder::*)(const Traced&) const;
 
     /** @brief Names a builder emitter that takes two operands. */
-    using BinaryEmitter = ValueID (GraphBuilder::*)(ValueID, ValueID) const;
+    using BinaryEmitter = Traced (GraphBuilder::*)(const Traced&, const Traced&) const;
 
     /** @brief Lowers a graph, runs it once, and hands back the pool. */
     class OneShot
@@ -144,7 +145,7 @@ namespace
 
         const int64_t columns = static_cast<int64_t>(input.size());
         const ValueID x = builder.input(Shape{1, columns}, "x");
-        const ValueID y = (builder.*emit)(x);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID y, (builder.*emit)(x));
 
         OneShot run(engine, graph);
         write_tensor(run.pool.tensor(x), input);
@@ -172,7 +173,7 @@ namespace
         const int64_t columns = static_cast<int64_t>(left.size());
         const ValueID a = builder.input(Shape{1, columns}, "a");
         const ValueID b = builder.input(Shape{1, columns}, "b");
-        const ValueID y = (builder.*emit)(a, b);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID y, (builder.*emit)(a, b));
 
         OneShot run(engine, graph);
         write_tensor(run.pool.tensor(a), left);
@@ -199,11 +200,12 @@ namespace
 
         const ValueID x = builder.parameter(Shape{2, 3}, "x", DType::Float64);
         const ValueID weights = builder.input(Shape{2, 3}, "targets", DType::Float64);
-        const ValueID loss = builder.nll_loss((builder.*activation)(x), weights);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                                builder.nll_loss((builder.*activation)(x), weights));
 
         const std::array<ValueID, 1> wrt = {x};
         const std::vector<ValueID> gradients = Autograd::differentiate(
-            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
 
         ASSERT_EQ(gradients.size(), 1u);
         ASSERT_NE(gradients[0], Graph::K_NO_VALUE);
@@ -328,7 +330,7 @@ TEST_F(Medium_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
     const ValueID condition = builder.input(Shape{1, 6}, "condition");
     const ValueID a = builder.input(Shape{1, 6}, "a");
     const ValueID b = builder.input(Shape{1, 6}, "b");
-    const ValueID y = builder.select(condition, a, b);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.select(condition, a, b));
 
     const std::vector<double> mask = {1.0, 0.0, 1.0, 0.0, 0.0, 1.0};
     const std::vector<double> taken = {-1.0, 2.0, 0.0, 4.0, -5.0, 6.0};
@@ -358,9 +360,9 @@ TEST_F(Medium_LoweredOperations, ConstantFillsEveryElementWithItsValue)
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{2, 3}, "x");
-    const ValueID filled = builder.constant(Shape{4}, K_FILL);
-    const ValueID like = builder.constant_like(x, K_LIKE_FILL);
-    const ValueID shifted = builder.add(x, like);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID filled, builder.constant(Shape{4}, K_FILL));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID like, builder.constant_like(x, K_LIKE_FILL));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID shifted, builder.add(x, like));
 
     const std::vector<double> input = {-2.0, -0.5, 0.0, 0.5, 2.0, 8.0};
 
@@ -472,8 +474,8 @@ TEST_F(Medium_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
     const ValueID beta = builder.input(Shape{4}, "beta");
     const ValueID mean = builder.input(Shape{4}, "mean");
     const ValueID variance = builder.input(Shape{4}, "variance");
-    const Graph::BatchNormFold fold =
-        builder.batchnorm_fold(gamma, beta, mean, variance, K_EPSILON);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormFold fold,
+                            builder.batchnorm_fold(gamma, beta, mean, variance, K_EPSILON));
 
     // The zero variance leaves epsilon alone under the root.
     const std::vector<double> gammas = {2.0, -1.5, 0.0, 0.75};
@@ -536,7 +538,7 @@ TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
     g.kernel_w = K_KERNEL;
     g.pad_top = K_PAD;
     g.pad_left = K_PAD;
-    const ValueID y = builder.depthwise_conv2d(x, weights, g);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.depthwise_conv2d(x, weights, g));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), image);

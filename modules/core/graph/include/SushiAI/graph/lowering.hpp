@@ -89,9 +89,8 @@ namespace SushiAI
                  * @brief Records the nodes of @p graph that @p nodes names, in node order.
                  *
                  * Every task a node records carries the origin of that node.
-                 * @return Success, or the first refusal, annotated with the node's operation;
-                 *         InvalidDescription for a range that ends before it starts or
-                 *         behind the last node.
+                 * @return Success, the first refusal annotated with the node's operation, or
+                 *         InvalidDescription for a bad range or operands in two layouts.
                  */
                 [[nodiscard]] Status record(const Graph& graph, NodeRange nodes = {});
 

@@ -26,7 +26,6 @@
  */
 
 #include <SushiAI/graph/builder.hpp>
-#include <SushiAI/failure/error.hpp>
 
 #include <array>
 #include <cmath>
@@ -34,6 +33,8 @@
 #include <cstdint>
 #include <limits>
 #include <utility>
+#include <vector>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -86,62 +87,65 @@ namespace SushiAI
                 return table_rows <= K_LARGEST_INDEX && count < K_LARGEST_INDEX;
             }
 
-            /** @brief Throws unless @p value is tagged NHWC, naming the emitter @p what. */
-            void require_nhwc(const Value& value, std::string_view what)
+            /** @brief Returns InvalidDescription unless @p value is tagged NHWC. */
+            Status require_nhwc(const Value& value, std::string_view what)
             {
-                SA_THROW_IF(value.layout != TensorLayout::NHWC,
-                            "{} reads NHWC; this value is NCHW. Cross with "
-                            "layout_convert first (CV-3).",
-                            what);
+                SA_FAIL_IF(value.layout != TensorLayout::NHWC, StatusCode::InvalidDescription,
+                           "{} reads NHWC; this value is NCHW. Cross with "
+                           "layout_convert first (CV-3).",
+                           what);
+                return Status();
             }
 
-            /** @brief Throws unless both upsampling scales are at least one, naming @p what. */
-            void require_upsample_scales(std::string_view what, int64_t scale_h, int64_t scale_w)
+            /** @brief Returns InvalidDescription unless both upsampling scales are at least one. */
+            Status require_upsample_scales(std::string_view what, int64_t scale_h, int64_t scale_w)
             {
-                SA_THROW_IF(scale_h < 1 || scale_w < 1,
-                            "{} needs scales of at least one; got {}x{}",
-                            what, scale_h, scale_w);
+                SA_FAIL_IF(scale_h < 1 || scale_w < 1, StatusCode::InvalidDescription,
+                           "{} needs scales of at least one; got {}x{}",
+                           what, scale_h, scale_w);
+                return Status();
             }
         } // namespace
 
-        SpatialExtents window_extents(int64_t height, int64_t width, const ConvGeometry& g)
+        Result<SpatialExtents> window_extents(int64_t height, int64_t width, const ConvGeometry& g)
         {
-            SA_THROW_IF(g.kernel_h <= 0 || g.kernel_w <= 0,
-                        "A window needs a positive kernel; got kernel {}x{}",
-                        g.kernel_h, g.kernel_w);
-            SA_THROW_IF(g.stride_h <= 0 || g.stride_w <= 0,
-                        "A window needs a positive stride; got stride {},{}",
-                        g.stride_h, g.stride_w);
-            SA_THROW_IF(g.dilation_h <= 0 || g.dilation_w <= 0,
-                        "A window needs a positive dilation; got dilation {},{}",
-                        g.dilation_h, g.dilation_w);
-            SA_THROW_IF(g.pad_top < 0 || g.pad_left < 0,
-                        "A window needs a non-negative padding; got padding {},{}",
-                        g.pad_top, g.pad_left);
+            SA_FAIL_IF(g.kernel_h <= 0 || g.kernel_w <= 0, StatusCode::InvalidDescription,
+                       "A window needs a positive kernel; got kernel {}x{}",
+                       g.kernel_h, g.kernel_w);
+            SA_FAIL_IF(g.stride_h <= 0 || g.stride_w <= 0, StatusCode::InvalidDescription,
+                       "A window needs a positive stride; got stride {},{}",
+                       g.stride_h, g.stride_w);
+            SA_FAIL_IF(g.dilation_h <= 0 || g.dilation_w <= 0, StatusCode::InvalidDescription,
+                       "A window needs a positive dilation; got dilation {},{}",
+                       g.dilation_h, g.dilation_w);
+            SA_FAIL_IF(g.pad_top < 0 || g.pad_left < 0, StatusCode::InvalidDescription,
+                       "A window needs a non-negative padding; got padding {},{}",
+                       g.pad_top, g.pad_left);
 
             const SpatialExtents extents{
                 output_extent(height, g.pad_top, g.pad_top, g.dilation_h, g.kernel_h, g.stride_h),
                 output_extent(width, g.pad_left, g.pad_left, g.dilation_w, g.kernel_w, g.stride_w)};
 
-            SA_THROW_IF(extents.height <= 0 || extents.width <= 0,
-                        "A window needs to fit its padded input; got a {}x{} window dilated by "
-                        "{}x{} over a {}x{} input padded by {},{}",
-                        g.kernel_h, g.kernel_w, g.dilation_h, g.dilation_w, height, width,
-                        g.pad_top, g.pad_left);
+            SA_FAIL_IF(extents.height <= 0 || extents.width <= 0, StatusCode::InvalidDescription,
+                       "A window needs to fit its padded input; got a {}x{} window dilated by "
+                       "{}x{} over a {}x{} input padded by {},{}",
+                       g.kernel_h, g.kernel_w, g.dilation_h, g.dilation_w, height, width,
+                       g.pad_top, g.pad_left);
 
             return extents;
         }
 
-        SpatialExtents upsampled_extents(int64_t height, int64_t width,
-                                         int64_t scale_h, int64_t scale_w)
+        Result<SpatialExtents> upsampled_extents(int64_t height, int64_t width,
+                                                 int64_t scale_h, int64_t scale_w)
         {
-            require_upsample_scales("upsample2d", scale_h, scale_w);
+            SA_TRY(require_upsample_scales("upsample2d", scale_h, scale_w));
 
             constexpr int64_t K_LARGEST_EXTENT = std::numeric_limits<int64_t>::max();
-            SA_THROW_IF(height > K_LARGEST_EXTENT / scale_h || width > K_LARGEST_EXTENT / scale_w,
-                        "upsample2d needs scaled extents that fit in 64 bits; got a {}x{} input "
-                        "scaled by {}x{}",
-                        height, width, scale_h, scale_w);
+            SA_FAIL_IF(height > K_LARGEST_EXTENT / scale_h || width > K_LARGEST_EXTENT / scale_w,
+                       StatusCode::InvalidDescription,
+                       "upsample2d needs scaled extents that fit in 64 bits; got a {}x{} input "
+                       "scaled by {}x{}",
+                       height, width, scale_h, scale_w);
 
             return SpatialExtents{height * scale_h, width * scale_w};
         }
@@ -165,17 +169,18 @@ namespace SushiAI
             return out;
         }
 
-        void GraphBuilder::require_same(ValueID a, ValueID b, std::string_view what) const
+        Status GraphBuilder::require_same(ValueID a, ValueID b, std::string_view what) const
         {
             const Value& va = graph_->value(a);
             const Value& vb = graph_->value(b);
 
-            SA_THROW_IF(va.shape != vb.shape,
-                        "{} needs equally shaped operands; got {} and {}",
-                        what, va.shape.to_string(), vb.shape.to_string());
-            SA_THROW_IF(va.dtype != vb.dtype,
-                        "{} needs operands of one element type; got {} and {}",
-                        what, dtype_name(va.dtype), dtype_name(vb.dtype));
+            SA_FAIL_IF(va.shape != vb.shape, StatusCode::InvalidDescription,
+                       "{} needs equally shaped operands; got {} and {}",
+                       what, va.shape.to_string(), vb.shape.to_string());
+            SA_FAIL_IF(va.dtype != vb.dtype, StatusCode::InvalidDescription,
+                       "{} needs operands of one element type; got {} and {}",
+                       what, dtype_name(va.dtype), dtype_name(vb.dtype));
+            return Status();
         }
 
         ValueID GraphBuilder::input(Shape shape, std::string_view debug_name, DType dtype) const
@@ -206,18 +211,22 @@ namespace SushiAI
             return declare_like(source, v.shape, v.dtype, v.lifetime, debug_name);
         }
 
-        ValueID GraphBuilder::matmul(ValueID a, ValueID b, bool transpose_a, bool transpose_b) const
+        Traced GraphBuilder::matmul(const Traced& left, const Traced& right, bool transpose_a,
+                                    bool transpose_b) const
         {
+            SA_TRY_ASSIGN(const ValueID a, left);
+            SA_TRY_ASSIGN(const ValueID b, right);
+
             const Value& va = graph_->value(a);
             const Value& vb = graph_->value(b);
             const int32_t rank = va.shape.rank();
 
-            SA_THROW_IF((rank != 2 && rank != 3) || vb.shape.rank() != rank,
-                        "MATMUL needs two rank-2 operands or two rank-3 batches; got {} and {}",
-                        va.shape.to_string(), vb.shape.to_string());
-            SA_THROW_IF(va.dtype != vb.dtype,
-                        "MATMUL needs operands of one element type; got {} and {}",
-                        dtype_name(va.dtype), dtype_name(vb.dtype));
+            SA_REFUSE_IF(*this, (rank != 2 && rank != 3) || vb.shape.rank() != rank,
+                         "MATMUL needs two rank-2 operands or two rank-3 batches; got {} and {}",
+                         va.shape.to_string(), vb.shape.to_string());
+            SA_REFUSE_IF(*this, va.dtype != vb.dtype,
+                         "MATMUL needs operands of one element type; got {} and {}",
+                         dtype_name(va.dtype), dtype_name(vb.dtype));
 
             // A rank-3 operand is [B, rows, cols]; the matrix axes start at `first`.
             const int32_t first = rank - 2;
@@ -226,14 +235,14 @@ namespace SushiAI
             const int64_t kb = transpose_b ? vb.shape[first + 1] : vb.shape[first];
             const int64_t n = transpose_b ? vb.shape[first] : vb.shape[first + 1];
 
-            SA_THROW_IF(ka != kb,
-                        "MATMUL contracts {} against {}; the inner extents must agree "
-                        "(operands {} and {}, transposed {}/{})",
-                        ka, kb, va.shape.to_string(), vb.shape.to_string(),
-                        transpose_a, transpose_b);
-            SA_THROW_IF(rank == 3 && va.shape[0] != vb.shape[0],
-                        "MATMUL batches must agree; got {} and {}",
-                        va.shape.to_string(), vb.shape.to_string());
+            SA_REFUSE_IF(*this, ka != kb,
+                         "MATMUL contracts {} against {}; the inner extents must agree "
+                         "(operands {} and {}, transposed {}/{})",
+                         ka, kb, va.shape.to_string(), vb.shape.to_string(),
+                         transpose_a, transpose_b);
+            SA_REFUSE_IF(*this, rank == 3 && va.shape[0] != vb.shape[0],
+                         "MATMUL batches must agree; got {} and {}",
+                         va.shape.to_string(), vb.shape.to_string());
 
             // The shape is read before declare_like, which may grow the table va and vb refer to.
             const Shape product = rank == 3 ? shape_of(va.shape[0], m, n) : shape_of(m, n);
@@ -249,21 +258,24 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::bias_add(ValueID x, ValueID bias) const
+        Traced GraphBuilder::bias_add(const Traced& operand, const Traced& offsets) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID bias, offsets);
+
             const Value& vx = graph_->value(x);
             const Value& vb = graph_->value(bias);
 
-            SA_THROW_IF(vx.shape.rank() != 2,
-                        "BIAS_ADD needs a rank-2 left operand; got {}", vx.shape.to_string());
-            SA_THROW_IF(vb.shape.rank() != 1,
-                        "BIAS_ADD needs a rank-1 bias; got {}", vb.shape.to_string());
-            SA_THROW_IF(vb.shape[0] != vx.shape[1],
-                        "BIAS_ADD bias has {} entries but {} has {} columns",
-                        vb.shape[0], vx.shape.to_string(), vx.shape[1]);
-            SA_THROW_IF(vx.dtype != vb.dtype,
-                        "BIAS_ADD needs operands of one element type; got {} and {}",
-                        dtype_name(vx.dtype), dtype_name(vb.dtype));
+            SA_REFUSE_IF(*this, vx.shape.rank() != 2,
+                         "BIAS_ADD needs a rank-2 left operand; got {}", vx.shape.to_string());
+            SA_REFUSE_IF(*this, vb.shape.rank() != 1,
+                         "BIAS_ADD needs a rank-1 bias; got {}", vb.shape.to_string());
+            SA_REFUSE_IF(*this, vb.shape[0] != vx.shape[1],
+                         "BIAS_ADD bias has {} entries but {} has {} columns",
+                         vb.shape[0], vx.shape.to_string(), vx.shape[1]);
+            SA_REFUSE_IF(*this, vx.dtype != vb.dtype,
+                         "BIAS_ADD needs operands of one element type; got {} and {}",
+                         dtype_name(vx.dtype), dtype_name(vb.dtype));
 
             const ValueID out = declare_like(x, vx.shape, vx.dtype, Lifetime::Activation,
                                              "bias_add");
@@ -271,11 +283,13 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::sum_rows(ValueID x) const
+        Traced GraphBuilder::sum_rows(const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
-            SA_THROW_IF(vx.shape.rank() != 2,
-                        "SUM_ROWS needs a rank-2 operand; got {}", vx.shape.to_string());
+            SA_REFUSE_IF(*this, vx.shape.rank() != 2,
+                         "SUM_ROWS needs a rank-2 operand; got {}", vx.shape.to_string());
 
             const ValueID out = declare_like(x, shape_of(vx.shape[1]), vx.dtype,
                                              Lifetime::Activation, "sum_rows");
@@ -283,8 +297,11 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::gather_rows(ValueID table, ValueID indices) const
+        Traced GraphBuilder::gather_rows(const Traced& source, const Traced& index) const
         {
+            SA_TRY_ASSIGN(const ValueID table, source);
+            SA_TRY_ASSIGN(const ValueID indices, index);
+
             // Both descriptions are copied; declaring the result grows the value table.
             const Shape table_shape = graph_->value(table).shape;
             const DType table_dtype = graph_->value(table).dtype;
@@ -314,9 +331,12 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::scatter_add_rows(ValueID rows, ValueID indices,
+        Traced GraphBuilder::scatter_add_rows(const Traced& source, const Traced& index,
                                               int64_t table_rows) const
         {
+            SA_TRY_ASSIGN(const ValueID rows, source);
+            SA_TRY_ASSIGN(const ValueID indices, index);
+
             // Both descriptions are copied; declaring the result grows the value table.
             const Shape row_shape = graph_->value(rows).shape;
             const DType row_dtype = graph_->value(rows).dtype;
@@ -351,8 +371,10 @@ namespace SushiAI
             return out;
         }
 
-        Traced GraphBuilder::causal_mask(ValueID scores, double fill) const
+        Traced GraphBuilder::causal_mask(const Traced& operand, double fill) const
         {
+            SA_TRY_ASSIGN(const ValueID scores, operand);
+
             // The description is copied; declaring the result grows the value table.
             const Shape shape = graph_->value(scores).shape;
             const DType dtype = graph_->value(scores).dtype;
@@ -377,10 +399,12 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::elementwise(OpID op, ValueID a, ValueID b,
-                                          std::string_view what) const
+        Traced GraphBuilder::elementwise(OpID op, const Traced& left, const Traced& right,
+                                         std::string_view what) const
         {
-            require_same(a, b, what);
+            SA_TRY_ASSIGN(const ValueID a, left);
+            SA_TRY_ASSIGN(const ValueID b, right);
+            SA_TRY(observe(require_same(a, b, what)));
 
             const Value& va = graph_->value(a);
             const ValueID out = declare_like(a, va.shape, va.dtype, Lifetime::Activation,
@@ -389,45 +413,49 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::add(ValueID a, ValueID b) const
+        Traced GraphBuilder::add(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_ADD.id, a, b, "ADD");
         }
 
-        ValueID GraphBuilder::sub(ValueID a, ValueID b) const
+        Traced GraphBuilder::sub(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_SUB.id, a, b, "SUB");
         }
 
-        ValueID GraphBuilder::mul(ValueID a, ValueID b) const
+        Traced GraphBuilder::mul(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_MUL.id, a, b, "MUL");
         }
 
-        ValueID GraphBuilder::div(ValueID a, ValueID b) const
+        Traced GraphBuilder::div(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_DIV.id, a, b, "DIV");
         }
 
-        ValueID GraphBuilder::minimum(ValueID a, ValueID b) const
+        Traced GraphBuilder::minimum(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_MINIMUM.id, a, b, "MINIMUM");
         }
 
-        ValueID GraphBuilder::maximum(ValueID a, ValueID b) const
+        Traced GraphBuilder::maximum(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_MAXIMUM.id, a, b, "MAXIMUM");
         }
 
-        ValueID GraphBuilder::less_equal(ValueID a, ValueID b) const
+        Traced GraphBuilder::less_equal(const Traced& a, const Traced& b) const
         {
             return elementwise(Ops::K_LESS_EQUAL.id, a, b, "LESS_EQUAL");
         }
 
-        ValueID GraphBuilder::select(ValueID condition, ValueID a, ValueID b) const
+        Traced GraphBuilder::select(const Traced& mask, const Traced& left,
+                                    const Traced& right) const
         {
-            require_same(a, b, "SELECT");
-            require_same(condition, a, "SELECT");
+            SA_TRY_ASSIGN(const ValueID condition, mask);
+            SA_TRY_ASSIGN(const ValueID a, left);
+            SA_TRY_ASSIGN(const ValueID b, right);
+            SA_TRY(observe(require_same(a, b, "SELECT")));
+            SA_TRY(observe(require_same(condition, a, "SELECT")));
 
             const Value& va = graph_->value(a);
             const ValueID out = declare_like(a, va.shape, va.dtype, Lifetime::Activation,
@@ -436,8 +464,10 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::scale(ValueID x, double alpha) const
+        Traced GraphBuilder::scale(const Traced& operand, double alpha) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
             const ValueID out = declare_like(x, vx.shape, vx.dtype, Lifetime::Activation, "scale");
 
@@ -448,20 +478,23 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::dynamic_scale(ValueID x, ValueID factor,
-                                            std::string_view debug_name) const
+        Traced GraphBuilder::dynamic_scale(const Traced& operand, const Traced& multiplier,
+                                           std::string_view debug_name) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID factor, multiplier);
+
             const Value& vx = graph_->value(x);
             const Value& vf = graph_->value(factor);
 
-            SA_THROW_IF(vf.shape.num_elements() != 1,
-                        "DYNAMIC_SCALE's factor must be a single element; got {}",
-                        vf.shape.to_string());
-            SA_THROW_IF(vf.dtype != vx.dtype,
-                        "DYNAMIC_SCALE multiplies a {} tensor by a {} factor; the two must "
-                        "agree, because the kernel multiplies in one element type and a "
-                        "widening operand would change the arithmetic without saying so",
-                        dtype_name(vx.dtype), dtype_name(vf.dtype));
+            SA_REFUSE_IF(*this, vf.shape.num_elements() != 1,
+                         "DYNAMIC_SCALE's factor must be a single element; got {}",
+                         vf.shape.to_string());
+            SA_REFUSE_IF(*this, vf.dtype != vx.dtype,
+                         "DYNAMIC_SCALE multiplies a {} tensor by a {} factor; the two must "
+                         "agree, because the kernel multiplies in one element type and a "
+                         "widening operand would change the arithmetic without saying so",
+                         dtype_name(vx.dtype), dtype_name(vf.dtype));
 
             const ValueID out = declare_like(x, vx.shape, vx.dtype, Lifetime::Activation,
                                              debug_name);
@@ -470,8 +503,10 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::unary(OpID op, ValueID x) const
+        Traced GraphBuilder::unary(OpID op, const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
             const ValueID out = declare_like(x, vx.shape, vx.dtype, Lifetime::Activation,
                                              Ops::name_of(op));
@@ -479,39 +514,59 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::exp(ValueID x) const { return unary(Ops::K_EXP.id, x); }
-        ValueID GraphBuilder::relu(ValueID x) const { return unary(Ops::K_RELU.id, x); }
-        ValueID GraphBuilder::gelu(ValueID x) const { return unary(Ops::K_GELU.id, x); }
-        ValueID GraphBuilder::sigmoid(ValueID x) const { return unary(Ops::K_SIGMOID.id, x); }
-        ValueID GraphBuilder::tanh(ValueID x) const { return unary(Ops::K_TANH.id, x); }
+        Traced GraphBuilder::exp(const Traced& x) const
+        {
+            return unary(Ops::K_EXP.id, x);
+        }
 
-        ValueID GraphBuilder::abs(ValueID x) const
+        Traced GraphBuilder::relu(const Traced& x) const
+        {
+            return unary(Ops::K_RELU.id, x);
+        }
+
+        Traced GraphBuilder::gelu(const Traced& x) const
+        {
+            return unary(Ops::K_GELU.id, x);
+        }
+
+        Traced GraphBuilder::sigmoid(const Traced& x) const
+        {
+            return unary(Ops::K_SIGMOID.id, x);
+        }
+
+        Traced GraphBuilder::tanh(const Traced& x) const
+        {
+            return unary(Ops::K_TANH.id, x);
+        }
+
+        Traced GraphBuilder::abs(const Traced& x) const
         {
             return unary(Ops::K_ABS.id, x);
         }
 
-        ValueID GraphBuilder::atan(ValueID x) const
+        Traced GraphBuilder::atan(const Traced& x) const
         {
             return unary(Ops::K_ATAN.id, x);
         }
 
-        ValueID GraphBuilder::softplus(ValueID x) const
+        Traced GraphBuilder::softplus(const Traced& x) const
         {
             return unary(Ops::K_SOFTPLUS.id, x);
         }
 
-        ValueID GraphBuilder::silu(ValueID x) const
+        Traced GraphBuilder::silu(const Traced& x) const
         {
             return unary(Ops::K_SILU.id, x);
         }
 
-        ValueID GraphBuilder::leaky_relu(ValueID x, double slope) const
+        Traced GraphBuilder::leaky_relu(const Traced& operand, double slope) const
         {
-            SA_THROW_IF(!is_legal_leaky_relu_slope(slope),
-                        "leaky_relu's slope must be in (0, 1); got {}. At 0 it is a ReLU "
-                        "and at 1 it is the identity, and both would make the "
-                        "output-reading gradient (ops.hpp's ACTIVATIONS) unsound.",
-                        slope);
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_REFUSE_IF(*this, !is_legal_leaky_relu_slope(slope),
+                         "leaky_relu's slope must be in (0, 1); got {}. At 0 it is a ReLU "
+                         "and at 1 it is the identity, and both would make the "
+                         "output-reading gradient (ops.hpp's ACTIVATIONS) unsound.",
+                         slope);
 
             const Value& in = graph_->value(x);
             const ValueID out = declare_like(x, in.shape, in.dtype, Lifetime::Activation,
@@ -531,18 +586,20 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::zeros_like(ValueID like, Shape shape, DType dtype) const
+        Traced GraphBuilder::zeros_like(const Traced& source, Shape shape, DType dtype) const
         {
+            SA_TRY_ASSIGN(const ValueID like, source);
+
             const ValueID out = zeros(shape, dtype);
             graph_->value(out).layout = graph_->value(like).layout;
             return out;
         }
 
-        ValueID GraphBuilder::constant(Shape shape, double value, DType dtype) const
+        Traced GraphBuilder::constant(Shape shape, double value, DType dtype) const
         {
-            SA_THROW_IF(!is_real_float(dtype),
-                        "CONSTANT fills a real floating tensor (half, float32, float64); got {}",
-                        dtype_name(dtype));
+            SA_REFUSE_IF(*this, !is_real_float(dtype),
+                         "CONSTANT fills a real floating tensor (half, float32, float64); got {}",
+                         dtype_name(dtype));
 
             const ValueID out = declare(shape, dtype, Lifetime::Activation, "constant");
 
@@ -553,34 +610,39 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::constant_like(ValueID x, double value) const
+        Traced GraphBuilder::constant_like(const Traced& operand, double value) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             // The description is held by value; constant() grows the table a reference points into.
             const Value described = graph_->value(x);
 
-            const ValueID out = constant(described.shape, value, described.dtype);
+            SA_TRY_ASSIGN(const ValueID out, constant(described.shape, value, described.dtype));
             graph_->value(out).layout = described.layout;
             return out;
         }
 
-        ValueID GraphBuilder::activation_backward(OpID op, ValueID dy, ValueID primal,
-                                                  const Attributes& attributes) const
+        Traced GraphBuilder::activation_backward(OpID op, const Traced& gradient,
+                                                 const Traced& forward,
+                                                 const Attributes& attributes) const
         {
-            SA_THROW_IF(!Ops::is_activation_backward(op),
+            SA_FATAL_IF(!Ops::is_activation_backward(op),
                         "{} is not an activation gradient", Ops::name_of(op));
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID primal, forward);
 
             // Verify slope explicitly to prevent silent emission of standard ReLU gradients.
             if (op == Ops::K_LEAKY_RELU_BACKWARD.id)
             {
                 const double slope = attributes.get(0);
-                SA_THROW_IF(!is_legal_leaky_relu_slope(slope),
-                            "LEAKY_RELU_BACKWARD's slope (attribute slot 0) must be in (0, 1); "
-                            "got {}. An absent or out-of-range slope would silently emit a "
-                            "plain-ReLU gradient instead of the leaky one that was asked for.",
-                            slope);
+                SA_REFUSE_IF(*this, !is_legal_leaky_relu_slope(slope),
+                             "LEAKY_RELU_BACKWARD's slope (attribute slot 0) must be in (0, 1); "
+                             "got {}. An absent or out-of-range slope would silently emit a "
+                             "plain-ReLU gradient instead of the leaky one that was asked for.",
+                             slope);
             }
 
-            require_same(dy, primal, Ops::name_of(op));
+            SA_TRY(observe(require_same(dy, primal, Ops::name_of(op))));
 
             // Gradients inherit primal layout to ensure layout uniformity across backward nodes.
             const Value& v = graph_->value(dy);
@@ -590,11 +652,13 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::log_softmax(ValueID x) const
+        Traced GraphBuilder::log_softmax(const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
-            SA_THROW_IF(vx.shape.rank() != 2,
-                        "LOG_SOFTMAX needs a rank-2 operand; got {}", vx.shape.to_string());
+            SA_REFUSE_IF(*this, vx.shape.rank() != 2,
+                         "LOG_SOFTMAX needs a rank-2 operand; got {}", vx.shape.to_string());
 
             const ValueID out = declare_like(x, vx.shape, vx.dtype, Lifetime::Activation,
                                              "log_softmax");
@@ -602,25 +666,30 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::softmax(ValueID x) const
+        Traced GraphBuilder::softmax(const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             // Shapes are copied out: a declaration below grows the table a reference points into.
             const Shape in = graph_->value(x).shape;
-            SA_THROW_IF(in.rank() < 2, "softmax needs a rank-2 or higher operand; got {}",
-                        in.to_string());
+            SA_REFUSE_IF(*this, in.rank() < 2, "softmax needs a rank-2 or higher operand; got {}",
+                         in.to_string());
 
             // Every axis but the last is a row; LOG_SOFTMAX normalises each row.
             int64_t rows = 1;
             for (int32_t axis = 0; axis + 1 < in.rank(); ++axis)
                 rows *= in[axis];
 
-            const ValueID flat = reshape(x, shape_of(rows, in[in.rank() - 1]));
-            const ValueID probs = exp(log_softmax(flat));
-            return reshape(probs, in);
+            const Traced flat = reshape(x, shape_of(rows, in[in.rank() - 1]));
+            return reshape(exp(log_softmax(flat)), in);
         }
 
-        Traced GraphBuilder::log_softmax_backward(ValueID dy, ValueID log_probs) const
+        Traced GraphBuilder::log_softmax_backward(const Traced& gradient,
+                                                  const Traced& forward) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID log_probs, forward);
+
             // The description is copied; declaring the result grows the value table.
             const Shape shape = graph_->value(log_probs).shape;
             const DType dtype = graph_->value(log_probs).dtype;
@@ -646,13 +715,15 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::nll_loss(ValueID log_probs, ValueID one_hot) const
+        Traced GraphBuilder::nll_loss(const Traced& forward, const Traced& target) const
         {
-            require_same(log_probs, one_hot, "NLL_LOSS");
+            SA_TRY_ASSIGN(const ValueID log_probs, forward);
+            SA_TRY_ASSIGN(const ValueID one_hot, target);
+            SA_TRY(observe(require_same(log_probs, one_hot, "NLL_LOSS")));
 
             const Value& v = graph_->value(log_probs);
-            SA_THROW_IF(v.shape.rank() != 2,
-                        "NLL_LOSS needs rank-2 operands; got {}", v.shape.to_string());
+            SA_REFUSE_IF(*this, v.shape.rank() != 2,
+                         "NLL_LOSS needs rank-2 operands; got {}", v.shape.to_string());
 
             const ValueID out = declare_like(log_probs, shape_of(1), v.dtype, Lifetime::Activation,
                                              "loss");
@@ -660,41 +731,49 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::cast(ValueID x, DType dtype, std::string_view debug_name) const
+        Traced GraphBuilder::cast(const Traced& operand, DType dtype,
+                                  std::string_view debug_name) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
 
-            SA_THROW_IF(!is_real_float(vx.dtype) || !is_real_float(dtype),
-                        "CAST converts between the real floating types only (half, float32, "
-                        "float64) and was asked for {} -> {}. A complex operand has no single "
-                        "real value to narrow to, and a float-to-integer conversion is a "
-                        "rounding policy this library is not entitled to choose for a caller.",
-                        dtype_name(vx.dtype), dtype_name(dtype));
+            SA_REFUSE_IF(*this, !is_real_float(vx.dtype) || !is_real_float(dtype),
+                         "CAST converts between the real floating types only (half, float32, "
+                         "float64) and was asked for {} -> {}. A complex operand has no single "
+                         "real value to narrow to, and a float-to-integer conversion is a "
+                         "rounding policy this library is not entitled to choose for a caller.",
+                         dtype_name(vx.dtype), dtype_name(dtype));
 
             const ValueID out = declare_like(x, vx.shape, dtype, Lifetime::Activation, debug_name);
             graph_->add_node(Ops::K_CAST.id, {x}, {out});
             return out;
         }
 
-        void GraphBuilder::cast_into(ValueID source, ValueID destination) const
+        Status GraphBuilder::cast_into(const Traced& operand, ValueID destination) const
         {
+            SA_TRY_ASSIGN(const ValueID source, operand);
+
             const Value& vs = graph_->value(source);
             const Value& vd = graph_->value(destination);
 
-            SA_THROW_IF(vs.shape != vd.shape,
-                        "CAST copies element for element, so its operands must have one shape; "
-                        "got {} and {}", vs.shape.to_string(), vd.shape.to_string());
-            SA_THROW_IF(!is_real_float(vs.dtype) || !is_real_float(vd.dtype),
-                        "CAST converts between the real floating types only (half, float32, "
-                        "float64) and was asked for {} -> {}",
-                        dtype_name(vs.dtype), dtype_name(vd.dtype));
+            SA_REFUSE_IF(*this, vs.shape != vd.shape,
+                         "CAST copies element for element, so its operands must have one shape; "
+                         "got {} and {}", vs.shape.to_string(), vd.shape.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(vs.dtype) || !is_real_float(vd.dtype),
+                         "CAST converts between the real floating types only (half, float32, "
+                         "float64) and was asked for {} -> {}",
+                         dtype_name(vs.dtype), dtype_name(vd.dtype));
 
             graph_->add_node(Ops::K_CAST.id, {source}, {destination});
+            return Status();
         }
 
-        ValueID GraphBuilder::accumulate(ValueID acc, ValueID delta) const
+        Traced GraphBuilder::accumulate(const Traced& total, const Traced& contribution) const
         {
-            require_same(acc, delta, "ACCUMULATE");
+            SA_TRY_ASSIGN(const ValueID acc, total);
+            SA_TRY_ASSIGN(const ValueID delta, contribution);
+            SA_TRY(observe(require_same(acc, delta, "ACCUMULATE")));
 
             const Value& v = graph_->value(acc);
             const ValueID out = declare_like(acc, v.shape, v.dtype, v.lifetime, "accumulated_grad");
@@ -702,11 +781,13 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::layout_convert(ValueID x, TensorLayout layout) const
+        Traced GraphBuilder::layout_convert(const Traced& operand, TensorLayout layout) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& vx = graph_->value(x);
-            SA_THROW_IF(vx.shape.rank() != 4,
-                        "LAYOUT_CONVERT needs a rank-4 operand; got {}", vx.shape.to_string());
+            SA_REFUSE_IF(*this, vx.shape.rank() != 4,
+                         "LAYOUT_CONVERT needs a rank-4 operand; got {}", vx.shape.to_string());
 
             // Permute dimensions based on source operand layout and requested target layout.
             const bool to_nchw = vx.layout == TensorLayout::NHWC && layout == TensorLayout::NCHW;
@@ -756,28 +837,33 @@ namespace SushiAI
             }
         } // namespace
 
-        ValueID GraphBuilder::im2col(ValueID x, const ConvGeometry& g) const
+        Traced GraphBuilder::im2col(const Traced& operand, const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
-            require_nhwc(in, "im2col");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "im2col")));
 
             // Default im2col assumes symmetric padding; asymmetric cases use im2col_with_extents.
-            const SpatialExtents out = window_extents(in.shape[1], in.shape[2], g);
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(in.shape[1], in.shape[2], g)));
 
             return im2col_with_extents(x, g, out.height, out.width);
         }
 
-        ValueID GraphBuilder::im2col_with_extents(ValueID x, const ConvGeometry& g,
-                                                  int64_t out_h, int64_t out_w) const
+        Traced GraphBuilder::im2col_with_extents(const Traced& operand, const ConvGeometry& g,
+                                                 int64_t out_h, int64_t out_w) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
-            require_nhwc(in, "im2col");
-            SA_THROW_IF(out_h <= 0 || out_w <= 0,
-                        "im2col was given non-positive output extents {}x{}", out_h, out_w);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "im2col needs a rank-4 [N,H,W,C] input; got rank {}", in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "im2col")));
+            SA_REFUSE_IF(*this, out_h <= 0 || out_w <= 0,
+                         "im2col was given non-positive output extents {}x{}", out_h, out_w);
 
             const int64_t rows = in.shape[0] * out_h * out_w;
             const int64_t cols = g.kernel_h * g.kernel_w * in.shape[3];
@@ -788,41 +874,44 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::col2im(ValueID cols, Shape image_shape,
-                                     const ConvGeometry& g) const
+        Traced GraphBuilder::col2im(const Traced& cols, Shape image_shape,
+                                    const ConvGeometry& g) const
         {
-            SA_THROW_IF(image_shape.rank() != 4,
-                        "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
-                        image_shape.rank());
+            SA_REFUSE_IF(*this, image_shape.rank() != 4,
+                         "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
+                         image_shape.rank());
 
             // Default col2im assumes symmetric padding; backward passes use col2im_with_extents.
-            const SpatialExtents out = window_extents(image_shape[1], image_shape[2], g);
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(image_shape[1], image_shape[2], g)));
 
             return col2im_with_extents(cols, image_shape, g, out.height, out.width);
         }
 
-        ValueID GraphBuilder::col2im_with_extents(ValueID cols, Shape image_shape,
-                                                   const ConvGeometry& g,
-                                                   int64_t out_h, int64_t out_w) const
+        Traced GraphBuilder::col2im_with_extents(const Traced& operand, Shape image_shape,
+                                                 const ConvGeometry& g,
+                                                 int64_t out_h, int64_t out_w) const
         {
+            SA_TRY_ASSIGN(const ValueID cols, operand);
+
             const Value& c = graph_->value(cols);
-            SA_THROW_IF(image_shape.rank() != 4,
-                        "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
-                        image_shape.rank());
-            SA_THROW_IF(c.shape.rank() != 2,
-                        "col2im reads a rank-2 column matrix; got rank {}", c.shape.rank());
-            SA_THROW_IF(c.layout != TensorLayout::NHWC,
-                        "col2im returns NHWC; this column matrix was produced from an "
-                        "NCHW value. Cross with layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, image_shape.rank() != 4,
+                         "col2im returns a rank-4 [N,H,W,C] image; got rank {}",
+                         image_shape.rank());
+            SA_REFUSE_IF(*this, c.shape.rank() != 2,
+                         "col2im reads a rank-2 column matrix; got rank {}", c.shape.rank());
+            SA_REFUSE_IF(*this, c.layout != TensorLayout::NHWC,
+                         "col2im returns NHWC; this column matrix was produced from an "
+                         "NCHW value. Cross with layout_convert first (CV-3).");
 
             const int64_t rows = image_shape[0] * out_h * out_w;
             const int64_t width = g.kernel_h * g.kernel_w * image_shape[3];
 
-            SA_THROW_IF(c.shape[0] != rows || c.shape[1] != width,
-                        "col2im was given a [{}, {}] column matrix, but that geometry "
-                        "over a [{}, {}, {}, {}] image implies [{}, {}].",
-                        c.shape[0], c.shape[1], image_shape[0], image_shape[1],
-                        image_shape[2], image_shape[3], rows, width);
+            SA_REFUSE_IF(*this, c.shape[0] != rows || c.shape[1] != width,
+                         "col2im was given a [{}, {}] column matrix, but that geometry "
+                         "over a [{}, {}, {}, {}] image implies [{}, {}].",
+                         c.shape[0], c.shape[1], image_shape[0], image_shape[1],
+                         image_shape[2], image_shape[3], rows, width);
 
             const ValueID out = declare_like(cols, image_shape, c.dtype,
                                              Lifetime::Activation, "image");
@@ -840,105 +929,125 @@ namespace SushiAI
             }
         } // namespace
 
-        ValueID GraphBuilder::conv2d(ValueID x, ValueID weight, ValueID bias,
-                                     const ConvGeometry& g) const
+        Traced GraphBuilder::conv2d(const Traced& operand, const Traced& filters_in,
+                                    const Traced& offsets, const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID weight, filters_in);
+            SA_TRY_ASSIGN(const ValueID bias, offsets);
+
             // Shapes are held by value; each emitter below grows the table a reference points into.
             const Shape image = graph_->value(x).shape;
             const Shape filter = graph_->value(weight).shape;
 
-            SA_THROW_IF(image.rank() != 4,
-                        "conv2d needs a rank-4 [N,H,W,C_in] input; got {}", image.to_string());
-            require_nhwc(graph_->value(x), "conv2d");
-            SA_THROW_IF(filter.rank() != 4,
-                        "conv2d needs a rank-4 [C_out,kernel_h,kernel_w,C_in] weight; got {}",
-                        filter.to_string());
-            SA_THROW_IF(filter[1] != g.kernel_h || filter[2] != g.kernel_w || filter[3] != image[3],
-                        "conv2d with a {}x{} window over a {} input needs a [C_out, {}, {}, {}] "
-                        "weight; got {}",
-                        g.kernel_h, g.kernel_w, image.to_string(), g.kernel_h, g.kernel_w,
-                        image[3], filter.to_string());
+            SA_REFUSE_IF(*this, image.rank() != 4,
+                         "conv2d needs a rank-4 [N,H,W,C_in] input; got {}", image.to_string());
+            SA_TRY(observe(require_nhwc(graph_->value(x), "conv2d")));
+            SA_REFUSE_IF(*this, filter.rank() != 4,
+                         "conv2d needs a rank-4 [C_out,kernel_h,kernel_w,C_in] weight; got {}",
+                         filter.to_string());
+            SA_REFUSE_IF(*this,
+                         filter[1] != g.kernel_h || filter[2] != g.kernel_w
+                             || filter[3] != image[3],
+                         "conv2d with a {}x{} window over a {} input needs a [C_out, {}, {}, {}] "
+                         "weight; got {}",
+                         g.kernel_h, g.kernel_w, image.to_string(), g.kernel_h, g.kernel_w,
+                         image[3], filter.to_string());
 
             if (bias != K_NO_VALUE)
             {
-                const Shape& offsets = graph_->value(bias).shape;
-                SA_THROW_IF(offsets.rank() != 1 || offsets[0] != filter[0],
-                            "conv2d with {} filters needs a [{}] bias; got {}",
-                            filter[0], filter[0], offsets.to_string());
+                const Shape& biases = graph_->value(bias).shape;
+                SA_REFUSE_IF(*this, biases.rank() != 1 || biases[0] != filter[0],
+                             "conv2d with {} filters needs a [{}] bias; got {}",
+                             filter[0], filter[0], biases.to_string());
             }
 
-            const SpatialExtents out = window_extents(image[1], image[2], g);
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(image[1], image[2], g)));
 
             // Row-major [C_out,R,S,C_in] flattens to (r * S + s) * C_in + c, IM2COL's column order.
             const int64_t taps = g.kernel_h * g.kernel_w * image[3];
-            const ValueID filters = reshape(weight, Shape({filter[0], taps}));
+            const Traced filters = reshape(weight, Shape({filter[0], taps}));
 
-            const ValueID cols = is_pointwise(g)
+            const Traced cols = is_pointwise(g)
                 ? reshape(x, Shape({image[0] * image[1] * image[2], image[3]}))
                 : im2col_with_extents(x, g, out.height, out.width);
 
-            const ValueID product = matmul(cols, filters, false, true);
-            const ValueID rows = bias == K_NO_VALUE ? product : bias_add(product, bias);
+            const Traced product = matmul(cols, filters, false, true);
+            const Traced rows = bias == K_NO_VALUE ? product : bias_add(product, bias);
 
             return reshape(rows, Shape({image[0], out.height, out.width, filter[0]}));
         }
 
         namespace
         {
-            /** @brief Throws unless @p taps is the [kernel_h, kernel_w, C] weight of @p g. */
-            void require_depthwise_taps(const Shape& taps, int64_t channels, const ConvGeometry& g,
-                                        std::string_view what)
+            /** @brief Returns InvalidDescription unless @p taps is a [kernel_h, kernel_w, C] weight. */
+            Status require_depthwise_taps(const Shape& taps, int64_t channels,
+                                          const ConvGeometry& g, std::string_view what)
             {
-                SA_THROW_IF(taps.rank() != 3,
-                            "{} needs a rank-3 [kernel_h, kernel_w, C] weight; got {}",
-                            what, taps.to_string());
-                SA_THROW_IF(taps[0] != g.kernel_h || taps[1] != g.kernel_w || taps[2] != channels,
-                            "{} with a {}x{} window over {} channels needs a [{}, {}, {}] weight; "
-                            "got {}",
-                            what, g.kernel_h, g.kernel_w, channels, g.kernel_h, g.kernel_w,
-                            channels, taps.to_string());
+                SA_FAIL_IF(taps.rank() != 3, StatusCode::InvalidDescription,
+                           "{} needs a rank-3 [kernel_h, kernel_w, C] weight; got {}",
+                           what, taps.to_string());
+                SA_FAIL_IF(taps[0] != g.kernel_h || taps[1] != g.kernel_w || taps[2] != channels,
+                           StatusCode::InvalidDescription,
+                           "{} with a {}x{} window over {} channels needs a [{}, {}, {}] weight; "
+                           "got {}",
+                           what, g.kernel_h, g.kernel_w, channels, g.kernel_h, g.kernel_w,
+                           channels, taps.to_string());
+                return Status();
             }
 
-            /** @brief Throws unless @p a and @p b hold one element type, naming @p what. */
-            void require_one_dtype(DType a, DType b, std::string_view what)
+            /** @brief Returns InvalidDescription unless @p a and @p b are one element type. */
+            Status require_one_dtype(DType a, DType b, std::string_view what)
             {
-                SA_THROW_IF(a != b, "{} needs operands of one element type; got {} and {}",
-                            what, dtype_name(a), dtype_name(b));
+                SA_FAIL_IF(a != b, StatusCode::InvalidDescription,
+                           "{} needs operands of one element type; got {} and {}",
+                           what, dtype_name(a), dtype_name(b));
+                return Status();
             }
 
             /**
-             * @brief Throws unless @p grid is the [N,out_h,out_w,C] window grid over @p image.
+             * @brief Returns InvalidDescription unless @p grid is the [N,out_h,out_w,C] window
+             *        grid over @p image.
              */
-            void require_window_grid(const Shape& grid, const Shape& image,
-                                     const SpatialExtents& out, std::string_view what)
+            Status require_window_grid(const Shape& grid, const Shape& image,
+                                       const SpatialExtents& out, std::string_view what)
             {
-                SA_THROW_IF(grid.rank() != 4,
-                            "{} needs a rank-4 [N,H,W,C] output gradient; got {}",
-                            what, grid.to_string());
-                SA_THROW_IF(grid[0] != image[0] || grid[1] != out.height || grid[2] != out.width
-                                || grid[3] != image[3],
-                            "{} was given an output gradient of {}, but a window over {} yields "
-                            "[{}, {}, {}, {}]",
-                            what, grid.to_string(), image.to_string(), image[0], out.height,
-                            out.width, image[3]);
+                SA_FAIL_IF(grid.rank() != 4, StatusCode::InvalidDescription,
+                           "{} needs a rank-4 [N,H,W,C] output gradient; got {}",
+                           what, grid.to_string());
+                SA_FAIL_IF(grid[0] != image[0] || grid[1] != out.height || grid[2] != out.width
+                               || grid[3] != image[3],
+                           StatusCode::InvalidDescription,
+                           "{} was given an output gradient of {}, but a window over {} yields "
+                           "[{}, {}, {}, {}]",
+                           what, grid.to_string(), image.to_string(), image[0], out.height,
+                           out.width, image[3]);
+                return Status();
             }
         } // namespace
 
-        ValueID GraphBuilder::depthwise_conv2d(ValueID x, ValueID weight,
-                                               const ConvGeometry& g) const
+        Traced GraphBuilder::depthwise_conv2d(const Traced& operand, const Traced& taps,
+                                              const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID weight, taps);
+
             // Shapes are copied out: a declaration below grows the table a reference points into.
             const Shape image = graph_->value(x).shape;
             const DType dtype = graph_->value(x).dtype;
 
-            SA_THROW_IF(image.rank() != 4,
-                        "depthwise_conv2d needs a rank-4 [N,H,W,C] input; got {}",
-                        image.to_string());
-            require_nhwc(graph_->value(x), "depthwise_conv2d");
-            require_depthwise_taps(graph_->value(weight).shape, image[3], g, "depthwise_conv2d");
-            require_one_dtype(graph_->value(weight).dtype, dtype, "depthwise_conv2d");
+            SA_REFUSE_IF(*this, image.rank() != 4,
+                         "depthwise_conv2d needs a rank-4 [N,H,W,C] input; got {}",
+                         image.to_string());
+            SA_TRY(observe(require_nhwc(graph_->value(x), "depthwise_conv2d")));
+            SA_TRY(observe(require_depthwise_taps(graph_->value(weight).shape, image[3], g,
+                                                  "depthwise_conv2d")));
+            SA_TRY(observe(require_one_dtype(graph_->value(weight).dtype, dtype,
+                                             "depthwise_conv2d")));
 
-            const SpatialExtents out = window_extents(image[1], image[2], g);
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(image[1], image[2], g)));
 
             const ValueID result = declare_like(
                 x, Shape({image[0], out.height, out.width, image[3]}), dtype,
@@ -948,24 +1057,30 @@ namespace SushiAI
             return result;
         }
 
-        ValueID GraphBuilder::depthwise_conv2d_backward_input(ValueID dy, ValueID weight,
-                                                              Shape input_shape,
-                                                              const ConvGeometry& g) const
+        Traced GraphBuilder::depthwise_conv2d_backward_input(const Traced& gradient,
+                                                             const Traced& taps,
+                                                             Shape input_shape,
+                                                             const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID weight, taps);
+
             const Shape grad = graph_->value(dy).shape;
             const DType dtype = graph_->value(dy).dtype;
 
-            SA_THROW_IF(input_shape.rank() != 4,
-                        "depthwise_conv2d_backward_input returns a rank-4 [N,H,W,C] input "
-                        "gradient; got {}", input_shape.to_string());
-            require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_input");
-            require_depthwise_taps(graph_->value(weight).shape, input_shape[3], g,
-                                   "depthwise_conv2d_backward_input");
-            require_one_dtype(graph_->value(weight).dtype, dtype,
-                              "depthwise_conv2d_backward_input");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "depthwise_conv2d_backward_input returns a rank-4 [N,H,W,C] input "
+                         "gradient; got {}", input_shape.to_string());
+            SA_TRY(observe(require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_input")));
+            SA_TRY(observe(require_depthwise_taps(graph_->value(weight).shape, input_shape[3], g,
+                                                  "depthwise_conv2d_backward_input")));
+            SA_TRY(observe(require_one_dtype(graph_->value(weight).dtype, dtype,
+                                             "depthwise_conv2d_backward_input")));
 
-            const SpatialExtents out = window_extents(input_shape[1], input_shape[2], g);
-            require_window_grid(grad, input_shape, out, "depthwise_conv2d_backward_input");
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(input_shape[1], input_shape[2], g)));
+            SA_TRY(observe(require_window_grid(grad, input_shape, out,
+                                               "depthwise_conv2d_backward_input")));
 
             const ValueID result = declare_like(dy, input_shape, dtype, Lifetime::Activation, "dx");
             graph_->add_node(Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, {dy, weight}, {result},
@@ -973,22 +1088,29 @@ namespace SushiAI
             return result;
         }
 
-        ValueID GraphBuilder::depthwise_conv2d_backward_weight(ValueID dy, ValueID x,
-                                                               const ConvGeometry& g) const
+        Traced GraphBuilder::depthwise_conv2d_backward_weight(const Traced& gradient,
+                                                              const Traced& forward,
+                                                              const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID x, forward);
+
             const Shape image = graph_->value(x).shape;
             const Shape grad = graph_->value(dy).shape;
             const DType dtype = graph_->value(dy).dtype;
 
-            SA_THROW_IF(image.rank() != 4,
-                        "depthwise_conv2d_backward_weight needs a rank-4 [N,H,W,C] input; got {}",
-                        image.to_string());
-            require_nhwc(graph_->value(x), "depthwise_conv2d_backward_weight");
-            require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_weight");
-            require_one_dtype(graph_->value(x).dtype, dtype, "depthwise_conv2d_backward_weight");
+            SA_REFUSE_IF(*this, image.rank() != 4,
+                         "depthwise_conv2d_backward_weight needs a rank-4 [N,H,W,C] input; got {}",
+                         image.to_string());
+            SA_TRY(observe(require_nhwc(graph_->value(x), "depthwise_conv2d_backward_weight")));
+            SA_TRY(observe(require_nhwc(graph_->value(dy), "depthwise_conv2d_backward_weight")));
+            SA_TRY(observe(require_one_dtype(graph_->value(x).dtype, dtype,
+                                             "depthwise_conv2d_backward_weight")));
 
-            const SpatialExtents out = window_extents(image[1], image[2], g);
-            require_window_grid(grad, image, out, "depthwise_conv2d_backward_weight");
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(image[1], image[2], g)));
+            SA_TRY(observe(require_window_grid(grad, image, out,
+                                               "depthwise_conv2d_backward_weight")));
 
             const ValueID result = declare_like(dy, Shape({g.kernel_h, g.kernel_w, image[3]}),
                                                 dtype, Lifetime::Activation, "dweight");
@@ -997,34 +1119,42 @@ namespace SushiAI
             return result;
         }
 
-        PoolResult GraphBuilder::maxpool2d(ValueID x, const ConvGeometry& g) const
+        Result<PoolResult> GraphBuilder::maxpool2d(const Traced& operand,
+                                                   const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            require_nhwc(in, "maxpool2d");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "maxpool2d")));
 
             // Default maxpool2d assumes symmetric padding; asymmetric cases use with_extents.
-            const SpatialExtents out = window_extents(in.shape[1], in.shape[2], g);
+            SA_TRY_ASSIGN(const SpatialExtents out,
+                          observe(window_extents(in.shape[1], in.shape[2], g)));
 
             return maxpool2d_with_extents(x, g, out.height, out.width);
         }
 
-        PoolResult GraphBuilder::maxpool2d_with_extents(ValueID x, const ConvGeometry& g,
-                                                        int64_t out_h, int64_t out_w) const
+        Result<PoolResult> GraphBuilder::maxpool2d_with_extents(const Traced& operand,
+                                                                const ConvGeometry& g,
+                                                                int64_t out_h, int64_t out_w) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            require_nhwc(in, "maxpool2d");
-            SA_THROW_IF(out_h <= 0 || out_w <= 0,
-                        "maxpool2d was given non-positive output extents {}x{}",
-                        out_h, out_w);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "maxpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "maxpool2d")));
+            SA_REFUSE_IF(*this, out_h <= 0 || out_w <= 0,
+                         "maxpool2d was given non-positive output extents {}x{}",
+                         out_h, out_w);
 
             const Shape pooled({in.shape[0], out_h, out_w, in.shape[3]});
-            const ValueID out = declare_like(x, pooled, in.dtype, Lifetime::Activation, "pooled");
+            const DType dtype = in.dtype;
+            const ValueID out = declare_like(x, pooled, dtype, Lifetime::Activation, "pooled");
             const ValueID idx = declare_like(x, pooled, DType::Int64, Lifetime::Activation,
                                              "argmax");
 
@@ -1032,15 +1162,18 @@ namespace SushiAI
             return PoolResult{out, idx};
         }
 
-        ValueID GraphBuilder::avgpool2d(ValueID x, const ConvGeometry& g) const
+        Traced GraphBuilder::avgpool2d(const Traced& operand, const ConvGeometry& g) const
         {
-            const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "avgpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            require_nhwc(in, "avgpool2d");
+            SA_TRY_ASSIGN(const ValueID x, operand);
 
-            const SpatialExtents pooled = window_extents(in.shape[1], in.shape[2], g);
+            const Value& in = graph_->value(x);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "avgpool2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "avgpool2d")));
+
+            SA_TRY_ASSIGN(const SpatialExtents pooled,
+                          observe(window_extents(in.shape[1], in.shape[2], g)));
 
             const ValueID out = declare_like(
                 x, Shape({in.shape[0], pooled.height, pooled.width, in.shape[3]}),
@@ -1049,16 +1182,19 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::upsample2d(ValueID x, int64_t scale_h, int64_t scale_w) const
+        Traced GraphBuilder::upsample2d(const Traced& operand, int64_t scale_h,
+                                        int64_t scale_w) const
         {
-            const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "upsample2d needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            require_nhwc(in, "upsample2d");
+            SA_TRY_ASSIGN(const ValueID x, operand);
 
-            const SpatialExtents scaled = upsampled_extents(in.shape[1], in.shape[2],
-                                                            scale_h, scale_w);
+            const Value& in = graph_->value(x);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "upsample2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_TRY(observe(require_nhwc(in, "upsample2d")));
+
+            SA_TRY_ASSIGN(const SpatialExtents scaled,
+                          observe(upsampled_extents(in.shape[1], in.shape[2], scale_h, scale_w)));
 
             const ValueID out = declare_like(
                 x, Shape({in.shape[0], scaled.height, scaled.width, in.shape[3]}),
@@ -1071,15 +1207,17 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::spatial_mean(ValueID x) const
+        Traced GraphBuilder::spatial_mean(const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "spatial_mean needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "spatial_mean reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "spatial_mean needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "spatial_mean reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
 
             const ValueID out = declare_like(x, Shape({in.shape[0], in.shape[3]}), in.dtype,
                                              Lifetime::Activation, "spatial_mean");
@@ -1087,26 +1225,29 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::maxpool2d_backward(ValueID dy, ValueID indices, Shape input_shape,
-                                                 const ConvGeometry& g) const
+        Traced GraphBuilder::maxpool2d_backward(const Traced& gradient, const Traced& argmax,
+                                                Shape input_shape, const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID indices, argmax);
+
             const Value& gy = graph_->value(dy);
-            SA_THROW_IF(gy.shape.rank() != 4,
-                        "maxpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
-                        "rank {}", gy.shape.rank());
-            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
-                        "maxpool2d_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(input_shape.rank() != 4,
-                        "maxpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
-                        "rank {}", input_shape.rank());
+            SA_REFUSE_IF(*this, gy.shape.rank() != 4,
+                         "maxpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                         "rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "maxpool2d_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "maxpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                         "rank {}", input_shape.rank());
 
             const Value& ix = graph_->value(indices);
-            SA_THROW_IF(ix.dtype != DType::Int64,
-                        "maxpool2d_backward's indices must be INT64; got {}",
-                        dtype_name(ix.dtype));
-            SA_THROW_IF(ix.shape != gy.shape,
-                        "maxpool2d_backward's indices must share its output gradient's shape");
+            SA_REFUSE_IF(*this, ix.dtype != DType::Int64,
+                         "maxpool2d_backward's indices must be INT64; got {}",
+                         dtype_name(ix.dtype));
+            SA_REFUSE_IF(*this, ix.shape != gy.shape,
+                         "maxpool2d_backward's indices must share its output gradient's shape");
 
             const ValueID out = declare_like(dy, input_shape, gy.dtype,
                                              Lifetime::Activation, "dx");
@@ -1115,19 +1256,21 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::avgpool2d_backward(ValueID dy, Shape input_shape,
-                                                 const ConvGeometry& g) const
+        Traced GraphBuilder::avgpool2d_backward(const Traced& gradient, Shape input_shape,
+                                                const ConvGeometry& g) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+
             const Value& gy = graph_->value(dy);
-            SA_THROW_IF(gy.shape.rank() != 4,
-                        "avgpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
-                        "rank {}", gy.shape.rank());
-            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
-                        "avgpool2d_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(input_shape.rank() != 4,
-                        "avgpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
-                        "rank {}", input_shape.rank());
+            SA_REFUSE_IF(*this, gy.shape.rank() != 4,
+                         "avgpool2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                         "rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "avgpool2d_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "avgpool2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                         "rank {}", input_shape.rank());
 
             const ValueID out = declare_like(dy, input_shape, gy.dtype,
                                              Lifetime::Activation, "dx");
@@ -1135,20 +1278,22 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::upsample2d_backward(ValueID dy, Shape input_shape,
-                                                  int64_t scale_h, int64_t scale_w) const
+        Traced GraphBuilder::upsample2d_backward(const Traced& gradient, Shape input_shape,
+                                                 int64_t scale_h, int64_t scale_w) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+
             const Value& gy = graph_->value(dy);
-            SA_THROW_IF(gy.shape.rank() != 4,
-                        "upsample2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
-                        "rank {}", gy.shape.rank());
-            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
-                        "upsample2d_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(input_shape.rank() != 4,
-                        "upsample2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
-                        "rank {}", input_shape.rank());
-            require_upsample_scales("upsample2d_backward", scale_h, scale_w);
+            SA_REFUSE_IF(*this, gy.shape.rank() != 4,
+                         "upsample2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                         "rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "upsample2d_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "upsample2d_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                         "rank {}", input_shape.rank());
+            SA_TRY(observe(require_upsample_scales("upsample2d_backward", scale_h, scale_w)));
 
             const ValueID out = declare_like(dy, input_shape, gy.dtype,
                                              Lifetime::Activation, "dx");
@@ -1160,18 +1305,21 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::spatial_mean_backward(ValueID dy, Shape input_shape) const
+        Traced GraphBuilder::spatial_mean_backward(const Traced& gradient,
+                                                   Shape input_shape) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+
             const Value& gy = graph_->value(dy);
-            SA_THROW_IF(gy.shape.rank() != 2,
-                        "spatial_mean_backward needs a rank-2 [N,C] output gradient; got "
-                        "rank {}", gy.shape.rank());
-            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
-                        "spatial_mean_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(input_shape.rank() != 4,
-                        "spatial_mean_backward returns a rank-4 [N,H,W,C] input gradient; got "
-                        "rank {}", input_shape.rank());
+            SA_REFUSE_IF(*this, gy.shape.rank() != 2,
+                         "spatial_mean_backward needs a rank-2 [N,C] output gradient; got "
+                         "rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "spatial_mean_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, input_shape.rank() != 4,
+                         "spatial_mean_backward returns a rank-4 [N,H,W,C] input gradient; got "
+                         "rank {}", input_shape.rank());
 
             const ValueID out = declare_like(dy, input_shape, gy.dtype,
                                              Lifetime::Activation, "dx");
@@ -1179,36 +1327,36 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::concat_channels(SushiRuntime::span<const ValueID> parts) const
+        Traced GraphBuilder::concat_channels(SushiRuntime::span<const ValueID> parts) const
         {
-            SA_THROW_IF(parts.empty(), "concat_channels needs at least one operand");
+            SA_REFUSE_IF(*this, parts.empty(), "concat_channels needs at least one operand");
 
             const Value& first = graph_->value(parts[0]);
-            SA_THROW_IF(first.shape.rank() != 4,
-                        "concat_channels needs rank-4 operands; got rank {}",
-                        first.shape.rank());
-            SA_THROW_IF(first.layout != TensorLayout::NHWC,
-                        "concat_channels reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, first.shape.rank() != 4,
+                         "concat_channels needs rank-4 operands; got rank {}",
+                         first.shape.rank());
+            SA_REFUSE_IF(*this, first.layout != TensorLayout::NHWC,
+                         "concat_channels reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
 
             int64_t channels = 0;
             for (std::size_t i = 0; i < parts.size(); ++i)
             {
                 const Value& p = graph_->value(parts[i]);
-                SA_THROW_IF(p.shape.rank() != 4,
-                            "concat_channels needs rank-4 operands; got rank {}",
-                            p.shape.rank());
-                SA_THROW_IF(p.layout != TensorLayout::NHWC,
-                            "concat_channels reads NHWC; this value is NCHW. Cross with "
-                            "layout_convert first (CV-3).");
-                SA_THROW_IF(p.shape[0] != first.shape[0] || p.shape[1] != first.shape[1]
-                                || p.shape[2] != first.shape[2],
-                            "concat_channels operands must agree on N, H and W; "
-                            "got [{}, {}, {}, *] against [{}, {}, {}, *].",
-                            p.shape[0], p.shape[1], p.shape[2],
-                            first.shape[0], first.shape[1], first.shape[2]);
-                SA_THROW_IF(p.dtype != first.dtype,
-                            "concat_channels operands must share a dtype");
+                SA_REFUSE_IF(*this, p.shape.rank() != 4,
+                             "concat_channels needs rank-4 operands; got rank {}",
+                             p.shape.rank());
+                SA_REFUSE_IF(*this, p.layout != TensorLayout::NHWC,
+                             "concat_channels reads NHWC; this value is NCHW. Cross with "
+                             "layout_convert first (CV-3).");
+                SA_REFUSE_IF(*this, p.shape[0] != first.shape[0] || p.shape[1] != first.shape[1]
+                                        || p.shape[2] != first.shape[2],
+                             "concat_channels operands must agree on N, H and W; "
+                             "got [{}, {}, {}, *] against [{}, {}, {}, *].",
+                             p.shape[0], p.shape[1], p.shape[2],
+                             first.shape[0], first.shape[1], first.shape[2]);
+                SA_REFUSE_IF(*this, p.dtype != first.dtype,
+                             "concat_channels operands must share a dtype");
                 channels += p.shape[3];
             }
 
@@ -1221,17 +1369,20 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::slice_channels(ValueID x, int64_t offset, int64_t count) const
+        Traced GraphBuilder::slice_channels(const Traced& operand, int64_t offset,
+                                            int64_t count) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "slice_channels needs a rank-4 input; got rank {}", in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "slice_channels reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(offset < 0 || count <= 0 || offset + count > in.shape[3],
-                        "slice_channels [{}, {}) does not fit {} channels",
-                        offset, offset + count, in.shape[3]);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "slice_channels needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "slice_channels reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, offset < 0 || count <= 0 || offset + count > in.shape[3],
+                         "slice_channels [{}, {}) does not fit {} channels",
+                         offset, offset + count, in.shape[3]);
 
             const ValueID out = declare_like(
                 x, Shape({in.shape[0], in.shape[1], in.shape[2], count}),
@@ -1243,21 +1394,26 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::channel_affine(ValueID x, ValueID gamma, ValueID beta) const
+        Traced GraphBuilder::channel_affine(const Traced& operand, const Traced& scale_in,
+                                            const Traced& shift_in) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID gamma, scale_in);
+            SA_TRY_ASSIGN(const ValueID beta, shift_in);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "channel_affine needs a rank-4 input; got rank {}", in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "channel_affine reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "channel_affine needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "channel_affine reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
 
             for (ValueID p : {gamma, beta})
             {
                 const Value& v = graph_->value(p);
-                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
-                            "channel_affine's per-channel parameters must be [{}]; got a "
-                            "rank-{} value", in.shape[3], v.shape.rank());
+                SA_REFUSE_IF(*this, v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                             "channel_affine's per-channel parameters must be [{}]; got a "
+                             "rank-{} value", in.shape[3], v.shape.rank());
             }
 
             const ValueID out = declare_like(x, in.shape, in.dtype, Lifetime::Activation,
@@ -1266,43 +1422,51 @@ namespace SushiAI
             return out;
         }
 
-        ValueID GraphBuilder::sum_channels(ValueID x) const
+        Traced GraphBuilder::sum_channels(const Traced& operand) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "sum_channels needs a rank-4 input; got rank {}", in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "sum_channels reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "sum_channels needs a rank-4 input; got rank {}", in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "sum_channels reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
 
             // In NHWC layout, channel sums reduce across rows of a reshaped matrix.
             const int64_t rows = in.shape[0] * in.shape[1] * in.shape[2];
             return sum_rows(reshape(x, Shape({rows, in.shape[3]})));
         }
 
-        BatchNormResult GraphBuilder::batchnorm2d(ValueID x, ValueID gamma, ValueID beta,
-                                                  double epsilon) const
+        Result<BatchNormResult> GraphBuilder::batchnorm2d(const Traced& operand,
+                                                          const Traced& scale_in,
+                                                          const Traced& shift_in,
+                                                          double epsilon) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID gamma, scale_in);
+            SA_TRY_ASSIGN(const ValueID beta, shift_in);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "batchnorm2d needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "batchnorm2d reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            SA_THROW_IF(epsilon <= 0.0,
-                        "batchnorm2d's epsilon must be positive; got {}", epsilon);
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "batchnorm2d needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "batchnorm2d reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, epsilon <= 0.0,
+                         "batchnorm2d's epsilon must be positive; got {}", epsilon);
 
             for (ValueID p : {gamma, beta})
             {
                 const Value& v = graph_->value(p);
-                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
-                            "batchnorm2d's per-channel parameters must be [{}]; got a "
-                            "rank-{} value", in.shape[3], v.shape.rank());
-                SA_THROW_IF(v.dtype != in.dtype,
-                            "batchnorm2d's per-channel parameters must share the input's "
-                            "element type; got {} against {}",
-                            dtype_name(v.dtype), dtype_name(in.dtype));
+                SA_REFUSE_IF(*this, v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                             "batchnorm2d's per-channel parameters must be [{}]; got a "
+                             "rank-{} value", in.shape[3], v.shape.rank());
+                SA_REFUSE_IF(*this, v.dtype != in.dtype,
+                             "batchnorm2d's per-channel parameters must share the input's "
+                             "element type; got {} against {}",
+                             dtype_name(v.dtype), dtype_name(in.dtype));
             }
 
             // A declaration grows the value table, so the shape and the type are held by value.
@@ -1327,40 +1491,49 @@ namespace SushiAI
             return BatchNormResult{y, mean, inv_std, variance};
         }
 
-        BatchNormGrads GraphBuilder::batchnorm2d_backward(ValueID dy, ValueID x, ValueID gamma,
-                                                          ValueID saved_mean,
-                                                          ValueID saved_inv_std) const
+        Result<BatchNormGrads> GraphBuilder::batchnorm2d_backward(
+            const Traced& gradient, const Traced& forward, const Traced& scale_in,
+            const Traced& mean_in, const Traced& inv_std_in) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID x, forward);
+            SA_TRY_ASSIGN(const ValueID gamma, scale_in);
+            SA_TRY_ASSIGN(const ValueID saved_mean, mean_in);
+            SA_TRY_ASSIGN(const ValueID saved_inv_std, inv_std_in);
+
             const Value& gy = graph_->value(dy);
-            SA_THROW_IF(gy.shape.rank() != 4,
-                        "batchnorm2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
-                        "rank {}", gy.shape.rank());
-            SA_THROW_IF(gy.layout != TensorLayout::NHWC,
-                        "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
+            SA_REFUSE_IF(*this, gy.shape.rank() != 4,
+                         "batchnorm2d_backward needs a rank-4 [N,H,W,C] output gradient; got "
+                         "rank {}", gy.shape.rank());
+            SA_REFUSE_IF(*this, gy.layout != TensorLayout::NHWC,
+                         "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
 
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.rank() != 4,
-                        "batchnorm2d_backward needs a rank-4 [N,H,W,C] input; got rank {}",
-                        in.shape.rank());
-            SA_THROW_IF(in.layout != TensorLayout::NHWC,
-                        "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
-                        "layout_convert first (CV-3).");
-            require_same(dy, x, "batchnorm2d_backward");
+            SA_REFUSE_IF(*this, in.shape.rank() != 4,
+                         "batchnorm2d_backward needs a rank-4 [N,H,W,C] input; got rank {}",
+                         in.shape.rank());
+            SA_REFUSE_IF(*this, in.layout != TensorLayout::NHWC,
+                         "batchnorm2d_backward reads NHWC; this value is NCHW. Cross with "
+                         "layout_convert first (CV-3).");
+            SA_TRY(observe(require_same(dy, x, "batchnorm2d_backward")));
 
             for (ValueID p : {gamma, saved_mean, saved_inv_std})
             {
                 const Value& v = graph_->value(p);
-                SA_THROW_IF(v.shape.rank() != 1 || v.shape[0] != in.shape[3],
-                            "batchnorm2d_backward's per-channel operands must be [{}]; got a "
-                            "rank-{} value", in.shape[3], v.shape.rank());
+                SA_REFUSE_IF(*this, v.shape.rank() != 1 || v.shape[0] != in.shape[3],
+                             "batchnorm2d_backward's per-channel operands must be [{}]; got a "
+                             "rank-{} value", in.shape[3], v.shape.rank());
             }
 
-            const Shape per_channel({in.shape[3]});
-            const ValueID dx = declare_like(x, in.shape, in.dtype, Lifetime::Activation, "bn_dx");
-            const ValueID dgamma = declare_like(x, per_channel, in.dtype, Lifetime::Activation,
+            // A declaration grows the value table, so the shape and the type are held by value.
+            const Shape image = in.shape;
+            const DType dtype = in.dtype;
+            const Shape per_channel({image[3]});
+            const ValueID dx = declare_like(x, image, dtype, Lifetime::Activation, "bn_dx");
+            const ValueID dgamma = declare_like(x, per_channel, dtype, Lifetime::Activation,
                                                 "bn_dgamma");
-            const ValueID dbeta = declare_like(x, per_channel, in.dtype, Lifetime::Activation,
+            const ValueID dbeta = declare_like(x, per_channel, dtype, Lifetime::Activation,
                                                "bn_dbeta");
 
             graph_->add_node(Ops::K_BATCHNORM2D_BACKWARD.id,
@@ -1369,22 +1542,30 @@ namespace SushiAI
             return BatchNormGrads{dx, dgamma, dbeta};
         }
 
-        BatchNormFold GraphBuilder::batchnorm_fold(ValueID gamma, ValueID beta, ValueID mean,
-                                                   ValueID variance, double epsilon) const
+        Result<BatchNormFold> GraphBuilder::batchnorm_fold(const Traced& scale_in,
+                                                           const Traced& shift_in,
+                                                           const Traced& mean_in,
+                                                           const Traced& variance_in,
+                                                           double epsilon) const
         {
+            SA_TRY_ASSIGN(const ValueID gamma, scale_in);
+            SA_TRY_ASSIGN(const ValueID beta, shift_in);
+            SA_TRY_ASSIGN(const ValueID mean, mean_in);
+            SA_TRY_ASSIGN(const ValueID variance, variance_in);
+
             // A declaration grows the value table, so gamma's description is held by value.
             const Shape per_channel = graph_->value(gamma).shape;
             const DType dtype = graph_->value(gamma).dtype;
             const TensorLayout layout = graph_->value(gamma).layout;
 
-            SA_THROW_IF(per_channel.rank() != 1,
-                        "batchnorm_fold needs a rank-1 [C] gamma; got {}",
-                        per_channel.to_string());
-            SA_THROW_IF(!is_real_float(dtype),
-                        "batchnorm_fold needs a half, float32 or float64 gamma; got {}",
-                        dtype_name(dtype));
-            SA_THROW_IF(epsilon <= 0.0,
-                        "batchnorm_fold's epsilon must be positive; got {}", epsilon);
+            SA_REFUSE_IF(*this, per_channel.rank() != 1,
+                         "batchnorm_fold needs a rank-1 [C] gamma; got {}",
+                         per_channel.to_string());
+            SA_REFUSE_IF(*this, !is_real_float(dtype),
+                         "batchnorm_fold needs a half, float32 or float64 gamma; got {}",
+                         dtype_name(dtype));
+            SA_REFUSE_IF(*this, epsilon <= 0.0,
+                         "batchnorm_fold's epsilon must be positive; got {}", epsilon);
 
             const std::pair<ValueID, std::string_view> others[] = {
                 {beta, "beta"}, {mean, "mean"}, {variance, "variance"}};
@@ -1392,16 +1573,16 @@ namespace SushiAI
             for (const std::pair<ValueID, std::string_view>& other : others)
             {
                 const Value& v = graph_->value(other.first);
-                SA_THROW_IF(v.shape != per_channel,
-                            "batchnorm_fold needs its {} shaped like gamma, {}; got {}",
-                            other.second, per_channel.to_string(), v.shape.to_string());
-                SA_THROW_IF(v.dtype != dtype,
-                            "batchnorm_fold needs its {} in gamma's element type, {}; got {}",
-                            other.second, dtype_name(dtype), dtype_name(v.dtype));
-                SA_THROW_IF(v.layout != layout,
-                            "batchnorm_fold needs its {} in gamma's layout; cross with "
-                            "layout_convert first (CV-3).",
-                            other.second);
+                SA_REFUSE_IF(*this, v.shape != per_channel,
+                             "batchnorm_fold needs its {} shaped like gamma, {}; got {}",
+                             other.second, per_channel.to_string(), v.shape.to_string());
+                SA_REFUSE_IF(*this, v.dtype != dtype,
+                             "batchnorm_fold needs its {} in gamma's element type, {}; got {}",
+                             other.second, dtype_name(dtype), dtype_name(v.dtype));
+                SA_REFUSE_IF(*this, v.layout != layout,
+                             "batchnorm_fold needs its {} in gamma's layout; cross with "
+                             "layout_convert first (CV-3).",
+                             other.second);
             }
 
             const ValueID scale = declare_like(gamma, per_channel, dtype, Lifetime::Activation,
@@ -1416,9 +1597,15 @@ namespace SushiAI
             return BatchNormFold{scale, shift};
         }
 
-        Result<LayerNormResult> GraphBuilder::layer_norm(ValueID x, ValueID gamma, ValueID beta,
+        Result<LayerNormResult> GraphBuilder::layer_norm(const Traced& operand,
+                                                         const Traced& gain,
+                                                         const Traced& offset,
                                                          double epsilon) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+            SA_TRY_ASSIGN(const ValueID gamma, gain);
+            SA_TRY_ASSIGN(const ValueID beta, offset);
+
             // The description is copied; declaring a result grows the value table.
             const Shape shape = graph_->value(x).shape;
             const DType dtype = graph_->value(x).dtype;
@@ -1458,11 +1645,16 @@ namespace SushiAI
             return LayerNormResult{y, mean, inv_std};
         }
 
-        Result<LayerNormGrads> GraphBuilder::layer_norm_backward(ValueID dy, ValueID x,
-                                                                 ValueID gamma,
-                                                                 ValueID saved_mean,
-                                                                 ValueID saved_inv_std) const
+        Result<LayerNormGrads> GraphBuilder::layer_norm_backward(
+            const Traced& gradient, const Traced& forward, const Traced& gain,
+            const Traced& mean_in, const Traced& inv_std_in) const
         {
+            SA_TRY_ASSIGN(const ValueID dy, gradient);
+            SA_TRY_ASSIGN(const ValueID x, forward);
+            SA_TRY_ASSIGN(const ValueID gamma, gain);
+            SA_TRY_ASSIGN(const ValueID saved_mean, mean_in);
+            SA_TRY_ASSIGN(const ValueID saved_inv_std, inv_std_in);
+
             // The description is copied; declaring a result grows the value table.
             const Shape shape = graph_->value(x).shape;
             const DType dtype = graph_->value(x).dtype;
@@ -1510,9 +1702,11 @@ namespace SushiAI
             return (high << K_SEED_HALF_BITS) | low;
         }
 
-        Result<DropoutResult> GraphBuilder::dropout(ValueID x, double rate,
+        Result<DropoutResult> GraphBuilder::dropout(const Traced& operand, double rate,
                                                     std::uint64_t seed) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             // The description is copied; declaring a result grows the value table.
             const Shape shape = graph_->value(x).shape;
             const DType dtype = graph_->value(x).dtype;
@@ -1540,20 +1734,22 @@ namespace SushiAI
             return DropoutResult{y, mask};
         }
 
-        ValueID GraphBuilder::reshape(ValueID x, Shape shape) const
+        Traced GraphBuilder::reshape(const Traced& operand, Shape shape) const
         {
+            SA_TRY_ASSIGN(const ValueID x, operand);
+
             const Value& in = graph_->value(x);
-            SA_THROW_IF(in.shape.num_elements() != shape.num_elements(),
-                        "reshape moves no data, so it cannot change the element count: "
-                        "{} elements cannot be seen as {}.",
-                        in.shape.num_elements(), shape.num_elements());
+            SA_REFUSE_IF(*this, in.shape.num_elements() != shape.num_elements(),
+                         "reshape moves no data, so it cannot change the element count: "
+                         "{} elements cannot be seen as {}.",
+                         in.shape.num_elements(), shape.num_elements());
 
             const ValueID out = declare_like(x, shape, in.dtype, Lifetime::Activation, "reshape");
             graph_->add_node(Ops::K_RESHAPE.id, {x}, {out});
             return out;
         }
 
-        ValueID GraphBuilder::stop_gradient(ValueID x) const
+        Traced GraphBuilder::stop_gradient(const Traced& x) const
         {
             return unary(Ops::K_STOP_GRADIENT.id, x);
         }

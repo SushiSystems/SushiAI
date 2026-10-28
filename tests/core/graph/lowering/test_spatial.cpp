@@ -128,7 +128,8 @@ TEST_F(Medium_SpatialLowerings, UpsampleGradientSumsEachBlockOntoItsPixel)
     const GraphBuilder builder(graph);
 
     const ValueID dy = builder.input(Shape{1, 4, 4, 1}, "dy");
-    const ValueID dx = builder.upsample2d_backward(dy, Shape{1, 2, 2, 1}, 2, 2);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx,
+                            builder.upsample2d_backward(dy, Shape{1, 2, 2, 1}, 2, 2));
 
     std::vector<double> upstream(16);
     for (std::size_t i = 0; i < upstream.size(); ++i)
@@ -154,7 +155,7 @@ TEST_F(Medium_SpatialLowerings, SpatialMeanGradientSpreadsEvenlyOverThePlane)
     const GraphBuilder builder(graph);
 
     const ValueID dy = builder.input(Shape{1, 2}, "dy");
-    const ValueID dx = builder.spatial_mean_backward(dy, Shape{1, 2, 2, 2});
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx, builder.spatial_mean_backward(dy, Shape{1, 2, 2, 2}));
 
     const std::vector<double> upstream = {4.0, -2.0};
 

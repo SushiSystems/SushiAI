@@ -35,6 +35,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 namespace SushiAI
@@ -165,11 +166,12 @@ namespace SushiAI
                  * @param graph The graph to plan.
                  * @param options Packing and alignment options.
                  * @param scratch The buffers to place in the Scratch arena beside the values.
-                 * @return The computed memory plan.
-                 * @throws Error For a zero alignment, a broken order or an unknown node.
+                 * @return The plan, or InvalidDescription for a zero alignment.
+                 * @pre @p graph is ordered and holds each pinned value and scratch node.
                  */
-                static MemoryPlan build(const Graph& graph, const PlanOptions& options = {},
-                                        SushiRuntime::span<const ScratchRequest> scratch = {});
+                [[nodiscard]] static Result<MemoryPlan> build(
+                    const Graph& graph, const PlanOptions& options = {},
+                    SushiRuntime::span<const ScratchRequest> scratch = {});
 
                 /** @brief How many values the plan covers. */
                 std::size_t value_count() const noexcept { return placements_.size(); }
@@ -178,9 +180,9 @@ namespace SushiAI
                  * @brief Where @p id lives.
                  * @param id The value to look up.
                  * @return Its placement.
-                 * @throws Error If @p id is not covered by this plan.
+                 * @pre @p id is covered by this plan; another id stops the process.
                  */
-                const Placement& placement(ValueID id) const;
+                const Placement& placement(ValueID id) const noexcept;
 
                 /** @brief Whether @p id was packed into an arena. */
                 bool is_packed(ValueID id) const noexcept

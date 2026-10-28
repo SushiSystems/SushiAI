@@ -97,20 +97,28 @@ would report a saving for it.
 
 With the first of two chained ReLU values pinned, that value is not packed and the second is.
 
-## PinningAValueThatDoesNotExistThrows
+## PinningAValueThatDoesNotExistIsFatal
 
-`MemoryPlan::build` with the value 99 pinned throws `Error`.
+`MemoryPlan::build` with the value 99 pinned stops the process with a report naming
+"PlanOptions::pinned" and "value 99".
 
-## ZeroAlignmentThrows
+## ZeroAlignmentIsRefused
 
-`MemoryPlan::build` with an alignment of 0 throws `Error`.
+`MemoryPlan::build` with an alignment of 0 returns `InvalidDescription` naming
+"PlanOptions::alignment" and "multiple of zero".
 
-## AGraphThatIsNotInTopologicalOrderThrows
+## AGraphThatIsNotInTopologicalOrderIsFatal
 
 GraphBuilder cannot produce this graph, because it always emits a producer before anything can
 read it. The whole pass rests on the property all the same, so the test checks it. A closure
 built over a back edge would silently miss ordering and the plan would overlap things it must
-not.
+not. The pass stops the process with a report naming "Node 0 reads value 0" and "which node 1
+writes later".
+
+## AskingForAValueThePlanDoesNotCoverIsFatal
+
+`placement(7)` on the plan of a one-value graph stops the process with a report naming
+"Value 7 has no placement" and "this plan covers 1 values".
 
 ## ThePlanIsDeterministicForTheSameGraph
 

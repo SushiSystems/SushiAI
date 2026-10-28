@@ -23,3 +23,14 @@ A product of a half [4, 3] input and a half [5, 3] weight agrees with `MixedPrec
 A mismatch on result 7 of node 3, a MATMUL found float32 where half is expected, is described as
 "node 3 (", the operation's name, ") computes in half but its result value 7 is float32", the
 type names taken from `dtype_name`. With `is_result` false the text says "its operand value 7".
+
+## APolicyAskingForAnIntegerConversionIsRefused
+
+A policy that asks a float32 RELU to compute in int32 makes `insert_casts` return
+`InvalidDescription` naming the operation, both type names and "real floating types". The
+graph keeps its node and value counts.
+
+## ANodeWithoutAResultIsFatal
+
+A RELU node added by hand with no result stops the process in `insert_casts` with a report
+naming the operation and "declares no result".

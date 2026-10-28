@@ -357,7 +357,8 @@ namespace SushiAI
          * @param graph The graph to rewrite in place.
          * @param options What the pass is allowed to do.
          * @return What it did and what it refused.
-         * @throws Error If the graph is not in topological insertion order.
+         * @pre @p graph is ordered, proves uniform in layout, and owns every value in
+         *      FusionOptions::observed; a broken one stops the process.
          */
         FusionReport fuse(Graph& graph, const FusionOptions& options = {});
 

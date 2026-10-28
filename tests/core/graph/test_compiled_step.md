@@ -47,6 +47,12 @@ after the second step the tripled value holds 30 four times.
 A range that ends one node behind the last fails with `InvalidDescription` and "does not lie
 in a graph", and the range [1, 0) with `InvalidDescription` and "[1, 0)".
 
+## AGraphWithADroppedRefusalIsNotCompiled
+
+A `reshape` to an element count the value does not have is refused and its result dropped. The
+graph's `has_refusal()` is true, and `compile` fails with `InvalidDescription` and "refused
+operation".
+
 ## Attribution
 
 The `Medium_CompiledStepAttribution` cases test the label and the node origins

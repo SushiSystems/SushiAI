@@ -34,6 +34,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/result.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>
@@ -129,7 +130,7 @@ namespace SushiAI
                 std::string to_string() const;
 
             private:
-                friend CastReport insert_casts(Graph& graph, const CastOptions& options);
+                friend Result<CastReport> insert_casts(Graph& graph, const CastOptions& options);
 
                 std::vector<InsertedCast> casts_;
                 std::size_t before_ = 0;
@@ -142,10 +143,12 @@ namespace SushiAI
          * @brief Rewrites @p graph so every node's operands match its computed dtype.
          * @param graph The graph to rewrite in place.
          * @param options The policy and preserved values.
-         * @return A summary of inserted conversions.
-         * @throws Error If topologically unordered or conversion fails.
+         * @return The inserted conversions, or InvalidDescription, graph unchanged, for a
+         *         non-float conversion or for operands in two layouts.
+         * @pre @p graph is ordered, each node writes a value, each observed id is its own.
          */
-        CastReport insert_casts(Graph& graph, const CastOptions& options = {});
+        [[nodiscard]] Result<CastReport> insert_casts(Graph& graph,
+                                                      const CastOptions& options = {});
 
         /**
          * @struct DTypeMismatch

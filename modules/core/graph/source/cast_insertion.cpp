@@ -32,7 +32,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/cast_insertion.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -65,17 +65,17 @@ namespace SushiAI
 
             /**
              * @brief Resolves target computation data type for a node under policy.
-             *
              * @param node The graph node to inspect.
              * @param declared Table of declared value data types.
              * @param policy Active precision policy.
-             * @return Target computation data type.
+             * @return The type, or InvalidDescription for a non-float conversion.
+             * @pre @p node writes at least one value; a node without one stops the process.
              */
-            DType computed_dtype(const Node& node,
-                                 const std::vector<DType>& declared,
-                                 const PrecisionPolicy& policy)
+            Result<DType> computed_dtype(const Node& node,
+                                         const std::vector<DType>& declared,
+                                         const PrecisionPolicy& policy)
             {
-                SA_THROW_IF(node.outputs.empty(),
+                SA_FATAL_IF(node.outputs.empty(),
                             "{} declares no result, so there is no precision to reason about. "
                             "Every operation in this IR writes at least one value.",
                             Ops::name_of(node.op));
@@ -89,12 +89,13 @@ namespace SushiAI
                 // If policy retains declared precision, no conversion check is required.
                 if (choice.dtype == query.declared) return choice.dtype;
 
-                SA_THROW_IF(!is_real_float(choice.dtype) || !is_real_float(query.declared),
-                            "A precision policy asked {} to move from {} to {}, and the only "
-                            "conversion this stack has is between the real floating types "
-                            "(half, float32, float64).",
-                            Ops::name_of(node.op), dtype_name(query.declared),
-                            dtype_name(choice.dtype));
+                SA_FAIL_IF(!is_real_float(choice.dtype) || !is_real_float(query.declared),
+                           StatusCode::InvalidDescription,
+                           "A precision policy asked {} to move from {} to {}, and the only "
+                           "conversion this stack has is between the real floating types "
+                           "(half, float32, float64).",
+                           Ops::name_of(node.op), dtype_name(query.declared),
+                           dtype_name(choice.dtype));
 
                 return choice.dtype;
             }
@@ -162,7 +163,7 @@ namespace SushiAI
             return text;
         }
 
-        CastReport insert_casts(Graph& graph, const CastOptions& options)
+        Result<CastReport> insert_casts(Graph& graph, const CastOptions& options)
         {
             const UniformPrecisionPolicy fallback;
             const PrecisionPolicy& policy =
@@ -175,19 +176,22 @@ namespace SushiAI
 
             const std::size_t value_count = graph.value_count();
             const std::size_t node_count = graph.node_count();
-            if (value_count == 0) return report;
+            if (value_count == 0) return std::move(report);
 
             // Verify topological insertion order before emitting preceding cast nodes.
             for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
                 for (ValueID in : graph.node(id).inputs)
                 {
                     const NodeID producer = graph.value(in).producer;
-                    SA_THROW_IF(producer != K_NO_NODE && producer >= id,
+                    SA_FATAL_IF(producer != K_NO_NODE && producer >= id,
                                 "Node {} reads value {}, which node {} writes later. The cast "
                                 "pass needs the graph's insertion order to be a topological "
                                 "order; emit the producer first.",
                                 id, in, producer);
                 }
+
+            // A graph whose operands mix layouts is refused before it is rewritten.
+            SA_TRY(graph.prove_layout_uniformity());
 
             // Snapshot initial declared precision before rewriting graph nodes.
             std::vector<DType> declared(value_count);
@@ -198,9 +202,12 @@ namespace SushiAI
             for (NodeID id = 0; id < static_cast<NodeID>(node_count); ++id)
             {
                 const Node& node = graph.node(id);
-                computed[id] = is_structural(node.op)
-                             ? declared[node.outputs.at(0)]
-                             : computed_dtype(node, declared, policy);
+                if (is_structural(node.op))
+                {
+                    computed[id] = declared[node.outputs.at(0)];
+                    continue;
+                }
+                SA_TRY_ASSIGN(computed[id], computed_dtype(node, declared, policy));
             }
 
             // Retain declared types for persistent or explicitly observed values.
@@ -210,7 +217,7 @@ namespace SushiAI
 
             for (ValueID id : options.observed)
             {
-                SA_THROW_IF(id >= value_count,
+                SA_FATAL_IF(id >= value_count,
                             "CastOptions::observed names value {}, which this graph does not "
                             "have", id);
                 pinned[id] = true;
@@ -263,7 +270,9 @@ namespace SushiAI
                     if (found != converted.end()) { inputs.push_back(found->second); continue; }
 
                     const DType from = rebuilt.value(in).dtype;
-                    const ValueID narrowed = builder.cast(in, wanted, cast_label(from, wanted));
+                    // Both types carry precision, so a refused cast is a defect: value() is fatal.
+                    const ValueID narrowed =
+                        builder.cast(in, wanted, cast_label(from, wanted)).value();
 
                     converted.emplace(key, narrowed);
                     inputs.push_back(narrowed);
@@ -303,24 +312,32 @@ namespace SushiAI
                 rebuilt.add_node(node.op, std::move(inputs), std::move(outputs), node.attributes);
 
                 for (const std::pair<ValueID, ValueID>& widening : widenings)
-                    builder.cast_into(widening.first, widening.second);
+                {
+                    const Status widened = builder.cast_into(widening.first, widening.second);
+                    SA_FATAL_IF(!widened.is_ok(), "The cast pass could not widen value {}: {}",
+                                widening.second, widened.message());
+                }
             }
 
             report.after_ = rebuilt.node_count();
             graph = std::move(rebuilt);
 
-            // Re-prove layout uniformity across the rebuilt graph.
-            graph.prove_layout_uniformity();
+            // The input was proven above, so a rebuilt graph that fails the proof is a defect here.
+            const Status proven = graph.prove_layout_uniformity();
+            SA_FATAL_IF(!proven.is_ok(),
+                        "The cast pass broke the layout uniformity of a proven graph: {}. This "
+                        "is a defect in insert_casts(), not in the caller's graph.",
+                        proven.message());
 
             // Validate that every operand matches the computed precision of its node.
             const std::vector<DTypeMismatch> mismatches = find_dtype_mismatches(graph, policy);
-            SA_THROW_IF(!mismatches.empty(),
+            SA_FATAL_IF(!mismatches.empty(),
                         "The cast pass left {} node(s) whose operands disagree with the "
                         "precision they compute in - the first is: {}. This is a defect in "
                         "insert_casts(), not in the caller's graph.",
                         mismatches.size(), describe(mismatches.front()));
 
-            return report;
+            return std::move(report);
         }
 
         std::vector<DTypeMismatch> find_dtype_mismatches(const Graph& graph,

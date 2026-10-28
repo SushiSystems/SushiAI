@@ -117,15 +117,16 @@ namespace
         g.kernel_h = 3; g.kernel_w = 3;
         g.pad_top = 1;  g.pad_left = 1;
 
-        const ValueID cols = builder.im2col(x, g);
-        const ValueID out = builder.matmul(cols, w);
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(cols, w));
         const ValueID target = builder.input(graph.value(out).shape, "target", DType::Float64);
-        const ValueID loss = builder.nll_loss(builder.log_softmax(out), target);
-        graph.finalise();
+        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                                builder.nll_loss(builder.log_softmax(out), target));
+        SA_EXPECT_OK(graph.finalise());
 
         const std::array<ValueID, 1> wrt = {w};
         const std::vector<ValueID> grads = Autograd::differentiate(graph, loss,
-            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+            SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
         const ValueID dw = grads.front();
 
         if (rematerialise) Graph::rematerialise_im2col(graph);
@@ -135,7 +136,7 @@ namespace
         for (const Graph::Node& node : graph.nodes())
             if (node.op == Ops::K_IM2COL.id) ++outcome.im2col_nodes;
 
-        const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph);
+        const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph).value();
         outcome.planned_bytes = plan.arena_bytes();
 
         TensorPool pool(engine);
@@ -201,24 +202,24 @@ TEST_F(Medium_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
     g.kernel_h = 3; g.kernel_w = 3;
     g.pad_top = 1;  g.pad_left = 1;
 
-    const ValueID cols = builder.im2col(x, g);
-    const ValueID out = builder.matmul(cols, w);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(cols, w));
     const ValueID target = builder.input(graph.value(out).shape, "target", DType::Float64);
-    const ValueID loss = builder.nll_loss(builder.log_softmax(out), target);
-    graph.finalise();
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(builder.log_softmax(out), target));
+    SA_EXPECT_OK(graph.finalise());
 
     const std::array<ValueID, 1> wrt = {w};
-    (void)Autograd::differentiate(graph, loss,
-        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size()));
+    SA_EXPECT_OK(Autograd::differentiate(graph, loss,
+        SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
-    const Graph::MemoryPlan before = Graph::MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::MemoryPlan before, Graph::MemoryPlan::build(graph));
     ASSERT_TRUE(before.is_packed(cols));
     EXPECT_EQ(before.arenas()[before.placement(cols).arena].lifetime,
               Graph::Lifetime::Activation);
 
     Graph::rematerialise_im2col(graph);
 
-    const Graph::MemoryPlan after = Graph::MemoryPlan::build(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::MemoryPlan after, Graph::MemoryPlan::build(graph));
     ASSERT_TRUE(after.is_packed(cols));
     EXPECT_EQ(after.arenas()[after.placement(cols).arena].lifetime, Graph::Lifetime::Scratch)
         << "the planner still packs the column matrix with the activations";

@@ -34,7 +34,9 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/state_id.hpp>
 
 namespace SushiAI
@@ -463,22 +465,23 @@ namespace SushiAI
                  *
                  * Propagates gradient requirements and validates layout uniformity.
                  *
-                 * @throws Error If an invalid layout conversion is detected.
+                 * @return A success, or the failure prove_layout_uniformity() returns.
                  */
-                void finalise()
+                [[nodiscard]] Status finalise() noexcept
                 {
                     propagate_requires_grad();
-                    prove_layout_uniformity();
+                    return prove_layout_uniformity();
                 }
 
                 /**
                  * @brief Proves no node except LAYOUT_CONVERT modifies layout.
                  *
-                 * Re-verified across graph rebuilding passes to prevent silent NHWC resets.
-                 *
-                 * @throws Error If layout mismatch or invalid conversion is found.
+                 * A result whose layout differs from its operands stops the process; only a
+                 * graph built by hand holds one.
+                 * @return A success, or InvalidDescription for a node whose operands sit in two
+                 *         layouts.
                  */
-                void prove_layout_uniformity() const
+                [[nodiscard]] Status prove_layout_uniformity() const noexcept
                 {
                     for (const Node& n : nodes_)
                     {
@@ -487,19 +490,22 @@ namespace SushiAI
 
                         const TensorLayout expected = values_[n.inputs.front()].layout;
                         for (ValueID in : n.inputs)
-                            SA_THROW_IF(values_[in].layout != expected,
-                                        "Node '{}' reads operands in two different layouts; "
-                                        "only LAYOUT_CONVERT may cross layouts (CV-4).",
-                                        Ops::name_of(n.op));
+                            SA_FAIL_IF(values_[in].layout != expected,
+                                       StatusCode::InvalidDescription,
+                                       "Node '{}' reads operands in two different layouts; "
+                                       "only LAYOUT_CONVERT may cross layouts (CV-4).",
+                                       Ops::name_of(n.op));
 
                         for (ValueID out : n.outputs)
-                            SA_THROW_IF(values_[out].layout != expected,
+                            SA_FATAL_IF(values_[out].layout != expected,
                                         "Node '{}' produces a result whose layout differs "
                                         "from its operands'. Only LAYOUT_CONVERT may do that "
                                         "(CV-4); everything else would silently train the "
                                         "model on transposed data.",
                                         Ops::name_of(n.op));
                     }
+
+                    return Status();
                 }
 
             private:

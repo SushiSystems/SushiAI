@@ -115,8 +115,10 @@ TEST_F(Medium_ActivationLowerings, TanhAndSigmoidGradientsReadTheForwardOutput)
 
     const ValueID dy = builder.input(Shape{6}, "dy");
     const ValueID y = builder.input(Shape{6}, "y");
-    const ValueID tanh_dx = builder.activation_backward(Ops::K_TANH_BACKWARD.id, dy, y);
-    const ValueID sigmoid_dx = builder.activation_backward(Ops::K_SIGMOID_BACKWARD.id, dy, y);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID tanh_dx,
+                            builder.activation_backward(Ops::K_TANH_BACKWARD.id, dy, y));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID sigmoid_dx,
+                            builder.activation_backward(Ops::K_SIGMOID_BACKWARD.id, dy, y));
 
     const std::vector<double> upstream = {1.0, -2.0, 0.5, 3.0, -0.25, 1.5};
     const std::vector<double> output = {0.1, 0.25, 0.5, 0.75, 0.9, 0.05};

@@ -73,11 +73,13 @@ namespace
         const ValueID x = builder.input(Shape{2, 3, 3, 4}, "x");
         const ValueID gamma = builder.parameter(Shape{4}, "gamma");
         const ValueID beta = builder.parameter(Shape{4}, "beta");
-        const Graph::BatchNormResult forward = builder.batchnorm2d(x, gamma, beta, 1e-5);
+        // The operands fit, so a refusal is a defect of the builder: value() stops the test.
+        const Graph::BatchNormResult forward = builder.batchnorm2d(x, gamma, beta, 1e-5).value();
 
         const ValueID dy = builder.input(Shape{2, 3, 3, 4}, "dy");
-        const Graph::BatchNormGrads backward = builder.batchnorm2d_backward(
-            dy, x, gamma, forward.saved_mean, forward.saved_inv_std);
+        const Graph::BatchNormGrads backward =
+            builder.batchnorm2d_backward(dy, x, gamma, forward.saved_mean, forward.saved_inv_std)
+                .value();
 
         trace.forward = trace.graph.value(forward.output).producer;
         trace.backward = trace.graph.value(backward.dx).producer;

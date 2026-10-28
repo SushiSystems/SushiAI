@@ -71,8 +71,9 @@ namespace
         {
             const GraphBuilder builder(graph);
             x = builder.input(Shape{16}, "x");
-            a = builder.relu(x);
-            b = builder.sigmoid(a);
+            // A unary emitter over a fresh input cannot refuse: value() stops the test if it does.
+            a = builder.relu(x).value();
+            b = builder.sigmoid(a).value();
         }
     };
 }
@@ -80,7 +81,7 @@ namespace
 TEST_F(Medium_Arena, TwoPackedTensorsShareABaseButNotAByte)
 {
     const Chain chain;
-    const MemoryPlan plan = MemoryPlan::build(chain.graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(chain.graph));
 
     ASSERT_TRUE(plan.is_packed(chain.a));
     ASSERT_TRUE(plan.is_packed(chain.b));
@@ -114,7 +115,7 @@ TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     // Each view writes only its own bytes; see tests/core/graph/README.md.
     const Chain chain;
     SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas,
-                            ArenaSet::make(*engine, MemoryPlan::build(chain.graph)));
+                            ArenaSet::make(*engine, MemoryPlan::build(chain.graph).value()));
 
     SushiBLAS::Tensor first = arenas.view(chain.a, Shape{16}, DType::Float32);
     SushiBLAS::Tensor second = arenas.view(chain.b, Shape{16}, DType::Float32);
@@ -138,7 +139,7 @@ TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
 TEST_F(Medium_Arena, AViewAddressesItsOwnElements)
 {
     const Chain chain;
-    const MemoryPlan plan = MemoryPlan::build(chain.graph);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(chain.graph));
     SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
 
     const SushiBLAS::Tensor view = arenas.view(chain.b, Shape{16}, DType::Float32);
@@ -194,7 +195,7 @@ TEST_F(Medium_Arena, MixedDtypesEachStartAlignedForTheirOwnElementWidth)
     PlanOptions options;
     options.alignment = 1;
 
-    const MemoryPlan plan = MemoryPlan::build(graph, options);
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
     ASSERT_EQ(plan.arenas().size(), 1u) << "both are activations, so both are in one arena";
 
     SA_ASSERT_OK_AND_ASSIGN(const ArenaSet arenas, ArenaSet::make(*engine, plan));
@@ -227,8 +228,8 @@ TEST_F(Medium_ArenaDeathTest, AdoptingASecondPlanIsRefused)
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
-    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph)));
-    SA_EXPECT_FATAL((void)pool.adopt(MemoryPlan::build(chain.graph)), "already adopted");
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph).value()));
+    SA_EXPECT_FATAL((void)pool.adopt(MemoryPlan::build(chain.graph).value()), "already adopted");
 }
 
 TEST_F(Medium_Arena, TheEmptyPlanPacksNothing)
@@ -256,7 +257,7 @@ TEST_F(Medium_Arena, APlannedPoolAllocatesOneStorageForAWholeArena)
     const Chain chain;
     Graph::TensorPool pool(*engine);
 
-    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph)));
+    SA_EXPECT_OK(pool.adopt(MemoryPlan::build(chain.graph).value()));
     SA_EXPECT_OK(pool.materialise_leaves(chain.graph));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor& a,
