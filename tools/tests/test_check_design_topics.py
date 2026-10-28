@@ -20,13 +20,8 @@ from documentation.check_design_topics import (  # noqa: E402
     K_CHECKER,
     Repository,
     rule_archive_not_cited,
-    rule_designs_resolve,
     rule_folder_ceiling,
     rule_glossary_entry,
-    rule_implements_resolve,
-    rule_modules_exist,
-    rule_modules_required,
-    rule_topic_folder,
     rule_views_current,
     rule_views_present,
 )
@@ -110,15 +105,15 @@ class RegistrationTest(unittest.TestCase):
             sorted(K_CHECKER.rules),
             [
                 "rule_archive_not_cited",
-                "rule_designs_resolve",
                 "rule_folder_ceiling",
                 "rule_glossary_entry",
-                "rule_implements_resolve",
+                "rule_module_owner",
                 "rule_modules_exist",
                 "rule_modules_required",
                 "rule_topic_folder",
                 "rule_views_current",
                 "rule_views_present",
+                "rule_work_references",
             ],
         )
 
@@ -132,98 +127,22 @@ class RegistrationTest(unittest.TestCase):
                 self.assertEqual(_messages(rule(_repository(folder, files, True, 10, True))), [], name)
 
 
-class TopicFolderTest(unittest.TestCase):
-    """Covers the rule that a topic is a folder."""
+class OwnershipTest(unittest.TestCase):
+    """Covers the rules run through sushicore.design: one owner per module."""
 
-    def test_is_silent_when_not_asked(self) -> None:
-        """Reports nothing for a loose document while the repository does not ask for topics."""
-        self.assertEqual(_check(rule_topic_folder), [])
-
-    def test_reports_a_loose_document_when_asked(self) -> None:
-        """Reports the document that sits directly in docs/design, and not the indexes."""
-        files = {"docs/design/README.md": "# Design\n", "docs/design/REMAINING_WORK.md": "# Work\n"}
-        messages = _check(rule_topic_folder, files, True)
-        self.assertEqual(messages, ["a topic is a folder: move it to AUDIO/README.md with fold_design_topics.py"])
-
-
-class ModulesExistTest(unittest.TestCase):
-    """Covers the Modules line."""
-
-    def test_reports_a_module_that_is_not_there(self) -> None:
-        """Reports a listed module that has no folder."""
-        text = K_TOPIC.replace("modules/domain/dsp", "modules/domain/missing")
-        self.assertEqual(_check(rule_modules_exist, {"docs/design/AUDIO.md": text}), ["the module 'modules/domain/missing' is not in the repository"])
-
-    def test_accepts_none_and_a_missing_line(self) -> None:
-        """Accepts a topic that says none and one without the line."""
-        none = K_TOPIC.replace("modules/domain/audio, modules/domain/dsp", "none")
-        absent = K_TOPIC.replace("**Modules:** modules/domain/audio, modules/domain/dsp\n", "")
-        self.assertEqual(_check(rule_modules_exist, {"docs/design/AUDIO.md": none}), [])
-        self.assertEqual(_check(rule_modules_exist, {"docs/design/AUDIO.md": absent}), [])
-
-    def test_reads_code_spans(self) -> None:
-        """Reads a module written in a code span."""
-        text = K_TOPIC.replace("modules/domain/audio", "`modules/domain/audio`")
-        self.assertEqual(_check(rule_modules_exist, {"docs/design/AUDIO.md": text}), [])
-
-
-class ModulesRequiredTest(unittest.TestCase):
-    """Covers the opt-in rule."""
-
-    ABSENT = K_TOPIC.replace("**Modules:** modules/domain/audio, modules/domain/dsp\n", "")
-
-    def test_is_silent_when_not_asked(self) -> None:
-        """Reports nothing while the repository does not ask for the line."""
-        self.assertEqual(_check(rule_modules_required, {"docs/design/AUDIO.md": self.ABSENT}), [])
-
-    def test_reports_a_topic_without_the_line_when_asked(self) -> None:
-        """Reports a topic with no Modules line once the repository asks for it."""
-        self.assertEqual(len(_check(rule_modules_required, {"docs/design/AUDIO.md": self.ABSENT}, True)), 1)
-
-
-class ImplementsTest(unittest.TestCase):
-    """Covers the links from work to phases."""
-
-    def test_reports_an_unknown_topic(self) -> None:
-        """Reports a work folder that implements a topic nobody wrote."""
-        text = K_WORK.replace("AUDIO#A1, AUDIO#A0", "VIDEO#V1")
-        messages = _check(rule_implements_resolve, {"docs/agent/2026_10_21_SPATIALIZER/SPEC.md": text})
-        self.assertEqual(messages, ["'VIDEO' is not a design topic"])
-
-    def test_reports_an_unknown_phase(self) -> None:
-        """Reports a phase id the topic's table does not hold."""
-        text = K_WORK.replace("AUDIO#A1, AUDIO#A0", "AUDIO#A9")
-        messages = _check(rule_implements_resolve, {"docs/agent/2026_10_21_SPATIALIZER/SPEC.md": text})
-        self.assertEqual(messages, ["'AUDIO' has no phase 'A9'"])
-
-    def test_reports_a_topic_without_a_phase(self) -> None:
-        """Asks for the TOPIC#PHASE form."""
-        text = K_WORK.replace("AUDIO#A1, AUDIO#A0", "AUDIO")
-        messages = _check(rule_implements_resolve, {"docs/agent/2026_10_21_SPATIALIZER/SPEC.md": text})
-        self.assertEqual(messages, ["'AUDIO' names a topic and no phase; write TOPIC#PHASE"])
-
-    def test_reads_the_readme_of_a_split_topic(self) -> None:
-        """Finds the phases of a split topic in its README."""
-        overrides = {"docs/design/AUDIO/README.md": K_TOPIC}
-        with tempfile.TemporaryDirectory() as folder:
-            files = {key: value for key, value in K_FILES.items() if key != "docs/design/AUDIO.md"}
-            files.update(overrides)
-            self.assertEqual(_messages(rule_implements_resolve(_repository(folder, files))), [])
-
-    def test_leaves_work_without_the_line_alone(self) -> None:
-        """Does not ask an audit to implement a phase."""
-        text = K_WORK.replace("**Implements:** AUDIO#A1, AUDIO#A0\n", "")
-        self.assertEqual(_check(rule_implements_resolve, {"docs/agent/2026_10_21_SPATIALIZER/SPEC.md": text}), [])
-
-
-class DesignsTest(unittest.TestCase):
-    """Covers the links from work to whole topics."""
-
-    def test_reports_an_unknown_topic(self) -> None:
-        """Reports a Designs item that is not a topic."""
-        text = K_WORK.replace("**Designs:** AUDIO", "**Designs:** AUDIO, VIDEO")
-        messages = _check(rule_designs_resolve, {"docs/agent/2026_10_21_SPATIALIZER/SPEC.md": text})
-        self.assertEqual(messages, ["'VIDEO' is not a design topic"])
+    def test_reports_a_module_two_topics_name(self) -> None:
+        """The second topic that names a module is the finding."""
+        text = "# {0}\n\n**Status:** Open — x\n**Modules:** `modules/audio`\n"
+        files = {
+            "modules/audio/README.md": "# Audio\n",
+            "docs/design/AUDIO/README.md": text.format("Audio"),
+            "docs/design/MIXER/README.md": text.format("Mixer"),
+        }
+        rule = K_CHECKER.rules["rule_module_owner"]
+        self.assertEqual(
+            _check(rule, files),
+            ["'modules/audio' is owned by AUDIO; merge the topics with `design merge` or drop it here"],
+        )
 
 
 class GlossaryTest(unittest.TestCase):

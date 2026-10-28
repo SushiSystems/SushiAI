@@ -51,7 +51,7 @@ To determine where new content belongs, evaluate these questions in order:
   **Status:** Shipped
   ```
 - Design documents exceeding 1,500 lines must be split into a topic directory containing a `README.md` index and one file per phase.
-- `docs/design/REMAINING_WORK.md` is the repository's sole backlog. Do not maintain separate TODO files or untracked task lists.
+- `docs/backlog/README.md` is the repository's sole backlog. Do not maintain separate TODO files or untracked task lists.
 
 ## 5. Changelog Entries
 

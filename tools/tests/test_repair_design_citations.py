@@ -151,6 +151,48 @@ class MoveTest(unittest.TestCase):
             self.assertEqual((root / "docs/guides/use.md").read_text(encoding="utf-8"), "docs/design/S/M.md docs/design/S/R.md\n")
 
 
+class RevisionTest(unittest.TestCase):
+    """Covers a topic that moved into the revision folder, and one that moved back out of it."""
+
+    FILES = {
+        "docs/design/README.md": "# Design\n",
+        "docs/design/ECS.md": K_TOPIC,
+        "docs/design/_REVISION/AUDIO/README.md": K_TOPIC + "See [ecs](../ECS.md), [use](../../guides/use.md) and [mixer](MIXER.md).\n",
+        "docs/design/_REVISION/AUDIO/MIXER.md": "# Mixer\n",
+        "docs/guides/use.md": "See docs/design/AUDIO/MIXER.md, docs/design/AUDIO and [audio](../design/AUDIO/README.md).\n",
+    }
+
+    def test_points_a_citation_at_the_topic_under_revision(self) -> None:
+        """Rewrites a page, a folder and a README citation to the topic's place under the revision folder."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _root(folder, self.FILES)
+            run(root, True)
+            self.assertEqual(
+                (root / "docs/guides/use.md").read_text(encoding="utf-8"),
+                "See docs/design/_REVISION/AUDIO/MIXER.md, docs/design/_REVISION/AUDIO and "
+                "[audio](../design/_REVISION/AUDIO/README.md).\n",
+            )
+
+    def test_reads_the_links_of_a_moved_page_from_its_former_place(self) -> None:
+        """Rewrites the links a page wrote before it moved and leaves the link inside its own topic."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _root(folder, self.FILES)
+            run(root, True)
+            self.assertTrue(
+                (root / "docs/design/_REVISION/AUDIO/README.md")
+                .read_text(encoding="utf-8")
+                .endswith("See [ecs](../../ECS.md), [use](../../../guides/use.md) and [mixer](MIXER.md).\n")
+            )
+
+    def test_reads_the_links_of_a_page_that_left_the_revision_folder(self) -> None:
+        """Rewrites a link written from the revision folder once the topic is back in docs/design."""
+        files = {**K_TOPICS, "docs/design/AUDIO/MIXER.md": "See [ecs](../../ECS.md).\n"}
+        with tempfile.TemporaryDirectory() as folder:
+            root = _root(folder, files)
+            run(root, True)
+            self.assertEqual((root / "docs/design/AUDIO/MIXER.md").read_text(encoding="utf-8"), "See [ecs](../ECS.md).\n")
+
+
 class CommandTest(unittest.TestCase):
     """Covers the exit code."""
 

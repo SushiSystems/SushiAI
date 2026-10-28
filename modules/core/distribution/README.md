@@ -295,7 +295,7 @@ allocates `Residency::Shared`, a `TensorPack` allocates pinned `Residency::Host`
 device its tensors live on (the publish's parameters, the exchange's parameter pack, the position
 tensor), and SushiRuntime borrows every view a worker's dispatch hands a kernel as
 `Residency::Shared`. The transport reads a pack while kernels run, which managed memory does not
-allow on CUDA on Windows; KI-17 in `docs/reference/KNOWN_ISSUES.md` holds what remains of that
+allow on CUDA on Windows; KI-17 in `docs/backlog/README.md` holds what remains of that
 limit.
 `require_host_visible()` stops the process at the copy, naming the tensor, if a model tensor
 ever lives in device memory.

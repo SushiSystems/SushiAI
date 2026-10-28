@@ -19,7 +19,7 @@ endif()
 # A test's size comes from its GoogleTest suite-name prefix, Small_, Medium_ or Large_, and each
 # size has its own label and timeout in seconds; see the testing skill. A test named here keeps its
 # size and gains the label quarantined, which leaves it out of every gating run. Each name is
-# Suite.Case and has its entry in docs/reference/KNOWN_ISSUES.md.
+# Suite.Case and has its known issue in docs/backlog/.
 set(SUSHIAI_QUARANTINED_TESTS "")
 
 # Fails the configure when a suite in `sources` has no size prefix: it would register no test.

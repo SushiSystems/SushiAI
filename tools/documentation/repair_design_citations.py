@@ -3,12 +3,12 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Repairs the citations of design documents that moved when a topic became a folder or a folder became a file.
+"""Repairs the citations of design documents that moved, between a file and a folder or into and out of _REVISION.
 
 Usage: python tools/documentation/repair_design_citations.py [repository root] [--apply] [--move OLD NEW]...
 
-A citation whose file is gone but whose topic exists is rewritten to the file that holds the topic; one
-the tool cannot place is reported and left alone. `--move` names a file that was moved or merged.
+A gone citation whose topic exists is rewritten to the topic's file or page; one it cannot place is reported. A
+moved page's links are read from its former place. `--move` names a file that was moved or merged.
 """
 
 from __future__ import annotations
@@ -23,10 +23,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from documentation.citation_files import citing_files  # noqa: E402
+from documentation.design_status import K_REVISION_FOLDER  # noqa: E402
 from documentation.design_topics import topics  # noqa: E402
 
 K_PATH = re.compile(r"(?<![A-Za-z0-9_.-])(?P<docs>docs/)?design/(?P<tail>[A-Za-z0-9_]+(?:\.md)?(?:/[A-Za-z0-9_.-]+)*)")
-K_LINK = re.compile(r"\]\((?P<target>[A-Za-z0-9_./-]+\.md)(?P<anchor>#[^)\s]*)?\)")
+K_LINK = re.compile(r"\]\((?P<target>[A-Za-z0-9_./-]+)(?P<anchor>#[^)\s]*)?\)")
+K_README = "README.md"
 K_EXIT_CLEAN = 0
 K_EXIT_FINDINGS = 1
 
@@ -52,10 +54,37 @@ def _fixed(tail: str, root: Path, known: dict[str, Path]) -> str | None:
     design = root / "docs" / "design"
     if (design / tail).exists():
         return tail
-    name = tail.split("/")[0].removesuffix(".md")
-    if tail not in (f"{name}.md", f"{name}/README.md"):
+    parts = tail.split("/")
+    if parts[0] == K_REVISION_FOLDER:
+        parts = parts[1:]
+    if not parts:
         return None
-    return _topic_tail(name, known, design)
+    name = parts[0].removesuffix(".md")
+    holder = _topic_tail(name, known, design)
+    page = "/".join(parts[1:])
+    if holder is None or (page and parts[0] != name):
+        return None
+    if not page and parts[0] == name and holder.endswith(f"/{K_README}"):
+        return holder.removesuffix(f"/{K_README}")
+    if page in ("", K_README):
+        return holder
+    if not holder.endswith(f"/{K_README}"):
+        return None
+    moved = f"{holder.removesuffix(K_README)}{page}"
+    return moved if (design / moved).exists() else None
+
+
+def _former_folder(path: Path, design: Path) -> Path | None:
+    """Returns the folder a design page sat in before it moved into or out of the revision folder."""
+    try:
+        below = path.parent.resolve().relative_to(design.resolve())
+    except ValueError:
+        return None
+    if not below.parts:
+        return None
+    if below.parts[0] == K_REVISION_FOLDER:
+        return design.joinpath(*below.parts[1:])
+    return design.joinpath(K_REVISION_FOLDER, *below.parts)
 
 
 def repair_text(
@@ -98,6 +127,12 @@ def repair_text(
             replacement = os.path.relpath(root / moved[below], path.parent).replace(os.sep, "/")
             found.append(Repair(path, line_of(match), match["target"], replacement))
             return f"]({replacement}{match['anchor'] or ''})"
+        former = None if target.exists() else _former_folder(path, design)
+        earlier = None if former is None else (former / match["target"]).resolve()
+        if earlier is not None and earlier.exists():
+            replacement = os.path.relpath(earlier, path.parent.resolve()).replace(os.sep, "/")
+            found.append(Repair(path, line_of(match), match["target"], replacement))
+            return f"]({replacement}{match['anchor'] or ''})"
         if target.exists() or design.resolve() not in target.parents:
             return match.group(0)
         tail = target.relative_to(design.resolve()).as_posix()
@@ -116,13 +151,14 @@ def repair_text(
 def run(root: Path, apply: bool, moves: dict[str, str] | None = None) -> list[Repair]:
     """Repairs, or with apply False only lists, every moved citation below root."""
     known = topics(root / "docs")
+    design = (root / "docs" / "design").resolve()
     found: list[Repair] = []
     for path in citing_files(root):
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        if not moves and "design/" not in text:
+        if not moves and "design/" not in text and design not in path.resolve().parents:
             continue
         fixed, repairs = repair_text(path, text, root, known, moves)
         found += repairs

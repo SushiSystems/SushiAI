@@ -384,7 +384,7 @@ A host task inside one plan with declared reads and writes (`add_host(Reads, Wri
 
 "Now" means host-lane code: IR ops, shape rules, gradient rules, layer classes and host algorithms, with no engine call. "After migration" means the unit touches a file that calls the engine. SPEC:27 and SPEC:33 record those files as frozen until the SushiBLAS migration.
 
-**Lowerings are written once, after the split.** `Lowering::record_node` is one `if (node.op == Ops::X.id)` chain (low:389-429) with inner chains at low:695-697 and low:757-761, and its fallthrough message reads "Add it to Lowering::record_node" (low:441). Gradient rules are already per-domain tables (all.hpp:51-57), and the estate audit recommends the same shape for lowering (the estate audit report in the version history:902-904; docs/design/REMAINING_WORK.md:104-107). SushiAI's migration to SushiBLAS v0.1.0 splits `lowering.cpp` into per-domain tables. The new lowerings of this map (`SILU` and its backward, `DIV`, `MIN`, `MAX`, `ATAN`, `ABS`, `SOFTPLUS`, their backwards, the softmax backward, `STOP_GRADIENT`, rank-3 `MATMUL`, the BN statistics update) are each written once, after that split, into the table of their domain. None is added to the chain.
+**Lowerings are written once, after the split.** `Lowering::record_node` is one `if (node.op == Ops::X.id)` chain (low:389-429) with inner chains at low:695-697 and low:757-761, and its fallthrough message reads "Add it to Lowering::record_node" (low:441). Gradient rules are already per-domain tables (all.hpp:51-57), and the estate audit recommends the same shape for lowering (the estate audit report in the version history:902-904; docs/backlog/README.md:104-107). SushiAI's migration to SushiBLAS v0.1.0 splits `lowering.cpp` into per-domain tables. The new lowerings of this map (`SILU` and its backward, `DIV`, `MIN`, `MAX`, `ATAN`, `ABS`, `SOFTPLUS`, their backwards, the softmax backward, `STOP_GRADIENT`, rank-3 `MATMUL`, the BN statistics update) are each written once, after that split, into the table of their domain. None is added to the chain.
 
 | Stage | Check | Units | Repository | Timing |
 | --- | --- | --- | --- | --- |
@@ -413,7 +413,7 @@ recommend otherwise, this list wins.
   attention softmax, the whole loss and label assignment stay wide, as a proposal not yet checked
   against what the reference casts under AMP), HALF support in every kernel on the narrowed path
   (section 6.1 says no item needs HALF; under this decision F1, F2, F4 to F9 and O1 do), and the
-  whole-step overflow skip that `docs/reference/KNOWN_ISSUES.md` records as per-parameter today.
+  whole-step overflow skip that `docs/backlog/README.md` records as per-parameter today.
 - **D12, reference production.** An agent produces the reference files in a conda environment on
   this machine, by running the pinned Ultralytics commit and saving what it outputs, never by
   stating numbers.

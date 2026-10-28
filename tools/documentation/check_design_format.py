@@ -3,48 +3,26 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks the design documents of a repository against the design format of the documentation skill.
+"""Checks the design documents of a repository against the design format of the documentation skill, through sushicore.
 
 Usage: python tools/documentation/check_design_format.py [repository root] [--report] [--rule NAME]
+
+The rules are those of `design check` in sushicore.design that read one document's frame.
 """
 
 from __future__ import annotations
 
-import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from checking.checker import Checker, Issue, run  # noqa: E402
-from documentation.design_status import (  # noqa: E402
-    K_TABLE_ROW,
-    K_TABLE_RULE,
-    body_lines,
-    design_documents,
-    first_content_line,
-    section_body,
-    section_names,
-    table_cells,
-)
+from checking.checker import Checker, run  # noqa: E402
+from documentation.sushicore_bridge import design_rule  # noqa: E402
 
-K_SECTIONS = ("Problem", "Decision", "Design", "Phases", "Open questions")
-K_PHASES = "Phases"
-K_PHASE_COLUMNS = ("Id", "Phase", "State")
-K_PHASE_STATES = frozenset({"planned", "building", "built", "withdrawn"})
-K_NO_PHASES = "None."
-K_STATUS_CEILING = 160
-K_HASH = re.compile(r"(?<![\w/.-])[0-9a-f]{7,40}(?![\w/-])")
-K_EXECUTION_VERB = r"(?:built|landed|merged|shipped|completed|implemented|reviewed|finished|done)"
-K_ISO_DATE = r"\d{4}-\d{2}-\d{2}"
-K_EXECUTION_RECORD = re.compile(
-    rf"\b{K_EXECUTION_VERB}\b[^.\n]{{0,60}}{K_ISO_DATE}|{K_ISO_DATE}[^.\n]{{0,40}}\b{K_EXECUTION_VERB}\b",
-    re.IGNORECASE,
-)
-K_HASH_DIGIT = re.compile(r"\d")
-K_HASH_LETTER = re.compile(r"[a-f]")
+K_DELEGATED = ("sections", "status_length", "phase_table", "no_commit_hashes", "no_execution_record")
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,92 +31,16 @@ class Repository:
 
     root: Path
 
-    def documents(self) -> list[Path]:
-        """Returns each design document that exists, counting a split topic's README as its document."""
-        return [path for path in design_documents(self.root / "docs") if path.is_file()]
-
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
-    """Returns each given folder that holds a docs/ tree."""
-    return [Repository(path) for path in paths if (path / "docs").is_dir()]
-
-
-def rule_sections(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each section that is not one of the five, each one missing, and an order that is wrong."""
-    for path in repository.documents():
-        found = section_names(path)
-        names = [name for _, name in found]
-        for number, name in found:
-            if name not in K_SECTIONS:
-                yield Issue(path, number, f"'## {name}' is not one of the sections: {', '.join(K_SECTIONS)}")
-        for name in K_SECTIONS:
-            if name not in names:
-                yield Issue(path, 1, f"the section '## {name}' is missing")
-        known = [name for name in names if name in K_SECTIONS]
-        if len(set(known)) == len(K_SECTIONS) and known != list(K_SECTIONS):
-            yield Issue(path, 1, f"the sections are in the order {', '.join(K_SECTIONS)}")
-
-
-def rule_status_length(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each status line longer than the ceiling."""
-    for path in repository.documents():
-        number, line = first_content_line(path)
-        if len(line) > K_STATUS_CEILING:
-            yield Issue(path, number, f"status is {len(line)} characters; the ceiling is {K_STATUS_CEILING}")
-
-
-def rule_phase_table(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for a Phases section without its table, with other columns, or with an unknown state."""
-    for path in repository.documents():
-        heading = next((number for number, name in section_names(path) if name == K_PHASES), None)
-        if heading is None:
-            continue
-        body = section_body(path, K_PHASES)
-        rows = [(number, line) for number, line in body if K_TABLE_ROW.match(line)]
-        if not rows:
-            if not any(line.strip() == K_NO_PHASES for _, line in body):
-                yield Issue(path, heading, f"'## {K_PHASES}' holds a table of {', '.join(K_PHASE_COLUMNS)}, or '{K_NO_PHASES}'")
-            continue
-        number, header = rows[0]
-        if tuple(table_cells(header)) != K_PHASE_COLUMNS:
-            yield Issue(path, number, f"the phase table has the columns {', '.join(K_PHASE_COLUMNS)}")
-            continue
-        for number, line in rows[1:]:
-            if K_TABLE_RULE.match(line):
-                continue
-            cells = table_cells(line)
-            if len(cells) != len(K_PHASE_COLUMNS) or cells[-1].strip("`") not in K_PHASE_STATES:
-                yield Issue(path, number, f"a phase state is one of {', '.join(sorted(K_PHASE_STATES))}")
-
-
-def rule_no_commit_hashes(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each commit hash in a design document, in a code span or bare."""
-    for path in repository.documents():
-        for number, line in body_lines(path):
-            for match in K_HASH.finditer(line):
-                if K_HASH_DIGIT.search(match.group()) and K_HASH_LETTER.search(match.group()):
-                    yield Issue(path, number, "a commit hash belongs in the work folder's REPORT.md")
-
-
-def rule_no_execution_record(repository: Repository) -> Iterator[Issue]:
-    """Yields an issue for each line outside the status that dates when work was built, merged or reviewed."""
-    for path in repository.documents():
-        status_line, _ = first_content_line(path)
-        for number, line in body_lines(path):
-            if number != status_line and K_EXECUTION_RECORD.search(line):
-                yield Issue(path, number, "when work was done belongs in the work folder's REPORT.md")
+    """Returns each given folder that holds a docs/design tree."""
+    return [Repository(path) for path in paths if (path / "docs" / "design").is_dir()]
 
 
 K_CHECKER = Checker(
     description="Checks the design documents against the design format of the documentation skill.",
     collect=collect,
-    rules={
-        "rule_sections": rule_sections,
-        "rule_status_length": rule_status_length,
-        "rule_phase_table": rule_phase_table,
-        "rule_no_commit_hashes": rule_no_commit_hashes,
-        "rule_no_execution_record": rule_no_execution_record,
-    },
+    rules={f"rule_{name}": design_rule(name, name == K_DELEGATED[0]) for name in K_DELEGATED},
 )
 
 if __name__ == "__main__":

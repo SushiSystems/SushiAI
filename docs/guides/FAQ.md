@@ -173,7 +173,7 @@ its GEMM under mixed precision. Section 5.3 of the
 The [architecture page](../architecture/ARCHITECTURE.md) names the open work in its section 7:
 packing the lowering's scratch, the log-softmax and `K_NLL_LOSS` fusions, the standalone
 `K_LOG_SOFTMAX` rule, the whole-step overflow skip, bfloat16, and the `Dataset` and `Trainer`
-seams among them. [Known issues](../reference/KNOWN_ISSUES.md) records what behaves wrongly or
+seams among them. [Known issues](../backlog/README.md) records what behaves wrongly or
 narrowly today:
 
 - In mixed precision an overflowed gradient skips that parameter's update only; the other
@@ -197,7 +197,7 @@ with what you want to build and who will use it. Third-party components are list
 ## Where do I report a problem?
 
 For anything that is not sensitive, open a GitHub issue or Discussion.
-[Known issues](../reference/KNOWN_ISSUES.md) lists the defects already recorded.
+[Known issues](../backlog/README.md) lists the defects already recorded.
 
 Do not open a public issue for a security problem. Report it privately by email to
 mustafagarip@sushisystems.io, through the community Discord, or with GitHub's private

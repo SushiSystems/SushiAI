@@ -21,13 +21,13 @@ the manual.
 | [FAQ](guides/FAQ.md) | The questions a newcomer asks, each answered from this manual |
 | [API reference](reference/API_REFERENCE.md) | The main page of the generated Doxygen site |
 | [Glossary](reference/GLOSSARY.md) | The words these documents use |
-| [Known issues](reference/KNOWN_ISSUES.md) | Defects that are recorded and not yet fixed |
+| [Known issues](backlog/README.md) | Defects that are recorded and not yet fixed |
 | [Changelog](reference/CHANGELOG.md) | What changed, by release |
 | [Code of conduct](reference/CODE_OF_CONDUCT.md) | What is expected in project spaces |
 | [Security policy](reference/SECURITY.md) | How to report a vulnerability |
 | [Design map](design/README.md) | Which design document covers which topic |
 | [Programme](design/PROGRAMME/README.md) | The target, the owner's rulings and the stages towards 0.1.0 |
-| [Remaining work](design/REMAINING_WORK.md) | The backlog |
+| [Remaining work](backlog/README.md) | The backlog |
 | [Contributing](CONTRIBUTING.md) | How a change is built, tested, documented and committed |
 | [Documentation style guide](DOCUMENTATION_STYLE_GUIDE.md) | Where a document goes and how it is written |
 

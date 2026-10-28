@@ -275,5 +275,4 @@ The operation does not narrow under `MixedPrecisionPolicy`.
 
 <!-- designs:begin -->
 - [GRAPH_CAPABILITIES](../../../docs/design/GRAPH_CAPABILITIES/README.md): The changes below SushiAI's layers tier that lift the limits found while the language, dataset, model-import and Darknet work was written in October 2026.
-- [PROFILING](../../../docs/design/PROFILING/README.md): How SushiAI measures where a training step and an inference batch spend their time, through SushiProfiler alone, down to the IR node each kernel belongs to.
 <!-- designs:end -->

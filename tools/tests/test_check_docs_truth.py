@@ -210,13 +210,13 @@ class HistoryWordsTest(unittest.TestCase):
         self.assertEqual(found, [("docs/guides/GUIDE.md", line) for line in range(3, 12)])
 
     def test_accepts_present_tense_code_quotes_and_known_issues(self) -> None:
-        """Accepts 'is used to', a phrase in code or quotes, and the known-issues page."""
+        """Accepts 'is used to', a phrase in code or quotes, and the backlog."""
         files = {
             "docs/guides/GUIDE.md": (
                 "# Guide\n\nThe queue is used to submit work; `previously` is a word.\n"
                 'A comment never says "we used to do X".\n\n```text\nno longer\n```\n'
             ),
-            "docs/reference/KNOWN_ISSUES.md": "# Known issues\n\nThe mixer no longer clips.\n",
+            "docs/backlog/detail/KI-1.md": "# KI-1\n\nThe mixer no longer clips.\n",
         }
         self.assertEqual(_found(rule_history_words, files), [])
 
@@ -281,6 +281,15 @@ class DuplicatedPassagesTest(unittest.TestCase):
         files = {
             "docs/guides/A.md": f"# A\n\n{short}\n\n```text\n{K_PASSAGE}\n```\n",
             "docs/guides/B.md": f"# B\n\n{short}\n\n```text\n{K_PASSAGE}\n```\n",
+        }
+        self.assertEqual(_found(rule_duplicated_passages, files), [])
+
+    def test_accepts_a_generated_block_in_two_module_readmes(self) -> None:
+        """Accepts the designs block the views write into every module a topic owns."""
+        block = f"<!-- designs:begin -->\n{K_PASSAGE}\n<!-- designs:end -->"
+        files = {
+            "docs/guides/A.md": f"# A\n\n{block}\n",
+            "docs/guides/B.md": f"# B\n\n{block}\n",
         }
         self.assertEqual(_found(rule_duplicated_passages, files), [])
 

@@ -414,12 +414,12 @@ These sections have pages of their own:
 ## 7. What's not here yet
 
 Open work is listed in one place,
-[`REMAINING_WORK.md`](../design/REMAINING_WORK.md): the scratch rules of the rows that have none, the
+[`REMAINING_WORK.md`](../backlog/README.md): the scratch rules of the rows that have none, the
 log-softmax and `K_NLL_LOSS` fusions, the two batch copies, the standalone `K_LOG_SOFTMAX` rule, the
 whole-step overflow skip, bfloat16, the `Dataset` and `Trainer` seams, and the demo's reference
 loss curve and timing table. What behaves wrongly or narrowly today, including why `gradcheck`
 does not verify a mixed-precision graph, is in
-[`KNOWN_ISSUES.md`](../reference/KNOWN_ISSUES.md).
+[`KNOWN_ISSUES.md`](../backlog/README.md).
 
 The retired 2025-06 prototype (`core/tensor.h`, eager autograd, CUDA-only)
 is **not** a migration source for any of

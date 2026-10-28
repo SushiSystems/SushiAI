@@ -150,4 +150,4 @@ No open work.
   domain adds layers and algorithms, not operations.
 - The layering checker diverges from the shared copy in SushiSkills, which reads
   `<SushiAI/vision/detect/x.hpp>` as a module named `vision`. Carrying the domain-tier key to
-  the shared copy is a line of [`REMAINING_WORK.md`](../REMAINING_WORK.md).
+  the shared copy is a line of [`REMAINING_WORK.md`](../../backlog/README.md).

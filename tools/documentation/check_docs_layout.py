@@ -36,13 +36,16 @@ K_DOCS_ENTRIES = frozenset(
     {
         "README.md", "CONTRIBUTING.md", "DOCUMENTATION_STYLE_GUIDE.md", "publish.toml",
         ".docs_truth_allow", "getting_started", "architecture", "guides", "reference", "design", "agent", "archive",
+        "backlog",
     }
 )
 K_REQUIRED_ENTRIES = (
     "README.md", "CONTRIBUTING.md", "DOCUMENTATION_STYLE_GUIDE.md",
-    "reference/CHANGELOG.md", "reference/GLOSSARY.md", "reference/KNOWN_ISSUES.md",
-    "design/README.md", "design/REMAINING_WORK.md",
+    "reference/CHANGELOG.md", "reference/GLOSSARY.md", "design/README.md",
+    "backlog/README.md", "backlog/backlog.toml",
 )
+K_BACKLOG_DETAIL = Path("backlog") / "detail"
+K_DETAIL_NAME = re.compile(r"^(?:RW|KI)-[1-9]\d*\.md$")
 K_WORK_FILES = frozenset(K_WORK_FILES_IN_ORDER)
 K_WORK_FOLDER = re.compile(r"^\d{4}_\d{2}_\d{2}_[A-Z0-9]+(?:_[A-Z0-9]+)*$")
 K_DOCUMENT_NAME = re.compile(r"^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$")
@@ -80,9 +83,13 @@ class Repository:
         ]
 
     def manual_documents(self) -> list[Path]:
-        """Returns every live document outside the agent work folders."""
+        """Returns every live document outside the agent work folders and the backlog's detail files."""
         agent = self.docs / "agent"
-        return [path for path in self.live_documents() if agent not in path.parents]
+        detail = self.docs / K_BACKLOG_DETAIL
+        return [
+            path for path in self.live_documents()
+            if agent not in path.parents and detail not in path.parents
+        ]
 
     def design_documents(self) -> list[Path]:
         """Returns every design document, counting a split topic's README as its document."""
@@ -189,8 +196,12 @@ def rule_docs_entries(repository: Repository) -> Iterator[Issue]:
 
 def rule_document_names(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each live document not named in UPPER_SNAKE_CASE."""
+    detail = repository.docs / K_BACKLOG_DETAIL
     for path in repository.live_documents():
-        if not K_DOCUMENT_NAME.match(path.name):
+        if detail in path.parents:
+            if not K_DETAIL_NAME.match(path.name):
+                yield Issue(path, 1, "a backlog detail file is named after its entry, RW-<n>.md or KI-<n>.md")
+        elif not K_DOCUMENT_NAME.match(path.name):
             yield Issue(path, 1, "document names are UPPER_SNAKE_CASE.md")
 
 

@@ -426,5 +426,4 @@ an object and is null, and names the file.
 
 <!-- designs:begin -->
 - [LAYERED_EXECUTION](../../docs/design/LAYERED_EXECUTION/README.md): SushiAI's share of the stack's layered execution: it stops using SushiBLAS's engine graph, and it trains one model over the owner's five machines through SushiRuntime's distributed...
-- [PROFILING](../../docs/design/PROFILING/README.md): How SushiAI measures where a training step and an inference batch spend their time, through SushiProfiler alone, down to the IR node each kernel belongs to.
 <!-- designs:end -->

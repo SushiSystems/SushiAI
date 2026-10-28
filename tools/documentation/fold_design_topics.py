@@ -39,7 +39,7 @@ def relink(text: str, old_dir: Path, new_dir: Path) -> str:
         if K_EXTERNAL.match(target):
             return match.group(0)
         absolute = (old_dir / target).resolve()
-        relative = os.path.relpath(absolute, new_dir).replace(os.sep, "/")
+        relative = os.path.relpath(absolute, new_dir.resolve()).replace(os.sep, "/")
         return f"]({relative}{match['anchor'] or ''})"
 
     return K_LINK.sub(fix, text)

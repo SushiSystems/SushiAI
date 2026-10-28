@@ -57,7 +57,7 @@ Added under `modules/core/eager/`:
   headers `eager_test_support.hpp` and `eager_run_support.hpp`
 
 Changed by the agent: `modules/core/eager/README.md`, `tests/unit/README.md`, the "Eager front
-end" section of `docs/design/REMAINING_WORK.md`. Changed by the orchestrator:
+end" section of `docs/backlog/README.md`. Changed by the orchestrator:
 `modules/core/eager/CMakeLists.txt` (ten sources, nine tests) and the umbrella header
 `modules/layers/umbrella/include/SushiAI/SushiAI.h` (twelve includes).
 

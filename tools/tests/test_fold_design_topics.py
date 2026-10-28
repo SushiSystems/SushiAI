@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
 import sys
 import tempfile
 import unittest
@@ -49,6 +50,22 @@ class LooseDocumentsTest(unittest.TestCase):
             self.assertEqual(names, ["AUDIO.md", "ECS.md"])
 
 
+def _other_spelling(test: unittest.TestCase, folder: Path) -> Path:
+    """Returns another name of *folder*: its 8.3 short name on Windows, a symbolic link elsewhere."""
+    if os.name == "nt":
+        import ctypes
+        buffer = ctypes.create_unicode_buffer(1024)
+        if ctypes.windll.kernel32.GetShortPathNameW(str(folder), buffer, len(buffer)) and buffer.value != str(folder):
+            return Path(buffer.value)
+        test.skipTest("the volume makes no short names")
+    link = folder.parent / "linked"
+    try:
+        os.symlink(folder, link, target_is_directory=True)
+    except OSError as error:
+        test.skipTest(f"no symbolic link here: {error}")
+    return link
+
+
 class RelinkTest(unittest.TestCase):
     """Covers the links out of a moved file."""
 
@@ -59,6 +76,16 @@ class RelinkTest(unittest.TestCase):
             text = "[a](../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n"
             self.assertEqual(relink(text, old, old / "AUDIO"), "[a](../../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n")
 
+
+    def test_a_folder_reached_through_a_link_keeps_the_link_relative(self) -> None:
+        """A folder named through a link or a short name is not walked to its other spelling."""
+        with tempfile.TemporaryDirectory() as folder:
+            real = Path(folder) / "a folder with a long name"
+            (real / "docs/design").mkdir(parents=True)
+            (real / "x").mkdir()
+            (real / "x/R.md").write_text("# R\n", encoding="utf-8")
+            old = _other_spelling(self, real) / "docs/design"
+            self.assertEqual(relink("[a](../../x/R.md)\n", old, old / "AUDIO"), "[a](../../../x/R.md)\n")
 
 class FoldTest(unittest.TestCase):
     """Covers the move and what it rewrites."""

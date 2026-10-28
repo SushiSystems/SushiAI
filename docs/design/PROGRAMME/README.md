@@ -7,7 +7,7 @@
 ## Problem
 
 What SushiAI is being built towards, in what order, and the owner's rulings that fix the shape of
-the work. Open items are in [`REMAINING_WORK.md`](../REMAINING_WORK.md); each stage's design is in the
+the work. Open items are in [`REMAINING_WORK.md`](../../backlog/README.md); each stage's design is in the
 work folder named beside it. This document replaces `ROADMAP.md`, which planned the
 construction of SushiBLAS and SushiAI up to the MLP showcase and is kept as the record of that
 period.
@@ -85,4 +85,4 @@ No open work.
 
 ## Open questions
 
-None. The open items are in [`REMAINING_WORK.md`](../REMAINING_WORK.md).
+None. The open items are in [`REMAINING_WORK.md`](../../backlog/README.md).

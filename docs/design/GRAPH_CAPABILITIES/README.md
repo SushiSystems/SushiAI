@@ -102,7 +102,7 @@ machines R2.
 Found in the source documents beyond that list: B5 with G10
 (`modules/vision/training/README.md:190-195`), B6 (`docs/design/LANGUAGE/README.md:79`), A6
 (`docs/design/LANGUAGE/README.md:90-91`), A7 (`docs/design/DATASETS/README.md:159-161`), A9
-(`docs/design/REMAINING_WORK.md:255-256`) and A10 (`modules/core/optim/README.md:185-186`).
+(`docs/backlog/README.md:255-256`) and A10 (`modules/core/optim/README.md:185-186`).
 
 Added on 2026-10-11 by the mixture of experts, after this plan was handed over, and not yet
 sectioned below: B9 as `TaskHandle ReductionOps::top_k_mask_along(const Tensor& t, int64_t k,
@@ -131,7 +131,7 @@ a top-k, a sort and a compaction do not.
   would add IR values the memory plan has to place, and nothing here measures that.
 - **A fused row-wise log-softmax, a fused `K_NLL_LOSS`, bfloat16, skipping a whole step on
   overflow, feeding a batch without two copies, a contiguous `K_RESHAPE` as a view.** They are
-  older entries of `docs/design/REMAINING_WORK.md` under "Memory planning", "Fusion and the
+  older entries of `docs/backlog/README.md` under "Memory planning", "Fusion and the
   IR" and "Convolutional networks", outside the sections this plan was asked to read. The
   batch copy grows with A1, which feeds three leaves.
 - **A row write for the key and value cache.** B2 in [BLAS_RANDOM_AND_INDEX.md](BLAS_RANDOM_AND_INDEX.md): the copy it would save is 98 304

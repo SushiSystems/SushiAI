@@ -47,7 +47,7 @@ every command.
 
 An MLP trains end to end, with memory planning, kernel fusion, mixed precision and gradient
 loss scaling. A model can also be described as a JSON file and saved to a checkpoint.
-[`docs/design/REMAINING_WORK.md`](docs/design/REMAINING_WORK.md) lists what does not work yet,
+[`docs/backlog/README.md`](docs/backlog/README.md) lists what does not work yet,
 and [`docs/design/PROGRAMME/README.md`](docs/design/PROGRAMME/README.md) lists what is planned.
 
 ## Documentation

@@ -42,9 +42,38 @@ class PhraseTest(unittest.TestCase):
         """Reads the folder of SPEC.md, PLAN.md and REPORT.md, not the file name."""
         self.assertEqual(phrase("agent/2026_09_22_ROOM_FURNISHINGS/PLAN.md"), "the room furnishings plan in the version history")
 
+    def test_names_a_readme_by_its_folder(self) -> None:
+        """Reads the folder of a README.md, which says nothing by itself."""
+        self.assertEqual(phrase("design/OLD_TOPIC/README.md"), "the old topic document in the version history")
+
+    def test_says_the_article_once(self) -> None:
+        """Drops a leading THE from the file name, so the phrase does not read 'the the'."""
+        self.assertEqual(phrase("design/WAVES/THE_SHORE_WINDOWS.md"), "the shore windows document in the version history")
+
     def test_falls_back_to_document(self) -> None:
         """Calls a file in an unknown folder a document."""
         self.assertEqual(phrase("archive/design/OLD_THING.md"), "the old thing document in the version history")
+
+
+class RelativeLinkTest(unittest.TestCase):
+    """Covers a link written relative to its own folder rather than to docs/."""
+
+    def test_replaces_a_sibling_topic_link_given_the_root(self) -> None:
+        """Turns a design page's link to a deleted sibling topic into its text, and leaves a live one."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            page = root / "docs/design/LIVE/README.md"
+            page.parent.mkdir(parents=True)
+            (root / "docs/design/OTHER").mkdir(parents=True)
+            text = "See [the old topic](../OLD/README.md#phases) and [the other](../OTHER/README.md).\n"
+            fixed, drops = drop_text(page, text, ["docs/design/OLD"], root)
+            self.assertEqual(fixed, "See the old topic and [the other](../OTHER/README.md).\n")
+            self.assertEqual(len(drops), 1)
+
+    def test_leaves_relative_links_alone_without_the_root(self) -> None:
+        """Reads no relative link when the caller gives no root, as before."""
+        text = "See [the old topic](../OLD/README.md).\n"
+        self.assertEqual(drop_text(Path("docs/design/LIVE/README.md"), text, ["docs/design/OLD"])[0], text)
 
 
 class DropTest(unittest.TestCase):

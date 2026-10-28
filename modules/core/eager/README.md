@@ -451,4 +451,4 @@ in without unwrapping. Handed a failed trace they return its failure, and `backw
 
 Tracing a node after the step ran, or after `backward`, makes the next read return `Unsupported`.
 The design's phases, one dynamic graph per stretch between two reads, are not built; see
-`docs/design/REMAINING_WORK.md`.
+`docs/backlog/README.md`.

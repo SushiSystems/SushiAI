@@ -37,5 +37,5 @@ markers = [
     "small: one process and one thread, no network, no sleep, no file outside the build tree (60 s)",
     "medium: threads and processes, localhost, files in a temporary folder (300 s)",
     "large: real hardware, or a run longer than medium allows (900 s)",
-    "quarantined: an intermittent test, out of every gating stage; see docs/reference/KNOWN_ISSUES.md",
+    "quarantined: an intermittent test, out of every gating stage; see its known issue in docs/backlog/",
 ]

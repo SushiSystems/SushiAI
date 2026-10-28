@@ -17,7 +17,7 @@ Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
 > an empty checkout to a model that trains, and then explains what the library
 > did with it. Then [`ARCHITECTURE.md`](architecture/ARCHITECTURE.md) for the design,
 > [`docs/design/PROGRAMME/README.md`](design/PROGRAMME/README.md) for the stages in the order they
-> are planned, and [`REMAINING_WORK.md`](design/REMAINING_WORK.md) for what is still
+> are planned, and [`REMAINING_WORK.md`](backlog/README.md) for what is still
 > open. `sa demo mlp` is the fastest way to see the whole pipeline do something.
 
 ---
@@ -47,7 +47,7 @@ See [`CLI_GUIDE.md`](guides/CLI_GUIDE.md) for the full command reference.
   decided in code now, and so is mixed precision's *numerics* half: loss scaling
   and overflow backoff. Read the design document of a stage before changing the
   subsystem it covers; the open items are in
-  [`REMAINING_WORK.md`](design/REMAINING_WORK.md).
+  [`REMAINING_WORK.md`](backlog/README.md).
 - **Keep changes focused.** One logical change per commit.
 
 ---
@@ -155,7 +155,7 @@ states an invariant. The `cpp-code-style` skill sets the 100-column limit.
 - No exception crosses the public surface. A sibling's exception becomes a `Status` only in
   the guards of `seam/seam.hpp`.
 - This is the target of stage 2 of [`PROGRAMME.md`](design/PROGRAMME/README.md). The tree does not
-  meet it yet; [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md) lists where it does not.
+  meet it yet; [`KNOWN_ISSUES.md`](backlog/README.md) lists where it does not.
 
 ### Build-system names are prefixed with the full program name
 
@@ -182,8 +182,8 @@ they stay unprefixed.
   [`CHANGELOG.md`](reference/CHANGELOG.md), in the shape
   [`DOCUMENTATION_STYLE_GUIDE.md`](DOCUMENTATION_STYLE_GUIDE.md) §5 gives.
 - **Work that opens or closes updates
-  [`REMAINING_WORK.md`](design/REMAINING_WORK.md)**, the only backlog; a defect that stays goes
-  in [`KNOWN_ISSUES.md`](reference/KNOWN_ISSUES.md).
+  [`REMAINING_WORK.md`](backlog/README.md)**, the only backlog; a defect that stays goes
+  in [`KNOWN_ISSUES.md`](backlog/README.md).
 - **A change under `docs/` passes both documentation checkers**; the commands are in
   [`tools/README.md`](../tools/README.md).
 - **A change to the dependency chain, the library target, or the packaging

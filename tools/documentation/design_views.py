@@ -11,7 +11,7 @@ import os
 import re
 from pathlib import Path
 
-from documentation.design_status import K_STATUS_FORMS, first_content_line, section_names
+from documentation.design_status import K_STATUS_FORMS, first_content_line, is_under_revision, section_names
 from documentation.design_topics import (
     K_ABOUT_FIELD,
     K_IMPLEMENTS_FIELD,
@@ -29,6 +29,7 @@ K_WORK_BLOCK = "work"
 K_NO_WORK = "No open work."
 K_NO_ABOUT = "No description."
 K_STATE_WORDS = {"open": "Open", "shipped": "Shipped", "superseded": "Superseded", "withdrawn": "Withdrawn"}
+K_REVISION_STATE = "Revision"
 K_TITLE = re.compile(r"^# (.+?)\s*$")
 
 
@@ -64,7 +65,9 @@ def write_block(path: Path, name: str, body: str) -> bool:
 
 
 def _state(path: Path) -> str:
-    """Returns the state word a status line carries, such as Open or Shipped."""
+    """Returns the state word a status line carries, such as Open or Shipped, or Revision for a topic set aside."""
+    if is_under_revision(path):
+        return K_REVISION_STATE
     _, line = first_content_line(path)
     match = K_STATUS_FORMS.match(line)
     if match is None:

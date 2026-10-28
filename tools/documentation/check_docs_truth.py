@@ -78,8 +78,9 @@ K_MACRO_PREFIX_FLOOR = 20
 K_ALLOW_LIST = Path("docs/.docs_truth_allow")
 K_UNCHECKED_DOCUMENTS = frozenset({"docs/reference/CHANGELOG.md", ".github/CODE_OF_CONDUCT.md"})
 K_UNCHECKED_DOCS_FOLDERS = frozenset({"agent", "archive"})
-K_HISTORY_EXEMPT_NAMES = frozenset({"KNOWN_ISSUES.md"})
+K_HISTORY_EXEMPT_FOLDER = Path("docs") / "backlog"
 K_PASSAGE_FLOOR = 300
+K_GENERATED_MARK = ":begin -->"
 K_RULE_FOLDERS = ("skills", "claude")
 K_RULE_SKIPPED_FOLDERS = frozenset({"research"})
 K_CITATION_REACH = 3
@@ -390,8 +391,8 @@ class Manual:
                 continue
             if path.relative_to(self.root).as_posix() in K_UNCHECKED_DOCUMENTS:
                 continue
-            design = docs / "design" in path.parents
-            found.append((path, PageKind.DESIGN_DOCUMENT if design else PageKind.MANUAL_PAGE))
+            intent = bool({docs / "design", docs / "backlog"} & set(path.parents))
+            found.append((path, PageKind.DESIGN_DOCUMENT if intent else PageKind.MANUAL_PAGE))
         for folder in self.source.folders:
             if folder.name in K_RULE_FOLDERS:
                 continue
@@ -583,7 +584,7 @@ def rule_example_source(manual: Manual) -> Iterator[Issue]:
 def rule_history_words(manual: Manual) -> Iterator[Issue]:
     """Yields an issue for each prose line that narrates what the code was before."""
     for page in manual.pages:
-        if page.path.name in K_HISTORY_EXEMPT_NAMES:
+        if (manual.root / K_HISTORY_EXEMPT_FOLDER) in page.path.parents:
             continue
         for number, line in page.plain():
             match = K_HISTORY.search(K_QUOTED.sub("", line))
@@ -603,11 +604,14 @@ def rule_page_length(manual: Manual) -> Iterator[Issue]:
 
 
 def rule_duplicated_passages(manual: Manual) -> Iterator[Issue]:
-    """Yields an issue for each long paragraph that an earlier page or rule file already holds."""
+    """Yields an issue for each long paragraph that an earlier page or rule file already holds.
+
+    A block the design views generate repeats its topic's About line by design, so it is left out.
+    """
     homes: dict[str, Page] = {}
     for page in (*manual.pages, *manual.rule_files):
         for number, text in page.paragraphs():
-            if len(text) < K_PASSAGE_FLOOR:
+            if len(text) < K_PASSAGE_FLOOR or K_GENERATED_MARK in text:
                 continue
             home = homes.setdefault(text, page)
             if home is not page:

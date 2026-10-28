@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
+K_REVISION_FOLDER = "_REVISION"
 K_WORK_FILES_IN_ORDER = ("SPEC.md", "PLAN.md", "REPORT.md")
 K_FENCE = re.compile(r"^(`{3,}|~{3,})")
 K_SECTION = re.compile(r"^## (\S.*?)\s*$")
@@ -38,13 +39,21 @@ class Status:
 
 
 def design_documents(docs: Path) -> list[Path]:
-    """Returns every design document, counting a split topic's README as its document."""
+    """Returns every design document, counting a split topic's README as its document and the topics under revision."""
     design = docs / "design"
     if not design.is_dir():
         return []
+    revision = design / K_REVISION_FOLDER
     documents = [path for path in sorted(design.glob("*.md")) if path.name not in K_DESIGN_INDEXES]
-    documents += [folder / "README.md" for folder in sorted(design.iterdir()) if folder.is_dir()]
+    documents += [folder / "README.md" for folder in sorted(design.iterdir()) if folder.is_dir() and folder != revision]
+    if revision.is_dir():
+        documents += [folder / "README.md" for folder in sorted(revision.iterdir()) if folder.is_dir()]
     return documents
+
+
+def is_under_revision(path: Path) -> bool:
+    """Returns whether a design document sits in the folder of topics set aside for revision."""
+    return K_REVISION_FOLDER in path.parts
 
 
 def work_folders(docs: Path) -> list[Path]:

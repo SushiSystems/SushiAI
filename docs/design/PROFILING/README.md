@@ -2,7 +2,7 @@
 
 **Status:** Open — P1 to P5 planned, code not yet written; P6 waits on their build
 **About:** How SushiAI measures where a training step and an inference batch spend their time, through SushiProfiler alone, down to the IR node each kernel belongs to.
-**Modules:** modules/core/graph, modules/core/eager, modules/layers/train, modules/vision/training, applications/programs
+**Modules:** modules/core/eager, modules/layers/train, modules/vision/training
 
 ## Problem
 

@@ -101,6 +101,16 @@ class RenderTest(unittest.TestCase):
                 "| [AUDIO](AUDIO.md) | Open | The sound the engine makes. |",
             )
 
+    def test_marks_a_topic_under_revision(self) -> None:
+        """Lists a topic in the revision folder with its link there and the state Revision."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _root(folder, {**K_FILES, "docs/design/_REVISION/VIDEO/README.md": K_TOPIC})
+            index = root / "docs/design/README.md"
+            self.assertIn(
+                "| [VIDEO](_REVISION/VIDEO/README.md) | Revision | The sound the engine makes. |",
+                render_topic_map(root / "docs", index).split("\n"),
+            )
+
     def test_says_when_a_topic_has_no_about_line(self) -> None:
         """Writes a fixed word for a topic that has not described itself."""
         with tempfile.TemporaryDirectory() as folder:

@@ -16,15 +16,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Issue  # noqa: E402
-from documentation.check_design_format import (  # noqa: E402
-    K_CHECKER,
-    Repository,
-    rule_no_commit_hashes,
-    rule_no_execution_record,
-    rule_phase_table,
-    rule_sections,
-    rule_status_length,
-)
+from documentation.check_design_format import K_CHECKER, Repository  # noqa: E402
+
+rule_no_commit_hashes = K_CHECKER.rules["rule_no_commit_hashes"]
+rule_no_execution_record = K_CHECKER.rules["rule_no_execution_record"]
+rule_phase_table = K_CHECKER.rules["rule_phase_table"]
+rule_sections = K_CHECKER.rules["rule_sections"]
+rule_status_length = K_CHECKER.rules["rule_status_length"]
 
 K_DOCUMENT = """# Kernels
 
@@ -107,7 +105,9 @@ class ValidDocumentTest(unittest.TestCase):
                 "docs/design/REMAINING_WORK.md": "# Remaining work\n",
                 "docs/design/KERNELS/PHASE_ONE.md": "# Phase one\n\n## Anything\n",
             }
-            self.assertEqual(_repository(folder, files).documents(), [])
+            repository = _repository(folder, files)
+            found = [issue for rule in K_CHECKER.rules.values() for issue in rule(repository)]
+            self.assertEqual(found, [])
 
     def test_reads_the_readme_of_a_split_topic(self) -> None:
         """Counts a split topic's README as its document."""

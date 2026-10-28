@@ -50,7 +50,7 @@ namespace SushiAI::Apps::ClusterTest
      *        CPU alone, so each machine of the one process drives hardware of its own.
      *
      * Two runtimes of one process on one CUDA GPU on Windows fault a host copy; see KI-17 in
-     * docs/reference/KNOWN_ISSUES.md.
+     * docs/backlog/.
      */
     inline SushiRuntime::RuntimeConfig worker_replica_config()
     {

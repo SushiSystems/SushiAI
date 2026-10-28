@@ -310,7 +310,7 @@ scheduled until a model needs it.
 ## B7. State and test that tensors may be created from several threads
 
 **Limit and evidence.** The first read of a `ReaderDataset` into a new `Batch` allocates, and a
-loader on threads does that concurrently (`docs/design/REMAINING_WORK.md:193-194`). The code
+loader on threads does that concurrently (`docs/backlog/README.md:193-194`). The code
 supports it: `TensorFactory::create` is `const` and holds a context pointer and a layout
 (`sushiblas/modules/data/tensor/include/SushiBLAS/tensor/tensor_factory.hpp:103-107`),
 `Storage` calls the allocator and nothing else

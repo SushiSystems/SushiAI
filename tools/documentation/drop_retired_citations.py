@@ -29,6 +29,7 @@ K_WORK_FILES = {"SPEC.md": "spec", "PLAN.md": "plan", "REPORT.md": "report"}
 K_WORDS = re.compile(r"[-_]+")
 K_SUFFIX = "in the version history"
 K_REACH = r"(?:(?:\.\./)*docs/|(?:\.\./)+|\./)"
+K_RELATIVE_LINK = re.compile(r"\[(?P<text>[^\]]*)\]\((?P<target>[A-Za-z0-9_./-]+\.md)(?P<anchor>#[^)\s]*)?\)")
 K_EXIT_CLEAN = 0
 K_EXIT_FINDINGS = 1
 
@@ -49,9 +50,11 @@ def phrase(cited: str) -> str:
     name = parts[-1]
     if name in K_WORK_FILES and len(parts) >= 2:
         label, kind = parts[-2], K_WORK_FILES[name]
+    elif name == "README.md" and len(parts) >= 2:
+        label, kind = parts[-2], "document"
     else:
         label, kind = name.removesuffix(".md"), K_KINDS.get(parts[-2], "document") if len(parts) >= 2 else "document"
-    words = K_WORDS.sub(" ", K_DATE_PREFIX.sub("", label)).lower().strip()
+    words = K_WORDS.sub(" ", K_DATE_PREFIX.sub("", label)).lower().strip().removeprefix("the ")
     return f"the {words} {kind} {K_SUFFIX}"
 
 
@@ -73,10 +76,15 @@ def _docs_relative(cited: str) -> str:
     return re.sub(rf"^{K_REACH}", "", cited)
 
 
-def drop_text(path: Path, text: str, prefixes: list[str]) -> tuple[str, list[Drop]]:
-    """Returns the text with each citation of a retired file replaced, and one Drop for each."""
+def drop_text(path: Path, text: str, prefixes: list[str], root: Path | None = None) -> tuple[str, list[Drop]]:
+    """Returns the text with each citation of a retired file replaced, and one Drop for each.
+
+    With the repository root, a relative link that resolves into a retired folder is replaced too,
+    whatever folder it is written from.
+    """
     path_pattern, link_pattern = citation_patterns(prefixes)
     found: list[Drop] = []
+    retired = [(root / prefix).resolve() for prefix in prefixes] if root is not None else []
 
     def line_of(position: int) -> int:
         """Returns the line a position is on."""
@@ -97,7 +105,20 @@ def drop_text(path: Path, text: str, prefixes: list[str]) -> tuple[str, list[Dro
         found.append(Drop(path, line_of(match.start()), match["path"], words))
         return words
 
+    def replace_relative(match: re.Match[str]) -> str:
+        """Returns the text of a relative link that resolves into a retired folder, or the link unchanged."""
+        target = (path.parent / match["target"]).resolve()
+        if not any(target == folder or folder in target.parents for folder in retired):
+            return match.group(0)
+        docs = (root / "docs").resolve() if root is not None else target.parent
+        cited = target.relative_to(docs).as_posix() if docs in target.parents else target.name
+        new = phrase(cited) if match["text"].strip("`") in (match["target"], cited) else match["text"]
+        found.append(Drop(path, line_of(match.start()), match.group(0), new))
+        return new
+
     without_links = link_pattern.sub(replace_link, text)
+    if retired:
+        without_links = K_RELATIVE_LINK.sub(replace_relative, without_links)
     without_spans = re.sub(rf"`({path_pattern.pattern})`", lambda m: replace_path(m), without_links)
     return path_pattern.sub(replace_path, without_spans), found
 
@@ -110,7 +131,7 @@ def run(root: Path, prefixes: list[str], apply: bool) -> list[Drop]:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
-        fixed, drops = drop_text(path, text, prefixes)
+        fixed, drops = drop_text(path, text, prefixes, root)
         found += drops
         if apply and fixed != text:
             path.write_text(fixed, encoding="utf-8", newline="")
