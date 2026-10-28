@@ -96,16 +96,15 @@ them with `monkeypatch`. `build` resolves packages, configures and compiles in o
 
 ## Failure contract
 
-### RW-11 Finish the status contract
+### RW-11 Remove the old error surface
 - State: open
-- Done when: no `SA_THROW_IF` site throws `SushiAI::Error` where the contract asks for a `Status`
-  or a `Result`, and no `try` or `catch` sits outside `seam/seam.hpp` but the ones the contract
-  allows
+- Done when: `SushiAI::Error`, `SA_THROW_IF`, `throw_expectations.hpp`, `NN::Detail::bridge_throwing`
+  and its test are deleted, and every public declaration carries `noexcept`
 - Source: `docs/design/PROGRAMME/README.md`
 
-Stage 2 of the programme: 425 sites in 69 files under `modules/`, `NN::Detail::bridge_throwing`
-called from 61 sites, `try` or `catch` in 30 files outside the seam, and `Scope`'s destructor
-throwing through `ScopeTrace::close()`.
+No `SA_THROW_IF` site throws any more and `tools/contract/check_contract.py` counts no site and no
+bridge call. What is left is the removal itself: each deletion edits a `CMakeLists.txt` list of
+sources or dependencies.
 
 ### RW-12 Observe that a dropped recording releases storage and scratch
 - State: open

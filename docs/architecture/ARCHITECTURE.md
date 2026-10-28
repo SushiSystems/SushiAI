@@ -236,11 +236,12 @@ SA_TRY(step->run());
 ```
 Source: not compiled
 
-`SA_THROW_IF` (`failure/error.hpp`) still throws `SushiAI::Error` from the host
-lane: `shape/shape.hpp`, `graph/ir.hpp` and `config/registry.hpp` use it, and
-`docs/reference/KNOWN_ISSUES.md` holds the count. `NN::Detail::bridge_throwing` (`nn/throwing_bridge.hpp`)
-turns that exception into `InvalidDescription` where a layer is built from a
-file.
+No unit of the library throws `SushiAI::Error`. A content check returns a `Status` or a
+`Result`; a handle, call-order or state check stops the process through `SA_FATAL_IF`. The two
+throws that remain are at the boundary of a sibling library: `modules/core/seam/source/seam.cpp` rethrows the
+exception in flight to read its type, and `modules/core/distribution/source/replica_kernel.cpp` throws the failed
+`Status` of a replica into the kernel registry of SushiRuntime. `SA_THROW_IF` and `Error` stay
+declared in `failure/error.hpp` until their removal.
 
 ---
 

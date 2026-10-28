@@ -19,14 +19,6 @@ Next id: KI-18
 - Workaround: send the CLI, the tests and training to the OpenCL CPU runtime with
   `ONEAPI_DEVICE_SELECTOR="opencl:cpu"`
 
-### KI-5 Content errors throw where the failure contract asks for a status
-- Origin: own
-- Where: `modules/core/failure/include/SushiAI/failure/error.hpp`
-- Cause: 425 sites in 69 files throw `Error` through `SA_THROW_IF`, and `try` and `catch` appear
-  outside `seam/seam.hpp`
-- Recognise: an exception reaches a caller that expected a `Status` or a `Result`
-- Workaround: call through `seam/seam.hpp`
-- Fix: RW-11
 
 ### KI-17 Two runtimes of one process on one CUDA GPU on Windows fault a host copy
 - Origin: toolchain

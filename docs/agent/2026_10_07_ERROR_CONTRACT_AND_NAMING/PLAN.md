@@ -1,9 +1,86 @@
 # Error contract and naming wave: plan
 
-**Status:** In progress. Waves 0 and 1; written and syntax-checked only.
+**Status:** In progress. Waves 0 to 7 are on disk and syntax-checked; wave 8 is open. Nothing was built or run.
 
 The design is [`SPEC.md`](SPEC.md). This file records what each wave put on disk, where it left
 the design, and what the next wave has to do to existing files.
+
+## Waves 3 to 7: progress (2026-10-28)
+
+Written and syntax-checked with `clang -fsyntax-only`, one file at a time; nothing was built or
+run. The owner builds once, after this wave. `tools/contract/check_contract.py` counts no failure
+site that a later wave owes and no bridge call: two sites remain, both throws at the boundary of a
+sibling library (below).
+
+| Wave | State | What it held |
+| --- | --- | --- |
+| 3, fatal class | done | `shape`, `graph`, `eager`, `autograd`, `nn` (`LayerStack`, `DepthwiseConv2d`), `config` (`Value`), `imaging` (`Image`, `check_source`, the `apply_*` functions, `LabelSet`, `DatasetPartners::choose`), `detect` (the kernels), `blocks` (`Attention`) |
+| 4, leaf statuses | done | `shape`, `config`, `imaging`, `detect`, `data` and `optim` readers, the raw image file, the label parser |
+| 5 and 6, trace surface and engine lane | done earlier | `Graph::Traced`, `Result<Shape> output_shape`, the builders without the bridge |
+| 7, apps and examples | done | The `main` of `train`, `inference`, `import`, `tokenize`, `example` and `demo_mlp` has no `try`; a failure prints its message and a `kind:` line; `demo_mlp` reads numbers with `std::from_chars` |
+| 8, removal | open | See "Left for wave 8" |
+
+### Rulings on the open questions
+
+The owner left them to the engineer. Each names the row key of `site_classes.tsv` before the rows
+were removed.
+
+- **`assigner_make`, `assignment_source`.** The settings and the arrays a caller hands a detection
+  stage are the content of a description: `TaskAlignedAssigner::make`, `assign` and
+  `build_target_leaves` return a status. The constructor is private.
+- **`output_span`.** A kernel that writes into a caller's buffer (`iou`, `top_k`, `scale_points`,
+  the box coding, `suppress_overlaps`) takes the size of that buffer as a precondition: fatal. A
+  function that reads arrays a model produced (`make_anchors`, the level rows, the postprocess,
+  `match_detections`, `pad_ground_truth`) returns `InvalidDescription`.
+- **`top_k_public`.** `select_top_k` is a kernel of the same class: fatal.
+- **`image_constructor`, `image_view_handle`, `label_set_source`.** An `Image` of a size outside
+  the bounds, a view that fails `check_source` and a `LabelSet` of unequal lists are handles of the
+  code that made them, and the code that reads a file tests them first: fatal.
+- **`image_index_field`.** A ground-truth row that names an image outside the batch is data:
+  `InvalidDescription`.
+- **`label_function_from_message`.** The class follows the function the message names: `apply_*`
+  is fatal, `validate_*`, `plan_*`, `resize_*` and `expand_gray` return `InvalidDescription`.
+- **`label_cause_outside_or_content`.** A source that holds no image, a dataset size outside its
+  range and a stream that ends early are content: a status, through `make` where a constructor
+  would have to refuse.
+- **`sample_source_contract`.** A `SampleSource` that returns no pixels or a bad channel count
+  breaks its contract with the pipeline, but it reports a file: `InvalidFile`. `SampleSource::load`
+  returns a `Status`.
+- **`epoch_source`.** An epoch outside the run of a `TrainingPipeline` is a handle: fatal.
+- **`check_layout_two_paths`.** `check_layout` takes the code: `InvalidFile` when it reads a header,
+  `InvalidDescription` when the caller describes an image to write.
+- **`label_status_code`.** `parse_json` and `require_version` return `InvalidFile`.
+- **`value_object_shape`.** A config object built from keys and values of unequal count is fatal.
+- **`gradcheck_surface`.** A gradient check with no input or no direction is fatal.
+- **`constant_like_origin`, `empty_step`, `label_cause_public_surface`.** The invariants of
+  `ScopePartitioner` over a graph it is handed are structure checks: fatal.
+- **`resampled_count_zero`.** `resample_polygon` with a count of 0 is fatal.
+
+### Decisions
+
+- **Two throws stay.** `seam.cpp` rethrows the exception in flight to read its type, and
+  `ReplicaKernel::register_with` throws the failed status of a replica into the kernel registry of
+  SushiRuntime, which reports a failed task by a throw. Both keep a row in the table.
+- **`Detail::at_boundary` of `datasets` stays.** It catches what an allocation or the file system
+  throws, not an `Error`.
+- **`DatasetPartners`, `RecentPartners`, `TrainingPipeline`, `ValidationPipeline`** have a private
+  constructor and a static `make`: a constructor cannot return a status.
+- **`sushiai_worker` keeps its `catch`.** Its exit codes are SushiRuntime's `WorkerExitCode`, and
+  it turns an exception a sibling library throws into `InternalError`.
+- **`model_text` declares no edge to `failure`.** Its fatal helpers print and abort without a
+  failure header, so its `CMakeLists.txt` stays as it is.
+- **No `CMakeLists.txt` was edited.** The wave runs under a ban on build changes.
+
+### Left for wave 8
+
+Each item edits a `CMakeLists.txt`, so it waits for a build the owner starts.
+
+- Delete `failure/error.hpp` (`Error`, `SA_THROW_IF`), `throw_expectations.hpp`, its test and the
+  `failure_expectations` README paragraphs about them.
+- Delete `nn/throwing_bridge.hpp` and `tests/layers/nn/test_throwing_bridge.cpp` with its page,
+  and the line that lists the test in `tests/layers/nn/CMakeLists.txt`.
+- Delete `tests/core/failure/test_error.cpp` and its line in the list.
+- Put `noexcept` on every public declaration and add `test_noexcept_surface.cpp`.
 
 ## Wave 1: foundation
 
