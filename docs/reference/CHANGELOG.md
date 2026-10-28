@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — training: Corrected the doc comment of `AnchorObjective::loss`, which promised a thrown `Error` (`anchor_objective.hpp`).
 - 2026-10-28 — imaging: Corrected the doc comments of `LabelSet` and `resize_nearest` that promised a thrown `Error` (`label_set.hpp`, `resize.hpp`).
 - 2026-10-28 — datasets: Corrected the doc comments that promised a thrown `Error` to name the status of the config accessors (`reader_section.hpp`, `task_dataset.hpp`).
 - 2026-10-28 — registration: Dropped the include of the removed `error.hpp` from the test (`test_registration.cpp`).

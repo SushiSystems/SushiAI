@@ -91,8 +91,8 @@ namespace SushiAI::Vision::Training
 
             /**
              * @brief Emits the sum over the heads of -(1 / batch) * sum(delta * head).
-             * @return The id of the [1] root; its value carries no meaning.
-             * @throws Error If @p outputs lacks a head, or a head differs from its leaf.
+             * @return The id of the [1] root, whose value carries no meaning; or the failure
+             *         when @p outputs lacks a head or a head differs from its leaf.
              */
             [[nodiscard]] Result<Graph::ValueID> loss(
                 const Graph::GraphBuilder& builder, const Graph::Graph& graph,
