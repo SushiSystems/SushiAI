@@ -131,6 +131,7 @@ namespace SushiAI
          * @param inputs Coordinates to evaluate at; restored on return.
          * @param options Numerical step sizes and comparison tolerance.
          * @return Comparison result across all input coordinates.
+         * @pre @p inputs is not empty.
          */
         GradCheckResult check_full_jacobian(const ScalarFunction& value,
                                             const GradientFunction& gradient,
@@ -143,6 +144,7 @@ namespace SushiAI
          * @param directions Number of random unit directions to probe.
          * @param options Numerical step sizes and comparison tolerance.
          * @return Comparison result across all sampled directions.
+         * @pre @p inputs is not empty and @p directions is at least one.
          */
         GradCheckResult check_directional(const ScalarFunction& value,
                                           const GradientFunction& gradient,

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-10-28 — autograd: Breaking change: Made `check_directional` and `check_full_jacobian` stop the process for a call with no input or no direction (`gradcheck.hpp`).
+- 2026-10-28 — autograd: Breaking change: Made the provenance check of `Differentiator` stop the process in place of throwing (`provenance.hpp`).
 - 2026-10-28 — model_text: Breaking change: Made `attributes_from` and `model_from` stop the process on a fixture that does not parse (`model_text.hpp`).
 - 2026-10-28 — model_text: Added `try_attributes_from` and `try_model_from`, which return the refusal of a fixture (`model_text.hpp`).
 - 2026-10-28 — config: Breaking change: Made `Value::at` and the `as_*` readers return a `Result` (`value.hpp`).

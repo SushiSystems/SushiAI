@@ -31,7 +31,7 @@
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using namespace SushiAI::Autograd;
 
@@ -175,11 +175,11 @@ TEST(Small_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
     EXPECT_TRUE(clear.passed) << clear.to_string();
 }
 
-TEST(Small_GradCheck, AnEmptyProbePointIsRejected)
+TEST(Small_GradCheck, AnEmptyProbePointIsFatal)
 {
     std::vector<double> empty;
-    EXPECT_THROW((void)check_full_jacobian(cubic, cubic_gradient, empty), SushiAI::Error);
+    SA_EXPECT_FATAL((void)check_full_jacobian(cubic, cubic_gradient, empty), "at least one input");
 
     std::vector<double> x = {1.0};
-    EXPECT_THROW((void)check_directional(cubic, cubic_gradient, x, 0), SushiAI::Error);
+    SA_EXPECT_FATAL((void)check_directional(cubic, cubic_gradient, x, 0), "at least one direction");
 }

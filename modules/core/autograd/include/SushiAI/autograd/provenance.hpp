@@ -31,7 +31,7 @@
 #include <cstddef>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 namespace SushiAI
@@ -56,7 +56,7 @@ namespace SushiAI
              */
             Graph::NodeID origin_of(Graph::NodeID backward_node) const
             {
-                SA_THROW_IF(backward_node < forward_node_count
+                SA_FATAL_IF(backward_node < forward_node_count
                                 || backward_node - forward_node_count >= origin.size(),
                             "Node {} is not a backward node of this differentiation, which "
                             "appended nodes {} to {}",

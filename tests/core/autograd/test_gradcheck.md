@@ -54,7 +54,7 @@ difference of x^2 is still exact to 1e-9.
 The `unshifted` point straddles the kink. The quotient taken across it reports the average of
 the two one-sided derivatives, which no correct rule can match.
 
-## AnEmptyProbePointIsRejected
+## AnEmptyProbePointIsFatal
 
-`check_full_jacobian` over an empty point throws `Error`, and so does `check_directional` with
-0 directions.
+`check_full_jacobian` over an empty point stops the process, and so does `check_directional`
+with 0 directions.

@@ -32,7 +32,7 @@
 #include <SushiLog/text/text_format.hpp>
 #include <SushiLog/text/value_text.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -94,7 +94,7 @@ namespace SushiAI
                                             SushiRuntime::span<double> inputs,
                                             const GradCheckOptions& options)
         {
-            SA_THROW_IF(inputs.empty(), "check_full_jacobian needs at least one input");
+            SA_FATAL_IF(inputs.empty(), "check_full_jacobian needs at least one input");
 
             std::vector<double> analytic(inputs.size(), 0.0);
             gradient(SushiRuntime::span<const double>(inputs.data(), inputs.size()),
@@ -140,8 +140,8 @@ namespace SushiAI
                                           std::size_t directions,
                                           const GradCheckOptions& options)
         {
-            SA_THROW_IF(inputs.empty(), "check_directional needs at least one input");
-            SA_THROW_IF(directions == 0, "check_directional needs at least one direction");
+            SA_FATAL_IF(inputs.empty(), "check_directional needs at least one input");
+            SA_FATAL_IF(directions == 0, "check_directional needs at least one direction");
 
             std::vector<double> analytic(inputs.size(), 0.0);
             gradient(SushiRuntime::span<const double>(inputs.data(), inputs.size()),
