@@ -33,7 +33,7 @@
 #include <string>
 #include <vector>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/ops/ops.hpp>
 
 namespace SushiAI
@@ -49,7 +49,7 @@ namespace SushiAI
             }
 
             /**
-             * @brief Throws unless @p provenance records the backward nodes of @p graph.
+             * @brief Stops the process unless @p provenance records the backward nodes of @p graph.
              * @see modules/core/eager/README.md
              */
             void validate_provenance(const Graph::Graph& graph,
@@ -57,27 +57,28 @@ namespace SushiAI
             {
                 const std::size_t forward_count = provenance.forward_node_count;
 
-                SA_THROW_IF(forward_count + provenance.origin.size() != graph.node_count(),
+                SA_FATAL_IF(forward_count + provenance.origin.size() != graph.node_count(),
                             "The provenance describes {} forward and {} backward nodes, but the "
                             "graph has {} nodes; pass the record differentiate() filled for this "
                             "graph",
                             forward_count, provenance.origin.size(), graph.node_count());
 
                 for (std::size_t i = 0; i < provenance.origin.size(); ++i)
-                    SA_THROW_IF(provenance.origin[i] >= forward_count,
+                    SA_FATAL_IF(provenance.origin[i] >= forward_count,
                                 "Backward node {} has origin {}, which is not one of the {} "
                                 "forward nodes",
                                 forward_count + i, provenance.origin[i], forward_count);
             }
 
             /**
-             * @brief Throws unless @p segments cover nodes 0 to @p forward_count without a gap.
+             * @brief Stops the process unless @p segments cover nodes 0 to @p forward_count
+             *        without a gap.
              * @see modules/core/eager/README.md
              */
             void validate_segments(SushiRuntime::span<const Segment> segments,
                                    std::size_t forward_count)
             {
-                SA_THROW_IF(segments.size() == 0,
+                SA_FATAL_IF(segments.size() == 0,
                             "A partition needs at least one segment; seal a ScopeTrace over a "
                             "graph that holds a node");
 
@@ -86,18 +87,18 @@ namespace SushiAI
                 {
                     const Segment& segment = segments[i];
 
-                    SA_THROW_IF(segment.begin != expected_begin,
+                    SA_FATAL_IF(segment.begin != expected_begin,
                                 "Segment {} ('{}') begins at node {}, but the segments before it "
                                 "end at node {}; segments must be contiguous from node 0",
                                 i, segment.name, segment.begin, expected_begin);
-                    SA_THROW_IF(segment.end <= segment.begin,
+                    SA_FATAL_IF(segment.end <= segment.begin,
                                 "Segment {} ('{}') spans nodes {} to {} and holds no node",
                                 i, segment.name, segment.begin, segment.end);
 
                     expected_begin = segment.end;
                 }
 
-                SA_THROW_IF(expected_begin != forward_count,
+                SA_FATAL_IF(expected_begin != forward_count,
                             "The segments cover nodes 0 to {}, but the forward graph has {} "
                             "nodes; trace the whole forward pass before differentiating",
                             expected_begin, forward_count);
@@ -173,7 +174,7 @@ namespace SushiAI
 
                 const RegionKey key = highest_operand_key(graph, node, region_of_node);
 
-                SA_THROW_IF(key == K_NO_REGION,
+                SA_FATAL_IF(key == K_NO_REGION,
                             "Backward node {} ({}) has LEAF node {} as its origin and reads only "
                             "leaves, so no region can hold it; a gradient summed for a leaf must "
                             "read at least one value a region produces",
@@ -183,7 +184,8 @@ namespace SushiAI
             }
 
             /**
-             * @brief Throws when a node reads a value that a region with a higher key produces.
+             * @brief Stops the process when a node reads a value that a region with a higher key
+             *        produces.
              * @param region_of_node Key of every node of @p graph.
              * @see modules/core/eager/README.md
              */
@@ -200,7 +202,7 @@ namespace SushiAI
                         if (producer == Graph::K_NO_NODE)
                             continue;
 
-                        SA_THROW_IF(region_of_node[producer] > region_of_node[i],
+                        SA_FATAL_IF(region_of_node[producer] > region_of_node[i],
                                     "Node {} ({}) has region key {} but reads a value of node {}, "
                                     "whose key is {}; the provenance does not list the backward "
                                     "nodes in the order differentiate() emits them",

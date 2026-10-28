@@ -56,20 +56,29 @@ namespace SushiAI
                 explicit ScopeTrace(const Graph::Graph& graph) noexcept;
 
                 /**
+                 * @brief Reports whether @p name may name a scope.
+                 * @return True when @p name is not empty and holds neither '/' nor '#'.
+                 *
+                 * A caller whose name comes from data tests it before open().
+                 */
+                [[nodiscard]] static bool is_legal_scope_name(std::string_view name) noexcept;
+
+                /**
                  * @brief Opens a scope nested in the current one.
-                 * @param name Scope name; not empty and without '/' or '#'.
+                 * @param name Scope name.
+                 * @pre The trace is not sealed and is_legal_scope_name(@p name) holds.
                  */
                 void open(std::string_view name);
 
                 /**
                  * @brief Closes the innermost open scope.
-                 * @pre At least one scope is open.
+                 * @pre The trace is not sealed and at least one scope is open.
                  */
                 void close();
 
                 /**
                  * @brief Ends the trace and returns its segments in node order.
-                 * @pre Every opened scope has been closed.
+                 * @pre The trace is not sealed and every opened scope has been closed.
                  */
                 [[nodiscard]] std::vector<Segment> seal();
 

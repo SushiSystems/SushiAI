@@ -206,17 +206,17 @@ Three signatures are written by hand with hash 42. The one listing K_ADD and the
 compare unequal under `==` and `!=`, and two that both list K_ADD compare equal. A real collision
 cannot be produced on demand, so the case constructs one.
 
-## ARegionThePartitionDoesNotListThrows
+## ARegionThePartitionDoesNotListIsFatal
 
-`signature_of` throws for key 6 and for `K_NO_REGION`. Each message names the key, "Region 6"
-and "Region 0", and contains "not listed".
+`signature_of` stops the process for key 6 and for `K_NO_REGION`. Each report names the key,
+"Region 6" and "Region 0", and contains "not listed".
 
-## APartitionOfAnotherNodeCountThrows
+## APartitionOfAnotherNodeCountIsFatal
 
 One entry is removed from `region_of_node`, which leaves four entries for a five-node graph.
-The message contains "assigns 4 nodes" and "holds 5".
+The report contains "assigns 4 nodes" and "holds 5".
 
-## AnExternalValueWithoutAnIdentityThrows
+## AnExternalValueWithoutAnIdentityIsFatal
 
-The identity vector is cleared, so the id of `x` lies beyond its end. The message contains
-"External value 0" and "no identity". The call throws and does not read past the span.
+The identity vector is cleared, so the id of `x` lies beyond its end. The report contains
+"External value 0" and "no identity". The call stops the process and does not read past the span.

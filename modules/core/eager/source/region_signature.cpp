@@ -33,7 +33,7 @@
 #include <cstring>
 #include <unordered_map>
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/shape/shape.hpp>
 
@@ -176,7 +176,7 @@ namespace SushiAI
                     return;
                 }
 
-                SA_THROW_IF(operand >= external_identity.size(),
+                SA_FATAL_IF(operand >= external_identity.size(),
                             "External value {} has no identity; the caller supplied {} identities",
                             operand, external_identity.size());
                 hasher.add_word(static_cast<std::uint64_t>(OperandKind::External));
@@ -190,10 +190,10 @@ namespace SushiAI
                                      RegionKey region,
                                      SushiRuntime::span<const std::uint64_t> external_identity)
         {
-            SA_THROW_IF(partition.region_of_node.size() != graph.node_count(),
+            SA_FATAL_IF(partition.region_of_node.size() != graph.node_count(),
                         "The partition assigns {} nodes but the graph holds {}",
                         partition.region_of_node.size(), graph.node_count());
-            SA_THROW_IF(!is_listed(partition, region),
+            SA_FATAL_IF(!is_listed(partition, region),
                         "Region {} is not listed in the partition", region);
 
             RegionSignature signature;

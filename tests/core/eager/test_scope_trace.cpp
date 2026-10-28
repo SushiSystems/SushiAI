@@ -22,7 +22,7 @@
 
 /**
  * @file test_scope_trace.cpp
- * @brief Tests how ScopeTrace cuts a trace into segments and which calls it rejects.
+ * @brief Tests how ScopeTrace cuts a trace into segments and which calls stop the process.
  * @author Mustafa Garip
  */
 
@@ -34,7 +34,7 @@
 #include <SushiAI/eager/scope.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/segment.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
 
 using namespace SushiAI;
@@ -178,11 +178,8 @@ TEST(Small_ScopeTrace, AnEmptyScopeLeavesNoSegment)
     EXPECT_TRUE(segment_is(segments[1], "cell", 0, 1, 2));
 }
 
-/**
- * @brief Tests that seal() throws while a scope is open, names that scope and leaves the running
- *        segment whole.
- */
-TEST(Small_ScopeTrace, SealWithAScopeStillOpenThrows)
+/** @brief Tests that seal() stops the process while a scope is open and names that scope. */
+TEST(Small_ScopeTrace, SealWithAScopeStillOpenIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -191,29 +188,20 @@ TEST(Small_ScopeTrace, SealWithAScopeStillOpenThrows)
     trace.open("inner");
     trace_nodes(graph, 1);
 
-    SA_EXPECT_ERROR((void)trace.seal(), "seal()", "still open", "outer/inner");
-    EXPECT_EQ(trace.depth(), 2u);
-
-    trace_nodes(graph, 1);
-    trace.close();
-    trace.close();
-    const std::vector<Segment> segments = trace.seal();
-
-    ASSERT_EQ(segments.size(), 1u);
-    EXPECT_TRUE(segment_is(segments[0], "outer/inner", 0, 0, 2));
+    SA_EXPECT_FATAL((void)trace.seal(), "seal()", "still open", "outer/inner");
 }
 
-/** @brief Tests that close() throws when no scope is open. */
-TEST(Small_ScopeTrace, CloseWithNoScopeOpenThrows)
+/** @brief Tests that close() stops the process when no scope is open. */
+TEST(Small_ScopeTrace, CloseWithNoScopeOpenIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_ERROR(trace.close(), "close()", "no scope open");
+    SA_EXPECT_FATAL(trace.close(), "close()", "no scope open");
 
     trace.open("once");
     trace.close();
-    SA_EXPECT_ERROR(trace.close(), "close()", "no scope open");
+    SA_EXPECT_FATAL(trace.close(), "close()", "no scope open");
 }
 
 /** @brief Tests that the segments' ranges join end to begin from node 0 to the node count. */
@@ -249,68 +237,45 @@ TEST(Small_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
     EXPECT_EQ(next, graph.node_count());
 }
 
-/** @brief Tests that open() rejects an empty name and leaves the trace as it was. */
-TEST(Small_ScopeTrace, OpenRejectsAnEmptyName)
+/** @brief Tests that open() stops the process for an empty name. */
+TEST(Small_ScopeTrace, OpenWithAnEmptyNameIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_ERROR(trace.open(""), "open()", "empty scope name");
-    EXPECT_EQ(trace.depth(), 0u);
+    SA_EXPECT_FATAL(trace.open(""), "open()", "empty scope name");
 }
 
-/** @brief Tests that open() rejects a name containing the path separator '/'. */
-TEST(Small_ScopeTrace, OpenRejectsANameWithASlash)
+/** @brief Tests that open() stops the process for a name containing the separator '/'. */
+TEST(Small_ScopeTrace, OpenWithANameWithASlashIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_ERROR(trace.open("outer/inner"), "open()", "outer/inner", "may not contain");
-    EXPECT_EQ(trace.depth(), 0u);
+    SA_EXPECT_FATAL(trace.open("outer/inner"), "open()", "outer/inner", "may not contain");
 }
 
-/** @brief Tests that open() rejects a name containing the occurrence separator '#'. */
-TEST(Small_ScopeTrace, OpenRejectsANameWithAHash)
+/** @brief Tests that open() stops the process for a name containing the separator '#'. */
+TEST(Small_ScopeTrace, OpenWithANameWithAHashIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_ERROR(trace.open("cell#0"), "open()", "cell#0", "may not contain");
-    EXPECT_EQ(trace.depth(), 0u);
+    SA_EXPECT_FATAL(trace.open("cell#0"), "open()", "cell#0", "may not contain");
 }
 
-/** @brief Tests that a rejected open() does not end the running segment. */
-TEST(Small_ScopeTrace, ARejectedNameDoesNotSplitTheRunningSegment)
+/** @brief Tests that is_legal_scope_name accepts a plain name and refuses the three illegal. */
+TEST(Small_ScopeTrace, IsLegalScopeNameAgreesWithWhatOpenAccepts)
 {
-    Graph::Graph graph;
-    ScopeTrace trace(graph);
-
-    trace_nodes(graph, 1);
-    SA_EXPECT_ERROR(trace.open("a/b"), "may not contain");
-    trace_nodes(graph, 1);
-    const std::vector<Segment> segments = trace.seal();
-
-    ASSERT_EQ(segments.size(), 1u);
-    EXPECT_TRUE(segment_is(segments[0], "", 0, 0, 2));
+    EXPECT_TRUE(ScopeTrace::is_legal_scope_name("encoder"));
+    EXPECT_TRUE(ScopeTrace::is_legal_scope_name("block 3"));
+    EXPECT_FALSE(ScopeTrace::is_legal_scope_name(""));
+    EXPECT_FALSE(ScopeTrace::is_legal_scope_name("outer/inner"));
+    EXPECT_FALSE(ScopeTrace::is_legal_scope_name("cell#0"));
 }
 
-/** @brief Tests that a rejected close() does not end the running segment. */
-TEST(Small_ScopeTrace, ARejectedCloseDoesNotSplitTheRunningSegment)
-{
-    Graph::Graph graph;
-    ScopeTrace trace(graph);
-
-    trace_nodes(graph, 1);
-    SA_EXPECT_ERROR(trace.close(), "no scope open");
-    trace_nodes(graph, 1);
-    const std::vector<Segment> segments = trace.seal();
-
-    ASSERT_EQ(segments.size(), 1u);
-    EXPECT_TRUE(segment_is(segments[0], "", 0, 0, 2));
-}
-
-/** @brief Tests that a second seal() throws. */
-TEST(Small_ScopeTrace, ASecondSealThrows)
+/** @brief Tests that a second seal() stops the process. */
+TEST(Small_ScopeTrace, ASecondSealIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -319,18 +284,17 @@ TEST(Small_ScopeTrace, ASecondSealThrows)
     const std::vector<Segment> segments = trace.seal();
     ASSERT_EQ(segments.size(), 1u);
 
-    SA_EXPECT_ERROR((void)trace.seal(), "seal()", "sealed trace");
+    SA_EXPECT_FATAL((void)trace.seal(), "seal()", "sealed trace");
 }
 
-/** @brief Tests that open() and close() throw once the trace is sealed. */
-TEST(Small_ScopeTrace, OpenAndCloseAfterSealThrow)
+/** @brief Tests that open() and close() stop the process once the trace is sealed. */
+TEST(Small_ScopeTrace, OpenAndCloseAfterSealAreFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
     (void)trace.seal();
 
-    SA_EXPECT_ERROR(trace.open("late"), "open()", "sealed trace");
-    SA_EXPECT_ERROR(trace.close(), "close()", "sealed trace");
-    EXPECT_EQ(trace.depth(), 0u);
+    SA_EXPECT_FATAL(trace.open("late"), "open()", "sealed trace");
+    SA_EXPECT_FATAL(trace.close(), "close()", "sealed trace");
 }

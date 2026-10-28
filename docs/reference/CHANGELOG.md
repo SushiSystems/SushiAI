@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-10-28 — eager: Breaking change: Made `ScopePartitioner` stop the process for a graph it cannot cut, in place of throwing (`scope_partitioner.cpp`).
+- 2026-10-28 — eager: Breaking change: Made `ScopeTrace` and `RegionTable` stop the process for a misused scope, in place of throwing (`scope_trace.cpp`).
+- 2026-10-28 — eager: Added `ScopeTrace::is_legal_scope_name`, so a caller tests a scope name before it opens a scope (`scope_trace.hpp`).
 - 2026-10-28 — autograd: Breaking change: Made `check_directional` and `check_full_jacobian` stop the process for a call with no input or no direction (`gradcheck.hpp`).
 - 2026-10-28 — autograd: Breaking change: Made the provenance check of `Differentiator` stop the process in place of throwing (`provenance.hpp`).
 - 2026-10-28 — model_text: Breaking change: Made `attributes_from` and `model_from` stop the process on a fixture that does not parse (`model_text.hpp`).

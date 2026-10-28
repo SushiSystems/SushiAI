@@ -159,29 +159,29 @@ whether or not any backward node exists.
 In `three_segment_step` every K_LEAF has `K_NO_REGION` and every other node has a key. The count
 of six leaves, two inputs and four parameters, shows that the loop reached the K_LEAF branch.
 
-## SegmentsThatDoNotCoverTheForwardGraphThrow
+## SegmentsThatDoNotCoverTheForwardGraphAreFatal
 
-Four malformed segment lists are refused, each with its own message: a list missing its last
+Four malformed segment lists stop the process, each with its own report: a list missing its last
 segment ("The segments cover nodes 0 to", "forward graph has"), a list with a gap before segment
 1 ("Segment 1 ('second')", "contiguous"), a list with an empty segment inserted ("Segment 1
 ('empty')", "holds no node"), and an empty list ("at least one segment").
 
-## AProvenanceOfAnotherGraphThrows
+## AProvenanceOfAnotherGraphIsFatal
 
-A provenance with one origin too few is refused with a message containing "The provenance
+A provenance with one origin too few stops the process with a report containing "The provenance
 describes" and "backward nodes". One whose last origin equals `forward_node_count`, the first
-id that is not a forward node, is refused with "has origin" and "forward nodes".
+id that is not a forward node, stops it with "has origin" and "forward nodes".
 
-## ABackwardNodeThatReadsAHigherKeyThrows
+## ABackwardNodeThatReadsAHigherKeyIsFatal
 
 Two K_RELU nodes are appended to a `TwoReLUGraph`, the second reading the first, with origins in
 segments 1 and 2. The formula gives them keys 3 and 2, so the reader has the lower key. `assign`
-throws, and the message contains "has region key 2" and "whose key is 3". The partitioner
+stops the process, and the report contains "has region key 2" and "whose key is 3". The partitioner
 therefore checks the ordering it produces and does not assume the provenance is consistent with
 the graph.
 
-## ALeafOriginNodeThatReadsOnlyLeavesThrows
+## ALeafOriginNodeThatReadsOnlyLeavesIsFatal
 
 An K_ADD of two parameters is appended with a K_LEAF as its origin. Neither operand's producer has
-a region, so there is no key to take. The message contains "as its origin" and "reads only
+a region, so there is no key to take. The report contains "as its origin" and "reads only
 leaves".

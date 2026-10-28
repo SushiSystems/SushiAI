@@ -48,19 +48,15 @@ named "cell" with occurrences 0, 1 and 2 and consecutive ranges.
 A scope "cell" that closes with no node traced leaves no segment. The next "cell", which holds
 one node, has occurrence 0, so the dropped scope did not use up an occurrence.
 
-## SealWithAScopeStillOpenThrows
+## SealWithAScopeStillOpenIsFatal
 
-`seal()` throws while "outer" and "inner" are open, and the message contains "seal()", "still
-open" and the path "outer/inner". The depth is still 2 afterwards.
+`seal()` stops the process while "outer" and "inner" are open, and the report contains "seal()",
+"still open" and the path "outer/inner".
 
-The case then traces one more node, closes both scopes and seals. The result is one segment
-"outer/inner" over nodes 0 to 2, which shows the failed `seal()` did not cut the running
-segment.
+## CloseWithNoScopeOpenIsFatal
 
-## CloseWithNoScopeOpenThrows
-
-`close()` throws on a new trace, and again after one matched `open()` and `close()`. Both
-messages contain "close()" and "no scope open".
+`close()` stops the process on a new trace, and again after one matched `open()` and `close()`.
+Both reports contain "close()" and "no scope open".
 
 ## SegmentsCoverEveryNodeExactlyOnce
 
@@ -68,37 +64,28 @@ The trace mixes unscoped nodes, a scope opened twice, a nested scope and an empt
 segment begins where the previous one ended and holds at least one node, the first begins at 0,
 and the last ends at the graph's node count.
 
-## OpenRejectsAnEmptyName
+## OpenWithAnEmptyNameIsFatal
 
-`open("")` throws with a message containing "open()" and "empty scope name", and the depth
-stays 0.
+`open("")` stops the process with a report containing "open()" and "empty scope name".
 
-## OpenRejectsANameWithASlash
+## OpenWithANameWithASlashIsFatal
 
-`open("outer/inner")` throws. The message contains the name and "may not contain", and the
-depth stays 0.
+`open("outer/inner")` stops the process. The report contains the name and "may not contain".
 
-## OpenRejectsANameWithAHash
+## OpenWithANameWithAHashIsFatal
 
-`open("cell#0")` throws. The message contains the name and "may not contain", and the depth
-stays 0.
+`open("cell#0")` stops the process. The report contains the name and "may not contain".
 
-## ARejectedNameDoesNotSplitTheRunningSegment
+## IsLegalScopeNameAgreesWithWhatOpenAccepts
 
-One node is traced, `open("a/b")` throws, and one more node is traced. `seal()` returns one
-unnamed segment over nodes 0 to 2. A trace that ended the running segment before it validated
-the name would return two.
+`ScopeTrace::is_legal_scope_name` is true for "encoder" and "block 3", and false for the empty
+name, "outer/inner" and "cell#0". A caller whose name comes from data tests it before `open()`.
 
-## ARejectedCloseDoesNotSplitTheRunningSegment
+## ASecondSealIsFatal
 
-The same arrangement with a `close()` that throws for having no scope open also returns one
-unnamed segment over nodes 0 to 2.
+A second `seal()` stops the process with a report containing "seal()" and "sealed trace".
 
-## ASecondSealThrows
+## OpenAndCloseAfterSealAreFatal
 
-A second `seal()` throws with a message containing "seal()" and "sealed trace".
-
-## OpenAndCloseAfterSealThrow
-
-After `seal()`, `open("late")` and `close()` both throw with "sealed trace" in the message, and
-the depth stays 0.
+After `seal()`, `open("late")` and `close()` both stop the process with "sealed trace" in the
+report.

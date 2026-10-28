@@ -32,7 +32,7 @@
 #include <utility>
 
 #include <SushiAI/failure/check.hpp>
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -42,7 +42,7 @@ namespace SushiAI
         {
             /**
              * @brief Returns the storage the caller placed each buffer in, by buffer.
-             * @throws Error when two values of one buffer are placed in different storage.
+             * @pre No two values of one buffer are placed in different storage.
              */
             [[nodiscard]] std::vector<StorageID> place_presets(
                 const BoundaryMap& boundaries, SushiRuntime::span<const StorageID> preset)

@@ -108,8 +108,8 @@ namespace SushiAI
                  * @brief Plans one step and records it as the step to compare the next with.
                  * @param boundaries What find_boundaries() returned for @p partition.
                  * @param preset The storage the caller placed each value in, by value id.
-                 * @throws Error for a leaf without storage or a buffer placed twice; call
-                 *         forget() before planning again.
+                 * @pre Every leaf has storage and no buffer is placed twice; call forget() before
+                 *      planning again.
                  * @see modules/core/eager/README.md
                  */
                 [[nodiscard]] StepPlan plan(const Graph::Graph& graph, const Partition& partition,

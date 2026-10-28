@@ -31,7 +31,7 @@
 #include <utility>
 
 
-#include <SushiAI/failure/error.hpp>
+#include <SushiAI/failure/check.hpp>
 
 namespace SushiAI
 {
@@ -46,12 +46,12 @@ namespace SushiAI
             constexpr char K_OCCURRENCE_SEPARATOR = '#';
 
             /**
-             * @brief Throws when @p sealed is true.
+             * @brief Stops the process when @p sealed is true.
              * @param call The member function being called, for the message.
              */
             void require_unsealed(bool sealed, std::string_view call)
             {
-                SA_THROW_IF(sealed,
+                SA_FATAL_IF(sealed,
                             "ScopeTrace::{} was called on a sealed trace. seal() ends the trace "
                             "and hands its segments over once; start a new ScopeTrace for the "
                             "next trace",
@@ -64,11 +64,17 @@ namespace SushiAI
 
         }
 
+        bool ScopeTrace::is_legal_scope_name(std::string_view name) noexcept
+        {
+            return !name.empty() && name.find(K_PATH_SEPARATOR) == std::string_view::npos &&
+                   name.find(K_OCCURRENCE_SEPARATOR) == std::string_view::npos;
+        }
+
         void ScopeTrace::open(std::string_view name)
         {
             require_unsealed(sealed_, "open()");
-            SA_THROW_IF(name.empty(), "ScopeTrace::open() was given an empty scope name");
-            SA_THROW_IF(name.find(K_PATH_SEPARATOR) != std::string_view::npos ||
+            SA_FATAL_IF(name.empty(), "ScopeTrace::open() was given an empty scope name");
+            SA_FATAL_IF(name.find(K_PATH_SEPARATOR) != std::string_view::npos ||
                             name.find(K_OCCURRENCE_SEPARATOR) != std::string_view::npos,
                         "ScopeTrace::open() was given the scope name \"{}\"; a scope name may not "
                         "contain '{}' or '{}'",
@@ -81,7 +87,7 @@ namespace SushiAI
         void ScopeTrace::close()
         {
             require_unsealed(sealed_, "close()");
-            SA_THROW_IF(open_.empty(), "ScopeTrace::close() was called with no scope open");
+            SA_FATAL_IF(open_.empty(), "ScopeTrace::close() was called with no scope open");
 
             end_segment();
             open_.pop_back();
@@ -90,7 +96,7 @@ namespace SushiAI
         std::vector<Segment> ScopeTrace::seal()
         {
             require_unsealed(sealed_, "seal()");
-            SA_THROW_IF(!open_.empty(),
+            SA_FATAL_IF(!open_.empty(),
                         "ScopeTrace::seal() was called with {} scope(s) still open; the innermost "
                         "is \"{}\"",
                         open_.size(), current_path());

@@ -47,7 +47,7 @@
 #include <SushiAI/eager/scope_partitioner.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/segment.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -692,29 +692,29 @@ TEST(Small_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
     EXPECT_FALSE(added != added_again);
 }
 
-/** @brief Tests that asking for a key the partition does not list raises an Error. */
-TEST(Small_RegionSignature, ARegionThePartitionDoesNotListThrows)
+/** @brief Tests that asking for a key the partition does not list stops the process. */
+TEST(Small_RegionSignature, ARegionThePartitionDoesNotListIsFatal)
 {
     const Traced traced = build(Recipe{});
 
-    SA_EXPECT_ERROR((void)signature_of(traced, K_BODY + 5), "Region 6", "not listed");
-    SA_EXPECT_ERROR((void)signature_of(traced, Eager::K_NO_REGION), "Region 0", "not listed");
+    SA_EXPECT_FATAL((void)signature_of(traced, K_BODY + 5), "Region 6", "not listed");
+    SA_EXPECT_FATAL((void)signature_of(traced, Eager::K_NO_REGION), "Region 0", "not listed");
 }
 
-/** @brief Tests that a partition sized for another graph raises an Error. */
-TEST(Small_RegionSignature, APartitionOfAnotherNodeCountThrows)
+/** @brief Tests that a partition sized for another graph stops the process. */
+TEST(Small_RegionSignature, APartitionOfAnotherNodeCountIsFatal)
 {
     Traced traced = build(Recipe{});
     traced.partition.region_of_node.pop_back();
 
-    SA_EXPECT_ERROR((void)signature_of(traced, K_BODY), "assigns 4 nodes", "holds 5");
+    SA_EXPECT_FATAL((void)signature_of(traced, K_BODY), "assigns 4 nodes", "holds 5");
 }
 
-/** @brief Tests that an external operand whose id lies beyond the identities raises an Error. */
-TEST(Small_RegionSignature, AnExternalValueWithoutAnIdentityThrows)
+/** @brief Tests that an external operand whose id lies beyond the identities stops the process. */
+TEST(Small_RegionSignature, AnExternalValueWithoutAnIdentityIsFatal)
 {
     Traced traced = build(Recipe{});
     traced.identity.clear();
 
-    SA_EXPECT_ERROR((void)signature_of(traced, K_BODY), "External value 0", "no identity");
+    SA_EXPECT_FATAL((void)signature_of(traced, K_BODY), "External value 0", "no identity");
 }

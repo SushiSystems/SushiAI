@@ -43,7 +43,7 @@
 #include <SushiAI/eager/scope_partitioner.hpp>
 #include <SushiAI/eager/scope_trace.hpp>
 #include <SushiAI/eager/segment.hpp>
-#include <SushiAI/failure_expectations/throw_expectations.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 
@@ -597,55 +597,55 @@ TEST(Small_ScopePartitioner, LeavesBelongToNoRegion)
     EXPECT_EQ(leaves, 6u);
 }
 
-/** @brief Tests that segments which stop short of the forward graph are rejected. */
-TEST(Small_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphThrow)
+/** @brief Tests that segments which stop short of the forward graph stop the process. */
+TEST(Small_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphAreFatal)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
 
     std::vector<Eager::Segment> short_of_the_end = step.segments;
     short_of_the_end.pop_back();
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(short_of_the_end),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(short_of_the_end),
                                              step.provenance),
                     "The segments cover nodes 0 to", "forward graph has");
 
     std::vector<Eager::Segment> with_a_gap = step.segments;
     with_a_gap[1].begin += 1;
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(with_a_gap), step.provenance),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(with_a_gap), step.provenance),
                     "Segment 1 ('second')", "contiguous");
 
     std::vector<Eager::Segment> with_an_empty_segment = step.segments;
     const NodeID boundary = step.segments[1].begin;
     with_an_empty_segment.insert(with_an_empty_segment.begin() + 1,
                                  Eager::Segment{"empty", 0, boundary, boundary});
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(with_an_empty_segment),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(with_an_empty_segment),
                                              step.provenance),
                     "Segment 1 ('empty')", "holds no node");
 
     const std::vector<Eager::Segment> none;
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(none), step.provenance),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(none), step.provenance),
                     "at least one segment");
 }
 
-/** @brief Tests that a provenance whose node counts differ from the graph's is rejected. */
-TEST(Small_ScopePartitioner, AProvenanceOfAnotherGraphThrows)
+/** @brief Tests that a provenance whose node counts differ from the graph's stops the process. */
+TEST(Small_ScopePartitioner, AProvenanceOfAnotherGraphIsFatal)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
 
     Autograd::Provenance too_short = step.provenance;
     too_short.origin.pop_back();
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(step.segments), too_short),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(step.segments), too_short),
                     "The provenance describes", "backward nodes");
 
     Autograd::Provenance out_of_range = step.provenance;
     out_of_range.origin.back() = static_cast<NodeID>(step.provenance.forward_node_count);
-    SA_EXPECT_ERROR((void)partitioner.assign(step.graph, as_span(step.segments), out_of_range),
+    SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(step.segments), out_of_range),
                     "has origin", "forward nodes");
 }
 
-/** @brief Tests that a backward node which reads a value of a higher key is rejected. */
-TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
+/** @brief Tests that a backward node which reads a value of a higher key stops the process. */
+TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyIsFatal)
 {
     TwoReLUGraph two;
     build_two_relu_graph(two);
@@ -657,13 +657,13 @@ TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyThrows)
     two.provenance.origin.push_back(two.graph.value(two.first).producer);
     two.provenance.origin.push_back(two.graph.value(two.second).producer);
 
-    SA_EXPECT_ERROR((void)Eager::ScopePartitioner{}.assign(two.graph, as_span(two.segments),
+    SA_EXPECT_FATAL((void)Eager::ScopePartitioner{}.assign(two.graph, as_span(two.segments),
                                                            two.provenance),
                     "has region key 2", "whose key is 3");
 }
 
-/** @brief Tests that a backward node with a LEAF origin that reads only leaves is rejected. */
-TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesThrows)
+/** @brief Tests that a LEAF-origin backward node that reads only leaves stops the process. */
+TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -681,6 +681,6 @@ TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesThrows)
     const std::vector<Eager::Segment> segments = {
         Eager::Segment{"", 0, 0, static_cast<NodeID>(provenance.forward_node_count)}};
 
-    SA_EXPECT_ERROR((void)Eager::ScopePartitioner{}.assign(graph, as_span(segments), provenance),
+    SA_EXPECT_FATAL((void)Eager::ScopePartitioner{}.assign(graph, as_span(segments), provenance),
                     "as its origin", "reads only leaves");
 }
