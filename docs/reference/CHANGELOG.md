@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-28 — registration: Dropped the include of the removed `error.hpp` from the test (`test_registration.cpp`).
 - 2026-10-28 — blocks: Dropped the include of the removed `error.hpp` (`attention.cpp`).
 - 2026-10-28 — umbrella: Dropped the include of the removed `error.hpp` (`SushiAI.hpp`).
 - 2026-10-28 — train: Dropped the include of the removed `error.hpp` (`objective.hpp`).
