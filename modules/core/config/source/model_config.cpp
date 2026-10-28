@@ -630,7 +630,7 @@ namespace SushiAI
             }
         }
 
-        Result<ModelSpec> parse_model(const Value& root, std::string_view origin)
+        Result<ModelSpec> parse_model(const Value& root, std::string_view origin) noexcept
         {
             SA_TRY_ASSIGN(const std::int64_t version, stated_version(root, origin));
             SA_FAIL_IF(version > K_MODEL_VERSION, StatusCode::InvalidFile,
@@ -646,7 +646,7 @@ namespace SushiAI
             return parse_current_model(root, origin);
         }
 
-        Result<ModelSpec> load_model(const std::filesystem::path& path)
+        Result<ModelSpec> load_model(const std::filesystem::path& path) noexcept
         {
             SA_TRY_ASSIGN(const Value root, parse_json_file(path));
             return parse_model(root, path.string());

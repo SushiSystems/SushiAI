@@ -50,7 +50,7 @@ namespace SushiAI
         template<typename Entry, std::size_t N>
         [[nodiscard]] Result<const Entry&> find_entry(const std::array<Entry, N>& table,
                                                       std::string_view type,
-                                                      std::string_view what)
+                                                      std::string_view what) noexcept
         {
             for (const Entry& entry : table)
                 if (entry.type == type) return entry;

@@ -45,45 +45,45 @@ namespace SushiAI
         using KeySpan = SushiRuntime::span<const std::string_view>;
 
         /** @brief Returns the text that names the member @p key of @p where: "where 'key'". */
-        [[nodiscard]] std::string member_of(std::string_view where, std::string_view key);
+        [[nodiscard]] std::string member_of(std::string_view where, std::string_view key) noexcept;
 
         /** @brief Returns the text that names entry @p index of the list @p where. */
-        [[nodiscard]] std::string entry_of(std::string_view where, std::size_t index);
+        [[nodiscard]] std::string entry_of(std::string_view where, std::size_t index) noexcept;
 
         /** @brief Returns @p items, each in quotes, separated by commas. */
-        [[nodiscard]] std::string list_quoted(KeySpan items);
+        [[nodiscard]] std::string list_quoted(KeySpan items) noexcept;
 
         /**
          * @brief Reads @p member, named @p where, as a number, widening a whole number.
          * @return The number, or InvalidDescription naming @p where and the kind found.
          */
-        [[nodiscard]] Result<double> read_real(const Value& member, std::string_view where);
+        [[nodiscard]] Result<double> read_real(const Value& member, std::string_view where) noexcept;
 
         /**
          * @brief Reads @p member, named @p where, as a whole number.
          * @return The number, or InvalidDescription naming @p where and the kind found.
          */
-        [[nodiscard]] Result<std::int64_t> read_whole(const Value& member, std::string_view where);
+        [[nodiscard]] Result<std::int64_t> read_whole(const Value& member, std::string_view where) noexcept;
 
         /**
          * @brief Reads @p member, named @p where, as a number float32 holds as a finite value.
          * @return The float, or InvalidDescription naming @p where and the kind or value found.
          */
-        [[nodiscard]] Result<float> read_float32(const Value& member, std::string_view where);
+        [[nodiscard]] Result<float> read_float32(const Value& member, std::string_view where) noexcept;
 
         /**
          * @brief Reads @p member, named @p where, as a string.
          * @return The string, which @p member owns, or InvalidDescription naming @p where.
          */
         [[nodiscard]] Result<const std::string*> read_string(const Value& member,
-                                                             std::string_view where);
+                                                             std::string_view where) noexcept;
 
         /**
          * @brief Reads @p member, named @p where, as an array.
          * @return The entries, which @p member owns, or InvalidDescription naming @p where.
          */
         [[nodiscard]] Result<const std::vector<Value>*> read_array(const Value& member,
-                                                                   std::string_view where);
+                                                                   std::string_view where) noexcept;
 
         /**
          * @brief Reads the keys of one section; every refusal starts with the section's name.
@@ -96,13 +96,13 @@ namespace SushiAI
                 SectionReader(const Value& section, std::string_view where) noexcept;
 
                 /** @brief Returns InvalidDescription unless the section is an object. */
-                [[nodiscard]] Status check_object() const;
+                [[nodiscard]] Status check_object() const noexcept;
 
                 /**
                  * @brief Returns InvalidDescription for the first key outside @p allowed.
                  * @return The refusal names the key and lists @p allowed.
                  */
-                [[nodiscard]] Status check_keys(KeySpan allowed) const;
+                [[nodiscard]] Status check_keys(KeySpan allowed) const noexcept;
 
                 /**
                  * @brief Checks that @p key, when the section states it, holds @p expected.
@@ -111,20 +111,20 @@ namespace SushiAI
                  *         no string or another string.
                  */
                 [[nodiscard]] Status check_type(std::string_view key, std::string_view expected,
-                                                std::string_view what) const;
+                                                std::string_view what) const noexcept;
 
                 /** @brief Reports whether the section states @p key. */
                 [[nodiscard]] bool has(std::string_view key) const noexcept;
 
                 /** @brief Returns the text that names the member @p key of the section. */
-                [[nodiscard]] std::string member(std::string_view key) const;
+                [[nodiscard]] std::string member(std::string_view key) const noexcept;
 
                 /**
                  * @brief Finds the member @p key.
                  * @pre The section is an object.
                  * @return The member, never null, or InvalidDescription naming the absent key.
                  */
-                [[nodiscard]] Result<const Value*> find(std::string_view key) const;
+                [[nodiscard]] Result<const Value*> find(std::string_view key) const noexcept;
 
                 /**
                  * @brief Finds the member @p key and checks that it holds @p kind.
@@ -132,7 +132,7 @@ namespace SushiAI
                  * @return The member, never null, or InvalidDescription naming the key and
                  *         the kind found.
                  */
-                [[nodiscard]] Result<const Value*> find_of(std::string_view key, Kind kind) const;
+                [[nodiscard]] Result<const Value*> find_of(std::string_view key, Kind kind) const noexcept;
 
             private:
                 /// @brief The section read.

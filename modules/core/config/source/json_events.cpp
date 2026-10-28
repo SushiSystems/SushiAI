@@ -209,7 +209,7 @@ namespace SushiAI
 
         } // namespace
 
-        Status read_json_events(const std::filesystem::path& path, JSONEvents& handler)
+        Status read_json_events(const std::filesystem::path& path, JSONEvents& handler) noexcept
         {
             return Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {

@@ -77,19 +77,19 @@ namespace SushiAI
                 Value() = default;
 
                 /** @brief Builds a boolean. @param value Its value. @return The node. */
-                static Value boolean(bool value);
+                static Value boolean(bool value) noexcept;
 
                 /** @brief Builds a whole number. @param value Its value. @return The node. */
-                static Value integer(std::int64_t value);
+                static Value integer(std::int64_t value) noexcept;
 
                 /** @brief Builds a real. @param value Its value. @return The node. */
-                static Value real(double value);
+                static Value real(double value) noexcept;
 
                 /** @brief Builds a string. @param value Its value; moved in. @return The node. */
-                static Value string(std::string value);
+                static Value string(std::string value) noexcept;
 
                 /** @brief Builds an array. @param entries Its entries; moved in. @return The node. */
-                static Value array(std::vector<Value> entries);
+                static Value array(std::vector<Value> entries) noexcept;
 
                 /**
                  * @brief Builds an object.
@@ -98,7 +98,7 @@ namespace SushiAI
                  * @return The node.
                  * @pre The two vectors have the same length.
                  */
-                static Value object(std::vector<std::string> keys, std::vector<Value> values);
+                static Value object(std::vector<std::string> keys, std::vector<Value> values) noexcept;
 
                 /** @brief What this node holds. */
                 Kind kind() const noexcept { return kind_; }
@@ -111,14 +111,14 @@ namespace SushiAI
                  * @param context What this value is, for the diagnostic, e.g. "layer 3 'use_bias'".
                  * @return The boolean, or InvalidDescription naming @p context and the kind found.
                  */
-                [[nodiscard]] Result<bool> as_bool(std::string_view context) const;
+                [[nodiscard]] Result<bool> as_bool(std::string_view context) const noexcept;
 
                 /**
                  * @brief Reads this value as a whole number.
                  * @param context What this value is, for the diagnostic.
                  * @return The number, or InvalidDescription naming @p context and the kind found.
                  */
-                [[nodiscard]] Result<std::int64_t> as_int(std::string_view context) const;
+                [[nodiscard]] Result<std::int64_t> as_int(std::string_view context) const noexcept;
 
                 /**
                  * @brief Reads this value as a real number, widening integers.
@@ -126,7 +126,7 @@ namespace SushiAI
                  * @return The number, or InvalidDescription when the value is neither real nor
                  *         integer.
                  */
-                [[nodiscard]] Result<double> as_real(std::string_view context) const;
+                [[nodiscard]] Result<double> as_real(std::string_view context) const noexcept;
 
                 /**
                  * @brief Reads this value as a string.
@@ -134,7 +134,7 @@ namespace SushiAI
                  * @return The string, which this value owns, or InvalidDescription naming
                  *         @p context and the kind found.
                  */
-                [[nodiscard]] Result<const std::string&> as_string(std::string_view context) const;
+                [[nodiscard]] Result<const std::string&> as_string(std::string_view context) const noexcept;
 
                 /**
                  * @brief Reads this value as an array.
@@ -143,7 +143,7 @@ namespace SushiAI
                  *         @p context and the kind found.
                  */
                 [[nodiscard]] Result<const std::vector<Value>&> as_array(
-                    std::string_view context) const;
+                    std::string_view context) const noexcept;
 
                 /**
                  * @brief Whether this object holds @p key; false for any non-object.
@@ -160,7 +160,7 @@ namespace SushiAI
                  *         object or @p key is absent.
                  */
                 [[nodiscard]] Result<const Value&> at(std::string_view key,
-                                                      std::string_view context) const;
+                                                      std::string_view context) const noexcept;
 
                 /**
                  * @brief This object's value for @p key, or @p fallback when absent.
@@ -184,14 +184,14 @@ namespace SushiAI
                  */
                 [[nodiscard]] Status reject_unknown_keys(
                     std::string_view context,
-                    SushiRuntime::span<const std::string_view> allowed) const;
+                    SushiRuntime::span<const std::string_view> allowed) const noexcept;
 
                 /**
                  * @brief Returns a copy of this object with @p key removed.
                  * @param key Property key to omit.
                  * @return New value copy omitting specified key.
                  */
-                Value without(std::string_view key) const;
+                Value without(std::string_view key) const noexcept;
 
             private:
                 Kind kind_ = Kind::Null;
@@ -213,7 +213,7 @@ namespace SushiAI
          *         InvalidDescription when it is no whole number, else success.
          */
         [[nodiscard]] Status require_version(const Value& root, std::string_view key,
-                                             std::int64_t expected, std::string_view origin);
+                                             std::int64_t expected, std::string_view origin) noexcept;
 
         /**
          * @brief Parses @p text as a JSON document.
@@ -222,7 +222,7 @@ namespace SushiAI
          * @return The parsed tree, or InvalidFile naming @p origin and the parser's own
          *         complaint when @p text is not valid JSON.
          */
-        [[nodiscard]] Result<Value> parse_json(std::string_view text, std::string_view origin);
+        [[nodiscard]] Result<Value> parse_json(std::string_view text, std::string_view origin) noexcept;
 
         /**
          * @brief Reads and parses the file at @p path.
@@ -230,7 +230,7 @@ namespace SushiAI
          * @return The parsed tree, FileNotFound when the file cannot be opened, or InvalidFile
          *         when it cannot be read or is not valid JSON.
          */
-        [[nodiscard]] Result<Value> parse_json_file(const std::filesystem::path& path);
+        [[nodiscard]] Result<Value> parse_json_file(const std::filesystem::path& path) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

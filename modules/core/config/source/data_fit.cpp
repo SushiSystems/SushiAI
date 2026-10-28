@@ -47,7 +47,7 @@ namespace SushiAI
         } // namespace
 
         Result<Value> fit_data_to_model(const Value& data, const ModelSpec& model,
-                                        std::string_view model_name)
+                                        std::string_view model_name) noexcept
         {
             if (model.input_fit.empty())
                 return data;

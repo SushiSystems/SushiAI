@@ -45,7 +45,7 @@ namespace SushiAI
          *         both fits when the block states another.
          */
         [[nodiscard]] Result<Value> fit_data_to_model(const Value& data, const ModelSpec& model,
-                                                      std::string_view model_name);
+                                                      std::string_view model_name) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

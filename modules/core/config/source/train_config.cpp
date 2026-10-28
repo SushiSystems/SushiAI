@@ -175,7 +175,7 @@ namespace SushiAI
         }
 
         Result<TrainSpec> parse_train(const Value& root, std::string_view origin,
-                                      const std::filesystem::path& base)
+                                      const std::filesystem::path& base) noexcept
         {
             // An older version refuses the keys it predates as unknown keys.
             SA_TRY_ASSIGN(const std::int64_t version, read_train_version(root, origin));
@@ -249,7 +249,7 @@ namespace SushiAI
             return spec;
         }
 
-        Result<TrainSpec> load_train(const std::filesystem::path& path)
+        Result<TrainSpec> load_train(const std::filesystem::path& path) noexcept
         {
             // Relative paths resolve against the configuration file's parent directory.
             std::filesystem::path base = path.parent_path();
@@ -259,7 +259,7 @@ namespace SushiAI
             return parse_train(root, path.string(), base);
         }
 
-        Status check_start(const TrainSpec& spec, std::string_view origin)
+        Status check_start(const TrainSpec& spec, std::string_view origin) noexcept
         {
             SA_FAIL_IF(!spec.weights.empty() && !spec.resume.empty(),
                        StatusCode::InvalidDescription,
@@ -270,14 +270,14 @@ namespace SushiAI
             return Status();
         }
 
-        Result<std::uint64_t> read_run_seed(const TrainSpec& spec, std::string_view origin)
+        Result<std::uint64_t> read_run_seed(const TrainSpec& spec, std::string_view origin) noexcept
         {
             SA_FAIL_IF(spec.seed < 0, StatusCode::InvalidDescription,
                        "'{}'s 'seed' must not be negative, but it is {}", origin, spec.seed);
             return static_cast<std::uint64_t>(spec.seed);
         }
 
-        Result<DataSpec> parse_data(const Value& root, std::string_view origin)
+        Result<DataSpec> parse_data(const Value& root, std::string_view origin) noexcept
         {
             SA_TRY(require_version(root, "sushiai_data", K_DATA_VERSION, origin));
             SA_TRY(root.reject_unknown_keys(origin, as_span(K_DATA_KEYS)));
@@ -287,7 +287,7 @@ namespace SushiAI
             return data;
         }
 
-        Result<DataSpec> load_data(const std::filesystem::path& path)
+        Result<DataSpec> load_data(const std::filesystem::path& path) noexcept
         {
             SA_TRY_ASSIGN(const Value root, parse_json_file(path));
             return parse_data(root, path.string());

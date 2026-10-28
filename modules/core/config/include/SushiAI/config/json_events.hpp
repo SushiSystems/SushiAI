@@ -100,7 +100,7 @@ namespace SushiAI
          *         read that fails.
          */
         [[nodiscard]] Status read_json_events(const std::filesystem::path& path,
-                                              JSONEvents& handler);
+                                              JSONEvents& handler) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

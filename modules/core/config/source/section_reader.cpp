@@ -34,7 +34,7 @@ namespace SushiAI
 {
     namespace Config
     {
-        std::string member_of(std::string_view where, std::string_view key)
+        std::string member_of(std::string_view where, std::string_view key) noexcept
         {
             std::string text(where);
             text += " '";
@@ -43,12 +43,12 @@ namespace SushiAI
             return text;
         }
 
-        std::string entry_of(std::string_view where, std::size_t index)
+        std::string entry_of(std::string_view where, std::size_t index) noexcept
         {
             return std::string(where) + " entry " + std::to_string(index);
         }
 
-        std::string list_quoted(KeySpan items)
+        std::string list_quoted(KeySpan items) noexcept
         {
             std::string text;
             for (const std::string_view item : items)
@@ -60,17 +60,17 @@ namespace SushiAI
             return text;
         }
 
-        Result<double> read_real(const Value& member, std::string_view where)
+        Result<double> read_real(const Value& member, std::string_view where) noexcept
         {
             return member.as_real(where);
         }
 
-        Result<std::int64_t> read_whole(const Value& member, std::string_view where)
+        Result<std::int64_t> read_whole(const Value& member, std::string_view where) noexcept
         {
             return member.as_int(where);
         }
 
-        Result<float> read_float32(const Value& member, std::string_view where)
+        Result<float> read_float32(const Value& member, std::string_view where) noexcept
         {
             SA_TRY_ASSIGN(const double wide, read_real(member, where));
 
@@ -81,13 +81,13 @@ namespace SushiAI
             return static_cast<float>(wide);
         }
 
-        Result<const std::string*> read_string(const Value& member, std::string_view where)
+        Result<const std::string*> read_string(const Value& member, std::string_view where) noexcept
         {
             SA_TRY_ASSIGN(const std::string& text, member.as_string(where));
             return &text;
         }
 
-        Result<const std::vector<Value>*> read_array(const Value& member, std::string_view where)
+        Result<const std::vector<Value>*> read_array(const Value& member, std::string_view where) noexcept
         {
             SA_TRY_ASSIGN(const std::vector<Value>& entries, member.as_array(where));
             return &entries;
@@ -99,7 +99,7 @@ namespace SushiAI
 
         }
 
-        Status SectionReader::check_object() const
+        Status SectionReader::check_object() const noexcept
         {
             SA_FAIL_IF(section_->kind() != Kind::Object, StatusCode::InvalidDescription,
                        "{} must be an object, but it is {}", where_,
@@ -107,7 +107,7 @@ namespace SushiAI
             return Status();
         }
 
-        Status SectionReader::check_keys(KeySpan allowed) const
+        Status SectionReader::check_keys(KeySpan allowed) const noexcept
         {
             for (const std::string& key : section_->keys())
             {
@@ -123,7 +123,7 @@ namespace SushiAI
         }
 
         Status SectionReader::check_type(std::string_view key, std::string_view expected,
-                                         std::string_view what) const
+                                         std::string_view what) const noexcept
         {
             if (!section_->has(key))
                 return Status();
@@ -141,12 +141,12 @@ namespace SushiAI
             return section_->has(key);
         }
 
-        std::string SectionReader::member(std::string_view key) const
+        std::string SectionReader::member(std::string_view key) const noexcept
         {
             return member_of(where_, key);
         }
 
-        Result<const Value*> SectionReader::find(std::string_view key) const
+        Result<const Value*> SectionReader::find(std::string_view key) const noexcept
         {
             SA_FAIL_IF(!section_->has(key), StatusCode::InvalidDescription, "{} has no '{}'",
                        where_, key);
@@ -154,7 +154,7 @@ namespace SushiAI
             return &found;
         }
 
-        Result<const Value*> SectionReader::find_of(std::string_view key, Kind kind) const
+        Result<const Value*> SectionReader::find_of(std::string_view key, Kind kind) const noexcept
         {
             SA_TRY_ASSIGN(const Value* const found, find(key));
             SA_FAIL_IF(found->kind() != kind, StatusCode::InvalidDescription,

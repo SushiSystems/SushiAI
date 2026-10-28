@@ -132,7 +132,7 @@ namespace SushiAI
          * @return The parsed specification; InvalidFile for a version this build does not read,
          *         InvalidDescription for any other wrong content.
          */
-        [[nodiscard]] Result<ModelSpec> parse_model(const Value& root, std::string_view origin);
+        [[nodiscard]] Result<ModelSpec> parse_model(const Value& root, std::string_view origin) noexcept;
 
         /**
          * @brief Reads, parses and validates the model file at @p path.
@@ -140,7 +140,7 @@ namespace SushiAI
          * @return The spec; FileNotFound or InvalidFile when the file cannot be read or is not
          *         valid JSON, else what parse_model returns.
          */
-        [[nodiscard]] Result<ModelSpec> load_model(const std::filesystem::path& path);
+        [[nodiscard]] Result<ModelSpec> load_model(const std::filesystem::path& path) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

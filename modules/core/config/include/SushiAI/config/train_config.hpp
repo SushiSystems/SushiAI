@@ -146,7 +146,7 @@ namespace SushiAI
          *         InvalidDescription for a missing key or an invalid value.
          */
         [[nodiscard]] Result<TrainSpec> parse_train(const Value& root, std::string_view origin,
-                                                    const std::filesystem::path& base);
+                                                    const std::filesystem::path& base) noexcept;
 
         /**
          * @brief Reads, parses, and validates the train configuration file.
@@ -154,14 +154,14 @@ namespace SushiAI
          * @return The parsed specification; FileNotFound or InvalidFile when the file cannot be
          *         read or parsed, else what parse_train returns.
          */
-        [[nodiscard]] Result<TrainSpec> load_train(const std::filesystem::path& path);
+        [[nodiscard]] Result<TrainSpec> load_train(const std::filesystem::path& path) noexcept;
 
         /**
          * @brief Checks that a run states at most one file to start from.
          * @param origin What to call the document in a diagnostic, usually a path.
          * @return InvalidDescription when @p spec states both "weights" and "resume".
          */
-        [[nodiscard]] Status check_start(const TrainSpec& spec, std::string_view origin);
+        [[nodiscard]] Status check_start(const TrainSpec& spec, std::string_view origin) noexcept;
 
         /**
          * @brief Returns the seed of the random sites of a run, as a training graph takes it.
@@ -169,7 +169,7 @@ namespace SushiAI
          * @return The seed, or InvalidDescription when @p spec states a negative one.
          */
         [[nodiscard]] Result<std::uint64_t> read_run_seed(const TrainSpec& spec,
-                                                          std::string_view origin);
+                                                          std::string_view origin) noexcept;
 
         /**
          * @brief Turns a parsed data document into a @ref DataSpec.
@@ -178,7 +178,7 @@ namespace SushiAI
          * @return The spec; InvalidFile when the version is absent or wrong, InvalidDescription
          *         when a key is unknown.
          */
-        [[nodiscard]] Result<DataSpec> parse_data(const Value& root, std::string_view origin);
+        [[nodiscard]] Result<DataSpec> parse_data(const Value& root, std::string_view origin) noexcept;
 
         /**
          * @brief Reads, parses and validates the data file at @p path.
@@ -186,7 +186,7 @@ namespace SushiAI
          * @return The spec; FileNotFound or InvalidFile when the file cannot be read or is not
          *         valid JSON, else what parse_data returns.
          */
-        [[nodiscard]] Result<DataSpec> load_data(const std::filesystem::path& path);
+        [[nodiscard]] Result<DataSpec> load_data(const std::filesystem::path& path) noexcept;
 
     } // namespace Config
 } // namespace SushiAI

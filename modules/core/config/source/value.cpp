@@ -133,7 +133,7 @@ namespace SushiAI
             return "an unknown kind";
         }
 
-        Value Value::boolean(bool value)
+        Value Value::boolean(bool value) noexcept
         {
             Value node;
             node.kind_ = Kind::Bool;
@@ -141,7 +141,7 @@ namespace SushiAI
             return node;
         }
 
-        Value Value::integer(std::int64_t value)
+        Value Value::integer(std::int64_t value) noexcept
         {
             Value node;
             node.kind_ = Kind::Int;
@@ -149,7 +149,7 @@ namespace SushiAI
             return node;
         }
 
-        Value Value::real(double value)
+        Value Value::real(double value) noexcept
         {
             Value node;
             node.kind_ = Kind::Real;
@@ -157,7 +157,7 @@ namespace SushiAI
             return node;
         }
 
-        Value Value::string(std::string value)
+        Value Value::string(std::string value) noexcept
         {
             Value node;
             node.kind_ = Kind::String;
@@ -165,7 +165,7 @@ namespace SushiAI
             return node;
         }
 
-        Value Value::array(std::vector<Value> entries)
+        Value Value::array(std::vector<Value> entries) noexcept
         {
             Value node;
             node.kind_ = Kind::Array;
@@ -173,7 +173,7 @@ namespace SushiAI
             return node;
         }
 
-        Value Value::object(std::vector<std::string> keys, std::vector<Value> values)
+        Value Value::object(std::vector<std::string> keys, std::vector<Value> values) noexcept
         {
             SA_FATAL_IF(keys.size() != values.size(),
                         "a config object was built from {} keys and {} values",
@@ -186,21 +186,21 @@ namespace SushiAI
             return node;
         }
 
-        Result<bool> Value::as_bool(std::string_view context) const
+        Result<bool> Value::as_bool(std::string_view context) const noexcept
         {
             SA_FAIL_IF(kind_ != Kind::Bool, StatusCode::InvalidDescription,
                        "{} must be a boolean, but it is {}", context, kind_name(kind_));
             return bool_;
         }
 
-        Result<std::int64_t> Value::as_int(std::string_view context) const
+        Result<std::int64_t> Value::as_int(std::string_view context) const noexcept
         {
             SA_FAIL_IF(kind_ != Kind::Int, StatusCode::InvalidDescription,
                        "{} must be a whole number, but it is {}", context, kind_name(kind_));
             return int_;
         }
 
-        Result<double> Value::as_real(std::string_view context) const
+        Result<double> Value::as_real(std::string_view context) const noexcept
         {
             if (kind_ == Kind::Int) return static_cast<double>(int_);
 
@@ -209,14 +209,14 @@ namespace SushiAI
             return real_;
         }
 
-        Result<const std::string&> Value::as_string(std::string_view context) const
+        Result<const std::string&> Value::as_string(std::string_view context) const noexcept
         {
             SA_FAIL_IF(kind_ != Kind::String, StatusCode::InvalidDescription,
                        "{} must be a string, but it is {}", context, kind_name(kind_));
             return string_;
         }
 
-        Result<const std::vector<Value>&> Value::as_array(std::string_view context) const
+        Result<const std::vector<Value>&> Value::as_array(std::string_view context) const noexcept
         {
             SA_FAIL_IF(kind_ != Kind::Array, StatusCode::InvalidDescription,
                        "{} must be an array, but it is {}", context, kind_name(kind_));
@@ -232,7 +232,7 @@ namespace SushiAI
             return false;
         }
 
-        Result<const Value&> Value::at(std::string_view key, std::string_view context) const
+        Result<const Value&> Value::at(std::string_view key, std::string_view context) const noexcept
         {
             SA_FAIL_IF(kind_ != Kind::Object, StatusCode::InvalidDescription,
                        "{} must be an object carrying '{}', but it is {}",
@@ -258,7 +258,7 @@ namespace SushiAI
         }
 
         Status Value::reject_unknown_keys(std::string_view context,
-                                          SushiRuntime::span<const std::string_view> allowed) const
+                                          SushiRuntime::span<const std::string_view> allowed) const noexcept
         {
             // Non-object nodes contain no keys to validate against the allowed list.
             if (kind_ != Kind::Object) return Status();
@@ -279,7 +279,7 @@ namespace SushiAI
             return Status();
         }
 
-        Value Value::without(std::string_view key) const
+        Value Value::without(std::string_view key) const noexcept
         {
             if (kind_ != Kind::Object) return *this;
 
@@ -298,7 +298,7 @@ namespace SushiAI
         }
 
         Status require_version(const Value& root, std::string_view key,
-                               std::int64_t expected, std::string_view origin)
+                               std::int64_t expected, std::string_view origin) noexcept
         {
             SA_FAIL_IF(root.kind() != Kind::Object, StatusCode::InvalidFile,
                        "'{}' must be an object whose first key is '{}', but it is {}",
@@ -320,7 +320,7 @@ namespace SushiAI
             return Status();
         }
 
-        Result<Value> parse_json(std::string_view text, std::string_view origin)
+        Result<Value> parse_json(std::string_view text, std::string_view origin) noexcept
         {
             try
             {
@@ -337,7 +337,7 @@ namespace SushiAI
             }
         }
 
-        Result<Value> parse_json_file(const std::filesystem::path& path)
+        Result<Value> parse_json_file(const std::filesystem::path& path) noexcept
         {
             std::ifstream in(path, std::ios::binary);
             SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
