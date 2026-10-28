@@ -136,7 +136,6 @@
 #include <SushiAI/nn/silu.hpp>
 #include <SushiAI/nn/host_table.hpp>
 #include <SushiAI/nn/trace.hpp>
-#include <SushiAI/nn/throwing_bridge.hpp>
 
 #include <SushiAI/optim/step_scalars.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
