@@ -27,7 +27,7 @@ unset(sushiai_runtime_policy)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
 
 # A Debug consumer of an imported target links its Release build, which shares that CRT.
-set(CMAKE_MAP_IMPORTED_CONFIG_DEBUG Release RelWithDebInfo MinSizeRel "")
+set(CMAKE_MAP_IMPORTED_CONFIG_DEBUG Release RelWithDebInfo MinSizeRel None "")
 
 # The MSVC STL's container layout depends on this; libstdc++ and libc++ never read it.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" OR CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
