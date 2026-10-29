@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-10-29 — build: Gave the Debug line tables to the host pass alone, since a clang SYCL device pass rejects the flag under `-Werror` (`cmake/`).
 - 2026-10-29 — build: Let a Debug tree link an imported package built as `None`, such as Ubuntu's GTest (`cmake/`).
 - 2026-10-29 — deps: Moved the SushiProfiler pin to v0.4.1, whose CLI installs against sushicore 0.10 (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Installed the CLI of every Sushi library checked out beside sushiai, since a library package is built by that library's own CLI (`.github/actions/`).
