@@ -201,6 +201,14 @@ jobs:
           restore-keys: |
             ccache-windows-intel-llvm-release-${{ hashFiles('sushiai/**/CMakeLists.txt', 'sushiai/cmake/**') }}-
             ccache-windows-intel-llvm-release-
+      # The SushiRuntime and SushiBLAS packages are built by sr and sb, which need the vcpkg and
+      # Ninja their setup records.
+      - name: sr setup --yes --no-gpu
+        working-directory: sushiruntime
+        run: sr setup --yes --no-gpu
+      - name: sb setup --yes --no-gpu
+        working-directory: sushiblas
+        run: sb setup --yes --no-gpu
       - name: sa setup --yes --no-gpu
         run: sa setup --yes --no-gpu
       - name: sa build
