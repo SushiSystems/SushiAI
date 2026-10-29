@@ -28,6 +28,7 @@
 #include <SushiAI/vision/blocks/detect_head.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <utility>
 #include <variant>
