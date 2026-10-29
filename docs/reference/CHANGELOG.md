@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- 2026-10-29 — deps: Moved the SushiProfiler pin to v0.4.0, whose CLI installs against sushicore 0.10 (`cli/sushistack.deps.toml`).
+- 2026-10-29 — deps: Moved the SushiProfiler pin to v0.4.1, whose CLI installs against sushicore 0.10 (`cli/sushistack.deps.toml`).
 - 2026-10-29 — ci: Installed the CLI of every Sushi library checked out beside sushiai, since a library package is built by that library's own CLI (`.github/actions/`).
 - 2026-10-29 — deps: Moved the SushiLog pin to v0.3.0, the first tag a consumer can build as a package (`cli/sushistack.deps.toml`).
 - 2026-10-29 — cli: Wrote the consumer-path test with paths that hold no drive colon, so it passes where the path separator is `:` (`tests/test_library_packages.py`).
