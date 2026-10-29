@@ -36,7 +36,7 @@ env:
   # The sibling release tags a pre-merge build checks out.
   SUSHIRUNTIME_REF: v0.5.0
   SUSHIBLAS_REF: v0.1.0
-  SUSHILOG_REF: v0.2.3
+  SUSHILOG_REF: v0.3.0
   SUSHIPROFILER_REF: v0.3.2
   CCACHE_DIR: ${{ github.workspace }}/.ccache
   CCACHE_MAXSIZE: 2G
