@@ -33,6 +33,7 @@ K_CHECKERS = (
     "testing/check_test_sizes.py",
     "testing/check_probes.py",
     "logs/check_logging.py",
+    "ci/check_workflows.py",
 )
 
 
