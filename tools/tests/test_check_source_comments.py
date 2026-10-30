@@ -11,30 +11,48 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from documentation import check_source_comments  # noqa: E402
 from documentation.check_source_comments import (  # noqa: E402
-    K_BOX_LICENSE_LINES,
     K_CHECKER,
-    K_COPYRIGHT_SHAPE,
-    K_LICENSE_LINES,
     K_PART_OF,
     collect,
     rule_comment_runs,
     rule_no_date,
     rule_license_block,
 )
+from documentation.licence import Licence  # noqa: E402
 
-K_PROJECT_NAME = "SushiSkills"
-K_PROJECT_URL = "https://github.com/SushiSystems/SushiSkills"
+K_ACME = Licence(
+    holder="Jane Doe & Acme Corp",
+    company="Acme Corp",
+    site="https://acme.example",
+    open_lines=("Licensed under the Acme Licence 1.0. See LICENSE.", "Commercial use requires a licence from Acme Corp."),
+    closed_lines=("All rights reserved. No licence is granted.",),
+    open_box_lines=("Licensed under the Acme Licence 1.0.", "", "    https://acme.example/licence", "",
+                    "Commercial use requires a licence from Acme Corp; see COMMERCIAL.md."),
+    closed_box_lines=("All rights reserved.", "", "No licence is granted by Acme Corp."),
+    closed=False,
+)
+K_PROJECT_NAME = "AcmeSkills"
+K_PROJECT_URL = "https://github.com/AcmeCorp/AcmeSkills"
 K_PROJECT_LINE = f"{K_PROJECT_NAME} - {K_PROJECT_URL}"
-K_COPYRIGHT = "Copyright (c) 2026-present Mustafa Garip & Sushi Systems"
-K_SUSHI_LINES = (K_COPYRIGHT, *K_LICENSE_LINES)
-K_SUSHI_BOX_LINES = (K_COPYRIGHT, "", *K_BOX_LICENSE_LINES)
-K_LACKS_COPYRIGHT = f"license block lacks '{K_COPYRIGHT_SHAPE}'"
+K_COPYRIGHT = "Copyright (c) 2026-present Jane Doe & Acme Corp"
+K_OWN_LINES = (K_COPYRIGHT, *K_ACME.hash_lines)
+K_OWN_BOX_LINES = (K_COPYRIGHT, "", *K_ACME.box_lines)
+K_LACKS_COPYRIGHT = f"license block lacks '{K_ACME.copyright_shape}'"
 K_FOREIGN_LICENCE = "Licensed under the Apache License, Version 2.0. See LICENSE."
-K_OLD_HOLDER = "Copyright (c) 2026 Sushi Systems"
+K_OLD_HOLDER = "Copyright (c) 2026 Acme Corp"
+
+
+def setUpModule() -> None:
+    """Makes the made-up company's licence the one the checker enforces for every test here."""
+    patch = mock.patch.object(check_source_comments, "K_LICENCE", K_ACME)
+    patch.start()
+    unittest.addModuleCleanup(patch.stop)
 
 
 def _messages(name: str, text: str, encoding: str = "utf-8") -> list[str]:
@@ -50,7 +68,7 @@ def _lacks(lines: tuple[str, ...]) -> list[str]:
     return [f"license block lacks '{line.strip()}'" for line in lines if line.strip()]
 
 
-def _boxed(name: str, rows: tuple[str, ...] = K_SUSHI_BOX_LINES) -> str:
+def _boxed(name: str, rows: tuple[str, ...] = K_OWN_BOX_LINES) -> str:
     """Returns a C-family file opening with the three-section box that names the given file."""
     edge = "/" + "*" * 74 + "/"
     project = [f"/*{row.center(72)}*/" for row in (K_PART_OF, K_PROJECT_NAME, K_PROJECT_URL)]
@@ -59,7 +77,7 @@ def _boxed(name: str, rows: tuple[str, ...] = K_SUSHI_BOX_LINES) -> str:
     return "\n".join(box) + f"\n\n/**\n * @file {name}\n */\n"
 
 
-def _hashed(name: str, rows: tuple[str, ...] = K_SUSHI_LINES, first: str = "") -> str:
+def _hashed(name: str, rows: tuple[str, ...] = K_OWN_LINES, first: str = "") -> str:
     """Returns a Python file opening with the `#` form of the block, after an optional line."""
     body = "\n".join(f"# {row}" for row in (name, K_PROJECT_LINE, *rows))
     return first + body + '\n"""Does nothing."""\n'
@@ -100,14 +118,14 @@ class LicenseBlockTest(unittest.TestCase):
         self.assertEqual(_messages("graph.hpp", _boxed("graph.hpp"), encoding="utf-8-sig"), [])
 
     def test_accepts_upstream_lines(self) -> None:
-        """Accepts extra upstream notice lines below the Sushi lines."""
-        rows = (*K_SUSHI_BOX_LINES, "", "Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
+        """Accepts extra upstream notice lines below the repository's own lines."""
+        rows = (*K_OWN_BOX_LINES, "", "Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
         self.assertEqual(_messages("lapjv.cpp", _boxed("lapjv.cpp", rows)), [])
 
-    def test_demands_sushi_lines_beside_upstream_lines(self) -> None:
+    def test_demands_own_lines_beside_upstream_lines(self) -> None:
         """Reports a ported file that carries only the upstream notice."""
         rows = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        expected = [K_LACKS_COPYRIGHT, *_lacks(K_BOX_LICENSE_LINES)]
+        expected = [K_LACKS_COPYRIGHT, *_lacks(K_ACME.box_lines)]
         self.assertEqual(_messages("lapjv.cpp", _boxed("lapjv.cpp", rows)), expected)
 
     def test_reports_a_box_without_the_project_section(self) -> None:
@@ -131,20 +149,20 @@ class LicenseBlockTest(unittest.TestCase):
 
     def test_reports_old_block(self) -> None:
         """Reports a block that carries the earlier holder line and the earlier licence."""
-        expected = [K_LACKS_COPYRIGHT, *_lacks(K_LICENSE_LINES)]
+        expected = [K_LACKS_COPYRIGHT, *_lacks(K_ACME.hash_lines)]
         expected += [_foreign(K_OLD_HOLDER), _foreign(K_FOREIGN_LICENCE)]
         text = _hashed("graph.py", (K_OLD_HOLDER, K_FOREIGN_LICENCE))
         self.assertEqual(_messages("graph.py", text), expected)
 
     def test_reports_second_licence_beside_the_right_one(self) -> None:
         """Reports a licence line left in a block that also carries the right lines."""
-        text = _boxed("graph.hpp", (*K_SUSHI_BOX_LINES, K_FOREIGN_LICENCE))
+        text = _boxed("graph.hpp", (*K_OWN_BOX_LINES, K_FOREIGN_LICENCE))
         self.assertEqual(_messages("graph.hpp", text), [_foreign(K_FOREIGN_LICENCE)])
 
     def test_reports_reserved_rights_beside_a_grant(self) -> None:
         """Reports a rights statement the repository's licence lines do not hold."""
         other = "All rights reserved. Nothing is granted to anyone."
-        text = _boxed("graph.hpp", (*K_SUSHI_BOX_LINES, other))
+        text = _boxed("graph.hpp", (*K_OWN_BOX_LINES, other))
         self.assertEqual(_messages("graph.hpp", text), [_foreign(other)])
 
 

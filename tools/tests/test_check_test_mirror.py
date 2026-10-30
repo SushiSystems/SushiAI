@@ -43,9 +43,9 @@ class MultiModuleTest(unittest.TestCase):
     def setUp(self) -> None:
         self._folder = tempfile.TemporaryDirectory()
         self.root = Path(self._folder.name)
-        _touch(self.root, "modules/physics/rigid_body/include/Sushi/rigid_body/physics_world.hpp")
-        _touch(self.root, "modules/physics/rigid_body/include/Sushi/rigid_body/contact_solver.hpp")
-        _touch(self.root, "modules/physics/rigid_body/include/Sushi/rigid_body.hpp")
+        _touch(self.root, "modules/physics/rigid_body/include/Acme/rigid_body/physics_world.hpp")
+        _touch(self.root, "modules/physics/rigid_body/include/Acme/rigid_body/contact_solver.hpp")
+        _touch(self.root, "modules/physics/rigid_body/include/Acme/rigid_body.hpp")
         _touch(self.root, "tests/physics/rigid_body/test_physics_world.cpp")
         _touch(self.root, "tests/physics/rigid_body/test_rigid_body.cpp")
         _touch(self.root, "tests/physics/rigid_body/fixtures/contact_solver/scene.json")
@@ -65,7 +65,7 @@ class MultiModuleTest(unittest.TestCase):
         self.assertEqual(_names(rule_mirror_folders(discover(self.root))), ["unit"])
 
     def test_an_include_path_with_the_tier_mirrors_like_one_without(self) -> None:
-        _touch(self.root, "modules/vision/training/include/Sushi/vision/training/trainer.hpp")
+        _touch(self.root, "modules/vision/training/include/Acme/vision/training/trainer.hpp")
         _touch(self.root, "tests/vision/training/test_trainer.cpp")
         self.assertEqual(_names(rule_untested_unit(discover(self.root))), ["contact_solver.hpp"])
         self.assertEqual(list(rule_orphan_test(discover(self.root))), [])
@@ -94,7 +94,7 @@ class PrivateIncludeTest(unittest.TestCase):
     def setUp(self) -> None:
         self._folder = tempfile.TemporaryDirectory()
         self.root = Path(self._folder.name)
-        _touch(self.root, "modules/physics/rigid_body/include/Sushi/rigid_body/physics_world.hpp")
+        _touch(self.root, "modules/physics/rigid_body/include/Acme/rigid_body/physics_world.hpp")
         _touch(self.root, "modules/physics/rigid_body/source/island_builder.hpp")
         _touch(self.root, "modules/physics/rigid_body/source/detail/sweep.hpp")
 
@@ -113,7 +113,7 @@ class PrivateIncludeTest(unittest.TestCase):
 
     def test_a_public_include_is_clean(self) -> None:
         self._write("tests/physics/rigid_body/test_physics_world.cpp",
-                    "#include <Sushi/rigid_body/physics_world.hpp>\n")
+                    "#include <Acme/rigid_body/physics_world.hpp>\n")
         self.assertEqual(self._found(), [])
 
     def test_a_private_header_by_name_is_reported(self) -> None:
@@ -143,10 +143,10 @@ class LanguagesAndApplicationsTest(unittest.TestCase):
         self._folder.cleanup()
 
     def test_python_mirrors_each_source_file_below_its_package(self) -> None:
-        _touch(self.root, "source/sushi_cli/commands/build.py")
-        _touch(self.root, "source/sushi_cli/__init__.py")
-        _touch(self.root, "source/sushi_cli/_private.py")
-        _touch(self.root, "source/sushi_cli/bundle/__main__.py")
+        _touch(self.root, "source/acme_cli/commands/build.py")
+        _touch(self.root, "source/acme_cli/__init__.py")
+        _touch(self.root, "source/acme_cli/_private.py")
+        _touch(self.root, "source/acme_cli/bundle/__main__.py")
         self.assertEqual(
             sorted(test.relative_to(self.root).as_posix() for test in discover(self.root).expected),
             ["tests/bundle/test_main.py", "tests/commands/test_build.py"],
@@ -161,9 +161,9 @@ class LanguagesAndApplicationsTest(unittest.TestCase):
         )
 
     def test_an_application_mirrors_to_tests_applications(self) -> None:
-        _touch(self.root, "include/Sushi/sushi.hpp")
+        _touch(self.root, "include/Acme/acme.hpp")
         _touch(self.root, "applications/editor/panels/outliner.hpp")
-        _touch(self.root, "tests/test_sushi.cpp")
+        _touch(self.root, "tests/test_acme.cpp")
         _touch(self.root, "tests/applications/editor/panels/test_outliner.cpp")
         mirror = discover(self.root)
         findings = [*rule_untested_unit(mirror), *rule_orphan_test(mirror), *rule_mirror_folders(mirror)]
@@ -214,10 +214,10 @@ class SingleModuleTest(unittest.TestCase):
     def setUp(self) -> None:
         self._folder = tempfile.TemporaryDirectory()
         self.root = Path(self._folder.name)
-        _touch(self.root, "include/Sushi/collision/broad_phase.hpp")
-        _touch(self.root, "include/Sushi/sushi.hpp")
+        _touch(self.root, "include/Acme/collision/broad_phase.hpp")
+        _touch(self.root, "include/Acme/acme.hpp")
         _touch(self.root, "tests/collision/test_broad_phase.cpp")
-        _touch(self.root, "tests/test_sushi.cpp")
+        _touch(self.root, "tests/test_acme.cpp")
 
     def tearDown(self) -> None:
         self._folder.cleanup()

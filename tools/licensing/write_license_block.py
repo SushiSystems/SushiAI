@@ -23,17 +23,9 @@ from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation.check_source_comments import (  # noqa: E402
-    K_C_SUFFIXES,
-    K_CLOSED_BOX_LINES,
-    K_CLOSED_LINES,
-    K_HOLDER,
-    K_OPEN_BOX_LINES,
-    K_OPEN_LINES,
-    K_PART_OF,
-)
+from documentation.check_source_comments import K_C_SUFFIXES, K_LICENCE, K_PART_OF  # noqa: E402
+from documentation.licence import K_UNSET_MESSAGE, Licence  # noqa: E402
 
-K_SITE = "https://sushisystems.io"
 K_PROJECT_SEPARATOR = " - "
 K_HASH_SUFFIXES = frozenset({".py", ".cmake", ".sh"})
 K_HASH_NAMES = frozenset({"CMakeLists.txt"})
@@ -47,12 +39,6 @@ K_BOX_EDGE = re.compile(r"^\s*/\*{5,}/\s*$")
 K_HASH_PREAMBLE = re.compile(r"^#(!|.*coding[:=])")
 K_HASH_MARKER = re.compile(r"Copyright|Licensed under|All rights reserved")
 K_DOCSTRING = re.compile(r"^[rRuUbB]{0,2}(\"\"\"|''')")
-K_OWN_ROWS = frozenset(
-    row.strip()
-    for rows in (K_OPEN_LINES, K_CLOSED_LINES, K_OPEN_BOX_LINES, K_CLOSED_BOX_LINES)
-    for row in rows
-    if row.strip()
-)
 K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
 K_EXIT_USAGE = 2
@@ -60,6 +46,13 @@ K_EXIT_USAGE = 2
 
 class LicenseWriterError(Exception):
     """Signals a repository or an argument the writer cannot work with."""
+
+
+def _licence() -> Licence:
+    """Returns the licence the settings describe, or raises when they describe none."""
+    if K_LICENCE is None:
+        raise LicenseWriterError(K_UNSET_MESSAGE)
+    return K_LICENCE
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +74,7 @@ class Header:
 
     def _copyright(self, year: int) -> str:
         """Returns the copyright row for a file first written in the given year."""
-        return f"Copyright (c) {year}-present {K_HOLDER}"
+        return f"Copyright (c) {year}-present {_licence().holder}"
 
     def _upstream(self, path: str, kept: tuple[str, ...]) -> list[str]:
         """Returns the upstream rows named for a file, or the rows its old block kept."""
@@ -89,23 +82,26 @@ class Header:
 
     def hashed_rows(self, path: str, year: int, kept: tuple[str, ...] = ()) -> list[str]:
         """Returns the rows of the `#` form of the block for a file."""
-        lines = K_CLOSED_LINES if self.closed else K_OPEN_LINES
+        licence = _licence()
+        lines = licence.closed_lines if self.closed else licence.open_lines
         own = [PurePosixPath(path).name, self.project, self._copyright(year), *lines]
         return own + self._upstream(path, kept)
 
     def box(self, path: str, year: int, kept: tuple[str, ...] = ()) -> Box:
         """Returns the three sections of the boxed form of the block for a file."""
         name, _, address = self.project.partition(K_PROJECT_SEPARATOR)
-        addresses = list(dict.fromkeys(item for item in (address, K_SITE) if item))
-        lines = K_CLOSED_BOX_LINES if self.closed else K_OPEN_BOX_LINES
+        licence = _licence()
+        addresses = list(dict.fromkeys(item for item in (address, licence.site) if item))
+        lines = licence.closed_box_lines if self.closed else licence.open_box_lines
         upstream = self._upstream(path, kept)
         licence = [self._copyright(year), "", *lines, *([""] if upstream else []), *upstream]
         return Box(PurePosixPath(path).name, [K_PART_OF, name, *addresses], licence)
 
     @staticmethod
     def kept_rows(old: list[str]) -> tuple[str, ...]:
-        """Returns the rows an old block carries below the last Sushi licence row."""
-        own = [index for index, row in enumerate(old) if row in K_OWN_ROWS]
+        """Returns the rows an old block carries below the last row of the repository's own licence."""
+        own_rows = _licence().own_rows
+        own = [index for index, row in enumerate(old) if row in own_rows]
         return tuple(old[own[-1] + 1:]) if own else ()
 
 

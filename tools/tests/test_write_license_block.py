@@ -15,14 +15,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation.check_source_comments import (  # noqa: E402
-    K_CLOSED,
-    collect,
-    rule_license_block,
-)
+from documentation import check_source_comments  # noqa: E402
+from documentation.check_source_comments import collect, rule_license_block  # noqa: E402
+from documentation.licence import Licence  # noqa: E402
+from licensing import write_license_block  # noqa: E402
 from licensing.write_license_block import (  # noqa: E402
     Header,
     first_years,
@@ -31,61 +31,76 @@ from licensing.write_license_block import (  # noqa: E402
     rewrite,
 )
 
-K_PROJECT = "SushiRuntime - https://github.com/SushiSystems/SushiRuntime"
+K_ACME = Licence(
+    holder="Jane Doe & Acme Corp",
+    company="Acme Corp",
+    site="https://acme.example",
+    open_lines=("Licensed under the Acme Licence 1.0. See LICENSE.", "Commercial use requires a licence from Acme Corp."),
+    closed_lines=("All rights reserved. No licence is granted.",),
+    open_box_lines=("Licensed under the Acme Licence 1.0.", "", "    https://acme.example/licence", "",
+                    "Commercial use requires a licence from Acme Corp; see COMMERCIAL.md."),
+    closed_box_lines=("All rights reserved.", "", "No licence is granted."),
+    closed=False,
+)
+K_PROJECT = "AcmeRuntime - https://github.com/AcmeCorp/AcmeRuntime"
+K_COPYRIGHT = "Copyright (c) 2026-present Jane Doe & Acme Corp"
 K_HEADER = Header(K_PROJECT)
 K_EDGE = "/" + "*" * 74 + "/"
+
+
+def setUpModule() -> None:
+    """Makes the made-up company's licence the one the checker and the writer use for every test here."""
+    for module in (check_source_comments, write_license_block):
+        patch = mock.patch.object(module, "K_LICENCE", K_ACME)
+        patch.start()
+        unittest.addModuleCleanup(patch.stop)
+
+
+def _left(text: str, field: int = 70) -> str:
+    """Returns a box row with the text at the left."""
+    return f"/* {text.ljust(field)} */"
+
+
+def _middle(text: str) -> str:
+    """Returns a box row with the text centred, the odd space on the left."""
+    padding = 72 - len(text)
+    left = (padding + 1) // 2
+    return "/*" + " " * left + text + " " * (padding - left) + "*/"
+
+
 K_BOX = "\n".join(
     [
         K_EDGE,
-        "/* graph.hpp                                                              */",
+        _left("graph.hpp"),
         K_EDGE,
-        "/*                          This file is part of:                         */",
-        "/*                              SushiRuntime                              */",
-        "/*              https://github.com/SushiSystems/SushiRuntime              */",
-        "/*                         https://sushisystems.io                        */",
+        _middle("This file is part of:"),
+        _middle("AcmeRuntime"),
+        _middle("https://github.com/AcmeCorp/AcmeRuntime"),
+        _middle("https://acme.example"),
         K_EDGE,
-        "/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */",
-        "/*                                                                        */",
-        '/* Licensed under the PolyForm Noncommercial License 1.0.0 (the           */',
-        '/* "License"); you may not use this file except in compliance with the    */',
-        '/* License. You may obtain a copy of the License at                       */',
-        '/*                                                                        */',
-        '/*     https://polyformproject.org/licenses/noncommercial/1.0.0           */',
-        '/*                                                                        */',
-        '/* Noncommercial use is free. Commercial use requires a separate licence  */',
-        '/* from Sushi Systems; see COMMERCIAL.md. The software is provided        */',
-        '/* "as is", without warranty of any kind.                                 */',
+        _left(K_COPYRIGHT),
+        _left(""),
+        *[_left(row) for row in K_ACME.open_box_lines],
         K_EDGE,
     ]
 )
-K_HASHES = "\n".join(
-    [
-        "# graph.py",
-        "# SushiRuntime - https://github.com/SushiSystems/SushiRuntime",
-        "# Copyright (c) 2026-present Mustafa Garip & Sushi Systems",
-        "# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.",
-        "# Commercial use requires a licence from Sushi Systems.",
-    ]
-)
+K_HASHES = "\n".join(["# graph.py", f"# {K_PROJECT}", f"# {K_COPYRIGHT}", *[f"# {row}" for row in K_ACME.open_lines]])
 K_OLD_BOX = "\n".join(
     [
-        "/**************************************************************************/",
-        "/* graph.hpp                                                              */",
-        "/**************************************************************************/",
-        "/*                          This file is part of:                         */",
-        "/*                              SushiRuntime                              */",
-        "/**************************************************************************/",
-        "/* Copyright (c) 2026-present Mustafa Garip & Sushi Systems               */",
-        "/*                                                                        */",
-        '/* Licensed under the Apache License, Version 2.0 (the "License");        */',
-        "/**************************************************************************/",
+        K_EDGE,
+        _left("graph.hpp"),
+        K_EDGE,
+        _middle("This file is part of:"),
+        _middle("AcmeRuntime"),
+        K_EDGE,
+        _left(K_COPYRIGHT),
+        _left(""),
+        _left('Licensed under the Apache License, Version 2.0 (the "License");'),
+        K_EDGE,
     ]
 )
 K_DOC = "/**\n * @file graph.hpp\n * @brief Declares the graph.\n */\n#pragma once\n"
-K_OLD_HASHES = (
-    "# Copyright (c) 2026-present Mustafa Garip & Sushi Systems\n"
-    "# Licensed under the Apache License, Version 2.0. See LICENSE.\n"
-)
+K_OLD_HASHES = f"# {K_COPYRIGHT}\n# Licensed under the Apache License, Version 2.0. See LICENSE.\n"
 K_DOCSTRING = '"""Builds the graph."""\n\nimport sys\n'
 
 
@@ -171,15 +186,15 @@ class RewriteTest(unittest.TestCase):
 
     def test_writes_the_closed_lines(self) -> None:
         """Writes the reserved-rights line and no grant in a closed repository."""
-        text = _write("graph.hpp", K_DOC, Header("SushiWeb - https://sushisystems.io", closed=True))
+        text = _write("graph.hpp", K_DOC, Header("AcmeWeb - https://acme.example", closed=True))
         self.assertIn("/* All rights reserved. ", text)
         self.assertIn("No licence is granted.", text)
-        self.assertEqual(text.count("https://sushisystems.io"), 1)
-        self.assertNotIn("PolyForm", text)
+        self.assertEqual(text.count("https://acme.example"), 1)
+        self.assertNotIn("Licence 1.0", text)
         self.assertNotIn("Commercial use", text)
 
     def test_appends_upstream_lines(self) -> None:
-        """Appends a ported file's upstream notice below the Sushi lines."""
+        """Appends a ported file's upstream notice below the repository's own lines."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
         header = Header(K_PROJECT, upstream={"source/lapjv.cpp": upstream})
         rows = rewrite("source/lapjv.cpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
@@ -209,9 +224,9 @@ class RewriteTest(unittest.TestCase):
         narrow = "\n".join([
             "/" + "*" * 64 + "/",
             "/* lapjv.cpp                                                    */",
-            "/* Copyright (c) 2026 Sushi Systems                             */",
-            "/* Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.    */",
-            "/* Commercial use requires a licence from Sushi Systems.        */",
+            "/* Copyright (c) 2026 Acme Corp                                 */",
+            "/* Licensed under the Acme Licence 1.0. See LICENSE.            */",
+            "/* Commercial use requires a licence from Acme Corp.            */",
             "/* Portions Copyright (c) 2012 Tomas Kazmar                     */",
             "/" + "*" * 64 + "/",
         ])
@@ -234,20 +249,20 @@ class RewriteTest(unittest.TestCase):
 
     def test_widens_the_box_for_a_long_line(self) -> None:
         """Keeps every row and both edges the same width when a line is long."""
-        header = Header("SushiRuntime - " + "x" * 80)
+        header = Header("AcmeRuntime - " + "x" * 80)
         rows = rewrite("graph.hpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
         self.assertEqual(len({len(row) for row in rows}), 1)
 
     def test_uses_the_year_it_is_given(self) -> None:
         """Writes the file's first year into the copyright line."""
-        self.assertIn("Copyright (c) 2024-present Mustafa Garip & Sushi Systems", _write("graph.py", "", year=2024))
+        self.assertIn("Copyright (c) 2024-present Jane Doe & Acme Corp", _write("graph.py", "", year=2024))
 
     def test_output_passes_the_checker(self) -> None:
         """Produces blocks the license block rule accepts."""
         for name, text in (("graph.hpp", K_DOC), ("graph.py", K_DOCSTRING)):
             with tempfile.TemporaryDirectory() as folder:
                 path = Path(folder) / name
-                path.write_text(rewrite(name, text, Header(K_PROJECT, closed=K_CLOSED), 2026), encoding="utf-8")
+                path.write_text(rewrite(name, text, Header(K_PROJECT, closed=K_ACME.closed), 2026), encoding="utf-8")
                 issues = [issue for source in collect([path]) for issue in rule_license_block(source)]
                 self.assertEqual(issues, [])
 

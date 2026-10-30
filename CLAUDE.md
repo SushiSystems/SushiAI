@@ -63,3 +63,15 @@ Create actionable tasks up front and update them as work moves forward. Track pr
 ---
 
 love you boss, kolay gelsin.
+
+## Backlog and design
+
+1. Session start: `sa backlog next`. Take what it gives.
+2. A defect or limitation turns up: `sa backlog add issue ...` or `sa backlog add work ...`
+   at once.
+3. Before changing a module: `sa design owner <path>`.
+4. Finishing: `sa backlog close <ID>` in the same commit, and the changelog line it prints.
+   The commit message ends with `Backlog: <ID>`, or `Backlog: none (<reason>)`.
+5. Once per clone: `python tools/hooks/install_hooks.py`.
+
+State is read with these commands. It is never read from a markdown file or the git log.

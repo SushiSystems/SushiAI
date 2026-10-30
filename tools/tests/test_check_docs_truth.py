@@ -93,7 +93,7 @@ class NamedSymbolsTest(unittest.TestCase):
     def test_reports_each_shape_of_absent_name(self) -> None:
         """Reports a qualified name, a call, a type, a snake name, a constant and a macro."""
         page = (
-            "# Guide\n\n`Project::RuntimeContext`\n\n`try_run()`\n\n`SushiException`\n\n"
+            "# Guide\n\n`Project::RuntimeContext`\n\n`try_run()`\n\n`AcmeException`\n\n"
             "`get_queue`\n\n`K_GONE_CEILING`\n\n`K_BODY_CEILING` and `PR_ENABLE_TRACE`\n"
         )
         found = _found(rule_named_symbols, {"docs/guides/GUIDE.md": page})

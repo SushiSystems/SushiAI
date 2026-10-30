@@ -1,0 +1,3 @@
+#!/bin/sh
+# Runs the commit message check; see tools/hooks/commit_msg.py.
+exec python "$(dirname "$0")/commit_msg.py" "$1"

@@ -7,7 +7,7 @@
 
 Usage: python tools/documentation/check_design_topics.py [repository root] [--report] [--rule NAME]
 
-Topic, module and work folder rules run sushicore.design's `design check`. settings.py may set
+Topic, module and work folder rules run the tooling package's `design check`. settings.py may set
 K_DESIGN_TOPICS (a glossary entry per topic and the topic map) and K_FOLDER_CEILING (0 is off).
 """
 
@@ -26,7 +26,7 @@ from checking.checker import Checker, Issue, run  # noqa: E402
 from documentation.citation_files import archive_citations  # noqa: E402
 from documentation.design_topics import topics  # noqa: E402
 from documentation.design_views import K_TOPICS_BLOCK, expected_blocks, read_block  # noqa: E402
-from documentation.sushicore_bridge import design_rule  # noqa: E402
+from documentation.tooling_bridge import design_rule  # noqa: E402
 
 K_GLOSSARY = Path("docs/reference/GLOSSARY.md")
 K_TERM_LINE = re.compile(r"^(\|\s*`?|\*\*|#+\s)")

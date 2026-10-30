@@ -3,11 +3,11 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks the design documents of a repository against the design format of the documentation skill, through sushicore.
+"""Checks the design documents of a repository against the design format of the documentation skill, through the tooling package.
 
 Usage: python tools/documentation/check_design_format.py [repository root] [--report] [--rule NAME]
 
-The rules are those of `design check` in sushicore.design that read one document's frame.
+The rules are those of `design check` in the tooling package's design module that read one document's frame.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, run  # noqa: E402
-from documentation.sushicore_bridge import design_rule  # noqa: E402
+from documentation.tooling_bridge import design_rule  # noqa: E402
 
 K_DELEGATED = ("sections", "status_length", "phase_table", "no_commit_hashes", "no_execution_record")
 

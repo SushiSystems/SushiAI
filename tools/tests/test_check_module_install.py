@@ -11,20 +11,32 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from documentation import check_module_install  # noqa: E402
 from documentation.check_module_install import K_CHECKER, collect  # noqa: E402
 
-K_INSTALL = "# Install\n\n## Standalone\n\nx\n\n## With SushiHub\n\ny\n"
+K_INSTALL = "# Install\n\n## Standalone\n\nx\n\n## With AcmeHub\n\ny\n"
+K_WORKSPACE_READ = r"\bacmehub (?:install|add)\b|ACME_HOME"
 
 
 class ModuleInstallTest(unittest.TestCase):
-    """Covers each rule with one failing and one passing module."""
+    """Covers each rule with one failing and one passing module, under the settings of a made-up company."""
 
     def setUp(self) -> None:
         self._folder = tempfile.TemporaryDirectory()
         self.root = Path(self._folder.name)
+        patches = [
+            mock.patch.object(check_module_install, "K_MANIFEST", "acme-module.toml"),
+            mock.patch.object(check_module_install, "K_FRAGMENT", "cli/acme.deps.toml"),
+            mock.patch.object(check_module_install, "K_HEADINGS", ("## Standalone", "## With AcmeHub")),
+            mock.patch.object(check_module_install, "K_WORKSPACE_READ", K_WORKSPACE_READ),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def tearDown(self) -> None:
         self._folder.cleanup()
@@ -36,8 +48,8 @@ class ModuleInstallTest(unittest.TestCase):
 
     def _module(self) -> None:
         """Writes the three elements of a module that follows the skill."""
-        self._write("sushi-module.toml", "[module]\n")
-        self._write("cli/sushistack.deps.toml", "[module]\n")
+        self._write("acme-module.toml", "[module]\n")
+        self._write("cli/acme.deps.toml", "[module]\n")
         self._write("docs/getting_started/INSTALL.md", K_INSTALL)
 
     def _rules(self) -> list[str]:
@@ -55,42 +67,53 @@ class ModuleInstallTest(unittest.TestCase):
         self._write("README.md", "# Not a module\n")
         self.assertEqual(self._rules(), [])
 
+    def test_a_repository_whose_settings_name_no_manifest_is_skipped(self) -> None:
+        self._module()
+        with mock.patch.object(check_module_install, "K_MANIFEST", ""):
+            self.assertEqual(self._rules(), [])
+
     def test_a_missing_element(self) -> None:
         self._module()
-        (self.root / "cli/sushistack.deps.toml").unlink()
+        (self.root / "cli/acme.deps.toml").unlink()
         self.assertEqual(self._rules(), ["rule_elements"])
 
-    def test_an_install_page_without_the_hub_heading(self) -> None:
+    def test_an_install_page_without_the_workspace_heading(self) -> None:
         self._module()
         self._write("docs/getting_started/INSTALL.md", "# Install\n\n## Standalone\n")
         self.assertEqual(self._rules(), ["rule_install_headings"])
 
     def test_a_machine_path_in_a_config_file(self) -> None:
         self._module()
-        self._write("CMakePresets.json", '{"CMAKE_CXX_COMPILER": "D:/Projects/stack/bin/clang++.exe"}\n')
+        self._write("CMakePresets.json", '{"CMAKE_CXX_COMPILER": "D:/Projects/stack/bin/clang++.exe"}\n')  # agnostic: allow
         self.assertEqual(self._rules(), ["rule_machine_path"])
 
     def test_a_machine_path_in_a_comment_or_a_page_is_allowed(self) -> None:
         self._module()
-        self._write("cli/config.toml", "# vcpkg_root = \"C:/Users/me/vcpkg\"\n")
-        self._write("docs/guide.md", "Edit D:/Projects/data.\n")
+        self._write("cli/config.toml", "# vcpkg_root = \"C:/Users/me/vcpkg\"\n")  # agnostic: allow
+        self._write("docs/guide.md", "Edit D:/Projects/data.\n")  # agnostic: allow
         self.assertEqual(self._rules(), [])
 
     def test_a_cmake_file_that_reads_the_workspace(self) -> None:
         self._module()
-        self._write("cmake/Vcpkg.cmake", 'set(VCPKG_ROOT "$ENV{SUSHISTACK_HOME}/dependencies/vcpkg")\n')
-        self.assertEqual(self._rules(), ["rule_no_hub_in_code"])
+        self._write("cmake/Vcpkg.cmake", 'set(VCPKG_ROOT "$ENV{ACME_HOME}/dependencies/vcpkg")\n')
+        self.assertEqual(self._rules(), ["rule_no_workspace_in_code"])
 
-    def test_a_message_that_names_a_hub_command(self) -> None:
+    def test_a_message_that_names_a_workspace_command(self) -> None:
         self._module()
-        self._write("cli/pkg/doctor.py", 'FIX = "run hub install"\n')
-        self.assertEqual(self._rules(), ["rule_no_hub_in_code"])
+        self._write("cli/pkg/doctor.py", 'FIX = "run acmehub install"\n')
+        self.assertEqual(self._rules(), ["rule_no_workspace_in_code"])
 
-    def test_a_comment_or_a_docstring_may_name_hub(self) -> None:
+    def test_a_comment_or_a_docstring_may_name_the_workspace_tool(self) -> None:
         self._module()
-        self._write("cli/pkg/doctor.py", '"""Written by `hub install`."""\n\n# `hub add` clones it.\nFIX = 1\n')
-        self._write("cmake/Vcpkg.cmake", "# SUSHISTACK_HOME is read by the CLI.\n")
+        self._write("cli/pkg/doctor.py", '"""Written by `acmehub install`."""\n\n# `acmehub add` clones it.\nFIX = 1\n')
+        self._write("cmake/Vcpkg.cmake", "# ACME_HOME is read by the CLI.\n")
         self.assertEqual(self._rules(), [])
+
+    def test_no_workspace_pattern_means_no_workspace_rule(self) -> None:
+        self._module()
+        self._write("cli/pkg/doctor.py", 'FIX = "run acmehub install"\n')
+        with mock.patch.object(check_module_install, "K_WORKSPACE_READ", ""):
+            self.assertEqual(self._rules(), [])
 
 
 if __name__ == "__main__":

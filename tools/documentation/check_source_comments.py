@@ -23,7 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
-from settings import K_CLOSED  # noqa: E402
+from documentation.licence import K_UNSET_MESSAGE, Licence, load  # noqa: E402
+
+K_LICENCE: Licence | None = load()
 
 K_C_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".inc", ".glsl", ".comp", ".vert", ".frag", ".geom",
                            ".tesc", ".tese", ".mesh", ".task", ".rgen", ".rchit", ".rahit", ".rmiss", ".rint",
@@ -36,36 +38,7 @@ K_SEPARATOR = re.compile(r"[-=*_~#]{5,}")
 K_HISTORY = re.compile(r"\b(TODO|FIXME|HACK|XXX)\b|\b(previously|formerly|fixed in)\b", re.IGNORECASE)
 K_DATE_TAG = re.compile(r"[@\\]date\b")
 K_LICENSE_LINE = re.compile(r"^/\*.*\*/\s*$")
-K_HOLDER = "Mustafa Garip & Sushi Systems"
 K_PART_OF = "This file is part of:"
-K_COPYRIGHT_LINE = re.compile(r"^Copyright \(c\) \d{4}-present " + re.escape(K_HOLDER) + "$")
-K_COPYRIGHT_SHAPE = f"Copyright (c) <year>-present {K_HOLDER}"
-K_OPEN_LINES = (
-    "Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.",
-    "Commercial use requires a licence from Sushi Systems.",
-)
-K_CLOSED_LINES = ("All rights reserved. No licence is granted.",)
-K_OPEN_BOX_LINES = (
-    "Licensed under the PolyForm Noncommercial License 1.0.0 (the",
-    '"License"); you may not use this file except in compliance with the',
-    "License. You may obtain a copy of the License at",
-    "",
-    "    https://polyformproject.org/licenses/noncommercial/1.0.0",
-    "",
-    "Noncommercial use is free. Commercial use requires a separate licence",
-    "from Sushi Systems; see COMMERCIAL.md. The software is provided",
-    '"as is", without warranty of any kind.',
-)
-K_CLOSED_BOX_LINES = (
-    "All rights reserved.",
-    "",
-    "This file is proprietary and confidential. No licence is granted.",
-    "Copying, modifying, distributing or using it, in whole or in part,",
-    "requires prior written permission from Sushi Systems.",
-)
-K_LICENSE_LINES = K_CLOSED_LINES if K_CLOSED else K_OPEN_LINES
-K_BOX_LICENSE_LINES = K_CLOSED_BOX_LINES if K_CLOSED else K_OPEN_BOX_LINES
-K_RESERVED_LINE = re.compile(r"^(Licensed under|All rights reserved)|Sushi Systems")
 K_PYTHON_PREAMBLE = re.compile(r"^#(!|.*coding[:=])")
 
 
@@ -132,7 +105,9 @@ def _walk(paths: list[Path]) -> Iterator[Path]:
 
 
 def collect(paths: list[Path]) -> Iterable[SourceFile]:
-    """Returns every source file below the given paths."""
+    """Returns every source file below the given paths; stops when the settings describe no licence."""
+    if K_LICENCE is None:
+        raise SystemExit(K_UNSET_MESSAGE)
     return (_read_source(path) for path in _walk(paths))
 
 
@@ -237,19 +212,21 @@ def rule_license_block(source: SourceFile) -> Iterator[Issue]:
         return
     if texts[0] != source.path.name:
         yield Issue(source.path, 1, f"license block must open with {source.path.name}")
-    lines = K_LICENSE_LINES if source.is_python else K_BOX_LICENSE_LINES
+    licence = K_LICENCE
+    assert licence is not None, "collect() stops when no licence is configured"
+    lines = licence.hash_lines if source.is_python else licence.box_lines
     wanted = [line.strip() for line in lines if line.strip()]
     if not source.is_python and K_PART_OF not in texts:
         yield Issue(source.path, 1, f"license block lacks '{K_PART_OF}'")
-    if not any(K_COPYRIGHT_LINE.match(text) for text in texts):
-        yield Issue(source.path, 1, f"license block lacks '{K_COPYRIGHT_SHAPE}'")
+    if not any(licence.copyright_line.match(text) for text in texts):
+        yield Issue(source.path, 1, f"license block lacks '{licence.copyright_shape}'")
     for expected in wanted:
         if expected not in texts:
             yield Issue(source.path, 1, f"license block lacks '{expected}'")
     for text in texts:
-        if text in wanted or K_COPYRIGHT_LINE.match(text):
+        if text in wanted or licence.copyright_line.match(text):
             continue
-        if K_RESERVED_LINE.search(text):
+        if licence.reserved_line.search(text):
             message = "license block carries a line this repository's licence does not allow"
             yield Issue(source.path, 1, f"{message}: '{text}'")
 

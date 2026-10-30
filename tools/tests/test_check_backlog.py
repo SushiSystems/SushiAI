@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the backlog checker, which runs sushicore's `backlog check`, and the bridge it loads it through."""
+"""Tests the backlog checker, which runs the tooling package's `backlog check`, and the bridge it loads it through."""
 
 from __future__ import annotations
 
@@ -15,10 +15,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation import sushicore_bridge  # noqa: E402
+from documentation import tooling_bridge  # noqa: E402
 from documentation.check_backlog import K_CHECKER, Repository, rule_backlog  # noqa: E402
 
-K_HAS_SUSHICORE = sushicore_bridge.load("sushicore.backlog", Path(__file__).resolve().parents[2]) is not None
+K_HAS_TOOLING = tooling_bridge.load("backlog", Path(__file__).resolve().parents[2]) is not None
 
 
 def _repository(folder: str, files: dict[str, str]) -> Repository:
@@ -43,27 +43,38 @@ class WithoutBacklogTest(unittest.TestCase):
     """Covers a repository with nothing to check."""
 
     def test_reports_nothing_without_a_store_or_a_retired_file(self) -> None:
-        """A repository without a backlog is not asked for sushicore."""
+        """A repository without a backlog is not asked for the tooling package."""
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"docs/README.md": "# Docs\n"})
-            with mock.patch.object(sushicore_bridge, "_import", return_value=None):
+            with mock.patch.object(tooling_bridge, "_import", return_value=None):
                 self.assertEqual(list(rule_backlog(repository)), [])
 
 
-class MissingSushicoreTest(unittest.TestCase):
-    """Covers a repository whose checker cannot load sushicore."""
+class MissingToolingTest(unittest.TestCase):
+    """Covers a repository whose checker cannot load the tooling package."""
 
     def test_reports_once_that_the_rules_could_not_run(self) -> None:
         """One issue names the package and the version to install."""
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"docs/backlog/backlog.toml": "[backlog]\n"})
-            with mock.patch("documentation.check_backlog.load", return_value=None):
+            with (mock.patch("documentation.check_backlog.load", return_value=None),
+                  mock.patch.object(tooling_bridge, "K_PACKAGE", "acmetool"),
+                  mock.patch.object(tooling_bridge, "K_MINIMUM_VERSION", "1.2.3")):
                 issues = list(rule_backlog(repository))
         self.assertEqual(len(issues), 1)
-        self.assertIn("install sushicore 0.10.0", issues[0].message)
+        self.assertIn("install acmetool 1.2.3", issues[0].message)
+
+    def test_names_the_missing_setting_when_no_package_is_configured(self) -> None:
+        """A repository whose settings name no package is told so, not left unchecked."""
+        with tempfile.TemporaryDirectory() as folder:
+            repository = _repository(folder, {"docs/backlog/backlog.toml": "[backlog]\n"})
+            with mock.patch.object(tooling_bridge, "K_PACKAGE", ""):
+                issues = list(rule_backlog(repository))
+        self.assertEqual(len(issues), 1)
+        self.assertIn("K_TOOLING_PACKAGE", issues[0].message)
 
 
-@unittest.skipUnless(K_HAS_SUSHICORE, "sushicore is not installed")
+@unittest.skipUnless(K_HAS_TOOLING, "the tooling package is not installed")
 class DelegationTest(unittest.TestCase):
     """Covers the faults `backlog check` returns, read through the checker."""
 
@@ -76,11 +87,11 @@ class DelegationTest(unittest.TestCase):
 
     def test_reports_nothing_for_a_store_the_tool_wrote(self) -> None:
         """A store written by the commands checks clean."""
-        from sushicore.backlog import BacklogEditor, BacklogStore
+        backlog = tooling_bridge.load("backlog", Path(__file__).resolve().parents[2])
 
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"docs/README.md": "# Docs\n"})
-            editor = BacklogEditor(BacklogStore(repository.root))
+            editor = backlog.BacklogEditor(backlog.BacklogStore(repository.root))
             editor.add_area("BUILD")
             editor.add_work(area="BUILD", priority="P1", title="Fix the gate", done_when="it passes")
             self.assertEqual(list(rule_backlog(repository)), [])

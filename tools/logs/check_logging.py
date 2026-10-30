@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+import settings  # noqa: E402
 from settings import K_CONSOLE_PATHS, K_LOG_PREFIX  # noqa: E402
 
 K_SOURCE_FOLDERS = ("modules", "source", "cli")
@@ -34,9 +35,9 @@ K_PY_ROOT_CALL = re.compile(r"(?<![\w.])logging\.(?:debug|info|warning|error|cri
 K_PY_NAMED_LOGGER = re.compile(r"getLogger\s*\((?!\s*__name__\s*\))")
 K_PY_FSTRING_CALL = re.compile(r"\b_?log\w*\.(?:trace|debug|info|warning|error|critical|exception)\s*\(\s*f[\"']")
 K_COMMENT_STARTS = ("//", "/*", "*", "#")
-K_LOGGER_PREFIX = "SL"
-K_REEXPORT = re.compile(r"\busing\s+(?:\w+\s*=\s*)?(?:::)?SushiLog::\w+")
-K_FORWARDING_SHIM = re.compile(r"\binline\b[^{};]*\)\s*\{\s*(?:return\s+)?(?:::)?(?:SushiLog::\w+|sl_\w+)\s*\([^;]*\)\s*;\s*\}")
+K_LOGGER_PREFIX: str = getattr(settings, "K_LOGGER_MACRO_PREFIX", "")
+K_LOGGER_NAMESPACE: str = getattr(settings, "K_LOGGER_NAMESPACE", "")
+K_LOGGER_C_PREFIX: str = getattr(settings, "K_LOGGER_C_PREFIX", "")
 
 
 @dataclass(frozen=True, slots=True)
@@ -191,17 +192,27 @@ def rule_python_logger(tree: SourceTree) -> Iterator[Issue]:
                 yield Issue(path, number, "an f-string record formats when the level is off; pass %s arguments")
 
 
+def _reexport_patterns() -> tuple[re.Pattern[str], re.Pattern[str]]:
+    """Returns the patterns of a re-exported logger name and of a function that only forwards to the logger."""
+    namespace = re.escape(K_LOGGER_NAMESPACE)
+    names = rf"{namespace}::\w+" + (rf"|{re.escape(K_LOGGER_C_PREFIX)}\w+" if K_LOGGER_C_PREFIX else "")
+    reexport = re.compile(rf"\busing\s+(?:\w+\s*=\s*)?(?:::)?{namespace}::\w+")
+    shim = re.compile(rf"\binline\b[^{{}};]*\)\s*\{{\s*(?:return\s+)?(?:::)?(?:{names})\s*\([^;]*\)\s*;\s*\}}")
+    return reexport, shim
+
+
 def rule_front_reexport(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each alias, using or forwarding function of a SushiLog name in a front."""
-    if K_LOG_PREFIX in ("", K_LOGGER_PREFIX):
+    """Yields an issue for each alias, using or forwarding function of a logger name in a front."""
+    if not K_LOGGER_NAMESPACE or K_LOG_PREFIX in ("", K_LOGGER_PREFIX):
         return
+    reexport, shim = _reexport_patterns()
+    call_site = f"{K_LOGGER_NAMESPACE}::..." + (f" or {K_LOGGER_C_PREFIX}..." if K_LOGGER_C_PREFIX else "")
     for path in tree.of(K_CPP_SUFFIXES):
         text = path.read_text(encoding="utf-8", errors="ignore")
-        for pattern, what in ((K_REEXPORT, "re-exports a SushiLog name"),
-                              (K_FORWARDING_SHIM, "forwards to SushiLog")):
+        for pattern, what in ((reexport, f"re-exports a {K_LOGGER_NAMESPACE} name"),
+                              (shim, f"forwards to {K_LOGGER_NAMESPACE}")):
             for match in pattern.finditer(text):
-                yield Issue(path, _line(text, match.start()),
-                            f"{what}; write SushiLog::... or sl_... at the call site")
+                yield Issue(path, _line(text, match.start()), f"{what}; write {call_site} at the call site")
 
 
 K_CHECKER = Checker(

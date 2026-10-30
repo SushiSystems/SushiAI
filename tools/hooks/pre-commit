@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs every checker before a commit is made; see tools/check_all.py.
+root=$(git rev-parse --show-toplevel)
+exec python "$root/tools/check_all.py" "$root"

@@ -35,7 +35,10 @@ class LoggingTest(unittest.TestCase):
         self._folder = tempfile.TemporaryDirectory()
         self.root = Path(self._folder.name)
         patches = [mock.patch.object(check_logging, "K_LOG_PREFIX", "PX"),
-                   mock.patch.object(check_logging, "K_CONSOLE_PATHS", ("cli/px/commands",))]
+                   mock.patch.object(check_logging, "K_CONSOLE_PATHS", ("cli/px/commands",)),
+                   mock.patch.object(check_logging, "K_LOGGER_NAMESPACE", "AcmeLog"),
+                   mock.patch.object(check_logging, "K_LOGGER_C_PREFIX", "al_"),
+                   mock.patch.object(check_logging, "K_LOGGER_PREFIX", "AL")]
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
@@ -99,15 +102,15 @@ class LoggingTest(unittest.TestCase):
                    "other = logging.getLogger('px')\n_log.warning(f'{x}')\n_log.warning('%s', x)\n")
         self.assertEqual(self.found(rule_python_logger), [("store.py", 3), ("store.py", 4), ("store.py", 5)])
 
-    def test_reports_a_front_that_re_exports_sushilog(self) -> None:
+    def test_reports_a_front_that_re_exports_the_logger(self) -> None:
         self.write("modules/foundation/log/include/PX/log/log_level.hpp",
-                   "using LogLevel = SushiLog::LogLevel;\nusing SushiLog::make_log_category;\n"
-                   "inline constexpr SushiLog::LogProject K_PX_LOG_PROJECT{\"px\", \"PX_LOG_LEVEL\"};\n")
+                   "using LogLevel = AcmeLog::LogLevel;\nusing AcmeLog::make_log_category;\n"
+                   "inline constexpr AcmeLog::LogProject K_PX_LOG_PROJECT{\"px\", \"PX_LOG_LEVEL\"};\n")
         self.write("modules/foundation/log/include/PX/log/log_c_sink.h",
-                   "static inline void px_set_log_sink(SushiLogSinkFunction f, void* u)\n{\n"
-                   "    sl_set_log_sink(f, u);\n}\n")
+                   "static inline void px_set_log_sink(AcmeLogSinkFunction f, void* u)\n{\n"
+                   "    al_set_log_sink(f, u);\n}\n")
         self.write("modules/foundation/log/source/capture.cpp",
-                   "Capture::~Capture()\n{\n    SushiLog::set_log_sink(SushiLog::LogSink());\n}\n")
+                   "Capture::~Capture()\n{\n    AcmeLog::set_log_sink(AcmeLog::LogSink());\n}\n")
         self.assertEqual(self.found(rule_front_reexport),
                          [("log_c_sink.h", 1), ("log_level.hpp", 1), ("log_level.hpp", 2)])
 

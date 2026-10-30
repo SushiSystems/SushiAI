@@ -128,7 +128,7 @@ class RegistrationTest(unittest.TestCase):
 
 
 class OwnershipTest(unittest.TestCase):
-    """Covers the rules run through sushicore.design: one owner per module."""
+    """Covers the rules run through the tooling package's design module: one owner per module."""
 
     def test_reports_a_module_two_topics_name(self) -> None:
         """The second topic that names a module is the finding."""

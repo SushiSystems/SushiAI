@@ -3,9 +3,12 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks a Sushi module against the module-install skill; any other repository is skipped.
+"""Checks a module against the module-install skill; any other repository is skipped.
 
 Usage: python tools/documentation/check_module_install.py [repository root] [--report] [--rule NAME]
+
+A repository is a module when it holds the manifest K_MODULE_MANIFEST names in tools/settings.py,
+or a CLI package. A repository whose settings name no manifest is not checked.
 """
 
 from __future__ import annotations
@@ -20,17 +23,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
 
-K_MANIFEST = Path("sushi-module.toml")
-K_FRAGMENT = Path("cli/sushistack.deps.toml")
-K_INSTALL_PAGE = Path("docs/getting_started/INSTALL.md")
-K_HEADINGS = ("## Standalone", "## With SushiHub")
+K_MANIFEST: str = getattr(settings, "K_MODULE_MANIFEST", "")
+K_FRAGMENT: str = getattr(settings, "K_MODULE_DEPENDENCY_FILE", "")
+K_INSTALL_PAGE = Path(getattr(settings, "K_MODULE_INSTALL_PAGE", "docs/getting_started/INSTALL.md"))
+K_HEADINGS: tuple[str, ...] = tuple(getattr(settings, "K_MODULE_HEADINGS", ("## Standalone",)))
+K_WORKSPACE_READ: str = getattr(settings, "K_MODULE_WORKSPACE_READ", "")
 K_CONFIG_SUFFIXES = frozenset({".json", ".toml", ".cmake", ".txt", ".py", ".yml", ".yaml", ".in"})
 K_CODE_SUFFIXES = frozenset({".cmake", ".txt", ".py", ".yml", ".yaml", ".in"})
 K_SKIPPED_FOLDERS = frozenset({"docs", "third_party", "build", ".superpowers", "tests", "tools"})
-K_MACHINE_PATH = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[/\\](?:Projects\b|Users[/\\][A-Za-z])")
-K_HUB_READ = re.compile(r"\bhub (?:install|add|link|doctor|status|pin)\b|SUSHISTACK_HOME|\.sushistack\b|workspace\.toml")
+K_MACHINE_PATH = re.compile(r"(?<![A-Za-z0-9])[A-Za-z]:[/\\][A-Za-z]")
 K_COMMENT = re.compile(r"^\s*(?:#|//)")
 
 
@@ -55,9 +59,9 @@ def _tracked(root: Path) -> list[Path]:
 
 
 def collect(paths: list[Path]) -> list[Module]:
-    """Returns each given root that is a Sushi module."""
+    """Returns each given root that is a module; none when the settings name no manifest."""
     modules = []
-    for path in paths:
+    for path in paths if K_MANIFEST else []:
         root = path if path.is_dir() else path.parent
         if (root / K_MANIFEST).is_file() or (root / "cli/pyproject.toml").is_file():
             modules.append(Module(root, tuple(_tracked(root))))
@@ -87,7 +91,7 @@ def _docstring_lines(text: str) -> set[int]:
 
 def rule_elements(module: Module) -> Iterator[Issue]:
     """Yields an issue for each element of a module that is missing."""
-    for element in (K_MANIFEST, K_FRAGMENT, K_INSTALL_PAGE):
+    for element in filter(None, (K_MANIFEST, K_FRAGMENT, str(K_INSTALL_PAGE))):
         if not (module.root / element).is_file():
             yield Issue(module.root / element, 1, "the module-install elements list this file; it is missing")
 
@@ -113,26 +117,29 @@ def rule_machine_path(module: Module) -> Iterator[Issue]:
                 yield Issue(path, number, "a machine path in a committed file; take it from the CLI or an environment variable")
 
 
-def rule_no_hub_in_code(module: Module) -> Iterator[Issue]:
-    """Yields an issue for each build, CLI or workflow line that reads the SushiHub workspace."""
+def rule_no_workspace_in_code(module: Module) -> Iterator[Issue]:
+    """Yields an issue for each build, CLI or workflow line that reads the workspace tool's state."""
+    if not K_WORKSPACE_READ:
+        return
+    workspace_read = re.compile(K_WORKSPACE_READ)
     for path in module.files:
         if path.suffix not in K_CODE_SUFFIXES or _below_skipped(module, path):
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
         documented = _docstring_lines(text) if path.suffix == ".py" else set()
         for number, line in enumerate(text.splitlines(), 1):
-            if K_HUB_READ.search(line) and not K_COMMENT.match(line) and number not in documented:
-                yield Issue(path, number, "code and build files do not read SushiHub; the CLI resolves the workspace")
+            if workspace_read.search(line) and not K_COMMENT.match(line) and number not in documented:
+                yield Issue(path, number, "code and build files do not read the workspace tool; the CLI resolves the workspace")
 
 
 K_CHECKER = Checker(
-    description="Checks a Sushi module against the module-install skill.",
+    description="Checks a module against the module-install skill.",
     collect=collect,
     rules={
         "rule_elements": rule_elements,
         "rule_install_headings": rule_install_headings,
         "rule_machine_path": rule_machine_path,
-        "rule_no_hub_in_code": rule_no_hub_in_code,
+        "rule_no_workspace_in_code": rule_no_workspace_in_code,
     },
 )
 
