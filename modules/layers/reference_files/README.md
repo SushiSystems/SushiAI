@@ -5,11 +5,11 @@ An internal module: only the test programs link it, its headers are never instal
 ## Owns
 
 The reader of the YOLO26 reference set: the `.sacp` files, which use the checkpoint format,
-and `MANIFEST.json`. `ReferenceFile` opens one file and indexes its records by tensor name.
+and `MANIFEST.json`. `ReferenceFile` opens one file below the fixture directory it is given and indexes its records by tensor name.
 `SA_OPEN_REFERENCE_OR_SKIP` opens a file or skips the test naming the missing file, and
 `SA_READ_REFERENCE_OR_FAIL` reads one named tensor or fails the test. `near_reference` compares
 float results within a tolerance and `equal_reference` compares integer results element by
-element. A file is named by its path below `SA_TEST_FIXTURE_DIR`, the `fixtures/` folder the test program defines.
+element. The open macro passes `SA_TEST_FIXTURE_DIR`, the `fixtures/` folder the test program defines, from the translation unit that expands it; no header reads that macro.
 
 ## Depends on
 
@@ -21,4 +21,4 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/reference_files/reference_file.hpp` | `fixture_directory`, `ReferenceTensor`, `ReferenceFile`, `near_reference`, `equal_reference`, `SA_OPEN_REFERENCE_OR_SKIP`, `SA_READ_REFERENCE_OR_FAIL` |
+| `SushiAI/reference_files/reference_file.hpp` | `ReferenceTensor`, `ReferenceFile`, `near_reference`, `equal_reference`, `SA_OPEN_REFERENCE_OR_SKIP`, `SA_READ_REFERENCE_OR_FAIL` |

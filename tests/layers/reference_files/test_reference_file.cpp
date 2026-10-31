@@ -67,9 +67,7 @@ namespace
 /** @brief Tests that a file absent from the fixture directory is reported, not read. */
 TEST(Small_ReferenceFile, AnAbsentFileIsReportedWithItsPath)
 {
-    EXPECT_EQ(SaTest::fixture_directory(), std::string(SA_TEST_FIXTURE_DIR));
-
-    ReferenceFile file("no_such_reference.sacp");
+    ReferenceFile file(SA_TEST_FIXTURE_DIR, "no_such_reference.sacp");
 
     EXPECT_FALSE(file.is_present());
     EXPECT_NE(file.reason().find("missing"), std::string::npos) << file.reason();

@@ -239,7 +239,7 @@ namespace
     /** @brief Returns the path of the YOLO26 reference manifest in the fixture folder. */
     std::filesystem::path manifest_path()
     {
-        return std::filesystem::path(Test::fixture_directory()) / "yolo26" / "MANIFEST.json";
+        return std::filesystem::path(SA_TEST_FIXTURE_DIR) / "yolo26" / "MANIFEST.json";
     }
 
     /** @brief Returns the entry of the manifest's "files" whose name is @p name. */
@@ -1063,7 +1063,7 @@ namespace
     /** @brief Returns the path of weights.sushi in the fixture directory. */
     std::filesystem::path weights_path()
     {
-        return std::filesystem::path(SaTest::fixture_directory()) / "yolo26" / "weights.sushi";
+        return std::filesystem::path(SA_TEST_FIXTURE_DIR) / "yolo26" / "weights.sushi";
     }
 
     /** @brief Loads the YOLO26n model file as it is written. */

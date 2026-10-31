@@ -18,7 +18,7 @@ Views a vector of floats as a span.
 
 ## AnAbsentFileIsReportedWithItsPath
 
-`fixture_directory()` equals `SA_TEST_FIXTURE_DIR`. A file that is not there is not present, its
+A file that is not there, in the directory `SA_TEST_FIXTURE_DIR` names, is not present, its
 reason names "missing" and the file, and a read returns a tensor that is not found and carries
 the same reason.
 

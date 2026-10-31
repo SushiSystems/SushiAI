@@ -50,16 +50,6 @@ namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Returns the directory SA_TEST_FIXTURE_DIR names, or an empty string. */
-        inline std::string fixture_directory() noexcept
-        {
-#ifdef SA_TEST_FIXTURE_DIR
-            return SA_TEST_FIXTURE_DIR;
-#else
-            return {};
-#endif
-        }
-
         /** @brief Holds one tensor read from a reference file, or why it could not be read. */
         struct ReferenceTensor
         {
@@ -111,18 +101,21 @@ namespace SushiAI
         class ReferenceFile final
         {
             public:
-                /** @brief Opens @p file_name, a path below the fixture directory, and indexes its records. */
-                explicit ReferenceFile(std::string_view file_name) noexcept
+                /**
+                 * @brief Opens @p file_name, a path below @p directory, and indexes its records.
+                 * @param directory The fixture directory; empty names none, and the file is reported missing.
+                 * @param file_name The file's path below the directory.
+                 */
+                explicit ReferenceFile(std::string_view directory, std::string_view file_name) noexcept
                 {
-                    const std::string directory = fixture_directory();
                     if (directory.empty())
                     {
-                        reason_ = "SA_TEST_FIXTURE_DIR is not defined for this binary, so " +
-                                  std::string(file_name) + " cannot be located";
+                        reason_ = "no fixture directory was given, so " + std::string(file_name) +
+                                  " cannot be located";
                         return;
                     }
 
-                    path_ = directory + "/";
+                    path_ = std::string(directory) + "/";
                     path_ += file_name;
                     stream_.open(path_, std::ios::binary);
                     if (!stream_.is_open())
@@ -315,10 +308,11 @@ namespace SushiAI
 
 /**
  * @brief Declares @p file as an open reference file, or skips the test naming the missing file.
- * @pre Used as a statement in a function returning void.
+ * @pre Used as a statement in a function returning void, in a translation unit that defines
+ *      SA_TEST_FIXTURE_DIR.
  */
 #define SA_OPEN_REFERENCE_OR_SKIP(file, name)                                  \
-    ::SushiAI::Test::ReferenceFile file(name);                                 \
+    ::SushiAI::Test::ReferenceFile file(SA_TEST_FIXTURE_DIR, name);            \
     if (!file.is_present())                                                    \
         GTEST_SKIP() << file.reason()
 
