@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 import sys
 from pathlib import Path
 
@@ -23,6 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import settings  # noqa: E402
 
 K_TOOLS = Path(__file__).resolve().parent
+#: How many checks run at once.
+K_WORKERS = min(8, os.cpu_count() or 1)
 K_EXTRA_TEST_FOLDERS: tuple[str, ...] = getattr(settings, "K_EXTRA_TEST_FOLDERS", ())
 K_CHECKERS = (
     "documentation/check_source_comments.py",
@@ -33,11 +36,15 @@ K_CHECKERS = (
     "documentation/check_design_topics.py",
     "documentation/check_module_install.py",
     "documentation/check_docs_truth.py",
+    "documentation/check_docs_follow.py",
+    "documentation/check_docs_facts.py",
     "layering/check_layering.py",
     "layering/check_agnostic.py",
     "commits/check_backlog_trailer.py",
     "testing/check_test_mirror.py",
     "testing/check_test_sizes.py",
+    "testing/check_test_value.py",
+    "testing/check_test_additions.py",
     "testing/check_probes.py",
     "logs/check_logging.py",
     "ci/check_workflows.py",
@@ -69,12 +76,18 @@ def run_check(command: list[str]) -> tuple[int, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Runs every check and returns 1 when any of them failed."""
+    """Runs every check, all at once, and returns 1 when any of them failed.
+
+    The checks read the repository and write nothing, so they run side by side; their output is printed
+    in the order they are listed.
+    """
     arguments = sys.argv[1:] if argv is None else argv
     root = Path(arguments[0]) if arguments else Path.cwd()
+    commands = _commands(root)
+    with ThreadPoolExecutor(max_workers=K_WORKERS) as pool:
+        results = list(pool.map(lambda item: run_check(item[1]), commands))
     failed = []
-    for name, command in _commands(root):
-        code, output = run_check(command)
+    for (name, _), (code, output) in zip(commands, results):
         if code != 0:
             failed.append(name)
             print(f"== {name}\n{output}".rstrip())

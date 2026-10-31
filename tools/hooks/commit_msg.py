@@ -7,8 +7,8 @@
 
 Usage: python tools/hooks/commit_msg.py MESSAGE_FILE
 
-Git runs it through the commit-msg hook. A repository whose settings set no K_TRAILER_SINCE is not
-checked, and a merge commit is left alone.
+Git runs it through the commit-msg hook. It checks the `Backlog:` line when K_TRAILER_SINCE is set and
+the pages that follow the change when K_DOCS_FOLLOW_SINCE is set; a merge commit is left alone.
 """
 
 from __future__ import annotations
@@ -19,6 +19,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from commits import check_backlog_trailer  # noqa: E402
+from commits.history import git  # noqa: E402
+from documentation import docs_follow  # noqa: E402
 
 K_EXIT_CLEAN = 0
 K_EXIT_REFUSED = 1
@@ -38,14 +40,17 @@ def main(argv: list[str] | None = None) -> int:
     if len(arguments) != 1:
         print("usage: commit_msg.py MESSAGE_FILE", file=sys.stderr)
         return K_EXIT_REFUSED
-    if not check_backlog_trailer.K_SINCE:
-        return K_EXIT_CLEAN
     message = _message(Path(arguments[0]))
     if message.startswith(K_MERGE):
         return K_EXIT_CLEAN
     root = Path.cwd()
-    known = check_backlog_trailer.open_ids(root, "HEAD") | check_backlog_trailer.open_ids(root, None)
-    problems = check_backlog_trailer.trailer_problems(message, known)
+    problems: list[str] = []
+    if check_backlog_trailer.K_SINCE:
+        known = check_backlog_trailer.open_ids(root, "HEAD") | check_backlog_trailer.open_ids(root, None)
+        problems += check_backlog_trailer.trailer_problems(message, known)
+    if docs_follow.K_SINCE:
+        listing = git(root, "diff", "--cached", "--name-status", "-M") or ""
+        problems += docs_follow.follow_problems(root, docs_follow.parse_changes(listing), message, "HEAD", None)
     for problem in problems:
         print(f"commit refused: {problem}", file=sys.stderr)
     return K_EXIT_REFUSED if problems else K_EXIT_CLEAN

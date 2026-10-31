@@ -48,3 +48,16 @@ K_MODULE_MANIFEST = 'sushi-module.toml'
 K_MODULE_DEPENDENCY_FILE = 'cli/sushistack.deps.toml'
 K_MODULE_HEADINGS = ('## Standalone', '## With SushiHub')
 K_MODULE_WORKSPACE_READ = '\\bhub (?:install|add|link|doctor|status|pin)\\b|SUSHISTACK_HOME|\\.sushistack\\b|workspace\\.toml'
+
+K_TEST_BUDGET: dict[str, int] = {
+    "small_test_s": 1,
+    "medium_test_s": 10,
+    "large_test_s": 120,
+    "small_program_s": 10,
+    "large_program_s": 600,
+    "default_run_s": 300,
+    "large_tier_s": 1800,
+    "cases_per_commit": 20,
+    "cases_per_fix": 5,
+    "second_program": 0,
+}
