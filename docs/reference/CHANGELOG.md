@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-01 — cli: Ran the ctest call of `sa test` through `run_tests` of sushicore, so a run writes a JUnit file and prints the budget line, with the suite names unchanged (RW-147, `188aeb0a`).
 - 2026-10-30 — tests: Fixed every Windows Debug test program crashing on load; each copies the Release gtest.dll it links over the Debug one vcpkg put beside it (`cmake/SushiAITestProgram.cmake`).
 - 2026-10-29 — vision: Fixed `detect_head.cpp` failing to compile where `<algorithm>` does not bring `std::isfinite`; it includes `<cmath>` (`detect_head.cpp`).
 - 2026-10-29 — ci: Ran `sr setup` and `sb setup` in the library checkouts of the Windows job, whose package builds need the vcpkg and Ninja paths they record (`.github/workflows/ci.yml`).
