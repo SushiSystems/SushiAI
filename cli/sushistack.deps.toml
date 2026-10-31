@@ -48,8 +48,8 @@ commit  = "ed24bba0ffff681fffa0f274e14290f725a32eb1"
 
 # SushiBLAS, the tensor and BLAS engine, pinned the same way.
 [sushisystems.sushiblas]
-version = "v0.1.0"
-commit  = "e96ad707d6af5b00a34d0c2f6e8c5738e2e30fd8"
+version = "v0.1.1"
+commit  = "80f5f0cbcb0f299440938772dba9aceefb92a02a"
 
 [nlohmann-json]
 description   = "Header-only JSON parser. Read by modules/core/config/source/*.cpp alone, to turn a configuration file into Config::Value; the library's name appears in no public header, so it links PRIVATE and no consumer of SushiAI inherits it."
