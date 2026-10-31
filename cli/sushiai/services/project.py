@@ -22,6 +22,7 @@ from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
 from sushicore.cmake_driver import CMakeDriver
+from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
 from sushicore.proc import Runner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
@@ -61,16 +62,13 @@ class Suite(str, enum.Enum):
 
 
 # Suite.all and Suite.package are absent on purpose; see cli/README.md.
-_SUITE_LABEL_REGEX = {
-    Suite.small: "^small$",
-    Suite.medium: "^medium$",
-    Suite.large: "^large$",
-    Suite.quarantined: "^quarantined$",
-    Suite.gating: "^(small|medium)$",
+_SUITE_LABELS = {
+    Suite.small: (TestLabel.SMALL,),
+    Suite.medium: (TestLabel.MEDIUM,),
+    Suite.large: (TestLabel.LARGE,),
+    Suite.quarantined: (TestLabel.QUARANTINED,),
+    Suite.gating: (),  # no label: the shared default, small and medium without the quarantined
 }
-
-# The label a gating run leaves out, whatever size the test carries.
-_QUARANTINE_REGEX = "^quarantined$"
 
 
 # Each demo name maps to an executable of its own; see cli/README.md.
@@ -388,11 +386,14 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
             "'all' covers every CTest test. The package suite is not among them "
             "(it builds a separate project): run `sa test --label package`.")
 
-    return _DRIVER.ctest_run(
-        cfg, build_dir, env,
-        label_regex=None if suite is Suite.all else _SUITE_LABEL_REGEX[suite],
-        exclude_label_regex=_QUARANTINE_REGEX if suite is Suite.gating else None,
-        filter=filter, repeat=repeat, jobs=jobs)
+    module = ModuleTests(
+        profile=PROFILE, project_root=lambda: root, console=lambda: console,
+        build_tree=lambda: build_dir, run=_RUNNER.run,
+        run_ctest=lambda directory, **options: _DRIVER.ctest_run(cfg, directory, env, **options))
+    # all and large name the large tests on purpose, so they are the two that lift its filter rule.
+    labels = _SUITE_LABELS[suite] if suite is not Suite.all else (TestLabel.QUARANTINED,)
+    return run_tests(module, select_labels(labels, every_size=suite is Suite.all), name_filter=filter,
+                     repeat=repeat, jobs=jobs, every_size=suite in (Suite.all, Suite.large))
 
 
 #: The pytest marker expression of each label; the gating run leaves the quarantined out.

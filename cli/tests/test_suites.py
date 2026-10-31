@@ -10,7 +10,7 @@ The reasoning is in cli/tests/README.md under "test_suites.py".
 
 from __future__ import annotations
 
-from sushiai.services.project import _SUITE_LABEL_REGEX, Suite
+from sushiai.services.project import _SUITE_LABELS, Suite
 import pytest
 
 pytestmark = pytest.mark.small
@@ -20,9 +20,9 @@ def test_every_suite_is_either_mapped_or_deliberately_special():
     """No suite may be silently unmapped: it is either a label or a known exception."""
     special = {Suite.all, Suite.package}
     for suite in Suite:
-        assert (suite in _SUITE_LABEL_REGEX) ^ (suite in special), (
+        assert (suite in _SUITE_LABELS) ^ (suite in special), (
             f"{suite.value!r} is neither a CTest label nor a handled special case; "
-            "add it to _SUITE_LABEL_REGEX or branch on it in test()")
+            "add it to _SUITE_LABELS or branch on it in test()")
 
 
 def test_package_is_not_a_ctest_label():
@@ -31,7 +31,7 @@ def test_package_is_not_a_ctest_label():
     If someone gives `package` a label regex, `test()` would still branch away
     to test_package() first and the label would be dead code that reads as live.
     """
-    assert Suite.package not in _SUITE_LABEL_REGEX
+    assert Suite.package not in _SUITE_LABELS
 
 
 def test_all_does_not_select_the_package_suite():
@@ -42,9 +42,9 @@ def test_all_does_not_select_the_package_suite():
     configure and build) and, worse, make `all` mean two different things
     depending on whether the tree happened to be installable.
     """
-    assert Suite.all not in _SUITE_LABEL_REGEX
+    assert Suite.all not in _SUITE_LABELS
     assert all(
-        "package" not in regex for regex in _SUITE_LABEL_REGEX.values()
+        label.value != "package" for labels in _SUITE_LABELS.values() for label in labels
     ), "no CTest label group may claim to cover the package consumer"
 
 

@@ -177,3 +177,23 @@ def test_jobs_reach_ctest_as_given(jobs, console, tree, monkeypatch):
 
     assert project.test(jobs=jobs) == 0
     assert driver.ctest_options["jobs"] == jobs
+
+
+@pytest.mark.parametrize(("suite", "include", "exclude"), [
+    (project.Suite.gating, "^(small|medium)$", "^quarantined$"),
+    (project.Suite.large, "^(large)$", "^quarantined$"),
+    (project.Suite.all, "^(small|medium|large)$", None),
+])
+def test_a_suite_reaches_ctest_as_the_labels_of_the_shared_command(suite, include, exclude, console, tree,
+                                                                    monkeypatch):
+    """Each suite name becomes the shared label patterns, and every run asks ctest for a JUnit file."""
+    driver = _Driver(removes=False)
+    monkeypatch.setattr(project, "_DRIVER", driver)
+    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace(is_windows=False))
+    monkeypatch.setattr(project, "load_build_env", lambda cfg, build_dir: {})
+    monkeypatch.setattr(project, "_enter_memory_limit", lambda limit: True)
+
+    assert project.test(suite) == 0
+    options = driver.ctest_options
+    assert (options["label_regex"], options["exclude_label_regex"]) == (include, exclude)
+    assert options["output_junit"].name == "junit.xml"
