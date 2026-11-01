@@ -237,7 +237,7 @@ jobs:
     steps:
       - name: sa build --sanitize address-undefined, sa test --label small
         working-directory: .
-        run: echo "sa build --sanitize address-undefined; sa test --label small"
+        run: echo "sa build --sanitize address-undefined; sa test --sanitize address-undefined --label small"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
@@ -284,8 +284,8 @@ jobs:
         with:
           path: .ccache
           key: ${{ steps.ccache.outputs.cache-primary-key }}
-      - name: sa test --label small
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label small
+      - name: sa test --sanitize address-undefined --label small
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --sanitize address-undefined --label small
 
   gate:
     name: gate
@@ -316,7 +316,7 @@ jobs:
     steps:
       - name: sa build --type relwithdebinfo --sanitize thread, sa test --label small, sa test --label medium
         working-directory: .
-        run: echo "sa build --type relwithdebinfo --sanitize thread; sa test --label small; sa test --label medium"
+        run: echo "sa build --type relwithdebinfo --sanitize thread; sa test --type relwithdebinfo --sanitize thread --label small; sa test --type relwithdebinfo --sanitize thread --label medium"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: sushiai
@@ -363,10 +363,10 @@ jobs:
         with:
           path: .ccache
           key: ${{ steps.ccache.outputs.cache-primary-key }}
-      - name: sa test --label small
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label small
-      - name: sa test --label medium
-        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --label medium
+      - name: sa test --type relwithdebinfo --sanitize thread --label small
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --type relwithdebinfo --sanitize thread --label small
+      - name: sa test --type relwithdebinfo --sanitize thread --label medium
+        run: source /opt/intel/oneapi/setvars.sh --force > /dev/null && sa test --type relwithdebinfo --sanitize thread --label medium
 
   upstream-main:
     name: Against SushiRuntime and SushiBLAS main
