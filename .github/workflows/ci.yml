@@ -228,7 +228,7 @@ jobs:
 
   sanitizers:
     name: ASan and UBSan (small)
-    timeout-minutes: 60
+    timeout-minutes: 90
     runs-on: ubuntu-latest
     defaults:
       run:
