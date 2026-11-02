@@ -1,0 +1,26 @@
+name: Set up the OpenCL CPU device on Windows
+description: Installs Intel's CPU runtime for OpenCL, so a Windows runner has a SYCL CPU device.
+runs:
+  using: composite
+  steps:
+    - name: Install the Intel CPU runtime for OpenCL
+      shell: pwsh
+      working-directory: ${{ runner.temp }}
+      env:
+        RUNTIME_URL: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/f169cc87-7163-4df5-94d2-bfd07d42b204/w_opencl_runtime_p_2026.0.0.946.exe
+        RUNTIME_SHA256: CFFE40535D370793C65BFC6968A8B388A8A5E06C41EAED816B4D518091EB7276
+        RUNTIME_MSI: w_opencl_runtime_p_2026.0.0.946.msi
+      run: |
+        $ErrorActionPreference = 'Stop'
+        Invoke-WebRequest -Uri $env:RUNTIME_URL -OutFile opencl_runtime.exe -UseBasicParsing
+        $hash = (Get-FileHash opencl_runtime.exe -Algorithm SHA256).Hash
+        if ($hash -ne $env:RUNTIME_SHA256) { throw "opencl_runtime.exe has SHA256 $hash, expected $env:RUNTIME_SHA256" }
+        Start-Process .\opencl_runtime.exe -ArgumentList '--s', '--x', '--f', 'opencl_runtime' -Wait
+        $msi = Join-Path 'opencl_runtime' $env:RUNTIME_MSI
+        if (-not (Test-Path $msi)) { throw "the installer did not extract $msi" }
+        $install = Start-Process msiexec -ArgumentList '/i', $msi, '/qn', '/l*v', 'opencl_runtime.log' -Wait -PassThru
+        if ($install.ExitCode -ne 0) { Get-Content opencl_runtime.log -Tail 40; throw "msiexec exited with $($install.ExitCode)" }
+        $vendors = Get-ItemProperty 'HKLM:\SOFTWARE\Khronos\OpenCL\Vendors'
+        $drivers = $vendors.PSObject.Properties.Name | Where-Object { $_ -like '*intelocl64.dll' }
+        if (-not $drivers) { throw 'no intelocl64.dll is registered under HKLM\SOFTWARE\Khronos\OpenCL\Vendors' }
+        Write-Output "OpenCL CPU driver registered: $drivers"

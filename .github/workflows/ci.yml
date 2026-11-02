@@ -211,6 +211,8 @@ jobs:
         run: sb setup --yes --no-gpu
       - name: sa setup --yes --no-gpu
         run: sa setup --yes --no-gpu
+      # sa setup installs the OpenCL ICD loader only; the medium tests need a SYCL device behind it.
+      - uses: ./sushiai/.github/actions/setup-opencl-cpu
       - name: sa build
         run: sa build
       # Saved even when a later step fails or times out, so the next run starts warm.
