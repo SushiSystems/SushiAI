@@ -166,11 +166,13 @@ function(sushiai_add_test_program)
     endif()
 endfunction()
 
-# Registers the tests of `program` by size and copies the runtime, log and GTest DLLs beside it.
+# Registers the tests of `program` by size and copies the runtime, log and GTest DLLs beside it,
+# with the Release DLLs of the modules that name one in SUSHIAI_RELEASE_RUNTIME_DLLS.
 # gtest.dll comes from the configuration the program links: a Debug tree links GTest's Release
 # build, and vcpkg's own copy, which runs before this one, puts the Debug DLL there.
 function(sushiai_finish_test_program program)
     sushiai_discover_sized_tests(${program})
+    get_property(release_runtime_dlls GLOBAL PROPERTY SUSHIAI_RELEASE_RUNTIME_DLLS)
 
     if(WIN32)
         add_custom_command(TARGET ${program} POST_BUILD
@@ -178,6 +180,7 @@ function(sushiai_finish_test_program program)
                 "$<TARGET_FILE:SushiRuntime::shared_library>"
                 "$<TARGET_FILE:SushiLog::SushiLog>"
                 "$<TARGET_FILE:GTest::gtest>"
+                ${release_runtime_dlls}
                 $<TARGET_FILE_DIR:${program}>
             COMMENT "Copying the runtime, log and GTest DLLs beside ${program}...")
     endif()

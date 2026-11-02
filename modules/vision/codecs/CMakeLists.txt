@@ -14,6 +14,13 @@ find_package(JPEG REQUIRED)
 if(JPEG_LIBRARY_RELEASE)
     set_property(TARGET JPEG::JPEG PROPERTY IMPORTED_LOCATION_DEBUG "${JPEG_LIBRARY_RELEASE}")
 endif()
+# vcpkg's app-local copy puts the Debug jpeg62.dll beside a Debug test program, and a program built against the
+# Release library and runtime crashes on its heap. The test programs copy the Release DLL after it.
+if(WIN32 AND JPEG_LIBRARY_RELEASE)
+    get_filename_component(sushiai_jpeg_library_dir "${JPEG_LIBRARY_RELEASE}" DIRECTORY)
+    file(GLOB sushiai_jpeg_dlls "${sushiai_jpeg_library_dir}/../bin/jpeg*.dll")
+    set_property(GLOBAL APPEND PROPERTY SUSHIAI_RELEASE_RUNTIME_DLLS ${sushiai_jpeg_dlls})
+endif()
 find_package(PNG REQUIRED)
 
 sushiai_add_module(NAME codecs TIER vision
