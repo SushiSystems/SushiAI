@@ -3,12 +3,12 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Checks a module against the module-install skill; any other repository is skipped.
+"""Checks a module against the module-install skill; a repository that is not a module is skipped.
 
 Usage: python tools/documentation/check_module_install.py [repository root] [--report] [--rule NAME]
 
 A repository is a module when it holds the manifest K_MODULE_MANIFEST names in tools/settings.py,
-or a CLI package. A repository whose settings name no manifest is not checked.
+or a CLI package; one whose settings name no manifest is not checked.
 """
 
 from __future__ import annotations
@@ -25,12 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import settings  # noqa: E402
 from checking.checker import Checker, Issue, run  # noqa: E402
+from checking.source_file import SourceFile, read_files  # noqa: E402
 
-K_MANIFEST: str = getattr(settings, "K_MODULE_MANIFEST", "")
-K_FRAGMENT: str = getattr(settings, "K_MODULE_DEPENDENCY_FILE", "")
-K_INSTALL_PAGE = Path(getattr(settings, "K_MODULE_INSTALL_PAGE", "docs/getting_started/INSTALL.md"))
-K_HEADINGS: tuple[str, ...] = tuple(getattr(settings, "K_MODULE_HEADINGS", ("## Standalone",)))
-K_WORKSPACE_READ: str = getattr(settings, "K_MODULE_WORKSPACE_READ", "")
+K_DEFAULT_INSTALL_PAGE = "docs/getting_started/INSTALL.md"
 K_CONFIG_SUFFIXES = frozenset({".json", ".toml", ".cmake", ".txt", ".py", ".yml", ".yaml", ".in"})
 K_CODE_SUFFIXES = frozenset({".cmake", ".txt", ".py", ".yml", ".yaml", ".in"})
 K_SKIPPED_FOLDERS = frozenset({"docs", "third_party", "build", ".superpowers", "tests", "tools"})
@@ -39,38 +36,35 @@ K_COMMENT = re.compile(r"^\s*(?:#|//)")
 
 
 @dataclass(frozen=True, slots=True)
+class ModuleSettings:
+    """Holds the module-install settings a module is checked against, as the caller gives them."""
+
+    manifest: str
+    fragment: str
+    install_page: str
+    headings: tuple[str, ...]
+    workspace_read: str
+
+
+@dataclass(frozen=True, slots=True)
 class Module:
-    """Holds the root of one module and the files it commits."""
+    """Holds one module as values: its root, its settings, what exists and the texts the rules read.
+
+    ``present`` holds the element paths, below the root, that are files on disk. ``install_page``
+    is the install page's text when it is a file; ``sources`` holds the committed config files
+    outside the skipped folders, with their text.
+    """
 
     root: Path
-    files: tuple[Path, ...]
+    config: ModuleSettings
+    present: frozenset[str]
+    install_page: SourceFile | None
+    sources: tuple[SourceFile, ...]
 
 
-def _tracked(root: Path) -> list[Path]:
-    """Returns the files git tracks below root, or every file when root is not a repository."""
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True, encoding="utf-8")
-    except OSError:
-        completed = None
-    if completed is not None and completed.returncode == 0 and completed.stdout:
-        return [root / name for name in completed.stdout.split("\0") if name and (root / name).is_file()]
-    return [path for path in root.rglob("*") if path.is_file() and ".git" not in path.parts]
-
-
-def collect(paths: list[Path]) -> list[Module]:
-    """Returns each given root that is a module; none when the settings name no manifest."""
-    modules = []
-    for path in paths if K_MANIFEST else []:
-        root = path if path.is_dir() else path.parent
-        if (root / K_MANIFEST).is_file() or (root / "cli/pyproject.toml").is_file():
-            modules.append(Module(root, tuple(_tracked(root))))
-    return modules
-
-
-def _below_skipped(module: Module, path: Path) -> bool:
-    """Returns whether a file sits in a folder the machine-path and hub rules do not read."""
-    parts = path.relative_to(module.root).parts
+def _below_skipped(root: Path, path: Path) -> bool:
+    """Returns whether a file sits in a folder the machine-path and workspace rules do not read."""
+    parts = path.relative_to(root).parts
     return parts[0] in K_SKIPPED_FOLDERS or "tests" in parts
 
 
@@ -91,45 +85,94 @@ def _docstring_lines(text: str) -> set[int]:
 
 def rule_elements(module: Module) -> Iterator[Issue]:
     """Yields an issue for each element of a module that is missing."""
-    for element in filter(None, (K_MANIFEST, K_FRAGMENT, str(K_INSTALL_PAGE))):
-        if not (module.root / element).is_file():
+    elements = (module.config.manifest, module.config.fragment, module.config.install_page)
+    for element in filter(None, elements):
+        if element not in module.present:
             yield Issue(module.root / element, 1, "the module-install elements list this file; it is missing")
 
 
 def rule_install_headings(module: Module) -> Iterator[Issue]:
     """Yields an issue for each heading the install page lacks."""
-    page = module.root / K_INSTALL_PAGE
-    if not page.is_file():
+    page = module.install_page
+    if page is None:
         return
-    headings = {line.strip() for line in page.read_text(encoding="utf-8").splitlines()}
-    for heading in K_HEADINGS:
+    headings = {line.strip() for line in page.text.splitlines()}
+    for heading in module.config.headings:
         if heading not in headings:
-            yield Issue(page, 1, f"the install page needs the heading '{heading}'")
+            yield Issue(page.path, 1, f"the install page needs the heading '{heading}'")
 
 
 def rule_machine_path(module: Module) -> Iterator[Issue]:
     """Yields an issue for each committed config or code line that holds the path of one machine."""
-    for path in module.files:
-        if path.suffix not in K_CONFIG_SUFFIXES or _below_skipped(module, path):
+    for source in module.sources:
+        if source.path.suffix not in K_CONFIG_SUFFIXES or _below_skipped(module.root, source.path):
             continue
-        for number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        for number, line in enumerate(source.text.splitlines(), 1):
             if K_MACHINE_PATH.search(line) and not K_COMMENT.match(line):
-                yield Issue(path, number, "a machine path in a committed file; take it from the CLI or an environment variable")
+                yield Issue(source.path, number, "a machine path in a committed file; take it from the CLI or an environment variable")
 
 
 def rule_no_workspace_in_code(module: Module) -> Iterator[Issue]:
     """Yields an issue for each build, CLI or workflow line that reads the workspace tool's state."""
-    if not K_WORKSPACE_READ:
+    if not module.config.workspace_read:
         return
-    workspace_read = re.compile(K_WORKSPACE_READ)
-    for path in module.files:
-        if path.suffix not in K_CODE_SUFFIXES or _below_skipped(module, path):
+    workspace_read = re.compile(module.config.workspace_read)
+    for source in module.sources:
+        if source.path.suffix not in K_CODE_SUFFIXES or _below_skipped(module.root, source.path):
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
-        documented = _docstring_lines(text) if path.suffix == ".py" else set()
-        for number, line in enumerate(text.splitlines(), 1):
+        documented = _docstring_lines(source.text) if source.path.suffix == ".py" else set()
+        for number, line in enumerate(source.text.splitlines(), 1):
             if workspace_read.search(line) and not K_COMMENT.match(line) and number not in documented:
-                yield Issue(path, number, "code and build files do not read the workspace tool; the CLI resolves the workspace")
+                yield Issue(source.path, number, "code and build files do not read the workspace tool; the CLI resolves the workspace")
+
+
+K_SETTINGS = ModuleSettings(
+    manifest=getattr(settings, "K_MODULE_MANIFEST", ""),
+    fragment=getattr(settings, "K_MODULE_DEPENDENCY_FILE", ""),
+    install_page=getattr(settings, "K_MODULE_INSTALL_PAGE", K_DEFAULT_INSTALL_PAGE),
+    headings=tuple(getattr(settings, "K_MODULE_HEADINGS", ("## Standalone",))),
+    workspace_read=getattr(settings, "K_MODULE_WORKSPACE_READ", ""),
+)
+
+
+def _tracked_paths(root: Path) -> list[Path]:
+    """Returns the files git tracks below root, or every file when root is not a repository."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        completed = None
+    if completed is not None and completed.returncode == 0 and completed.stdout:
+        return [root / name for name in completed.stdout.split("\0") if name and (root / name).is_file()]
+    return [path for path in root.rglob("*") if path.is_file() and ".git" not in path.parts]
+
+
+def _read_module(root: Path, config: ModuleSettings) -> Module:
+    """Reads one module's elements, install page and config files into values."""
+    elements = [name for name in (config.manifest, config.fragment, config.install_page) if name]
+    present = frozenset(name for name in elements if (root / name).is_file())
+    pages = read_files([root / config.install_page], lambda _: True) if config.install_page in present else ()
+    sources = read_files(
+        (path for path in _tracked_paths(root)
+         if path.suffix in K_CONFIG_SUFFIXES and not _below_skipped(root, path)),
+        lambda _: True,
+    )
+    return Module(root, config, present, pages[0] if pages else None, sources)
+
+
+def read_modules(paths: list[Path], config: ModuleSettings) -> list[Module]:
+    """Returns each given root that is a module under the settings; none when the settings name no manifest."""
+    modules = []
+    for path in paths if config.manifest else []:
+        root = path if path.is_dir() else path.parent
+        if (root / config.manifest).is_file() or (root / "cli/pyproject.toml").is_file():
+            modules.append(_read_module(root, config))
+    return modules
+
+
+def collect(paths: list[Path]) -> list[Module]:
+    """Returns each given root that is a module; none when the settings name no manifest."""
+    return read_modules(paths, K_SETTINGS)
 
 
 K_CHECKER = Checker(

@@ -13,16 +13,18 @@ Links out of the moved file and every citation of it are rewritten. Nothing is c
 from __future__ import annotations
 
 import argparse
-import os
+import posixpath
 import re
 import subprocess
 import sys
+from collections.abc import Iterable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from documentation.design_status import read_tree  # noqa: E402
 from documentation.design_topics import loose_documents  # noqa: E402
-from documentation.repair_design_citations import run as repair  # noqa: E402
+from documentation.repair_design_citations import relative_name, run as repair  # noqa: E402
 
 K_LINK = re.compile(r"\]\((?P<target>[^)#\s]+)(?P<anchor>#[^)\s]*)?\)")
 K_EXTERNAL = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|/)")
@@ -30,7 +32,17 @@ K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
 
 
-def relink(text: str, old_dir: Path, new_dir: Path) -> str:
+def folded_name(old: str) -> str:
+    """Returns the README.md inside the folder that a loose document of docs/design is folded into."""
+    return f"{posixpath.splitext(old)[0]}/README.md"
+
+
+def plan(loose: Iterable[str]) -> dict[str, str]:
+    """Returns the moves for the loose documents, old to new, as root-relative names."""
+    return {old: folded_name(old) for old in loose}
+
+
+def relink(text: str, old_dir: str, new_dir: str) -> str:
     """Returns the text with each relative link rewritten so that it still names the same file from the new folder."""
 
     def fix(match: re.Match[str]) -> str:
@@ -38,8 +50,7 @@ def relink(text: str, old_dir: Path, new_dir: Path) -> str:
         target = match["target"]
         if K_EXTERNAL.match(target):
             return match.group(0)
-        absolute = (old_dir / target).resolve()
-        relative = os.path.relpath(absolute, new_dir.resolve()).replace(os.sep, "/")
+        relative = relative_name(posixpath.normpath(posixpath.join(old_dir, target)), new_dir)
         return f"]({relative}{match['anchor'] or ''})"
 
     return K_LINK.sub(fix, text)
@@ -55,15 +66,14 @@ def _move(root: Path, old: Path, new: Path) -> None:
 
 def fold(root: Path, apply: bool) -> dict[str, str]:
     """Folds each loose document and returns the moves, old to new, as paths from the root."""
-    moves: dict[str, str] = {}
-    for old in loose_documents(root):
-        new = old.with_suffix("") / "README.md"
-        moves[old.relative_to(root).as_posix()] = new.relative_to(root).as_posix()
+    moves = plan(loose_documents(read_tree(root)))
+    for old, new in moves.items():
         if not apply:
             continue
-        text = old.read_text(encoding="utf-8")
-        _move(root, old, new)
-        new.write_text(relink(text, old.parent, new.parent), encoding="utf-8", newline="")
+        source = root / old
+        text = source.read_text(encoding="utf-8")
+        _move(root, source, root / new)
+        (root / new).write_text(relink(text, posixpath.dirname(old), posixpath.dirname(new)), encoding="utf-8", newline="")
     if apply and moves:
         repair(root, True, moves)
     return moves

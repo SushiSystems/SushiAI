@@ -25,12 +25,18 @@ K_CPP_CASE = re.compile(
     r"^[ \t]*(?:TEST|TEST_F|TEST_P|TYPED_TEST|TYPED_TEST_P)[ \t]*\(\s*(\w+)\s*,\s*(\w+)\s*\)\s*\{",
     re.MULTILINE)
 K_CPP_ASSERT = re.compile(
-    r"\b(?:EXPECT|ASSERT)_\w+\s*\(|\b(?:FAIL|SUCCEED|ADD_FAILURE|GTEST_FAIL|GTEST_SUCCEED)\s*\("
+    r"\b(?:[A-Za-z0-9]+_)*(?:EXPECT|ASSERT)\w*\s*\(|\bstatic_assert\s*\("
+    r"|\b(?:FAIL|SUCCEED|ADD_FAILURE|GTEST_FAIL|GTEST_SUCCEED)\s*\("
     r"|\b(?:expect|assert)_\w+\s*(?:<[^;{}()]*>)?\s*\(")
 K_CPP_SLEEP = re.compile(r"\b(?:sleep_for|sleep_until|usleep|Sleep)\s*\(")
 K_CPP_LITERAL = re.compile(
-    r"\b(?:EXPECT|ASSERT)_TRUE\s*\(\s*(?:true|1)\s*\)|\b(?:EXPECT|ASSERT)_FALSE\s*\(\s*(?:false|0)\s*\)"
+    r"\b(?:GTEST_)?SUCCEED\s*\(\s*\)|\b(?:EXPECT|ASSERT)_TRUE\s*\(\s*(?:true|1)\s*\)|\b(?:EXPECT|ASSERT)_FALSE\s*\(\s*(?:false|0)\s*\)"
     r"|\b(?:EXPECT|ASSERT)_EQ\s*\(\s*(-?\d[\w.]*|true|false|\"[^\"]*\")\s*,\s*\1\s*\)")
+K_CPP_WEAK = re.compile(
+    r"\bstatic_assert\s*\(|\b(?:GTEST_)?SUCCEED\s*\(|\b(?:[A-Za-z0-9]+_)*(?:EXPECT|ASSERT)_NO_THROW\s*\(")
+K_NUMBER_LITERAL = r"[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?[fFlL]?"
+K_CPP_TOLERANCE = re.compile(
+    rf"\b(?:EXPECT|ASSERT)_NEAR\s*\((?:[^;()]|\([^;()]*\))*,\s*{K_NUMBER_LITERAL}\s*\)")
 K_TS_DESCRIBE = re.compile(r"^describe\s*\(\s*([\"'`])(.*?)\1", re.MULTILINE)
 K_TS_CASE = re.compile(
     r"\b(?:it|test)(?:\.\w+)?\s*\(\s*(?P<q>[\"'`])(?P<name>[^\"'`]*)(?P=q)\s*,\s*(?:async\s*)?"
@@ -41,7 +47,9 @@ K_TS_LITERAL = re.compile(
     r"\bexpect\(\s*(true|false|\d+)\s*\)\s*\.\s*(?:toBe|toEqual|toStrictEqual)\(\s*\1\s*\)"
     r"|\bexpect\(\s*true\s*\)\s*\.\s*toBeTruthy\(")
 K_RAW_STRING = re.compile(r'R"([^()\\ ]*)\(')
+K_TESTCASE_BASES = frozenset({"TestCase", "unittest.TestCase"})
 K_PYTHON_ASSERTING = frozenset({"raises", "warns", "approx", "fail"})
+K_PYTHON_TOLERANCE_KEYWORDS = frozenset({"abs", "rel", "delta", "atol", "rtol"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +65,8 @@ class Case:
     literal_lines: tuple[int, ...]
     sleep_lines: tuple[int, ...]
     digest: str = ""
+    weak_only: bool = False
+    tolerance_lines: tuple[int, ...] = ()
 
 
 def is_test_file(path: Path) -> bool:
@@ -188,6 +198,8 @@ def _cpp_cases(path: Path, text: str) -> Iterator[Case]:
             literal_lines=_lines_of(K_CPP_LITERAL, text, code, opening + 1, closing),
             sleep_lines=_lines_of(K_CPP_SLEEP, text, code, opening + 1, closing),
             digest=_digest(text[opening + 1:closing]),
+            weak_only=0 < len(K_CPP_ASSERT.findall(body)) == len(K_CPP_WEAK.findall(body)),
+            tolerance_lines=_lines_of(K_CPP_TOLERANCE, text, code, opening + 1, closing),
         )
 
 
@@ -204,13 +216,39 @@ def _size_among(names: set[str]) -> str | None:
 
 
 def _file_marks(module: ast.Module) -> set[str]:
-    """Returns the marks a file sets for all its tests with `pytestmark`."""
+    """Returns the marks a file sets for all its tests with `pytestmark` or a `K_TEST_SIZE` string."""
     names: set[str] = set()
     for node in module.body:
-        if isinstance(node, ast.Assign) and any(
-                isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets):
+        if not isinstance(node, ast.Assign):
+            continue
+        targets = {target.id for target in node.targets if isinstance(target, ast.Name)}
+        if "pytestmark" in targets:
             names |= _marks(node.value)
+        elif "K_TEST_SIZE" in targets and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            names.add(node.value.value)
     return names
+
+
+def is_test_class(node: ast.ClassDef) -> bool:
+    """Returns whether a class is collected as a test class: named `Test...` or derived from `TestCase`."""
+    return node.name.startswith("Test") or any(
+        ast.unparse(base) in K_TESTCASE_BASES for base in node.bases)
+
+
+def class_size(node: ast.ClassDef) -> str | None:
+    """Returns the size a test class sets for its tests, by a size mark or a `K_TEST_SIZE` class attribute."""
+    names = {name for item in node.decorator_list for name in _marks(item)}
+    for member in node.body:
+        if isinstance(member, ast.Assign):
+            targets = [target for target in member.targets if isinstance(target, ast.Name)]
+            value = member.value
+        elif isinstance(member, ast.AnnAssign) and isinstance(member.target, ast.Name):
+            targets, value = [member.target], member.value
+        else:
+            continue
+        if any(target.id == "K_TEST_SIZE" for target in targets) and isinstance(value, ast.Constant)                 and isinstance(value.value, str):
+            names.add(value.value)
+    return _size_among(names)
 
 
 def _python_cases(path: Path, text: str) -> Iterator[Case]:
@@ -223,11 +261,11 @@ def _python_cases(path: Path, text: str) -> Iterator[Case]:
     for node in module.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith("test_"):
             yield _python_case(path, text, node, file_size)
-        elif isinstance(node, ast.ClassDef) and node.name.startswith("Test"):
-            class_size = _size_among({name for item in node.decorator_list for name in _marks(item)}) or file_size
+        elif isinstance(node, ast.ClassDef) and is_test_class(node):
+            outer_size = class_size(node) or file_size
             for member in node.body:
                 if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and member.name.startswith("test_"):
-                    yield _python_case(path, text, member, class_size)
+                    yield _python_case(path, text, member, outer_size)
 
 
 def _call_name(call: ast.Call) -> str:
@@ -244,6 +282,7 @@ def _python_case(path: Path, text: str, node: ast.FunctionDef | ast.AsyncFunctio
     assertions = 0
     literals: list[int] = []
     sleeps: list[int] = []
+    tolerances: list[int] = []
     for inner in ast.walk(node):
         if isinstance(inner, ast.Assert):
             assertions += 1
@@ -255,9 +294,14 @@ def _python_case(path: Path, text: str, node: ast.FunctionDef | ast.AsyncFunctio
                 assertions += 1
             if name == "sleep":
                 sleeps.append(inner.lineno)
+            if any(keyword.arg in K_PYTHON_TOLERANCE_KEYWORDS and isinstance(keyword.value, ast.Constant)
+                   and isinstance(keyword.value.value, float) for keyword in inner.keywords):
+                tolerances.append(inner.lineno)
     return Case(path, node.name, node.lineno, node.end_lineno or node.lineno,
                 _size_among(own_marks) or outer_size,
-                assertions, tuple(literals), tuple(sleeps), _digest(" ".join(ast.get_source_segment(text, statement) or "" for statement in node.body)))
+                assertions, tuple(literals), tuple(sleeps),
+                _digest(" ".join(ast.get_source_segment(text, statement) or "" for statement in node.body)),
+                tolerance_lines=tuple(tolerances))
 
 
 def _typescript_size(name: str) -> str | None:

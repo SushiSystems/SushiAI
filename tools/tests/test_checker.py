@@ -21,6 +21,9 @@ K_CHECKER = Checker(description="Checks nothing.", collect=lambda paths: [],
                     rules={"rule_first": lambda subject: iter(()), "rule_second": lambda subject: iter(())})
 
 
+K_TEST_SIZE = "small"
+
+
 class CheckerTest(unittest.TestCase):
     """Runs a checker with two rules and no subjects."""
 

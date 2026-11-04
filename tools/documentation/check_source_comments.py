@@ -5,6 +5,8 @@
 # Commercial use requires a licence from Sushi Systems.
 """Checks C++, GLSL, TypeScript and Python source against the source-comments skill.
 
+The rules take a CheckedSource, a value built from the file text; the shell at the bottom walks
+and reads the disk.
 Usage: python tools/documentation/check_source_comments.py [paths...] [--report] [--rule NAME]
 """
 
@@ -15,7 +17,7 @@ import io
 import re
 import sys
 import tokenize
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -23,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.source_file import SourceFile, read_files  # noqa: E402
 from documentation.licence import K_UNSET_MESSAGE, Licence, load  # noqa: E402
 
 K_LICENCE: Licence | None = load()
@@ -40,6 +43,7 @@ K_DATE_TAG = re.compile(r"[@\\]date\b")
 K_LICENSE_LINE = re.compile(r"^/\*.*\*/\s*$")
 K_PART_OF = "This file is part of:"
 K_PYTHON_PREAMBLE = re.compile(r"^#(!|.*coding[:=])")
+K_BYTE_ORDER_MARK = "﻿"
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,12 +55,13 @@ class CommentLine:
 
 
 @dataclass(frozen=True, slots=True)
-class SourceFile:
-    """Holds a source file split into its license block and the lines after it."""
+class CheckedSource:
+    """Holds a file's lines, where its license block ends, and the licence it must carry."""
 
     path: Path
-    lines: list[str]
+    lines: tuple[str, ...]
     body_start: int
+    licence: Licence
 
     @property
     def is_python(self) -> bool:
@@ -64,7 +69,7 @@ class SourceFile:
         return self.path.suffix in K_PYTHON_SUFFIXES
 
 
-def _license_end_c(lines: list[str]) -> int:
+def _license_end_c(lines: Sequence[str]) -> int:
     """Returns the index of the first line after a leading boxed license block."""
     index = 0
     while index < len(lines) and K_LICENSE_LINE.match(lines[index]):
@@ -72,7 +77,7 @@ def _license_end_c(lines: list[str]) -> int:
     return index
 
 
-def _license_end_python(lines: list[str]) -> int:
+def _license_end_python(lines: Sequence[str]) -> int:
     """Returns the index of the first line after a leading run of `#` lines."""
     index = 0
     while index < len(lines) and lines[index].startswith("#"):
@@ -80,38 +85,17 @@ def _license_end_python(lines: list[str]) -> int:
     return index
 
 
-def _read_source(path: Path) -> SourceFile:
-    """Returns a source file with its license block located."""
-    lines = path.read_text(encoding="utf-8-sig", errors="replace").splitlines()
-    end = _license_end_python(lines) if path.suffix in K_PYTHON_SUFFIXES else _license_end_c(lines)
-    return SourceFile(path, lines, end)
+def split_source(source: SourceFile, licence: Licence) -> CheckedSource:
+    """Returns a file split into lines, with its license block located."""
+    lines = tuple(source.text.removeprefix(K_BYTE_ORDER_MARK).splitlines())
+    if source.path.suffix in K_PYTHON_SUFFIXES:
+        end = _license_end_python(lines)
+    else:
+        end = _license_end_c(lines)
+    return CheckedSource(source.path, lines, end, licence)
 
 
-def _walk(paths: list[Path]) -> Iterator[Path]:
-    """Yields every checked source file below the given paths."""
-    suffixes = K_C_SUFFIXES | K_PYTHON_SUFFIXES
-    for path in paths:
-        if path.is_file():
-            if path.suffix in suffixes:
-                yield path
-            continue
-        candidates = [
-            candidate for candidate in sorted(path.rglob("*"))
-            if candidate.suffix in suffixes
-            and not K_SKIPPED_FOLDERS.intersection(candidate.parts)
-            and candidate.is_file()
-        ]
-        yield from drop_ignored(path, candidates)
-
-
-def collect(paths: list[Path]) -> Iterable[SourceFile]:
-    """Returns every source file below the given paths; stops when the settings describe no licence."""
-    if K_LICENCE is None:
-        raise SystemExit(K_UNSET_MESSAGE)
-    return (_read_source(path) for path in _walk(paths))
-
-
-def _comment_lines_c(source: SourceFile) -> Iterator[CommentLine]:
+def _comment_lines_c(source: CheckedSource) -> Iterator[CommentLine]:
     """Yields the lines after the license that lie inside a C-style comment."""
     in_block = False
     for index in range(source.body_start, len(source.lines)):
@@ -126,7 +110,7 @@ def _comment_lines_c(source: SourceFile) -> Iterator[CommentLine]:
             yield CommentLine(index + 1, stripped[stripped.index("//"):])
 
 
-def _python_comment_indexes(source: SourceFile) -> frozenset[int]:
+def _python_comment_indexes(source: CheckedSource) -> frozenset[int]:
     """Returns the indexes of the lines that hold a `#` comment and nothing else.
 
     A line inside a string literal is not one. A file that does not tokenize is read line by line.
@@ -141,19 +125,19 @@ def _python_comment_indexes(source: SourceFile) -> frozenset[int]:
     return by_line & comments
 
 
-def _comment_lines_python(source: SourceFile) -> Iterator[CommentLine]:
+def _comment_lines_python(source: CheckedSource) -> Iterator[CommentLine]:
     """Yields the lines after the license that are `#` comments."""
     for index in sorted(_python_comment_indexes(source)):
         if index >= source.body_start:
             yield CommentLine(index + 1, source.lines[index].strip())
 
 
-def _comment_lines(source: SourceFile) -> Iterator[CommentLine]:
+def _comment_lines(source: CheckedSource) -> Iterator[CommentLine]:
     """Yields the comment lines of a file in either language."""
     return _comment_lines_python(source) if source.is_python else _comment_lines_c(source)
 
 
-def _doc_blocks_c(source: SourceFile) -> Iterator[tuple[int, int]]:
+def _doc_blocks_c(source: CheckedSource) -> Iterator[tuple[int, int]]:
     """Yields the first and last line index of every `/**` block after the license."""
     index = source.body_start
     while index < len(source.lines):
@@ -165,7 +149,7 @@ def _doc_blocks_c(source: SourceFile) -> Iterator[tuple[int, int]]:
         index += 1
 
 
-def _slash_runs(source: SourceFile, marker: str) -> Iterator[tuple[int, int]]:
+def _slash_runs(source: CheckedSource, marker: str) -> Iterator[tuple[int, int]]:
     """Yields the first line index and length of every run of lines starting with a marker."""
     comments = _python_comment_indexes(source) if source.is_python else None
 
@@ -186,25 +170,25 @@ def _slash_runs(source: SourceFile, marker: str) -> Iterator[tuple[int, int]]:
             index += 1
 
 
-def _license_texts_c(source: SourceFile) -> list[str]:
+def _license_texts_c(source: CheckedSource) -> list[str]:
     """Returns the boxed license block's rows without comment markers or box edges."""
     texts = [line.strip()[2:-2].strip() for line in source.lines[:source.body_start]]
     return [text for text in texts if text and set(text) != {"*"}]
 
 
-def _license_texts_python(source: SourceFile) -> list[str]:
+def _license_texts_python(source: CheckedSource) -> list[str]:
     """Returns the `#` license block's rows without markers, a shebang or an encoding line."""
     rows = [line.strip() for line in source.lines[:source.body_start]]
     texts = [row[1:].strip() for row in rows if not K_PYTHON_PREAMBLE.match(row)]
     return [text for text in texts if text]
 
 
-def _license_texts(source: SourceFile) -> list[str]:
+def _license_texts(source: CheckedSource) -> list[str]:
     """Returns the license block's rows of a file in either language."""
     return _license_texts_python(source) if source.is_python else _license_texts_c(source)
 
 
-def rule_license_block(source: SourceFile) -> Iterator[Issue]:
+def rule_license_block(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue when the file does not open with the repository's license block."""
     texts = _license_texts(source)
     if not texts:
@@ -212,8 +196,7 @@ def rule_license_block(source: SourceFile) -> Iterator[Issue]:
         return
     if texts[0] != source.path.name:
         yield Issue(source.path, 1, f"license block must open with {source.path.name}")
-    licence = K_LICENCE
-    assert licence is not None, "collect() stops when no licence is configured"
+    licence = source.licence
     lines = licence.hash_lines if source.is_python else licence.box_lines
     wanted = [line.strip() for line in lines if line.strip()]
     if not source.is_python and K_PART_OF not in texts:
@@ -231,7 +214,7 @@ def rule_license_block(source: SourceFile) -> Iterator[Issue]:
             yield Issue(source.path, 1, f"{message}: '{text}'")
 
 
-def rule_file_header(source: SourceFile) -> Iterator[Issue]:
+def rule_file_header(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue when the file does not open with its `@file` block or module docstring."""
     if source.is_python:
         yield from _python_module_docstring(source)
@@ -256,7 +239,7 @@ def rule_file_header(source: SourceFile) -> Iterator[Issue]:
         yield Issue(source.path, first + 1, f"file block exceeds {K_FILE_HEADER_CEILING} lines")
 
 
-def _python_module_docstring(source: SourceFile) -> Iterator[Issue]:
+def _python_module_docstring(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue when a Python file lacks a short module docstring."""
     try:
         module = ast.parse("\n".join(source.lines))
@@ -271,7 +254,7 @@ def _python_module_docstring(source: SourceFile) -> Iterator[Issue]:
         yield Issue(source.path, source.body_start + 1, f"module docstring exceeds {K_FILE_HEADER_CEILING} lines")
 
 
-def rule_block_ceiling(source: SourceFile) -> Iterator[Issue]:
+def rule_block_ceiling(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue for each symbol comment block longer than the ceiling."""
     if source.is_python:
         return
@@ -283,7 +266,7 @@ def rule_block_ceiling(source: SourceFile) -> Iterator[Issue]:
             yield Issue(source.path, first + 1, f"/// run exceeds {K_BLOCK_CEILING} lines")
 
 
-def rule_comment_runs(source: SourceFile) -> Iterator[Issue]:
+def rule_comment_runs(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue for each run of two or more line comments."""
     marker = "#" if source.is_python else "//"
     for first, length in _slash_runs(source, marker):
@@ -294,14 +277,14 @@ def rule_comment_runs(source: SourceFile) -> Iterator[Issue]:
             yield Issue(source.path, first + 1, f"{length} consecutive {marker} lines form a paragraph")
 
 
-def rule_separators(source: SourceFile) -> Iterator[Issue]:
+def rule_separators(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue for each separator line inside a comment outside the license."""
     for comment in _comment_lines(source):
         if K_SEPARATOR.search(comment.text):
             yield Issue(source.path, comment.number, "separator line outside the license block")
 
 
-def rule_history(source: SourceFile) -> Iterator[Issue]:
+def rule_history(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue for each TODO-style tag or history word inside a comment."""
     for comment in _comment_lines(source):
         match = K_HISTORY.search(comment.text)
@@ -309,11 +292,42 @@ def rule_history(source: SourceFile) -> Iterator[Issue]:
             yield Issue(source.path, comment.number, f"'{match.group(0)}' belongs in the backlog or git")
 
 
-def rule_no_date(source: SourceFile) -> Iterator[Issue]:
+def rule_no_date(source: CheckedSource) -> Iterator[Issue]:
     """Yields an issue for each @date tag."""
     for comment in _comment_lines(source):
         if K_DATE_TAG.search(comment.text):
             yield Issue(source.path, comment.number, "@date is forbidden; git records dates")
+
+
+def _walk(paths: list[Path]) -> Iterator[Path]:
+    """Yields every checked source file below the given paths."""
+    suffixes = K_C_SUFFIXES | K_PYTHON_SUFFIXES
+    for path in paths:
+        if path.is_file():
+            if path.suffix in suffixes:
+                yield path
+            continue
+        candidates = [
+            candidate for candidate in sorted(path.rglob("*"))
+            if candidate.suffix in suffixes
+            and not K_SKIPPED_FOLDERS.intersection(candidate.parts)
+            and candidate.is_file()
+        ]
+        yield from drop_ignored(path, candidates)
+
+
+def _read_sources(paths: list[Path], licence: Licence) -> tuple[CheckedSource, ...]:
+    """Returns every source file below the given paths, read from the disk and split into lines."""
+    files = read_files(_walk(paths), lambda _: True)
+    return tuple(split_source(source, licence) for source in files)
+
+
+def collect(paths: list[Path]) -> Iterable[CheckedSource]:
+    """Returns every source file below the given paths; stops when the settings describe no licence."""
+    licence = K_LICENCE
+    if licence is None:
+        raise SystemExit(K_UNSET_MESSAGE)
+    return _read_sources(paths, licence)
 
 
 K_CHECKER = Checker(

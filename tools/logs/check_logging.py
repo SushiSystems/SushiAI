@@ -11,9 +11,10 @@ Usage: python tools/logs/check_logging.py [repository root] [--report] [--rule N
 from __future__ import annotations
 
 import ast
+import fnmatch
 import re
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,11 +22,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.source_file import SourceFile, line_of, read_files  # noqa: E402
 import settings  # noqa: E402
 from settings import K_CONSOLE_PATHS, K_LOG_PREFIX  # noqa: E402
 
 K_SOURCE_FOLDERS = ("modules", "source", "cli")
+K_MODULES_FOLDER = "modules"
 K_CPP_SUFFIXES = frozenset({".hpp", ".h", ".cpp", ".cc", ".cxx", ".inl"})
+K_PY_SUFFIX = ".py"
+K_READ_SUFFIXES = K_CPP_SUFFIXES | frozenset({K_PY_SUFFIX})
 K_LEVELS = ("TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL")
 K_CPP_CONSOLE = re.compile(r"std::(?:cout|cerr|clog)\b|(?<![\w.])(?:f?printf|puts)\s*\(")
 K_PY_CONSOLE = re.compile(r"(?<![\w.])(?<!def )print\s*\(")
@@ -41,61 +46,58 @@ K_LOGGER_C_PREFIX: str = getattr(settings, "K_LOGGER_C_PREFIX", "")
 
 
 @dataclass(frozen=True, slots=True)
+class LogSettings:
+    """Holds the settings the rules read: the macro prefixes, the console paths and the shared logger names."""
+
+    log_prefix: str
+    console_paths: tuple[str, ...]
+    logger_prefix: str
+    logger_namespace: str
+    logger_c_prefix: str
+
+
+@dataclass(frozen=True, slots=True)
 class SourceTree:
-    """Holds the library source files of one repository that git tracks, tests left out."""
+    """Holds one repository's library sources as text, its settings and the names below its module folders.
+
+    The shell reads the files git tracks, tests left out. Each module folder that holds a C++ source
+    maps to the names of everything below it, which the category-header rule checks.
+    """
 
     root: Path
-    files: tuple[Path, ...]
+    log_settings: LogSettings
+    files: tuple[SourceFile, ...]
+    module_entries: Mapping[Path, frozenset[str]]
 
-    def of(self, suffixes: frozenset[str]) -> Iterator[Path]:
+    def of(self, suffixes: frozenset[str]) -> Iterator[SourceFile]:
         """Yields the files with one of the given suffixes."""
-        return (path for path in self.files if path.suffix in suffixes)
+        return (source for source in self.files if source.path.suffix in suffixes)
 
     def may_print(self, path: Path) -> bool:
         """Returns whether settings name the file as one that writes to the console."""
         relative = path.relative_to(self.root).as_posix()
-        return any(relative == entry or relative.startswith(entry.rstrip("/") + "/") for entry in K_CONSOLE_PATHS)
+        return any(relative == entry or relative.startswith(entry.rstrip("/") + "/")
+                   for entry in self.log_settings.console_paths)
 
 
-def _is_test(path: Path, root: Path) -> bool:
-    """Returns whether a file is a test or lives under a tests folder."""
+def module_folder(path: Path, root: Path) -> Path | None:
+    """Returns the folder of the module `modules/<tier>/<module>/` a file is in, or None outside one."""
     parts = path.relative_to(root).parts
-    return "tests" in parts or path.name.startswith("test_")
+    return root.joinpath(*parts[:3]) if len(parts) > 3 and parts[0] == K_MODULES_FOLDER else None
 
 
-def discover(root: Path) -> SourceTree:
-    """Returns the library source files under the source folders of a repository."""
-    found: list[Path] = []
-    for name in K_SOURCE_FOLDERS:
-        folder = root / name
-        if folder.is_dir():
-            found.extend(path for path in sorted(folder.rglob("*"))
-                         if path.is_file() and not _is_test(path, root))
-    return SourceTree(root, tuple(drop_ignored(root, found)))
-
-
-def collect(paths: list[Path]) -> Iterable[SourceTree]:
-    """Returns the source tree of each given folder."""
-    return [discover(path) for path in paths if path.is_dir()]
-
-
-def _code_lines(path: Path) -> Iterator[tuple[int, str]]:
+def _code_lines(source: SourceFile) -> Iterator[tuple[int, str]]:
     """Yields the number and text of each line that does not open with a comment."""
-    for number, line in enumerate(path.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+    for number, line in enumerate(source.text.splitlines(), 1):
         if not line.lstrip().startswith(K_COMMENT_STARTS):
             yield number, line
 
 
-def _line(text: str, offset: int) -> int:
-    """Returns the line number of a character offset."""
-    return text.count("\n", 0, offset) + 1
-
-
-def _log_call() -> re.Pattern[str] | None:
+def _log_call(prefix: str) -> re.Pattern[str] | None:
     """Returns the pattern of a C++ log call and its first argument, or None with no prefix set."""
-    if not K_LOG_PREFIX:
+    if not prefix:
         return None
-    return re.compile(rf"\b{K_LOG_PREFIX}_LOG_(?:{'|'.join(K_LEVELS)})\s*\(\s*([^,)]*)")
+    return re.compile(rf"\b{prefix}_LOG_(?:{'|'.join(K_LEVELS)})\s*\(\s*([^,)]*)")
 
 
 def _calls(pattern: re.Pattern[str], text: str) -> Iterator[re.Match[str]]:
@@ -107,112 +109,150 @@ def _calls(pattern: re.Pattern[str], text: str) -> Iterator[re.Match[str]]:
             yield match
 
 
-def _module(path: Path, root: Path) -> tuple[Path, str] | None:
-    """Returns the folder and name of the module `modules/<tier>/<module>/` a file is in."""
-    parts = path.relative_to(root).parts
-    if len(parts) > 3 and parts[0] == "modules":
-        return root.joinpath(*parts[:3]), parts[2]
-    return None
+def _has_category_header(tree: SourceTree, folder: Path) -> bool:
+    """Returns whether a module folder holds an entry named `<module>_log_category.hpp`."""
+    header = f"{folder.name}_log_category.hpp"
+    return any(fnmatch.fnmatch(entry, header) for entry in tree.module_entries.get(folder, frozenset()))
 
 
-def rule_console_output(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each console write in library code that settings do not allow."""
-    for path in tree.of(K_CPP_SUFFIXES | {".py"}):
-        if tree.may_print(path):
-            continue
-        pattern = K_PY_CONSOLE if path.suffix == ".py" else K_CPP_CONSOLE
-        for number, line in _code_lines(path):
-            if pattern.search(line):
-                yield Issue(path, number, "library code writes to the console; use the logger")
-
-
-def rule_swallowed_error(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each empty catch and each except whose body is only pass."""
-    for path in tree.of(K_CPP_SUFFIXES):
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for match in K_CPP_EMPTY_CATCH.finditer(text):
-            yield Issue(path, _line(text, match.start()), "an empty catch hides the failure")
-    for path in tree.of(frozenset({".py"})):
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.ExceptHandler) and all(isinstance(item, ast.Pass) for item in node.body):
-                yield Issue(path, node.lineno, "an except whose body is only pass hides the failure")
-
-
-def rule_uncategorized_call(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each C++ log call whose first argument is not a log category."""
-    pattern = _log_call()
-    for path in tree.of(K_CPP_SUFFIXES) if pattern else ():
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for match in _calls(pattern, text):
-            if not K_CATEGORY.fullmatch(match.group(1).strip()):
-                yield Issue(path, _line(text, match.start()), "the call names no K_<MODULE>_LOG_CATEGORY")
-
-
-def rule_foreign_category(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each C++ log call under another module's category."""
-    pattern = _log_call()
-    for path in tree.of(K_CPP_SUFFIXES) if pattern else ():
-        module = _module(path, tree.root)
-        if module is None:
-            continue
-        own = f"K_{module[1].upper()}_LOG_CATEGORY"
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for match in _calls(pattern, text):
-            named = match.group(1).strip()
-            if K_CATEGORY.fullmatch(named) and named != own:
-                yield Issue(path, _line(text, match.start()), f"module {module[1]} logs under {named}, not {own}")
-
-
-def rule_missing_category_header(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each module that logs and has no `<module>_log_category.hpp`."""
-    pattern = _log_call()
-    reported: set[Path] = set()
-    for path in tree.of(K_CPP_SUFFIXES) if pattern else ():
-        module = _module(path, tree.root)
-        if module is None or module[0] in reported:
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        match = next(_calls(pattern, text), None)
-        if match and not any(module[0].rglob(f"{module[1]}_log_category.hpp")):
-            reported.add(module[0])
-            yield Issue(path, _line(text, match.start()), f"module {module[1]} logs and has no {module[1]}_log_category.hpp")
-
-
-def rule_python_logger(tree: SourceTree) -> Iterator[Issue]:
-    """Yields an issue for each root-logger call, named logger or f-string record in Python."""
-    for path in tree.of(frozenset({".py"})):
-        if tree.may_print(path):
-            continue
-        for number, line in _code_lines(path):
-            if K_PY_ROOT_CALL.search(line):
-                yield Issue(path, number, "logs on the root logger; use the module's _log")
-            if K_PY_NAMED_LOGGER.search(line):
-                yield Issue(path, number, "a logger not named __name__")
-            if K_PY_FSTRING_CALL.search(line):
-                yield Issue(path, number, "an f-string record formats when the level is off; pass %s arguments")
-
-
-def _reexport_patterns() -> tuple[re.Pattern[str], re.Pattern[str]]:
+def _reexport_patterns(namespace: str, c_prefix: str) -> tuple[re.Pattern[str], re.Pattern[str]]:
     """Returns the patterns of a re-exported logger name and of a function that only forwards to the logger."""
-    namespace = re.escape(K_LOGGER_NAMESPACE)
-    names = rf"{namespace}::\w+" + (rf"|{re.escape(K_LOGGER_C_PREFIX)}\w+" if K_LOGGER_C_PREFIX else "")
-    reexport = re.compile(rf"\busing\s+(?:\w+\s*=\s*)?(?:::)?{namespace}::\w+")
+    escaped = re.escape(namespace)
+    names = rf"{escaped}::\w+" + (rf"|{re.escape(c_prefix)}\w+" if c_prefix else "")
+    reexport = re.compile(rf"\busing\s+(?:\w+\s*=\s*)?(?:::)?{escaped}::\w+")
     shim = re.compile(rf"\binline\b[^{{}};]*\)\s*\{{\s*(?:return\s+)?(?:::)?(?:{names})\s*\([^;]*\)\s*;\s*\}}")
     return reexport, shim
 
 
+def rule_console_output(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each console write in library code that settings do not allow."""
+    for source in tree.of(K_READ_SUFFIXES):
+        if tree.may_print(source.path):
+            continue
+        pattern = K_PY_CONSOLE if source.path.suffix == K_PY_SUFFIX else K_CPP_CONSOLE
+        for number, line in _code_lines(source):
+            if pattern.search(line):
+                yield Issue(source.path, number, "library code writes to the console; use the logger")
+
+
+def rule_swallowed_error(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each empty catch and each except whose body is only pass."""
+    for source in tree.of(K_CPP_SUFFIXES):
+        for match in K_CPP_EMPTY_CATCH.finditer(source.text):
+            yield Issue(source.path, line_of(source.text, match.start()), "an empty catch hides the failure")
+    for source in tree.of(frozenset({K_PY_SUFFIX})):
+        for node in ast.walk(ast.parse(source.text)):
+            if isinstance(node, ast.ExceptHandler) and all(isinstance(item, ast.Pass) for item in node.body):
+                yield Issue(source.path, node.lineno, "an except whose body is only pass hides the failure")
+
+
+def rule_uncategorized_call(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each C++ log call whose first argument is not a log category."""
+    pattern = _log_call(tree.log_settings.log_prefix)
+    for source in tree.of(K_CPP_SUFFIXES) if pattern else ():
+        for match in _calls(pattern, source.text):
+            if not K_CATEGORY.fullmatch(match.group(1).strip()):
+                yield Issue(source.path, line_of(source.text, match.start()),
+                            "the call names no K_<MODULE>_LOG_CATEGORY")
+
+
+def rule_foreign_category(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each C++ log call under another module's category."""
+    pattern = _log_call(tree.log_settings.log_prefix)
+    for source in tree.of(K_CPP_SUFFIXES) if pattern else ():
+        folder = module_folder(source.path, tree.root)
+        if folder is None:
+            continue
+        own = f"K_{folder.name.upper()}_LOG_CATEGORY"
+        for match in _calls(pattern, source.text):
+            named = match.group(1).strip()
+            if K_CATEGORY.fullmatch(named) and named != own:
+                yield Issue(source.path, line_of(source.text, match.start()),
+                            f"module {folder.name} logs under {named}, not {own}")
+
+
+def rule_missing_category_header(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each module that logs and has no `<module>_log_category.hpp`."""
+    pattern = _log_call(tree.log_settings.log_prefix)
+    reported: set[Path] = set()
+    for source in tree.of(K_CPP_SUFFIXES) if pattern else ():
+        folder = module_folder(source.path, tree.root)
+        if folder is None or folder in reported:
+            continue
+        match = next(_calls(pattern, source.text), None)
+        if match and not _has_category_header(tree, folder):
+            reported.add(folder)
+            yield Issue(source.path, line_of(source.text, match.start()),
+                        f"module {folder.name} logs and has no {folder.name}_log_category.hpp")
+
+
+def rule_python_logger(tree: SourceTree) -> Iterator[Issue]:
+    """Yields an issue for each root-logger call, named logger or f-string record in Python."""
+    for source in tree.of(frozenset({K_PY_SUFFIX})):
+        if tree.may_print(source.path):
+            continue
+        for number, line in _code_lines(source):
+            if K_PY_ROOT_CALL.search(line):
+                yield Issue(source.path, number, "logs on the root logger; use the module's _log")
+            if K_PY_NAMED_LOGGER.search(line):
+                yield Issue(source.path, number, "a logger not named __name__")
+            if K_PY_FSTRING_CALL.search(line):
+                yield Issue(source.path, number, "an f-string record formats when the level is off; pass %s arguments")
+
+
 def rule_front_reexport(tree: SourceTree) -> Iterator[Issue]:
     """Yields an issue for each alias, using or forwarding function of a logger name in a front."""
-    if not K_LOGGER_NAMESPACE or K_LOG_PREFIX in ("", K_LOGGER_PREFIX):
+    names = tree.log_settings
+    if not names.logger_namespace or names.log_prefix in ("", names.logger_prefix):
         return
-    reexport, shim = _reexport_patterns()
-    call_site = f"{K_LOGGER_NAMESPACE}::..." + (f" or {K_LOGGER_C_PREFIX}..." if K_LOGGER_C_PREFIX else "")
-    for path in tree.of(K_CPP_SUFFIXES):
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for pattern, what in ((reexport, f"re-exports a {K_LOGGER_NAMESPACE} name"),
-                              (shim, f"forwards to {K_LOGGER_NAMESPACE}")):
-            for match in pattern.finditer(text):
-                yield Issue(path, _line(text, match.start()), f"{what}; write {call_site} at the call site")
+    reexport, shim = _reexport_patterns(names.logger_namespace, names.logger_c_prefix)
+    namespace = names.logger_namespace
+    call_site = f"{namespace}::..." + (f" or {names.logger_c_prefix}..." if names.logger_c_prefix else "")
+    for source in tree.of(K_CPP_SUFFIXES):
+        for pattern, what in ((reexport, f"re-exports a {namespace} name"),
+                              (shim, f"forwards to {namespace}")):
+            for match in pattern.finditer(source.text):
+                yield Issue(source.path, line_of(source.text, match.start()),
+                            f"{what}; write {call_site} at the call site")
+
+
+def _is_test(path: Path, root: Path) -> bool:
+    """Returns whether a file is a test or lives under a tests folder."""
+    parts = path.relative_to(root).parts
+    return "tests" in parts or path.name.startswith("test_")
+
+
+def _read_paths(root: Path) -> list[Path]:
+    """Returns the library files of the source folders that git does not ignore, in discovery order."""
+    found: list[Path] = []
+    for name in K_SOURCE_FOLDERS:
+        folder = root / name
+        if folder.is_dir():
+            found.extend(path for path in sorted(folder.rglob("*"))
+                         if path.is_file() and path.suffix in K_READ_SUFFIXES and not _is_test(path, root))
+    return drop_ignored(root, found)
+
+
+def _read_entries(root: Path, paths: Iterable[Path]) -> dict[Path, frozenset[str]]:
+    """Lists the names below the module folder of each C++ source, every entry of it, not only headers."""
+    entries: dict[Path, frozenset[str]] = {}
+    for path in paths:
+        folder = module_folder(path, root) if path.suffix in K_CPP_SUFFIXES else None
+        if folder is not None and folder not in entries:
+            entries[folder] = frozenset(entry.name for entry in folder.rglob("*") if entry.exists())
+    return entries
+
+
+def _read_tree(root: Path, log_settings: LogSettings) -> SourceTree:
+    """Reads one repository's library sources and module entries into a tree."""
+    paths = _read_paths(root)
+    return SourceTree(root, log_settings, read_files(paths, lambda _: True), _read_entries(root, paths))
+
+
+def collect(paths: list[Path]) -> Iterable[SourceTree]:
+    """Returns the source tree of each given folder, read with the settings this module names."""
+    log_settings = LogSettings(K_LOG_PREFIX, K_CONSOLE_PATHS, K_LOGGER_PREFIX, K_LOGGER_NAMESPACE, K_LOGGER_C_PREFIX)
+    return [_read_tree(path, log_settings) for path in paths if path.is_dir()]
 
 
 K_CHECKER = Checker(

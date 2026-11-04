@@ -21,6 +21,9 @@ from documentation.check_backlog import K_CHECKER, Repository, rule_backlog  # n
 K_HAS_TOOLING = tooling_bridge.load("backlog", Path(__file__).resolve().parents[2]) is not None
 
 
+K_TEST_SIZE = "medium"
+
+
 def _repository(folder: str, files: dict[str, str]) -> Repository:
     """Writes the files below a temporary root and returns it as a repository."""
     root = Path(folder)

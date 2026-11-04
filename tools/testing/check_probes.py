@@ -6,6 +6,9 @@
 """Checks that probes and scenario benchmarks live in one place, decide nothing and are listed.
 
 Usage: python tools/testing/check_probes.py [repository root] [--report] [--rule NAME]
+
+The rules read Repository values only. discover() reads the disk: the tracked file names and the text
+of each file below a probe or benchmark folder.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.source_file import SourceFile, read_files  # noqa: E402
 
 K_MIRRORED = frozenset({"modules", "tests", "source", "include"})
 K_SKIPPED = frozenset({".git", "third_party", "build", "docs", "node_modules", "__pycache__"})
@@ -44,15 +48,21 @@ K_KINDS = (
 
 @dataclass(frozen=True, slots=True)
 class Repository:
-    """Holds a repository root and the files git tracks below it, outside the skipped folders."""
+    """Holds a repository root, the files git tracks below it, and the text of each probe or benchmark file."""
 
     root: Path
     files: tuple[Path, ...]
+    sources: tuple[SourceFile, ...]
 
     def under(self, folder: Path) -> Iterator[Path]:
-        """Yields the files below a folder of the repository."""
+        """Yields the tracked files below a folder of the repository."""
         absolute = self.root / folder
         return (path for path in self.files if absolute in path.parents)
+
+    def texts_under(self, folder: Path) -> Iterator[SourceFile]:
+        """Yields the text of each file below a folder of the repository that holds programs."""
+        absolute = self.root / folder
+        return (source for source in self.sources if absolute in source.path.parents)
 
     def programs(self, kind: ProgramKind) -> list[str]:
         """Returns the name of each program folder of a kind, sorted."""
@@ -61,11 +71,19 @@ class Repository:
                        if len(path.relative_to(absolute).parts) > 1})
 
 
+def _any_file(path: Path) -> bool:
+    """Returns True for every path; the text of each program folder's file is read."""
+    return True
+
+
 def discover(root: Path) -> Repository:
-    """Returns a repository with its tracked files."""
+    """Returns a repository with its tracked files and the text of each file below a program folder."""
     found = [path for path in sorted(root.rglob("*"))
              if path.is_file() and not K_SKIPPED.intersection(path.relative_to(root).parts)]
-    return Repository(root, tuple(drop_ignored(root, found)))
+    tracked = tuple(drop_ignored(root, found))
+    folders = [root / kind.folder for kind in K_KINDS]
+    watched = [path for path in tracked if any(folder in path.parents for folder in folders)]
+    return Repository(root, tracked, read_files(watched, _any_file))
 
 
 def collect(paths: list[Path]) -> Iterable[Repository]:
@@ -90,25 +108,23 @@ def rule_program_outside_folder(repository: Repository) -> Iterator[Issue]:
 def rule_program_test_framework(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each probe or benchmark file that uses a test framework, which makes it a test."""
     for kind in K_KINDS:
-        for path in repository.under(kind.folder):
-            text = path.read_text(encoding="utf-8", errors="ignore")
-            match = K_TEST_FRAMEWORK.search(text)
+        for source in repository.texts_under(kind.folder):
+            match = K_TEST_FRAMEWORK.search(source.text)
             if match:
-                line = text.count("\n", 0, match.start()) + 1
-                yield Issue(path, line, f"a {kind.label} uses a test framework; a program that decides pass or "
-                                        "fail is a test")
+                line = source.text.count("\n", 0, match.start()) + 1
+                yield Issue(source.path, line, f"a {kind.label} uses a test framework; a program that decides pass or "
+                                               "fail is a test")
 
 
 def rule_program_in_test_runner(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each build file of a probe or benchmark that adds a test to the runner."""
     for kind in K_KINDS:
-        for path in repository.under(kind.folder):
-            if path.name != "CMakeLists.txt":
+        for source in repository.texts_under(kind.folder):
+            if source.path.name != "CMakeLists.txt":
                 continue
-            text = path.read_text(encoding="utf-8", errors="ignore")
-            for match in K_TEST_RUNNER.finditer(text):
-                line = text.count("\n", 0, match.start()) + 1
-                yield Issue(path, line, f"a {kind.label} is never added to the test runner")
+            for match in K_TEST_RUNNER.finditer(source.text):
+                line = source.text.count("\n", 0, match.start()) + 1
+                yield Issue(source.path, line, f"a {kind.label} is never added to the test runner")
 
 
 def rule_program_name_stem(repository: Repository) -> Iterator[Issue]:
@@ -125,9 +141,10 @@ def rule_program_name_stem(repository: Repository) -> Iterator[Issue]:
 
 def rule_unlisted_program(repository: Repository) -> Iterator[Issue]:
     """Yields an issue for each probe or benchmark folder its kind's README.md does not name."""
+    texts = {source.path: source.text for source in repository.sources}
     for kind in K_KINDS:
         readme = repository.root / kind.folder / "README.md"
-        text = readme.read_text(encoding="utf-8") if readme.is_file() else ""
+        text = texts.get(readme, "")
         for name in repository.programs(kind):
             if not re.search(rf"`{re.escape(name)}`|^#+\s+{re.escape(name)}\b", text, re.MULTILINE):
                 yield Issue(readme, 1, f"{kind.label} {name} is not listed in {kind.folder.as_posix()}/README.md")

@@ -13,19 +13,20 @@ from __future__ import annotations
 
 import argparse
 import os
+import posixpath
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass, replace
 from enum import Enum
-from functools import cached_property
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import final
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import K_EXIT_CLEAN, Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import ignored_folders  # noqa: E402
+from checking.source_file import read_files  # noqa: E402
 from settings import K_MACRO_PREFIXES  # noqa: E402
 
 
@@ -78,6 +79,7 @@ K_MACRO_PREFIX_FLOOR = 20
 K_ALLOW_LIST = Path("docs/.docs_truth_allow")
 K_UNCHECKED_DOCUMENTS = frozenset({"docs/reference/CHANGELOG.md", ".github/CODE_OF_CONDUCT.md"})
 K_UNCHECKED_DOCS_FOLDERS = frozenset({"agent", "archive"})
+K_DESIGN_FOLDERS = frozenset({"design", "backlog"})
 K_HISTORY_EXEMPT_FOLDER = Path("docs") / "backlog"
 K_PASSAGE_FLOOR = 300
 K_GENERATED_MARK = ":begin -->"
@@ -217,9 +219,9 @@ class Page:
         return None
 
 
-def read_page(path: Path, kind: PageKind) -> Page:
+def page_from(path: Path, kind: PageKind, text: str) -> Page:
     """Returns a page with its fenced blocks lifted out of the prose, line numbers kept."""
-    lines = tuple(path.read_text(encoding="utf-8-sig").splitlines())
+    lines = tuple(text.removeprefix("\ufeff").splitlines())
     prose: list[str] = []
     fences: list[Fence] = []
     marker, language, first, body = "", "", 0, []
@@ -264,166 +266,57 @@ class AllowEntry:
         return bool(pattern and self.text and pattern.fullmatch(name))
 
 
-def read_allow_list(path: Path) -> tuple[AllowEntry, ...]:
-    """Returns the entries of an allow-list file, skipping blank lines and whole-line comments."""
-    if not path.is_file():
-        return ()
+def parse_allow_list(text: str) -> tuple[AllowEntry, ...]:
+    """Returns the entries of an allow-list text, skipping blank lines and whole-line comments."""
     entries: list[AllowEntry] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
+    for number, line in enumerate(text.removeprefix("\ufeff").splitlines(), start=1):
         if line.strip() and not line.lstrip().startswith("#"):
-            text, _, reason = line.partition(" #")
-            entries.append(AllowEntry(number, text.strip(), reason.strip()))
+            value, _, reason = line.partition(" #")
+            entries.append(AllowEntry(number, value.strip(), reason.strip()))
     return tuple(entries)
 
 
-def _walk(
-    folder: Path, ignored: frozenset[Path] = frozenset()
-) -> Iterator[tuple[Path, list[str], list[str]]]:
-    """Yields each folder below a path with its entries, without entering skipped or ignored folders."""
-    for current, folders, files in os.walk(folder):
-        folders[:] = sorted(
-            name for name in folders
-            if name not in K_SKIPPED_FOLDERS and (Path(current) / name).resolve() not in ignored
-        )
-        yield Path(current), folders, sorted(files)
+@dataclass(frozen=True, slots=True)
+class RepositoryFiles:
+    """Holds what the shell read from one repository, as the values build_manual() takes."""
+
+    root: Path
+    source_folders: tuple[str, ...]
+    tree: frozenset[str]
+    top_level: frozenset[str]
+    markdown: frozenset[str]
+    indexed: frozenset[str]
+    only: frozenset[str]
+    texts: Mapping[str, str]
 
 
 @final
-class SourceTree:
-    """Indexes the words of a repository's source folders and the paths of the repository."""
+@dataclass(frozen=True, slots=True)
+class Manual:
+    """Holds one repository's pages, rule files, allow-list and source index, as values."""
 
-    def __init__(self, root: Path, folders: tuple[str, ...]) -> None:
-        """Stores the root and the source folders; nothing is read until a rule asks."""
-        self.root = root
-        self.folders = tuple(root / name for name in folders if (root / name).is_dir())
+    root: Path
+    pages: tuple[Page, ...]
+    rule_files: tuple[Page, ...]
+    words: frozenset[str]
+    macro_prefixes: frozenset[str]
+    tree: frozenset[str]
+    paths: frozenset[str]
+    top_level: frozenset[str]
+    texts: Mapping[str, str]
+    allow_list: tuple[AllowEntry, ...]
 
-    def files(self) -> Iterator[Path]:
-        """Yields every indexed file: the root's own files and those under the source folders."""
-        for entry in sorted(self.root.iterdir()):
-            if entry.is_file():
-                yield entry
-        for folder in self.folders:
-            for current, _, names in _walk(folder, self.ignored):
-                yield from (current / name for name in names)
-
-    @cached_property
-    def ignored(self) -> frozenset[Path]:
-        """Returns the folders git ignores, which the index never enters."""
-        return ignored_folders(self.root)
-
-    @cached_property
-    def words(self) -> frozenset[str]:
-        """Returns every identifier-shaped word of the indexed files and of their paths."""
-        words: set[str] = set()
-        for path in self.files():
-            words.update(K_WORD.findall(path.as_posix()))
-            if path.suffix.lower() in K_INDEXED_SUFFIXES and path.name != K_PAGE_NAME:
-                words.update(K_WORD.findall(path.read_text(encoding="utf-8", errors="ignore")))
-        return frozenset(words)
-
-    @cached_property
-    def macro_prefixes(self) -> frozenset[str]:
-        """Returns the leading segments that mark an upper-case name as the repository's own."""
-        if K_MACRO_PREFIXES:
-            return frozenset(K_MACRO_PREFIXES)
-        counts: dict[str, int] = {}
-        for word in self.words:
-            if K_UPPER.fullmatch(word):
-                prefix = word.split("_", 1)[0]
-                counts[prefix] = counts.get(prefix, 0) + 1
-        return frozenset(
-            prefix for prefix, count in counts.items()
-            if count >= K_MACRO_PREFIX_FLOOR and prefix not in K_FOREIGN_MACRO_PREFIXES
-        )
-
-    @cached_property
-    def paths(self) -> frozenset[str]:
-        """Returns every file and folder of the repository and each trailing part of its path."""
-        tails: set[str] = set()
-        for current, folders, files in os.walk(self.root):
-            folders[:] = [
-                name for name in folders
-                if name not in K_BUILD_FOLDERS and (Path(current) / name).resolve() not in self.ignored
-            ]
-            for name in (*folders, *files):
-                parts = (Path(current) / name).relative_to(self.root).parts
-                tails.update("/".join(parts[index:]) for index in range(len(parts)))
-        return frozenset(tails)
-
-    @cached_property
-    def top_level(self) -> frozenset[str]:
-        """Returns the names of the entries directly under the root that git does not ignore."""
-        return frozenset(entry.name for entry in self.root.iterdir() if entry.resolve() not in self.ignored)
+    @property
+    def allow_path(self) -> Path:
+        """Returns the path of the allow-list file, which may not exist."""
+        return self.root / K_ALLOW_LIST
 
     def lines_of(self, relative: str) -> frozenset[str] | None:
-        """Returns the trimmed lines of a file named from the root, or None when it is absent."""
-        path = self.root / relative
-        if not path.is_file():
+        """Returns the trimmed lines of a file named from the root, or None when it was not read."""
+        text = self.texts.get(relative)
+        if text is None:
             return None
-        text = path.read_text(encoding="utf-8", errors="ignore")
         return frozenset(line.strip() for line in text.splitlines())
-
-
-@final
-class Manual:
-    """Holds one repository's manual pages, its allow-list and its source index."""
-
-    def __init__(self, root: Path, source_folders: tuple[str, ...], only: frozenset[Path] = frozenset()) -> None:
-        """Stores the root and builds the source tree the rules look names up in.
-
-        When only is given, the manual holds those pages alone.
-        """
-        self.root = root
-        self.only = only
-        self.source = SourceTree(root, source_folders)
-        self.allow_path = root / K_ALLOW_LIST
-
-    @cached_property
-    def pages(self) -> tuple[Page, ...]:
-        """Returns the root README, the documents under docs/ and the source folders' pages."""
-        found: list[tuple[Path, PageKind]] = []
-        if (self.root / K_PAGE_NAME).is_file():
-            found.append((self.root / K_PAGE_NAME, PageKind.ROOT_README))
-        docs = self.root / "docs"
-        unchecked = {docs / name for name in K_UNCHECKED_DOCS_FOLDERS}
-        for path in sorted(docs.rglob("*.md")) if docs.is_dir() else []:
-            if unchecked & set(path.parents):
-                continue
-            if path.relative_to(self.root).as_posix() in K_UNCHECKED_DOCUMENTS:
-                continue
-            intent = bool({docs / "design", docs / "backlog"} & set(path.parents))
-            found.append((path, PageKind.DESIGN_DOCUMENT if intent else PageKind.MANUAL_PAGE))
-        for folder in self.source.folders:
-            if folder.name in K_RULE_FOLDERS:
-                continue
-            for current, _, names in _walk(folder, self.source.ignored):
-                found.extend((current / name, PageKind.MODULE_README) for name in names if name.endswith(".md")
-                             and (current / name).relative_to(self.root).as_posix() not in K_UNCHECKED_DOCUMENTS)
-        if self.only:
-            kept = [(path, kind) for path, kind in found if path.resolve() in self.only]
-            listed = {path.resolve() for path, _ in kept}
-            found = kept + [(path, PageKind.MODULE_README) for path in sorted(self.only - listed)]
-        return tuple(read_page(path, kind) for path, kind in found)
-
-    @cached_property
-    def rule_files(self) -> tuple[Page, ...]:
-        """Returns the skill and instruction files, read only for repeated passages."""
-        pages = {page.path for page in self.pages}
-        found: list[Path] = []
-        for name in K_RULE_FOLDERS:
-            folder = self.root / name
-            for current, folders, names in _walk(folder, self.source.ignored) if folder.is_dir() else ():
-                folders[:] = [entry for entry in folders if entry not in K_RULE_SKIPPED_FOLDERS]
-                found.extend(
-                    current / entry for entry in names
-                    if entry.endswith(".md") and current / entry not in pages
-                )
-        return tuple(read_page(path, PageKind.RULE_FILE) for path in found)
-
-    @cached_property
-    def allow_list(self) -> tuple[AllowEntry, ...]:
-        """Returns the entries of docs/.docs_truth_allow."""
-        return read_allow_list(self.allow_path)
 
     def is_allowed(self, name: str) -> bool:
         """Returns whether the allow-list excuses a name or a path."""
@@ -437,6 +330,127 @@ class Manual:
             for fence in page.fences
             if fence.is_source and (page.citation(fence) or (0, ""))[1] == K_NOT_COMPILED
         )
+
+
+def is_word_source(relative: str) -> bool:
+    """Returns whether the words of a file's text join the source index."""
+    path = PurePosixPath(relative)
+    return path.suffix.lower() in K_INDEXED_SUFFIXES and path.name != K_PAGE_NAME
+
+
+def cited_targets(texts: Mapping[str, str]) -> frozenset[str]:
+    """Returns each path a markdown text cites as the source of one of its examples."""
+    targets: set[str] = set()
+    for relative, text in texts.items():
+        if not relative.endswith(".md"):
+            continue
+        page = page_from(Path(relative), PageKind.MANUAL_PAGE, text)
+        for fence in page.fences:
+            citation = page.citation(fence) if fence.is_source else None
+            if citation is not None and citation[1] != K_NOT_COMPILED:
+                targets.add(citation[1])
+    return frozenset(targets)
+
+
+def _kind_of(files: RepositoryFiles, relative: str) -> PageKind | None:
+    """Returns the kind of manual page a markdown file is, or None when no rule reads it as one."""
+    if relative == K_PAGE_NAME:
+        return PageKind.ROOT_README
+    if relative in K_UNCHECKED_DOCUMENTS:
+        return None
+    parts = PurePosixPath(relative).parts
+    if parts[0] == "docs":
+        if len(parts) > 2 and parts[1] in K_UNCHECKED_DOCS_FOLDERS:
+            return None
+        if len(parts) > 2 and parts[1] in K_DESIGN_FOLDERS:
+            return PageKind.DESIGN_DOCUMENT
+        return PageKind.MANUAL_PAGE
+    if parts[0] in files.source_folders and parts[0] not in K_RULE_FOLDERS:
+        return PageKind.MODULE_README
+    return None
+
+
+def _selected_pages(files: RepositoryFiles) -> tuple[tuple[str, PageKind], ...]:
+    """Returns each page's path below the root with its kind, the named pages alone when given."""
+    found: list[tuple[str, PageKind]] = []
+    for relative in sorted(files.markdown):
+        kind = _kind_of(files, relative)
+        if kind is not None and (not files.only or relative in files.only):
+            found.append((relative, kind))
+    if files.only:
+        listed = {relative for relative, _ in found}
+        found.extend((relative, PageKind.MODULE_README) for relative in sorted(files.only - listed))
+    return tuple(found)
+
+
+def _rule_file_paths(files: RepositoryFiles, pages: Iterable[str]) -> tuple[str, ...]:
+    """Returns the skill and instruction files that are not pages, below the rule folders."""
+    page_names = set(pages)
+    return tuple(
+        relative
+        for relative in sorted(files.markdown)
+        if relative not in page_names
+        and PurePosixPath(relative).parts[0] in K_RULE_FOLDERS
+        and not K_RULE_SKIPPED_FOLDERS & set(PurePosixPath(relative).parts[1:-1])
+    )
+
+
+def _words(files: RepositoryFiles) -> frozenset[str]:
+    """Returns every identifier-shaped word of the indexed files and of their paths."""
+    words: set[str] = set()
+    for relative in files.indexed:
+        words.update(K_WORD.findall(relative))
+        if is_word_source(relative) and relative in files.texts:
+            words.update(K_WORD.findall(files.texts[relative]))
+    return frozenset(words)
+
+
+def _macro_prefixes(words: frozenset[str], configured: Iterable[str]) -> frozenset[str]:
+    """Returns the leading segments that mark an upper-case name as the repository's own."""
+    if configured:
+        return frozenset(configured)
+    counts: dict[str, int] = {}
+    for word in words:
+        if K_UPPER.fullmatch(word):
+            prefix = word.split("_", 1)[0]
+            counts[prefix] = counts.get(prefix, 0) + 1
+    return frozenset(
+        prefix for prefix, count in counts.items()
+        if count >= K_MACRO_PREFIX_FLOOR and prefix not in K_FOREIGN_MACRO_PREFIXES
+    )
+
+
+def _tails(tree: Iterable[str]) -> frozenset[str]:
+    """Returns every file and folder of the repository and each trailing part of its path."""
+    tails: set[str] = set()
+    for relative in tree:
+        parts = PurePosixPath(relative).parts
+        tails.update("/".join(parts[index:]) for index in range(len(parts)))
+    return frozenset(tails)
+
+
+def build_manual(files: RepositoryFiles, configured_prefixes: Iterable[str] = ()) -> Manual:
+    """Returns the manual the rules read, built from the values the shell read."""
+    selected = _selected_pages(files)
+    words = _words(files)
+    return Manual(
+        root=files.root,
+        pages=tuple(
+            page_from(files.root / relative, kind, files.texts[relative])
+            for relative, kind in selected
+        ),
+        rule_files=tuple(
+            page_from(files.root / relative, PageKind.RULE_FILE, files.texts[relative])
+            for relative in _rule_file_paths(files, (relative for relative, _ in selected))
+        ),
+        words=words,
+        macro_prefixes=_macro_prefixes(words, configured_prefixes),
+        tree=files.tree,
+        paths=_tails(files.tree),
+        top_level=files.top_level,
+        texts=files.texts,
+        allow_list=parse_allow_list(files.texts.get(K_ALLOW_LIST.as_posix(), "")),
+    )
 
 
 def _without_paths(span: str) -> str:
@@ -466,7 +480,7 @@ def _names(manual: Manual, code: str, bare_snake: bool) -> Iterator[str]:
     if bare_snake:
         yield from K_SNAKE.findall(_without_arguments(rest))
     for name in K_UPPER.findall(rest):
-        if name.startswith("K_") or name.split("_", 1)[0] in manual.source.macro_prefixes:
+        if name.startswith("K_") or name.split("_", 1)[0] in manual.macro_prefixes:
             yield name
 
 
@@ -490,7 +504,7 @@ def _absent_parts(manual: Manual, name: str) -> list[str]:
     if manual.is_allowed(name):
         return []
     parts = [part.lstrip("~") for part in name.split("::")]
-    held = manual.source.words | K_NAMING_WORDS
+    held = manual.words | K_NAMING_WORDS
     return [part for part in parts if part not in held and not manual.is_allowed(part)]
 
 
@@ -520,7 +534,7 @@ def _repository_path(manual: Manual, token: str) -> str | None:
     parts = path.split("/")
     if not all(parts) or parts[0] in K_BUILD_FOLDERS:
         return None
-    known_folder = parts[0] in manual.source.top_level
+    known_folder = parts[0] in manual.top_level
     return path if known_folder or K_FILE_NAME.match(parts[-1]) else None
 
 
@@ -543,12 +557,13 @@ def rule_cited_paths(manual: Manual) -> Iterator[Issue]:
     for page in manual.pages:
         if not page.describes_code:
             continue
-        beside = page.path.parent
+        beside = posixpath.dirname(page.path.relative_to(manual.root).as_posix()) or "."
         for number, token in _cited(page):
             path = _repository_path(manual, token)
             if path is None or path == K_ALLOW_LIST.as_posix() or manual.is_allowed(path):
                 continue
-            if path not in manual.source.paths and not (beside / path).exists():
+            from_page = posixpath.normpath(posixpath.join(beside, path))
+            if path not in manual.paths and from_page not in manual.tree:
                 yield Issue(page.path, number, f"cited path does not exist: {path}")
 
 
@@ -571,7 +586,7 @@ def rule_example_source(manual: Manual) -> Iterator[Issue]:
             number, target = citation
             if target == K_NOT_COMPILED:
                 continue
-            source_lines = manual.source.lines_of(target)
+            source_lines = manual.lines_of(target)
             if source_lines is None:
                 yield Issue(page.path, number, f"example source does not exist: {target}")
                 continue
@@ -647,6 +662,94 @@ def rule_allow_list(manual: Manual) -> Iterator[Issue]:
             yield Issue(manual.allow_path, entry.number, "entry excuses nothing; delete it")
 
 
+def _walk(
+    folder: Path, ignored: frozenset[Path] = frozenset()
+) -> Iterator[tuple[Path, list[str], list[str]]]:
+    """Yields each folder below a path with its entries, skipping ignored and skipped folders."""
+    for current, folders, files in os.walk(folder):
+        folders[:] = sorted(
+            name for name in folders
+            if name not in K_SKIPPED_FOLDERS and (Path(current) / name).resolve() not in ignored
+        )
+        yield Path(current), folders, sorted(files)
+
+
+def _tree_entries(root: Path, ignored: frozenset[Path]) -> list[str]:
+    """Returns the root-relative path of each file and folder the walk keeps."""
+    entries: list[str] = []
+    for current, folders, names in os.walk(root):
+        folders[:] = [
+            name for name in folders
+            if name not in K_BUILD_FOLDERS and (Path(current) / name).resolve() not in ignored
+        ]
+        entries.extend(
+            (Path(current) / name).relative_to(root).as_posix() for name in (*folders, *names)
+        )
+    return entries
+
+
+def _read_texts(root: Path, relatives: Iterable[str]) -> dict[str, str]:
+    """Returns the text of each named file, keyed by the name it was given."""
+    names = list(relatives)
+    files = read_files([root / name for name in names], lambda _: True)
+    return {name: file.text for name, file in zip(names, files, strict=True)}
+
+
+def _read_repository(
+    root: Path, source_folders: tuple[str, ...], only: frozenset[Path]
+) -> RepositoryFiles:
+    """Reads one repository's files into values; the only reader of the disk in this checker."""
+    ignored = ignored_folders(root)
+    source = [root / name for name in source_folders if (root / name).is_dir()]
+    rules = [root / name for name in K_RULE_FOLDERS if (root / name).is_dir()]
+    indexed = [entry for entry in sorted(root.iterdir()) if entry.is_file()]
+    for folder in source:
+        for current, _, names in _walk(folder, ignored):
+            indexed.extend(current / name for name in names)
+    markdown: list[Path] = []
+    if (root / K_PAGE_NAME).is_file():
+        markdown.append(root / K_PAGE_NAME)
+    docs = root / "docs"
+    if docs.is_dir():
+        markdown.extend(path for path in sorted(docs.rglob("*.md")) if path.is_file())
+    for folder in (*source, *rules):
+        for current, _, names in _walk(folder, ignored):
+            markdown.extend(current / name for name in names if name.endswith(".md"))
+    markdown_names = {path.relative_to(root).as_posix() for path in markdown}
+    indexed_names = {path.relative_to(root).as_posix() for path in indexed}
+    only_names = {path.relative_to(root).as_posix() for path in only}
+    wanted = {
+        name for name in (
+            *markdown_names, *only_names, K_ALLOW_LIST.as_posix(),
+            *(name for name in indexed_names if is_word_source(name)),
+        )
+        if (root / name).is_file()
+    }
+    texts = _read_texts(root, sorted(wanted))
+    cited = sorted(
+        target for target in cited_targets(texts)
+        if target not in texts and (root / target).is_file()
+    )
+    texts.update(_read_texts(root, cited))
+    return RepositoryFiles(
+        root=root,
+        source_folders=source_folders,
+        tree=frozenset(_tree_entries(root, ignored)),
+        top_level=frozenset(
+            entry.name for entry in root.iterdir() if entry.resolve() not in ignored
+        ),
+        markdown=frozenset(markdown_names),
+        indexed=frozenset(indexed_names),
+        only=frozenset(only_names),
+        texts=texts,
+    )
+
+
+def _manual_of(root: Path, source_folders: tuple[str, ...], only: frozenset[Path]) -> Manual:
+    """Returns the manual of one repository, read from the disk and built from its values."""
+    return build_manual(_read_repository(root, source_folders, only), K_MACRO_PREFIXES)
+
+
 def collect(
     paths: list[Path], source_folders: tuple[str, ...] = K_SOURCE_FOLDERS
 ) -> list[Manual]:
@@ -654,14 +757,16 @@ def collect(
 
     A page given by path is checked whatever its name, against its repository's source.
     """
-    manuals = [Manual(path, source_folders) for path in paths if path.is_dir()]
+    manuals = [_manual_of(path, source_folders, frozenset()) for path in paths if path.is_dir()]
     pages: dict[Path, set[Path]] = {}
     for path in paths:
         if path.is_file():
             root = next((parent for parent in path.resolve().parents if (parent / ".git").exists()),
                         path.resolve().parent)
             pages.setdefault(root, set()).add(path.resolve())
-    return manuals + [Manual(root, source_folders, frozenset(found)) for root, found in pages.items()]
+    return manuals + [
+        _manual_of(root, source_folders, frozenset(found)) for root, found in pages.items()
+    ]
 
 
 K_CHECKER = Checker(

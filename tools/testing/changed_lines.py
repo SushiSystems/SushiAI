@@ -6,12 +6,16 @@
 """Reads which lines of which files a working tree adds or edits after a commit.
 
 The root is the top of the repository, since git names the paths in a diff from there.
+
+changed_lines_of() reads the diff text and the line counts of untracked files as values; changed_lines()
+asks git for both.
 """
 
 from __future__ import annotations
 
 import re
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -23,12 +27,12 @@ K_HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 K_QUIET = ("-c", "core.quotepath=off")
 
 
-def changed_lines(root: Path, since: str) -> dict[Path, frozenset[int]]:
-    """Returns, for each file the working tree adds or edits after *since*, the lines it adds or edits.
+def changed_lines_of(root: Path, since: str, diff: str | None,
+                     untracked: Mapping[Path, int]) -> dict[Path, frozenset[int]]:
+    """Returns the lines each file adds or edits, from a diff, with each untracked file counted whole.
 
-    A file git does not track yet counts every one of its lines. A deleted file is left out.
+    A None diff means git could not read the range, so the base is unknown and the run stops.
     """
-    diff = git(root, *K_QUIET, "diff", "-U0", "--no-color", "--no-ext-diff", since, "--")
     if diff is None:
         raise SystemExit(f"cannot read the changes after {since}; fetch the full history")
     lines: dict[Path, set[int]] = {}
@@ -43,15 +47,25 @@ def changed_lines(root: Path, since: str) -> dict[Path, frozenset[int]]:
             first = int(hunk.group(1))
             count = 1 if hunk.group(2) is None else int(hunk.group(2))
             lines.setdefault(current, set()).update(range(first, first + count))
-    for path in _untracked(root):
-        lines[path] = set(range(1, _line_count(path) + 1))
+    for path, count in untracked.items():
+        lines[path] = set(range(1, count + 1))
     return {path: frozenset(numbers) for path, numbers in lines.items()}
 
 
-def _untracked(root: Path) -> list[Path]:
-    """Returns the files git does not track and does not ignore."""
+def changed_lines(root: Path, since: str) -> dict[Path, frozenset[int]]:
+    """Returns, for each file the working tree adds or edits after *since*, the lines it adds or edits.
+
+    A file git does not track yet counts every one of its lines. A deleted file is left out.
+    """
+    diff = git(root, *K_QUIET, "diff", "-U0", "--no-color", "--no-ext-diff", since, "--")
+    untracked = {root / name: _line_count(root / name) for name in _untracked_names(root)}
+    return changed_lines_of(root, since, diff, untracked)
+
+
+def _untracked_names(root: Path) -> list[str]:
+    """Returns the names of the files git does not track and does not ignore."""
     listing = git(root, *K_QUIET, "ls-files", "--others", "--exclude-standard", "-z")
-    return [root / name for name in (listing or "").split("\0") if name]
+    return [name for name in (listing or "").split("\0") if name]
 
 
 def _line_count(path: Path) -> int:

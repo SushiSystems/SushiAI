@@ -19,12 +19,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.copy_shared_tools import (  # noqa: E402
     LocalEditsError,
+    committed,
     copy,
+    first_year,
     known_bodies,
     local_edits,
     main,
     merged,
     pending,
+    shared_files,
+    uncommitted_notice,
 )
 
 K_UPSTREAM_HEADER = "# check.py\n# Upstream - https://example.org/upstream\n"
@@ -32,6 +36,9 @@ K_LOCAL_HEADER = "# check.py\n# Local - https://example.org/local\n"
 K_BODY = '"""Checks something."""\n\nK_VALUE = 2\n'
 K_OLD_BODY = '"""Checks something."""\n\nK_VALUE = 1\n'
 K_EDITED_BODY = '"""Checks something."""\n\nK_VALUE = 99\n'
+
+
+K_TEST_SIZE = "medium"
 
 
 def _write(root: Path, relative: str, text: str) -> None:
@@ -74,10 +81,12 @@ class CopyTest(unittest.TestCase):
         _git(self.upstream, "commit", "-q", "-m", "first")
         _write(self.upstream, "tools/layering/check.py", K_UPSTREAM_HEADER + K_BODY)
         _write(self.upstream, "tools/settings.py", "K_TIER_ORDER = ()\n")
+        _write(self.upstream, "tools/README.md", "# tools\nupstream\n")
+        _git(self.upstream, "add", "-A")
+        _git(self.upstream, "commit", "-q", "-m", "second")
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_OLD_BODY)
         _write(self.root, "tools/settings.py", 'K_TIER_ORDER = ("core",)\n')
         _write(self.root, "tools/naming/check_naming.py", "local\n")
-        _write(self.upstream, "tools/README.md", "# tools\nupstream\n")
         _write(self.root, "tools/README.md", "# tools\nlocal\n")
         self.shared = ["tools/README.md", "tools/layering/check.py", "tools/settings.py"]
 
@@ -134,11 +143,28 @@ class CopyTest(unittest.TestCase):
         (self.root / "tools/layering/check.py").write_bytes(crlf.encode("utf-8"))
         self.assertEqual(local_edits(self.upstream, self.root, self.shared), [])
 
-    def test_an_upstream_without_history_knows_only_its_current_text(self) -> None:
+    def test_an_upstream_without_a_commit_knows_no_text(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             plain = Path(folder)
             _write(plain, "tools/x.py", K_UPSTREAM_HEADER + K_BODY)
-            self.assertEqual(known_bodies(plain, "tools/x.py"), {K_BODY})
+            self.assertEqual(known_bodies(plain, "tools/x.py"), {""})
+
+    def test_an_uncommitted_edit_is_not_copied_and_the_committed_text_is(self) -> None:
+        _write(self.upstream, "tools/layering/check.py", K_UPSTREAM_HEADER + K_EDITED_BODY)
+        self.assertEqual(committed(self.upstream, "tools/layering/check.py"), K_UPSTREAM_HEADER + K_BODY)
+        copy(self.upstream, self.root, self.shared)
+        self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"), K_LOCAL_HEADER + K_BODY)
+
+    def test_an_untracked_upstream_file_is_not_shared(self) -> None:
+        _write(self.upstream, "tools/extra.py", "x\n")
+        self.assertNotIn("tools/extra.py", shared_files(self.upstream))
+
+    def test_the_command_names_uncommitted_upstream_files(self) -> None:
+        _write(self.upstream, "tools/layering/check.py", K_UPSTREAM_HEADER + K_EDITED_BODY)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main([str(self.root), "--from", str(self.upstream), "--report"])
+        self.assertIn("upstream has uncommitted changes, copying HEAD: tools/layering/check.py", output.getvalue())
 
     def test_the_command_reports_a_local_edit_and_refuses_to_copy_it(self) -> None:
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
@@ -151,8 +177,6 @@ class CopyTest(unittest.TestCase):
 
 
     def test_a_kept_file_is_left_alone_and_the_rest_is_copied(self) -> None:
-        _git(self.upstream, "add", "-A")
-        _git(self.upstream, "commit", "-q", "-m", "second")
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
         (self.root / "tools/settings.py").unlink()
         with contextlib.redirect_stdout(io.StringIO()):
@@ -161,6 +185,76 @@ class CopyTest(unittest.TestCase):
         self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"),
                          K_LOCAL_HEADER + K_EDITED_BODY)
         self.assertTrue((self.root / "tools/settings.py").exists())
+
+
+K_CLOSED_SETTINGS = """K_CLOSED = True
+K_LICENSE_HOLDER = "Acme Ltd"
+K_LICENSE_COMPANY = "Acme"
+K_LICENSE_SITE = "https://site.example"
+K_LICENSE_CLOSED_BOX_LINES = ("All rights reserved.", "Acme secret.")
+"""
+K_EDGE = "/" + "*" * 82 + "/"
+K_OPEN_BOX = "\n".join([
+    K_EDGE,
+    "/* tolerance.hpp".ljust(84) + "*/",
+    K_EDGE,
+    "/*  Copyright (c) 2025-present Example Holder".ljust(84) + "*/",
+    "/*  Licensed under the PolyForm Noncommercial License 1.0.0".ljust(84) + "*/",
+    K_EDGE,
+    "",
+])
+K_HPP_BODY = "#pragma once\n\ninline int tolerance() { return 1; }\n"
+K_HPP = "tools/testing/support/tolerance.hpp"
+
+
+class OtherSourceBlockTest(unittest.TestCase):
+    """Covers the license block of a copied file that is not Python."""
+
+    def setUp(self) -> None:
+        self._folder = tempfile.TemporaryDirectory()
+        self.upstream = Path(self._folder.name) / "upstream"
+        self.root = Path(self._folder.name) / "closed"
+        _write(self.upstream, K_HPP, K_OPEN_BOX + "\n" + K_HPP_BODY)
+        _git(self.upstream, "init", "-q")
+        _git(self.upstream, "add", "-A")
+        _git(self.upstream, "commit", "-q", "-m", "first")
+        _write(self.root, "tools/settings.py", K_CLOSED_SETTINGS)
+        _write(self.root, "tools/check_all.py", "# check_all.py\n# Acme - https://acme.example\n# x\n")
+
+    def tearDown(self) -> None:
+        self._folder.cleanup()
+
+    def test_a_closed_repository_gets_its_own_box_and_a_second_copy_finds_no_difference(self) -> None:
+        self.assertEqual(copy(self.upstream, self.root, [K_HPP]), [K_HPP])
+        text = (self.root / K_HPP).read_text(encoding="utf-8")
+        self.assertIn("Acme secret.", text)
+        self.assertIn("Copyright (c) 2025-present Acme Ltd", text)
+        self.assertIn("https://acme.example", text)
+        self.assertNotIn("PolyForm", text)
+        self.assertTrue(text.endswith(K_HPP_BODY))
+        self.assertEqual(pending(self.upstream, self.root, [K_HPP]), [])
+        self.assertEqual(local_edits(self.upstream, self.root, [K_HPP]), [])
+
+    def test_a_repository_without_settings_gets_the_upstream_text(self) -> None:
+        (self.root / "tools/settings.py").unlink()
+        copy(self.upstream, self.root, [K_HPP])
+        self.assertIn("PolyForm", (self.root / K_HPP).read_text(encoding="utf-8"))
+
+
+class SmallDecisionTest(unittest.TestCase):
+    """Covers the pure decisions."""
+
+    def test_the_year_is_the_first_copyright_row_found(self) -> None:
+        self.assertEqual(first_year(2030, None, "Copyright (c) 2024-present X", "Copyright (c) 2020-present X"), 2024)
+
+    def test_the_year_falls_back_to_this_year(self) -> None:
+        self.assertEqual(first_year(2030, None, "no row"), 2030)
+
+    def test_no_uncommitted_path_gives_no_notice(self) -> None:
+        self.assertIsNone(uncommitted_notice([]))
+
+    def test_the_notice_names_every_path(self) -> None:
+        self.assertEqual(uncommitted_notice(["a", "b"]), "upstream has uncommitted changes, copying HEAD: a, b")
 
 
 class NewFileHeaderTest(unittest.TestCase):

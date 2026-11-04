@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests each rule of the docs truth checker on a manual it must report and one it must not."""
+"""Tests each rule of the docs truth checker on values, and its command line on a temporary tree."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 from collections.abc import Callable, Iterator
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -27,6 +27,8 @@ from documentation.check_docs_truth import (  # noqa: E402
     K_SOURCE_FOLDERS,
     Manual,
     PageKind,
+    RepositoryFiles,
+    build_manual,
     main,
     rule_allow_list,
     rule_cited_paths,
@@ -38,6 +40,7 @@ from documentation.check_docs_truth import (  # noqa: E402
     rule_page_length,
 )
 
+K_ROOT = Path("repo")
 K_SKILL = Path(__file__).resolve().parents[2] / "skills" / "documentation" / "SKILL.md"
 K_CEILING_ROW = re.compile(r"^\| ([^|]+?) \| ([\d ]+) lines \|", re.MULTILINE)
 K_SOURCE = {
@@ -53,30 +56,42 @@ K_SOURCE = {
 K_PASSAGE = "The world advances every body by one fixed step and then settles contacts. " * 5
 
 
-def _manual(folder: str, files: dict[str, str]) -> Manual:
+def _repository(files: dict[str, str]) -> RepositoryFiles:
+    """Returns the values a shell would read for a repository that holds these files."""
+    texts = {**K_SOURCE, **files}
+    parts = {name: PurePosixPath(name).parts for name in texts}
+    return RepositoryFiles(
+        root=K_ROOT,
+        source_folders=K_SOURCE_FOLDERS,
+        tree=frozenset("/".join(path[:index]) for path in parts.values()
+                       for index in range(1, len(path) + 1)),
+        top_level=frozenset(path[0] for path in parts.values()),
+        markdown=frozenset(name for name in texts if name.endswith(".md")),
+        indexed=frozenset(
+            name for name, path in parts.items()
+            if len(path) == 1 or path[0] in K_SOURCE_FOLDERS
+        ),
+        only=frozenset(),
+        texts=texts,
+    )
+
+
+def _manual(files: dict[str, str]) -> Manual:
     """Returns the manual of a repository that holds the test source and the given files."""
-    root = Path(folder)
-    for name, text in {**K_SOURCE, **files}.items():
-        path = root / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    return Manual(root, K_SOURCE_FOLDERS)
+    return build_manual(_repository(files))
 
 
 def _found(
     rule: Callable[[Manual], Iterator[Issue]], files: dict[str, str]
 ) -> list[tuple[str, int]]:
     """Returns the root-relative path and the line of each issue a rule yields for the files."""
-    with tempfile.TemporaryDirectory() as folder:
-        manual = _manual(folder, files)
-        return [
-            (issue.path.relative_to(manual.root).as_posix(), issue.line)
-            for issue in rule(manual)
-        ]
+    manual = _manual(files)
+    return [(issue.path.relative_to(manual.root).as_posix(), issue.line) for issue in rule(manual)]
 
 
 class RuleTableTest(unittest.TestCase):
     """Checks that every rule runs as part of the checker."""
+    K_TEST_SIZE = "small"
 
     def test_registers_every_rule(self) -> None:
         """Holds each rule function under its own name in the rule table."""
@@ -89,6 +104,7 @@ class RuleTableTest(unittest.TestCase):
 
 class NamedSymbolsTest(unittest.TestCase):
     """Checks which names in code count as names the source must hold."""
+    K_TEST_SIZE = "small"
 
     def test_reports_each_shape_of_absent_name(self) -> None:
         """Reports a qualified name, a call, a type, a snake name, a constant and a macro."""
@@ -133,6 +149,7 @@ class NamedSymbolsTest(unittest.TestCase):
 
 class CitedPathsTest(unittest.TestCase):
     """Checks which cited paths must exist."""
+    K_TEST_SIZE = "small"
 
     def test_reports_a_missing_path(self) -> None:
         """Reports a path under a top-level folder, an include and a path in a text block."""
@@ -167,6 +184,7 @@ class CitedPathsTest(unittest.TestCase):
 
 class ExampleSourceTest(unittest.TestCase):
     """Checks that an example in a manual page is taken from a file."""
+    K_TEST_SIZE = "small"
 
     def test_reports_an_uncited_and_a_drifted_example(self) -> None:
         """Reports a block without a citation, a line its file lacks and a missing file."""
@@ -185,10 +203,9 @@ class ExampleSourceTest(unittest.TestCase):
             "Source: `applications/examples/quickstart.cpp`\n\n```cpp\nfuture_call();\n```\n"
             "Source: not compiled\n\n```console\n$ pr build\n```\n"
         )
-        with tempfile.TemporaryDirectory() as folder:
-            manual = _manual(folder, {"docs/guides/GUIDE.md": page})
-            self.assertEqual(list(rule_example_source(manual)), [])
-            self.assertEqual(manual.unverified_examples(), 1)
+        manual = _manual({"docs/guides/GUIDE.md": page})
+        self.assertEqual(list(rule_example_source(manual)), [])
+        self.assertEqual(manual.unverified_examples(), 1)
 
     def test_exempts_a_module_readme(self) -> None:
         """Reports nothing for an uncited block in a module README."""
@@ -198,6 +215,7 @@ class ExampleSourceTest(unittest.TestCase):
 
 class HistoryWordsTest(unittest.TestCase):
     """Checks which prose narrates history."""
+    K_TEST_SIZE = "small"
 
     def test_reports_each_history_phrase(self) -> None:
         """Reports one issue per line that says what the code was."""
@@ -223,6 +241,7 @@ class HistoryWordsTest(unittest.TestCase):
 
 class PageLengthTest(unittest.TestCase):
     """Checks the line ceiling of each kind of page."""
+    K_TEST_SIZE = "small"
 
     def test_reports_a_page_one_line_above_its_ceiling(self) -> None:
         """Reports the root README, a manual page and a module README above their ceilings."""
@@ -243,20 +262,10 @@ class PageLengthTest(unittest.TestCase):
         }
         self.assertEqual(_found(rule_page_length, files), [])
 
-    @unittest.skipUnless(K_SKILL.is_file(), "the documentation skill is not in this repository")
-    def test_ceilings_match_the_documentation_skill(self) -> None:
-        """Holds the same four ceilings as the table in the documentation skill."""
-        stated = {
-            label: int(number.replace(" ", ""))
-            for label, number in K_CEILING_ROW.findall(K_SKILL.read_text(encoding="utf-8"))
-        }
-        held = {kind.value: ceiling for kind, ceiling in K_LINE_CEILINGS.items()}
-        held[PageKind.DESIGN_DOCUMENT.value] = K_DESIGN_LINE_CEILING
-        self.assertEqual(stated, held)
-
 
 class DuplicatedPassagesTest(unittest.TestCase):
     """Checks that a long paragraph has one home."""
+    K_TEST_SIZE = "small"
 
     def test_reports_the_second_copy_whatever_its_wrapping(self) -> None:
         """Reports the later page of two that hold one paragraph wrapped differently."""
@@ -273,7 +282,9 @@ class DuplicatedPassagesTest(unittest.TestCase):
             "skills/git-workflow/SKILL.md": f"# Git\n\n{K_PASSAGE}\n",
             "skills/humanizer/research/SOURCES.md": f"# Sources\n\n{K_PASSAGE}\n",
         }
-        self.assertEqual(_found(rule_duplicated_passages, files), [("skills/git-workflow/SKILL.md", 3)])
+        self.assertEqual(
+            _found(rule_duplicated_passages, files), [("skills/git-workflow/SKILL.md", 3)],
+        )
 
     def test_accepts_a_short_repeat_and_a_repeated_code_block(self) -> None:
         """Accepts a repeated paragraph under the floor and a block repeated in a fence."""
@@ -296,6 +307,7 @@ class DuplicatedPassagesTest(unittest.TestCase):
 
 class EmDashTest(unittest.TestCase):
     """Checks where an em dash is refused."""
+    K_TEST_SIZE = "small"
 
     def test_reports_an_em_dash_in_prose(self) -> None:
         """Reports the prose line that holds the dash."""
@@ -315,6 +327,7 @@ class EmDashTest(unittest.TestCase):
 
 class AllowListTest(unittest.TestCase):
     """Checks that the allow-list stays justified and in use."""
+    K_TEST_SIZE = "small"
 
     def test_reports_a_bare_a_broken_and_an_unused_entry(self) -> None:
         """Reports an entry without a reason, one that does not compile and one nothing uses."""
@@ -334,13 +347,24 @@ class AllowListTest(unittest.TestCase):
         self.assertEqual(_found(rule_allow_list, files), [])
 
 
-class CommandLineTest(unittest.TestCase):
-    """Checks the options the checker reads beside the shared ones."""
+def _write_tree(folder: str, files: dict[str, str]) -> Path:
+    """Writes the test source and the given files below a folder, and returns the folder."""
+    root = Path(folder)
+    for name, text in {**K_SOURCE, **files}.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    return root
+
+
+class ShellTest(unittest.TestCase):
+    """Runs the command line on a tree in a temporary folder, and reads the documentation skill."""
+    K_TEST_SIZE = "medium"
 
     def test_source_option_replaces_the_default_folders(self) -> None:
         """Finds a name only when --source names the folder that holds it."""
         with tempfile.TemporaryDirectory() as folder:
-            _manual(folder, {
+            _write_tree(folder, {
                 "docs/guides/GUIDE.md": "# Guide\n\n`custom_entry_point`\n",
                 "runtime/entry.cpp": "void custom_entry_point();\n",
             })
@@ -353,19 +377,34 @@ class CommandLineTest(unittest.TestCase):
     def test_checks_a_page_given_by_path(self) -> None:
         """Checks a page passed on the command line, whatever its name."""
         with tempfile.TemporaryDirectory() as folder:
-            _manual(folder, {".git/HEAD": "", "notes/probe.md": "# Probe\n\n`modules/nope/nothing.hpp`\n"})
+            _write_tree(folder, {
+                ".git/HEAD": "",
+                "notes/probe.md": "# Probe\n\n`modules/nope/nothing.hpp`\n",
+            })
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(main([str(Path(folder) / "notes/probe.md"), "--rule", "rule_cited_paths"]), 1)
+                probe = str(Path(folder) / "notes/probe.md")
+                self.assertEqual(main([probe, "--rule", "rule_cited_paths"]), 1)
 
     def test_report_counts_the_unverified_examples(self) -> None:
         """Prints the number of blocks marked not compiled after the rule counts."""
         page = "# Guide\n\n```cpp\nfuture_call();\n```\nSource: not compiled\n"
         with tempfile.TemporaryDirectory() as folder:
-            _manual(folder, {"docs/guides/GUIDE.md": page})
+            _write_tree(folder, {"docs/guides/GUIDE.md": page})
             output = io.StringIO()
             with contextlib.redirect_stdout(output):
                 self.assertEqual(main([folder, "--report"]), 0)
             self.assertEqual(output.getvalue().splitlines()[-1], "unverified examples: 1")
+
+    @unittest.skipUnless(K_SKILL.is_file(), "the documentation skill is not in this repository")
+    def test_ceilings_match_the_documentation_skill(self) -> None:
+        """Holds the same four ceilings as the table in the documentation skill."""
+        stated = {
+            label: int(number.replace(" ", ""))
+            for label, number in K_CEILING_ROW.findall(K_SKILL.read_text(encoding="utf-8"))
+        }
+        held = {kind.value: ceiling for kind, ceiling in K_LINE_CEILINGS.items()}
+        held[PageKind.DESIGN_DOCUMENT.value] = K_DESIGN_LINE_CEILING
+        self.assertEqual(stated, held)
 
 
 if __name__ == "__main__":

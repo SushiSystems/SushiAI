@@ -15,6 +15,7 @@ import functools
 import re
 import sys
 from collections.abc import Iterable, Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -30,16 +31,27 @@ K_TRAILER = re.compile(r"^Backlog:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 K_NONE = re.compile(r"^none \(\s*(\S.*?)\s*\)$")
 
 
-def _ids_in(text: str) -> set[str]:
+@dataclass(frozen=True, slots=True)
+class TrailerCheck:
+    """Holds one commit to judge: its repository, hash and message, the IDs open for it and the shape of an ID."""
+
+    root: Path
+    sha: str
+    message: str
+    known: frozenset[str]
+    id_pattern: str
+
+
+def ids_in(text: str) -> frozenset[str]:
     """Returns the IDs that open the rows of the tables in one backlog file."""
     row = re.compile(rf"^\|\s*({K_ID_PATTERN})\s*\|", re.MULTILINE)
-    return set(row.findall(text))
+    return frozenset(row.findall(text))
 
 
 @functools.lru_cache(maxsize=None)
 def _ids_of_blob(root: Path, blob: str) -> frozenset[str]:
     """Returns the IDs in one backlog file, named by its object hash, which never changes its content."""
-    return frozenset(_ids_in(git(root, "cat-file", "blob", blob) or ""))
+    return ids_in(git(root, "cat-file", "blob", blob) or "")
 
 
 @functools.lru_cache(maxsize=None)
@@ -69,7 +81,7 @@ def open_ids(root: Path, revision: str | None) -> frozenset[str]:
         ids: set[str] = set()
         folder = root / K_BACKLOG_FOLDER
         for path in sorted(folder.glob("*.md")) if folder.is_dir() else []:
-            ids |= _ids_in(path.read_text(encoding="utf-8", errors="replace"))
+            ids |= ids_in(path.read_text(encoding="utf-8", errors="replace"))
         return frozenset(ids)
     tree = _backlog_tree(root, revision)
     return _ids_of_tree(root, tree) if tree else frozenset()
@@ -81,8 +93,11 @@ def trailer_value(message: str) -> str | None:
     return found[-1] if found else None
 
 
-def trailer_problems(message: str, known: frozenset[str]) -> list[str]:
-    """Returns what is wrong with the `Backlog:` line of a message; empty when it is right."""
+def trailer_problems(message: str, known: frozenset[str], id_pattern: str) -> list[str]:
+    """Returns what is wrong with the `Backlog:` line of a message; empty when it is right.
+
+    *id_pattern* is the regular expression an ID must match in full.
+    """
     value = trailer_value(message)
     if value is None:
         return ["the message has no `Backlog:` line; write `Backlog: <ID>` or `Backlog: none (<reason>)`"]
@@ -90,27 +105,34 @@ def trailer_problems(message: str, known: frozenset[str]) -> list[str]:
         return [] if K_NONE.match(value) else ["`Backlog: none` needs its reason in brackets: `none (<reason>)`"]
     ids = [item.strip() for item in value.split(",")]
     problems = [f"`Backlog:` names {item!r}, which is not a backlog ID" for item in ids
-                if not re.fullmatch(K_ID_PATTERN, item)]
+                if not re.fullmatch(id_pattern, item)]
     problems += [f"`Backlog:` names {item}, which is not an entry open at the parent or in this commit"
-                 for item in ids if re.fullmatch(K_ID_PATTERN, item) and item not in known]
+                 for item in ids if re.fullmatch(id_pattern, item) and item not in known]
     return problems
 
 
-def collect(paths: list[Path]) -> Iterable[Commit]:
-    """Returns each commit after K_TRAILER_SINCE below each given repository root, oldest first."""
-    return [commit for root in paths if root.is_dir() and K_SINCE for commit in commits_since(root, K_SINCE)]
-
-
-def _issue(commit: Commit, text: str) -> Issue:
-    """Returns an issue placed on the commit, named by its short hash."""
-    return Issue(commit.root / f"commit-{commit.sha[:9]}", 1, text)
-
-
-def rule_trailer(commit: Commit) -> Iterator[Issue]:
-    """Yields an issue for each fault of the `Backlog:` line of a commit."""
+def _check_of(commit: Commit) -> TrailerCheck:
+    """Returns a commit with the IDs open at its parent and in itself, read from git."""
     known = open_ids(commit.root, commit.parent) | open_ids(commit.root, commit.sha)
-    for problem in trailer_problems(commit.message, known):
-        yield _issue(commit, problem)
+    return TrailerCheck(commit.root, commit.sha, commit.message, known, K_ID_PATTERN)
+
+
+def collect(paths: list[Path]) -> Iterable[TrailerCheck]:
+    """Returns each commit after K_TRAILER_SINCE below each given repository root, oldest first."""
+    if not K_SINCE:
+        return []
+    return [
+        _check_of(commit)
+        for root in paths if root.is_dir()
+        for commit in commits_since(root, K_SINCE)
+    ]
+
+
+def rule_trailer(check: TrailerCheck) -> Iterator[Issue]:
+    """Yields an issue for each fault of the `Backlog:` line of a commit, placed on its short hash."""
+    path = check.root / f"commit-{check.sha[:9]}"
+    for problem in trailer_problems(check.message, check.known, check.id_pattern):
+        yield Issue(path, 1, problem)
 
 
 K_CHECKER = Checker(

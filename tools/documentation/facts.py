@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from typing import final
 
 K_ID = r"[a-z0-9][a-z0-9-]*"
 K_FACT_BEGIN = re.compile(rf"^<!-- fact:begin ({K_ID}) -->$")
@@ -23,9 +24,10 @@ K_QUOTE_END = re.compile(rf"^<!-- quote:end ({K_ID}) -->$")
 K_FOLLOWS = re.compile(rf"^<!-- follows: ({K_ID}) -->$")
 
 
+@final
 @dataclass(frozen=True, slots=True)
 class Block:
-    """Holds one fact or one quote: its id, the lines of its markers and the text between them."""
+    """Holds one fact or one quote: its id, its marker lines and the text between them."""
 
     id: str
     first: int
@@ -33,9 +35,10 @@ class Block:
     body: str
 
 
+@final
 @dataclass(slots=True)
 class Page:
-    """Holds the facts, quotes and follow marks of one page, and the faults in how they are marked."""
+    """Holds the facts, quotes and follow marks of one page, and the faults in their markers."""
 
     path: str
     facts: list[Block] = field(default_factory=list)
@@ -59,7 +62,9 @@ def parse(path: str, text: str) -> Page:
         kind = "fact" if "fact:" in line else "quote"
         if begin:
             if open_kind:
-                page.faults.append((number, f"{kind} {begin.group(1)} begins inside {open_kind} {open_id}"))
+                page.faults.append(
+                    (number, f"{kind} {begin.group(1)} begins inside {open_kind} {open_id}")
+                )
             else:
                 open_kind, open_id, open_line, inner = kind, begin.group(1), number, []
         elif end:
@@ -81,11 +86,12 @@ def parse(path: str, text: str) -> Page:
 
 
 def regenerate(text: str, homes: dict[str, str]) -> str:
-    """Returns the text with the body of each quote replaced by the body of its fact, where the fact exists."""
+    """Returns the text with each quote body replaced by its fact's body, where the fact exists."""
     page = parse("", text)
     newline = "\r\n" if "\r\n" in text else "\n"
     lines = text.replace("\r\n", "\n").split("\n")
     for quote in sorted(page.quotes, key=lambda block: -block.first):
         if quote.id in homes:
-            lines[quote.first:quote.last - 1] = homes[quote.id].split("\n") if homes[quote.id] != "" else []
+            body = homes[quote.id]
+            lines[quote.first:quote.last - 1] = body.split("\n") if body != "" else []
     return newline.join(lines)

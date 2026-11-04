@@ -3,31 +3,37 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the license block writer on each way a source file can open."""
+"""Tests the license block writer on each way a source file can open.
+
+The rewrite and the planning are checked on values in memory; the git repository and the checker
+are checked once, on a temporary folder.
+"""
 
 from __future__ import annotations
 
 import contextlib
 import io
 import subprocess
-from datetime import date
 import sys
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from checking.source_file import SourceFile  # noqa: E402
 from documentation import check_source_comments  # noqa: E402
 from documentation.check_source_comments import collect, rule_license_block  # noqa: E402
 from documentation.licence import Licence  # noqa: E402
 from licensing import write_license_block  # noqa: E402
 from licensing.write_license_block import (  # noqa: E402
     Header,
-    first_years,
     is_source,
     main,
+    parse_first_years,
+    plan_changes,
     rewrite,
 )
 
@@ -44,16 +50,8 @@ K_ACME = Licence(
 )
 K_PROJECT = "AcmeRuntime - https://github.com/AcmeCorp/AcmeRuntime"
 K_COPYRIGHT = "Copyright (c) 2026-present Jane Doe & Acme Corp"
-K_HEADER = Header(K_PROJECT)
+K_HEADER = Header(K_PROJECT, K_ACME)
 K_EDGE = "/" + "*" * 74 + "/"
-
-
-def setUpModule() -> None:
-    """Makes the made-up company's licence the one the checker and the writer use for every test here."""
-    for module in (check_source_comments, write_license_block):
-        patch = mock.patch.object(module, "K_LICENCE", K_ACME)
-        patch.start()
-        unittest.addModuleCleanup(patch.stop)
 
 
 def _left(text: str, field: int = 70) -> str:
@@ -117,6 +115,7 @@ def _write(name: str, text: str, header: Header = K_HEADER, year: int = 2026) ->
 
 class RewriteTest(unittest.TestCase):
     """Checks the text the writer produces for each file opening."""
+    K_TEST_SIZE = "small"
 
     def test_replaces_an_old_box(self) -> None:
         """Replaces a boxed Apache block and keeps the file block one blank line below."""
@@ -186,7 +185,7 @@ class RewriteTest(unittest.TestCase):
 
     def test_writes_the_closed_lines(self) -> None:
         """Writes the reserved-rights line and no grant in a closed repository."""
-        text = _write("graph.hpp", K_DOC, Header("AcmeWeb - https://acme.example", closed=True))
+        text = _write("graph.hpp", K_DOC, Header("AcmeWeb - https://acme.example", K_ACME, closed=True))
         self.assertIn("/* All rights reserved. ", text)
         self.assertIn("No licence is granted.", text)
         self.assertEqual(text.count("https://acme.example"), 1)
@@ -196,7 +195,7 @@ class RewriteTest(unittest.TestCase):
     def test_appends_upstream_lines(self) -> None:
         """Appends a ported file's upstream notice below the repository's own lines."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        header = Header(K_PROJECT, upstream={"source/lapjv.cpp": upstream})
+        header = Header(K_PROJECT, K_ACME, upstream={"source/lapjv.cpp": upstream})
         rows = rewrite("source/lapjv.cpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
         self.assertEqual(rows[1].strip("/* "), "lapjv.cpp")
         self.assertEqual([row.strip("/* ") for row in rows[-4:-1]], ["", *upstream])
@@ -205,13 +204,13 @@ class RewriteTest(unittest.TestCase):
     def test_keeps_upstream_lines_on_a_plain_rerun(self) -> None:
         """Keeps a ported file's upstream rows when a later run names no upstream for it."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        ported = Header(K_PROJECT, upstream={"lapjv.cpp": upstream})
+        ported = Header(K_PROJECT, K_ACME, upstream={"lapjv.cpp": upstream})
         for name, body in (("lapjv.cpp", K_DOC), ("lapjv.py", K_DOCSTRING)):
-            first = rewrite(name, body, Header(K_PROJECT, upstream={name: upstream}), 2026)
+            first = rewrite(name, body, Header(K_PROJECT, K_ACME, upstream={name: upstream}), 2026)
             self.assertIn("Tomas Kazmar", first)
             self.assertEqual(rewrite(name, first, K_HEADER, 2026), first)
         replaced = rewrite("lapjv.cpp", rewrite("lapjv.cpp", K_DOC, ported, 2026),
-                           Header(K_PROJECT, upstream={"lapjv.cpp": ("MIT",)}), 2026)
+                           Header(K_PROJECT, K_ACME, upstream={"lapjv.cpp": ("MIT",)}), 2026)
         self.assertNotIn("Tomas Kazmar", replaced)
         self.assertIn("/* MIT ", replaced)
 
@@ -249,7 +248,7 @@ class RewriteTest(unittest.TestCase):
 
     def test_widens_the_box_for_a_long_line(self) -> None:
         """Keeps every row and both edges the same width when a line is long."""
-        header = Header("AcmeRuntime - " + "x" * 80)
+        header = Header("AcmeRuntime - " + "x" * 80, K_ACME)
         rows = rewrite("graph.hpp", K_DOC, header, 2026).split("\n\n")[0].splitlines()
         self.assertEqual(len({len(row) for row in rows}), 1)
 
@@ -257,45 +256,65 @@ class RewriteTest(unittest.TestCase):
         """Writes the file's first year into the copyright line."""
         self.assertIn("Copyright (c) 2024-present Jane Doe & Acme Corp", _write("graph.py", "", year=2024))
 
-    def test_output_passes_the_checker(self) -> None:
-        """Produces blocks the license block rule accepts."""
-        for name, text in (("graph.hpp", K_DOC), ("graph.py", K_DOCSTRING)):
-            with tempfile.TemporaryDirectory() as folder:
-                path = Path(folder) / name
-                path.write_text(rewrite(name, text, Header(K_PROJECT, closed=K_ACME.closed), 2026), encoding="utf-8")
-                issues = [issue for source in collect([path]) for issue in rule_license_block(source)]
-                self.assertEqual(issues, [])
+
+class ParseFirstYearsTest(unittest.TestCase):
+    """Reads the first year of each listed file from the text of git's listing and log."""
+    K_TEST_SIZE = "small"
+
+    def test_first_year_follows_a_rename(self) -> None:
+        """Dates a renamed file from the commit that first added it."""
+        listing = "graph.py\n"
+        log = "@2026\nR100\told.py\tgraph.py\n\n@2024\nA\told.py\n"
+        self.assertEqual(parse_first_years(listing, log), {"graph.py": 2024})
 
 
-def _git(root: Path, *arguments: str) -> None:
-    """Runs one git command in a repository with a fixed identity and date."""
-    identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
-    subprocess.run(["git", "-C", str(root), *identity, *arguments], check=True, capture_output=True)
+class PlanChangesTest(unittest.TestCase):
+    """Plans the writes for source files held in memory."""
+    K_TEST_SIZE = "small"
+
+    def test_plans_only_the_candidates_whose_text_would_change(self) -> None:
+        """Leaves out a skipped file, a file that is not source and a file already written."""
+        files = [
+            SourceFile(Path("graph.hpp"), K_DOC),
+            SourceFile(Path("skip_me.py"), K_DOCSTRING),
+            SourceFile(Path("third_party/vendored.hpp"), K_DOC),
+            SourceFile(Path("notes.md"), "# Notes\n"),
+            SourceFile(Path("done.hpp"), _write("done.hpp", K_DOC)),
+        ]
+        changes = plan_changes(files, K_HEADER, {}, 2026, ["skip_me.py"])
+        self.assertEqual(changes, [SourceFile(Path("graph.hpp"), f"{K_BOX}\n\n{K_DOC}")])
 
 
 class RepositoryTest(unittest.TestCase):
-    """Checks the writer against a real git repository."""
+    """Checks the writer against a real git repository and the checker against its output."""
+    K_TEST_SIZE = "medium"
+
+    def setUp(self) -> None:
+        """Makes the made-up company's licence the one the writer and the checker use."""
+        for module in (check_source_comments, write_license_block):
+            patch = mock.patch.object(module, "K_LICENCE", K_ACME)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def _git(self, root: Path, *arguments: str) -> None:
+        """Runs one git command in a repository with a fixed identity and date."""
+        identity = ["-c", "user.name=Test", "-c", "user.email=test@example.com"]
+        subprocess.run(["git", "-C", str(root), *identity, *arguments], check=True, capture_output=True)
 
     def _repository(self, folder: str) -> Path:
         """Returns a repository with one file added in 2024 and renamed in 2026."""
         root = Path(folder)
-        _git(root, "init", "-q")
+        self._git(root, "init", "-q")
         (root / "old.py").write_text(K_DOCSTRING, encoding="utf-8")
-        _git(root, "add", "old.py")
-        _git(root, "commit", "-q", "-m", "add", "--date=2024-03-01T00:00:00")
-        _git(root, "mv", "old.py", "graph.py")
+        self._git(root, "add", "old.py")
+        self._git(root, "commit", "-q", "-m", "add", "--date=2024-03-01T00:00:00")
+        self._git(root, "mv", "old.py", "graph.py")
         (root / "third_party").mkdir()
         (root / "third_party" / "vendored.py").write_text("x = 1\n", encoding="utf-8")
         (root / "notes.md").write_text("# Notes\n", encoding="utf-8")
-        _git(root, "add", "-A")
-        _git(root, "commit", "-q", "-m", "rename", "--date=2026-03-01T00:00:00")
+        self._git(root, "add", "-A")
+        self._git(root, "commit", "-q", "-m", "rename", "--date=2026-03-01T00:00:00")
         return root
-
-    def test_first_year_follows_a_rename(self) -> None:
-        """Dates a renamed file from the commit that first added it."""
-        with tempfile.TemporaryDirectory() as folder:
-            years = first_years(self._repository(folder))
-            self.assertEqual(years["graph.py"], 2024)
 
     def test_report_writes_nothing_and_run_converges(self) -> None:
         """Reports a pending file without touching it, then writes it once."""
@@ -309,13 +328,12 @@ class RepositoryTest(unittest.TestCase):
             self.assertEqual((root / "third_party" / "vendored.py").read_text(encoding="utf-8"), "x = 1\n")
             self.assertEqual(_main([*arguments, "--report"]), 0)
 
-
     def test_writes_a_file_that_is_staged_and_not_yet_committed(self) -> None:
         """Gives a newly added file its block, dated this year."""
         with tempfile.TemporaryDirectory() as folder:
             root = self._repository(folder)
             (root / "fresh.py").write_text(K_DOCSTRING, encoding="utf-8")
-            _git(root, "add", "fresh.py")
+            self._git(root, "add", "fresh.py")
             self.assertEqual(_main([str(root), "--project", K_PROJECT]), 0)
             written = (root / "fresh.py").read_text(encoding="utf-8")
             self.assertIn(f"Copyright (c) {date.today().year}-present ", written)
@@ -326,6 +344,15 @@ class RepositoryTest(unittest.TestCase):
             root = self._repository(folder)
             (root / "graph.py").unlink()
             self.assertEqual(_main([str(root), "--project", K_PROJECT, "--report"]), 0)
+
+    def test_output_passes_the_checker(self) -> None:
+        """Produces blocks the license block rule accepts."""
+        for name, text in (("graph.hpp", K_DOC), ("graph.py", K_DOCSTRING)):
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / name
+                path.write_text(rewrite(name, text, Header(K_PROJECT, K_ACME), 2026), encoding="utf-8")
+                issues = [issue for source in collect([path]) for issue in rule_license_block(source)]
+                self.assertEqual(issues, [])
 
 
 if __name__ == "__main__":

@@ -23,6 +23,7 @@ K_LINE = re.compile(
     r"(?P<outcome>passed|failed)(?:, rung (?P<rung>\d+))?\s*$"
 )
 K_FIRST_RUNG = 1
+K_NONE_FOUND = "no dispatch lines found"
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,14 +67,6 @@ def parse(lines: Iterable[str]) -> Iterator[Dispatch]:
             )
 
 
-def reports(root: Path) -> Iterator[Path]:
-    """Yields every report of agent work below root, live and archived."""
-    for name in K_REPORT_FOLDERS:
-        folder = root / name
-        if folder.is_dir():
-            yield from sorted(folder.rglob(K_REPORT_NAME))
-
-
 def summarize(dispatches: Iterable[Dispatch]) -> list[Seat]:
     """Returns one seat per model and effort, sorted by model then effort."""
     groups: dict[tuple[str, str], list[Dispatch]] = {}
@@ -86,21 +79,33 @@ def summarize(dispatches: Iterable[Dispatch]) -> list[Seat]:
     ]
 
 
+def summary_lines(texts: Iterable[str]) -> list[str]:
+    """Returns the summary table of the dispatch lines in the reports, or one line saying none."""
+    dispatches = [dispatch for text in texts for dispatch in parse(text.splitlines())]
+    if not dispatches:
+        return [K_NONE_FOUND]
+    header = f"{'model':<7} {'effort':<7} {'runs':>5} {'pass':>6} {'turns':>7} {'escalated':>9}"
+    return [header, *(seat.format() for seat in summarize(dispatches))]
+
+
 def main(argv: list[str] | None = None) -> int:
     """Prints the summary of every dispatch line below a root and returns 0."""
     arguments = sys.argv[1:] if argv is None else argv
     root = Path(arguments[0]) if arguments else Path.cwd()
-    dispatches = [
-        dispatch for path in reports(root)
-        for dispatch in parse(path.read_text(encoding="utf-8", errors="replace").splitlines())
-    ]
-    if not dispatches:
-        print("no dispatch lines found")
-        return 0
-    print(f"{'model':<7} {'effort':<7} {'runs':>5} {'pass':>6} {'turns':>7} {'escalated':>9}")
-    for seat in summarize(dispatches):
-        print(seat.format())
+    for line in summary_lines(_read_reports(root)):
+        print(line)
     return 0
+
+
+def _read_reports(root: Path) -> list[str]:
+    """Returns the text of every report below root, live and archived, folder by folder."""
+    texts: list[str] = []
+    for name in K_REPORT_FOLDERS:
+        folder = root / name
+        if folder.is_dir():
+            for path in sorted(folder.rglob(K_REPORT_NAME)):
+                texts.append(path.read_text(encoding="utf-8", errors="replace"))
+    return texts
 
 
 if __name__ == "__main__":

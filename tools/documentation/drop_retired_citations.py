@@ -14,6 +14,7 @@ becomes its text and a path becomes a phrase naming the file. Nothing is written
 from __future__ import annotations
 
 import argparse
+import posixpath
 import re
 import sys
 from dataclasses import dataclass
@@ -30,6 +31,7 @@ K_WORDS = re.compile(r"[-_]+")
 K_SUFFIX = "in the version history"
 K_REACH = r"(?:(?:\.\./)*docs/|(?:\.\./)+|\./)"
 K_RELATIVE_LINK = re.compile(r"\[(?P<text>[^\]]*)\]\((?P<target>[A-Za-z0-9_./-]+\.md)(?P<anchor>#[^)\s]*)?\)")
+K_DOCS = "docs"
 K_EXIT_CLEAN = 0
 K_EXIT_FINDINGS = 1
 
@@ -38,7 +40,7 @@ K_EXIT_FINDINGS = 1
 class Drop:
     """Holds one citation that was or would be replaced, with the line it is on and its replacement."""
 
-    path: Path
+    path: str
     line: int
     old: str
     new: str
@@ -58,11 +60,6 @@ def phrase(cited: str) -> str:
     return f"the {words} {kind} {K_SUFFIX}"
 
 
-def _tail(prefix: str) -> str:
-    """Returns the part of a prefix below docs/, with its closing slash."""
-    return prefix.removeprefix("docs/").strip("/") + "/"
-
-
 def citation_patterns(prefixes: list[str]) -> tuple[re.Pattern[str], re.Pattern[str]]:
     """Returns the pattern of a path below any prefix and the pattern of a Markdown link to one."""
     tails = "|".join(re.escape(_tail(prefix)) for prefix in prefixes)
@@ -71,20 +68,17 @@ def citation_patterns(prefixes: list[str]) -> tuple[re.Pattern[str], re.Pattern[
     return re.compile(rf"(?P<path>{path})"), re.compile(link)
 
 
-def _docs_relative(cited: str) -> str:
-    """Returns a cited path from the docs/ folder, without the reach in front of it."""
-    return re.sub(rf"^{K_REACH}", "", cited)
-
-
-def drop_text(path: Path, text: str, prefixes: list[str], root: Path | None = None) -> tuple[str, list[Drop]]:
+def drop_text(
+    name: str, text: str, prefixes: list[str], retired: frozenset[str] | None = None
+) -> tuple[str, list[Drop]]:
     """Returns the text with each citation of a retired file replaced, and one Drop for each.
 
-    With the repository root, a relative link that resolves into a retired folder is replaced too,
-    whatever folder it is written from.
+    ``name`` is the root-relative POSIX path of the file the text is in. With ``retired``, the
+    root-relative folders that version control keeps, a relative link that resolves into one of
+    them is replaced too, whatever folder it is written from.
     """
     path_pattern, link_pattern = citation_patterns(prefixes)
     found: list[Drop] = []
-    retired = [(root / prefix).resolve() for prefix in prefixes] if root is not None else []
 
     def line_of(position: int) -> int:
         """Returns the line a position is on."""
@@ -92,32 +86,30 @@ def drop_text(path: Path, text: str, prefixes: list[str], root: Path | None = No
 
     def replace_link(match: re.Match[str]) -> str:
         """Returns the text of a link, or the phrase when the text is itself the path."""
-        cited = match["path"]
-        words = phrase(_docs_relative(cited))
+        words = phrase(_docs_relative(match["path"]))
         inner = path_pattern.search(match["text"])
         new = words if inner else match["text"]
-        found.append(Drop(path, line_of(match.start()), match.group(0), new))
+        found.append(Drop(name, line_of(match.start()), match.group(0), new))
         return new
 
     def replace_path(match: re.Match[str]) -> str:
         """Returns the phrase for a path, taking a code span's backticks with it."""
         words = phrase(_docs_relative(match["path"]))
-        found.append(Drop(path, line_of(match.start()), match["path"], words))
+        found.append(Drop(name, line_of(match.start()), match["path"], words))
         return words
 
     def replace_relative(match: re.Match[str]) -> str:
         """Returns the text of a relative link that resolves into a retired folder, or the link unchanged."""
-        target = (path.parent / match["target"]).resolve()
-        if not any(target == folder or folder in target.parents for folder in retired):
+        resolved = _resolved(name, match["target"], retired or frozenset())
+        if resolved is None:
             return match.group(0)
-        docs = (root / "docs").resolve() if root is not None else target.parent
-        cited = target.relative_to(docs).as_posix() if docs in target.parents else target.name
+        cited = _docs_cited(resolved)
         new = phrase(cited) if match["text"].strip("`") in (match["target"], cited) else match["text"]
-        found.append(Drop(path, line_of(match.start()), match.group(0), new))
+        found.append(Drop(name, line_of(match.start()), match.group(0), new))
         return new
 
     without_links = link_pattern.sub(replace_link, text)
-    if retired:
+    if retired is not None:
         without_links = K_RELATIVE_LINK.sub(replace_relative, without_links)
     without_spans = re.sub(rf"`({path_pattern.pattern})`", lambda m: replace_path(m), without_links)
     return path_pattern.sub(replace_path, without_spans), found
@@ -125,13 +117,13 @@ def drop_text(path: Path, text: str, prefixes: list[str], root: Path | None = No
 
 def run(root: Path, prefixes: list[str], apply: bool) -> list[Drop]:
     """Replaces, or with apply False only lists, every citation of a retired file below root."""
+    retired = frozenset(posixpath.normpath(prefix) for prefix in prefixes)
     found: list[Drop] = []
     for path in citing_files(root):
-        try:
-            text = path.read_text(encoding="utf-8")
-        except UnicodeDecodeError:
+        text = _read_text(path)
+        if text is None:
             continue
-        fixed, drops = drop_text(path, text, prefixes, root)
+        fixed, drops = drop_text(path.relative_to(root).as_posix(), text, prefixes, retired)
         found += drops
         if apply and fixed != text:
             path.write_text(fixed, encoding="utf-8", newline="")
@@ -148,8 +140,39 @@ def main(argv: list[str] | None = None) -> int:
     root = arguments.root.resolve()
     drops = run(root, arguments.prefix, arguments.apply)
     for drop in drops:
-        print(f"{drop.path.relative_to(root).as_posix()}:{drop.line}: '{drop.old}' -> '{drop.new}'")
+        print(f"{drop.path}:{drop.line}: '{drop.old}' -> '{drop.new}'")
     return K_EXIT_FINDINGS if drops and not arguments.apply else K_EXIT_CLEAN
+
+
+def _docs_relative(cited: str) -> str:
+    """Returns a cited path from the docs/ folder, without the reach in front of it."""
+    return re.sub(rf"^{K_REACH}", "", cited)
+
+
+def _tail(prefix: str) -> str:
+    """Returns the part of a prefix below docs/, with its closing slash."""
+    return prefix.removeprefix(f"{K_DOCS}/").strip("/") + "/"
+
+
+def _resolved(name: str, target: str, retired: frozenset[str]) -> str | None:
+    """Returns the root-relative path a relative link reaches when that path is in a retired folder, else None."""
+    resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), target))
+    if any(resolved == folder or resolved.startswith(f"{folder}/") for folder in retired):
+        return resolved
+    return None
+
+
+def _docs_cited(resolved: str) -> str:
+    """Returns a root-relative path as a citation names it: from docs/ when it is below docs/, else its file name."""
+    return resolved.removeprefix(f"{K_DOCS}/") if resolved.startswith(f"{K_DOCS}/") else posixpath.basename(resolved)
+
+
+def _read_text(path: Path) -> str | None:
+    """Returns the UTF-8 text of a file, or None when it is not UTF-8."""
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return None
 
 
 if __name__ == "__main__":

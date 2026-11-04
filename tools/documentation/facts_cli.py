@@ -28,23 +28,35 @@ def citations(manual: Manual, fact_id: str) -> list[str]:
     """Returns `path:line: quote` or `path:line: follows` for each place that cites a fact."""
     found = []
     for page in manual.pages:
-        found += [f"{page.path}:{block.first}: quote" for block in page.quotes if block.id == fact_id]
-        found += [f"{page.path}:{line}: follows" for cited, line in page.follows if cited == fact_id]
+        found += [
+            f"{page.path}:{block.first}: quote" for block in page.quotes if block.id == fact_id
+        ]
+        found += [
+            f"{page.path}:{line}: follows" for cited, line in page.follows if cited == fact_id
+        ]
     return found
 
 
-def apply(manual: Manual) -> list[str]:
-    """Rewrites every out-of-date quote from its home and returns the pages it wrote."""
+def plan_apply(manual: Manual) -> list[tuple[str, str]]:
+    """Returns the page and the new text of each page whose quotes differ from their homes."""
     homes = {fact_id: home[1].body for fact_id, home in manual.homes().items()}
-    written = []
-    for page in manual.pages:
-        path = manual.root / page.path
-        text = path.read_text(encoding="utf-8")
-        updated = facts.regenerate(text, homes)
-        if updated != text:
-            path.write_text(updated, encoding="utf-8", newline="")
-            written.append(page.path)
-    return written
+    planned: list[tuple[str, str]] = []
+    for source in manual.sources:
+        updated = facts.regenerate(source.text, homes)
+        if updated != source.text:
+            planned.append((source.path.relative_to(manual.root).as_posix(), updated))
+    return planned
+
+
+def apply(manual: Manual) -> list[str]:
+    """Writes every planned rewrite to its page and returns the pages it wrote."""
+    planned = plan_apply(manual)
+    for page, _ in planned:
+        # read_files replaces undecodable bytes; a rewrite must refuse them, not write them.
+        (manual.root / page).read_bytes().decode("utf-8")
+    for page, updated in planned:
+        (manual.root / page).write_text(updated, encoding="utf-8", newline="")
+    return [page for page, _ in planned]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -52,9 +64,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--root", type=Path, default=Path.cwd())
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("list", help="every fact with its home and the number of places that cite it")
+    commands.add_parser("list", help="every fact, its home and the number of places citing it")
     commands.add_parser("where", help="the home of a fact").add_argument("id")
-    commands.add_parser("cited-by", help="every place that quotes or follows a fact").add_argument("id")
+    cited_by = commands.add_parser("cited-by", help="every place that quotes or follows a fact")
+    cited_by.add_argument("id")
     commands.add_parser("apply", help="rewrite every quote from its home")
     arguments = parser.parse_args(argv)
     manual = load(arguments.root)

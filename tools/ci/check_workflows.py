@@ -13,13 +13,13 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.source_file import SourceFile, read_files  # noqa: E402
 
 K_WORKFLOW_FOLDER = ".github/workflows"
 K_WORKFLOW_SUFFIXES = (".yml", ".yaml")
@@ -27,25 +27,7 @@ K_KEY_LINE = re.compile(r"""^(?P<indent>\s*)(?P<dash>-\s+)?(?P<key>[^\s#'"\-][^:
 K_BLOCK_SCALAR = re.compile(r":\s*[|>][+-]?\d*\s*(?:#.*)?$")
 
 
-@dataclass(frozen=True, slots=True)
-class Workflow:
-    """Holds one workflow file as its lines."""
-
-    path: Path
-    lines: tuple[str, ...]
-
-
-def collect(paths: list[Path]) -> Iterable[Workflow]:
-    """Returns each workflow file under the given repository roots that git tracks."""
-    found: list[Path] = []
-    for root in (path for path in paths if path.is_dir()):
-        folder = root / K_WORKFLOW_FOLDER
-        if folder.is_dir():
-            found.extend(drop_ignored(root, sorted(p for p in folder.iterdir() if p.suffix in K_WORKFLOW_SUFFIXES)))
-    return [Workflow(path, tuple(path.read_text(encoding="utf-8").splitlines())) for path in found]
-
-
-def rule_duplicate_key(workflow: Workflow) -> Iterator[Issue]:
+def rule_duplicate_key(workflow: SourceFile) -> Iterator[Issue]:
     """Yields an issue for each mapping key written twice in one block mapping.
 
     GitHub refuses the whole file for it, so no job starts and the run reads as a file issue;
@@ -53,7 +35,7 @@ def rule_duplicate_key(workflow: Workflow) -> Iterator[Issue]:
     """
     scopes: dict[int, set[str]] = {}
     scalar_indent: int | None = None
-    for number, line in enumerate(workflow.lines, start=1):
+    for number, line in enumerate(workflow.text.splitlines(), start=1):
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
@@ -77,6 +59,22 @@ def rule_duplicate_key(workflow: Workflow) -> Iterator[Issue]:
         keys.add(key)
         if K_BLOCK_SCALAR.search(stripped):
             scalar_indent = indent
+
+
+def _read_paths(root: Path) -> list[Path]:
+    """Returns the workflow files under one repository root that git does not ignore."""
+    folder = root / K_WORKFLOW_FOLDER
+    if not folder.is_dir():
+        return []
+    return drop_ignored(root, sorted(path for path in folder.iterdir() if path.suffix in K_WORKFLOW_SUFFIXES))
+
+
+def collect(paths: list[Path]) -> Iterable[SourceFile]:
+    """Returns each workflow file under the given repository roots that git tracks, as text."""
+    found: list[Path] = []
+    for root in (path for path in paths if path.is_dir()):
+        found.extend(_read_paths(root))
+    return read_files(found, lambda _: True)
 
 
 K_CHECKER = Checker(

@@ -15,6 +15,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -67,21 +68,26 @@ class Licence:
         return frozenset(row.strip() for row in rows if row.strip())
 
 
-def load() -> Licence | None:
-    """Returns the licence the settings describe, or None when they name no holder."""
-    holder: str = getattr(settings, "K_LICENSE_HOLDER", "")
+def from_module(module: ModuleType) -> Licence | None:
+    """Returns the licence a settings module describes, or None when it names no holder."""
+    holder: str = getattr(module, "K_LICENSE_HOLDER", "")
     if not holder:
         return None
     return Licence(
         holder=holder,
-        company=getattr(settings, "K_LICENSE_COMPANY", ""),
-        site=getattr(settings, "K_LICENSE_SITE", ""),
-        open_lines=tuple(getattr(settings, "K_LICENSE_OPEN_LINES", ())),
-        closed_lines=tuple(getattr(settings, "K_LICENSE_CLOSED_LINES", ())),
-        open_box_lines=tuple(getattr(settings, "K_LICENSE_OPEN_BOX_LINES", ())),
-        closed_box_lines=tuple(getattr(settings, "K_LICENSE_CLOSED_BOX_LINES", ())),
-        closed=bool(getattr(settings, "K_CLOSED", False)),
+        company=getattr(module, "K_LICENSE_COMPANY", ""),
+        site=getattr(module, "K_LICENSE_SITE", ""),
+        open_lines=tuple(getattr(module, "K_LICENSE_OPEN_LINES", ())),
+        closed_lines=tuple(getattr(module, "K_LICENSE_CLOSED_LINES", ())),
+        open_box_lines=tuple(getattr(module, "K_LICENSE_OPEN_BOX_LINES", ())),
+        closed_box_lines=tuple(getattr(module, "K_LICENSE_CLOSED_BOX_LINES", ())),
+        closed=bool(getattr(module, "K_CLOSED", False)),
     )
+
+
+def load() -> Licence | None:
+    """Returns the licence the settings describe, or None when they name no holder."""
+    return from_module(settings)
 
 
 K_UNSET_MESSAGE = "tools/settings.py sets no K_LICENSE_HOLDER, so the license block rules cannot run"

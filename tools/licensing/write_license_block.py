@@ -5,6 +5,7 @@
 # Commercial use requires a licence from Sushi Systems.
 """Writes the license block of the source-comments skill into every tracked source file.
 
+The rules take values; the shell at the bottom reads git, the disk and the clock.
 Usage: python tools/licensing/write_license_block.py ROOT --project LINE [--closed]
        [--skip GLOB]... [--upstream PATH=LINE;LINE]... [--report]
 """
@@ -16,13 +17,14 @@ import fnmatch
 import re
 import subprocess
 import sys
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from checking.source_file import SourceFile  # noqa: E402
 from documentation.check_source_comments import K_C_SUFFIXES, K_LICENCE, K_PART_OF  # noqa: E402
 from documentation.licence import K_UNSET_MESSAGE, Licence  # noqa: E402
 
@@ -48,13 +50,6 @@ class LicenseWriterError(Exception):
     """Signals a repository or an argument the writer cannot work with."""
 
 
-def _licence() -> Licence:
-    """Returns the licence the settings describe, or raises when they describe none."""
-    if K_LICENCE is None:
-        raise LicenseWriterError(K_UNSET_MESSAGE)
-    return K_LICENCE
-
-
 @dataclass(frozen=True, slots=True)
 class Box:
     """Holds the three sections of a boxed block: file name, project, and licence."""
@@ -69,12 +64,13 @@ class Header:
     """Holds what a repository's license blocks say apart from file name and year."""
 
     project: str
+    licence: Licence
     closed: bool = False
     upstream: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
 
     def _copyright(self, year: int) -> str:
         """Returns the copyright row for a file first written in the given year."""
-        return f"Copyright (c) {year}-present {_licence().holder}"
+        return f"Copyright (c) {year}-present {self.licence.holder}"
 
     def _upstream(self, path: str, kept: tuple[str, ...]) -> list[str]:
         """Returns the upstream rows named for a file, or the rows its old block kept."""
@@ -82,25 +78,22 @@ class Header:
 
     def hashed_rows(self, path: str, year: int, kept: tuple[str, ...] = ()) -> list[str]:
         """Returns the rows of the `#` form of the block for a file."""
-        licence = _licence()
-        lines = licence.closed_lines if self.closed else licence.open_lines
+        lines = self.licence.closed_lines if self.closed else self.licence.open_lines
         own = [PurePosixPath(path).name, self.project, self._copyright(year), *lines]
         return own + self._upstream(path, kept)
 
     def box(self, path: str, year: int, kept: tuple[str, ...] = ()) -> Box:
         """Returns the three sections of the boxed form of the block for a file."""
         name, _, address = self.project.partition(K_PROJECT_SEPARATOR)
-        licence = _licence()
-        addresses = list(dict.fromkeys(item for item in (address, licence.site) if item))
-        lines = licence.closed_box_lines if self.closed else licence.open_box_lines
+        addresses = list(dict.fromkeys(item for item in (address, self.licence.site) if item))
+        lines = self.licence.closed_box_lines if self.closed else self.licence.open_box_lines
         upstream = self._upstream(path, kept)
-        licence = [self._copyright(year), "", *lines, *([""] if upstream else []), *upstream]
-        return Box(PurePosixPath(path).name, [K_PART_OF, name, *addresses], licence)
+        body = [self._copyright(year), "", *lines, *([""] if upstream else []), *upstream]
+        return Box(PurePosixPath(path).name, [K_PART_OF, name, *addresses], body)
 
-    @staticmethod
-    def kept_rows(old: list[str]) -> tuple[str, ...]:
+    def kept_rows(self, old: list[str]) -> tuple[str, ...]:
         """Returns the rows an old block carries below the last row of the repository's own licence."""
-        own_rows = _licence().own_rows
+        own_rows = self.licence.own_rows
         own = [index for index, row in enumerate(old) if row in own_rows]
         return tuple(old[own[-1] + 1:]) if own else ()
 
@@ -121,6 +114,17 @@ def is_source(path: str) -> bool:
     """Returns whether the writer gives a file a license block."""
     suffix = _generated_name(path).suffix
     return is_hash_family(path) or suffix in K_C_SUFFIXES or suffix in K_FRAGMENT_SUFFIXES
+
+
+def _is_skipped(path: str, globs: Sequence[str]) -> bool:
+    """Returns whether a tracked path lies in a skipped folder or matches a skip glob."""
+    parts = PurePosixPath(path).parts
+    return bool(K_SKIPPED_FOLDERS.intersection(parts)) or any(fnmatch.fnmatch(path, glob) for glob in globs)
+
+
+def is_candidate(path: str, globs: Sequence[str] = ()) -> bool:
+    """Returns whether the writer reads a tracked path: a source file that no skip names."""
+    return is_source(path) and not _is_skipped(path, globs)
 
 
 def _centred(row: str, width: int) -> str:
@@ -202,24 +206,16 @@ def rewrite(path: str, text: str, header: Header, year: int) -> str:
     return mark + newline.join([*preamble, *block, *gap, *body])
 
 
-def _git(root: Path, *arguments: str) -> str:
-    """Returns the output of a git command run in a repository."""
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(root), "-c", "core.quotepath=off", *arguments],
-            capture_output=True, text=True, encoding="utf-8", check=True,
-        )
-    except (OSError, subprocess.CalledProcessError) as error:
-        raise LicenseWriterError(f"git {arguments[0]} failed in {root}") from error
-    return completed.stdout
+def parse_first_years(listing: str, log: str) -> dict[str, int]:
+    """Returns the year each listed file was first added, following renames in the log.
 
-
-def first_years(root: Path) -> dict[str, int]:
-    """Returns the year each committed file was first added, following renames."""
-    current = {path: path for path in _git(root, "ls-files").splitlines()}
+    Args:
+        listing: The output of `git ls-files`, one path a line.
+        log: The output of `git log -M --diff-filter=AR --name-status --format=@%ad`, newest first.
+    """
+    current = {path: path for path in listing.splitlines()}
     years: dict[str, int] = {}
     year = 0
-    log = _git(root, "log", "-M", "--diff-filter=AR", "--name-status", "--format=@%ad", "--date=format:%Y")
     for line in log.splitlines():
         if line.startswith("@"):
             year = int(line[1:])
@@ -232,26 +228,23 @@ def first_years(root: Path) -> dict[str, int]:
     return years
 
 
-def _is_skipped(path: str, globs: list[str]) -> bool:
-    """Returns whether a tracked path lies in a skipped folder or matches a skip glob."""
-    parts = PurePosixPath(path).parts
-    return bool(K_SKIPPED_FOLDERS.intersection(parts)) or any(fnmatch.fnmatch(path, glob) for glob in globs)
-
-
-def pending(root: Path, header: Header, globs: list[str]) -> Iterator[tuple[Path, str]]:
-    """Yields each source file whose text differs from what the writer produces, with that text."""
-    years = first_years(root)
-    this_year = date.today().year
-    for path in sorted(_git(root, "ls-files").splitlines()):
-        if not is_source(path) or _is_skipped(path, globs):
+def plan_changes(
+    files: Iterable[SourceFile],
+    header: Header,
+    years: Mapping[str, int],
+    this_year: int,
+    globs: Sequence[str],
+) -> list[SourceFile]:
+    """Returns each candidate file whose text the writer would change, with the text it would write."""
+    changes: list[SourceFile] = []
+    for source in files:
+        path = source.path.as_posix()
+        if not is_candidate(path, globs):
             continue
-        target = root / path
-        if not target.is_file():
-            continue
-        text = target.read_bytes().decode("utf-8", errors="surrogateescape")
-        wanted = rewrite(path, text, header, years.get(path, this_year))
-        if wanted != text:
-            yield target, wanted
+        wanted = rewrite(path, source.text, header, years.get(path, this_year))
+        if wanted != source.text:
+            changes.append(SourceFile(source.path, wanted))
+    return changes
 
 
 def _parse_upstream(entries: list[str]) -> dict[str, tuple[str, ...]]:
@@ -263,6 +256,45 @@ def _parse_upstream(entries: list[str]) -> dict[str, tuple[str, ...]]:
             raise LicenseWriterError(f"--upstream takes PATH=LINE;LINE, got: {entry}")
         upstream[path] = tuple(line.strip() for line in lines.split(";"))
     return upstream
+
+
+def _licence() -> Licence:
+    """Returns the licence the settings describe, or raises when they describe none."""
+    if K_LICENCE is None:
+        raise LicenseWriterError(K_UNSET_MESSAGE)
+    return K_LICENCE
+
+
+def _git(root: Path, *arguments: str) -> str:
+    """Returns the output of a git command run in a repository."""
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(root), "-c", "core.quotepath=off", *arguments],
+            capture_output=True, text=True, encoding="utf-8", check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as error:
+        raise LicenseWriterError(f"git {arguments[0]} failed in {root}") from error
+    return completed.stdout
+
+
+def _read(root: Path, path: str) -> SourceFile:
+    """Returns a tracked file's path and text, the bytes that do not decode kept as they are."""
+    text = (root / path).read_bytes().decode("utf-8", errors="surrogateescape")
+    return SourceFile(Path(path), text)
+
+
+def pending(root: Path, header: Header, globs: list[str]) -> Iterator[tuple[Path, str]]:
+    """Yields each source file whose text differs from what the writer produces, with that text."""
+    listing = _git(root, "ls-files")
+    log = _git(root, "log", "-M", "--diff-filter=AR", "--name-status", "--format=@%ad", "--date=format:%Y")
+    files = [
+        _read(root, path)
+        for path in sorted(listing.splitlines())
+        if is_candidate(path, globs) and (root / path).is_file()
+    ]
+    years = parse_first_years(listing, log)
+    for change in plan_changes(files, header, years, date.today().year, globs):
+        yield root / change.path, change.text
 
 
 def _parse_arguments(argv: list[str]) -> argparse.Namespace:
@@ -281,7 +313,12 @@ def main(argv: list[str] | None = None) -> int:
     """Runs the writer from the command line and returns its exit code."""
     arguments = _parse_arguments(sys.argv[1:] if argv is None else argv)
     try:
-        header = Header(arguments.project, arguments.closed, _parse_upstream(arguments.upstream))
+        header = Header(
+            arguments.project,
+            _licence(),
+            closed=arguments.closed,
+            upstream=_parse_upstream(arguments.upstream),
+        )
         changes = list(pending(arguments.root, header, arguments.skip))
     except LicenseWriterError as error:
         print(error, file=sys.stderr)

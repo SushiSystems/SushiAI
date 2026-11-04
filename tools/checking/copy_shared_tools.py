@@ -7,23 +7,36 @@
 
 Usage: python tools/checking/copy_shared_tools.py ROOT --from UPSTREAM [--report] [--force] [--keep PATH]
 
-A shared file that holds text no version of upstream ever held is a local edit. A copy refuses to
+Upstream is read at HEAD. A shared file with text no upstream version held is a local edit. A copy refuses to
 overwrite it and writes nothing; --force overwrites it anyway, and --keep leaves a named file alone.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import re
 import subprocess
 import sys
 from collections.abc import Iterable
+from datetime import date
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from documentation.licence import Licence, from_module  # noqa: E402
+from licensing.write_license_block import Header, is_source, rewrite  # noqa: E402
 
 K_TOOLS = "tools"
 K_COMMUNITY = (".github/CODE_OF_CONDUCT.md", ".github/SECURITY.md")
 K_KEPT = frozenset({"tools/settings.py", "tools/README.md"})
 K_HEADER_TEMPLATE = "tools/check_all.py"
 K_HEADER_SUFFIX = ".py"
+K_REVISION = "HEAD"
+K_SETTINGS = "tools/settings.py"
+K_PROJECT_ROW = 1
+K_YEAR = re.compile(r"Copyright \(c\) (\d{4})-present")
+K_NEUTRAL = Header("", Licence("", "", "", (), (), (), (), False))
 K_EXIT_CLEAN = 0
 K_EXIT_PENDING = 1
 K_EXIT_USAGE = 2
@@ -46,23 +59,47 @@ def _split_header(text: str) -> tuple[str, str]:
     return "".join(lines[:count]), "".join(lines[count:])
 
 
-def merged(relative: str, upstream: str, current: str | None, template: str | None = None) -> str:
+def _is_other_source(relative: str) -> bool:
+    """Returns whether a file takes a license block of the writer but is not Python."""
+    return is_source(relative) and not relative.endswith(K_HEADER_SUFFIX)
+
+
+def first_year(this_year: int, *texts: str | None) -> int:
+    """Returns the year of the first copyright row found in the texts, or this_year."""
+    for text in texts:
+        found = K_YEAR.search(text or "")
+        if found:
+            return int(found.group(1))
+    return this_year
+
+
+def merged(
+    relative: str,
+    upstream: str,
+    current: str | None,
+    template: str | None = None,
+    header: Header | None = None,
+    year: int = 0,
+) -> str:
     """Returns a shared file as the repository should hold it: upstream's body under its own header.
 
-    A file the repository does not hold yet takes the header of *template*, one of the
-    repository's own shared files, with its first line naming the new file.
+    A Python file the repository does not hold yet takes the header of *template*, one of the
+    repository's own shared files, with its first line naming the new file. Any other source file
+    takes the block *header* builds for the repository, dated *year*.
     """
+    if _is_other_source(relative):
+        return upstream if header is None else rewrite(relative, upstream, header, year)
     if not relative.endswith(K_HEADER_SUFFIX):
         return upstream
     if current is not None:
         return _split_header(current)[0] + _split_header(upstream)[1]
     if template is None:
         return upstream
-    header = _split_header(template)[0].splitlines(keepends=True)
-    if not header:
+    rows = _split_header(template)[0].splitlines(keepends=True)
+    if not rows:
         return upstream
-    header[0] = f"# {Path(relative).name}\n"
-    return "".join(header) + _split_header(upstream)[1]
+    rows[0] = f"# {Path(relative).name}\n"
+    return "".join(rows) + _split_header(upstream)[1]
 
 
 def _read(path: Path) -> str | None:
@@ -70,24 +107,82 @@ def _read(path: Path) -> str | None:
     return path.read_text(encoding="utf-8") if path.is_file() else None
 
 
+def committed(upstream: Path, relative: str) -> str | None:
+    """Returns a file as upstream committed it at HEAD, or None when HEAD does not hold it."""
+    try:
+        shown = subprocess.run(
+            ["git", "-C", str(upstream), "show", f"{K_REVISION}:{relative}"],
+            capture_output=True,
+        )
+    except OSError:
+        return None
+    if shown.returncode != 0:
+        return None
+    return shown.stdout.decode("utf-8").replace("\r\n", "\n")
+
+
+def uncommitted(upstream: Path) -> list[str]:
+    """Returns the paths under upstream's tools folder whose working tree differs from HEAD."""
+    status = subprocess.run(
+        ["git", "-C", str(upstream), "status", "--porcelain", "--", K_TOOLS],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    return [line[3:] for line in status.stdout.splitlines()] if status.returncode == 0 else []
+
+
+def uncommitted_notice(paths: list[str]) -> str | None:
+    """Returns the line that names uncommitted upstream files, or None when there are none."""
+    if not paths:
+        return None
+    return f"upstream has uncommitted changes, copying HEAD: {', '.join(paths)}"
+
+
+def target_header(root: Path) -> Header | None:
+    """Returns the block the repository's own settings and template header describe, or None."""
+    settings_path = root / K_SETTINGS
+    template = _read(root / K_HEADER_TEMPLATE)
+    if template is None or not settings_path.is_file():
+        return None
+    rows = _split_header(template)[0].splitlines()
+    if len(rows) <= K_PROJECT_ROW:
+        return None
+    spec = importlib.util.spec_from_file_location("target_settings", settings_path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    licence = from_module(module)
+    if licence is None:
+        return None
+    return Header(rows[K_PROJECT_ROW].removeprefix("#").strip(), licence, closed=licence.closed)
+
+
 def _wanted(upstream: Path, root: Path, relative: str) -> str | None:
     """Returns the text a shared file should hold in the repository, or None when it should stay."""
     current = _read(root / relative)
     if relative in K_KEPT and current is not None:
         return None
-    text = merged(relative, _read(upstream / relative) or "", current, _read(root / K_HEADER_TEMPLATE))
-    return None if text == current else text
+    text = committed(upstream, relative) or ""
+    year = first_year(date.today().year, current, text)
+    template = _read(root / K_HEADER_TEMPLATE)
+    wanted = merged(relative, text, current, template, target_header(root), year)
+    return None if wanted == current else wanted
 
 
 def _body(relative: str, text: str) -> str:
-    """Returns what a shared file says apart from its license header and its newline style."""
-    body = _split_header(text)[1] if relative.endswith(K_HEADER_SUFFIX) else text
+    """Returns what a shared file says apart from its license block and its newline style."""
+    if relative.endswith(K_HEADER_SUFFIX):
+        body = _split_header(text)[1]
+    elif is_source(relative):
+        body = rewrite(relative, text, K_NEUTRAL, 0)
+    else:
+        body = text
     return body.replace("\r\n", "\n")
 
 
 def known_bodies(upstream: Path, relative: str) -> set[str]:
     """Returns the body of a shared file in upstream now and in every commit that changed it."""
-    bodies = {_body(relative, _read(upstream / relative) or "")}
+    bodies = {_body(relative, committed(upstream, relative) or "")}
     try:
         history = subprocess.run(["git", "-C", str(upstream), "log", "--format=%H", "--", relative],
                                  capture_output=True, text=True, encoding="utf-8")
@@ -137,9 +232,11 @@ def copy(upstream: Path, root: Path, shared: Iterable[str], force: bool = False)
 
 
 def shared_files(upstream: Path) -> list[str]:
-    """Returns the files git tracks under the upstream tools folder, and the shared community files."""
-    listed = subprocess.run(["git", "-C", str(upstream), "ls-files", K_TOOLS, *K_COMMUNITY],
-                            capture_output=True, text=True, encoding="utf-8", check=True)
+    """Returns the files upstream committed under its tools folder, and the shared community files."""
+    listed = subprocess.run(
+        ["git", "-C", str(upstream), "ls-tree", "-r", "--name-only", K_REVISION, "--", K_TOOLS, *K_COMMUNITY],
+        capture_output=True, text=True, encoding="utf-8", check=True,
+    )
     return [line for line in listed.stdout.splitlines() if line]
 
 
@@ -156,6 +253,9 @@ def main(argv: list[str] | None = None) -> int:
     if not (arguments.upstream / K_TOOLS).is_dir() or not arguments.root.is_dir():
         print("usage: ROOT and UPSTREAM must be repositories with a tools folder", file=sys.stderr)
         return K_EXIT_USAGE
+    notice = uncommitted_notice(uncommitted(arguments.upstream))
+    if notice:
+        print(notice)
     shared = [relative for relative in shared_files(arguments.upstream) if relative not in arguments.keep]
     if arguments.report:
         files = pending(arguments.upstream, arguments.root, shared)

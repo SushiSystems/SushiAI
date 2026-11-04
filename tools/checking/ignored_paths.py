@@ -29,9 +29,16 @@ def _git(root: Path, arguments: list[str], stdin: str = "") -> str | None:
 
 
 def drop_ignored(root: Path, paths: list[Path]) -> list[Path]:
-    """Returns the paths git does not ignore below root; all of them outside a repository."""
+    """Returns the paths git does not ignore below root; all of them outside a repository.
+
+    A path below an ignored folder is dropped by the folder, so a nested clone inside it, which makes
+    ``git check-ignore`` fail, cannot put the whole tree back.
+    """
     if not paths:
         return paths
+    folders = ignored_folders(root)
+    if folders:
+        paths = [path for path in paths if not folders.intersection(path.resolve().parents)]
     output = _git(root, ["check-ignore", "-z", "--stdin"],
                   "\0".join(str(path.resolve()) for path in paths) + "\0")
     if output is None:

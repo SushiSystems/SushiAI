@@ -3,18 +3,20 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Reads the topic of a design document: its name, its metadata lines, its phase ids and the work that names it."""
+"""Reads the topic of a design document from its text: its name, metadata lines, phase ids and the work that names it."""
 
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from pathlib import PurePosixPath
 
 from documentation.design_status import (
     K_DESIGN_INDEXES,
     K_TABLE_RULE,
     K_TABLE_ROW,
     K_WORK_FILES_IN_ORDER,
+    Tree,
+    children,
     design_documents,
     first_content_line,
     section_body,
@@ -34,20 +36,21 @@ K_REFERENCE_SEPARATOR = "#"
 K_VALUE_SEPARATOR = ","
 
 
-def topic_name(path: Path) -> str:
+def topic_name(name: str) -> str:
     """Returns the topic a design document belongs to: its folder name for a split topic, its stem otherwise."""
+    path = PurePosixPath(name)
     return path.parent.name if path.name == "README.md" else path.stem
 
 
-def topics(docs: Path) -> dict[str, Path]:
+def topics(tree: Tree, docs: str = "docs") -> dict[str, str]:
     """Returns each topic of a docs/ tree by name, with the document that holds it."""
-    return {topic_name(path): path for path in design_documents(docs) if path.is_file()}
+    return {topic_name(name): name for name in design_documents(tree, docs) if name in tree.files}
 
 
-def metadata(path: Path) -> dict[str, tuple[int, str]]:
+def metadata(text: str) -> dict[str, tuple[int, str]]:
     """Returns each `**Field:** value` line that follows the status line, by field name with its line number."""
-    lines = path.read_text(encoding="utf-8-sig").splitlines()
-    status_line, _ = first_content_line(path)
+    lines = text.splitlines()
+    status_line, _ = first_content_line(text)
     found: dict[str, tuple[int, str]] = {}
     for number, line in enumerate(lines[status_line:], start=status_line + 1):
         if not line.strip():
@@ -66,29 +69,31 @@ def split_values(value: str) -> list[str]:
     return [item for item in items if item and item.lower() != K_NONE]
 
 
-def phase_ids(path: Path) -> set[str]:
+def phase_ids(text: str) -> set[str]:
     """Returns the id of each row of the phase table of a design document."""
     found: set[str] = set()
-    rows = [line for _, line in section_body(path, K_PHASES_SECTION) if K_TABLE_ROW.match(line)]
+    rows = [line for _, line in section_body(text, K_PHASES_SECTION) if K_TABLE_ROW.match(line)]
     for line in rows[1:]:
         if not K_TABLE_RULE.match(line):
             found.add(table_cells(line)[0].strip("`* "))
     return found
 
 
-def loose_documents(root: Path) -> list[Path]:
+def loose_documents(tree: Tree, docs: str = "docs") -> list[str]:
     """Returns each design document that sits directly in docs/design and is not an index."""
-    design = root / "docs" / "design"
-    if not design.is_dir():
-        return []
-    return [path for path in sorted(design.glob("*.md")) if path.name not in K_DESIGN_INDEXES]
+    return [
+        name for name in children(tree, f"{docs}/design")
+        if name.endswith(".md") and PurePosixPath(name).name not in K_DESIGN_INDEXES
+    ]
 
 
-def work_documents(docs: Path) -> list[Path]:
+def work_documents(tree: Tree, docs: str = "docs") -> list[str]:
     """Returns the first file of each work folder, the one that carries its status and metadata."""
-    found: list[Path] = []
-    for folder in work_folders(docs):
-        first = next((folder / name for name in K_WORK_FILES_IN_ORDER if (folder / name).is_file()), None)
+    found: list[str] = []
+    for folder in work_folders(tree, docs):
+        first = next(
+            (f"{folder}/{name}" for name in K_WORK_FILES_IN_ORDER if f"{folder}/{name}" in tree.files), None,
+        )
         if first is not None:
             found.append(first)
     return found

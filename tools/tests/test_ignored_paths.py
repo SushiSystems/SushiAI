@@ -19,6 +19,21 @@ from checking.ignored_paths import drop_ignored, ignored_folders  # noqa: E402
 from documentation.check_source_comments import collect  # noqa: E402
 
 
+K_TEST_SIZE = "medium"
+
+
+def _link(link: Path, target: Path) -> bool:
+    """Makes *link* a folder link to *target*, a junction on Windows; False when none can be made."""
+    try:
+        if sys.platform == "win32":
+            made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True)
+            return made.returncode == 0
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        return False
+    return True
+
+
 class IgnoredPathsTest(unittest.TestCase):
     """Covers the git ignore filter and the source comment checker that uses it."""
 
@@ -40,6 +55,17 @@ class IgnoredPathsTest(unittest.TestCase):
         self._make_repository()
         paths = [self.root / "owned.py", self.root / "synced" / "foreign.py"]
         self.assertEqual(drop_ignored(self.root, paths), [self.root / "owned.py"])
+
+    def test_a_folder_linked_to_somewhere_outside_the_repository_is_still_dropped(self) -> None:
+        self._make_repository()
+        with tempfile.TemporaryDirectory() as elsewhere:
+            (Path(elsewhere) / "foreign.py").write_text("x = 1\n", encoding="utf-8")
+            link = self.root / "linked"
+            if not _link(link, Path(elsewhere)):
+                self.skipTest("the platform lets no one create a link here")
+            (self.root / ".gitignore").write_text("synced/\nlinked\n", encoding="utf-8")
+            paths = [self.root / "owned.py", link / "foreign.py"]
+            self.assertEqual(drop_ignored(self.root, paths), [self.root / "owned.py"])
 
     def test_every_path_is_kept_outside_a_repository(self) -> None:
         paths = [self.root / "owned.py", self.root / "synced" / "foreign.py"]

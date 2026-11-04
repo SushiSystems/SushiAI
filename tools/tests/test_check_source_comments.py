@@ -3,10 +3,12 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests the license block rule of the source comment checker."""
+"""Tests the source comment rules on values in memory, and the command line on a tiny tree."""
 
 from __future__ import annotations
 
+import contextlib
+import io
 import sys
 import tempfile
 import unittest
@@ -15,14 +17,17 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from checking.checker import run  # noqa: E402
+from checking.source_file import SourceFile  # noqa: E402
 from documentation import check_source_comments  # noqa: E402
 from documentation.check_source_comments import (  # noqa: E402
     K_CHECKER,
     K_PART_OF,
-    collect,
+    CheckedSource,
     rule_comment_runs,
-    rule_no_date,
     rule_license_block,
+    rule_no_date,
+    split_source,
 )
 from documentation.licence import Licence  # noqa: E402
 
@@ -46,21 +51,17 @@ K_OWN_BOX_LINES = (K_COPYRIGHT, "", *K_ACME.box_lines)
 K_LACKS_COPYRIGHT = f"license block lacks '{K_ACME.copyright_shape}'"
 K_FOREIGN_LICENCE = "Licensed under the Apache License, Version 2.0. See LICENSE."
 K_OLD_HOLDER = "Copyright (c) 2026 Acme Corp"
+K_BOM = "﻿"
 
 
-def setUpModule() -> None:
-    """Makes the made-up company's licence the one the checker enforces for every test here."""
-    patch = mock.patch.object(check_source_comments, "K_LICENCE", K_ACME)
-    patch.start()
-    unittest.addModuleCleanup(patch.stop)
+def _source(name: str, text: str) -> CheckedSource:
+    """Returns a file of the given name and text, split and held against the made-up licence."""
+    return split_source(SourceFile(Path(name), text), K_ACME)
 
 
-def _messages(name: str, text: str, encoding: str = "utf-8") -> list[str]:
+def _messages(name: str, text: str) -> list[str]:
     """Returns the license block messages for a file with the given name and content."""
-    with tempfile.TemporaryDirectory() as folder:
-        path = Path(folder) / name
-        path.write_text(text, encoding=encoding)
-        return [issue.message for source in collect([path]) for issue in rule_license_block(source)]
+    return [issue.message for issue in rule_license_block(_source(name, text))]
 
 
 def _lacks(lines: tuple[str, ...]) -> list[str]:
@@ -69,12 +70,13 @@ def _lacks(lines: tuple[str, ...]) -> list[str]:
 
 
 def _boxed(name: str, rows: tuple[str, ...] = K_OWN_BOX_LINES) -> str:
-    """Returns a C-family file opening with the three-section box that names the given file."""
+    """Returns a C-family file opening with the three-section box and a complete file block."""
     edge = "/" + "*" * 74 + "/"
     project = [f"/*{row.center(72)}*/" for row in (K_PART_OF, K_PROJECT_NAME, K_PROJECT_URL)]
     licence = [f"/* {row.ljust(70)} */" for row in rows]
     box = [edge, f"/* {name.ljust(70)} */", edge, *project, edge, *licence, edge]
-    return "\n".join(box) + f"\n\n/**\n * @file {name}\n */\n"
+    file_block = f"/**\n * @file {name}\n * @brief Declares the file.\n * @author Jane Doe\n */\n"
+    return "\n".join(box) + "\n\n" + file_block
 
 
 def _hashed(name: str, rows: tuple[str, ...] = K_OWN_LINES, first: str = "") -> str:
@@ -88,12 +90,18 @@ def _foreign(text: str) -> str:
     return f"license block carries a line this repository's licence does not allow: '{text}'"
 
 
+class RuleTableTest(unittest.TestCase):
+    """Checks that the license block rule runs as part of the checker."""
+    K_TEST_SIZE = "small"
+
+    def test_registers_the_license_block_rule(self) -> None:
+        """Holds the license block rule under its own name in the rule table."""
+        self.assertIs(K_CHECKER.rules["rule_license_block"], rule_license_block)
+
+
 class LicenseBlockTest(unittest.TestCase):
     """Checks which file openings the license block rule accepts."""
-
-    def test_is_registered(self) -> None:
-        """Runs as part of the checker's rule table."""
-        self.assertIs(K_CHECKER.rules["rule_license_block"], rule_license_block)
+    K_TEST_SIZE = "small"
 
     def test_accepts_boxed_block(self) -> None:
         """Accepts a C++ header that opens with the full boxed block."""
@@ -114,8 +122,8 @@ class LicenseBlockTest(unittest.TestCase):
         self.assertEqual(_messages("graph.py", text), [])
 
     def test_accepts_block_behind_a_byte_order_mark(self) -> None:
-        """Accepts a correct block in a file saved with a UTF-8 byte order mark."""
-        self.assertEqual(_messages("graph.hpp", _boxed("graph.hpp"), encoding="utf-8-sig"), [])
+        """Accepts a correct block whose file begins with a UTF-8 byte order mark."""
+        self.assertEqual(_messages("graph.hpp", K_BOM + _boxed("graph.hpp")), [])
 
     def test_accepts_upstream_lines(self) -> None:
         """Accepts extra upstream notice lines below the repository's own lines."""
@@ -168,13 +176,12 @@ class LicenseBlockTest(unittest.TestCase):
 
 class PythonCommentTest(unittest.TestCase):
     """Checks which Python lines the comment rules read as comments."""
+    K_TEST_SIZE = "small"
 
     def _runs(self, body: str) -> list[int]:
         """Returns the line numbers the comment-run rule reports for a Python file body."""
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "sample.py"
-            path.write_text(_hashed("sample.py").rstrip("\n") + "\n" + body, encoding="utf-8")
-            return [issue.line for source in collect([path]) for issue in rule_comment_runs(source)]
+        source = _source("sample.py", _hashed("sample.py").rstrip("\n") + "\n" + body)
+        return [issue.line for issue in rule_comment_runs(source)]
 
     def _head_lines(self) -> int:
         """Returns how many lines the license block and the docstring take."""
@@ -198,15 +205,48 @@ class PythonCommentTest(unittest.TestCase):
 
 class DateTagTest(unittest.TestCase):
     """Checks that both spellings of the date tag are reported, in shader files too."""
+    K_TEST_SIZE = "small"
 
     def test_reports_both_spellings_in_a_ray_tracing_shader(self) -> None:
         """Reports the at and the backslash spelling in a `.rgen` file."""
         body = "/** @date 2026 */\nint a;\n/** \\date 2026 */\nint b;\n"
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / "trace.rgen"
-            path.write_text(_boxed("trace.rgen") + body, encoding="utf-8")
-            found = [issue for source in collect([path]) for issue in rule_no_date(source)]
+        found = list(rule_no_date(_source("trace.rgen", _boxed("trace.rgen") + body)))
         self.assertEqual(len(found), 2)
+
+
+class CommandLineTest(unittest.TestCase):
+    """Runs the checker on a tiny tree in a temporary folder, reading its files from the disk."""
+    K_TEST_SIZE = "medium"
+
+    def setUp(self) -> None:
+        """Makes the made-up company's licence the one the checker enforces for these runs."""
+        patch = mock.patch.object(check_source_comments, "K_LICENCE", K_ACME)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def _run(self, folder: str, *arguments: str) -> tuple[int, list[str]]:
+        """Returns the exit code and the lines the checker prints for a folder."""
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = run(K_CHECKER, [folder, *arguments])
+        return code, output.getvalue().splitlines()
+
+    def test_accepts_a_byte_order_mark_on_disk(self) -> None:
+        """Reads a correct file saved with a byte order mark and reports nothing."""
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, "graph.hpp").write_text(K_BOM + _boxed("graph.hpp"), encoding="utf-8")
+            self.assertEqual(self._run(folder), (0, []))
+
+    def test_reports_both_spellings_in_a_ray_tracing_shader_on_disk(self) -> None:
+        """Reads a `.rgen` file from the disk and reports the at and the backslash spelling."""
+        body = "/** @date 2026 */\nint a;\n/** \\date 2026 */\nint b;\n"
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder, "trace.rgen").write_text(_boxed("trace.rgen") + body, encoding="utf-8")
+            code, lines = self._run(folder, "--rule", "rule_no_date")
+        self.assertEqual(
+            (code, [line.split(": ", 1)[1] for line in lines]),
+            (1, ["rule_no_date: @date is forbidden; git records dates"] * 2),
+        )
 
 
 if __name__ == "__main__":

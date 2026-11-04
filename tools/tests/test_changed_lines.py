@@ -3,7 +3,7 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Tests tools/testing/changed_lines.py on throwaway git repositories."""
+"""Tests tools/testing/changed_lines.py: its diff reading on text in memory, its git reading once on a throwaway repository."""
 
 from __future__ import annotations
 
@@ -15,11 +15,45 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from testing.changed_lines import changed_lines  # noqa: E402
+from testing.changed_lines import changed_lines, changed_lines_of  # noqa: E402
+
+K_ROOT = Path("repo")
+K_EDIT_AND_ADD = (
+    "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
+    "@@ -2 +2 @@\n-two\n+TWO\n"
+    "@@ -4,0 +5,2 @@\n+five\n+six\n"
+)
 
 
-class ChangedLinesTest(unittest.TestCase):
-    """Builds a repository with one commit, then changes the working tree."""
+class TestChangedLinesParse(unittest.TestCase):
+    """Reads a diff text and the line counts of untracked files."""
+    K_TEST_SIZE = "small"
+
+    def test_names_the_edited_and_the_added_lines_only(self) -> None:
+        self.assertEqual(changed_lines_of(K_ROOT, "base", K_EDIT_AND_ADD, {}),
+                         {K_ROOT / "a.txt": frozenset({2, 5, 6})})
+
+    def test_a_pure_deletion_adds_no_line(self) -> None:
+        diff = "+++ b/a.txt\n@@ -2,1 +1,0 @@\n-two\n"
+        self.assertEqual(changed_lines_of(K_ROOT, "base", diff, {}).get(K_ROOT / "a.txt", frozenset()),
+                         frozenset())
+
+    def test_an_untracked_file_counts_every_line(self) -> None:
+        self.assertEqual(changed_lines_of(K_ROOT, "base", "", {K_ROOT / "c.txt": 2}),
+                         {K_ROOT / "c.txt": frozenset({1, 2})})
+
+    def test_a_deleted_file_adds_no_line(self) -> None:
+        diff = "+++ /dev/null\n@@ -1,2 +0,0 @@\n-x\n-y\n"
+        self.assertEqual(changed_lines_of(K_ROOT, "base", diff, {}), {})
+
+    def test_an_unknown_base_stops_with_a_message(self) -> None:
+        with self.assertRaises(SystemExit):
+            changed_lines_of(K_ROOT, "0" * 40, None, {})
+
+
+class TestChangedLinesShell(unittest.TestCase):
+    """Builds a repository with one commit, then a second commit and an untracked file, and reads it with git."""
+    K_TEST_SIZE = "medium"
 
     def setUp(self) -> None:
         self._folder = tempfile.TemporaryDirectory()
@@ -43,27 +77,13 @@ class ChangedLinesTest(unittest.TestCase):
         """Writes a file below the root."""
         (self.root / name).write_text(text, encoding="utf-8")
 
-    def test_names_the_edited_and_the_added_lines_only(self) -> None:
-        self.write("a.txt", "one\nTWO\nthree\nfour\nfive\nsix\n")
-        found = changed_lines(self.root, self.base)
-        self.assertEqual(found, {self.root / "a.txt": frozenset({2, 5, 6})})
-
-    def test_a_pure_deletion_adds_no_line(self) -> None:
-        self.write("a.txt", "one\nthree\nfour\n")
-        self.assertEqual(changed_lines(self.root, self.base).get(self.root / "a.txt", frozenset()), frozenset())
-
-    def test_an_untracked_file_counts_every_line(self) -> None:
-        self.write("c.txt", "x\ny\n")
-        self.assertEqual(changed_lines(self.root, self.base)[self.root / "c.txt"], frozenset({1, 2}))
-
-    def test_a_commit_after_the_base_is_included(self) -> None:
+    def test_a_commit_after_the_base_and_an_untracked_file_are_both_named(self) -> None:
         self.write("b.txt", "keep\nmore\n")
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "next")
-        self.assertEqual(changed_lines(self.root, self.base)[self.root / "b.txt"], frozenset({2}))
-
-    def test_an_unknown_base_stops_with_a_message(self) -> None:
-        with self.assertRaises(SystemExit):
-            changed_lines(self.root, "0" * 40)
+        self.write("c.txt", "x\ny\n")
+        found = changed_lines(self.root, self.base)
+        self.assertEqual((found[self.root / "b.txt"], found[self.root / "c.txt"]),
+                         (frozenset({2}), frozenset({1, 2})))
 
 
 if __name__ == "__main__":

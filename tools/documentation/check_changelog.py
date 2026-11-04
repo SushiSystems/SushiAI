@@ -28,16 +28,18 @@ K_ENTRY_SHAPE = re.compile(r"^- \d{4}-\d{2}-\d{2} — [a-z0-9_-]+: [A-Z][a-z]+ .
 K_SECTION = re.compile(r"^## (Unreleased|v\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)? — \d{4}-\d{2}-\d{2})$")
 K_SECOND_SENTENCE = re.compile(r"[.!?] +[A-Z]")
 K_NESTED_BULLET = re.compile(r"^\s+[-*+] ")
+K_BULLET = re.compile(r"^\s*[-*+] ")
 K_CITED_PATH = re.compile(r"`[^`]+`")
 
 
 @dataclass(frozen=True, slots=True)
 class Entry:
-    """Holds one bullet or section heading line of the changelog."""
+    """Holds one bullet or section heading line of the changelog, with the release headings it sits among."""
 
     path: Path
     number: int
     text: str
+    releases: tuple[str, ...]
 
     @property
     def is_section(self) -> bool:
@@ -45,19 +47,22 @@ class Entry:
         return self.text.startswith("## ")
 
 
-def collect(paths: list[Path]) -> Iterable[Entry]:
-    """Returns every bullet line, nested or not, of each repository's changelog."""
+def release_headings(lines: list[str]) -> tuple[str, ...]:
+    """Returns each release heading of a changelog in order, trailing spaces removed; Unreleased is not one."""
+    trimmed = (line.rstrip() for line in lines)
+    return tuple(line for line in trimmed if line.startswith("## ") and line != "## Unreleased")
+
+
+def parse_entries(path: Path, lines: list[str]) -> list[Entry]:
+    """Returns every bullet and heading line outside a code fence, each with the releases of its changelog."""
+    releases = release_headings(lines)
     entries: list[Entry] = []
-    for root in paths:
-        changelog = root if root.is_file() else root / K_CHANGELOG
-        if not changelog.is_file():
-            continue
-        in_fence = False
-        for index, line in enumerate(changelog.read_text(encoding="utf-8").splitlines()):
-            if line.lstrip().startswith("```"):
-                in_fence = not in_fence
-            elif not in_fence and (re.match(r"^\s*[-*+] ", line) or line.startswith("## ")):
-                entries.append(Entry(changelog, index + 1, line.rstrip()))
+    in_fence = False
+    for index, line in enumerate(lines):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+        elif not in_fence and (K_BULLET.match(line) or line.startswith("## ")):
+            entries.append(Entry(path, index + 1, line.rstrip(), releases))
     return entries
 
 
@@ -79,11 +84,7 @@ def rule_live_releases(entry: Entry) -> Iterator[Issue]:
     """Yields an issue at each release heading beyond the ones the live file keeps."""
     if not entry.is_section or entry.text == "## Unreleased":
         return
-    headings = [
-        line for line in entry.path.read_text(encoding="utf-8").splitlines()
-        if line.startswith("## ") and line != "## Unreleased"
-    ]
-    if headings.index(entry.text) >= K_LIVE_RELEASE_CEILING:
+    if entry.releases.index(entry.text) >= K_LIVE_RELEASE_CEILING:
         yield Issue(entry.path, entry.number, "older release; delete it, the tag of its release holds it")
 
 
@@ -110,6 +111,16 @@ def rule_cited_paths(entry: Entry) -> Iterator[Issue]:
     count = len(K_CITED_PATH.findall(entry.text))
     if count > K_CITED_PATH_CEILING:
         yield Issue(entry.path, entry.number, f"cites {count} places; split into one line per change")
+
+
+def collect(paths: list[Path]) -> Iterable[Entry]:
+    """Returns every bullet line, nested or not, of each repository's changelog."""
+    entries: list[Entry] = []
+    for root in paths:
+        changelog = root if root.is_file() else root / K_CHANGELOG
+        if changelog.is_file():
+            entries += parse_entries(changelog, changelog.read_text(encoding="utf-8").splitlines())
+    return entries
 
 
 K_CHECKER = Checker(

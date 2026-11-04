@@ -3,14 +3,15 @@
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
 # Commercial use requires a licence from Sushi Systems.
-"""Finds the design documents and work folders of a docs/ tree and reads their status lines."""
+"""Parses the status, sections and table rows of design documents and lists them from values; reads the tree once."""
 
 from __future__ import annotations
 
 import datetime
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 K_DESIGN_INDEXES = frozenset({"README.md", "REMAINING_WORK.md"})
 K_REVISION_FOLDER = "_REVISION"
@@ -38,69 +39,92 @@ class Status:
     is_shipped: bool = False
 
 
-def design_documents(docs: Path) -> list[Path]:
-    """Returns every design document, counting a split topic's README as its document and the topics under revision."""
-    design = docs / "design"
-    if not design.is_dir():
-        return []
-    revision = design / K_REVISION_FOLDER
-    documents = [path for path in sorted(design.glob("*.md")) if path.name not in K_DESIGN_INDEXES]
-    documents += [folder / "README.md" for folder in sorted(design.iterdir()) if folder.is_dir() and folder != revision]
-    if revision.is_dir():
-        documents += [folder / "README.md" for folder in sorted(revision.iterdir()) if folder.is_dir()]
+@dataclass(frozen=True, slots=True)
+class Tree:
+    """Holds a tree as values: its folders and files as root-relative POSIX names, and the text of each file read."""
+
+    folders: frozenset[str]
+    files: frozenset[str]
+    texts: Mapping[str, str]
+
+
+def children(tree: Tree, folder: str) -> list[str]:
+    """Returns the root-relative name of each folder and file directly inside a folder, sorted."""
+    prefix = f"{folder}/"
+    return sorted(
+        name for name in (*tree.folders, *tree.files)
+        if name.startswith(prefix) and "/" not in name.removeprefix(prefix)
+    )
+
+
+def design_documents(tree: Tree, docs: str = "docs") -> list[str]:
+    """Returns every design document, a split topic's README counting as its document; topics under revision too."""
+    design = f"{docs}/design"
+    revision = f"{design}/{K_REVISION_FOLDER}"
+    entries = children(tree, design)
+    documents = [
+        name for name in entries
+        if PurePosixPath(name).name not in K_DESIGN_INDEXES
+        and (name in tree.texts or (name in tree.folders and name.endswith(".md")))
+    ]
+    documents += [f"{folder}/README.md" for folder in entries if folder in tree.folders and folder != revision]
+    if revision in tree.folders:
+        documents += [f"{folder}/README.md" for folder in children(tree, revision) if folder in tree.folders]
     return documents
 
 
-def is_under_revision(path: Path) -> bool:
-    """Returns whether a design document sits in the folder of topics set aside for revision."""
-    return K_REVISION_FOLDER in path.parts
-
-
-def work_folders(docs: Path) -> list[Path]:
-    """Returns every entry directly under docs/agent/."""
-    agent = docs / "agent"
-    return sorted(agent.iterdir()) if agent.is_dir() else []
-
-
-def status_documents(docs: Path) -> list[Path]:
-    """Returns each design document that exists and the first file of each work folder."""
-    documents = [path for path in design_documents(docs) if path.is_file()]
-    for folder in work_folders(docs):
-        first = next((folder / name for name in K_WORK_FILES_IN_ORDER if (folder / name).is_file()), None)
+def status_documents(tree: Tree, docs: str = "docs") -> list[str]:
+    """Returns each design document that exists and the first status file of each work folder."""
+    documents = [name for name in design_documents(tree, docs) if name in tree.files]
+    for folder in children(tree, f"{docs}/agent"):
+        first = next(
+            (f"{folder}/{name}" for name in K_WORK_FILES_IN_ORDER if f"{folder}/{name}" in tree.files),
+            None,
+        )
         if first is not None:
             documents.append(first)
     return documents
 
 
-def first_content_line(path: Path) -> tuple[int, str]:
+def work_folders(tree: Tree, docs: str = "docs") -> list[str]:
+    """Returns every entry directly under docs/agent/, sorted."""
+    return children(tree, f"{docs}/agent")
+
+
+def is_under_revision(name: str) -> bool:
+    """Returns whether a design document sits in the folder of topics set aside for revision."""
+    return K_REVISION_FOLDER in name.split("/")
+
+
+def first_content_line(text: str) -> tuple[int, str]:
     """Returns the number and text of the first non-empty line after the title."""
-    lines = path.read_text(encoding="utf-8").splitlines()
-    for index, line in enumerate(lines[1:], start=2):
+    for index, line in enumerate(text.splitlines()[1:], start=2):
         if line.strip():
             return index, line
     return 1, ""
 
 
-def read_status(path: Path) -> Status:
-    """Returns the status line of a document, unknown when it is in none of the four forms."""
-    number, line = first_content_line(path)
+def parse_status(text: str) -> Status:
+    """Returns the status of a document's text, unknown when it is in none of the four forms."""
+    number, line = first_content_line(text)
     match = K_STATUS_FORMS.match(line)
     if match is None:
         return Status(number, False, False, None)
     if match["open"]:
         return Status(number, True, True, None)
+    closed_text = match["shipped"] or match["superseded"] or match["withdrawn"]
     try:
-        closed_on = datetime.date.fromisoformat(match["shipped"] or match["superseded"] or match["withdrawn"])
+        closed_on = datetime.date.fromisoformat(closed_text)
     except ValueError:
         return Status(number, False, False, None)
     return Status(number, True, False, closed_on, bool(match["shipped"]))
 
 
-def body_lines(path: Path) -> list[tuple[int, str]]:
+def body_lines(text: str) -> list[tuple[int, str]]:
     """Returns the number and text of each line of a document outside fenced blocks."""
     kept: list[tuple[int, str]] = []
     fence = ""
-    for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), start=1):
+    for number, line in enumerate(text.splitlines(), start=1):
         opener = K_FENCE.match(line.lstrip())
         if fence:
             fence = "" if opener and opener.group(1).startswith(fence) else fence
@@ -111,17 +135,17 @@ def body_lines(path: Path) -> list[tuple[int, str]]:
     return kept
 
 
-def section_names(path: Path) -> list[tuple[int, str]]:
+def section_names(text: str) -> list[tuple[int, str]]:
     """Returns the number and name of each `##` heading of a document."""
-    found = ((number, K_SECTION.match(line)) for number, line in body_lines(path))
+    found = ((number, K_SECTION.match(line)) for number, line in body_lines(text))
     return [(number, match.group(1)) for number, match in found if match]
 
 
-def section_body(path: Path, name: str) -> list[tuple[int, str]]:
+def section_body(text: str, name: str) -> list[tuple[int, str]]:
     """Returns the lines under the named `##` heading, up to the next one."""
     body: list[tuple[int, str]] = []
     inside = False
-    for number, line in body_lines(path):
+    for number, line in body_lines(text):
         heading = K_SECTION.match(line)
         if heading:
             inside = heading.group(1) == name
@@ -133,3 +157,24 @@ def section_body(path: Path, name: str) -> list[tuple[int, str]]:
 def table_cells(line: str) -> list[str]:
     """Returns the trimmed cells of a table row."""
     return [cell.strip() for cell in line.strip().strip("|").split("|")]
+
+
+def read_tree(root: Path) -> Tree:
+    """Reads the docs/ tree and the module READMEs of a repository into a Tree; the only reader of the disk here."""
+    folders = {"docs"}
+    files: set[str] = set()
+    for path in (root / "docs").rglob("*"):
+        (folders if path.is_dir() else files).add(path.relative_to(root).as_posix())
+    modules = root / "modules"
+    if modules.is_dir():
+        files.update(
+            readme.relative_to(root).as_posix() for readme in modules.glob("*/*/README.md") if readme.is_file()
+        )
+    wanted = [name for name in sorted(files) if (name.startswith("docs/") and name.endswith(".md")) or name.endswith("/README.md")]
+    texts = _read_texts(root, wanted)
+    return Tree(frozenset(folders), frozenset(files), texts)
+
+
+def _read_texts(root: Path, names: Iterable[str]) -> dict[str, str]:
+    """Returns the text of each named file, read as UTF-8 with its byte order mark removed."""
+    return {name: (root / name).read_text(encoding="utf-8-sig") for name in names}

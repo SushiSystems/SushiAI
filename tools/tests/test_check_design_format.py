@@ -57,6 +57,9 @@ None.
 K_PATH = "docs/design/KERNELS.md"
 
 
+K_TEST_SIZE = "medium"
+
+
 def _repository(folder: str, files: dict[str, str]) -> Repository:
     """Writes the given files under a root and returns its repository."""
     root = Path(folder) / "alpha"

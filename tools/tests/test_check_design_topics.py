@@ -11,7 +11,8 @@ import sys
 import tempfile
 import unittest
 from collections.abc import Iterable
-from pathlib import Path
+from dataclasses import replace
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -19,12 +20,17 @@ from checking.checker import Issue  # noqa: E402
 from documentation.check_design_topics import (  # noqa: E402
     K_CHECKER,
     Repository,
+    collect,
     rule_archive_not_cited,
     rule_folder_ceiling,
     rule_glossary_entry,
     rule_views_current,
     rule_views_present,
 )
+from documentation.citation_files import archive_citation_lines, archive_citations, is_citable  # noqa: E402
+from documentation.design_status import Tree  # noqa: E402
+
+K_GLOSSARY = "docs/reference/GLOSSARY.md"
 
 K_TOPIC = """# Audio
 
@@ -74,14 +80,38 @@ K_FILES = {
 }
 
 
-def _repository(folder: str, files: dict[str, str], is_required: bool = False, ceiling: int = 0, untracked: bool = False) -> Repository:
-    """Writes the given files under a root and returns its repository."""
+def _tree(files: dict[str, str]) -> Tree:
+    """Returns the folders, files and texts of a set of files, as the shell would read them."""
+    folders = {"docs"}
+    for name in files:
+        folders.update(str(parent) for parent in PurePosixPath(name).parents if str(parent) != ".")
+    return Tree(frozenset(folders), frozenset(files), files)
+
+
+def _repository(files: dict[str, str], is_required: bool = False, ceiling: int = 0, untracked: bool = False) -> Repository:
+    """Returns the repository the shell would build from a set of files, with the given settings."""
+    citations = tuple(
+        (name, number) for name, text in files.items() if is_citable(name) for number in archive_citation_lines(text)
+    )
+    return Repository(
+        root=Path("alpha"),
+        tree=_tree(files),
+        glossary=files.get(K_GLOSSARY),
+        is_required=is_required,
+        ceiling=ceiling,
+        is_archive_untracked=untracked,
+        archive_citations=citations if untracked else (),
+    )
+
+
+def _write(folder: str, files: dict[str, str]) -> Path:
+    """Writes the given files under a root and returns the root."""
     root = Path(folder) / "alpha"
     for name, text in files.items():
         path = root / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    return Repository(root, is_required, ceiling, untracked)
+    return root
 
 
 def _messages(issues: Iterable[Issue]) -> list[str]:
@@ -89,18 +119,30 @@ def _messages(issues: Iterable[Issue]) -> list[str]:
     return [issue.message for issue in issues]
 
 
+def _located(issues: Iterable[Issue]) -> list[tuple[str, int, str]]:
+    """Returns the path, the line and the message of each issue, the path as a POSIX name below the test root."""
+    return [(Path(issue.path).relative_to("alpha").as_posix(), issue.line, issue.message) for issue in issues]
+
+
 def _check(rule, overrides: dict[str, str] | None = None, is_required: bool = False, ceiling: int = 0, untracked: bool = False) -> list[str]:
     """Returns the messages a rule gives for the valid files with some of them replaced."""
-    with tempfile.TemporaryDirectory() as folder:
-        files = {**K_FILES, **(overrides or {})}
-        return _messages(rule(_repository(folder, files, is_required, ceiling, untracked)))
+    files = {**K_FILES, **(overrides or {})}
+    return _messages(rule(_repository(files, is_required, ceiling, untracked)))
+
+
+def _issues(rule, overrides: dict[str, str] | None = None, is_required: bool = False, ceiling: int = 0, untracked: bool = False) -> list[Issue]:
+    """Returns the issues a rule gives for the valid files with some of them replaced."""
+    files = {**K_FILES, **(overrides or {})}
+    return list(rule(_repository(files, is_required, ceiling, untracked)))
 
 
 class RegistrationTest(unittest.TestCase):
     """Checks the rule table."""
 
+    K_TEST_SIZE = "small"
+
     def test_names_every_rule(self) -> None:
-        """Holds the nine rules under their names."""
+        """Holds the ten rules under their names."""
         self.assertEqual(
             sorted(K_CHECKER.rules),
             [
@@ -117,78 +159,65 @@ class RegistrationTest(unittest.TestCase):
             ],
         )
 
-    def test_reports_nothing_for_valid_files_with_every_rule_on(self) -> None:
-        """Runs every rule over the valid files, the topic in its folder, with the strict settings on."""
-        files = {key: value for key, value in K_FILES.items() if key != "docs/design/AUDIO.md"}
-        files["docs/design/AUDIO/README.md"] = K_TOPIC
-        files["docs/reference/GLOSSARY.md"] = "# Glossary\n\n**audio**: the sound of the engine.\n"
-        for name, rule in K_CHECKER.rules.items():
-            with tempfile.TemporaryDirectory() as folder:
-                self.assertEqual(_messages(rule(_repository(folder, files, True, 10, True))), [], name)
-
-
-class OwnershipTest(unittest.TestCase):
-    """Covers the rules run through the tooling package's design module: one owner per module."""
-
-    def test_reports_a_module_two_topics_name(self) -> None:
-        """The second topic that names a module is the finding."""
-        text = "# {0}\n\n**Status:** Open — x\n**Modules:** `modules/audio`\n"
-        files = {
-            "modules/audio/README.md": "# Audio\n",
-            "docs/design/AUDIO/README.md": text.format("Audio"),
-            "docs/design/MIXER/README.md": text.format("Mixer"),
-        }
-        rule = K_CHECKER.rules["rule_module_owner"]
-        self.assertEqual(
-            _check(rule, files),
-            ["'modules/audio' is owned by AUDIO; merge the topics with `design merge` or drop it here"],
-        )
-
 
 class GlossaryTest(unittest.TestCase):
     """Covers the glossary term of each topic."""
+
+    K_TEST_SIZE = "small"
 
     def test_is_silent_when_not_asked(self) -> None:
         """Reports nothing while the repository does not ask for glossary entries."""
         self.assertEqual(_check(rule_glossary_entry), [])
 
     def test_reports_a_topic_the_glossary_lacks(self) -> None:
-        """Reports a topic with no term when the glossary exists and does not name it."""
-        glossary = {"docs/reference/GLOSSARY.md": "# Glossary\n\n**mixer**: the sum of the sources.\n"}
-        self.assertEqual(_check(rule_glossary_entry, glossary, True), ["the glossary has no entry for the topic 'AUDIO'"])
+        """Reports a topic with no term when the glossary exists and does not name it, on the first line of its document."""
+        glossary = {K_GLOSSARY: "# Glossary\n\n**mixer**: the sum of the sources.\n"}
+        self.assertEqual(
+            _located(_issues(rule_glossary_entry, glossary, True)),
+            [("docs/design/AUDIO.md", 1, "the glossary has no entry for the topic 'AUDIO'")],
+        )
 
     def test_reports_every_topic_when_there_is_no_glossary(self) -> None:
-        """Reports a topic when the repository has no glossary at all."""
-        self.assertEqual(len(_check(rule_glossary_entry, None, True)), 1)
+        """Reports a topic when the repository has no glossary at all, on the first line of it."""
+        self.assertEqual(
+            _located(_issues(rule_glossary_entry, None, True)),
+            [("docs/design/AUDIO.md", 1, "the glossary has no entry for the topic 'AUDIO'")],
+        )
 
     def test_reads_a_table_cell_and_a_heading_with_separators(self) -> None:
         """Takes a table first cell, and a topic name written with underscores."""
         topic = {"docs/design/SPATIAL_AUDIO.md": K_TOPIC}
-        cell = {"docs/reference/GLOSSARY.md": "| Word | Meaning |\n| --- | --- |\n| Audio | sound |\n| Spatial audio | sound in space |\n"}
+        cell = {K_GLOSSARY: "| Word | Meaning |\n| --- | --- |\n| Audio | sound |\n| Spatial audio | sound in space |\n"}
         self.assertEqual(_check(rule_glossary_entry, {**topic, **cell}, True), [])
 
     def test_does_not_match_inside_a_longer_word(self) -> None:
         """Does not take 'audiology' for 'audio'."""
-        glossary = {"docs/reference/GLOSSARY.md": "# Glossary\n\n**audiology**: the study of hearing.\n"}
+        glossary = {K_GLOSSARY: "# Glossary\n\n**audiology**: the study of hearing.\n"}
         self.assertEqual(len(_check(rule_glossary_entry, glossary, True)), 1)
 
 
 class FolderCeilingTest(unittest.TestCase):
     """Covers the entry limit of docs/design and docs/agent."""
 
+    K_TEST_SIZE = "small"
+
     def test_is_off_at_zero(self) -> None:
         """Reports nothing when the ceiling is zero."""
         self.assertEqual(_check(rule_folder_ceiling, None, False, 0), [])
 
     def test_reports_a_folder_over_the_ceiling(self) -> None:
-        """Reports the folder that holds more entries than the ceiling."""
+        """Reports the folder that holds more entries than the ceiling, on its first line."""
         extra = {f"docs/agent/2026_10_2{index}_W/SPEC.md": "# W\n" for index in range(3)}
-        messages = _check(rule_folder_ceiling, extra, False, 3)
-        self.assertEqual(messages, ["4 entries; the ceiling is 3"])
+        self.assertEqual(
+            _located(_issues(rule_folder_ceiling, extra, False, 3)),
+            [("docs/agent", 1, "4 entries; the ceiling is 3")],
+        )
 
 
 class ArchiveCitationTest(unittest.TestCase):
     """Covers the ban on citing an archive the repository does not track."""
+
+    K_TEST_SIZE = "small"
 
     CITING = {"docs/guides/use.md": "See docs/archive/design/OLD.md and [x](../archive/y.md).\nPlain line.\n"}
 
@@ -197,9 +226,11 @@ class ArchiveCitationTest(unittest.TestCase):
         self.assertEqual(_check(rule_archive_not_cited, self.CITING), [])
 
     def test_reports_each_line_that_cites_the_archive(self) -> None:
-        """Reports the one line that cites the archive by path and by link."""
-        messages = _check(rule_archive_not_cited, self.CITING, untracked=True)
-        self.assertEqual(messages, ["the archive is not tracked; cite the topic that holds the decision"])
+        """Reports the one line that cites the archive by path and by link, with the number of that line."""
+        self.assertEqual(
+            _located(_issues(rule_archive_not_cited, self.CITING, untracked=True)),
+            [("docs/guides/use.md", 1, "the archive is not tracked; cite the topic that holds the decision")],
+        )
 
     def test_does_not_read_the_archive_itself(self) -> None:
         """Does not report a citation inside the archive."""
@@ -210,22 +241,67 @@ class ArchiveCitationTest(unittest.TestCase):
 class ViewsTest(unittest.TestCase):
     """Covers the generated blocks."""
 
+    K_TEST_SIZE = "small"
+
     BLOCKS = {"docs/design/README.md": "# Design\n\n<!-- topics:begin -->\nstale\n<!-- topics:end -->\n"}
 
     def test_reports_a_stale_block(self) -> None:
-        """Reports a block whose text is not what the metadata gives."""
-        messages = _check(rule_views_current, self.BLOCKS)
-        self.assertEqual(messages, ["the generated block 'topics' is stale; run generate_design_views.py"])
+        """Reports a block whose text is not what the metadata gives, on the first line of its file."""
+        self.assertEqual(
+            _located(_issues(rule_views_current, self.BLOCKS)),
+            [("docs/design/README.md", 1, "the generated block 'topics' is stale; run generate_design_views.py")],
+        )
 
     def test_leaves_a_file_without_markers_alone(self) -> None:
         """Reports nothing while no file carries a marker."""
         self.assertEqual(_check(rule_views_current, {"docs/design/README.md": "# Design\n"}), [])
 
     def test_asks_for_the_topic_map_when_topics_are_required(self) -> None:
-        """Reports a design index with no topic map once the repository asks for topics."""
+        """Reports a design index with no topic map once the repository asks for topics, on its first line."""
         overrides = {"docs/design/README.md": "# Design\n"}
         self.assertEqual(_check(rule_views_present, overrides), [])
-        self.assertEqual(len(_check(rule_views_present, overrides, True)), 1)
+        self.assertEqual(
+            _located(_issues(rule_views_present, overrides, True)),
+            [("docs/design/README.md", 1, "the topic map is generated; run generate_design_views.py --init")],
+        )
+
+
+class ShellTest(unittest.TestCase):
+    """Covers the rules that run through the tooling package, and the whole table over files on disk."""
+
+    K_TEST_SIZE = "medium"
+
+    def test_reports_a_module_two_topics_name(self) -> None:
+        """The second topic that names a module is the finding."""
+        text = "# {0}\n\n**Status:** Open — x\n**Modules:** `modules/audio`\n"
+        files = {
+            "modules/audio/README.md": "# Audio\n",
+            "docs/design/AUDIO/README.md": text.format("Audio"),
+            "docs/design/MIXER/README.md": text.format("Mixer"),
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            repository = collect([_write(folder, files)])[0]
+            self.assertEqual(
+                _messages(K_CHECKER.rules["rule_module_owner"](repository)),
+                ["'modules/audio' is owned by AUDIO; merge the topics with `design merge` or drop it here"],
+            )
+
+    def test_reports_nothing_for_valid_files_with_every_rule_on(self) -> None:
+        """Runs every rule over the valid files on disk, the topic in its folder, with the strict settings on."""
+        files = {key: value for key, value in K_FILES.items() if key != "docs/design/AUDIO.md"}
+        files["docs/design/AUDIO/README.md"] = K_TOPIC
+        files[K_GLOSSARY] = "# Glossary\n\n**audio**: the sound of the engine.\n"
+        with tempfile.TemporaryDirectory() as folder:
+            root = _write(folder, files)
+            repository = replace(
+                collect([root])[0],
+                is_required=True,
+                ceiling=10,
+                is_archive_untracked=True,
+                archive_citations=tuple((path.relative_to(root).as_posix(), number) for path, number in archive_citations(root)),
+            )
+            for name, rule in K_CHECKER.rules.items():
+                self.assertEqual(_messages(rule(repository)), [], name)
 
 
 if __name__ == "__main__":

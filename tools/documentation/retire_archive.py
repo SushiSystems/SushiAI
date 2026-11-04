@@ -16,6 +16,8 @@ import argparse
 import datetime
 import subprocess
 import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -27,6 +29,44 @@ K_IGNORE_LINE = "docs/archive/"
 K_TAG_PREFIX = "docs-archive-"
 K_EXIT_CLEAN = 0
 K_EXIT_BLOCKED = 1
+
+
+@dataclass(frozen=True, slots=True)
+class Plan:
+    """Holds what the command prints, the exit code, and whether the shell tags, unstages and ignores the archive."""
+
+    lines: tuple[str, ...]
+    after: tuple[str, ...]
+    code: int
+    acts: bool
+    tag: str
+
+
+def tag_name(day: datetime.date) -> str:
+    """Returns the name of the tag that marks the history holding the archive on a day."""
+    return f"{K_TAG_PREFIX}{day.isoformat()}"
+
+
+def with_ignore_line(text: str) -> str | None:
+    """Returns the text of a .gitignore with the archive's line added, or None when it already names the archive."""
+    lines = text.splitlines()
+    if K_IGNORE_LINE in lines:
+        return None
+    return "\n".join([*lines, K_IGNORE_LINE]) + "\n"
+
+
+def plan(tracked: int, citations: Sequence[tuple[str, int]], day: datetime.date, apply: bool) -> Plan:
+    """Returns what retiring the archive prints and does, given the tracked files and the citations that remain."""
+    if not tracked:
+        return Plan(("the archive holds no tracked file; nothing to retire",), (), K_EXIT_CLEAN, False, "")
+    cited = tuple(f"{name}:{number}: cites the archive; repoint it to the topic that holds the decision" for name, number in citations)
+    if citations:
+        return Plan(cited, (), K_EXIT_BLOCKED, False, "")
+    tag = tag_name(day)
+    summary = f"{tracked} tracked files; tag {tag}, unstage docs/archive, ignore it" + ("" if apply else " (dry run)")
+    if not apply:
+        return Plan((summary,), (), K_EXIT_CLEAN, False, tag)
+    return Plan((summary,), ("staged; review `git diff --cached --stat` and commit",), K_EXIT_CLEAN, True, tag)
 
 
 def _git(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
@@ -42,9 +82,10 @@ def tracked_files(root: Path) -> list[str]:
 def _ensure_ignored(root: Path) -> None:
     """Adds the archive to .gitignore when it is not there, and stages the file."""
     ignore = root / ".gitignore"
-    lines = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
-    if K_IGNORE_LINE not in lines:
-        ignore.write_text("\n".join([*lines, K_IGNORE_LINE]) + "\n", encoding="utf-8", newline="")
+    text = ignore.read_text(encoding="utf-8") if ignore.is_file() else ""
+    updated = with_ignore_line(text)
+    if updated is not None:
+        ignore.write_text(updated, encoding="utf-8", newline="")
     _git(root, "add", "--", ".gitignore")
 
 
@@ -56,24 +97,19 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(sys.argv[1:] if argv is None else argv)
     root = arguments.root.resolve()
     files = tracked_files(root)
-    if not files:
-        print("the archive holds no tracked file; nothing to retire")
-        return K_EXIT_CLEAN
-    citations = archive_citations(root)
-    for path, number in citations:
-        print(f"{path.relative_to(root).as_posix()}:{number}: cites the archive; repoint it to the topic that holds the decision")
-    if citations:
-        return K_EXIT_BLOCKED
-    tag = f"{K_TAG_PREFIX}{datetime.date.today().isoformat()}"
-    print(f"{len(files)} tracked files; tag {tag}, unstage docs/archive, ignore it" + ("" if arguments.apply else " (dry run)"))
-    if not arguments.apply:
-        return K_EXIT_CLEAN
-    if _git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}").returncode != 0:
-        _git(root, "tag", tag, "HEAD")
+    citations = [(path.relative_to(root).as_posix(), number) for path, number in archive_citations(root)] if files else []
+    decision = plan(len(files), citations, datetime.date.today(), arguments.apply)
+    for line in decision.lines:
+        print(line)
+    if not decision.acts:
+        return decision.code
+    if _git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{decision.tag}").returncode != 0:
+        _git(root, "tag", decision.tag, "HEAD")
     _git(root, "rm", "-r", "--cached", "-q", "--", K_ARCHIVE)
     _ensure_ignored(root)
-    print("staged; review `git diff --cached --stat` and commit")
-    return K_EXIT_CLEAN
+    for line in decision.after:
+        print(line)
+    return decision.code
 
 
 if __name__ == "__main__":

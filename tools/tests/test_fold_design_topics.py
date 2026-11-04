@@ -17,7 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from documentation.fold_design_topics import fold, loose_documents, main, relink  # noqa: E402
+from documentation.design_status import Tree, read_tree  # noqa: E402
+from documentation.fold_design_topics import fold, folded_name, loose_documents, main, plan, relink  # noqa: E402
 
 K_FILES = {
     "docs/design/README.md": "# Design\n\nSee [audio](AUDIO.md).\n",
@@ -29,6 +30,11 @@ K_FILES = {
     "modules/audio/README.md": "# Audio\n",
 }
 
+K_LOOSE = {
+    "docs/design/AUDIO.md": "docs/design/AUDIO/README.md",
+    "docs/design/ECS.md": "docs/design/ECS/README.md",
+}
+
 
 def _root(folder: str) -> Path:
     """Writes the files under a root and returns it."""
@@ -38,16 +44,6 @@ def _root(folder: str) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
     return root
-
-
-class LooseDocumentsTest(unittest.TestCase):
-    """Covers which files count as loose."""
-
-    def test_skips_the_indexes_and_the_folders(self) -> None:
-        """Lists only the topic documents that sit directly in docs/design."""
-        with tempfile.TemporaryDirectory() as folder:
-            names = [path.name for path in loose_documents(_root(folder))]
-            self.assertEqual(names, ["AUDIO.md", "ECS.md"])
 
 
 def _other_spelling(test: unittest.TestCase, folder: Path) -> Path:
@@ -66,35 +62,67 @@ def _other_spelling(test: unittest.TestCase, folder: Path) -> Path:
     return link
 
 
+class FoldPlanTest(unittest.TestCase):
+    """Covers the folder each loose document is folded into."""
+
+    K_TEST_SIZE = "small"
+
+    def test_names_the_readme_of_a_folder_named_after_the_document(self) -> None:
+        """Puts the document's name, without its extension, in front of README.md."""
+        self.assertEqual(folded_name("docs/design/AUDIO.md"), "docs/design/AUDIO/README.md")
+
+    def test_keeps_the_dots_inside_the_name(self) -> None:
+        """Strips only the final extension, as Path.with_suffix does."""
+        self.assertEqual(folded_name("docs/design/A.B.md"), "docs/design/A.B/README.md")
+
+    def test_plans_one_move_per_document(self) -> None:
+        """Returns the moves for the loose documents, old to new."""
+        self.assertEqual(plan(["docs/design/AUDIO.md", "docs/design/ECS.md"]), K_LOOSE)
+
+
+class LooseDocumentsTest(unittest.TestCase):
+    """Covers which files count as loose, read from the values of a tree."""
+
+    K_TEST_SIZE = "small"
+
+    def test_skips_the_indexes_and_the_folders(self) -> None:
+        """Lists only the topic documents that sit directly in docs/design."""
+        tree = Tree(
+            folders=frozenset({"docs", "docs/design", "docs/design/SPLIT"}),
+            files=frozenset({
+                "docs/design/README.md", "docs/design/REMAINING_WORK.md", "docs/design/AUDIO.md",
+                "docs/design/ECS.md", "docs/design/SPLIT/README.md",
+            }),
+            texts={},
+        )
+        self.assertEqual(loose_documents(tree), ["docs/design/AUDIO.md", "docs/design/ECS.md"])
+
+
 class RelinkTest(unittest.TestCase):
-    """Covers the links out of a moved file."""
+    """Covers the links out of a moved file, as names."""
+
+    K_TEST_SIZE = "small"
 
     def test_keeps_a_link_to_the_same_file_and_leaves_external_ones(self) -> None:
         """Adds a level to a relative link, keeps its anchor and does not touch a web link."""
-        with tempfile.TemporaryDirectory() as folder:
-            old = Path(folder) / "docs/design"
-            text = "[a](../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n"
-            self.assertEqual(relink(text, old, old / "AUDIO"), "[a](../../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n")
+        text = "[a](../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n"
+        self.assertEqual(relink(text, "docs/design", "docs/design/AUDIO"), "[a](../../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n")
 
+    def test_a_link_into_the_moved_folder_stays_within_it(self) -> None:
+        """Rewrites a link to a sibling file so that it still reaches the same file from the new folder."""
+        self.assertEqual(relink("[e](ECS.md)\n", "docs/design", "docs/design/AUDIO"), "[e](../ECS.md)\n")
 
-    def test_a_folder_reached_through_a_link_keeps_the_link_relative(self) -> None:
-        """A folder named through a link or a short name is not walked to its other spelling."""
-        with tempfile.TemporaryDirectory() as folder:
-            real = Path(folder) / "a folder with a long name"
-            (real / "docs/design").mkdir(parents=True)
-            (real / "x").mkdir()
-            (real / "x/R.md").write_text("# R\n", encoding="utf-8")
-            old = _other_spelling(self, real) / "docs/design"
-            self.assertEqual(relink("[a](../../x/R.md)\n", old, old / "AUDIO"), "[a](../../../x/R.md)\n")
 
 class FoldTest(unittest.TestCase):
-    """Covers the move and what it rewrites."""
+    """Covers the move on disk and what it rewrites."""
+
+    K_TEST_SIZE = "medium"
 
     def test_a_dry_run_changes_nothing(self) -> None:
         """Returns the moves and leaves the files where they are."""
         with tempfile.TemporaryDirectory() as folder:
             root = _root(folder)
-            self.assertEqual(fold(root, False), {"docs/design/AUDIO.md": "docs/design/AUDIO/README.md", "docs/design/ECS.md": "docs/design/ECS/README.md"})
+            self.assertEqual(fold(root, False), K_LOOSE)
             self.assertTrue((root / "docs/design/AUDIO.md").is_file())
 
     def test_apply_moves_each_document_into_its_folder(self) -> None:
@@ -102,7 +130,7 @@ class FoldTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             root = _root(folder)
             fold(root, True)
-            self.assertEqual(loose_documents(root), [])
+            self.assertEqual(loose_documents(read_tree(root)), [])
             self.assertTrue((root / "docs/design/AUDIO/README.md").is_file())
             self.assertTrue((root / "docs/design/README.md").is_file())
 
@@ -121,6 +149,17 @@ class FoldTest(unittest.TestCase):
                 (root / "docs/guides/use.md").read_text(encoding="utf-8"),
                 "Read docs/design/AUDIO/README.md and [it](../design/AUDIO/README.md).\n",
             )
+
+    def test_a_folder_reached_through_a_short_name_keeps_its_links_relative(self) -> None:
+        """Folds a repository named by its other spelling and writes the link from the folder it was asked to fold."""
+        with tempfile.TemporaryDirectory() as folder:
+            real = Path(folder) / "a folder with a long name"
+            (real / "docs/design").mkdir(parents=True)
+            (real / "x").mkdir()
+            (real / "x/R.md").write_text("# R\n", encoding="utf-8")
+            (real / "docs/design/AUDIO.md").write_text("[a](../../x/R.md)\n", encoding="utf-8")
+            fold(_other_spelling(self, real), True)
+            self.assertEqual((real / "docs/design/AUDIO/README.md").read_text(encoding="utf-8"), "[a](../../../x/R.md)\n")
 
     def test_the_command_exits_one_only_for_a_dry_run_with_work(self) -> None:
         """Returns 1 for a dry run that finds a loose document and 0 after folding."""

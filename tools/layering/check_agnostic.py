@@ -17,12 +17,13 @@ import re
 import sys
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Checker, Issue, run  # noqa: E402
 from checking.ignored_paths import drop_ignored  # noqa: E402
+from checking.source_file import SourceFile, read_files  # noqa: E402
 import settings  # noqa: E402
 
 K_AGNOSTIC_PATHS: tuple[str, ...] = getattr(settings, "K_AGNOSTIC_PATHS", ())
@@ -50,18 +51,21 @@ class Terms:
 
 @dataclass(frozen=True, slots=True)
 class Scope:
-    """Holds the text files below the checked folders of one repository, and its terms."""
+    """Holds the text files below the checked folders of one repository, its terms and its exempt folders."""
 
     root: Path
-    files: tuple[Path, ...]
+    files: tuple[SourceFile, ...]
     terms: Terms | None
+    technology_exempt: tuple[str, ...] = ()
 
 
-def _parse_terms(path: Path) -> Terms:
-    """Returns the terms a file holds; the error names the first line that cannot be read."""
+def parse_terms(path: Path, text: str | None) -> Terms:
+    """Returns the terms a file's text holds; None stands for a missing file, and the error names the first bad line."""
+    if text is None:
+        return Terms(path, {}, (), "no such terms file")
     patterns: dict[str, list[re.Pattern[str]]] = {name: [] for name in K_CATEGORIES}
     allowed: list[re.Pattern[str]] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(text.splitlines(), 1):
         if not line.strip() or line.lstrip().startswith("#"):
             continue
         parsed = K_TERM_LINE.match(line)
@@ -75,43 +79,15 @@ def _parse_terms(path: Path) -> Terms:
     return Terms(path, {name: tuple(found) for name, found in patterns.items()}, tuple(allowed), "")
 
 
-def _load_terms(root: Path) -> Terms | None:
-    """Returns the terms file the settings name, or None when they name none."""
-    if not K_AGNOSTIC_TERMS:
-        return None
-    path = root / K_AGNOSTIC_TERMS
-    if not path.is_file():
-        return Terms(path, {}, (), "no such terms file")
-    return _parse_terms(path)
-
-
-def _files_below(root: Path) -> tuple[Path, ...]:
-    """Returns the text files git does not ignore below each checked folder."""
-    found: list[Path] = []
-    for name in K_AGNOSTIC_PATHS:
-        folder = root / name
-        if folder.is_dir():
-            found.extend(path for path in sorted(folder.rglob("*"))
-                         if path.is_file() and path.suffix in K_TEXT_SUFFIXES
-                         and path.relative_to(root).as_posix() not in K_CONFIG_FILES)
-    return tuple(drop_ignored(root, found))
-
-
-def collect(paths: list[Path]) -> Iterable[Scope]:
-    """Returns the scope of each given repository root."""
-    return [Scope(path, _files_below(path), _load_terms(path))
-            for path in paths if path.is_dir()]
-
-
-def _lines(path: Path) -> Iterator[tuple[int, str]]:
-    """Yields the number and text of each line of a file, leaving out a leading license header of `#`
-    lines and each line that carries the mark `agnostic: allow`."""
-    in_header = path.suffix in K_HASH_SUFFIXES
-    text = path.read_text(encoding="utf-8", errors="ignore")
-    for number, line in enumerate(text.splitlines(), 1):
-        in_header = in_header and line.startswith("#")
-        if not in_header and K_ALLOW_MARK not in line:
-            yield number, line
+def is_checked_file(relative: str, folders: tuple[str, ...]) -> bool:
+    """Returns whether a root-relative path is a text file below one of the folders and not a settings file."""
+    path = PurePosixPath(relative)
+    if relative in K_CONFIG_FILES or path.suffix not in K_TEXT_SUFFIXES:
+        return False
+    return any(
+        path.parts[: len(parts)] == parts and len(path.parts) > len(parts)
+        for parts in (PurePosixPath(folder).parts for folder in folders)
+    )
 
 
 def _is_exempt(scope: Scope, path: Path, category: str) -> bool:
@@ -119,21 +95,31 @@ def _is_exempt(scope: Scope, path: Path, category: str) -> bool:
     if category != "technology":
         return False
     relative = path.relative_to(scope.root).as_posix()
-    return any(relative.startswith(entry.rstrip("/") + "/") for entry in K_TECHNOLOGY_EXEMPT)
+    return any(relative.startswith(entry.rstrip("/") + "/") for entry in scope.technology_exempt)
+
+
+def _lines(source: SourceFile) -> Iterator[tuple[int, str]]:
+    """Yields the number and text of each line of a file, leaving out a leading license header of `#`
+    lines and each line that carries the mark `agnostic: allow`."""
+    in_header = source.path.suffix in K_HASH_SUFFIXES
+    for number, line in enumerate(source.text.splitlines(), 1):
+        in_header = in_header and line.startswith("#")
+        if not in_header and K_ALLOW_MARK not in line:
+            yield number, line
 
 
 def _term_issues(scope: Scope, category: str) -> Iterator[Issue]:
     """Yields an issue for each match of a category that the allowed patterns do not cover."""
     if scope.terms is None or scope.terms.error:
         return
-    for path in scope.files:
-        if _is_exempt(scope, path, category):
+    for source in scope.files:
+        if _is_exempt(scope, source.path, category):
             continue
-        for number, line in _lines(path):
+        for number, line in _lines(source):
             for pattern in scope.terms.patterns[category]:
                 for match in pattern.finditer(line):
                     if not any(allow.fullmatch(match.group()) for allow in scope.terms.allowed):
-                        yield Issue(path, number, f"names {match.group()!r}")
+                        yield Issue(source.path, number, f"names {match.group()!r}")
 
 
 def rule_product_name(scope: Scope) -> Iterator[Issue]:
@@ -158,10 +144,10 @@ def rule_identity(scope: Scope) -> Iterator[Issue]:
 
 def rule_machine_path(scope: Scope) -> Iterator[Issue]:
     """Yields an issue for each drive path or user folder."""
-    for path in scope.files:
-        for number, line in _lines(path):
+    for source in scope.files:
+        for number, line in _lines(source):
             for match in K_MACHINE_PATH.finditer(line):
-                yield Issue(path, number, f"names the machine path {match.group()!r}")
+                yield Issue(source.path, number, f"names the machine path {match.group()!r}")
 
 
 def rule_terms_file(scope: Scope) -> Iterator[Issue]:
@@ -178,6 +164,37 @@ K_RULES = {
     "rule_machine_path": rule_machine_path,
     "rule_terms_file": rule_terms_file,
 }
+
+
+def _read_files_below(root: Path) -> tuple[SourceFile, ...]:
+    """Reads the text files below each checked folder that git does not ignore and that are not settings."""
+    candidates = [
+        path
+        for name in K_AGNOSTIC_PATHS if (root / name).is_dir()
+        for path in sorted((root / name).rglob("*"))
+        if path.is_file() and is_checked_file(path.relative_to(root).as_posix(), (name,))
+    ]
+    return read_files(drop_ignored(root, candidates), lambda _: True)
+
+
+def _read_terms(root: Path) -> Terms | None:
+    """Reads the terms file the settings name, or returns None when they name none."""
+    if not K_AGNOSTIC_TERMS:
+        return None
+    path = root / K_AGNOSTIC_TERMS
+    found = read_files([path], Path.is_file)
+    return parse_terms(path, found[0].text if found else None)
+
+
+def _read_scope(root: Path) -> Scope:
+    """Reads one repository's checked files and terms into a scope; the only reader of the disk here."""
+    return Scope(root, _read_files_below(root), _read_terms(root), K_TECHNOLOGY_EXEMPT)
+
+
+def collect(paths: list[Path]) -> Iterable[Scope]:
+    """Returns the scope of each given repository root."""
+    return [_read_scope(path) for path in paths if path.is_dir()]
+
 
 K_CHECKER = Checker(
     description="Check that the doctrine names no product, company tool, identity or machine path.",

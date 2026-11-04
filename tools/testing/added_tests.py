@@ -17,57 +17,54 @@ import argparse
 import re
 import sys
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import settings  # noqa: E402
+from checking.tests_tree import K_TEST_FOLDERS  # noqa: E402
 from commits.history import Commit, commits_since, git  # noqa: E402
 from testing.case_reader import K_BENCHMARK, Case, cases_of, is_test_file  # noqa: E402
-from testing.check_test_sizes import K_TEST_FOLDERS  # noqa: E402
 
 K_SINCE: str = getattr(settings, "K_TEST_ADDITIONS_SINCE", "")
 K_PROGRAM = re.compile(
     getattr(settings, "K_TEST_PROGRAM_PATTERN", r"^[ \t]*(?:\w*add_test_program|add_executable)[ \t]*\("),
     re.MULTILINE)
+K_BUILD_FILE = "CMakeLists.txt"
 
 
-def changed_test_files(commit: Commit) -> list[Path]:
-    """Returns the files a commit adds, edits or removes under a test folder."""
-    listing = git(commit.root, "diff", "--name-only", "-z", commit.parent, commit.sha) or ""
-    paths = [Path(name) for name in listing.split("\0") if name]
+def under_test_folders(names: Sequence[str]) -> list[Path]:
+    """Returns the paths, of those names, that lie below a test folder."""
+    paths = [Path(name) for name in names if name]
     return [path for path in paths if any(path.parts[:len(Path(folder).parts)] == Path(folder).parts
                                           for folder in K_TEST_FOLDERS)]
 
 
-def _cases_at(commit: Commit, revision: str, path: Path) -> list[Case]:
-    """Returns the cases a file holds at a revision, benchmarks left out; none when the file is absent."""
-    text = git(commit.root, "show", f"{revision}:{path.as_posix()}")
-    return [] if text is None else [case for case in cases_of(path, text) if case.size != K_BENCHMARK]
+def _cases(texts: Mapping[Path, str]) -> list[Case]:
+    """Returns the cases the test files of a revision hold, benchmarks left out."""
+    return [case for path, text in texts.items() if is_test_file(path)
+            for case in cases_of(path, text) if case.size != K_BENCHMARK]
 
 
-def added_cases(commit: Commit) -> list[str]:
-    """Returns the sorted names of the cases a commit adds.
+def new_case_names(before: Mapping[Path, str], after: Mapping[Path, str]) -> list[str]:
+    """Returns the sorted names of the cases that the after-texts add to the before-texts.
 
     A case that keeps its name is not new, whatever file it sits in and however its body changes. One
-    with a new name is not new either when a case with the same body went away in the commit, which is
+    with a new name is not new either when a case with the same body went away in the change, which is
     a rename. A copy under a new name leaves the original in place, so it counts.
     """
-    before: list[Case] = []
-    after: list[Case] = []
-    for path in changed_test_files(commit):
-        if is_test_file(path):
-            before.extend(_cases_at(commit, commit.parent, path))
-            after.extend(_cases_at(commit, commit.sha, path))
-    pool = Counter(case.name for case in before)
+    prior = _cases(before)
+    current = _cases(after)
+    pool = Counter(case.name for case in prior)
     unmatched: list[Case] = []
-    for case in after:
+    for case in current:
         if pool[case.name] > 0:
             pool[case.name] -= 1
         else:
             unmatched.append(case)
     gone: Counter[str] = Counter()
-    for case in before:
+    for case in prior:
         if pool[case.name] > 0:
             pool[case.name] -= 1
             gone[case.digest] += 1
@@ -80,15 +77,43 @@ def added_cases(commit: Commit) -> list[str]:
     return sorted(added)
 
 
-def _program_count(commit: Commit, revision: str, path: Path) -> int:
-    """Returns how many test programs a build file declares at a revision."""
-    return len(K_PROGRAM.findall(git(commit.root, "show", f"{revision}:{path.as_posix()}") or ""))
+def _programs(text: str) -> int:
+    """Returns how many test programs a build file declares."""
+    return len(K_PROGRAM.findall(text))
+
+
+def new_program_files(before: Mapping[Path, str], after: Mapping[Path, str]) -> list[Path]:
+    """Returns the build files whose after-text declares a second test program or more, having gained one."""
+    return [path for path, text in after.items() if path.name == K_BUILD_FILE
+            and _programs(text) > max(1, _programs(before.get(path, "")))]
+
+
+def changed_test_files(commit: Commit) -> list[Path]:
+    """Returns the files a commit adds, edits or removes under a test folder."""
+    listing = git(commit.root, "diff", "--name-only", "-z", commit.parent, commit.sha) or ""
+    return under_test_folders(listing.split("\0"))
+
+
+def _texts_at(commit: Commit, revision: str, paths: Sequence[Path]) -> dict[Path, str]:
+    """Returns the text of each path at a revision; a path the revision lacks is left out."""
+    texts: dict[Path, str] = {}
+    for path in paths:
+        text = git(commit.root, "show", f"{revision}:{path.as_posix()}")
+        if text is not None:
+            texts[path] = text
+    return texts
+
+
+def added_cases(commit: Commit) -> list[str]:
+    """Returns the sorted names of the cases a commit adds."""
+    paths = changed_test_files(commit)
+    return new_case_names(_texts_at(commit, commit.parent, paths), _texts_at(commit, commit.sha, paths))
 
 
 def added_programs(commit: Commit) -> list[Path]:
     """Returns the build files of a commit that end with a second test program or more, having gained one."""
-    return [path for path in changed_test_files(commit) if path.name == "CMakeLists.txt"
-            and _program_count(commit, commit.sha, path) > max(1, _program_count(commit, commit.parent, path))]
+    paths = changed_test_files(commit)
+    return new_program_files(_texts_at(commit, commit.parent, paths), _texts_at(commit, commit.sha, paths))
 
 
 def main(argv: list[str] | None = None) -> int:

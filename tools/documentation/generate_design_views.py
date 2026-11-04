@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from documentation.design_status import read_tree  # noqa: E402
 from documentation.design_views import (  # noqa: E402
     K_DESIGNS_BLOCK,
     K_TOPICS_BLOCK,
@@ -47,18 +48,28 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _parse(sys.argv[1:] if argv is None else argv)
     root = arguments.root.resolve()
     stale = 0
-    for path, name, body in expected_blocks(root):
+    for name, block, body in expected_blocks(read_tree(root)):
+        path = root / name
+        text = path.read_text(encoding="utf-8-sig")
         if arguments.init and not arguments.check:
-            insert_block(path, name, K_HEADINGS.get(name))
-        current = read_block(path, name)
+            added = insert_block(text, block, K_HEADINGS.get(block))
+            if added is not None:
+                _write(path, added)
+                text = added
+        current = read_block(text, block)
         if current is None or current == body:
             continue
         if arguments.check:
-            print(f"{path.relative_to(root).as_posix()}: the block '{name}' is stale")
+            print(f"{name}: the block '{block}' is stale")
             stale += 1
         else:
-            write_block(path, name, body)
+            _write(path, write_block(text, block, body))
     return K_EXIT_STALE if stale else K_EXIT_CLEAN
+
+
+def _write(path: Path, text: str) -> None:
+    """Writes a view file as UTF-8 with its line endings kept."""
+    path.write_text(text, encoding="utf-8", newline="")
 
 
 if __name__ == "__main__":
