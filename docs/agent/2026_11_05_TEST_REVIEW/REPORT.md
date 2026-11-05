@@ -54,17 +54,18 @@ checkers' tests.
 - `tools/tests/test_test_budget_settings.py` skips here, since the repository has no `skills/` folder, so
   its promise is checked nowhere; it also defines `read_budget` and `differences` in the test file.
 
-## The owner's decisions waiting
+## Decisions
 
-1. Whether a named constant holding a hand-typed epsilon is a typed tolerance (the same question stands
-   in every C++ repository).
-2. Whether the emitted IR op sequence and trace wiring are public promises.
-3. `K_SHARE_TOLERANCE` in `generation_test_support.hpp` is a statistical bound: how statistical
-   tolerances are written.
-4. `exact_sum.hpp` or `GradientExchange` on `UInt32`.
-5. Where test-support helpers live: in the module include tree or under `tests/`.
-6. Whether the `SA_EXPECT_*` and `SA_ASSERT_*` macros count as expectations for the naming rule.
-7. Whether a compile check posing as a test (`test_noexcept_surface.cpp`) stays.
+The owner delegated these decisions on 2026-11-05. Each ruling below is final for the plan; its reason follows it.
+
+1. A named constant holding a hand-typed epsilon is not a typed tolerance. A tolerance names its kind (absolute, relative or ulps) and its derivation, so every such constant is redefined through `tolerance.hpp`, keeping its name. The rewrites stay rewrites, and they are mechanical.
+2. The emitted IR op sequence and the trace wiring are not public promises. They are the compiler's inside. A change-detector test is deleted where a behaviour test covers the same layer or block, and rewritten to check outputs otherwise.
+3. A statistical tolerance runs with a fixed seed, and its bound is derived from the sample count and a stated false-failure rate. The derivation is written beside `K_SHARE_TOLERANCE`.
+4. `UInt32` is not a defect in either place. `exact_sum.hpp` says whether a sum is order-independent, and a `UInt32` sum modulo 2^32 is. `GradientExchange` refuses `UInt32` because no gradient is unsigned, which is a policy of its own. Its header states that policy, and the two are tested apart.
+5. Test-support helpers live under `tests/support/`, in a test-only target. Only a port's in-memory adapter ships in the module, beside its port, because the adapter is a real implementation and the case tables are not.
+6. `SA_EXPECT_*` and `SA_ASSERT_*` count as expectations: they expand to gtest assertions and name what they do.
+7. A compile check is not a test. Its `static_assert`s move into a compile-only translation unit that the build compiles and the test runner never lists, and the wrapping test is deleted. The doubled namespace at line 1400 is fixed in the same job.
+8. Death tests are medium: each one starts a child process. The testing skill records this.
 
 ## Dispatches
 

@@ -11,12 +11,12 @@ writes each add. Nothing in a module job changes production code except a seam a
 
 | Job | Files | Waits on | Status |
 | --- | --- | --- | --- |
-| T1 | `tests/support/tolerance.hpp` in use, with the ruling of decision 1 applied to every named epsilon | owner decision 1 | todo |
+| T1 | `tests/support/tolerance.hpp` in use, with the ruling of decision 1 applied to every named epsilon |  | todo |
 | T2 | One engine and device per program through SushiRuntime's fixture base; `EngineTest` stops making one per test | SushiRuntime T1 | todo |
 | T3 | In-memory adapters beside their ports: a host `Dataset`, `Objective`, `EpochAware`, `ReplicaModel`, `ReplicaServeObserver`, `StepRecorder`, `GraphBuilder`, `PrecisionPolicy`, `RegionPartitioner`, `StepExecutor`, `Collator`, `SamplePipeline`, `SampleSource`, `MaskSource`, `PartnerSource`, and the failure module's block counter and fatal sink |  | todo |
 | T4 | Byte-source and stream seams for the dataset readers, the checkpoint loader and the weight importer |  | todo |
-| T5 | The SushiLog sink moved to SushiLog's public in-memory sink | sushilog T1 | todo |
-| T6 | The defects of this report, each with a test that fails first, and the pages corrected | owner decisions 4, 6 | todo |
+| T5 | The SushiLog sink moved to SushiLog's scoped in-memory sink | sushilog T1 | todo |
+| T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | todo |
 | T7 | The CLI tests on sushicore's in-memory runner, console and CMake driver | sushicore T1 | todo |
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | todo |
 | M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
@@ -78,7 +78,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 - **T2.** No fixture builds an engine or device per test. Build: the repository's test command.
 - **T3.** Each keeps its port's promise with no device or file. Build: the repository's test command over each module.
 - **T4.** Each reader is tested small on bytes. Build: the repository's test command over io and vision datasets.
-- **T5.** No test installs a sink on the process-wide logger. Build: the repository's test command.
+- **T5.** Every log capture goes through SushiLog's scoped in-memory sink. Build: the repository's test command.
 - **T6.** Every defect above is fixed or has a backlog entry. Build: the repository's test command and `python tools/check_all.py .`
 - **T7.** No CLI test patches the repository's own functions. Build: the CLI tests.
 - **T8.** Neither file exists and the checkers pass. Build: `python tools/check_all.py .`
@@ -86,5 +86,4 @@ writes each add. Nothing in a module job changes production code except a seam a
   new test passes at the size its label states, and the module's tests pass through the project's own
   test command. Build: that command over the module.
 
-The owner chooses inline or parallel mode. Decision 2 decides whether the IR and trace records are
-rewrites against a public promise or deletes.
+The owner chooses inline or parallel mode. The IR and trace records follow decision 2: a delete where a behaviour test covers the promise, a rewrite to outputs otherwise.
