@@ -1,22 +1,27 @@
 # tests/core/graph/test_builder.cpp
 
 
-Suites: `Small_BatchedMatmul`.
+Suites: `Small_BatchedMatmul`, `Small_BatchedMatmulFlags` and `Small_BatchedMatmulRankRefusal`.
 
-Tests the IR that `GraphBuilder::matmul` emits for rank-2 and rank-3 operands and that
-`GraphBuilder::softmax` emits over the last axis. Every refusal case also expects the graph's
-node count to be what it was before the refused calls.
+Tests the shapes and flags that `GraphBuilder::matmul` yields for rank-2 and rank-3 operands and
+the shape `GraphBuilder::softmax` yields over the last axis. Every refusal case also expects the
+graph's node count to be what it was before the refused calls.
+
+The cases that differ only in data are parameterised suites: each row of a table runs the same
+test, and the row's label is the suffix of the test name. `row_name` reads that label from a
+row, and `operation_name` derives it from an operation's name. `ShapeRow`, `ShapePairRow` and
+`DTypeRow` hold a label with one shape, two shapes or one element type.
 
 ## Rank2ProductKeepsItsShapeAndFlags
 
 `matmul` over [3, 4] and [5, 4] with the second operand transposed yields [3, 5]. The node's
 operation is `Ops::K_MATMUL`, its flag 0 is false and its flag 1 is true.
 
-## FourFlagCombinationsYieldBatchedProducts
+## EachFlagPairYieldsABatchedProduct
 
-For each of the four transpose pairs, with operands shaped to fit it, a rank-3 product yields
-[2, 3, 5]. The node is a MATMUL that reads the two operands in order, writes one value and
-carries the two flags it was given.
+Runs once for each of the four transpose pairs of `Small_BatchedMatmulFlags`, with operands
+shaped to fit it. A rank-3 product yields [2, 3, 5]. The node is a MATMUL that reads the two
+operands in order, writes one value and carries the two flags it was given.
 
 ## BatchedProductTakesTheSharedBatchCount
 
@@ -25,39 +30,42 @@ element type `Float32`.
 
 ## RefusesMixedRanksAndRanksOutsideTwoAndThree
 
-`matmul` fails with `InvalidDescription` for a rank-2 operand with a rank-3 one in either order, for a rank-1
-operand with a rank-3 one, and for two rank-4 operands.
+Runs once for each row of `Small_BatchedMatmulRankRefusal`: a rank-2 operand with a rank-3 one
+in either order, a rank-1 operand with a rank-3 one, and two rank-4 operands. `matmul` fails
+with `InvalidDescription` and the node count does not change.
 
 ## RefusesUnequalBatchesAndInnerExtents
 
 Against a [2, 3, 4] operand, `matmul` fails with `InvalidDescription` for a [3, 4, 5] operand, whose batch
 differs, and for a [2, 5, 3] operand, whose inner extent differs.
 
-## SoftmaxEmitsReshapeLogSoftmaxExpReshape
-
-`softmax` over a [2, 3, 3] input adds four nodes. Read back from the result they are RESHAPE,
-EXP, LOG_SOFTMAX and RESHAPE. The first RESHAPE reads the input and yields [6, 3], LOG_SOFTMAX
-yields [6, 3], and the result has the shape [2, 3, 3].
-
 ## SoftmaxOverRank2KeepsItsRowsAndLastAxis
 
-`softmax` over a [4, 5] input yields [4, 5], and the EXP node behind the last RESHAPE reads a
-[4, 5] value.
+`softmax` over a [4, 5] input yields a value of the shape [4, 5].
+
+## SoftmaxOverRank3KeepsItsShape
+
+`softmax` over a [2, 3, 3] input yields a value of the shape [2, 3, 3].
 
 ## SoftmaxRefusesRankBelowTwo
 
 `softmax` over a [5] input fails with `InvalidDescription` and adds no node.
 
-Suites: `Small_CausalMaskOps`.
+Suites: `Small_CausalMaskOps` and `Small_CausalMaskRefusal`.
 
 Tests `GraphBuilder::causal_mask`: the node it emits, the shapes it accepts and the operands it
 refuses. Every case uses the fill -1e9.
 
-## TheMaskWritesItsIdentityAndKeepsTheShape
+## TheMaskWritesItsIdentity
 
 Over [2, 5, 5] float64 scores the call is ok and emits one CAUSAL_MASK node that reads the
-scores, writes the returned value and holds the fill in attribute slot 0. The result has the
-shape [2, 5, 5], the type float64 and the lifetime `Activation`, and the graph has no refusal.
+scores, writes the returned value and holds the fill in attribute slot 0. The graph has no
+refusal.
+
+## TheMaskKeepsShapeDTypeAndLifetime
+
+Over [2, 5, 5] float64 scores the result has the shape [2, 5, 5], the type float64 and the
+lifetime `Activation`.
 
 ## TheMaskAcceptsAnyNumberOfLeadingAxes
 
@@ -65,11 +73,13 @@ A [3, 3] matrix and a [2, 4, 3, 3] value both return a value of their own shape.
 
 ## TheMaskRefusesOperandsThatDoNotFit
 
-Four calls fail with `InvalidDescription`: a [5] vector ("[..., T, T] scores"), a [2, 4, 5]
-value ("[2, 4, 5]"), int32 scores ("half, float32 or float64 scores") and a fill of minus
-infinity ("finite fill"). After each the node count is unchanged and `has_refusal()` is true.
+Runs once for each row of `Small_CausalMaskRefusal`. Four rows fail with `InvalidDescription`:
+a [5] vector ("[..., T, T] scores"), a [2, 4, 5] value ("[2, 4, 5]"), int32 scores ("half,
+float32 or float64 scores") and a fill of minus infinity ("finite fill"). After each the node
+count is unchanged and `has_refusal()` is true.
 
-Suites: `Small_DepthwiseOps`.
+Suites: `Small_DepthwiseOps`, `Small_DepthwiseGeometrySlot`, `Small_DepthwiseTapsRefusal`,
+`Small_DepthwiseGridRefusal` and `Small_DepthwiseWeightRefusal`.
 
 Tests the three depthwise emitters of `GraphBuilder`: `depthwise_conv2d`,
 `depthwise_conv2d_backward_input` and `depthwise_conv2d_backward_weight`. Most cases share one
@@ -93,8 +103,10 @@ Over a `Float64` input and `Float64` taps the result is tagged NHWC, has the ele
 
 ## DepthwiseConv2dStoresItsGeometryInTheGeometrySlots
 
-For a 3x5 window with padding 1 on top and 2 on the left over a [2, 7, 9, 3] input, the node's
-first eight attribute values are 3, 5, 1, 1, 1, 1, 1 and 2.
+Runs once for each of the eight slots of `Small_DepthwiseGeometrySlot`. For a 3x5 window with
+padding 1 on top and 2 on the left over a [2, 7, 9, 3] input, the node's first eight
+attribute values are 3, 5, 1, 1, 1, 1, 1 and 2: kernel height and width, stride height and
+width, dilation height and width, padding top and left.
 
 ## DepthwiseConv2dRefusesARankFourWeight
 
@@ -103,8 +115,9 @@ change.
 
 ## DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount
 
-Taps of the shapes [5, 3, 3], [3, 5, 3] and [3, 3, 4] each make the emitter fail with `InvalidDescription`
-against the 3x3 geometry and three channels, and the node count does not change.
+Runs once for each row of `Small_DepthwiseTapsRefusal`: taps of the shapes [5, 3, 3],
+[3, 5, 3] and [3, 3, 4] each make the emitter fail with `InvalidDescription` against the 3x3
+geometry and three channels, and the node count does not change.
 
 ## DepthwiseConv2dRefusesAnNCHWInput
 
@@ -130,8 +143,9 @@ shape [2, 5, 5, 3], the layout NHWC and the element type `Float32`.
 
 ## BackwardInputRefusesAGradientOnAnotherGrid
 
-For the input shape [2, 5, 5, 3], gradients of the shapes [2, 4, 5, 3], [2, 5, 5, 4] and
-[2, 5, 3] each make the emitter fail with `InvalidDescription`, and the node count does not change.
+Runs once for each row of `Small_DepthwiseGridRefusal`. For the input shape [2, 5, 5, 3],
+gradients of the shapes [2, 4, 5, 3], [2, 5, 5, 4] and [2, 5, 3] each make the emitter fail
+with `InvalidDescription`, and the node count does not change.
 
 ## BackwardWeightWritesItsIdentityOverGradientAndInputInOrder
 
@@ -145,21 +159,22 @@ Over `Float64` operands the result has the shape [3, 3, 3], the layout NHWC, the
 
 ## BackwardWeightRefusesMismatchedBatchChannelsOrDType
 
-Against a [2, 5, 5, 3] gradient, an input of another batch, of another channel count or of
-another element type makes the emitter fail with `InvalidDescription`, as does a rank-3 gradient. The node count
-does not change.
+Runs once for each row of `Small_DepthwiseWeightRefusal`. Against a [2, 5, 5, 3] gradient, an
+input of another batch, of another channel count or of another element type makes the emitter
+fail with `InvalidDescription`, as does a rank-3 gradient. The node count does not change.
 
-Suites: `Small_ElementwiseOps`.
+Suites: `Small_ElementwiseOps`, `Small_BinaryEmitter`, `Small_UnaryEmitter`,
+`Small_LessEqualMask`, `Small_InputReadingGradient` and `Medium_ActivationBackwardDeathTest`.
 
 Tests the nodes the builder emits for the elementwise, comparison, selection and constant
 operations.
 
-This file needs no device. Every case in `Small_ElementwiseOps` calls an emitter of
+This file needs no device. Every case in these suites calls an emitter of
 `modules/core/graph/include/SushiAI/graph/builder.hpp` on a host-side graph and reads the node and the value it
 wrote. The emitters are `div`, `minimum`, `maximum`, `less_equal`, `abs`, `atan`, `softplus`,
 `silu`, `select`, `activation_backward`, `constant` and `constant_like`. The cases that concern
-several emitters loop over a table and label each iteration with `SCOPED_TRACE`, so a failure
-names the emitter. `test_backward.cpp` covers the backward rules of the same operations.
+several emitters are parameterised suites over a table, so a failure names the emitter in the
+test name. `test_backward.cpp` covers the backward rules of the same operations.
 
 ## BinaryEmitter and UnaryEmitter
 
@@ -180,10 +195,15 @@ K_MAXIMUM and K_LESS_EQUAL.
 `K_INPUT_READING_GRADIENTS` lists K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD, the two activation
 gradients that read the forward input.
 
-## nchw_input
+## small_nchw_input
 
-`nchw_input` declares a [2, 2, 2, 2] input and converts it to NCHW. Every extent is 2, so the
+`small_nchw_input` declares a [2, 2, 2, 2] input and converts it to NCHW. Every extent is 2, so the
 permuted shape equals the original and two such values still agree in shape.
+
+## chain_through_every_emitter
+
+`chain_through_every_emitter` chains a value through all four two-operand emitters and all four
+single-operand ones and ends in a `select` on a `less_equal` mask.
 
 ## expect_produced_by
 
@@ -197,38 +217,40 @@ value and the lifetime ACTIVATION.
 
 ## BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder
 
-Each two-operand emitter writes one node of its own identity whose inputs are `a` then `b`.
+Runs once per emitter of `Small_BinaryEmitter`. The emitter writes one node of its own
+identity whose inputs are `a` then `b`.
 
 ## BinaryEmittersKeepShapeDTypeAndLayout
 
-With two FLOAT64 NCHW operands, the result of each two-operand emitter has the first operand's
-shape and is FLOAT64 and NCHW.
+Runs once per emitter of `Small_BinaryEmitter`. With two FLOAT64 NCHW operands, the result has
+the first operand's shape and is FLOAT64 and NCHW.
 
 ## BinaryEmittersRejectUnequalShapesWithoutBroadcasting
 
-Each two-operand emitter fails with `InvalidDescription` for a [4, 3] operand with a [4, 1] one, in both orders, and
-with a [3] one. These are the pairs a broadcasting library accepts. The node count is unchanged
-after the three calls.
+Runs once per emitter of `Small_BinaryEmitter`. The emitter fails with `InvalidDescription`
+for a [4, 3] operand with a [4, 1] one, in both orders, and with a [3] one. These are the pairs
+a broadcasting library accepts. The node count is unchanged after the three calls.
 
 ## BinaryEmittersRejectUnequalDtypes
 
-Each two-operand emitter fails with `InvalidDescription` for a FLOAT32 operand with a FLOAT64 one, in both orders.
+Runs once per emitter of `Small_BinaryEmitter`. The emitter fails with `InvalidDescription`
+for a FLOAT32 operand with a FLOAT64 one, in both orders.
 
 ## LessEqualYieldsAMaskInTheOperandsOwnDType
 
-The result of `less_equal` is FLOAT32 for FLOAT32 operands and FLOAT64 for FLOAT64 ones. The
-mask has no element type of its own, which is what lets `mul` and `select` read it beside a
-value of the same type.
+Runs once per element type of `Small_LessEqualMask`. The result of `less_equal` is FLOAT32 for
+FLOAT32 operands and FLOAT64 for FLOAT64 ones. The mask has no element type of its own, which
+is what lets `mul` and `select` read it beside a value of the same type.
 
 ## UnaryEmittersWriteTheirIdentityOverTheirOperand
 
-Each single-operand emitter returns a value other than its operand, written by one node of its
-own identity that reads the operand.
+Runs once per emitter of `Small_UnaryEmitter`. The emitter returns a value other than its
+operand, written by one node of its own identity that reads the operand.
 
 ## UnaryEmittersKeepShapeDTypeAndLayout
 
-With a FLOAT64 NCHW operand, the result of each single-operand emitter has the operand's shape
-and is FLOAT64 and NCHW.
+Runs once per emitter of `Small_UnaryEmitter`. With a FLOAT64 NCHW operand, the result has the
+operand's shape and is FLOAT64 and NCHW.
 
 ## SelectReadsItsConditionThenBothBranches
 
@@ -257,33 +279,37 @@ A FLOAT32 branch with a FLOAT64 branch fails with `InvalidDescription` in both o
 
 ## ActivationBackwardEmitsTheInputReadingGradients
 
-For K_SILU_BACKWARD and K_SOFTPLUS_BACKWARD, `activation_backward(gradient, dy, x)` writes one node
-of that identity whose inputs are `dy` then `x`, and the result is described like `dy`.
+Runs once per gradient of `Small_InputReadingGradient`, K_SILU_BACKWARD and
+K_SOFTPLUS_BACKWARD. `activation_backward(gradient, dy, x)` writes one node of that identity
+whose inputs are `dy` then `x`, and the result is described like `dy`.
 
 ## InputReadingGradientsRejectAGradientOfAnotherShape
 
-A [4, 1] `dy` with a [4, 3] `x` fails with `InvalidDescription` for both gradients.
+Runs once per gradient of `Small_InputReadingGradient`. A [4, 1] `dy` with a [4, 3] `x` fails
+with `InvalidDescription`.
 
 ## InputReadingGradientsRejectAGradientOfAnotherDType
 
-A FLOAT32 value with a FLOAT64 one fails with `InvalidDescription` for both gradients, in both orders.
+Runs once per gradient of `Small_InputReadingGradient`. A FLOAT32 value with a FLOAT64 one
+fails with `InvalidDescription`, in both orders.
 
 ## ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient
 
-`activation_backward` stops the process, reporting "is not an activation gradient", when the identity is K_SILU, K_SOFTPLUS or K_DIV. The first two are
-forward identities of `Ops::K_ACTIVATIONS` and the third is not in the table.
+Runs once per identity of `Medium_ActivationBackwardDeathTest`, each in a child process.
+`activation_backward` stops the process, reporting "is not an activation gradient", when the
+identity is K_SILU, K_SOFTPLUS or K_DIV. The first two are forward identities of
+`Ops::K_ACTIVATIONS` and the third is not in the table.
 
 ## FinaliseAcceptsAGraphUsingEveryEmitter
 
-Two NCHW inputs are chained through all four two-operand emitters and all four single-operand
-ones, and the chain ends in a `select` on a `less_equal` mask. `Graph::finalise()` does not
-throw.
+Two NCHW inputs go through `chain_through_every_emitter`, and the chain is accepted by the
+builder. `Graph::finalise()` then returns success.
 
 ## FinaliseRejectsOperandsInTwoLayouts
 
-For each two-operand emitter, a node that reads one NCHW operand and one NHWC operand is
-emitted, and `finalise()` returns `InvalidDescription`. The emitter itself accepts the pair because the shapes are
-equal.
+Runs once per emitter of `Small_BinaryEmitter`. A node that reads one NCHW operand and one NHWC
+operand is emitted, and `finalise()` returns `InvalidDescription`. The emitter itself accepts
+the pair because the shapes are equal.
 
 ## FinaliseRejectsASelectConditionInAnotherLayout
 
@@ -303,12 +329,8 @@ a `select` that reads it as its condition over two inputs.
 ## ConstantWritesAnOperandFreeNodeHoldingItsValue
 
 `constant([4, 3], 1e-7, FLOAT64)` writes one K_CONSTANT node with no input. Attribute slot 0
-holds 1e-7 within 1e-20, and the value is [4, 3], FLOAT64, NHWC and ACTIVATION. `K_VALUE` and
-`K_VALUE_TOLERANCE` are constants local to the case.
-
-## ConstantDefaultsToFloat32
-
-`constant([2], 1.0)` with no element type is FLOAT32.
+holds 1e-7 exactly, because the builder copies the value, and the value is [4, 3], FLOAT64,
+NHWC and ACTIVATION. `K_VALUE` is a constant local to the case.
 
 ## ConstantRejectsAnElementTypeThatIsNotRealFloating
 
@@ -335,7 +357,8 @@ no gradient.
 `zeros` and `zeros_like` each write a K_ZERO node with no input. K_ZERO and K_CONSTANT are two
 identities.
 
-Suites: `Small_GatherOps`.
+Suites: `Small_GatherOps`, `Small_ScatterAddRefusal`, `Small_GatherCastPass` and
+`Small_GatherCastPassType`.
 
 Tests `GraphBuilder::gather_rows` and `GraphBuilder::scatter_add_rows`: the node each emits,
 the result shape and the operands each refuses. The table has 7 rows of length 3. A refusal is
@@ -368,31 +391,56 @@ An int32 table is refused with "half, float32 or float64 table".
 
 An index of rank `K_MAX_RANK`, shaped [1, 1, 1, 1, 1, 1], is refused with "rank 1 to 5".
 
-## ScatterAddRowsWritesItsIdentityAndTheTableShape
+## ScatterAddRowsWritesItsIdentity
 
-Over [2, 4, 3] float64 rows and a [2, 4] index, `scatter_add_rows` with 7 table rows is ok. The
-result is the one output of a SCATTER_ADD_ROWS node that reads the rows and then the index, and
-it has the shape [7, 3], the type float64 and the lifetime `Activation`.
+Over [2, 4, 3] float64 rows and a [2, 4] index, `scatter_add_rows` with 7 table rows is ok.
+The result is the one output of a SCATTER_ADD_ROWS node that reads the rows and then the
+index.
+
+## ScatterAddRowsYieldsTheTableShapeDTypeAndLifetime
+
+For the same call the result has the shape [7, 3], the type float64 and the lifetime
+`Activation`.
 
 ## ScatterAddRowsRefusesOperandsThatDoNotFit
 
-Five calls are refused: rank-1 rows ("rank 2 or more"), int32 rows ("half, float32 or float64
-rows"), a float32 index ("INT32 index"), a [4] index for five rows ("one index per row") and a
-row count of 0 ("a table of 0 rows").
+Runs once for each of the five rows of `Small_ScatterAddRefusal`: rank-1 rows ("rank 2 or
+more"), int32 rows ("half, float32 or float64 rows"), a float32 index ("INT32 index"), a [4]
+index for five rows ("one index per row") and a row count of 0 ("a table of 0 rows").
 
 ## AnInt32InputLeafRequiresNoGradient
 
 After `graph.finalise()` the int32 index has the lifetime `Input` and does not require a
 gradient, and the gathered value does.
 
-## TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared
+## The cast pass over a gather
 
-After `Graph::insert_casts` under a `MixedPrecisionPolicy`, the index is int32, the table and
-the gathered value are float32 and the `matmul` that reads the gathered value is `Half`. The
-gather still reads the table and the index. No reported cast has the index as its source or
-GATHER_ROWS as its op, and `find_dtype_mismatches` is empty.
+`Small_GatherCastPass` builds a gather over a [7, 3] float32 table and an int32 index, feeds
+it to a `matmul`, and runs `Graph::insert_casts` under a `MixedPrecisionPolicy`. Its cases
+check one promise each. Five cases follow.
 
-Suites: `Small_LayerNormOps`.
+## EachValueEndsInItsDeclaredTypeOrTheNarrowedOne
+
+Runs once per row of `Small_GatherCastPassType`. The index is int32, the table and the
+gathered value are float32 and the `matmul` that reads the gathered value is `Half`.
+
+## TheGatherStillReadsTheTableAndTheIndex
+
+The gather is still a GATHER_ROWS node that reads the table and then the index.
+
+## NoCastReadsTheIndex
+
+No reported cast has the index as its source.
+
+## NoCastIsAddedAtTheGather
+
+No reported cast has GATHER_ROWS as its operation.
+
+## NoValueDisagreesWithThePolicyAfterTheCastPass
+
+`find_dtype_mismatches` is empty.
+
+Suites: `Small_LayerNormOps` and `Small_LayerNormRefusal`.
 
 Tests `GraphBuilder::layer_norm` and `GraphBuilder::layer_norm_backward`. The leaves are a
 [2, 3, 4] input, a [4] gain and a [4] bias, and the epsilon is 1e-5. A refusal is
@@ -412,9 +460,9 @@ Over a [4] input the output has the shape [4] and the saved mean the shape [1].
 
 ## LayerNormRefusesOperandsThatDoNotFit
 
-Four calls are refused: an int32 input ("half, float32 or float64 input"), a [3] gain ("gamma
-as [4]"), a float64 bias under a float32 input ("beta as [4] of float32") and an epsilon of 0
-("epsilon must be positive").
+Runs once for each of the four rows of `Small_LayerNormRefusal`: an int32 input ("half,
+float32 or float64 input"), a [3] gain ("gamma as [4]"), a float64 bias under a float32 input
+("beta as [4] of float32") and an epsilon of 0 ("epsilon must be positive").
 
 ## LayerNormBackwardWritesTheThreeGradients
 
@@ -427,23 +475,73 @@ the saved mean and the saved inverse deviation and writes dx, dgamma and dbeta, 
 A [6, 4] gradient is refused with "operand of [2, 3, 4]" and a [4] saved mean with "operand of
 [6]".
 
-Suites: `Small_LogSoftmaxOps`.
+Suites: `Small_LogSoftmaxOps` and `Small_LogSoftmaxRefusal`.
 
 Tests `GraphBuilder::log_softmax_backward`.
 
-## TheGradientWritesItsIdentityAndKeepsTheShape
+## TheGradientWritesItsIdentity
 
 Over a [4, 3] float64 gradient and the `log_softmax` of a [4, 3] float64 input, the call is ok
-and emits one LOG_SOFTMAX_BACKWARD node that reads the gradient and then the log-probabilities.
-The result has the shape [4, 3], the type float64 and the lifetime `Activation`, and the graph
-has no refusal.
+and emits one LOG_SOFTMAX_BACKWARD node that reads the gradient and then the
+log-probabilities. The graph has no refusal.
+
+## TheGradientKeepsShapeDTypeAndLifetime
+
+For the same call the result has the shape [4, 3], the type float64 and the lifetime
+`Activation`.
 
 ## TheGradientRefusesOperandsThatDoNotFit
 
-Four calls fail with `InvalidDescription`: rank-3 operands ("rank-2 log-probabilities"), int32
-operands ("half, float32 or float64 log-probabilities"), a [4, 5] gradient ("[4, 5]") and a
-float64 gradient under float32 log-probabilities ("a gradient like them"). After each the node
-count is unchanged and `has_refusal()` is true.
+Runs once for each of the four rows of `Small_LogSoftmaxRefusal`, each failing with
+`InvalidDescription`: rank-3 operands ("rank-2 log-probabilities"), int32 operands ("half,
+float32 or float64 log-probabilities"), a [4, 5] gradient ("[4, 5]") and a float64 gradient
+under float32 log-probabilities ("a gradient like them"). After each the node count is
+unchanged and `has_refusal()` is true.
+
+Suites: `Small_BiasAddDiagnostic`, `Small_Diagnostics` and `Medium_DiagnosticsDeathTest`.
+
+Tests the messages of the refusals: each names the operation, the operands' shapes or element
+types, and the part that does not line up.
+
+## MatmulContractionMismatchNamesBothInnerExtents
+
+A [4, 5] operand against a [7, 3] one is refused with "MATMUL contracts 5 against 7" and both
+shapes.
+
+## MatmulRejectsARank1OperandAndPrintsWhatItGot
+
+A rank-1 operand on either side of a rank-2 one is refused with "MATMUL needs two rank-2
+operands" and both shapes.
+
+## MatmulNamesBothDtypesWhenTheyDisagree
+
+A float32 operand against a float64 one is refused with "MATMUL needs operands of one element
+type" and both type names.
+
+## BiasAddNamesTheAxisThatDoesNotLineUp
+
+Runs once for each row of `Small_BiasAddDiagnostic`: a [5] bias over a [4, 3] operand ("BIAS_ADD
+bias has 5 entries", "[4, 3]", "3 columns"), a [1, 3] bias ("BIAS_ADD needs a rank-1 bias",
+"[1, 3]") and a rank-1 left operand ("BIAS_ADD needs a rank-2 left operand", "[3]").
+
+## SumRowsAndLogSoftmaxRejectARank1Operand
+
+`sum_rows` and `log_softmax` over a [6] operand are refused, each naming itself and "[6]".
+
+## ElementwiseOperationsNameBothShapesAndBothDtypes
+
+`add`, `sub`, `mul` and `accumulate` over unequal shapes, and `mul` over two element types, are
+refused with the operation's name and the shapes or types.
+
+## NLLLossNamesTheShapeItCannotServe
+
+`nll_loss` over operands of two shapes, and over rank-1 operands, is refused with its name and
+the shapes.
+
+## ActivationBackwardRefusesAnOperationThatIsNotOne
+
+`activation_backward` with K_RELU stops the process, naming "sushiai.relu" and "is not an
+activation gradient". It runs in `Medium_DiagnosticsDeathTest`.
 
 Suites: `Small_RefusalFamilies`.
 

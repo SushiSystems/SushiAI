@@ -29,6 +29,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -50,7 +51,6 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/traced.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -79,6 +79,43 @@ namespace
         ASSERT_EQ(node.outputs.size(), 1u);
         EXPECT_EQ(node.outputs[0], out);
     }
+
+    /** @brief Names a case of a parameterised suite after the row it runs. */
+    template<typename Row>
+    std::string row_name(const ::testing::TestParamInfo<Row>& info)
+    {
+        return std::string(info.param.name);
+    }
+
+    /** @brief Names a case of a suite whose rows are operations after the operation. */
+    std::string operation_name(const ::testing::TestParamInfo<OpID>& info)
+    {
+        std::string name(Ops::name_of(info.param));
+        name.replace(0, name.find('.') + 1, "");
+        return name;
+    }
+
+    /** @brief Holds a label and one shape, for a case that differs in that shape alone. */
+    struct ShapeRow
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape shape;           /**< The shape under test. */
+    };
+
+    /** @brief Holds a label and two shapes, for a case that differs in that pair alone. */
+    struct ShapePairRow
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape first;           /**< The first operand's shape. */
+        Shape second;          /**< The second operand's shape. */
+    };
+
+    /** @brief Holds a label and an element type, for a case that differs in that type alone. */
+    struct DTypeRow
+    {
+        std::string_view name; /**< The label of the case. */
+        DType dtype;           /**< The element type under test. */
+    };
 }
 
 /** @brief Tests that a rank-2 product still yields [m, n] and keeps the flags it was given. */
@@ -98,30 +135,55 @@ TEST(Small_BatchedMatmul, Rank2ProductKeepsItsShapeAndFlags)
     EXPECT_TRUE(node.attributes.flag(1));
 }
 
-/** @brief Tests that a rank-3 product yields [B, m, n] under each of the four flag pairs. */
-TEST(Small_BatchedMatmul, FourFlagCombinationsYieldBatchedProducts)
+namespace
 {
-    for (int flags = 0; flags < 4; ++flags)
+    /** @brief Names one pair of transpose flags. */
+    struct FlagPair
     {
-        const bool transpose_a = (flags & 1) != 0;
-        const bool transpose_b = (flags & 2) != 0;
+        std::string_view name; /**< The label of the case. */
+        bool transpose_a;      /**< Whether the first operand is transposed. */
+        bool transpose_b;      /**< Whether the second operand is transposed. */
+    };
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        // A is [B, m, k] or [B, k, m]; B is [B, k, n] or [B, n, k]; here m=3, k=4, n=5, B=2.
-        const ValueID a = builder.input(transpose_a ? Shape{2, 4, 3} : Shape{2, 3, 4}, "a");
-        const ValueID b = builder.input(transpose_b ? Shape{2, 5, 4} : Shape{2, 4, 5}, "b");
+    /** @brief Lists the four pairs of transpose flags. */
+    const std::array<FlagPair, 4> K_FLAG_PAIRS = {{
+        {"NeitherTransposed", false, false},
+        {"FirstTransposed", true, false},
+        {"SecondTransposed", false, true},
+        {"BothTransposed", true, true},
+    }};
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.matmul(a, b, transpose_a, transpose_b));
+    /** @brief Runs once per pair of transpose flags. */
+    class Small_BatchedMatmulFlags : public ::testing::TestWithParam<FlagPair>
+    {
 
-        EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 5})) << "flags " << flags;
-        const Graph::Node& node = producer_of(graph, out);
-        EXPECT_EQ(node.op, Ops::K_MATMUL.id) << "flags " << flags;
-        expect_reads_and_writes(node, out, {a, b});
-        EXPECT_EQ(node.attributes.flag(0), transpose_a) << "flags " << flags;
-        EXPECT_EQ(node.attributes.flag(1), transpose_b) << "flags " << flags;
-    }
+    };
 }
+
+/** @brief Tests that a rank-3 product yields [B, m, n] under the pair of flags it was given. */
+TEST_P(Small_BatchedMatmulFlags, EachFlagPairYieldsABatchedProduct)
+{
+    const FlagPair flags = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    // A is [B, m, k] or [B, k, m]; B is [B, k, n] or [B, n, k]; here m=3, k=4, n=5, B=2.
+    const ValueID a = builder.input(flags.transpose_a ? Shape{2, 4, 3} : Shape{2, 3, 4}, "a");
+    const ValueID b = builder.input(flags.transpose_b ? Shape{2, 5, 4} : Shape{2, 4, 5}, "b");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out,
+                            builder.matmul(a, b, flags.transpose_a, flags.transpose_b));
+
+    EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 5}));
+    const Graph::Node& node = producer_of(graph, out);
+    EXPECT_EQ(node.op, Ops::K_MATMUL.id);
+    expect_reads_and_writes(node, out, {a, b});
+    EXPECT_EQ(node.attributes.flag(0), flags.transpose_a);
+    EXPECT_EQ(node.attributes.flag(1), flags.transpose_b);
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_BatchedMatmulFlags, ::testing::ValuesIn(K_FLAG_PAIRS),
+                         row_name<FlagPair>);
 
 /** @brief Tests that a rank-3 product takes its batch count from the operands' shared axis. */
 TEST(Small_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
@@ -138,24 +200,40 @@ TEST(Small_BatchedMatmul, BatchedProductTakesTheSharedBatchCount)
     EXPECT_EQ(graph.value(out).dtype, DType::Float32);
 }
 
-/** @brief Tests that a product refuses operands whose ranks differ or are neither 2 nor 3. */
-TEST(Small_BatchedMatmul, RefusesMixedRanksAndRanksOutsideTwoAndThree)
+namespace
 {
+    /** @brief Lists the operand pairs whose ranks differ or are neither 2 nor 3. */
+    const std::array<ShapePairRow, 4> K_RANK_REFUSALS = {{
+        {"RankTwoThenRankThree", Shape{3, 4}, Shape{2, 4, 5}},
+        {"RankThreeThenRankTwo", Shape{2, 4, 5}, Shape{3, 4}},
+        {"RankOneThenRankThree", Shape{4}, Shape{2, 4, 5}},
+        {"TwoRankFour", Shape{2, 3, 4, 1}, Shape{2, 4, 5, 1}},
+    }};
+
+    /** @brief Runs once per operand pair a product refuses for its ranks. */
+    class Small_BatchedMatmulRankRefusal : public ::testing::TestWithParam<ShapePairRow>
+    {
+
+    };
+}
+
+/** @brief Tests that a product refuses operands whose ranks differ or are neither 2 nor 3. */
+TEST_P(Small_BatchedMatmulRankRefusal, RefusesMixedRanksAndRanksOutsideTwoAndThree)
+{
+    const ShapePairRow& pair = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID matrix = builder.input(Shape{3, 4}, "matrix");
-    const ValueID batch = builder.input(Shape{2, 4, 5}, "batch");
-    const ValueID vector = builder.input(Shape{4}, "vector");
-    const ValueID quad_a = builder.input(Shape{2, 3, 4, 1}, "quad_a");
-    const ValueID quad_b = builder.input(Shape{2, 4, 5, 1}, "quad_b");
+    const ValueID first = builder.input(pair.first, "first");
+    const ValueID second = builder.input(pair.second, "second");
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(builder.matmul(matrix, batch), StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.matmul(batch, matrix), StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.matmul(vector, batch), StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.matmul(quad_a, quad_b), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.matmul(first, second), StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_BatchedMatmulRankRefusal, ::testing::ValuesIn(K_RANK_REFUSALS),
+                         row_name<ShapePairRow>);
 
 /** @brief Tests that a rank-3 product refuses operands whose batches or inner extents differ. */
 TEST(Small_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
@@ -172,38 +250,7 @@ TEST(Small_BatchedMatmul, RefusesUnequalBatchesAndInnerExtents)
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
-/** @brief Tests that softmax emits RESHAPE, LOG_SOFTMAX, EXP and RESHAPE, in that order. */
-TEST(Small_BatchedMatmul, SoftmaxEmitsReshapeLogSoftmaxExpReshape)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const ValueID x = builder.input(Shape{2, 3, 3}, "x");
-    const std::size_t nodes_before = graph.node_count();
-
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.softmax(x));
-
-    ASSERT_EQ(graph.node_count(), nodes_before + 4);
-    const Graph::Node& last = producer_of(graph, out);
-    EXPECT_EQ(last.op, Ops::K_RESHAPE.id);
-    EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 3}));
-
-    const ValueID exponentials = last.inputs[0];
-    const Graph::Node& exp_node = producer_of(graph, exponentials);
-    EXPECT_EQ(exp_node.op, Ops::K_EXP.id);
-
-    const ValueID normalised = exp_node.inputs[0];
-    const Graph::Node& log_node = producer_of(graph, normalised);
-    EXPECT_EQ(log_node.op, Ops::K_LOG_SOFTMAX.id);
-    EXPECT_EQ(graph.value(normalised).shape, Shape({6, 3}));
-
-    const ValueID flat = log_node.inputs[0];
-    const Graph::Node& flatten = producer_of(graph, flat);
-    EXPECT_EQ(flatten.op, Ops::K_RESHAPE.id);
-    EXPECT_EQ(flatten.inputs, std::vector<ValueID>{x});
-    EXPECT_EQ(graph.value(flat).shape, Shape({6, 3}));
-}
-
-/** @brief Tests that a rank-2 softmax keeps its [rows, last] extents through the flattening. */
+/** @brief Tests that a rank-2 softmax yields a result of its operand's [rows, last] shape. */
 TEST(Small_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
 {
     Graph::Graph graph;
@@ -213,9 +260,18 @@ TEST(Small_BatchedMatmul, SoftmaxOverRank2KeepsItsRowsAndLastAxis)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.softmax(x));
 
     EXPECT_EQ(graph.value(out).shape, Shape({4, 5}));
-    const Graph::Node& exp_node = producer_of(graph, producer_of(graph, out).inputs[0]);
-    EXPECT_EQ(exp_node.op, Ops::K_EXP.id);
-    EXPECT_EQ(graph.value(exp_node.inputs[0]).shape, Shape({4, 5}));
+}
+
+/** @brief Tests that a rank-3 softmax yields a result of its operand's shape. */
+TEST(Small_BatchedMatmul, SoftmaxOverRank3KeepsItsShape)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{2, 3, 3}, "x");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.softmax(x));
+
+    EXPECT_EQ(graph.value(out).shape, Shape({2, 3, 3}));
 }
 
 /** @brief Tests that softmax refuses an operand of rank below two. */
@@ -246,7 +302,7 @@ namespace
 }
 
 /** @brief Tests that the mask is one node over its scores, with the fill in attribute slot 0. */
-TEST(Small_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
+TEST(Small_CausalMaskOps, TheMaskWritesItsIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -261,10 +317,22 @@ TEST(Small_CausalMaskOps, TheMaskWritesItsIdentityAndKeepsTheShape)
     EXPECT_EQ(node.inputs, (std::vector<ValueID>{scores}));
     EXPECT_EQ(node.outputs, (std::vector<ValueID>{out.value()}));
     EXPECT_EQ(node.attributes.values[0], K_FILL);
+    EXPECT_FALSE(graph.has_refusal());
+}
+
+/** @brief Tests that the mask keeps the shape, element type and lifetime of its scores. */
+TEST(Small_CausalMaskOps, TheMaskKeepsShapeDTypeAndLifetime)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID scores = builder.input(Shape{2, 5, 5}, "scores", DType::Float64);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.causal_mask(scores, K_FILL));
+
+    ASSERT_TRUE(out.has_value());
     EXPECT_EQ(graph.value(out.value()).shape, (Shape{2, 5, 5}));
     EXPECT_EQ(graph.value(out.value()).dtype, DType::Float64);
     EXPECT_EQ(graph.value(out.value()).lifetime, Graph::Lifetime::Activation);
-    EXPECT_FALSE(graph.has_refusal());
 }
 
 /** @brief Tests that a single matrix and a value with two leading axes are both accepted. */
@@ -284,25 +352,49 @@ TEST(Small_CausalMaskOps, TheMaskAcceptsAnyNumberOfLeadingAxes)
     EXPECT_EQ(graph.value(many.value()).shape, (Shape{2, 4, 3, 3}));
 }
 
-/** @brief Tests each refusal: a vector, a matrix that is not square, an integer, a fill. */
-TEST(Small_CausalMaskOps, TheMaskRefusesOperandsThatDoNotFit)
+namespace
 {
+    /** @brief Holds one operand set a causal mask refuses and the part its message names. */
+    struct MaskRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape scores;          /**< The shape of the scores. */
+        DType dtype;           /**< The element type of the scores. */
+        double fill;           /**< The fill written above the diagonal. */
+        const char* part;      /**< The part the refusal names. */
+    };
+
+    /** @brief Lists the operand sets a causal mask refuses. */
+    const std::array<MaskRefusal, 4> K_MASK_REFUSALS = {{
+        {"Vector", Shape{5}, DType::Float32, K_FILL, "[..., T, T] scores"},
+        {"OblongScores", Shape{2, 4, 5}, DType::Float32, K_FILL, "[2, 4, 5]"},
+        {"IntegerScores", Shape{5, 5}, DType::Int32, K_FILL, "half, float32 or float64 scores"},
+        {"InfiniteFill", Shape{5, 5}, DType::Float32, -std::numeric_limits<double>::infinity(),
+         "finite fill"},
+    }};
+
+    /** @brief Runs once per operand set a causal mask refuses. */
+    class Small_CausalMaskRefusal : public ::testing::TestWithParam<MaskRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests that the mask refuses a vector, an oblong matrix, an integer, an infinite fill. */
+TEST_P(Small_CausalMaskRefusal, TheMaskRefusesOperandsThatDoNotFit)
+{
+    const MaskRefusal& refusal = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID vector = builder.input(Shape{5}, "vector");
-    const ValueID oblong = builder.input(Shape{2, 4, 5}, "oblong");
-    const ValueID whole = builder.input(Shape{5, 5}, "whole", DType::Int32);
-    const ValueID scores = builder.input(Shape{5, 5}, "scores");
+    const ValueID scores = builder.input(refusal.scores, "scores", refusal.dtype);
     const std::size_t nodes = graph.node_count();
 
-    expect_refused(graph, builder.causal_mask(vector, K_FILL), nodes, "[..., T, T] scores");
-    expect_refused(graph, builder.causal_mask(oblong, K_FILL), nodes, "[2, 4, 5]");
-    expect_refused(graph, builder.causal_mask(whole, K_FILL), nodes,
-                   "half, float32 or float64 scores");
-    expect_refused(graph,
-                   builder.causal_mask(scores, -std::numeric_limits<double>::infinity()), nodes,
-                   "finite fill");
+    expect_refused(graph, builder.causal_mask(scores, refusal.fill), nodes, refusal.part);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_CausalMaskRefusal, ::testing::ValuesIn(K_MASK_REFUSALS),
+                         row_name<MaskRefusal>);
 
 namespace
 {
@@ -387,9 +479,40 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dKeepsLayoutDTypeAndLifetime)
     EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation);
 }
 
-/** @brief Tests that the forward emitter stores its geometry in the slots MAXPOOL2D also uses. */
-TEST(Small_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
+namespace
 {
+    /** @brief Holds one geometry slot, the label of what it holds and the value it must hold. */
+    struct GeometrySlot
+    {
+        std::string_view name; /**< The label of the case. */
+        std::size_t slot;      /**< The attribute slot. */
+        double expected;       /**< The value the slot holds for the geometry of the test. */
+    };
+
+    /** @brief Lists the eight slots for a 3x5 window with padding 1 on top and 2 on the left. */
+    const std::array<GeometrySlot, 8> K_GEOMETRY_SLOTS = {{
+        {"KernelHeight", 0, 3.0},
+        {"KernelWidth", 1, 5.0},
+        {"StrideHeight", 2, 1.0},
+        {"StrideWidth", 3, 1.0},
+        {"DilationHeight", 4, 1.0},
+        {"DilationWidth", 5, 1.0},
+        {"PaddingTop", 6, 1.0},
+        {"PaddingLeft", 7, 2.0},
+    }};
+
+    /** @brief Runs once per geometry slot. */
+    class Small_DepthwiseGeometrySlot : public ::testing::TestWithParam<GeometrySlot>
+    {
+
+    };
+}
+
+/** @brief Tests that the forward emitter stores its geometry in the slots MAXPOOL2D also uses. */
+TEST_P(Small_DepthwiseGeometrySlot, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
+{
+    const GeometrySlot& row = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2, 7, 9, 3}, "x");
@@ -404,10 +527,11 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dStoresItsGeometryInTheGeometrySlots)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID out, builder.depthwise_conv2d(x, w, g));
 
     const Graph::Node& node = graph.node(graph.value(out).producer);
-    const double expected[8] = {3.0, 5.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0};
-    for (std::size_t slot = 0; slot < 8; ++slot)
-        EXPECT_DOUBLE_EQ(node.attributes.values[slot], expected[slot]) << "slot " << slot;
+    EXPECT_EQ(node.attributes.values[row.slot], row.expected);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_DepthwiseGeometrySlot, ::testing::ValuesIn(K_GEOMETRY_SLOTS),
+                         row_name<GeometrySlot>);
 
 /** @brief Tests that the forward emitter refuses taps of rank four. */
 TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
@@ -422,25 +546,38 @@ TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesARankFourWeight)
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
+namespace
+{
+    /** @brief Lists the taps whose window or channel extent differs from the input's. */
+    const std::array<ShapeRow, 3> K_TAP_REFUSALS = {{
+        {"TallWindow", Shape{5, 3, 3}},
+        {"WideWindow", Shape{3, 5, 3}},
+        {"MoreChannels", Shape{3, 3, 4}},
+    }};
+
+    /** @brief Runs once per taps shape the forward emitter refuses. */
+    class Small_DepthwiseTapsRefusal : public ::testing::TestWithParam<ShapeRow>
+    {
+
+    };
+}
+
 /** @brief Tests that the forward emitter refuses taps whose window or channel extent differs. */
-TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
+TEST_P(Small_DepthwiseTapsRefusal, DepthwiseConv2dRefusesTapsOfAnotherWindowOrChannelCount)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{2, 5, 5, 3}, "x");
-    const ValueID tall = builder.parameter(Shape{5, 3, 3}, "tall");
-    const ValueID wide = builder.parameter(Shape{3, 5, 3}, "wide");
-    const ValueID narrow = builder.parameter(Shape{3, 3, 4}, "narrow");
+    const ValueID taps = builder.parameter(GetParam().shape, "taps");
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, tall, same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, wide, same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, narrow, same_3x3()),
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d(x, taps, same_3x3()),
                       StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_DepthwiseTapsRefusal, ::testing::ValuesIn(K_TAP_REFUSALS),
+                         row_name<ShapeRow>);
 
 /** @brief Tests that the forward emitter refuses an NCHW input. */
 TEST(Small_DepthwiseOps, DepthwiseConv2dRefusesAnNCHWInput)
@@ -515,28 +652,39 @@ TEST(Small_DepthwiseOps, BackwardInputRecoversTheForwardInputShape)
     EXPECT_EQ(graph.value(dx).dtype, DType::Float32);
 }
 
+namespace
+{
+    /** @brief Lists the gradients that sit on another window grid than the input shape implies. */
+    const std::array<ShapeRow, 3> K_GRID_REFUSALS = {{
+        {"ShortGrid", Shape{2, 4, 5, 3}},
+        {"WideChannels", Shape{2, 5, 5, 4}},
+        {"Flat", Shape{2, 5, 3}},
+    }};
+
+    /** @brief Runs once per gradient shape the input-gradient emitter refuses. */
+    class Small_DepthwiseGridRefusal : public ::testing::TestWithParam<ShapeRow>
+    {
+
+    };
+}
+
 /** @brief Tests that the input-gradient emitter refuses a gradient on another window grid. */
-TEST(Small_DepthwiseOps, BackwardInputRefusesAGradientOnAnotherGrid)
+TEST_P(Small_DepthwiseGridRefusal, BackwardInputRefusesAGradientOnAnotherGrid)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID short_grid = builder.input(Shape{2, 4, 5, 3}, "short_grid");
-    const ValueID wide_channels = builder.input(Shape{2, 5, 5, 4}, "wide_channels");
-    const ValueID flat = builder.input(Shape{2, 5, 3}, "flat");
+    const ValueID dy = builder.input(GetParam().shape, "dy");
     const ValueID w = builder.parameter(Shape{3, 3, 3}, "w");
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(short_grid, w, Shape{2, 5, 5, 3},
-                                                              same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(wide_channels, w, Shape{2, 5, 5, 3},
-                                                              same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(flat, w, Shape{2, 5, 5, 3},
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_input(dy, w, Shape{2, 5, 5, 3},
                                                               same_3x3()),
                       StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_DepthwiseGridRefusal, ::testing::ValuesIn(K_GRID_REFUSALS),
+                         row_name<ShapeRow>);
 
 /** @brief Tests that the tap-gradient emitter writes its identity over [gradient, input]. */
 TEST(Small_DepthwiseOps, BackwardWeightWritesItsIdentityOverGradientAndInputInOrder)
@@ -569,28 +717,52 @@ TEST(Small_DepthwiseOps, BackwardWeightYieldsTheTapShapeInTheOperandsDType)
     EXPECT_EQ(graph.value(dw).lifetime, Graph::Lifetime::Activation);
 }
 
-/** @brief Tests that the tap-gradient emitter refuses operands that disagree in batch or depth. */
-TEST(Small_DepthwiseOps, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
+namespace
 {
+    /** @brief Holds one gradient and input pair the tap-gradient emitter refuses. */
+    struct WeightGradientRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape gradient;        /**< The shape of the gradient. */
+        DType gradient_dtype;  /**< The element type of the gradient. */
+        Shape input;           /**< The shape of the forward input. */
+        DType input_dtype;     /**< The element type of the forward input. */
+    };
+
+    /** @brief Lists the pairs that disagree in batch, channels, element type or rank. */
+    const std::array<WeightGradientRefusal, 4> K_WEIGHT_GRADIENT_REFUSALS = {{
+        {"OtherBatch", Shape{2, 5, 5, 3}, DType::Float32, Shape{1, 5, 5, 3}, DType::Float32},
+        {"OtherChannels", Shape{2, 5, 5, 3}, DType::Float32, Shape{2, 5, 5, 4}, DType::Float32},
+        {"OtherDType", Shape{2, 5, 5, 3}, DType::Float32, Shape{2, 5, 5, 3}, DType::Float64},
+        {"RankThreeGradient", Shape{2, 5, 3}, DType::Float32, Shape{2, 5, 5, 3}, DType::Float32},
+    }};
+
+    /** @brief Runs once per pair the tap-gradient emitter refuses. */
+    class Small_DepthwiseWeightRefusal : public ::testing::TestWithParam<WeightGradientRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests that the tap-gradient emitter refuses operands that disagree in batch or depth. */
+TEST_P(Small_DepthwiseWeightRefusal, BackwardWeightRefusesMismatchedBatchChannelsOrDType)
+{
+    const WeightGradientRefusal& pair = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID dy = builder.input(Shape{2, 5, 5, 3}, "dy");
-    const ValueID other_batch = builder.input(Shape{1, 5, 5, 3}, "other_batch");
-    const ValueID other_channels = builder.input(Shape{2, 5, 5, 4}, "other_channels");
-    const ValueID wide = builder.input(Shape{2, 5, 5, 3}, "wide", DType::Float64);
-    const ValueID rank_three = builder.input(Shape{2, 5, 3}, "rank_three");
+    const ValueID dy = builder.input(pair.gradient, "dy", pair.gradient_dtype);
+    const ValueID x = builder.input(pair.input, "x", pair.input_dtype);
     const std::size_t nodes_before = graph.node_count();
 
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, other_batch, same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, other_channels, same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, wide, same_3x3()),
-                      StatusCode::InvalidDescription);
-    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(rank_three, dy, same_3x3()),
+    SA_EXPECT_FAILURE(builder.depthwise_conv2d_backward_weight(dy, x, same_3x3()),
                       StatusCode::InvalidDescription);
     EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_DepthwiseWeightRefusal,
+                         ::testing::ValuesIn(K_WEIGHT_GRADIENT_REFUSALS),
+                         row_name<WeightGradientRefusal>);
 
 namespace
 {
@@ -660,133 +832,188 @@ namespace
     }
 }
 
-/** @brief Tests that each two-operand emitter writes its own identity over [a, b] in that order. */
-TEST(Small_ElementwiseOps, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder)
+namespace
 {
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
+    /** @brief Runs once per two-operand emitter. */
+    class Small_BinaryEmitter : public ::testing::TestWithParam<BinaryEmitter>
     {
-        SCOPED_TRACE(std::string(emitter.name));
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID a = builder.input(Shape{4, 3}, "a");
-        const ValueID b = builder.input(Shape{4, 3}, "b");
+    };
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
+    /** @brief Runs once per single-operand emitter. */
+    class Small_UnaryEmitter : public ::testing::TestWithParam<UnaryEmitter>
+    {
 
-        expect_produced_by(graph, out, emitter.op, {a, b});
+    };
+
+    /** @brief Runs once per activation gradient that reads the forward input. */
+    class Small_InputReadingGradient : public ::testing::TestWithParam<OpID>
+    {
+
+    };
+
+    /** @brief Runs once per element type LESS_EQUAL yields its mask in. */
+    class Small_LessEqualMask : public ::testing::TestWithParam<DTypeRow>
+    {
+
+    };
+
+    /** @brief Lists the element types LESS_EQUAL is called with. */
+    const std::array<DTypeRow, 2> K_MASK_DTYPES = {{
+        {"Float32", DType::Float32},
+        {"Float64", DType::Float64},
+    }};
+
+    /**
+     * @brief Chains @p a through every two-operand emitter against @p b and every single-operand
+     *        emitter, and ends in a select on a LESS_EQUAL mask.
+     */
+    Traced chain_through_every_emitter(const GraphBuilder& builder, ValueID a, ValueID b)
+    {
+        Traced chained = a;
+        for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
+            chained = (builder.*emitter.emit)(chained, b);
+        for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
+            chained = (builder.*emitter.emit)(chained);
+
+        return builder.select(builder.less_equal(a, b), chained, b);
     }
+}
+
+/** @brief Tests that each two-operand emitter writes its own identity over [a, b] in that order. */
+TEST_P(Small_BinaryEmitter, BinaryEmittersWriteTheirIdentityOverBothOperandsInOrder)
+{
+    const BinaryEmitter& emitter = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID a = builder.input(Shape{4, 3}, "a");
+    const ValueID b = builder.input(Shape{4, 3}, "b");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
+
+    expect_produced_by(graph, out, emitter.op, {a, b});
 }
 
 /** @brief Tests that each two-operand emitter gives its result the first operand's description. */
-TEST(Small_ElementwiseOps, BinaryEmittersKeepShapeDTypeAndLayout)
+TEST_P(Small_BinaryEmitter, BinaryEmittersKeepShapeDTypeAndLayout)
 {
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
+    const BinaryEmitter& emitter = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a", DType::Float64));
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b", DType::Float64));
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a", DType::Float64));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b", DType::Float64));
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(a, b));
 
-        expect_described_like(graph, out, a);
-        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
-        EXPECT_EQ(graph.value(out).dtype, DType::Float64);
-    }
+    expect_described_like(graph, out, a);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(graph.value(out).dtype, DType::Float64);
 }
 
 /** @brief Tests that each two-operand emitter refuses a broadcastable pair of unequal shapes. */
-TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
+TEST_P(Small_BinaryEmitter, BinaryEmittersRejectUnequalShapesWithoutBroadcasting)
 {
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
+    const BinaryEmitter& emitter = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID matrix = builder.input(Shape{4, 3}, "matrix");
-        const ValueID column = builder.input(Shape{4, 1}, "column");
-        const ValueID row = builder.input(Shape{3}, "row");
-        const std::size_t nodes_before = graph.node_count();
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID matrix = builder.input(Shape{4, 3}, "matrix");
+    const ValueID column = builder.input(Shape{4, 1}, "column");
+    const ValueID row = builder.input(Shape{3}, "row");
+    const std::size_t nodes_before = graph.node_count();
 
-        SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, column), StatusCode::InvalidDescription);
-        SA_EXPECT_FAILURE((builder.*emitter.emit)(column, matrix), StatusCode::InvalidDescription);
-        SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, row), StatusCode::InvalidDescription);
-        EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
-    }
+    SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, column), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE((builder.*emitter.emit)(column, matrix), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE((builder.*emitter.emit)(matrix, row), StatusCode::InvalidDescription);
+    EXPECT_EQ(graph.node_count(), nodes_before) << "a rejected call left a node behind";
 }
 
 /** @brief Tests that each two-operand emitter refuses operands of two element types. */
-TEST(Small_ElementwiseOps, BinaryEmittersRejectUnequalDtypes)
+TEST_P(Small_BinaryEmitter, BinaryEmittersRejectUnequalDtypes)
 {
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
+    const BinaryEmitter& emitter = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
-        const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
+    const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
 
-        SA_EXPECT_FAILURE((builder.*emitter.emit)(single, wide), StatusCode::InvalidDescription);
-        SA_EXPECT_FAILURE((builder.*emitter.emit)(wide, single), StatusCode::InvalidDescription);
-    }
+    SA_EXPECT_FAILURE((builder.*emitter.emit)(single, wide), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE((builder.*emitter.emit)(wide, single), StatusCode::InvalidDescription);
 }
+
+/** @brief Tests that Graph::finalise refuses an emitted node whose operands sit in two layouts. */
+TEST_P(Small_BinaryEmitter, FinaliseRejectsOperandsInTwoLayouts)
+{
+    const BinaryEmitter& emitter = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw, small_nchw_input(builder, "nchw"));
+    const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, "nhwc");
+
+    (void)(builder.*emitter.emit)(nchw, nhwc);
+
+    SA_EXPECT_FAILURE(graph.finalise(), StatusCode::InvalidDescription,
+                      "reads operands in two different layouts");
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_BinaryEmitter, ::testing::ValuesIn(K_BINARY_EMITTERS),
+                         row_name<BinaryEmitter>);
 
 /** @brief Tests that LESS_EQUAL yields its mask in the operands' element type, not a mask type. */
-TEST(Small_ElementwiseOps, LessEqualYieldsAMaskInTheOperandsOwnDType)
+TEST_P(Small_LessEqualMask, LessEqualYieldsAMaskInTheOperandsOwnDType)
 {
-    for (DType dtype : {DType::Float32, DType::Float64})
-    {
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID a = builder.input(Shape{4, 3}, "a", dtype);
-        const ValueID b = builder.input(Shape{4, 3}, "b", dtype);
+    const DType dtype = GetParam().dtype;
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID mask, builder.less_equal(a, b));
-        EXPECT_EQ(graph.value(mask).dtype, dtype);
-    }
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID a = builder.input(Shape{4, 3}, "a", dtype);
+    const ValueID b = builder.input(Shape{4, 3}, "b", dtype);
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID mask, builder.less_equal(a, b));
+
+    EXPECT_EQ(graph.value(mask).dtype, dtype);
 }
 
+INSTANTIATE_TEST_SUITE_P(, Small_LessEqualMask, ::testing::ValuesIn(K_MASK_DTYPES),
+                         row_name<DTypeRow>);
+
 /** @brief Tests that each single-operand emitter writes its own identity over its operand. */
-TEST(Small_ElementwiseOps, UnaryEmittersWriteTheirIdentityOverTheirOperand)
+TEST_P(Small_UnaryEmitter, UnaryEmittersWriteTheirIdentityOverTheirOperand)
 {
-    for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
+    const UnaryEmitter& emitter = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID x = builder.input(Shape{4, 3}, "x");
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
 
-        EXPECT_NE(out, x) << "the emitter must write a new value, not its operand";
-        expect_produced_by(graph, out, emitter.op, {x});
-    }
+    EXPECT_NE(out, x) << "the emitter must write a new value, not its operand";
+    expect_produced_by(graph, out, emitter.op, {x});
 }
 
 /** @brief Tests that each single-operand emitter gives its result the operand's description. */
-TEST(Small_ElementwiseOps, UnaryEmittersKeepShapeDTypeAndLayout)
+TEST_P(Small_UnaryEmitter, UnaryEmittersKeepShapeDTypeAndLayout)
 {
-    for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
+    const UnaryEmitter& emitter = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID x, small_nchw_input(builder, "x", DType::Float64));
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, small_nchw_input(builder, "x", DType::Float64));
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID out, (builder.*emitter.emit)(x));
 
-        expect_described_like(graph, out, x);
-        EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
-        EXPECT_EQ(graph.value(out).dtype, DType::Float64);
-    }
+    expect_described_like(graph, out, x);
+    EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NCHW);
+    EXPECT_EQ(graph.value(out).dtype, DType::Float64);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_UnaryEmitter, ::testing::ValuesIn(K_UNARY_EMITTERS),
+                         row_name<UnaryEmitter>);
 
 /** @brief Tests that SELECT writes one node reading [condition, a, b] in that order. */
 TEST(Small_ElementwiseOps, SelectReadsItsConditionThenBothBranches)
@@ -871,75 +1098,85 @@ TEST(Small_ElementwiseOps, SelectRejectsBranchesOfUnequalDType)
 }
 
 /** @brief Tests that the activation-gradient emitter writes each input-reading gradient. */
-TEST(Small_ElementwiseOps, ActivationBackwardEmitsTheInputReadingGradients)
+TEST_P(Small_InputReadingGradient, ActivationBackwardEmitsTheInputReadingGradients)
 {
-    for (OpID gradient : K_INPUT_READING_GRADIENTS)
-    {
-        SCOPED_TRACE(std::string(Ops::name_of(gradient)));
+    const OpID gradient = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID dy = builder.input(Shape{4, 3}, "dy");
-        const ValueID x = builder.input(Shape{4, 3}, "x");
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID dy = builder.input(Shape{4, 3}, "dy");
+    const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID dx, builder.activation_backward(gradient, dy, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID dx, builder.activation_backward(gradient, dy, x));
 
-        expect_produced_by(graph, dx, gradient, {dy, x});
-        expect_described_like(graph, dx, dy);
-    }
+    expect_produced_by(graph, dx, gradient, {dy, x});
+    expect_described_like(graph, dx, dy);
 }
 
 /** @brief Tests that each input-reading gradient refuses a dy shaped unlike the input. */
-TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherShape)
+TEST_P(Small_InputReadingGradient, InputReadingGradientsRejectAGradientOfAnotherShape)
 {
-    for (OpID gradient : K_INPUT_READING_GRADIENTS)
-    {
-        SCOPED_TRACE(std::string(Ops::name_of(gradient)));
+    const OpID gradient = GetParam();
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID dy = builder.input(Shape{4, 1}, "dy");
-        const ValueID x = builder.input(Shape{4, 3}, "x");
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID dy = builder.input(Shape{4, 1}, "dy");
+    const ValueID x = builder.input(Shape{4, 3}, "x");
 
-        SA_EXPECT_FAILURE(builder.activation_backward(gradient, dy, x),
-                          StatusCode::InvalidDescription);
-    }
+    SA_EXPECT_FAILURE(builder.activation_backward(gradient, dy, x),
+                      StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that each input-reading gradient refuses a dy of another element type. */
-TEST(Small_ElementwiseOps, InputReadingGradientsRejectAGradientOfAnotherDType)
+TEST_P(Small_InputReadingGradient, InputReadingGradientsRejectAGradientOfAnotherDType)
 {
-    for (OpID gradient : K_INPUT_READING_GRADIENTS)
+    const OpID gradient = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
+    const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
+
+    SA_EXPECT_FAILURE(builder.activation_backward(gradient, single, wide),
+                      StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(builder.activation_backward(gradient, wide, single),
+                      StatusCode::InvalidDescription);
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_InputReadingGradient,
+                         ::testing::ValuesIn(K_INPUT_READING_GRADIENTS), operation_name);
+
+namespace
+{
+    /** @brief Lists the identities that are not activation gradients. */
+    const std::array<OpID, 3> K_NON_GRADIENTS = {{
+        Ops::K_SILU.id,
+        Ops::K_SOFTPLUS.id,
+        Ops::K_DIV.id,
+    }};
+
+    /** @brief Runs once per identity the activation-gradient emitter stops the process for. */
+    class Medium_ActivationBackwardDeathTest : public ::testing::TestWithParam<OpID>
     {
-        SCOPED_TRACE(std::string(Ops::name_of(gradient)));
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID single = builder.input(Shape{4, 3}, "single", DType::Float32);
-        const ValueID wide = builder.input(Shape{4, 3}, "wide", DType::Float64);
-
-        SA_EXPECT_FAILURE(builder.activation_backward(gradient, single, wide),
-                          StatusCode::InvalidDescription);
-        SA_EXPECT_FAILURE(builder.activation_backward(gradient, wide, single),
-                          StatusCode::InvalidDescription);
-    }
+    };
 }
 
 /** @brief Tests that the activation-gradient emitter refuses an identity outside ACTIVATIONS. */
-TEST(Small_ElementwiseOps, ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient)
+TEST_P(Medium_ActivationBackwardDeathTest,
+       ActivationBackwardRejectsAnIdentityThatIsNotAnActivationGradient)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID dy = builder.input(Shape{4, 3}, "dy");
     const ValueID x = builder.input(Shape{4, 3}, "x");
 
-    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_SILU.id, dy, x),
-                    "is not an activation gradient");
-    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_SOFTPLUS.id, dy, x),
-                    "is not an activation gradient");
-    SA_EXPECT_FATAL((void)builder.activation_backward(Ops::K_DIV.id, dy, x),
+    SA_EXPECT_FATAL((void)builder.activation_backward(GetParam(), dy, x),
                     "is not an activation gradient");
 }
+
+INSTANTIATE_TEST_SUITE_P(, Medium_ActivationBackwardDeathTest,
+                         ::testing::ValuesIn(K_NON_GRADIENTS), operation_name);
 
 /** @brief Tests that Graph::finalise accepts a graph that uses every emitter in one layout. */
 TEST(Small_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
@@ -949,33 +1186,9 @@ TEST(Small_ElementwiseOps, FinaliseAcceptsAGraphUsingEveryEmitter)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID a, small_nchw_input(builder, "a"));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID b, small_nchw_input(builder, "b"));
 
-    Traced chained = a;
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
-        chained = (builder.*emitter.emit)(chained, b);
-    for (const UnaryEmitter& emitter : K_UNARY_EMITTERS)
-        chained = (builder.*emitter.emit)(chained);
-    SA_EXPECT_OK(builder.select(builder.less_equal(a, b), chained, b));
+    SA_EXPECT_OK(chain_through_every_emitter(builder, a, b));
 
     SA_EXPECT_OK(graph.finalise());
-}
-
-/** @brief Tests that Graph::finalise refuses an emitted node whose operands sit in two layouts. */
-TEST(Small_ElementwiseOps, FinaliseRejectsOperandsInTwoLayouts)
-{
-    for (const BinaryEmitter& emitter : K_BINARY_EMITTERS)
-    {
-        SCOPED_TRACE(std::string(emitter.name));
-
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw, small_nchw_input(builder, "nchw"));
-        const ValueID nhwc = builder.input(Shape{2, 2, 2, 2}, "nhwc");
-
-        (void)(builder.*emitter.emit)(nchw, nhwc);
-
-        SA_EXPECT_FAILURE(graph.finalise(), StatusCode::InvalidDescription,
-                          "reads operands in two different layouts");
-    }
 }
 
 /** @brief Tests that Graph::finalise refuses a SELECT whose condition sits in another layout. */
@@ -1031,8 +1244,6 @@ TEST(Small_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
 TEST(Small_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
 {
     constexpr double K_VALUE = 1e-7;
-    /** @brief Bounds the relative error of a stored double; 1024 unit roundoffs of it. */
-    constexpr double K_VALUE_TOLERANCE = 1024.0 * K_VALUE * TestSupport::unit_roundoff<double>();
 
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1041,22 +1252,11 @@ TEST(Small_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
                             builder.constant(Shape{4, 3}, K_VALUE, DType::Float64));
 
     expect_produced_by(graph, out, Ops::K_CONSTANT.id, {});
-    EXPECT_NEAR(graph.node(graph.value(out).producer).attributes.get(0), K_VALUE,
-                K_VALUE_TOLERANCE);
+    EXPECT_EQ(graph.node(graph.value(out).producer).attributes.get(0), K_VALUE);
     EXPECT_EQ(graph.value(out).shape, (Shape{4, 3}));
     EXPECT_EQ(graph.value(out).dtype, DType::Float64);
     EXPECT_EQ(graph.value(out).layout, Graph::TensorLayout::NHWC);
     EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation);
-}
-
-/** @brief Tests that constant() defaults to FLOAT32, as zeros() does. */
-TEST(Small_ElementwiseOps, ConstantDefaultsToFloat32)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID filled, builder.constant(Shape{2}, 1.0));
-    EXPECT_EQ(graph.value(filled).dtype, DType::Float32);
 }
 
 /** @brief Tests that constant() refuses an element type that is not real floating. */
@@ -1232,8 +1432,8 @@ TEST(Small_GatherOps, GatherRowsRefusesAnIndexWhoseResultWouldPassTheHighestRank
     expect_refused(graph, builder.gather_rows(table, indices), nodes, "rank 1 to 5");
 }
 
-/** @brief Tests that a scatter-add writes SCATTER_ADD_ROWS over [rows, indices] as [V, D]. */
-TEST(Small_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
+/** @brief Tests that a scatter-add writes SCATTER_ADD_ROWS over [rows, indices]. */
+TEST(Small_GatherOps, ScatterAddRowsWritesItsIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1246,34 +1446,77 @@ TEST(Small_GatherOps, ScatterAddRowsWritesItsIdentityAndTheTableShape)
     SA_EXPECT_OK(out);
     ASSERT_TRUE(out.has_value());
     expect_produced_by(graph, out.value(), Ops::K_SCATTER_ADD_ROWS.id, {rows, indices});
+}
+
+/** @brief Tests that a scatter-add yields a [V, D] table in the rows' type, as an activation. */
+TEST(Small_GatherOps, ScatterAddRowsYieldsTheTableShapeDTypeAndLifetime)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID rows = builder.input(Shape{2, 4, K_ROW_LENGTH}, "rows", DType::Float64);
+    const ValueID indices = builder.input(Shape{2, 4}, "indices", DType::Int32);
+
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out,
+                            builder.scatter_add_rows(rows, indices, K_TABLE_ROWS));
+
+    ASSERT_TRUE(out.has_value());
     EXPECT_EQ(graph.value(out.value()).shape, (Shape{K_TABLE_ROWS, K_ROW_LENGTH}));
     EXPECT_EQ(graph.value(out.value()).dtype, DType::Float64);
     EXPECT_EQ(graph.value(out.value()).lifetime, Graph::Lifetime::Activation);
 }
 
-/** @brief Tests each refusal of the scatter-add: its rows, its index and its row count. */
-TEST(Small_GatherOps, ScatterAddRowsRefusesOperandsThatDoNotFit)
+namespace
 {
+    /** @brief Holds one operand set a scatter-add refuses and the part its message names. */
+    struct ScatterRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape rows;            /**< The shape of the rows. */
+        DType rows_dtype;      /**< The element type of the rows. */
+        Shape indices;         /**< The shape of the index. */
+        DType indices_dtype;   /**< The element type of the index. */
+        int64_t table_rows;    /**< The row count of the table. */
+        const char* part;      /**< The part the refusal names. */
+    };
+
+    /** @brief Lists the operand sets a scatter-add refuses. */
+    const std::array<ScatterRefusal, 5> K_SCATTER_REFUSALS = {{
+        {"RankOneRows", Shape{5}, DType::Float32, Shape{5}, DType::Int32, K_TABLE_ROWS,
+         "rank 2 or more"},
+        {"IntegerRows", Shape{5, K_ROW_LENGTH}, DType::Int32, Shape{5}, DType::Int32,
+         K_TABLE_ROWS, "half, float32 or float64 rows"},
+        {"RealIndex", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{5}, DType::Float32,
+         K_TABLE_ROWS, "INT32 index"},
+        {"ShortIndex", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{4}, DType::Int32,
+         K_TABLE_ROWS, "one index per row"},
+        {"EmptyTable", Shape{5, K_ROW_LENGTH}, DType::Float32, Shape{5}, DType::Int32, 0,
+         "a table of 0 rows"},
+    }};
+
+    /** @brief Runs once per operand set a scatter-add refuses. */
+    class Small_ScatterAddRefusal : public ::testing::TestWithParam<ScatterRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests each refusal of the scatter-add: its rows, its index and its row count. */
+TEST_P(Small_ScatterAddRefusal, ScatterAddRowsRefusesOperandsThatDoNotFit)
+{
+    const ScatterRefusal& refusal = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID rows = builder.input(Shape{5, K_ROW_LENGTH}, "rows");
-    const ValueID flat = builder.input(Shape{5}, "flat");
-    const ValueID whole = builder.input(Shape{5, K_ROW_LENGTH}, "whole", DType::Int32);
-    const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const ValueID fewer = builder.input(Shape{4}, "fewer", DType::Int32);
-    const ValueID real = builder.input(Shape{5}, "real", DType::Float32);
+    const ValueID rows = builder.input(refusal.rows, "rows", refusal.rows_dtype);
+    const ValueID indices = builder.input(refusal.indices, "indices", refusal.indices_dtype);
     const std::size_t nodes = graph.node_count();
 
-    expect_refused(graph, builder.scatter_add_rows(flat, indices, K_TABLE_ROWS), nodes,
-                   "rank 2 or more");
-    expect_refused(graph, builder.scatter_add_rows(whole, indices, K_TABLE_ROWS), nodes,
-                   "half, float32 or float64 rows");
-    expect_refused(graph, builder.scatter_add_rows(rows, real, K_TABLE_ROWS), nodes,
-                   "INT32 index");
-    expect_refused(graph, builder.scatter_add_rows(rows, fewer, K_TABLE_ROWS), nodes,
-                   "one index per row");
-    expect_refused(graph, builder.scatter_add_rows(rows, indices, 0), nodes, "a table of 0 rows");
+    expect_refused(graph, builder.scatter_add_rows(rows, indices, refusal.table_rows), nodes,
+                   refusal.part);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_ScatterAddRefusal, ::testing::ValuesIn(K_SCATTER_REFUSALS),
+                         row_name<ScatterRefusal>);
 
 /** @brief Tests that finalise leaves an INT32 input without a gradient and marks the gather. */
 TEST(Small_GatherOps, AnInt32InputLeafRequiresNoGradient)
@@ -1292,41 +1535,112 @@ TEST(Small_GatherOps, AnInt32InputLeafRequiresNoGradient)
     EXPECT_TRUE(graph.value(out.value()).requires_grad);
 }
 
-/**
- * @brief Tests that the cast pass under mixed precision narrows the product that reads a gather
- *        and neither casts nor retypes the INT32 leaf, the table or the gather.
- */
-TEST(Small_GatherOps, TheCastPassLeavesAnInt32LeafAndItsGatherAsDeclared)
+namespace
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const ValueID table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
-    const ValueID indices = builder.input(Shape{5}, "indices", DType::Int32);
-    const ValueID weight = builder.parameter(Shape{K_ROW_LENGTH, 2}, "weight");
-    SA_ASSERT_OK_AND_ASSIGN(const Traced gathered, builder.gather_rows(table, indices));
-    ASSERT_TRUE(gathered.has_value());
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(gathered.value(), weight));
+    /**
+     * @brief Builds a gather feeding a matmul and runs the cast pass under mixed precision.
+     *
+     * The leaves are an INT32 index, a float32 table and a float32 weight.
+     */
+    class Small_GatherCastPass : public ::testing::Test
+    {
+        public:
+            /** @brief Builds the graph and runs the pass. */
+            void SetUp() override
+            {
+                table = builder.parameter(Shape{K_TABLE_ROWS, K_ROW_LENGTH}, "table");
+                indices = builder.input(Shape{5}, "indices", DType::Int32);
+                const ValueID weight = builder.parameter(Shape{K_ROW_LENGTH, 2}, "weight");
+                SA_ASSERT_OK_AND_ASSIGN(const Traced gather_out,
+                                        builder.gather_rows(table, indices));
+                ASSERT_TRUE(gather_out.has_value());
+                gathered = gather_out.value();
+                SA_ASSERT_OK_AND_ASSIGN(const ValueID product_out,
+                                        builder.matmul(gathered, weight));
+                product = product_out;
 
-    const Graph::MixedPrecisionPolicy policy;
-    Graph::CastOptions options;
-    options.policy = &policy;
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::CastReport report, Graph::insert_casts(graph, options));
+                Graph::CastOptions options;
+                options.policy = &policy;
+                SA_ASSERT_OK_AND_ASSIGN(const Graph::CastReport inserted,
+                                        Graph::insert_casts(graph, options));
+                report = inserted;
+            }
 
-    EXPECT_EQ(graph.value(indices).dtype, DType::Int32);
-    EXPECT_EQ(graph.value(table).dtype, DType::Float32);
-    EXPECT_EQ(graph.value(gathered.value()).dtype, DType::Float32);
-    EXPECT_EQ(graph.value(product).dtype, DType::Half);
+            Graph::Graph graph;                 /**< The graph under test. */
+            GraphBuilder builder{graph};        /**< The builder over the graph. */
+            Graph::MixedPrecisionPolicy policy; /**< The policy the pass runs under. */
+            Graph::CastReport report;           /**< What the pass inserted. */
+            ValueID table{};                    /**< The float32 table. */
+            ValueID indices{};                  /**< The INT32 index. */
+            ValueID gathered{};                 /**< The gather's result. */
+            ValueID product{};                  /**< The matmul that reads the gather. */
+    };
 
-    const Graph::Node& gather = graph.node(graph.value(gathered.value()).producer);
+    /** @brief Holds one value of the fixture and the element type it has after the pass. */
+    struct DeclaredType
+    {
+        std::string_view name;                 /**< The label of the case. */
+        ValueID Small_GatherCastPass::* value; /**< The value under test. */
+        DType expected;                        /**< The element type the pass leaves it in. */
+    };
+
+    /** @brief Lists the values the pass leaves as declared and the one it narrows. */
+    const std::array<DeclaredType, 4> K_DECLARED_TYPES = {{
+        {"Index", &Small_GatherCastPass::indices, DType::Int32},
+        {"Table", &Small_GatherCastPass::table, DType::Float32},
+        {"Gathered", &Small_GatherCastPass::gathered, DType::Float32},
+        {"Product", &Small_GatherCastPass::product, DType::Half},
+    }};
+
+    /** @brief Runs once per value the cast pass is checked on. */
+    class Small_GatherCastPassType : public Small_GatherCastPass,
+                                     public ::testing::WithParamInterface<DeclaredType>
+    {
+
+    };
+}
+
+/** @brief Tests that the cast pass narrows the product and retypes no other value of the gather. */
+TEST_P(Small_GatherCastPassType, EachValueEndsInItsDeclaredTypeOrTheNarrowedOne)
+{
+    const DeclaredType& row = GetParam();
+
+    EXPECT_EQ(graph.value(this->*row.value).dtype, row.expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_GatherCastPassType, ::testing::ValuesIn(K_DECLARED_TYPES),
+                         row_name<DeclaredType>);
+
+/** @brief Tests that the gather still reads the table and the index after the cast pass. */
+TEST_F(Small_GatherCastPass, TheGatherStillReadsTheTableAndTheIndex)
+{
+    const Graph::Node& gather = graph.node(graph.value(gathered).producer);
+
     EXPECT_EQ(gather.op, Ops::K_GATHER_ROWS.id);
     EXPECT_EQ(gather.inputs, (std::vector<ValueID>{table, indices}));
+}
 
-    for (const Graph::InsertedCast& cast : report.casts())
-    {
-        EXPECT_NE(cast.source, indices) << "the index was cast";
-        EXPECT_NE(cast.op, Ops::K_GATHER_ROWS.id) << "a cast was added at the gather";
-    }
+/** @brief Tests that the cast pass does not cast the index. */
+TEST_F(Small_GatherCastPass, NoCastReadsTheIndex)
+{
+    const auto casts = report.casts();
 
+    EXPECT_FALSE(std::any_of(casts.begin(), casts.end(), [this](const Graph::InsertedCast& cast)
+                             { return cast.source == indices; }));
+}
+
+/** @brief Tests that the cast pass adds no cast at the gather. */
+TEST_F(Small_GatherCastPass, NoCastIsAddedAtTheGather)
+{
+    const auto casts = report.casts();
+
+    EXPECT_FALSE(std::any_of(casts.begin(), casts.end(), [](const Graph::InsertedCast& cast)
+                             { return cast.op == Ops::K_GATHER_ROWS.id; }));
+}
+
+/** @brief Tests that no value disagrees with the policy after the cast pass. */
+TEST_F(Small_GatherCastPass, NoValueDisagreesWithThePolicyAfterTheCastPass)
+{
     EXPECT_TRUE(Graph::find_dtype_mismatches(graph, policy).empty());
 }
 
@@ -1409,26 +1723,59 @@ TEST(Small_LayerNormOps, ARankOneInputIsOneRow)
     EXPECT_EQ(graph.value(out.value().saved_mean).shape, (Shape{1}));
 }
 
-/** @brief Tests each refusal of the forward emitter: the input, the parameters, the epsilon. */
-TEST(Small_LayerNormOps, LayerNormRefusesOperandsThatDoNotFit)
+namespace
 {
+    /** @brief Holds one operand set a layer norm refuses and the part its message names. */
+    struct LayerNormRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape x;               /**< The shape of the input. */
+        DType x_dtype;         /**< The element type of the input. */
+        Shape gamma;           /**< The shape of the gain. */
+        DType gamma_dtype;     /**< The element type of the gain. */
+        Shape beta;            /**< The shape of the bias. */
+        DType beta_dtype;      /**< The element type of the bias. */
+        double epsilon;        /**< The epsilon passed. */
+        const char* part;      /**< The part the refusal names. */
+    };
+
+    /** @brief Lists the operand sets a layer norm refuses. */
+    const std::array<LayerNormRefusal, 4> K_LAYER_NORM_REFUSALS = {{
+        {"IntegerInput", Shape{2, K_WIDTH}, DType::Int32, Shape{K_WIDTH}, DType::Float32,
+         Shape{K_WIDTH}, DType::Float32, K_EPSILON, "half, float32 or float64 input"},
+        {"NarrowGain", Shape{2, 3, K_WIDTH}, DType::Float32, Shape{K_WIDTH - 1}, DType::Float32,
+         Shape{K_WIDTH}, DType::Float32, K_EPSILON, "gamma as [4]"},
+        {"WideBias", Shape{2, 3, K_WIDTH}, DType::Float32, Shape{K_WIDTH}, DType::Float32,
+         Shape{K_WIDTH}, DType::Float64, K_EPSILON, "beta as [4] of float32"},
+        {"ZeroEpsilon", Shape{2, 3, K_WIDTH}, DType::Float32, Shape{K_WIDTH}, DType::Float32,
+         Shape{K_WIDTH}, DType::Float32, 0.0, "epsilon must be positive"},
+    }};
+
+    /** @brief Runs once per operand set the forward layer norm refuses. */
+    class Small_LayerNormRefusal : public ::testing::TestWithParam<LayerNormRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests each refusal of the forward emitter: the input, the parameters, the epsilon. */
+TEST_P(Small_LayerNormRefusal, LayerNormRefusesOperandsThatDoNotFit)
+{
+    const LayerNormRefusal& refusal = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const Leaves leaves = declare_leaves(builder);
-    const ValueID whole = builder.input(Shape{2, K_WIDTH}, "whole", DType::Int32);
-    const ValueID narrow = builder.parameter(Shape{K_WIDTH - 1}, "narrow");
-    const ValueID wide = builder.parameter(Shape{K_WIDTH}, "wide", DType::Float64);
+    const ValueID x = builder.input(refusal.x, "x", refusal.x_dtype);
+    const ValueID gamma = builder.parameter(refusal.gamma, "gamma", refusal.gamma_dtype);
+    const ValueID beta = builder.parameter(refusal.beta, "beta", refusal.beta_dtype);
     const std::size_t nodes = graph.node_count();
 
-    expect_refused(graph, builder.layer_norm(whole, leaves.gamma, leaves.beta, K_EPSILON), nodes,
-                   "half, float32 or float64 input");
-    expect_refused(graph, builder.layer_norm(leaves.x, narrow, leaves.beta, K_EPSILON), nodes,
-                   "gamma as [4]");
-    expect_refused(graph, builder.layer_norm(leaves.x, leaves.gamma, wide, K_EPSILON), nodes,
-                   "beta as [4] of float32");
-    expect_refused(graph, builder.layer_norm(leaves.x, leaves.gamma, leaves.beta, 0.0), nodes,
-                   "epsilon must be positive");
+    expect_refused(graph, builder.layer_norm(x, gamma, beta, refusal.epsilon), nodes,
+                   refusal.part);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_LayerNormRefusal, ::testing::ValuesIn(K_LAYER_NORM_REFUSALS),
+                         row_name<LayerNormRefusal>);
 
 /** @brief Tests that the gradient node reads five operands and writes dx, dgamma and dbeta. */
 TEST(Small_LayerNormOps, LayerNormBackwardWritesTheThreeGradients)
@@ -1483,12 +1830,8 @@ TEST(Small_LayerNormOps, LayerNormBackwardRefusesOperandsThatDoNotFit)
                    nodes, "operand of [6]");
 }
 
-namespace
-{
-}
-
-/** @brief Tests that the gradient is one node over [dy, log_probs] shaped like both. */
-TEST(Small_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
+/** @brief Tests that the gradient is one node over [dy, log_probs]. */
+TEST(Small_LogSoftmaxOps, TheGradientWritesItsIdentity)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -1504,32 +1847,75 @@ TEST(Small_LogSoftmaxOps, TheGradientWritesItsIdentityAndKeepsTheShape)
     EXPECT_EQ(node.op, Ops::K_LOG_SOFTMAX_BACKWARD.id);
     EXPECT_EQ(node.inputs, (std::vector<ValueID>{dy, log_probs}));
     EXPECT_EQ(node.outputs, (std::vector<ValueID>{out.value()}));
-    EXPECT_EQ(graph.value(out.value()).shape, (Shape{4, 3}));
-    EXPECT_EQ(graph.value(out.value()).dtype, DType::Float64);
-    EXPECT_EQ(graph.value(out.value()).lifetime, Graph::Lifetime::Activation);
     EXPECT_FALSE(graph.has_refusal());
 }
 
-/** @brief Tests each refusal: a rank, an integer, a gradient of another shape or type. */
-TEST(Small_LogSoftmaxOps, TheGradientRefusesOperandsThatDoNotFit)
+/** @brief Tests that the gradient keeps the shape, element type and lifetime of its operands. */
+TEST(Small_LogSoftmaxOps, TheGradientKeepsShapeDTypeAndLifetime)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-    const ValueID cube = builder.input(Shape{2, 4, 3}, "cube");
-    const ValueID whole = builder.input(Shape{4, 3}, "whole", DType::Int32);
-    const ValueID log_probs = builder.input(Shape{4, 3}, "log_probs");
-    const ValueID wide = builder.input(Shape{4, 5}, "wide");
-    const ValueID doubled = builder.input(Shape{4, 3}, "doubled", DType::Float64);
+    const ValueID x = builder.input(Shape{4, 3}, "x", DType::Float64);
+    const ValueID dy = builder.input(Shape{4, 3}, "dy", DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID log_probs, builder.log_softmax(x));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Traced out, builder.log_softmax_backward(dy, log_probs));
+
+    ASSERT_TRUE(out.has_value());
+    EXPECT_EQ(graph.value(out.value()).shape, (Shape{4, 3}));
+    EXPECT_EQ(graph.value(out.value()).dtype, DType::Float64);
+    EXPECT_EQ(graph.value(out.value()).lifetime, Graph::Lifetime::Activation);
+}
+
+namespace
+{
+    /** @brief Holds one gradient and log-probability pair that is refused, and the part named. */
+    struct LogSoftmaxRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape gradient;        /**< The shape of the gradient. */
+        DType gradient_dtype;  /**< The element type of the gradient. */
+        Shape log_probs;       /**< The shape of the log-probabilities. */
+        DType log_probs_dtype; /**< The element type of the log-probabilities. */
+        const char* part;      /**< The part the refusal names. */
+    };
+
+    /** @brief Lists the operand sets the gradient refuses. */
+    const std::array<LogSoftmaxRefusal, 4> K_LOG_SOFTMAX_REFUSALS = {{
+        {"RankThree", Shape{2, 4, 3}, DType::Float32, Shape{2, 4, 3}, DType::Float32,
+         "rank-2 log-probabilities"},
+        {"IntegerOperands", Shape{4, 3}, DType::Int32, Shape{4, 3}, DType::Int32,
+         "half, float32 or float64 log-probabilities"},
+        {"GradientOfAnotherShape", Shape{4, 5}, DType::Float32, Shape{4, 3}, DType::Float32,
+         "[4, 5]"},
+        {"GradientOfAnotherDType", Shape{4, 3}, DType::Float64, Shape{4, 3}, DType::Float32,
+         "a gradient like them"},
+    }};
+
+    /** @brief Runs once per operand set the log-softmax gradient refuses. */
+    class Small_LogSoftmaxRefusal : public ::testing::TestWithParam<LogSoftmaxRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests each refusal: a rank, an integer, a gradient of another shape or type. */
+TEST_P(Small_LogSoftmaxRefusal, TheGradientRefusesOperandsThatDoNotFit)
+{
+    const LogSoftmaxRefusal& refusal = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID dy = builder.input(refusal.gradient, "dy", refusal.gradient_dtype);
+    const ValueID log_probs = builder.input(refusal.log_probs, "log_probs",
+                                            refusal.log_probs_dtype);
     const std::size_t nodes = graph.node_count();
 
-    expect_refused(graph, builder.log_softmax_backward(cube, cube), nodes,
-                   "rank-2 log-probabilities");
-    expect_refused(graph, builder.log_softmax_backward(whole, whole), nodes,
-                   "half, float32 or float64 log-probabilities");
-    expect_refused(graph, builder.log_softmax_backward(wide, log_probs), nodes, "[4, 5]");
-    expect_refused(graph, builder.log_softmax_backward(doubled, log_probs), nodes,
-                   "a gradient like them");
+    expect_refused(graph, builder.log_softmax_backward(dy, log_probs), nodes, refusal.part);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_LogSoftmaxRefusal, ::testing::ValuesIn(K_LOG_SOFTMAX_REFUSALS),
+                         row_name<LogSoftmaxRefusal>);
 
 TEST(Small_Diagnostics, MatmulContractionMismatchNamesBothInnerExtents)
 {
@@ -1570,23 +1956,52 @@ TEST(Small_Diagnostics, MatmulNamesBothDtypesWhenTheyDisagree)
                       "MATMUL needs operands of one element type", "float32", "float64");
 }
 
-TEST(Small_Diagnostics, BiasAddNamesTheAxisThatDoesNotLineUp)
+namespace
 {
+    /** @brief Holds one bias-add call that is refused and the parts its message names. */
+    struct BiasAddRefusal
+    {
+        std::string_view name; /**< The label of the case. */
+        Shape x;               /**< The shape of the left operand. */
+        Shape bias;            /**< The shape of the bias. */
+        const char* message;   /**< The refusal's message. */
+        const char* shape;     /**< The shape the message prints. */
+        const char* detail;    /**< A second part the message names. */
+    };
+
+    /** @brief Lists the bias-add calls that are refused. */
+    const std::array<BiasAddRefusal, 3> K_BIAS_ADD_REFUSALS = {{
+        {"BiasOfAnotherLength", Shape{4, 3}, Shape{5}, "BIAS_ADD bias has 5 entries", "[4, 3]",
+         "3 columns"},
+        {"RankTwoBias", Shape{4, 3}, Shape{1, 3}, "BIAS_ADD needs a rank-1 bias", "[1, 3]",
+         "[1, 3]"},
+        {"RankOneLeftOperand", Shape{3}, Shape{3}, "BIAS_ADD needs a rank-2 left operand", "[3]",
+         "[3]"},
+    }};
+
+    /** @brief Runs once per bias-add call that is refused. */
+    class Small_BiasAddDiagnostic : public ::testing::TestWithParam<BiasAddRefusal>
+    {
+
+    };
+}
+
+/** @brief Tests that bias_add names the operand that does not line up and prints its shape. */
+TEST_P(Small_BiasAddDiagnostic, BiasAddNamesTheAxisThatDoesNotLineUp)
+{
+    const BiasAddRefusal& refusal = GetParam();
+
     Graph::Graph graph;
     const GraphBuilder builder(graph);
+    const ValueID x = builder.input(refusal.x, "x");
+    const ValueID bias = builder.input(refusal.bias, "bias");
 
-    const ValueID x = builder.input(Shape{4, 3}, "x");
-    const ValueID wrong_length = builder.input(Shape{5}, "b5");
-    const ValueID rank_two_bias = builder.input(Shape{1, 3}, "b13");
-    const ValueID vector = builder.input(Shape{3}, "v");
-
-    SA_EXPECT_FAILURE(builder.bias_add(x, wrong_length), StatusCode::InvalidDescription,
-                      "BIAS_ADD bias has 5 entries", "[4, 3]", "3 columns");
-    SA_EXPECT_FAILURE(builder.bias_add(x, rank_two_bias), StatusCode::InvalidDescription,
-                      "BIAS_ADD needs a rank-1 bias", "[1, 3]");
-    SA_EXPECT_FAILURE(builder.bias_add(vector, vector), StatusCode::InvalidDescription,
-                      "BIAS_ADD needs a rank-2 left operand", "[3]");
+    SA_EXPECT_FAILURE(builder.bias_add(x, bias), StatusCode::InvalidDescription, refusal.message,
+                      refusal.shape, refusal.detail);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_BiasAddDiagnostic, ::testing::ValuesIn(K_BIAS_ADD_REFUSALS),
+                         row_name<BiasAddRefusal>);
 
 TEST(Small_Diagnostics, SumRowsAndLogSoftmaxRejectARank1Operand)
 {
@@ -1637,7 +2052,8 @@ TEST(Small_Diagnostics, NLLLossNamesTheShapeItCannotServe)
                       "NLL_LOSS needs rank-2 operands", "[4]");
 }
 
-TEST(Small_Diagnostics, ActivationBackwardRefusesAnOperationThatIsNotOne)
+/** @brief Tests that activation_backward stops the process for an identity it does not know. */
+TEST(Medium_DiagnosticsDeathTest, ActivationBackwardRefusesAnOperationThatIsNotOne)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

@@ -85,8 +85,10 @@ dispatch: J16 M6 core/config — sonnet medium, 1 round, passed, rung 1; the lea
 dispatch: J16 M16 slice A (graph lowering) — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 M16 slice B (graph top level) — sonnet medium, 1 round, partial (context), rung 1
 dispatch: J16 M12 to M15 (failure, engine fixture, execution) — sonnet medium, 1 round, passed, rung 1; started while two workers ran, one over the limit of two
-dispatch: J16 M16 slice C (graph rest) — sonnet medium, 1 round
-dispatch: J16 M10, M22, M23 (dtype, profile) — haiku high, 1 round
+dispatch: J16 M16 slice C (graph rest) — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 M10, M22, M23 (dtype, profile) — haiku high, 1 round, passed, rung 1
+dispatch: J16 M16 slice D (graph builder) — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 M8 core/data — sonnet medium, 1 round
 
 ## Totals
 
