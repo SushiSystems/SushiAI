@@ -7,4 +7,4 @@
 sushiai_add_test_program(OWNER log
     SOURCES
         test_log.cpp
-        test_sushiai_log_project.cpp)
+        compile_sushiai_log_project.cpp)

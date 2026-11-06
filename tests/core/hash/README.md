@@ -20,8 +20,8 @@ Tests the folds of `SushiAI/hash/fnv1a.hpp` against values computed apart from i
 
 ### ThreeWordsKeepTheFingerprintOfTheReplicaStep
 
-Folding the words 1, 2 and 0x0123456789abcdef gives 0x78165499fd352566.
+Folding the words 1, 2 and 0x0123456789abcdef one after another gives 0x78165499fd352566.
 
 ### TheFoldIsAConstantExpression
 
-`fnv1a_text` of "a" is a `constexpr` value that a `static_assert` compares with 0xaf63dc4c8601ec8c.
+`fnv1a_text` of "a" initialises a `constexpr` value, which equals 0xaf63dc4c8601ec8c.

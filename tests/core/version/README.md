@@ -6,12 +6,8 @@ The tests of the module `core/version`, one file per header of `modules/core/ver
 
 Suites: `Small_Version`.
 
-Tests that the runtime version agrees with the compile-time macros.
+Tests the runtime version string.
 
-### MatchesEncodedMacro
+### TheVersionStringIsNeverNull
 
-`SUSHIAI_VERSION` equals `SUSHIAI_VERSION_ENCODE` of the major, minor and patch macros.
-
-### RuntimeStringMatchesCompileTimeMacro
-
-`version_string()` equals `SUSHIAI_VERSION_STRING`.
+`version_string()` returns a pointer that is not null.

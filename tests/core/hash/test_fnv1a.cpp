@@ -58,17 +58,16 @@ TEST(Small_FNV1a, AWordFoldsAsItsBytesLowFirst)
  */
 TEST(Small_FNV1a, ThreeWordsKeepTheFingerprintOfTheReplicaStep)
 {
-    std::uint64_t hash = Hash::K_FNV1A_OFFSET_BASIS;
-    for (const std::uint64_t word : {1ull, 2ull, 0x0123456789abcdefull})
-        hash = Hash::fnv1a_word(hash, word);
+    const std::uint64_t first = Hash::fnv1a_word(Hash::K_FNV1A_OFFSET_BASIS, 1ull);
+    const std::uint64_t second = Hash::fnv1a_word(first, 2ull);
+    const std::uint64_t third = Hash::fnv1a_word(second, 0x0123456789abcdefull);
 
-    EXPECT_EQ(hash, 0x78165499fd352566ull);
+    EXPECT_EQ(third, 0x78165499fd352566ull);
 }
 
 /** @brief Tests that the fold is a constant expression. */
 TEST(Small_FNV1a, TheFoldIsAConstantExpression)
 {
     constexpr std::uint64_t K_FOLDED = Hash::fnv1a_text(Hash::K_FNV1A_OFFSET_BASIS, "a");
-    static_assert(K_FOLDED == 0xaf63dc4c8601ec8cull, "the fold runs at compile time");
-    SUCCEED();
+    EXPECT_EQ(K_FOLDED, 0xaf63dc4c8601ec8cull);
 }

@@ -5,8 +5,9 @@ prefix of a case gives its ctest label.
 
 ## test_log.cpp
 
-Each case sets a sink that keeps every record's `project.module` and message, runs synchronously,
-and restores the sink and the `sushiai` level before it checks.
+Each case reads its records through a `SushiLog::LogCapture`, which delivers synchronously and
+puts back the sink and the delivery mode it found, and restores the `sushiai` level before it
+checks.
 
 ### AWarnRecordCarriesItsProjectAndModule
 
@@ -18,9 +19,7 @@ reaches the sink once, as `sushiai.log_test` with the message "extent 7 is refus
 With the `sushiai` level at `Off`, an `SA_LOG_ERROR` reaches no sink, and the level of the
 `sushiruntime` project reads the same before and after.
 
-## test_sushiai_log_project.cpp
+## compile_sushiai_log_project.cpp
 
-### NamesSushiAIAndItsLevelVariable
-
-At compile time, `K_SUSHIAI_LOG_PROJECT` names the project `sushiai` and the variable
-`SA_LOG_LEVEL`.
+Checks at compile time that `K_SUSHIAI_LOG_PROJECT` names the project `sushiai` and the variable
+`SA_LOG_LEVEL`. It holds no test; the build compiles it.
