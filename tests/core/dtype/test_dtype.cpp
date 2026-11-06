@@ -34,7 +34,10 @@
 #include <cstddef>
 #include <string>
 #include <gtest/gtest.h>
-#include <SushiBLAS/core/common.hpp>
+#include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/shape/shape.hpp>
+#include <SushiAI/shape/tensor_shape.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 using SushiAI::DType;
 
@@ -103,9 +106,20 @@ TEST(Small_DType, OnlyTheRealFloatingTypesAreRealFloats)
     EXPECT_FALSE(SushiAI::is_real_float(DType::UInt32));
 }
 
-/** @brief Tests that the maximum rank is the one SushiBLAS stores. */
+/**
+ * @brief Tests that a SushiBLAS tensor of rank K_MAX_RANK, every extent filled, reads back as a
+ * Shape of that rank with each extent in place.
+ */
 TEST(Small_DType, TheMaximumRankIsTheRankSushiBLASStores)
 {
-    EXPECT_EQ(SushiAI::K_MAX_RANK,
-              static_cast<int>(SushiBLAS::Core::K_MAX_TENSOR_RANK));
+    SushiBLAS::Tensor tensor;
+    tensor.rank = SushiAI::K_MAX_RANK;
+    for (int axis = 0; axis < SushiAI::K_MAX_RANK; ++axis)
+        tensor.shape[axis] = axis + 2;
+
+    SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Shape shape, SushiAI::checked_shape_of(tensor));
+
+    ASSERT_EQ(shape.rank(), SushiAI::K_MAX_RANK);
+    for (int axis = 0; axis < SushiAI::K_MAX_RANK; ++axis)
+        EXPECT_EQ(shape[axis], axis + 2);
 }

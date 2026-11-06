@@ -89,6 +89,21 @@ RW-155 asks the owner to rule on these. Each changes a module's surface, so the 
 - core/data: host function for the synthetic class means and labels; attribute-to-RingsOptions reader; engine-free registry lookup and key check; an allocation port; an in-memory Dataset adapter; an executor option on ThreadedLoader
 - core/data: the two input tests and the roles spelling test whose delete records would leave a header with no test file (mirror rule)
 
+### Rulings (2026-11-07, delegated by the owner)
+
+Each seam is ruled by the testing skill: a port with an in-memory adapter beside it, or a parameter or overload whose default keeps today's behaviour.
+
+- allocation: `check_tensor_extents(shape)` as a value function that `allocate_tensor` calls.
+- scratch_files: an overload taking the base directory; the default stays the temporary directory.
+- tensor_values: `round_to_float32(values)` as a host function the float32 write uses.
+- json_events: the buffer size as a defaulted argument.
+- engine_fixture: `TestEnvironment` takes a runtime factory, defaulting to today's.
+- failure: a `FailureBlockCounter` port with the live counter as default and an in-memory adapter; the default fatal handler logs through SushiLog so `LogCapture` reads it; the fatal record is written before the stop.
+- graph: in-memory TensorPool context and CompiledStep through the existing ports; `InMemoryStepRecorder` takes a shared journal; `test_step_recording` gets `compile_step_recording.cpp`.
+- profile: `mark_period` gains an overload taking the bound session.
+- dtype: the dtype test program links the shape module.
+- data: host functions for the synthetic class means and labels; an attribute reader for `RingsOptions`; an engine-free registry lookup; an allocation port; the in-memory `Dataset` adapter; an executor option on `ThreadedLoader`, defaulting to its own thread. The delete records that would leave a header untested get a `compile_<name>.cpp` each (SushiSkills 8fe7fb3).
+
 ## Dispatches
 
 dispatch: J15 review, 27 chunks — haiku high, 1 round each, passed, rung 1 (chunk 016's reviewer opened a subagent of its own)

@@ -20,4 +20,5 @@ For each element type, `dtype_name` returns the name its row gives, such as `flo
 
 ## TheMaximumRankIsTheRankSushiBLASStores
 
-`K_MAX_RANK` equals the tensor rank SushiBLAS stores, `K_MAX_TENSOR_RANK`.
+A SushiBLAS tensor of rank `K_MAX_RANK`, each extent filled, reads back through
+`checked_shape_of` as a `Shape` of that rank with every extent in place.

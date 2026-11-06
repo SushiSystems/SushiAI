@@ -5,6 +5,6 @@ suite prefix of a case gives its ctest label.
 
 ## test_dtype.cpp
 
-The `Small_DType` cases check that only the three real floating types are real floats, and that
-`K_MAX_RANK` is the rank SushiBLAS stores. The `Small_DTypeRow` cases check `dtype_size` and
+The `Small_DType` cases check that only the three real floating types are real floats, and that a
+SushiBLAS tensor of rank `K_MAX_RANK` reads back as a `Shape` of that rank. The `Small_DTypeRow` cases check `dtype_size` and
 `dtype_name` for every element type, `UInt32` included.

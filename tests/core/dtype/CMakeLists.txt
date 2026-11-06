@@ -6,4 +6,7 @@
 # The test program of the module dtype; see cmake/SushiAITestProgram.cmake.
 sushiai_add_test_program(OWNER dtype
     SOURCES
-        test_dtype.cpp)
+        test_dtype.cpp
+    DEPENDS
+        shape
+        failure_expectations)
