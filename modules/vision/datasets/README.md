@@ -67,6 +67,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/mask_png.hpp>` | `MaskPNGOptions`, `read_mask_png` |
 | `<SushiAI/vision/datasets/sample_cache.hpp>` | `SampleCacheOptions`, `SampleCacheReport`, `sample_cache_path`, `write_sample_cache`, `use_sample_cache` |
 | `<SushiAI/vision/datasets/sample_pipeline.hpp>` | `SamplePipeline` |
+| `<SushiAI/vision/datasets/in_memory_sample_pipeline.hpp>` | `InMemorySamplePipeline` |
 | `<SushiAI/vision/datasets/fit_pipeline.hpp>` | `K_PIPELINE_NONE`, `FitPipeline` |
 | `<SushiAI/vision/datasets/augment_pipeline.hpp>` | `K_PIPELINE_DEFAULT`, `AugmentOptions`, `AugmentPipeline` |
 | `<SushiAI/vision/datasets/pipeline_table.hpp>` | `PipelineRequest`, `PipelineFactory`, `PipelineEntry`, `pipeline_table`, `find_pipeline` |

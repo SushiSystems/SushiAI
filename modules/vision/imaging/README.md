@@ -156,6 +156,14 @@ static `make` that returns a `Result`, because a constructor cannot return a sta
 
 [`include/SushiAI/vision/imaging/partner_source.md`](include/SushiAI/vision/imaging/partner_source.md) describes it.
 
+## in_memory_sample_source.hpp, in_memory_mask_source.hpp, in_memory_partner_source.hpp
+
+The in-memory adapters of the three seams. `InMemorySampleSource` and `InMemoryMaskSource` hold the
+images, labels and masks added to them and hand back copies by index; a scripted failure makes one
+index fail to load. `InMemoryPartnerSource` replays a scripted list of `MosaicPartners` and takes
+exactly three draws per call. All three are header-only, read no file and are tested by
+`tests/vision/imaging/test_in_memory_*.cpp`.
+
 ## mosaic.hpp
 
 [`include/SushiAI/vision/imaging/mosaic.md`](include/SushiAI/vision/imaging/mosaic.md) describes it.

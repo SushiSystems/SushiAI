@@ -15,6 +15,9 @@ sushiai_add_test_program(OWNER vision/imaging
         test_gray.cpp
         test_hsv.cpp
         test_image.cpp
+        test_in_memory_mask_source.cpp
+        test_in_memory_partner_source.cpp
+        test_in_memory_sample_source.cpp
         test_label_set.cpp
         test_labels.cpp
         test_letterbox.cpp

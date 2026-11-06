@@ -24,6 +24,7 @@ sushiai_add_test_program(OWNER vision/datasets
         test_idx_file.cpp
         test_image_extensions.cpp
         test_image_folder.cpp
+        test_in_memory_sample_pipeline.cpp
         test_load_sample_image.cpp
         test_load_sample_mask.cpp
         test_mask_png.cpp

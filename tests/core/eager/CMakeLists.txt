@@ -7,6 +7,8 @@
 
 sushiai_add_test_program(OWNER eager
     SOURCES
+        test_in_memory_region_partitioner.cpp
+        test_in_memory_step_executor.cpp
         test_partition.cpp
         test_region_boundary.cpp
         test_region_emitter.cpp

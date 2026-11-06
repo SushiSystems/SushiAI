@@ -41,6 +41,8 @@ Each header is named by its include path under `include/`.
 | `SushiAI/distribution/parameter_publish.hpp` | `ParameterPublish` |
 | `SushiAI/distribution/replica_task.hpp` | `K_REPLICA_TASK_WORDS`, `ReplicaTask` |
 | `SushiAI/distribution/replica_model.hpp` | `ReplicaRows`, `ReplicaModel`, `ReplicaModelFactory` |
+| `SushiAI/distribution/replica_serve_observer.hpp` | `ReplicaServeObserver` |
+| `SushiAI/distribution/in_memory_replica_serve_observer.hpp` | `InMemoryReplicaServeObserver` |
 | `SushiAI/distribution/replica_step.hpp` | `replica_runtime_config()`, `ReplicaStep` |
 | `SushiAI/distribution/replica_kernel.hpp` | `ReplicaKernel` |
 

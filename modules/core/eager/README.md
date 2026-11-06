@@ -41,6 +41,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/eager/region_executor.hpp` | `RegionExecutor` |
 | `SushiAI/eager/region_names.hpp` | `RegionID`, `K_NO_REGION_ID`, `RegionNames` |
 | `SushiAI/eager/region_partitioner.hpp` | `RegionPartitioner`, with its `assign` |
+| `SushiAI/eager/in_memory_region_partitioner.hpp` | `InMemoryRegionPartitioner` |
 | `SushiAI/eager/region_program.hpp` | `ProgramOptions`, `RegionProgram`, `compile_region` |
 | `SushiAI/eager/region_signature.hpp` | `RegionSignature`, `signature_of` |
 | `SushiAI/eager/region_table.hpp` | `RegionAction`, `RegionOrder`, `StepPlan`, `RegionTable`, with its `plan` and `forget` |
@@ -52,6 +53,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/eager/slot_ledger.hpp` | `ReaderSlot`, `SlotRecord`, `SlotLedger`, with its `keep`, `match_readers` and `place` |
 | `SushiAI/eager/step.hpp` | `Step` |
 | `SushiAI/eager/step_executor.hpp` | `RegionWork`, `StepWork`, `StepExecutor`, with its `execute` and `discard` |
+| `SushiAI/eager/in_memory_step_executor.hpp` | `InMemoryStepExecutor` |
 | `SushiAI/eager/storage_bank.hpp` | `StorageBank` |
 | `SushiAI/eager/storage_id.hpp` | `StorageID`, `K_NO_STORAGE`, `StorageIDSource` |
 

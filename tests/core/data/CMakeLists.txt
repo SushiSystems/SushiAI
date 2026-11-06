@@ -11,6 +11,7 @@ sushiai_add_test_program(OWNER data
         test_dataset_registry.cpp
         test_epoch.cpp
         test_epoch_permutation.cpp
+        test_in_memory_epoch_aware.cpp
         test_input.cpp
         test_materialised_dataset.cpp
         test_roles.cpp

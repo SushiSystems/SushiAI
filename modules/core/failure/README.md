@@ -25,5 +25,6 @@ Each header is named by its include path under `include/`.
 | Header | Declares |
 | --- | --- |
 | `SushiAI/failure/check.hpp` | `FatalHandler`, `set_fatal_handler`, `SA_FATAL_IF`, `SA_FATAL`, `SA_ASSERT` |
+| `SushiAI/failure/in_memory_fatal_sink.hpp` | `InMemoryFatalSink` |
 | `SushiAI/failure/result.hpp` | `Result<T>`, `Result<T&>`, `Detail::status_of`, `SA_TRY_ASSIGN` |
 | `SushiAI/failure/status.hpp` | `StatusCode`, `Status`, `SA_FAIL_IF`, `SA_ANNOTATE`, `SA_TRY` |

@@ -25,6 +25,7 @@ sushiai_add_test_program(OWNER train
         test_evaluation_step.cpp
         test_feed.cpp
         test_host_values.cpp
+        test_in_memory_objective.cpp
         test_input_match.cpp
         test_mean_squared_error_objective.cpp
         test_metrics.cpp

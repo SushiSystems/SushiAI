@@ -89,6 +89,7 @@ The headers sit in `modules/layers/train/include/SushiAI/train/`.
 | Header | Declares |
 | --- | --- |
 | `objective.hpp` | `ObjectiveLeaves`, `find_leaf_tensor`, `Objective`, `CrossEntropyObjective`, `make_cross_entropy` |
+| `in_memory_objective.hpp` | `InMemoryObjective` |
 | `metrics.hpp` | `Metric`, `Metrics`, `K_METRIC_CAPACITY`, `describe_metric_value` |
 | `step_view.hpp` | `StepOutput`, `StepView`, `only_output` |
 | `batch_role.hpp` | `require_batch_role` |

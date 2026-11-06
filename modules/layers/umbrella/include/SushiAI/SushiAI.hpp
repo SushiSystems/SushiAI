@@ -44,6 +44,7 @@
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/in_memory_fatal_sink.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/hash/fnv1a.hpp>
 #include <SushiAI/ops/ops.hpp>
@@ -85,6 +86,8 @@
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/graph/traced.hpp>
 #include <SushiAI/graph/state_id.hpp>
+#include <SushiAI/graph/in_memory_precision_policy.hpp>
+#include <SushiAI/graph/in_memory_step_recorder.hpp>
 
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/tape.hpp>
@@ -187,6 +190,8 @@
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/session.hpp>
 #include <SushiAI/eager/step.hpp>
+#include <SushiAI/eager/in_memory_region_partitioner.hpp>
+#include <SushiAI/eager/in_memory_step_executor.hpp>
 
 #include <SushiAI/io/checkpoint_format.hpp>
 #include <SushiAI/io/import_weights.hpp>
@@ -236,10 +241,12 @@
 
 #include <SushiAI/config/section_reader.hpp>
 #include <SushiAI/train/sum_objective.hpp>
+#include <SushiAI/train/in_memory_objective.hpp>
 
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/data/epoch_permutation.hpp>
 #include <SushiAI/data/threaded_loader.hpp>
+#include <SushiAI/data/in_memory_epoch_aware.hpp>
 
 #include <SushiAI/config/json_events.hpp>
 #include <SushiAI/io/run_progress.hpp>

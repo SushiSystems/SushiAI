@@ -217,5 +217,9 @@
 #include <SushiAI/vision/datasets/polygon_mask.hpp>
 #include <SushiAI/vision/datasets/sample_cache.hpp>
 #include <SushiAI/vision/datasets/sample_pipeline.hpp>
+#include <SushiAI/vision/datasets/in_memory_sample_pipeline.hpp>
 #include <SushiAI/vision/imaging/affine_nearest.hpp>
 #include <SushiAI/vision/imaging/mask_pipeline.hpp>
+#include <SushiAI/vision/imaging/in_memory_mask_source.hpp>
+#include <SushiAI/vision/imaging/in_memory_partner_source.hpp>
+#include <SushiAI/vision/imaging/in_memory_sample_source.hpp>

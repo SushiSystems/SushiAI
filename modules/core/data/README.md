@@ -31,6 +31,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/data/dataset.hpp` | `Batch`, `Dataset`, `RowRange`, `check_rows`, `describe_input`, `SyntheticOptions`, `SyntheticClassification`, `RingsOptions`, `Rings`, `make_rings` |
 | `SushiAI/data/dataset_registry.hpp` | `DatasetFactory`, `DatasetEntry`, `DatasetRegistry`, `register_datasets`, `make_dataset` |
 | `SushiAI/data/epoch.hpp` | `EpochAware`, `begin_epoch` |
+| `SushiAI/data/in_memory_epoch_aware.hpp` | `InMemoryEpochAware` |
 | `SushiAI/data/epoch_permutation.hpp` | `EpochPermutation` |
 | `SushiAI/data/input.hpp` | `InputDescription` |
 | `SushiAI/data/materialised_dataset.hpp` | `MaterialisedDataset`, `allocate_batch`, `share_batch`, `share_rows`, `prepare_batch` |

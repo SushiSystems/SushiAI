@@ -37,10 +37,12 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/node_range.hpp` | `NodeRange` |
 | `SushiAI/graph/memory_plan.hpp` | `ArenaID`, `K_NO_ARENA`, `Arena`, `Placement`, `PlanOptions`, `MemoryPlan` |
 | `SushiAI/graph/precision.hpp` | `PrecisionQuery`, `PrecisionChoice`, `PrecisionPolicy`, `UniformPrecisionPolicy`, `MixedPrecisionPolicy`, `narrows_under_mixed_precision` |
+| `SushiAI/graph/in_memory_precision_policy.hpp` | `InMemoryPrecisionPolicy` |
 | `SushiAI/graph/rematerialise.hpp` | `rematerialise_im2col` |
 | `SushiAI/graph/replay_prelude.hpp` | `ReplayPrelude` |
 | `SushiAI/graph/state_id.hpp` | `StateID`, `K_NO_STATE`, `StateIdentity` |
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
+| `SushiAI/graph/in_memory_step_recorder.hpp` | `InMemoryStepRecorder` |
 | `SushiAI/graph/step_recording.hpp` | `StepRecording` |
 | `SushiAI/graph/tensor_pool.hpp` | `TensorPool` |
 | `SushiAI/graph/traced.hpp` | `Traced` |
