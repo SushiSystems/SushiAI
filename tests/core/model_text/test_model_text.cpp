@@ -66,10 +66,15 @@ TEST(Small_ModelText, AParseFailureNamesTheTestOrigin)
                       "'<test>'", "not valid JSON");
 }
 
-/** @brief Tests that attributes_from and model_from stop the process on a refused fixture. */
-TEST(Small_ModelText, TheFixtureReadersStopTheProcessOnARefusal)
+/** @brief Tests that attributes_from stops the process on text that is no JSON. */
+TEST(Medium_ModelText, AttributesFromStopsTheProcessOnInvalidJSON)
 {
     SA_EXPECT_FATAL((void)attributes_from(R"({"units": )"), "'<test>'", "not valid JSON");
+}
+
+/** @brief Tests that model_from stops the process on a model file it refuses. */
+TEST(Medium_ModelText, ModelFromStopsTheProcessOnARefusedModelFile)
+{
     SA_EXPECT_FATAL((void)model_from(R"({"input": 1})"), "'<test>'");
 }
 

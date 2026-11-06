@@ -20,7 +20,3 @@ A file written under the name before construction is gone once the `ScratchFile`
 ## DestructionRemovesTheFile
 
 A file the case writes at `path()` is gone after the `ScratchFile` leaves its scope.
-
-## AFileNeverWrittenIsDestroyedQuietly
-
-Constructing and destroying a `ScratchFile` whose file was never written throws nothing.

@@ -26,7 +26,3 @@ A directory under the name with a nested folder and a file in each is gone once 
 
 A directory the case fills with a nested folder and two files is gone after the
 `ScratchDirectory` leaves its scope.
-
-## ADirectoryNeverCreatedIsDestroyedQuietly
-
-Constructing and destroying a `ScratchDirectory` whose directory was never created throws nothing.

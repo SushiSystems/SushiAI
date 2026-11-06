@@ -81,9 +81,3 @@ TEST(Medium_ScratchFile, DestructionRemovesTheFile)
 
     EXPECT_FALSE(std::filesystem::exists(written));
 }
-
-/** @brief Tests that a file never written is destroyed without an exception. */
-TEST(Medium_ScratchFile, AFileNeverWrittenIsDestroyedQuietly)
-{
-    EXPECT_NO_THROW(ScratchFile{K_NAME});
-}

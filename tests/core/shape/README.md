@@ -5,51 +5,36 @@ suite prefix of a case gives its ctest label.
 
 ## test_shape.cpp
 
-Suites: `Small_Shape`.
+Suites: `Small_Shape`, `Medium_Shape`.
 
 Tests Shape's extents, indexing, validation, equality and hash.
 
 This file needs no device. Shape is host-lane vocabulary and must stay testable without a
 runtime, which is what keeps the unit tier fast.
 
-### DefaultIsAScalarWithOneElement
-
-A default `Shape` has rank 0 and one element, and prints as "[]".
-
 ### ExtentsAreStoredOutermostFirst
 
-`Shape{64, 784}` has rank 2, `dim(0)` 64, `dim(1)` 784 and 64 * 784 elements, and prints as
-"[64, 784]".
+`Shape{64, 784}` has rank 2, `dim(0)` 64 and `dim(1)` 784.
+
+### TheElementCountIsTheProductOfTheExtents
+
+`Shape{64, 784}` has 64 * 784 elements.
+
+### ToStringPrintsTheBracketedExtents
+
+`Shape{64, 784}` prints as "[64, 784]" and the default, rank-0 `Shape` as "[]".
 
 ### NegativeIndicesCountFromTheInnermost
 
 On `Shape{2, 3, 4}`, `dim(-1)` is 4, `dim(-2)` is 3 and `dim(-3)` is 2.
 
-### OutOfRangeDimensionIsFatal
-
-On `Shape{2, 3}`, `dim(2)` and `dim(-3)` stop the process with a report naming the index.
-
-### NonPositiveExtentIsFatalAtConstruction
-
-`Shape({2, 0})` and `Shape({-1})` stop the process with a report that says an extent must be
-positive.
-
-### RankBeyondTheMaximumIsFatal
-
-A list of nine extents, more than `K_MAX_RANK`, stops the process.
-
 ### BuildsFromExtentsKnownOnlyAtRunTime
 
-A `Shape` built from a span holding 64 and 784 equals `Shape{64, 784}` and prints as
-"[64, 784]".
+A `Shape` built from a span holding 64 and 784 equals `Shape{64, 784}`.
 
 ### BuildsTheScalarFromAnEmptyExtentSpan
 
 A `Shape` built from an empty span has rank 0 and one element.
-
-### RuntimeExtentsGetTheSameValidationAsAListDoes
-
-A span holding 4 and 0 stops the process, and so does a span of `K_MAX_RANK` + 1 ones.
 
 ### MakeBuildsTheShapeOfValidRuntimeExtents
 
@@ -74,10 +59,14 @@ positive" and "got 0".
 [4, 5] equals [4, 5] and differs from [5, 4], from [4, 5, 1], and [4] differs from the
 scalar.
 
+### EqualShapesHashEqual
+
+Two [4, 1] shapes hash to one value.
+
 ### HashSeparatesShapesThatDifferOnlyByRank
 
-[4, 1] and [4] hold the same element count and the same leading extent. A hash that folded only
-the extents would collide them, and the tensor pool keys its constant operands on this hash.
+[4, 1] and [4] hash apart. They hold the same element count and the same leading extent. A
+hash that folded only the extents would collide them, and the tensor pool keys its constant operands on this hash.
 
 ### HashKeepsItsValues
 
@@ -117,18 +106,22 @@ The cases fall into five groups, in file order:
 
 ### ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit
 
-K_MAX_RANK is SushiBLAS's, so the number in the message is the one a reader has to reconcile
-against the tensor they were trying to build.
+Seven extents, from a list and from a span, stop the process with "Shape rank 7" and "exceeds
+the maximum of 6". K_MAX_RANK is SushiBLAS's, so the number in the message is the one a reader
+has to reconcile against the tensor they were trying to build. A death test starts a child
+process, so the case is `Medium_Shape`.
 
 ### ShapeNonPositiveExtentNamesTheOffendingExtent
 
-A zero-element tensor is refused at the type that describes extents, which is why nothing
-further down ever has to handle one.
+[4, 0], [-3] and [-1] from a list, and 4 and 0 from a span, stop the process with "Shape extents
+must be positive" and the extent. A zero-element tensor is refused at the type that describes
+extents, which is why nothing further down ever has to handle one. The case is `Medium_Shape`.
 
 ### ShapeDimensionOutOfRangeNamesTheIndexAndTheRank
 
 On a [4, 3] shape, `dim(2)` stops the process with a report holding "Dimension 2" and "rank-2
-shape", and `dim(-3)` one holding "Dimension -3" and "rank-2 shape".
+shape", and `dim(-3)` one holding "Dimension -3" and "rank-2 shape". The case is
+`Medium_Shape`.
 
 ### MatmulContractionMismatchNamesBothInnerExtents
 

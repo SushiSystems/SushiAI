@@ -49,22 +49,26 @@ using namespace SushiAI;
 using Graph::GraphBuilder;
 using Graph::ValueID;
 
-TEST(Small_Shape, DefaultIsAScalarWithOneElement)
-{
-    const Shape scalar;
-    EXPECT_EQ(scalar.rank(), 0);
-    EXPECT_EQ(scalar.num_elements(), 1);
-    EXPECT_EQ(scalar.to_string(), "[]");
-}
-
+/** @brief Tests that dim returns the extents outermost first. */
 TEST(Small_Shape, ExtentsAreStoredOutermostFirst)
 {
     const Shape shape{64, 784};
     EXPECT_EQ(shape.rank(), 2);
     EXPECT_EQ(shape.dim(0), 64);
     EXPECT_EQ(shape.dim(1), 784);
-    EXPECT_EQ(shape.num_elements(), 64 * 784);
-    EXPECT_EQ(shape.to_string(), "[64, 784]");
+}
+
+/** @brief Tests that the element count is the product of the extents. */
+TEST(Small_Shape, TheElementCountIsTheProductOfTheExtents)
+{
+    EXPECT_EQ((Shape{64, 784}).num_elements(), 64 * 784);
+}
+
+/** @brief Tests that to_string prints the extents as a bracketed list, the scalar as "[]". */
+TEST(Small_Shape, ToStringPrintsTheBracketedExtents)
+{
+    EXPECT_EQ((Shape{64, 784}).to_string(), "[64, 784]");
+    EXPECT_EQ(Shape().to_string(), "[]");
 }
 
 TEST(Small_Shape, NegativeIndicesCountFromTheInnermost)
@@ -75,26 +79,6 @@ TEST(Small_Shape, NegativeIndicesCountFromTheInnermost)
     EXPECT_EQ(shape.dim(-3), 2);
 }
 
-TEST(Small_Shape, OutOfRangeDimensionIsFatal)
-{
-    const Shape shape{2, 3};
-    SA_EXPECT_FATAL((void)shape.dim(2), "Dimension 2");
-    SA_EXPECT_FATAL((void)shape.dim(-3), "Dimension -3");
-}
-
-TEST(Small_Shape, NonPositiveExtentIsFatalAtConstruction)
-{
-    SA_EXPECT_FATAL(Shape({2, 0}), "positive");
-    SA_EXPECT_FATAL(Shape({-1}), "positive");
-}
-
-TEST(Small_Shape, RankBeyondTheMaximumIsFatal)
-{
-    const std::initializer_list<int64_t> too_many = {1, 1, 1, 1, 1, 1, 1, 1, 1};
-    ASSERT_GT(static_cast<int32_t>(too_many.size()), SushiAI::K_MAX_RANK);
-    SA_EXPECT_FATAL((void)Shape(too_many), "exceeds the maximum");
-}
-
 TEST(Small_Shape, BuildsFromExtentsKnownOnlyAtRunTime)
 {
     // The case an initializer list cannot serve: a rank that came from a file.
@@ -102,7 +86,6 @@ TEST(Small_Shape, BuildsFromExtentsKnownOnlyAtRunTime)
     const Shape shape(SushiRuntime::span<const int64_t>(dims.data(), dims.size()));
 
     EXPECT_EQ(shape, (Shape{64, 784}));
-    EXPECT_EQ(shape.to_string(), "[64, 784]");
 }
 
 TEST(Small_Shape, BuildsTheScalarFromAnEmptyExtentSpan)
@@ -111,17 +94,6 @@ TEST(Small_Shape, BuildsTheScalarFromAnEmptyExtentSpan)
     const Shape shape{SushiRuntime::span<const int64_t>(none.data(), none.size())};
     EXPECT_EQ(shape.rank(), 0);
     EXPECT_EQ(shape.num_elements(), 1);
-}
-
-TEST(Small_Shape, RuntimeExtentsGetTheSameValidationAsAListDoes)
-{
-    const std::vector<int64_t> non_positive{4, 0};
-    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
-                    "positive");
-
-    const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::K_MAX_RANK) + 1, 1);
-    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
-                    "exceeds the maximum");
 }
 
 TEST(Small_Shape, MakeBuildsTheShapeOfValidRuntimeExtents)
@@ -168,11 +140,17 @@ TEST(Small_Shape, EqualityComparesRankAndEveryExtent)
     EXPECT_NE(Shape({4}), Shape());
 }
 
+/** @brief Tests that equal shapes hash equal. */
+TEST(Small_Shape, EqualShapesHashEqual)
+{
+    EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
+}
+
+/** @brief Tests that shapes that differ only by rank hash apart. */
 TEST(Small_Shape, HashSeparatesShapesThatDifferOnlyByRank)
 {
     // The tensor pool keys constant operands on this hash; see tests/core/shape/README.md.
     EXPECT_NE(Shape({4, 1}).hash(), Shape({4}).hash());
-    EXPECT_EQ(Shape({4, 1}).hash(), Shape({4, 1}).hash());
 }
 
 /**
@@ -198,21 +176,33 @@ TEST(Small_Shape, WorksAsAnUnorderedMapKey)
     EXPECT_EQ(counts[Shape({4})], 7);
 }
 
-TEST(Small_Shape, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
+/** @brief Tests that a rank above the maximum stops the process, from a list or a span. */
+TEST(Medium_Shape, ShapeRankBeyondTheMaximumNamesTheRankAndTheLimit)
 {
     // The limit in the message is SushiBLAS's MAX_RANK; see tests/core/shape/README.md.
+    const std::vector<int64_t> too_many(static_cast<std::size_t>(SushiAI::K_MAX_RANK) + 1, 1);
+
     SA_EXPECT_FATAL((void)Shape({1, 1, 1, 1, 1, 1, 1}),
+                    "Shape rank 7", "exceeds the maximum of 6");
+    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(too_many.data(), too_many.size())),
                     "Shape rank 7", "exceeds the maximum of 6");
 }
 
-TEST(Small_Shape, ShapeNonPositiveExtentNamesTheOffendingExtent)
+/** @brief Tests that a non-positive extent stops the process, from a list or a span. */
+TEST(Medium_Shape, ShapeNonPositiveExtentNamesTheOffendingExtent)
 {
     // Shape itself refuses a zero-element tensor; see tests/core/shape/README.md.
+    const std::vector<int64_t> non_positive{4, 0};
+
     SA_EXPECT_FATAL((void)Shape({4, 0}), "Shape extents must be positive", "got 0");
     SA_EXPECT_FATAL((void)Shape({-3}), "Shape extents must be positive", "got -3");
+    SA_EXPECT_FATAL((void)Shape({-1}), "Shape extents must be positive", "got -1");
+    SA_EXPECT_FATAL((void)Shape(SushiRuntime::span<const int64_t>(non_positive.data(), 2)),
+                    "Shape extents must be positive", "got 0");
 }
 
-TEST(Small_Shape, ShapeDimensionOutOfRangeNamesTheIndexAndTheRank)
+/** @brief Tests that dim stops the process for an index outside the rank. */
+TEST(Medium_Shape, ShapeDimensionOutOfRangeNamesTheIndexAndTheRank)
 {
     const Shape shape{4, 3};
 

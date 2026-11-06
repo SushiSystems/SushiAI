@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <cstring>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -95,10 +96,10 @@ TEST_F(Medium_TensorValues, TheBytesOfATensorAreItsElementStorage)
 
     const std::vector<unsigned char> bytes = SaTest::read_tensor_bytes(tensor);
 
-    ASSERT_EQ(bytes.size(), values.size() * sizeof(float));
-    const float* const data = tensor.data_as<float>();
-    for (std::size_t i = 0; i < bytes.size(); ++i)
-        EXPECT_EQ(bytes[i], reinterpret_cast<const unsigned char*>(data)[i]);
+    const std::vector<float> written = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
+    std::vector<unsigned char> expected(written.size() * sizeof(float));
+    std::memcpy(expected.data(), written.data(), expected.size());
+    EXPECT_EQ(bytes, expected);
 }
 
 /** @brief Tests that first_difference finds the first unequal byte, or the shorter length. */

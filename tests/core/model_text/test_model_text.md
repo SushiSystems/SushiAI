@@ -1,7 +1,7 @@
 # tests/core/model_text/test_model_text.cpp
 
 
-Suites: `Small_ModelText`.
+Suites: `Small_ModelText`, `Medium_ModelText`.
 
 Tests `attributes_from`, `model_from` and their `try_` forms, the parsers that turn the JSON text of a test into
 config values.
@@ -18,10 +18,15 @@ The text `{"units": 4, "bias": true}` parses to an object whose "units" is 4 and
 Text cut off after a key makes `try_attributes_from` return `InvalidFile`, with a message that
 names the origin "'<test>'" and says the text is not valid JSON.
 
-## TheFixtureReadersStopTheProcessOnARefusal
+## AttributesFromStopsTheProcessOnInvalidJSON
 
-`attributes_from` over that text and `model_from` over a document with no layers and no version
-stop the process, with a report that names "'<test>'".
+`attributes_from` over that text stops the process, with a report that names "'<test>'" and
+says "not valid JSON". A death test starts a child process, so the suite is `Medium_`.
+
+## ModelFromStopsTheProcessOnARefusedModelFile
+
+`model_from` over a document with no layers and no version stops the process, with a report
+that names "'<test>'".
 
 ## TryModelFromReturnsTheRefusalOfAModelFile
 

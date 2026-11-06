@@ -10,6 +10,7 @@
 | RW-119 | P2 | open | Move three tests into their mirror files | the cases of `check.hpp`, `load_sample_mask.hpp` and `perplexity.hpp` leave `test_status.cpp`, `test_fit_mask.cpp` and `test_next_token_targets.cpp` |  |  | 2026-10-19 |
 | RW-151 | P2 | blocked | Set the size timeouts to the testing skill's 1 s, 10 s and 120 s | SushiAITestProgram.cmake, cli/tests/conftest.py and tests/README.md give small 1 s, medium 10 s and large 120 s, and the gating run passes | external: the M jobs of the test review resize the tests that run longer | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-152 | P3 | open | Explain why yolov4-tiny's second mask differs by one anchor | DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor names the source of the difference or the anchor is fixed |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
+| RW-155 | P3 | decision | Rule on the module seams the review's resize records ask for | Each seam the M jobs named (scratch path base, float rounding, extent check) is ruled; a ruled one is built and its test made small |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 

@@ -69,7 +69,7 @@ TEST(Small_TensorShape, ARankZeroTensorIsTheScalarShape)
 }
 
 /** @brief Tests that an extent that is not positive stops the process with a message naming it. */
-TEST(Small_TensorShape, AnExtentThatIsNotPositiveIsFatal)
+TEST(Medium_TensorShape, AnExtentThatIsNotPositiveIsFatal)
 {
     const SushiBLAS::Tensor tensor = description(2, 0, 5);
 

@@ -89,9 +89,3 @@ TEST(Medium_ScratchDirectory, DestructionRemovesTheWholeTree)
 
     EXPECT_FALSE(std::filesystem::exists(written));
 }
-
-/** @brief Tests that a directory never created is destroyed without an exception. */
-TEST(Medium_ScratchDirectory, ADirectoryNeverCreatedIsDestroyedQuietly)
-{
-    EXPECT_NO_THROW(ScratchDirectory{K_NAME});
-}

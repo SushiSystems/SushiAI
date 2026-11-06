@@ -19,8 +19,8 @@ float and widened to double, compared exactly.
 
 ## TheBytesOfATensorAreItsElementStorage
 
-`read_tensor_bytes` of a float32 [2, 3] tensor holds 24 bytes, equal to the bytes of its
-element storage.
+`read_tensor_bytes` of a float32 [2, 3] tensor written with 1 to 6 equals the 24 bytes of the
+floats 1 to 6 laid out in a host array.
 
 ## FirstDifferenceFindsTheFirstUnequalByte
 

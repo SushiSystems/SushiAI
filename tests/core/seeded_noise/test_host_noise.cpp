@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -64,16 +65,13 @@ TEST(Small_HostNoise, TheSeedAloneFixesTheStream)
 TEST(Small_HostNoise, ValuesStayWithinTheScale)
 {
     constexpr double K_SCALE = 0.25;
-    std::size_t negatives = 0;
+    const std::vector<double> values = draw(7, K_DRAWS, K_SCALE);
+    const auto [lowest, highest] = std::minmax_element(values.begin(), values.end());
+    const auto negatives = static_cast<std::size_t>(
+        std::count_if(values.begin(), values.end(), [](double value) { return value < 0.0; }));
 
-    for (const double value : draw(7, K_DRAWS, K_SCALE))
-    {
-        EXPECT_GE(value, -K_SCALE);
-        EXPECT_LT(value, K_SCALE);
-        if (value < 0.0)
-            ++negatives;
-    }
-
+    EXPECT_GE(*lowest, -K_SCALE);
+    EXPECT_LT(*highest, K_SCALE);
     EXPECT_GT(negatives, 0u);
     EXPECT_LT(negatives, K_DRAWS);
 }

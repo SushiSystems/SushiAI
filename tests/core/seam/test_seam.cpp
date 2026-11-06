@@ -183,42 +183,22 @@ TEST(Small_Seam, RuntimeFailureThatTheUserCanActOnMapsByItsCode)
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::Unsupported, "no fp16"), SeamPhase::Allocate),
         StatusCode::Unsupported, "no fp16");
-}
-
-TEST(Small_Seam, RuntimeInvalidGraphIsInvalidDescription)
-{
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidGraph, "buffers span two contexts"),
                         SeamPhase::Execute),
         StatusCode::InvalidDescription, "buffers span two contexts");
-}
-
-TEST(Small_Seam, RuntimeInvalidAccessIsUnsupported)
-{
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidAccess, "no device 3"),
                         SeamPhase::Record),
         StatusCode::Unsupported, "no device 3");
-}
-
-TEST(Small_Seam, RuntimeInvalidStateIsUnsupported)
-{
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::InvalidState, "another run is in flight"),
                         SeamPhase::Execute),
         StatusCode::Unsupported, "another run is in flight");
-}
-
-TEST(Small_Seam, RuntimeProtocolMismatchIsIncompatible)
-{
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::ProtocolMismatch, "peer speaks version 2"),
                         SeamPhase::Execute),
         StatusCode::Incompatible, "peer speaks version 2");
-}
-
-TEST(Small_Seam, RuntimeCompileFailedTakesItsCodeFromThePhase)
-{
     SA_EXPECT_FAILURE(
         status_of_error(runtime_failure(ErrorCode::CompileFailed, "no plan"),
                         SeamPhase::Allocate),

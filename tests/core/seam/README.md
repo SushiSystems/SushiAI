@@ -49,34 +49,18 @@ A plain `std::runtime_error` maps to `OutOfMemory` when the call was allocating,
 
 ### RuntimeFailureThatTheUserCanActOnMapsByItsCode
 
-A SushiRuntime `Error` that carries a code the user can act on keeps it: `OutOfMemory` for a
-missing USM allocation, `DeviceFailed` for a device fault or an unplugged device, and `Unsupported`
-for a missing fp16 path.
+A SushiRuntime `Error` keeps its text and maps by its code, one row per code:
 
-### RuntimeInvalidGraphIsInvalidDescription
-
-`InvalidGraph` maps to `InvalidDescription` and keeps its text: the runtime refuses a graph for
-what the model asked of it, such as buffers that span two device contexts.
-
-### RuntimeInvalidAccessIsUnsupported
-
-`InvalidAccess` maps to `Unsupported` and keeps its text: the machine lacks the device a
-placement names, or the runtime refuses an external handle.
-
-### RuntimeInvalidStateIsUnsupported
-
-`InvalidState` maps to `Unsupported` and keeps its text: one runtime runs one graph at a time,
-and a second trainer on the same runtime asked for another.
-
-### RuntimeProtocolMismatchIsIncompatible
-
-`ProtocolMismatch` maps to `Incompatible` and keeps its text: two builds of the runtime speak
-different versions of the wire protocol.
-
-### RuntimeCompileFailedTakesItsCodeFromThePhase
-
-`CompileFailed` names no cause, so it takes its code from the phase, as a plain
-`std::runtime_error` does: `OutOfMemory` while allocating and `DeviceFailed` while executing.
+| Runtime code | Status | Case |
+| --- | --- | --- |
+| `AllocationFailed` | `OutOfMemory` | a missing USM allocation |
+| `KernelFailed`, `DeviceLost` | `DeviceFailed` | a device fault, an unplugged device |
+| `Unsupported` | `Unsupported` | a missing fp16 path |
+| `InvalidGraph` | `InvalidDescription` | buffers that span two device contexts |
+| `InvalidAccess` | `Unsupported` | a placement naming a device the machine lacks |
+| `InvalidState` | `Unsupported` | a second graph while another run is in flight |
+| `ProtocolMismatch` | `Incompatible` | a peer that speaks another protocol version |
+| `CompileFailed` | `OutOfMemory` while allocating, `DeviceFailed` while executing | it names no cause, so the phase decides, as for a plain `std::runtime_error` |
 
 ### RuntimeDanglingResourceIsFatal
 

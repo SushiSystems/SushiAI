@@ -1,7 +1,7 @@
 # tests/core/shape/test_tensor_shape.cpp
 
 
-Suites: `Small_TensorShape`.
+Suites: `Small_TensorShape`, `Medium_TensorShape`.
 
 Tests `shape_of` and `checked_shape_of`, which read the extents of a `SushiBLAS::Tensor` as a
 `Shape`. The rules of `Shape` itself are in `test_shape.cpp` in this folder. Each case fills the
@@ -22,7 +22,8 @@ A default tensor, of rank 0, reads as the default `Shape`.
 
 ## AnExtentThatIsNotPositiveIsFatal
 
-Extents 2, 0 and 5 stop the process with a report that contains "positive" and "0".
+Extents 2, 0 and 5 stop the process with a report that contains "positive" and "0". A death
+test starts a child process, so the case is `Medium_TensorShape`.
 
 ## CheckedShapeOfReadsALegalTensor
 
