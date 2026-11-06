@@ -70,6 +70,13 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 ## Dispatches
 
 dispatch: J15 review, 27 chunks — haiku high, 1 round each, passed, rung 1 (chunk 016's reviewer opened a subagent of its own)
+dispatch: J16 T1 slice A (tests/core, layers, applications) — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T1 slice B (tests/vision, language) — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T7 CLI tests on sushicore's recorders — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T3 in-memory adapters — sonnet medium, 1 round, passed after the lead fixed umbrella includes and comment blocks, rung 1
+dispatch: J16 T6 test defects — sonnet medium, 1 round, passed, rung 1
+dispatch: J16 T4 byte-source seams — sonnet medium, 1 round, passed after the lead fixed a doubled comment opener, rung 1
+dispatch: J16 checker clean-up after T4 — sonnet low, 1 round, passed, rung 1
 
 ## Totals
 
