@@ -1,8 +1,7 @@
 # settings.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Holds the settings of one repository that the shared checkers read.
 
 copy_shared_tools.py writes this file only when a repository has none, and never overwrites it.
@@ -37,9 +36,9 @@ K_TOOLING_SIBLING_SOURCE = 'sushicore/source'
 K_LICENSE_HOLDER = 'Mustafa Garip & Sushi Systems'
 K_LICENSE_COMPANY = 'Sushi Systems'
 K_LICENSE_SITE = 'https://sushisystems.io'
-K_LICENSE_OPEN_LINES = ('Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.', 'Commercial use requires a licence from Sushi Systems.')
+K_LICENSE_OPEN_LINES = ('Licensed under the Apache License 2.0. See LICENSE.',)
 K_LICENSE_CLOSED_LINES = ('All rights reserved. No licence is granted.',)
-K_LICENSE_OPEN_BOX_LINES = ('Licensed under the PolyForm Noncommercial License 1.0.0 (the', '"License"); you may not use this file except in compliance with the', 'License. You may obtain a copy of the License at', '', '    https://polyformproject.org/licenses/noncommercial/1.0.0', '', 'Noncommercial use is free. Commercial use requires a separate licence', 'from Sushi Systems; see COMMERCIAL.md. The software is provided', '"as is", without warranty of any kind.')
+K_LICENSE_OPEN_BOX_LINES = ('Licensed under the Apache License, Version 2.0 (the "License"); you', 'may not use this file except in compliance with the License. You may', 'obtain a copy of the License at', '', '    https://www.apache.org/licenses/LICENSE-2.0', '', 'Unless required by applicable law or agreed to in writing, software', 'distributed under the License is distributed on an "AS IS" BASIS,', 'WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or', 'implied. See the License for the specific language governing', 'permissions and limitations under the License.')
 K_LICENSE_CLOSED_BOX_LINES = ('All rights reserved.', '', 'This file is proprietary and confidential. No licence is granted.', 'Copying, modifying, distributing or using it, in whole or in part,', 'requires prior written permission from Sushi Systems.')
 K_LOGGER_MACRO_PREFIX = 'SL'
 K_LOGGER_NAMESPACE = 'SushiLog'

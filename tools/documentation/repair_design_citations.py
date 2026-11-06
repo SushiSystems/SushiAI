@@ -1,8 +1,7 @@
 # repair_design_citations.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Repairs the citations of design documents that moved, between a file and a folder or into and out of _REVISION.
 
 Usage: python tools/documentation/repair_design_citations.py [repository root] [--apply] [--move OLD NEW]...

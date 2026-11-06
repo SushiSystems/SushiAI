@@ -1,8 +1,7 @@
 # write_license_block.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Writes the license block of the source-comments skill into every tracked source file.
 
 The rules take values; the shell at the bottom reads git, the disk and the clock.

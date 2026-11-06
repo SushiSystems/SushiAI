@@ -1,8 +1,7 @@
 # project.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Runs SushiAI's build, test, run, demo, clean and docs commands through cmake and ctest.
 
 The reasoning is in cli/README.md under "services/project.py".

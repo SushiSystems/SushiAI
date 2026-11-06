@@ -1,8 +1,7 @@
 # test_export_yolo26_reference.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests the torch-free parts of the YOLO26 reference exporter.
 
 Covers the SACP encoder, the layout rule, the feature map names, the manifest and the

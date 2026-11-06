@@ -1,8 +1,7 @@
 # mutate_diff.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Mutates each changed line of a Python diff once and reports which mutants the tests kill.
 
 The core takes strings and returns values; the shell runs git and the tests on a temporary copy.

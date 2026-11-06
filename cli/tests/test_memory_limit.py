@@ -1,8 +1,7 @@
 # test_memory_limit.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests how the memory ceiling of `sa test` and `sa run` is resolved.
 
 The reasoning is in cli/tests/README.md under "test_memory_limit.py".

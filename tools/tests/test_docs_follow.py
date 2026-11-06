@@ -1,8 +1,7 @@
 # test_docs_follow.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests the rule that a change updates the pages describing it.
 
 The rules are tested on the values of one commit; the checker and the commit hook are tested on

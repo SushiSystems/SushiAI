@@ -1,8 +1,7 @@
 # Profiler.cmake
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # SushiProfiler, the stack's one profiler, exposed as SushiProfiler::SushiProfiler. The CLI
 # builds or reuses its package from the pin in cli/sushistack.deps.toml and passes

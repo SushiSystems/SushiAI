@@ -1,8 +1,7 @@
 # check_test_additions.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks how many test cases and test programs each commit adds, from `testing`.
 
 Usage: python tools/testing/check_test_additions.py [repository root] [--report] [--rule NAME]

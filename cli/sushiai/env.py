@@ -1,8 +1,7 @@
 # env.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Loads the environment that build, test and run subprocesses inherit.
 
 The reasoning is in cli/README.md under "env.py".

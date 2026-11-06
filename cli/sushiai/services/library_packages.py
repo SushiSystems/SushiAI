@@ -1,8 +1,7 @@
 # library_packages.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Takes the Sushi libraries `sa` links as built packages and puts their run-time folders on the path.
 
 The reasoning is in cli/README.md under "services/library_packages.py".

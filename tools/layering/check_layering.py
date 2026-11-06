@@ -1,8 +1,7 @@
 # check_layering.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks that modules under modules/<tier>/<module>/ depend only down the tier order.
 
 Usage: python tools/layering/check_layering.py [repository root] [--report] [--rule NAME]

@@ -1,8 +1,7 @@
 # check_device_sources.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks that exactly the units which reach a kernel are listed in DEVICE_SOURCES.
 
 An unlisted kernel unit compiles without -fsycl and fails at run time; a listed unit with no kernel

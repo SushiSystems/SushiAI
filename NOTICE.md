@@ -1,7 +1,7 @@
 # Notices
 
-SushiAI is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the PolyForm Noncommercial
-License 1.0.0; see `LICENSE`. The material below keeps its own licence.
+SushiAI is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the Apache
+License 2.0; see `LICENSE`. The material below keeps its own licence.
 
 Nothing third-party is vendored, ported or redistributed from this tree: it has no
 `third_party/` folder, no fetched source, no binary and no data set. Every component below is

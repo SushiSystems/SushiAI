@@ -1,8 +1,7 @@
 # check_design_topics.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks the topic metadata of design documents, each module owned by one topic, the generated views and the limits.
 
 Usage: python tools/documentation/check_design_topics.py [repository root] [--report] [--rule NAME]

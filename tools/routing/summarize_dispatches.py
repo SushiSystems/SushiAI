@@ -1,8 +1,7 @@
 # summarize_dispatches.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Sums the dispatch lines of every REPORT.md, per model and effort, for the model-routing skill.
 
 Usage: python tools/routing/summarize_dispatches.py [root]

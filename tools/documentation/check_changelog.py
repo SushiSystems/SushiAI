@@ -1,8 +1,7 @@
 # check_changelog.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks docs/reference/CHANGELOG.md against the changelog rules of the documentation skill.
 
 Usage: python tools/documentation/check_changelog.py [repository root] [--report] [--rule NAME]

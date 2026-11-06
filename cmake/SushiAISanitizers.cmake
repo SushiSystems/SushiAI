@@ -1,8 +1,7 @@
 # SushiAISanitizers.cmake
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # Defines the INTERFACE target sushiai_sanitizers, which carries the sanitizers SA_SANITIZE
 # names. Empty, the default, adds nothing. `sa build --sanitize` sets it: "address,undefined"

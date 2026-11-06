@@ -58,6 +58,4 @@ Contributors read [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md).
 
 ## Licence
 
-SushiAI is free for non-commercial use under the PolyForm Noncommercial License 1.0.0; see
-[LICENSE](LICENSE). Commercial use needs a licence from Sushi Systems; see
-[COMMERCIAL.md](COMMERCIAL.md). Third-party components are listed in [NOTICE.md](NOTICE.md).
+SushiAI is open source under the Apache License 2.0; see [LICENSE](LICENSE). Third-party components are listed in [NOTICE.md](NOTICE.md).

@@ -1,8 +1,7 @@
 # check_all.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Runs every checker and the checker tests over a repository; prints only what failed.
 
 The shared checkers run first, then every other `tools/<area>/check_<what>.py` the repository

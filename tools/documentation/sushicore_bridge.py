@@ -1,8 +1,7 @@
 # sushicore_bridge.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Loads the sushicore packages that own the backlog and the design rules, for the checkers that call them.
 
 The backlog and the design topics are written by `sushicore.backlog` and `sushicore.design`, and

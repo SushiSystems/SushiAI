@@ -1,8 +1,7 @@
 # SushiAILayers.cmake
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # The tier table: which tier every module belongs to, the order of the tiers,
 # and the library each tier is archived into. cmake/SushiAIModule.cmake reads

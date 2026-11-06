@@ -1,8 +1,7 @@
 # test_budget.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Applies the time limits of `testing` to the times of one test run and prints a line and the findings.
 
 Usage: python tools/testing/test_budget.py JUNIT [--programs MAP] [--exemptions TOML] [--rerun JUNIT]

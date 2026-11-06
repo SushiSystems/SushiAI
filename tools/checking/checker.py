@@ -1,8 +1,7 @@
 # checker.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Runs a table of rules over a set of subjects and reports their findings.
 
 Every checker under tools/ builds its subjects, names its rules and hands both to run().

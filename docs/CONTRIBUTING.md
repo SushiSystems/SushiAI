@@ -9,9 +9,7 @@ reports and design discussion are welcome, and this document is the reference
 for how the project is built.
 
 Contributions from outside Sushi Systems are not accepted yet. SushiAI is
-source-available, free for non-commercial use under the PolyForm Noncommercial
-License 1.0.0 (see [`LICENSE`](../LICENSE)); commercial use needs a licence from
-Sushi Systems, see [`COMMERCIAL.md`](../COMMERCIAL.md).
+open source under the Apache License 2.0 (see [`LICENSE`](../LICENSE)).
 
 > New to the codebase? Start with [`TUTORIAL.md`](getting_started/TUTORIAL.md): it walks from
 > an empty checkout to a model that trains, and then explains what the library

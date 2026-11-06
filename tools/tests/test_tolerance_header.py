@@ -1,8 +1,7 @@
 # test_tolerance_header.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Compiles tools/testing/support/tolerance.hpp into a self-check and runs it.
 
 The compiler is $CXX, or the first of c++, g++, clang++ and cl on the path. With none, the test

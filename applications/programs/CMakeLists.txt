@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # sushiai_train, sushiai_inference and, in a distributed build, sushiai_worker.
 # The domains a program registers and whether it trains on a cluster are

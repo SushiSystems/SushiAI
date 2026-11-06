@@ -1,8 +1,7 @@
 # case_reader.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Reads the test cases of a source file and what each one asserts, compares to a literal and sleeps on.
 
 Supports C++ (GoogleTest), Python (pytest and unittest) and TypeScript (describe, it and test).

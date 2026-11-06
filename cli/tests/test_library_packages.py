@@ -1,8 +1,7 @@
 # test_library_packages.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests that `sa` consumes the Sushi libraries as packages and puts their folders on the path."""
 
 from __future__ import annotations

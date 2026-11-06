@@ -1,8 +1,7 @@
 # build_rename_map.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Lists every name the naming ruling changes and writes tools/naming/rename_map.tsv.
 
 Usage: python tools/naming/build_rename_map.py [repository root] [--output PATH]

@@ -1,8 +1,7 @@
 # check_source_comments.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks C++, GLSL, TypeScript and Python source against the source-comments skill.
 
 The rules take a CheckedSource, a value built from the file text; the shell at the bottom walks

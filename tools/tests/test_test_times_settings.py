@@ -1,8 +1,7 @@
 # test_test_times_settings.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests that the Time table of the testing skill and K_TEST_TIMES in settings.py agree."""
 
 from __future__ import annotations

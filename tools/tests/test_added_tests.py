@@ -1,8 +1,7 @@
 # test_added_tests.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests tools/testing/added_tests.py: its rules on the text of each file in memory, its listing once on a throwaway repository."""
 
 from __future__ import annotations

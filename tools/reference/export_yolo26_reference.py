@@ -1,8 +1,7 @@
 # export_yolo26_reference.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Exports YOLO26n reference tensors from the pinned Ultralytics commit as SACP files.
 
 Usage: python tools/reference/export_yolo26_reference.py TESTS_DIR [--seed N]

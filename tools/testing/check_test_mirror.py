@@ -1,8 +1,7 @@
 # check_test_mirror.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks that tests/ mirrors the source: one test file per header or source file, no other folder,
 and no test that includes a private header from a source/ folder.
 

@@ -1,8 +1,7 @@
 # CMakeLists.txt
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 
 # distribution: the cluster section of a training file, and the split of a batch over replicas.
 # Built only when SA_ENABLE_DISTRIBUTED is on; see the root CMakeLists.txt. SA_DISTRIBUTED

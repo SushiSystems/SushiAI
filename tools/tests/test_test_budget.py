@@ -1,8 +1,7 @@
 # test_test_budget.py
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Tests tools/testing/test_budget.py: its rules on values in memory, its command line once on files on disk."""
 
 from __future__ import annotations

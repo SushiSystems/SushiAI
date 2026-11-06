@@ -1,8 +1,7 @@
 # apply_rename.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Applies tools/naming/rename_map.tsv to the C++ tree as identifier-token replacements.
 
 Usage: python tools/naming/apply_rename.py [repository root] [--map PATH] [--kind KIND] [--dry-run]

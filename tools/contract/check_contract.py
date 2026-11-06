@@ -1,8 +1,7 @@
 # check_contract.py
 # SushiAI - https://github.com/SushiSystems/SushiAI
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
-# Licensed under PolyForm Noncommercial 1.0.0. See LICENSE.
-# Commercial use requires a licence from Sushi Systems.
+# Licensed under the Apache License 2.0. See LICENSE.
 """Checks the throw sites of the library and of the applications against the class table.
 
 A use of SA_THROW_IF or of another removed name anywhere in the library, the programs or the tests
