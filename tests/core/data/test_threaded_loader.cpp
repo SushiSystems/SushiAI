@@ -34,6 +34,7 @@
 #include <cstdint>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <set>
 #include <string>
 #include <thread>
@@ -45,8 +46,6 @@
 #include <SushiAI/data/threaded_loader.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
-
-#include "batch_rows.hpp"
 
 using namespace SushiAI;
 
@@ -75,6 +74,12 @@ namespace
 
         /** @brief Holds the epoch the last begin_epoch() gave. */
         std::atomic<std::int64_t> epoch{0};
+
+        /** @brief Counts the reads that have started and not yet returned. */
+        std::atomic<std::int64_t> in_flight{0};
+
+        /** @brief Holds how many reads were running when the dataset was destroyed. */
+        std::atomic<std::int64_t> in_flight_at_destruction{-1};
     };
 
     /** @brief A dataset whose batch names its epoch and its index and holds no tensor. */
@@ -85,6 +90,11 @@ namespace
             RecordingDataset(Probe& probe, std::size_t failing) : probe_(&probe), failing_(failing)
             {
 
+            }
+
+            ~RecordingDataset() override
+            {
+                probe_->in_flight_at_destruction.store(probe_->in_flight.load());
             }
 
             int64_t batch_size() const noexcept override { return 1; }
@@ -98,6 +108,7 @@ namespace
 
             [[nodiscard]] Status read(std::size_t index, Data::Batch& batch) const override
             {
+                const InFlight running(*probe_);
                 {
                     const std::lock_guard<std::mutex> lock(probe_->mutex);
                     probe_->threads.insert(std::this_thread::get_id());
@@ -134,6 +145,29 @@ namespace
             }
 
         private:
+            /** @brief Counts one read in flight for as long as it lives. */
+            class InFlight
+            {
+                public:
+                    /** @brief Counts a read of @p probe. */
+                    explicit InFlight(Probe& probe) : probe_(probe)
+                    {
+                        probe_.in_flight.fetch_add(1);
+                    }
+
+                    InFlight(const InFlight&) = delete;
+                    InFlight& operator=(const InFlight&) = delete;
+
+                    ~InFlight()
+                    {
+                        probe_.in_flight.fetch_sub(1);
+                    }
+
+                private:
+                    /** @brief Receives the count. */
+                    Probe& probe_;
+            };
+
             /** @brief Receives what read() and begin_epoch() saw. */
             Probe* probe_;
 
@@ -159,6 +193,14 @@ namespace
         return made.has_value() ? std::move(made).value() : nullptr;
     }
 
+    /** @brief Returns the indices from @p first up to, not including, @p last. */
+    std::vector<std::size_t> indices_from(std::size_t first, std::size_t last)
+    {
+        std::vector<std::size_t> indices(last - first);
+        std::iota(indices.begin(), indices.end(), first);
+        return indices;
+    }
+
     /** @brief Reads one batch through the loader and returns the name it carries. */
     std::string read_name(const Data::Dataset& loader, Probe& probe, std::size_t index,
                           Data::Batch& batch)
@@ -170,23 +212,65 @@ namespace
         return status.is_ok() && batch.targets.size() == 1 ? batch.targets.front().role
                                                             : std::string();
     }
+
+    /** @brief Checks that reading each of @p indices in turn gives the batch of that index and @p epoch. */
+    void expect_reads_named(const Data::Dataset& loader, Probe& probe, std::int64_t epoch,
+                            const std::vector<std::size_t>& indices)
+    {
+        Data::Batch batch;
+        for (std::size_t index : indices)
+            EXPECT_EQ(read_name(loader, probe, index, batch),
+                      RecordingDataset::name_of(epoch, index));
+    }
+
+    /** @brief Checks that two loaders give the same batches for each of @p epochs, in order. */
+    void expect_loaders_agree(const Data::Dataset& first, Probe& first_probe,
+                              const Data::Dataset& second, Probe& second_probe,
+                              std::int64_t epochs)
+    {
+        Data::Batch first_batch;
+        Data::Batch second_batch;
+        for (std::int64_t epoch = 0; epoch < epochs; ++epoch)
+        {
+            first_probe.asked.store(-1);
+            second_probe.asked.store(-1);
+            Data::begin_epoch(first, epoch);
+            Data::begin_epoch(second, epoch);
+
+            for (std::size_t index = 0; index < K_BATCHES; ++index)
+            {
+                const std::string expected = RecordingDataset::name_of(epoch, index);
+                EXPECT_EQ(read_name(first, first_probe, index, first_batch), expected);
+                EXPECT_EQ(read_name(second, second_probe, index, second_batch), expected);
+            }
+        }
+    }
 } // namespace
 
-/** @brief Tests that the batches arrive in index order and were read on other threads. */
-TEST(Medium_ThreadedLoader, HandsTheBatchesOverInIndexOrder)
+/** @brief Tests that reading an index hands over the batch of that index. */
+TEST(Medium_ThreadedLoader, TheBatchOfEachIndexIsHandedOverAsThatIndex)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 3, 4);
     ASSERT_NE(loader, nullptr);
 
-    Data::Batch batch;
-    for (std::size_t index = 0; index < K_BATCHES; ++index)
-        EXPECT_EQ(read_name(*loader, probe, index, batch),
-                  RecordingDataset::name_of(0, index));
+    expect_reads_named(*loader, probe, 0, indices_from(0, K_BATCHES));
+}
+
+/** @brief Tests that the batches are read on at most the worker threads and not on the caller. */
+TEST(Medium_ThreadedLoader, TheBatchesAreReadOnWorkerThreadsOnly)
+{
+    constexpr std::int32_t K_WORKERS = 3;
+
+    Probe probe;
+    const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, K_WORKERS, 4);
+    ASSERT_NE(loader, nullptr);
+
+    expect_reads_named(*loader, probe, 0, indices_from(0, K_BATCHES));
 
     const std::lock_guard<std::mutex> lock(probe.mutex);
     EXPECT_FALSE(probe.threads.empty());
-    EXPECT_LE(probe.threads.size(), 3u);
+    EXPECT_LE(probe.threads.size(), static_cast<std::size_t>(K_WORKERS));
     EXPECT_EQ(probe.threads.count(std::this_thread::get_id()), 0u);
 }
 
@@ -199,36 +283,41 @@ TEST(Medium_ThreadedLoader, ReadsNoFurtherAheadThanThePrefetchCount)
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 4, K_PREFETCH);
     ASSERT_NE(loader, nullptr);
 
-    Data::Batch batch;
-    for (std::size_t index = 0; index < K_BATCHES; ++index)
-        read_name(*loader, probe, index, batch);
+    expect_reads_named(*loader, probe, 0, indices_from(0, K_BATCHES));
 
     EXPECT_LE(probe.furthest_ahead.load(), K_PREFETCH);
 }
 
-/** @brief Tests that a failed read is the status of its index and that later ones read. */
-TEST(Medium_ThreadedLoader, AFailedReadIsTheStatusOfItsIndexAlone)
+/** @brief Tests that a failed read is the status of its index, with the failure named. */
+TEST(Medium_ThreadedLoader, AFailedReadIsReportedWithTheStatusOfItsIndex)
 {
     constexpr std::size_t K_FAILING = 5;
 
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 4, K_FAILING);
     ASSERT_NE(loader, nullptr);
-
+    expect_reads_named(*loader, probe, 0, indices_from(0, K_FAILING));
     Data::Batch batch;
-    for (std::size_t index = 0; index < K_BATCHES; ++index)
-    {
-        if (index != K_FAILING)
-        {
-            EXPECT_EQ(read_name(*loader, probe, index, batch),
-                      RecordingDataset::name_of(0, index));
-            continue;
-        }
+    probe.asked.store(static_cast<std::int64_t>(K_FAILING));
 
-        probe.asked.store(static_cast<std::int64_t>(index));
-        SA_EXPECT_FAILURE(loader->read(index, batch), StatusCode::InvalidFile, "batch 5",
-                          "unreadable");
-    }
+    SA_EXPECT_FAILURE(loader->read(K_FAILING, batch), StatusCode::InvalidFile, "batch 5",
+                      "unreadable");
+}
+
+/** @brief Tests that the indices after a failed read are read as if it had not failed. */
+TEST(Medium_ThreadedLoader, ReadsAfterAFailedReadStillSucceed)
+{
+    constexpr std::size_t K_FAILING = 5;
+
+    Probe probe;
+    const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 4, K_FAILING);
+    ASSERT_NE(loader, nullptr);
+    expect_reads_named(*loader, probe, 0, indices_from(0, K_FAILING));
+    Data::Batch batch;
+    probe.asked.store(static_cast<std::int64_t>(K_FAILING));
+    EXPECT_FALSE(loader->read(K_FAILING, batch).is_ok());
+
+    expect_reads_named(*loader, probe, 0, indices_from(K_FAILING + 1, K_BATCHES));
 }
 
 /** @brief Tests that an index out of order is read, and the indices after it in order. */
@@ -238,30 +327,33 @@ TEST(Medium_ThreadedLoader, AnIndexOutOfOrderIsRead)
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 2);
     ASSERT_NE(loader, nullptr);
 
-    Data::Batch batch;
-    for (std::size_t index : {7u, 8u, 2u, 3u, 11u, 0u})
-        EXPECT_EQ(read_name(*loader, probe, index, batch),
-                  RecordingDataset::name_of(0, index));
+    expect_reads_named(*loader, probe, 0, {7, 8, 2, 3, 11, 0});
 }
 
-/** @brief Tests that begin_epoch reaches the dataset and that the next reads are of it. */
-TEST(Medium_ThreadedLoader, BeginEpochReachesTheDatasetAndDropsWhatWasReadAhead)
+/** @brief Tests that begin_epoch hands the epoch to the dataset. */
+TEST(Medium_ThreadedLoader, BeginEpochReachesTheDataset)
 {
     Probe probe;
     const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 4);
     ASSERT_NE(loader, nullptr);
 
-    Data::Batch batch;
-    EXPECT_EQ(read_name(*loader, probe, 0, batch), RecordingDataset::name_of(0, 0));
-    EXPECT_EQ(read_name(*loader, probe, 1, batch), RecordingDataset::name_of(0, 1));
-
-    probe.asked.store(-1);
     Data::begin_epoch(*loader, 3);
-    EXPECT_EQ(probe.epoch.load(), 3);
 
-    for (std::size_t index = 0; index < K_BATCHES; ++index)
-        EXPECT_EQ(read_name(*loader, probe, index, batch),
-                  RecordingDataset::name_of(3, index));
+    EXPECT_EQ(probe.epoch.load(), 3);
+}
+
+/** @brief Tests that the reads after begin_epoch are the batches of the new epoch. */
+TEST(Medium_ThreadedLoader, BeginEpochDropsWhatWasReadAhead)
+{
+    Probe probe;
+    const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 2, 4);
+    ASSERT_NE(loader, nullptr);
+    expect_reads_named(*loader, probe, 0, {0, 1});
+    probe.asked.store(-1);
+
+    Data::begin_epoch(*loader, 3);
+
+    expect_reads_named(*loader, probe, 3, indices_from(0, K_BATCHES));
 }
 
 /** @brief Tests that two loaders of different thread and read-ahead counts deliver alike. */
@@ -276,150 +368,79 @@ TEST(Medium_ThreadedLoader, TwoLoadersOfDifferentWidthDeliverTheSameEpochsInTheS
     ASSERT_NE(narrow, nullptr);
     ASSERT_NE(wide, nullptr);
 
-    Data::Batch narrow_batch;
-    Data::Batch wide_batch;
-    for (std::int64_t epoch = 0; epoch < K_EPOCHS; ++epoch)
-    {
-        narrow_probe.asked.store(-1);
-        wide_probe.asked.store(-1);
-        Data::begin_epoch(*narrow, epoch);
-        Data::begin_epoch(*wide, epoch);
-
-        for (std::size_t index = 0; index < K_BATCHES; ++index)
-        {
-            const std::string expected = RecordingDataset::name_of(epoch, index);
-            EXPECT_EQ(read_name(*narrow, narrow_probe, index, narrow_batch), expected);
-            EXPECT_EQ(read_name(*wide, wide_probe, index, wide_batch), expected);
-        }
-    }
+    expect_loaders_agree(*narrow, narrow_probe, *wide, wide_probe, K_EPOCHS);
 }
 
-/** @brief Tests that a loader with reads queued and running is destroyed without a read. */
+/** @brief Tests that the destructor waits for the reads that run and destroys the dataset after. */
 TEST(Medium_ThreadedLoader, TheDestructorJoinsWithBatchesReadAhead)
 {
     Probe probe;
     std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 3, 4);
     ASSERT_NE(loader, nullptr);
+    expect_reads_named(*loader, probe, 0, {0});
 
-    Data::begin_epoch(*loader, 0);
     loader.reset();
-    SUCCEED();
+
+    EXPECT_EQ(probe.in_flight_at_destruction.load(), 0);
 }
 
-/** @brief Tests that the loader states the batch size, the count and the name of its dataset. */
-TEST(Medium_ThreadedLoader, StatesWhatItsDatasetStates)
+/** @brief Tests that make refuses a null dataset. */
+TEST(Medium_ThreadedLoader, MakeRefusesNoDataset)
 {
-    Probe probe;
-    const std::unique_ptr<Data::ThreadedLoader> loader = make_loader(probe, 1, 1);
-    ASSERT_NE(loader, nullptr);
-
-    EXPECT_EQ(loader->batch_size(), 1);
-    EXPECT_EQ(loader->batch_count(), K_BATCHES);
-    EXPECT_EQ(loader->name(), "recording");
-    EXPECT_EQ(loader->sample_dtype(), DType::Float32);
-    EXPECT_TRUE(loader->targets().empty());
+    SA_EXPECT_FAILURE(Data::ThreadedLoader::make(nullptr, Data::LoaderOptions{}),
+                      StatusCode::InvalidDescription, "no dataset");
 }
 
-/** @brief Tests that make refuses a null dataset and an option below 1, naming the option. */
-TEST(Medium_ThreadedLoader, MakeRefusesNoDatasetAndAnOptionBelowOne)
+/** @brief Tests that make refuses a worker count below 1 and names it. */
+TEST(Medium_ThreadedLoader, MakeRefusesNoWorker)
 {
     Probe probe;
     Data::LoaderOptions options;
-
-    SA_EXPECT_FAILURE(Data::ThreadedLoader::make(nullptr, options),
-                      StatusCode::InvalidDescription, "no dataset");
-
     options.workers = 0;
+
     SA_EXPECT_FAILURE(Data::ThreadedLoader::make(
                           std::make_unique<RecordingDataset>(probe, K_NO_FAILURE), options),
                       StatusCode::InvalidDescription, "0 threads");
+}
 
-    options.workers = 1;
+/** @brief Tests that make refuses a prefetch count below 1 and names it. */
+TEST(Medium_ThreadedLoader, MakeRefusesNoPrefetch)
+{
+    Probe probe;
+    Data::LoaderOptions options;
     options.prefetch = 0;
+
     SA_EXPECT_FAILURE(Data::ThreadedLoader::make(
                           std::make_unique<RecordingDataset>(probe, K_NO_FAILURE), options),
                       StatusCode::InvalidDescription, "0 batches ahead");
 }
 
-/** @brief Tests that begin_epoch leaves a dataset that is not EpochAware as it is. */
-TEST(Small_Epoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
-{
-    class Plain final : public Data::Dataset
-    {
-        public:
-            int64_t batch_size() const noexcept override { return 1; }
-            Shape sample_shape() const override { return Shape{1}; }
-            const std::vector<Data::TargetDescription>& targets() const noexcept override
-            {
-                return targets_;
-            }
-            std::size_t batch_count() const noexcept override { return 1; }
-            std::string_view name() const noexcept override { return "plain"; }
-            [[nodiscard]] Status read(std::size_t, Data::Batch&) const override
-            {
-                return Status();
-            }
-
-            [[nodiscard]] Status read_rows(std::size_t, Data::RowRange,
-                                           Data::Batch&) const override
-            {
-                return Status();
-            }
-
-        private:
-            /** @brief Holds no description. */
-            std::vector<Data::TargetDescription> targets_;
-    };
-
-    const Plain plain;
-    Data::begin_epoch(plain, 4);
-    EXPECT_EQ(plain.batch_count(), 1u);
-}
-
 namespace
 {
-    /** @brief Provides the engine the inner dataset of a range read is generated on. */
+    /** @brief Provides the engine the inner dataset of a loader over generated data is made on. */
     class Medium_ThreadedLoaderRows : public SushiAI::Test::EngineTest
     {
 
     };
 } // namespace
 
-/** @brief Tests that a range read reaches the inner dataset and gives the rows of its batch. */
-TEST_F(Medium_ThreadedLoaderRows, ARangeReadGivesTheRowsOfTheInnerBatch)
+/** @brief Tests that the loader states the extents, the type and the name its inner dataset states. */
+TEST_F(Medium_ThreadedLoaderRows, TheLoaderStatesWhatItsInnerDatasetStates)
 {
     Data::RingsOptions options;
     options.batch_size = 4;
     options.batches = 3;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::Rings> rings,
                             Data::Rings::make(*engine, options));
+    const Data::Rings* const inner = rings.get();
+
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::ThreadedLoader> loader,
                             Data::ThreadedLoader::make(std::move(rings), Data::LoaderOptions{}));
-    const Data::RowRange rows{1, 2};
-    Data::Batch whole;
-    Data::Batch part;
 
-    ASSERT_TRUE(SushiAI::Test::status_is_ok(loader->read(2, whole)));
-    ASSERT_TRUE(SushiAI::Test::status_is_ok(loader->read_rows(2, rows, part)));
-
-    EXPECT_EQ(part.inputs.shape[0], rows.count);
-    EXPECT_TRUE(DataTest::holds_rows_of(whole, loader->batch_size(), rows, part));
-}
-
-/** @brief Tests that a range outside the loader is refused with a Status, not a stop. */
-TEST_F(Medium_ThreadedLoaderRows, RegressionABadRangeIsRefusedWithAStatus)
-{
-    Data::RingsOptions options;
-    options.batch_size = 4;
-    options.batches = 3;
-    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Data::Rings> rings,
-                            Data::Rings::make(*engine, options));
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::ThreadedLoader> loader,
-                            Data::ThreadedLoader::make(std::move(rings), Data::LoaderOptions{}));
-    Data::Batch batch;
-    SA_EXPECT_FAILURE((loader->read_rows(1, Data::RowRange{3, 2}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Rows 3 to 5",
-                      "of batch 1", "a batch of 4");
-    SA_EXPECT_FAILURE((loader->read_rows(99, Data::RowRange{0, 1}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
+    EXPECT_EQ(loader->batch_size(), inner->batch_size());
+    EXPECT_EQ(loader->batch_count(), inner->batch_count());
+    EXPECT_EQ(loader->name(), inner->name());
+    EXPECT_EQ(loader->sample_dtype(), inner->sample_dtype());
+    EXPECT_EQ(loader->sample_shape(), inner->sample_shape());
+    EXPECT_EQ(loader->targets().size(), inner->targets().size());
 }

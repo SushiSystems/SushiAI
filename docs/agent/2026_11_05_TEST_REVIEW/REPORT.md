@@ -71,6 +71,24 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 11. RW-154 (2026-11-07, the orchestrator): `Config::read_json_text_events` reads JSON events over text, and `read_coco_json` reads its annotation file through a `ByteSource` with it, with a small bytes-fed test.
 12. RW-150/T5 (2026-11-07, the orchestrator): the SushiLog pin moves to v0.3.1, the first release with `LogCapture`, and the log tests capture through it.
 
+## Seams the M jobs wait on
+
+RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.
+
+- core/allocation: extent check of allocate_tensor as a value function (Medium_Allocation.AnExtentThatIsNotPositiveIsRefused stays medium)
+- core/scratch_files: ScratchDirectory/ScratchFile path from a caller-given base (the two ThePathIsTheNameUnderTheTemporaryDirectory stay medium)
+- core/tensor_values: float32 rounding as a host function (Medium_TensorValues.AFloat32TensorHoldsEachValueRoundedToFloat not rewritten)
+- core/config json_events: buffer size as an argument (Medium_JsonEvents.ADocumentLongerThanTheBufferArrivesWhole stays medium)
+- core/engine_fixture: injected runtime factory in TestEnvironment (EveryCallReturnsTheSameRuntime stays medium)
+- core/failure: failure-block counter port (5 Small_Result/Small_Status tests still read Detail::live_failure_count); default fatal handler readable through a log seam (NullFatalHandlerInstallsTheDefaultOne); fatal record readable before the stop (ReplacedFatalHandlerRunsBeforeTheStop reads stderr)
+- core/graph: in-memory TensorPool/context and CompiledStep (7 Medium_LoweringContext, 2 Medium_ForwardDeathTest, ArenaSet/TensorPool/CompiledStep resizes stay medium)
+- core/graph: test_step_recording delete conflicts with the mirror rule (needs a compile-only file or an exemption)
+- core/profile: mark_period taking the bound session (Small_Timelines.MarkWithNoBindingDoesNothing stays as is)
+- core/dtype: TheMaximumRankIsTheRankSushiBLASStores needs the shape module linked to the dtype test program (a test CMake DEPENDS)
+- core/graph: InMemoryStepRecorder shared journal across members (cross-member order tests keep JournalRecorder); in-memory engine/TensorPool/runtime observer for test_arena and test_compiled_step resizes
+- core/data: host function for the synthetic class means and labels; attribute-to-RingsOptions reader; engine-free registry lookup and key check; an allocation port; an in-memory Dataset adapter; an executor option on ThreadedLoader
+- core/data: the two input tests and the roles spelling test whose delete records would leave a header with no test file (mirror rule)
+
 ## Dispatches
 
 dispatch: J15 review, 27 chunks — haiku high, 1 round each, passed, rung 1 (chunk 016's reviewer opened a subagent of its own)
@@ -88,7 +106,7 @@ dispatch: J16 M12 to M15 (failure, engine fixture, execution) — sonnet medium,
 dispatch: J16 M16 slice C (graph rest) — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 M10, M22, M23 (dtype, profile) — haiku high, 1 round, passed, rung 1
 dispatch: J16 M16 slice D (graph builder) — sonnet medium, 1 round, passed, rung 1
-dispatch: J16 M8 core/data — sonnet medium, 1 round
+dispatch: J16 M8 core/data — sonnet medium, 1 round, passed, rung 1
 
 ## Totals
 

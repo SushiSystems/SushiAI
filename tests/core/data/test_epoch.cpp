@@ -24,7 +24,8 @@
 
 /**
  * @file test_epoch.cpp
- * @brief Tests that begin_epoch reaches a dataset that implements EpochAware.
+ * @brief Tests that begin_epoch reaches a dataset that implements EpochAware and leaves one
+ *        that does not.
  * @author Mustafa Garip
  */
 
@@ -37,14 +38,15 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
+#include <SushiAI/data/in_memory_epoch_aware.hpp>
 #include <SushiAI/data/target.hpp>
 
 using namespace SushiAI;
 
 namespace
 {
-    /** @brief Holds one empty batch and records the epoch it was last told to begin. */
-    class EpochRecorder final : public Data::Dataset, public Data::EpochAware
+    /** @brief Holds one empty batch, counts the reads it serves and implements no EpochAware. */
+    class CountingDataset : public Data::Dataset
     {
         public:
             int64_t batch_size() const noexcept override
@@ -69,70 +71,78 @@ namespace
 
             [[nodiscard]] Status read(std::size_t, Data::Batch&) const override
             {
+                ++reads_;
                 return Status();
             }
 
             [[nodiscard]] Status read_rows(std::size_t, Data::RowRange,
                                            Data::Batch&) const override
             {
+                ++reads_;
                 return Status();
             }
 
             std::string_view name() const noexcept override
             {
-                return "epoch-recorder";
+                return "counting";
             }
 
-            void begin_epoch(std::int64_t epoch) const noexcept override
+            /** @brief Returns how many reads the dataset served. */
+            std::size_t reads() const noexcept
             {
-                epoch_ = epoch;
-                ++calls_;
-            }
-
-            /** @brief Returns the epoch last begun, or -1 before the first. */
-            std::int64_t epoch() const noexcept
-            {
-                return epoch_;
-            }
-
-            /** @brief Returns how many times begin_epoch() was called. */
-            int calls() const noexcept
-            {
-                return calls_;
+                return reads_;
             }
 
         private:
             /** @brief Holds no role. */
             std::vector<Data::TargetDescription> targets_;
 
-            /** @brief Holds the epoch last begun. */
-            mutable std::int64_t epoch_ = -1;
+            /** @brief Counts the calls of read() and read_rows(). */
+            mutable std::size_t reads_ = 0;
+    };
 
-            /** @brief Counts the calls to begin_epoch(). */
-            mutable int calls_ = 0;
+    /** @brief A CountingDataset that keeps the epochs it is told through InMemoryEpochAware. */
+    class EpochAwareDataset final : public CountingDataset, public Data::InMemoryEpochAware
+    {
+
+    };
+
+    /** @brief Calls Data::begin_epoch on @p dataset for each of @p epochs, in order. */
+    void begin_each(const Data::Dataset& dataset, const std::vector<std::int64_t>& epochs)
+    {
+        for (std::int64_t epoch : epochs)
+            Data::begin_epoch(dataset, epoch);
+    }
+
+    /** @brief Runs each case with a sequence of epochs. */
+    class Small_DataEpochSequence : public ::testing::TestWithParam<std::vector<std::int64_t>>
+    {
+
     };
 } // namespace
 
-/** @brief Tests that begin_epoch hands the epoch to a dataset that implements EpochAware. */
-TEST(Small_DataEpoch, BeginEpochReachesAnEpochAwareDataset)
+/** @brief Tests that every call reaches the dataset, so the latest epoch is the one it holds. */
+TEST_P(Small_DataEpochSequence, EveryCallReachesAnEpochAwareDataset)
 {
-    const EpochRecorder dataset;
+    const std::vector<std::int64_t>& epochs = GetParam();
+    const EpochAwareDataset dataset;
 
-    Data::begin_epoch(static_cast<const Data::Dataset&>(dataset), 4);
+    begin_each(dataset, epochs);
 
-    EXPECT_EQ(dataset.epoch(), 4);
-    EXPECT_EQ(dataset.calls(), 1);
+    EXPECT_EQ(dataset.epoch(), epochs.back());
+    EXPECT_EQ(dataset.begin_count(), epochs.size());
 }
 
-/** @brief Tests that every call reaches the dataset, so the latest epoch is the one it holds. */
-TEST(Small_DataEpoch, EveryCallReachesTheDataset)
+INSTANTIATE_TEST_SUITE_P(Epochs, Small_DataEpochSequence,
+                         ::testing::Values(std::vector<std::int64_t>{4},
+                                           std::vector<std::int64_t>{0, 1, 0}));
+
+/** @brief Tests that begin_epoch on a dataset that is not EpochAware reads nothing from it. */
+TEST(Small_DataEpoch, ADatasetThatIsNotEpochAwareIsLeftAlone)
 {
-    const EpochRecorder dataset;
+    const CountingDataset dataset;
 
-    Data::begin_epoch(dataset, 0);
-    Data::begin_epoch(dataset, 1);
-    Data::begin_epoch(dataset, 0);
+    Data::begin_epoch(dataset, 4);
 
-    EXPECT_EQ(dataset.epoch(), 0);
-    EXPECT_EQ(dataset.calls(), 3);
+    EXPECT_EQ(dataset.reads(), 0u);
 }

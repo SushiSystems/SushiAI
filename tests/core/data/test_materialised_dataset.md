@@ -3,35 +3,20 @@
 
 Suites: `Medium_MaterialisedDataset`.
 
-Tests `Data::MaterialisedDataset`, `Data::share_batch` and how `Data::prepare_batch` treats
-tensors a dataset shares.
+Tests `Data::MaterialisedDataset` and `Data::share_batch`.
 
 The fixture needs an engine. `two_batches` builds a dataset named "held" from two batches of 3
-samples, each with a float32 [4] input and one `labels` role of int32 over 2 classes. The
-layouts `Data::allocate_batch` and `Data::prepare_batch` give a fresh batch are pinned in
-`test_target.cpp`.
+samples, each with a float32 [4] input and one `labels` role of int32 over 2 classes. The layouts
+`Data::allocate_batch` and `Data::prepare_batch` give a fresh batch are pinned in `test_target.cpp`.
+The reads of a materialised set that every dataset shares are pinned by the contract suites in
+`test_dataset.cpp`.
 
-## StatesWhatItWasBuiltWith
+## AReadGivesTensorsThatMatchWhatTheDatasetStates
 
-The dataset reports a batch size of 3, 2 batches, the name "held", float32 inputs of shape [4]
-and the one role.
-
-## AReadSharesTheTensorsOfItsIndex
-
-Reads of batches 0 and 1 hand out different inputs, and two reads of batch 1 hand out the same
-input and target data pointers.
+A read of batch 1 gives inputs of the type the dataset states, with the batch size as the first
+extent and the sample shape as the second. The one target has the stated role and type and one
+value per sample.
 
 ## ShareBatchCopiesNoElement
 
 `Data::share_batch` leaves the batch with the data pointers of the held batch and its role.
-
-## ARangeReadViewsTheRowsOfItsIndex
-
-`read_rows(1, {1, 2})` gives inputs of 2 rows that share the storage of what `read(1)` gives,
-and the rows of the inputs and of `labels` equal rows 1 and 2 of that read.
-
-## PrepareBatchReplacesTensorsTheDatasetShares
-
-After a read, the batch's inputs are also held by the dataset. `Data::prepare_batch` with the
-same layout replaces them with a [3, 4] tensor at another address, so a caller that fills the
-batch cannot write into the dataset.

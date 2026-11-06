@@ -1,19 +1,20 @@
 # tests/core/data/test_epoch.cpp
 
 
-Suites: `Small_DataEpoch`.
+Suites: `Small_DataEpochSequence`, `Small_DataEpoch`.
 
-Tests that `Data::begin_epoch` reaches a dataset that implements `EpochAware`.
+Tests that `Data::begin_epoch` reaches a dataset that implements `EpochAware` and leaves one that
+does not.
 
-This file needs no device. `EpochRecorder` is a dataset of one empty batch that also implements
-`EpochAware` and records the epoch it was last told and how many calls it saw. A dataset that
-does not implement `EpochAware` is covered by `Small_Epoch` in `test_threaded_loader.cpp`.
+This file needs no device. `CountingDataset` is a dataset of one empty batch that counts the reads
+it serves. `EpochAwareDataset` adds `Data::InMemoryEpochAware` to it, which holds the epoch last
+begun and counts the calls.
 
-## BeginEpochReachesAnEpochAwareDataset
+## EveryCallReachesAnEpochAwareDataset
 
-`Data::begin_epoch` with epoch 4, called through a `Dataset` reference, leaves the recorder at
-epoch 4 after one call.
+Rows: the epoch sequences 4, and 0, 1, 0. After each sequence the dataset holds the last epoch of
+it and counts one call per epoch.
 
-## EveryCallReachesTheDataset
+## ADatasetThatIsNotEpochAwareIsLeftAlone
 
-After the epochs 0, 1 and 0 the recorder holds epoch 0 and counts three calls.
+`Data::begin_epoch` with epoch 4 on a `CountingDataset` leaves its read count at 0.

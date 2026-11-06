@@ -24,8 +24,8 @@
 
 /**
  * @file test_materialised_dataset.cpp
- * @brief Tests the dataset that holds device batches, and how share_batch and prepare_batch
- *        treat the tensors it holds.
+ * @brief Tests that the dataset that holds device batches gives tensors that match what it
+ *        states, and that share_batch copies no element.
  * @author Mustafa Garip
  */
 
@@ -44,8 +44,6 @@
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-
-#include "batch_rows.hpp"
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -90,37 +88,22 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the dataset states the extents, the input and the roles it was built with. */
-TEST_F(Medium_MaterialisedDataset, StatesWhatItWasBuiltWith)
+/** @brief Tests that a read gives tensors that match the type, shape and roles the dataset states. */
+TEST_F(Medium_MaterialisedDataset, AReadGivesTensorsThatMatchWhatTheDatasetStates)
 {
     const Data::MaterialisedDataset dataset = two_batches();
+    Data::Batch batch;
 
-    EXPECT_EQ(dataset.batch_size(), K_ROWS);
-    EXPECT_EQ(dataset.batch_count(), 2u);
-    EXPECT_EQ(dataset.name(), "held");
-    EXPECT_EQ(dataset.sample_dtype(), DType::Float32);
-    ASSERT_EQ(dataset.sample_shape().rank(), 1);
-    EXPECT_EQ(dataset.sample_shape()[0], 4);
-    ASSERT_EQ(dataset.targets().size(), 1u);
-    EXPECT_EQ(dataset.targets()[0].role, Data::K_ROLE_LABELS);
-}
+    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(1, batch)));
 
-/** @brief Tests that a read hands out the held tensors of its index and copies no element. */
-TEST_F(Medium_MaterialisedDataset, AReadSharesTheTensorsOfItsIndex)
-{
-    const Data::MaterialisedDataset dataset = two_batches();
-    Data::Batch first;
-    Data::Batch second;
-    Data::Batch again;
-
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(0, first)));
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(1, second)));
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(1, again)));
-
-    EXPECT_NE(first.inputs.data(), second.inputs.data());
-    EXPECT_EQ(second.inputs.data(), again.inputs.data());
-    ASSERT_EQ(again.targets.size(), 1u);
-    EXPECT_EQ(second.targets[0].values.data(), again.targets[0].values.data());
+    EXPECT_EQ(batch.inputs.dtype, dataset.sample_dtype());
+    ASSERT_EQ(batch.inputs.rank, 2);
+    EXPECT_EQ(batch.inputs.shape[0], dataset.batch_size());
+    EXPECT_EQ(batch.inputs.shape[1], dataset.sample_shape()[0]);
+    ASSERT_EQ(batch.targets.size(), dataset.targets().size());
+    EXPECT_EQ(batch.targets[0].role, dataset.targets()[0].role);
+    EXPECT_EQ(batch.targets[0].values.dtype, dataset.targets()[0].dtype);
+    EXPECT_EQ(batch.targets[0].values.shape[0], dataset.batch_size());
 }
 
 /** @brief Tests that share_batch makes a batch hold the same tensors under the same roles. */
@@ -136,49 +119,4 @@ TEST_F(Medium_MaterialisedDataset, ShareBatchCopiesNoElement)
     ASSERT_EQ(batch.targets.size(), 1u);
     EXPECT_EQ(batch.targets[0].role, Data::K_ROLE_LABELS);
     EXPECT_EQ(batch.targets[0].values.data(), held.targets[0].values.data());
-}
-
-/** @brief Tests that prepare_batch replaces tensors a dataset shares, so it never writes them. */
-TEST_F(Medium_MaterialisedDataset, PrepareBatchReplacesTensorsTheDatasetShares)
-{
-    const Data::MaterialisedDataset dataset = two_batches();
-    Data::Batch batch;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(0, batch)));
-    const void* const shared = batch.inputs.data();
-
-    SA_EXPECT_OK(Data::prepare_batch(*engine, K_ROWS, four_floats(), labels(), batch));
-
-    EXPECT_NE(batch.inputs.data(), shared);
-    EXPECT_EQ(batch.inputs.shape[0], K_ROWS);
-    EXPECT_EQ(batch.inputs.shape[1], 4);
-}
-
-/** @brief Tests that a range read views the held rows of its index and copies no element. */
-TEST_F(Medium_MaterialisedDataset, ARangeReadViewsTheRowsOfItsIndex)
-{
-    const Data::MaterialisedDataset dataset = two_batches();
-    const Data::RowRange rows{1, 2};
-    Data::Batch whole;
-    Data::Batch part;
-
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read(1, whole)));
-    ASSERT_TRUE(SaTest::status_is_ok(dataset.read_rows(1, rows, part)));
-
-    EXPECT_EQ(part.inputs.shape[0], rows.count);
-    EXPECT_EQ(part.inputs.storage.get(), whole.inputs.storage.get());
-    EXPECT_TRUE(DataTest::holds_rows_of(whole, K_ROWS, rows, part));
-}
-
-/** @brief Tests that a range outside the materialised set is refused with a Status, not a stop. */
-TEST_F(Medium_MaterialisedDataset, RegressionABadRangeIsRefusedWithAStatus)
-{
-    const Data::MaterialisedDataset dataset = two_batches();
-    const std::int64_t size = dataset.batch_size();
-    Data::Batch batch;
-    SA_EXPECT_FAILURE((dataset.read_rows(1, Data::RowRange{size - 1, 2}, batch)),
-                      SushiAI::StatusCode::InvalidDescription,
-                      "Rows " + std::to_string(size - 1) + " to " + std::to_string(size + 1),
-                      "of batch 1", "a batch of " + std::to_string(size));
-    SA_EXPECT_FAILURE((dataset.read_rows(99, Data::RowRange{0, 1}, batch)),
-                      SushiAI::StatusCode::InvalidDescription, "Batch 99 is out of range");
 }

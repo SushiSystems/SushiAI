@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/data/epoch_permutation.hpp>
@@ -40,6 +41,12 @@ namespace
 {
     /** @brief The seed of every order below. */
     constexpr std::uint64_t K_SEED = 42;
+
+    /** @brief A seed other than K_SEED. */
+    constexpr std::uint64_t K_OTHER_SEED = 7;
+
+    /** @brief The sample count of the orders compared below; 10! orders make a tie improbable. */
+    constexpr std::uint64_t K_COMPARED_COUNT = 10;
 
     /** @brief Returns the sample at every position of one order. */
     std::vector<std::uint64_t> order_of(std::uint64_t seed, std::int64_t epoch,
@@ -53,41 +60,72 @@ namespace
 
         return order;
     }
+
+    /** @brief Returns whether @p order holds each sample below @p count exactly once. */
+    ::testing::AssertionResult is_a_bijection(const std::vector<std::uint64_t>& order,
+                                              std::uint64_t count)
+    {
+        if (order.size() != count)
+            return ::testing::AssertionFailure() << order.size() << " positions of " << count;
+
+        std::vector<bool> is_seen(count, false);
+        for (std::uint64_t sample : order)
+        {
+            if (sample >= count)
+                return ::testing::AssertionFailure() << "sample " << sample << " is out of range";
+            if (is_seen[sample])
+                return ::testing::AssertionFailure() << "sample " << sample << " is read twice";
+            is_seen[sample] = true;
+        }
+
+        return ::testing::AssertionSuccess();
+    }
+
+    /** @brief Runs each case with a sample count and an epoch. */
+    class Small_EpochPermutationCover
+        : public ::testing::TestWithParam<std::tuple<std::uint64_t, std::int64_t>>
+    {
+
+    };
 } // namespace
 
 /** @brief Tests that an order holds every sample once, for counts on both sides of 4^k. */
-TEST(Small_EpochPermutation, EverySampleIsReadOnce)
+TEST_P(Small_EpochPermutationCover, EverySampleIsReadOnce)
 {
-    for (std::uint64_t count : {1u, 2u, 3u, 7u, 16u, 17u, 1000u, 4097u})
-    {
-        for (std::int64_t epoch : {0, 1, 5})
-        {
-            std::vector<bool> is_seen(count, false);
-            for (std::uint64_t sample : order_of(K_SEED, epoch, count))
-            {
-                ASSERT_LT(sample, count);
-                EXPECT_FALSE(is_seen[sample]) << "count " << count << ", epoch " << epoch;
-                is_seen[sample] = true;
-            }
-        }
-    }
+    const std::uint64_t count = std::get<0>(GetParam());
+    const std::int64_t epoch = std::get<1>(GetParam());
+
+    EXPECT_TRUE(is_a_bijection(order_of(K_SEED, epoch, count), count));
 }
 
-/** @brief Tests the values of three orders, which a change of the mapping would move. */
-TEST(Small_EpochPermutation, AnOrderIsAFunctionOfTheSeedAndTheEpoch)
+INSTANTIATE_TEST_SUITE_P(CountsAndEpochs, Small_EpochPermutationCover,
+                         ::testing::Combine(::testing::Values(1u, 2u, 3u, 7u, 16u, 17u, 1000u,
+                                                              4097u),
+                                            ::testing::Values(0, 1, 5)));
+
+/** @brief Tests that one seed and epoch give the same order on every read. */
+TEST(Small_EpochPermutation, AnOrderRepeatsForTheSameSeedAndEpoch)
+{
+    EXPECT_EQ(order_of(K_SEED, 0, K_COMPARED_COUNT), order_of(K_SEED, 0, K_COMPARED_COUNT));
+}
+
+/** @brief Tests that another epoch and another seed each give another order. */
+TEST(Small_EpochPermutation, AnOrderChangesWithTheSeedAndTheEpoch)
+{
+    const std::vector<std::uint64_t> first = order_of(K_SEED, 0, K_COMPARED_COUNT);
+
+    EXPECT_NE(order_of(K_SEED, 1, K_COMPARED_COUNT), first);
+    EXPECT_NE(order_of(K_OTHER_SEED, 0, K_COMPARED_COUNT), first);
+}
+
+/** @brief Pins the orders of 10 samples as the mapping gives them now. */
+TEST(Characterization_Small_EpochPermutation, TheOrdersOfTenSamples)
 {
     const std::vector<std::uint64_t> first = {4, 9, 5, 2, 1, 3, 8, 7, 6, 0};
     const std::vector<std::uint64_t> next_epoch = {2, 5, 9, 1, 4, 3, 6, 7, 8, 0};
     const std::vector<std::uint64_t> other_seed = {5, 4, 1, 2, 3, 9, 0, 6, 7, 8};
 
-    EXPECT_EQ(order_of(K_SEED, 0, 10), first);
-    EXPECT_EQ(order_of(K_SEED, 0, 10), first);
-    EXPECT_EQ(order_of(K_SEED, 1, 10), next_epoch);
-    EXPECT_EQ(order_of(7, 0, 10), other_seed);
-}
-
-/** @brief Tests that count() returns the count the order was built over. */
-TEST(Small_EpochPermutation, CountIsTheCountItWasBuiltOver)
-{
-    EXPECT_EQ(Data::EpochPermutation(K_SEED, 0, 17).count(), 17u);
+    EXPECT_EQ(order_of(K_SEED, 0, K_COMPARED_COUNT), first);
+    EXPECT_EQ(order_of(K_SEED, 1, K_COMPARED_COUNT), next_epoch);
+    EXPECT_EQ(order_of(K_OTHER_SEED, 0, K_COMPARED_COUNT), other_seed);
 }

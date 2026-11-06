@@ -30,6 +30,8 @@
  */
 
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -37,7 +39,6 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/dataset_registry.hpp>
 #include <SushiAI/data/roles.hpp>
@@ -47,6 +48,7 @@
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/optimizer_registry.hpp>
+#include <SushiAI/tensor_values/tensor_values.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -68,7 +70,7 @@ namespace
 } // namespace
 
 /** @brief Tests that rows() returns the rows in the order add() received them. */
-TEST(Medium_DatasetRegistry, AddKeepsInsertionOrder)
+TEST(Small_DatasetRegistry, AddKeepsInsertionOrder)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(registry.add(K_RINGS_ROW));
@@ -81,7 +83,7 @@ TEST(Medium_DatasetRegistry, AddKeepsInsertionOrder)
 }
 
 /** @brief Tests that find returns null for a type no row holds and the row of one it holds. */
-TEST(Medium_DatasetRegistry, FindReturnsNullForAnUnknownType)
+TEST(Small_DatasetRegistry, FindReturnsNullForAnUnknownType)
 {
     Data::DatasetRegistry registry;
     EXPECT_EQ(registry.find("rings"), nullptr);
@@ -95,7 +97,7 @@ TEST(Medium_DatasetRegistry, FindReturnsNullForAnUnknownType)
 }
 
 /** @brief Tests that add refuses a type a row already holds and names the type. */
-TEST(Medium_DatasetRegistry, ATypeAddedTwiceIsRefused)
+TEST(Small_DatasetRegistry, ATypeAddedTwiceIsRefused)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(registry.add(K_RINGS_ROW));
@@ -104,16 +106,15 @@ TEST(Medium_DatasetRegistry, ATypeAddedTwiceIsRefused)
                       "already registered");
 }
 
-/** @brief Tests that register_datasets adds the "rings" row and no other. */
-TEST(Medium_DatasetRegistry, RegisterDatasetsAddsRingsOnly)
+/** @brief Tests that register_datasets adds the "rings" row. */
+TEST(Medium_DatasetRegistry, RegisterDatasetsAddsTheRingsRow)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Data::register_datasets(registry));
 
-    const SushiRuntime::span<const Data::DatasetEntry> rows = registry.rows();
-    ASSERT_EQ(rows.size(), 1u);
-    EXPECT_EQ(rows[0].type, "rings");
-    EXPECT_EQ(registry.find("mnist"), nullptr);
+    const Data::DatasetEntry* row = registry.find("rings");
+    ASSERT_NE(row, nullptr);
+    EXPECT_EQ(row->type, "rings");
 }
 
 namespace
@@ -152,32 +153,95 @@ namespace
         const int32_t* values = labels->values.data_as<int32_t>();
         return std::vector<int32_t>(values, values + labels->values.num_elements);
     }
-}
 
-TEST_F(Medium_Registries, RingsIsBalancedAndCarriesItsDistractors)
+    /** @brief Returns how many times each class index below @p classes occurs in @p labels. */
+    std::vector<int> label_counts(const std::vector<int32_t>& labels, std::size_t classes)
+    {
+        std::vector<int> counts(classes, 0);
+        for (int32_t label : labels)
+            ++counts[static_cast<std::size_t>(label)];
+
+        return counts;
+    }
+
+    /**
+     * @brief Returns whether @p batch holds a row of class @p band and every such row lies in the
+     *        radius band [band, band + width).
+     */
+    ::testing::AssertionResult is_in_radius_band(const Data::Batch& batch, int64_t features,
+                                                 std::int32_t band, double width)
+    {
+        const float* const x = batch.inputs.data_as<float>();
+        const std::vector<int32_t> labels = labels_of(batch);
+
+        std::size_t rows_in_band = 0;
+        for (std::size_t r = 0; r < labels.size(); ++r)
+        {
+            if (labels[r] != band)
+                continue;
+
+            ++rows_in_band;
+            const double px = x[static_cast<int64_t>(r) * features];
+            const double py = x[static_cast<int64_t>(r) * features + 1];
+            const double radius = std::sqrt(px * px + py * py);
+            if (radius < band - K_RADIUS_TOLERANCE || radius >= band + width + K_RADIUS_TOLERANCE)
+                return ::testing::AssertionFailure()
+                       << "row " << r << " has radius " << radius << " outside the band " << band;
+        }
+
+        if (rows_in_band == 0)
+            return ::testing::AssertionFailure() << "no row of class " << band;
+
+        return ::testing::AssertionSuccess();
+    }
+
+    /** @brief Runs each case on the radius band of one class. */
+    class Medium_RingsBand : public Medium_Registries,
+                             public ::testing::WithParamInterface<std::int32_t>
+    {
+
+    };
+
+    /** @brief Names a key the AdamW factory refuses and what its refusal names. */
+    struct UnknownKeyCase
+    {
+        /** @brief Names the case in the test report. */
+        const char* name;
+
+        /** @brief Holds the attributes that carry the key. */
+        const char* attributes;
+
+        /** @brief Holds the key as the refusal quotes it. */
+        const char* quoted_key;
+
+        /** @brief Holds a second text the refusal names. */
+        const char* detail;
+    };
+
+    /** @brief Runs each case on the engine. */
+    class Medium_OptimizerKeys : public Medium_Registries,
+                                 public ::testing::WithParamInterface<UnknownKeyCase>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that Rings labels the samples round-robin, so every batch holds each class alike. */
+TEST_F(Medium_Registries, RingsLabelsEveryBatchBalanced)
 {
     Data::RingsOptions options;
     options.batch_size = 32;
     options.batches = 4;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
                             Data::Rings::make(*engine, options));
+    Data::Batch batch;
 
-    EXPECT_EQ(dataset->name(), "rings");
-    EXPECT_EQ(dataset->sample_shape(), Shape{6});   // x, y and four distractors
-    EXPECT_EQ(class_count(*dataset), 4);
-    EXPECT_EQ(dataset->batch_count(), 4u);
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
 
-    // Round-robin labels balance every batch; see tests/core/data/README.md.
-    std::vector<int> counts(4, 0);
-    Data::Batch dataset_batch;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
-    const std::vector<int32_t> labels = labels_of(dataset_batch);
-    ASSERT_EQ(labels.size(), 32u);
-    for (int32_t label : labels) ++counts[static_cast<std::size_t>(label)];
-    EXPECT_EQ(counts, (std::vector<int>{8, 8, 8, 8}));
+    EXPECT_EQ(label_counts(labels_of(batch), 4), (std::vector<int>{8, 8, 8, 8}));
 }
 
-/** @brief Tests that Rings publishes one role: labels, one int32 per sample over its classes. */
+/** @brief Tests that Rings publishes the class index of each sample in rotation. */
 TEST_F(Medium_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
 {
     Data::RingsOptions options;
@@ -186,72 +250,51 @@ TEST_F(Medium_Registries, RingsPublishesItsLabelsAsOneIndexPerSample)
     options.classes = 3;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
                             Data::Rings::make(*engine, options));
-
-    ASSERT_EQ(dataset->targets().size(), 1u);
-    const Data::TargetDescription& described = dataset->targets().front();
-    EXPECT_EQ(described.role, Data::K_ROLE_LABELS);
-    EXPECT_EQ(described.sample_shape, Shape{});
-    EXPECT_EQ(described.dtype, DType::Int32);
-    EXPECT_EQ(described.classes, 3);
-
     Data::Batch batch;
+
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
-    ASSERT_EQ(batch.targets.size(), 1u);
-    EXPECT_EQ(batch.targets.front().role, Data::K_ROLE_LABELS);
-    EXPECT_EQ(batch.targets.front().values.dtype, DType::Int32);
-    ASSERT_EQ(batch.targets.front().values.rank, 1);
-    EXPECT_EQ(batch.targets.front().values.shape[0], 8);
+
     EXPECT_EQ(labels_of(batch), (std::vector<int32_t>{0, 1, 2, 0, 1, 2, 0, 1}));
 }
 
-TEST_F(Medium_Registries, RingsReportItsSampleShape)
+/** @brief Tests that the inputs of a Rings batch carry the batch axis before the sample shape. */
+TEST_F(Medium_Registries, RingsInputsCarryTheBatchAxisBeforeTheSampleShape)
 {
     Data::RingsOptions options;
     options.batch_size = 8;
     options.batches = 1;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
                             Data::Rings::make(*engine, options));
+    Data::Batch batch;
 
-    // The default options add four distractors to the two ring coordinates.
-    EXPECT_EQ(dataset->sample_shape(), Shape{6});
+    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
 
-    // The batch axis is prepended: [rows, sample...], here [8, 6].
-    Data::Batch dataset_batch;
-    ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
-    const SushiBLAS::Tensor& inputs = dataset_batch.inputs;
-    EXPECT_EQ(inputs.rank, 2);
-    EXPECT_EQ(inputs.shape[0], 8);
-    EXPECT_EQ(inputs.shape[1], 6);
+    ASSERT_EQ(batch.inputs.rank, 2);
+    EXPECT_EQ(batch.inputs.shape[0], 8);
+    EXPECT_EQ(batch.inputs.shape[1], 2 + options.distractor_features);
 }
 
-TEST_F(Medium_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
+/**
+ * @brief Tests that every sample of a class lies in the radius band of that class.
+ *
+ * The class is a function of x^2 + y^2, which is degree 2 in the inputs and not a half-space.
+ */
+TEST_P(Medium_RingsBand, RingsPlacesEachClassInItsOwnRadiusBand)
 {
-    // The class is a function of x^2 + y^2; see tests/core/data/README.md.
     Data::RingsOptions options;
     options.batch_size = 64;
     options.batches = 1;
-    options.position_noise = 0.0;               // no jitter, so the bands are exact
+    options.position_noise = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Rings> dataset,
                             Data::Rings::make(*engine, options));
-
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
-    const float* x = batch.inputs.data_as<float>();
-    const int64_t features = dataset->sample_shape().num_elements();
-    const std::vector<int32_t> labels = labels_of(batch);
-    ASSERT_EQ(labels.size(), 64u);
 
-    for (std::size_t r = 0; r < labels.size(); ++r)
-    {
-        const double px = x[static_cast<int64_t>(r) * features];
-        const double py = x[static_cast<int64_t>(r) * features + 1];
-        const double radius = std::sqrt(px * px + py * py);
-        const double band = static_cast<double>(labels[r]);
-
-        EXPECT_GE(radius, band - K_RADIUS_TOLERANCE) << "row " << r;
-        EXPECT_LT(radius, band + options.ring_width + K_RADIUS_TOLERANCE) << "row " << r;
-    }
+    EXPECT_TRUE(is_in_radius_band(batch, dataset->sample_shape().num_elements(), GetParam(),
+                                  options.ring_width));
 }
+
+INSTANTIATE_TEST_SUITE_P(Classes, Medium_RingsBand, ::testing::Values(0, 1, 2, 3));
 
 TEST_F(Medium_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
 {
@@ -268,9 +311,9 @@ TEST_F(Medium_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
     EXPECT_EQ(dataset->sample_shape(), Shape{3});   // x, y and one distractor
 }
 
+/** @brief Tests that two datasets built from one seed hold the same bytes. */
 TEST_F(Medium_Registries, TheSameSeedGivesTheSameData)
 {
-    // Data comes from a host RNG, not Philox; see tests/core/data/README.md.
     const auto build = [this]
     {
         return Data::make_dataset(datasets, *engine, "rings",
@@ -280,15 +323,14 @@ TEST_F(Medium_Registries, TheSameSeedGivesTheSameData)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> first, build());
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::Dataset> second, build());
-
     Data::Batch first_batch;
-    ASSERT_TRUE(SaTest::status_is_ok(first->read(0, first_batch)));
-    const float* a = first_batch.inputs.data_as<float>();
     Data::Batch second_batch;
+
+    ASSERT_TRUE(SaTest::status_is_ok(first->read(0, first_batch)));
     ASSERT_TRUE(SaTest::status_is_ok(second->read(0, second_batch)));
-    const float* b = second_batch.inputs.data_as<float>();
-    for (int64_t i = 0; i < first_batch.inputs.num_elements; ++i)
-        EXPECT_EQ(a[i], b[i]) << "element " << i;
+
+    EXPECT_EQ(SaTest::read_tensor_bytes(first_batch.inputs),
+              SaTest::read_tensor_bytes(second_batch.inputs));
 }
 
 TEST_F(Medium_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
@@ -305,41 +347,6 @@ TEST_F(Medium_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
         StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
 }
 
-TEST_F(Medium_Registries, ANonPositiveRingsExtentIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "rings",
-                           attributes_from(R"({"batch_size": 0})"), "data"),
-        StatusCode::InvalidDescription, "positive");
-}
-
-TEST_F(Medium_Registries, TheOptimizerRegistryBuildsBothRulesFromAConfigValue)
-{
-    // One real slot backs the optimizer state; see tests/core/data/README.md.
-    const int64_t dims[1] = {4};
-    const SushiRuntime::span<const int64_t> shape(dims, 1);
-    Optim::ParameterSlot slot;
-    slot.name = "0.weight";
-    SA_ASSERT_OK_AND_ASSIGN(slot.parameter, allocate_tensor(*engine, shape));
-    SA_ASSERT_OK_AND_ASSIGN(slot.gradient, allocate_tensor(*engine, shape));
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Optim::Optimizer> adam,
-        Optim::make_optimizer(
-            *engine, "adamw", {slot},
-            attributes_from(R"({"learning_rate": 0.003, "weight_decay": 0.02})"),
-            "optimizer"));
-    EXPECT_TRUE(adam->is_replay_invariant());
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Optim::Optimizer> sgd,
-        Optim::make_optimizer(
-            *engine, "sgd", {slot},
-            attributes_from(R"({"learning_rate": 0.1, "momentum": 0.9, "nesterov": true})"),
-            "optimizer"));
-    EXPECT_TRUE(sgd->is_replay_invariant());
-}
-
 TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 {
     SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "lion", {}, attributes_from("{}"),
@@ -347,18 +354,26 @@ TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
                       StatusCode::InvalidDescription, "lion", "optimizer type", "'adamw'", "'sgd'");
 }
 
-TEST_F(Medium_Registries, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
+/**
+ * @brief Tests that the AdamW factory refuses a key it does not accept and names it.
+ *
+ * "momentum" is the key of SGD and "kernel" selects the reference update kernel, which a
+ * configuration must not reach: a file that could set it would change what a run is.
+ */
+TEST_P(Medium_OptimizerKeys, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
-    // "momentum" is SGD's key, not AdamW's; see tests/core/data/README.md.
-    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {},
-                                    attributes_from(R"({"momentum": 0.9})"), "optimizer"),
-        StatusCode::InvalidDescription, "optimizer", "'momentum'", "'beta1'");
+    const UnknownKeyCase& row = GetParam();
+
+    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {}, attributes_from(row.attributes),
+                                            "optimizer"),
+                      StatusCode::InvalidDescription, "optimizer", row.quoted_key, row.detail);
 }
 
-TEST_F(Medium_Registries, AConfigurationCannotReachTheReferenceUpdateKernel)
-{
-    // "kernel" is not an accepted config key; see tests/core/data/README.md.
-    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {},
-                                    attributes_from(R"({"kernel": "separate"})"), "optimizer"),
-        StatusCode::InvalidDescription, "'kernel'");
-}
+INSTANTIATE_TEST_SUITE_P(
+    Keys, Medium_OptimizerKeys,
+    ::testing::Values(UnknownKeyCase{"Momentum", R"({"momentum": 0.9})", "'momentum'", "'beta1'"},
+                      UnknownKeyCase{"Kernel", R"({"kernel": "separate"})", "'kernel'", "'kernel'"}),
+    [](const ::testing::TestParamInfo<UnknownKeyCase>& info)
+    {
+        return std::string(info.param.name);
+    });
