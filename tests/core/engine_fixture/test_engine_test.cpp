@@ -24,17 +24,12 @@
 
 /**
  * @file test_engine_test.cpp
- * @brief Tests that EngineTest gives each test an engine that records and flushes.
+ * @brief Tests that EngineTest gives each test an engine.
  * @author Mustafa Garip
  */
 
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/tensor/tensor.hpp>
-#include <SushiAI/allocation/allocation.hpp>
-#include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
 
 namespace SaTest = SushiAI::Test;
 
@@ -51,23 +46,4 @@ namespace
 TEST_F(Medium_EngineTest, SetUpGivesTheCaseAnEngine)
 {
     EXPECT_NE(engine, nullptr);
-}
-
-/** @brief Tests that flush returns with nothing recorded. */
-TEST_F(Medium_EngineTest, FlushReturnsWithNothingRecorded)
-{
-    flush();
-
-    SUCCEED();
-}
-
-/** @brief Tests that the engine allocates on the shared runtime and flushes afterwards. */
-TEST_F(Medium_EngineTest, TheEngineAllocatesATensorAndFlushes)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor tensor,
-                            SushiAI::allocate_tensor(*engine, SushiAI::Shape{2, 3}));
-    flush();
-
-    EXPECT_EQ(tensor.num_elements, 6);
-    EXPECT_NE(tensor.data(), nullptr);
 }

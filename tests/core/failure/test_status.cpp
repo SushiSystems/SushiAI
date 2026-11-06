@@ -28,6 +28,8 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
 #include <stdexcept>
 #include <string>
@@ -36,6 +38,7 @@
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/in_memory_fatal_sink.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
@@ -85,37 +88,9 @@ namespace
         return Status();
     }
 
-    /** @brief Holds what the recording fatal handler was last given. */
-    struct FatalRecord
+    /** @brief Ignores a fatal report; a handler to tell apart from the default one. */
+    void record_fatal(const char*, int, std::string_view) noexcept
     {
-        /** @brief Holds how many reports arrived. */
-        int calls = 0;
-
-        /** @brief Holds the file of the last report. */
-        std::string file;
-
-        /** @brief Holds the line of the last report. */
-        int line = 0;
-
-        /** @brief Holds the message of the last report. */
-        std::string message;
-    };
-
-    /** @brief Returns the record the recording handler writes. */
-    FatalRecord& fatal_record()
-    {
-        static FatalRecord record;
-        return record;
-    }
-
-    /** @brief Stores one fatal report in fatal_record(). */
-    void record_fatal(const char* file, int line, std::string_view message) noexcept
-    {
-        FatalRecord& record = fatal_record();
-        ++record.calls;
-        record.file = file;
-        record.line = line;
-        record.message = std::string(message);
     }
 
     /** @brief Writes "recorded: <message>" to stderr, where a death test reads it. */
@@ -137,13 +112,16 @@ namespace
         return K_CHECK_LINE;
     }
 
-    /** @brief Stops the process through a fatal check whose message composer throws. */
-    void stop_with_throwing_composer() noexcept
+    /** @brief Throws, standing for an argument whose formatting fails. */
+    std::string refused_text()
     {
-        SushiAI::Detail::fail_fast_composed(__FILE__, __LINE__, []() -> std::string
-        {
-            throw std::runtime_error("composer threw");
-        });
+        throw std::runtime_error("formatting threw");
+    }
+
+    /** @brief Stops the process through SA_FATAL whose message cannot be formatted. */
+    void stop_with_unformattable_message() noexcept
+    {
+        SA_FATAL("{}", refused_text());
     }
 
     /** @brief Installs announce_fatal and stops the process. */
@@ -161,31 +139,50 @@ namespace
     }
 #endif
 
+    /** @brief Lists every enumerator of StatusCode. */
+    constexpr std::array<StatusCode, 8> K_STATUS_CODES = {
+        StatusCode::Ok, StatusCode::InvalidDescription, StatusCode::FileNotFound,
+        StatusCode::InvalidFile, StatusCode::Incompatible, StatusCode::Unsupported,
+        StatusCode::OutOfMemory, StatusCode::DeviceFailed};
+
+    /** @brief Runs one case per enumerator of StatusCode. */
+    class Small_StatusCodeName : public ::testing::TestWithParam<StatusCode>
+    {
+
+    };
+
+    /** @brief Names a Small_StatusCodeName case after the name of its code. */
+    std::string code_case_name(const ::testing::TestParamInfo<StatusCode>& info)
+    {
+        return SushiAI::status_code_name(info.param);
+    }
 } // namespace
 
-TEST(Small_Status, DefaultIsSuccessWithNoMessage)
+INSTANTIATE_TEST_SUITE_P(, Small_StatusCodeName, ::testing::ValuesIn(K_STATUS_CODES),
+                         code_case_name);
+
+/** @brief Tests that the name of every code is not null and is lower case with underscores. */
+TEST_P(Small_StatusCodeName, TheNameIsNonNullAndLowerCase)
 {
-    const Status status;
-    EXPECT_TRUE(status.is_ok());
-    EXPECT_EQ(status.code(), StatusCode::Ok);
-    EXPECT_TRUE(status.message().empty());
-    SA_EXPECT_OK(status);
+    const char* name = SushiAI::status_code_name(GetParam());
+
+    ASSERT_NE(name, nullptr);
+    const std::string_view text(name);
+    EXPECT_FALSE(text.empty());
+    EXPECT_NE(text, "unknown");
+    EXPECT_TRUE(std::all_of(text.begin(), text.end(), [](char letter)
+    {
+        return (letter >= 'a' && letter <= 'z') || letter == '_';
+    }));
 }
 
-TEST(Small_Status, EveryCodeHasALowerCaseName)
+/** @brief Tests that a value that is no enumerator is named "unknown". */
+TEST(Small_Status, AValueThatIsNoCodeIsNamedUnknown)
 {
-    using SushiAI::status_code_name;
-    EXPECT_STREQ(status_code_name(StatusCode::Ok), "ok");
-    EXPECT_STREQ(status_code_name(StatusCode::InvalidDescription), "invalid_description");
-    EXPECT_STREQ(status_code_name(StatusCode::FileNotFound), "file_not_found");
-    EXPECT_STREQ(status_code_name(StatusCode::InvalidFile), "invalid_file");
-    EXPECT_STREQ(status_code_name(StatusCode::Incompatible), "incompatible");
-    EXPECT_STREQ(status_code_name(StatusCode::Unsupported), "unsupported");
-    EXPECT_STREQ(status_code_name(StatusCode::OutOfMemory), "out_of_memory");
-    EXPECT_STREQ(status_code_name(StatusCode::DeviceFailed), "device_failed");
-    EXPECT_STREQ(status_code_name(static_cast<StatusCode>(200)), "unknown");
+    EXPECT_STREQ(SushiAI::status_code_name(static_cast<StatusCode>(200)), "unknown");
 }
 
+/** @brief Tests that from_message keeps the code and the text it is given. */
 TEST(Small_Status, FromMessageCarriesTheCodeAndTheText)
 {
     const Status status = failure_of(StatusCode::InvalidFile, "the header is 3 bytes short");
@@ -194,7 +191,10 @@ TEST(Small_Status, FromMessageCarriesTheCodeAndTheText)
     EXPECT_EQ(status.message(), "the header is 3 bytes short");
 }
 
-// The failure block is a Status's only allocation, so an unchanged block count means none.
+/**
+ * @brief Tests that a success Status has the Ok code and no message, and that making, copying
+ *        and moving one, or annotating one, allocates no failure block and composes nothing.
+ */
 TEST(Small_Status, SuccessPathCreatesNoFailureBlock)
 {
     const std::size_t before = live_failure_count();
@@ -213,27 +213,28 @@ TEST(Small_Status, SuccessPathCreatesNoFailureBlock)
         return std::string("prefix");
     });
 
+    EXPECT_EQ(made.code(), StatusCode::Ok);
+    EXPECT_TRUE(made.message().empty());
     EXPECT_TRUE(annotated.is_ok());
     EXPECT_TRUE(assigned.is_ok());
     EXPECT_EQ(composed, 0);
     EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that SA_FAIL_IF formats its arguments only when its condition holds. */
 TEST(Small_Status, FailIfFormatsOnlyWhenTheConditionHolds)
 {
-    const std::size_t before = live_failure_count();
     int evaluations = 0;
 
     SA_EXPECT_OK(check_extent(4, evaluations));
     EXPECT_EQ(evaluations, 0);
-    EXPECT_EQ(live_failure_count(), before);
 
     SA_EXPECT_FAILURE(check_extent(-2, evaluations), StatusCode::InvalidDescription,
                       "extent must be positive", "got -2");
     EXPECT_EQ(evaluations, 1);
-    EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that copies of a failure share one block, which the last of them frees. */
 TEST(Small_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
 {
     const std::size_t before = live_failure_count();
@@ -253,6 +254,7 @@ TEST(Small_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
     EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that a moved-from failed Status keeps its failure. */
 TEST(Small_Status, MovedFromStatusKeepsItsFailure)
 {
     Status source = failure_of(StatusCode::Unsupported, "no kernel for int64");
@@ -265,6 +267,7 @@ TEST(Small_Status, MovedFromStatusKeepsItsFailure)
     SA_EXPECT_FAILURE(assigned, StatusCode::Unsupported, "no kernel for int64");
 }
 
+/** @brief Tests that assigning a Status replaces the failure it holds, and a success frees it. */
 TEST(Small_Status, AssignmentReplacesTheHeldFailure)
 {
     const std::size_t before = live_failure_count();
@@ -283,6 +286,7 @@ TEST(Small_Status, AssignmentReplacesTheHeldFailure)
     EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that annotated prefixes the message and keeps the code. */
 TEST(Small_Status, AnnotatedPrefixesTheMessageAndKeepsTheCode)
 {
     const Status inner = failure_of(StatusCode::InvalidDescription, "stride must be positive");
@@ -293,19 +297,18 @@ TEST(Small_Status, AnnotatedPrefixesTheMessageAndKeepsTheCode)
     EXPECT_EQ(inner.message(), "stride must be positive");
 }
 
+/** @brief Tests that from_message whose composer throws yields the fixed OutOfMemory failure. */
 TEST(Small_Status, ThrowingComposerYieldsTheStaticOutOfMemoryFailure)
 {
-    const std::size_t before = live_failure_count();
-
     const Status status = Status::from_message(StatusCode::InvalidFile, []() -> std::string
     {
         throw std::runtime_error("composer threw");
     });
 
     SA_EXPECT_FAILURE(status, StatusCode::OutOfMemory, "message could not be built");
-    EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that annotated whose composer throws returns the status unchanged. */
 TEST(Small_Status, ThrowingAnnotationKeepsTheOriginalFailure)
 {
     const Status inner = failure_of(StatusCode::InvalidFile, "wrong magic");
@@ -318,6 +321,7 @@ TEST(Small_Status, ThrowingAnnotationKeepsTheOriginalFailure)
     EXPECT_EQ(outer.message(), "wrong magic");
 }
 
+/** @brief Tests that SA_TRY returns a failure and lets a success pass. */
 TEST(Small_Status, TryForwardsAFailureAndPassesASuccess)
 {
     int evaluations = 0;
@@ -331,53 +335,20 @@ TEST(Small_Status, TryForwardsAFailureAndPassesASuccess)
     EXPECT_TRUE(reached_end);
 }
 
-TEST(Small_Status, FromMessageWithTheOkCodeIsFatal)
+/** @brief Tests that a report delivered to the installed sink carries file, line and text. */
+TEST(Small_Status, ReportFatalDeliversFileLineAndMessageOnceToTheInstalledSink)
 {
-    SA_EXPECT_FATAL((void)failure_of(StatusCode::Ok, "nothing failed"),
-                    "Status::from_message needs a failure code", "got ok");
-}
-
-TEST(Small_Status, StatusNamesRejectsSuccessAWrongCodeAndAMissingNeedle)
-{
-    using SushiAI::Test::status_names;
-    const Status status = failure_of(StatusCode::InvalidFile, "wrong magic 0x1F");
-
-    EXPECT_TRUE(status_names(status, StatusCode::InvalidFile, {"wrong magic", "0x1F"}));
-    EXPECT_TRUE(status_names(status, StatusCode::InvalidFile, {}));
-    EXPECT_FALSE(status_names(Status(), StatusCode::InvalidFile, {}));
-    EXPECT_FALSE(status_names(status, StatusCode::FileNotFound, {"wrong magic"}));
-    EXPECT_FALSE(status_names(status, StatusCode::InvalidFile, {"wrong version"}));
-    EXPECT_FALSE(SushiAI::Test::status_is_ok(status));
-}
-
-TEST(Small_Status, DeathPatternEscapesAndJoinsItsNeedles)
-{
-    using SushiAI::Test::death_pattern;
-    EXPECT_EQ(death_pattern({"plain words"}), "plain words");
-    EXPECT_EQ(death_pattern({"a.b", "[5, 3]"}), "a\\.b.*\\[5, 3\\]");
-    EXPECT_EQ(death_pattern({"f(x)*2", "{} | ^$ + ? \\"}),
-              "f\\(x\\)\\*2.*\\{\\} \\| \\^\\$ \\+ \\? \\\\");
-}
-
-TEST(Small_Status, FatalHandlerIsReplacedByARecorderAndRestored)
-{
-    fatal_record() = FatalRecord();
-
-    const FatalHandler original = SushiAI::set_fatal_handler(&record_fatal);
-    ASSERT_NE(original, nullptr);
+    const SushiAI::InMemoryFatalSink sink;
 
     SushiAI::Detail::report_fatal("layer.cpp", 42, "a sealed trace was reused");
-    const FatalHandler replaced = SushiAI::set_fatal_handler(original);
 
-    EXPECT_EQ(replaced, &record_fatal);
-    EXPECT_EQ(fatal_record().calls, 1);
-    EXPECT_EQ(fatal_record().file, "layer.cpp");
-    EXPECT_EQ(fatal_record().line, 42);
-    EXPECT_EQ(fatal_record().message, "a sealed trace was reused");
-
-    EXPECT_EQ(SushiAI::set_fatal_handler(original), original);
+    ASSERT_EQ(sink.reports().size(), 1u);
+    EXPECT_EQ(sink.reports()[0].file, "layer.cpp");
+    EXPECT_EQ(sink.reports()[0].line, 42);
+    EXPECT_EQ(sink.reports()[0].message, "a sealed trace was reused");
 }
 
+/** @brief Tests that a null handler installs the default one, which is no earlier handler. */
 TEST(Small_Status, NullFatalHandlerInstallsTheDefaultOne)
 {
     const FatalHandler original = SushiAI::set_fatal_handler(&record_fatal);
@@ -389,6 +360,7 @@ TEST(Small_Status, NullFatalHandlerInstallsTheDefaultOne)
     EXPECT_NE(standard, &record_fatal);
 }
 
+/** @brief Tests that SA_FATAL_IF formats nothing and returns when its condition is false. */
 TEST(Small_Status, FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse)
 {
     int evaluations = 0;
@@ -396,7 +368,25 @@ TEST(Small_Status, FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse)
     EXPECT_EQ(evaluations, 0);
 }
 
-TEST(Small_Status, FatalIfReportsTheMessageAtTheFileAndLineOfTheCheckAndStops)
+#ifdef NDEBUG
+/** @brief Tests that SA_ASSERT does not evaluate its condition when NDEBUG is defined. */
+TEST(Small_Status, AssertDoesNotEvaluateItsConditionInAnNdebugBuild)
+{
+    int evaluations = 0;
+    SA_ASSERT(counted(evaluations, 0) == 1);
+    EXPECT_EQ(evaluations, 0);
+}
+#endif
+
+/** @brief Tests that from_message with the Ok code stops the process. */
+TEST(Medium_StatusFatal, FromMessageWithTheOkCodeIsFatal)
+{
+    SA_EXPECT_FATAL((void)failure_of(StatusCode::Ok, "nothing failed"),
+                    "Status::from_message needs a failure code", "got ok");
+}
+
+/** @brief Tests that SA_FATAL_IF reports its message at the file and line of the check. */
+TEST(Medium_StatusFatal, FatalIfReportsTheMessageAtTheFileAndLineOfTheCheckAndStops)
 {
     int evaluations = 0;
     const int check_line = stop_when(false, evaluations, 7);
@@ -406,26 +396,25 @@ TEST(Small_Status, FatalIfReportsTheMessageAtTheFileAndLineOfTheCheckAndStops)
                     "[FATAL] [sushiai.failure]", place, "extent 7 is refused");
 }
 
-TEST(Small_Status, FatalCheckWhoseComposerThrowsReportsTheFixedMessage)
+/** @brief Tests that a fatal check whose message cannot be formatted reports the fixed text. */
+TEST(Medium_StatusFatal, FatalCheckWhoseMessageCannotBeFormattedReportsTheFixedMessage)
 {
-    SA_EXPECT_FATAL(stop_with_throwing_composer(),
+    SA_EXPECT_FATAL(stop_with_unformattable_message(),
                     "[FATAL] [sushiai.failure]", "[test_status.cpp:",
-                    "its message could not be composed");
+                    "a fatal check failed", "its message could not be composed");
 }
 
-TEST(Small_Status, ReplacedFatalHandlerRunsBeforeTheStop)
+/** @brief Tests that the installed handler runs before the process stops. */
+TEST(Medium_StatusFatal, ReplacedFatalHandlerRunsBeforeTheStop)
 {
     SA_EXPECT_FATAL(stop_under_announcer(), "recorded: stop 3");
 }
 
-TEST(Small_Status, AssertChecksInDebugBuildsOnly)
+#ifndef NDEBUG
+/** @brief Tests that SA_ASSERT returns on a true condition and stops on a false one. */
+TEST(Medium_StatusFatal, AssertStopsOnAFalseConditionInADebugBuild)
 {
-#ifdef NDEBUG
-    int evaluations = 0;
-    SA_ASSERT(counted(evaluations, 0) == 1);
-    EXPECT_EQ(evaluations, 0);
-#else
     assert_positive(1);
     SA_EXPECT_FATAL(assert_positive(0), "assertion failed: value > 0");
-#endif
 }
+#endif

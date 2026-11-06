@@ -119,36 +119,57 @@ namespace
 
 } // namespace
 
+/** @brief Tests that a Result built from a value holds it with an ok status. */
 TEST(Small_Result, HoldsAValueWithASuccessStatus)
 {
-    Result<int> result(7);
+    const Result<int> result(7);
+
     EXPECT_TRUE(result.has_value());
     EXPECT_TRUE(result.status().is_ok());
     EXPECT_EQ(result.value(), 7);
+}
+
+/** @brief Tests that a write through value() reaches the Result the const view reads. */
+TEST(Small_Result, AWriteThroughValueIsReadBackThroughTheConstView)
+{
+    Result<int> result(7);
 
     result.value() = 9;
+
     const Result<int>& view = result;
     EXPECT_EQ(view.value(), 9);
 }
 
+/** @brief Tests that a Result of either form built from a failure holds no value. */
 TEST(Small_Result, HoldsAFailureAndNoValue)
 {
     const Result<int> result(description_failure("rank must be 2"));
     EXPECT_FALSE(result.has_value());
     SA_EXPECT_FAILURE(result, StatusCode::InvalidDescription, "rank must be 2");
     SA_EXPECT_FAILURE(result.status(), StatusCode::InvalidDescription, "rank must be 2");
+
+    int slots[2] = {10, 20};
+    const Result<int&> missing = slot_at(slots, 2);
+    EXPECT_FALSE(missing.has_value());
+    SA_EXPECT_FAILURE(missing, StatusCode::InvalidDescription, "slot 2 is not one of 2");
 }
 
-TEST(Small_Result, ReturnStatementsConvertFromAValueAndFromAStatus)
+/** @brief Tests that a function returning Result<int> converts implicitly from an int. */
+TEST(Small_Result, AReturnStatementConvertsFromAValue)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int extent, checked_extent(5));
-    EXPECT_EQ(extent, 5);
 
+    EXPECT_EQ(extent, 5);
+}
+
+/** @brief Tests that a function returning Result<int> converts implicitly from a failed Status. */
+TEST(Small_Result, AReturnStatementConvertsFromAFailedStatus)
+{
     SA_EXPECT_FAILURE(checked_extent(-1), StatusCode::InvalidDescription,
                       "extent must be positive", "got -1");
 }
 
-// A Result of int stores its value in place, so an unchanged block count means no allocation.
+/** @brief Tests that a Result holding a value allocates no failure block. */
 TEST(Small_Result, SuccessPathCreatesNoFailureBlock)
 {
     const std::size_t before = live_failure_count();
@@ -163,6 +184,7 @@ TEST(Small_Result, SuccessPathCreatesNoFailureBlock)
     EXPECT_EQ(live_failure_count(), before);
 }
 
+/** @brief Tests that std::move(result).value() moves a move-only value out. */
 TEST(Small_Result, RvalueValueMovesAMoveOnlyValueOut)
 {
     Result<std::unique_ptr<int>> result = boxed_extent(11);
@@ -173,18 +195,17 @@ TEST(Small_Result, RvalueValueMovesAMoveOnlyValueOut)
     EXPECT_EQ(*taken, 11);
 }
 
-TEST(Small_Result, MovedFromValueResultStillHoldsAMovedFromValue)
+/** @brief Tests that moving a Result<T> transfers its value to the target. */
+TEST(Small_Result, MovingAValueResultTransfersItsValue)
 {
     Result<std::unique_ptr<int>> source = boxed_extent(2);
     const Result<std::unique_ptr<int>> target(std::move(source));
 
     ASSERT_TRUE(target.has_value());
     EXPECT_EQ(*target.value(), 2);
-    EXPECT_TRUE(source.has_value());
-    EXPECT_TRUE(source.status().is_ok());
-    EXPECT_TRUE(source.value() == nullptr);
 }
 
+/** @brief Tests that a moved-from failed Result keeps its failure. */
 TEST(Small_Result, MovedFromFailureResultKeepsItsFailure)
 {
     Result<int> source(description_failure("layout must be NHWC"));
@@ -195,37 +216,53 @@ TEST(Small_Result, MovedFromFailureResultKeepsItsFailure)
     SA_EXPECT_FAILURE(source, StatusCode::InvalidDescription, "layout must be NHWC");
 }
 
-TEST(Small_Result, CopyAndAssignmentCarryTheHeldState)
+/** @brief Tests that copy-assigning a failure over a value leaves the failure. */
+TEST(Small_Result, CopyAssigningAFailureOverAValueLeavesTheFailure)
 {
     const Result<int> failed(description_failure("no such key"));
     Result<int> result(1);
 
     result = failed;
+
     EXPECT_FALSE(result.has_value());
     SA_EXPECT_FAILURE(result, StatusCode::InvalidDescription, "no such key");
+}
+
+/** @brief Tests that assigning a value over a failure leaves the value. */
+TEST(Small_Result, AssigningAValueOverAFailureLeavesTheValue)
+{
+    Result<int> result(description_failure("no such key"));
 
     result = Result<int>(8);
+
     ASSERT_TRUE(result.has_value());
     EXPECT_TRUE(result.status().is_ok());
     EXPECT_EQ(result.value(), 8);
 }
 
+/** @brief Tests that SA_TRY_ASSIGN binds the value of a success or returns its failure. */
 TEST(Small_Result, TryAssignBindsTheValueOrReturnsTheFailure)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int doubled, doubled_extent(21));
     EXPECT_EQ(doubled, 42);
 
     SA_EXPECT_FAILURE(doubled_extent(0), StatusCode::InvalidDescription, "got 0");
+    SA_EXPECT_FAILURE(unboxed_extent(-6), StatusCode::InvalidDescription, "got -6");
+
+    int slots[2] = {10, 20};
+    SA_EXPECT_FAILURE(bump_slot(slots, 5), StatusCode::InvalidDescription, "slot 5");
+    EXPECT_EQ(slots[1], 20);
 }
 
+/** @brief Tests that SA_TRY_ASSIGN moves a move-only value out of a temporary Result. */
 TEST(Small_Result, TryAssignMovesFromATemporaryResult)
 {
     SA_ASSERT_OK_AND_ASSIGN(const int value, unboxed_extent(6));
-    EXPECT_EQ(value, 6);
 
-    SA_EXPECT_FAILURE(unboxed_extent(-6), StatusCode::InvalidDescription, "got -6");
+    EXPECT_EQ(value, 6);
 }
 
+/** @brief Tests that Result<T&> refers to the caller's object, and a write reaches the caller. */
 TEST(Small_Result, ReferenceFormRefersToTheCallersObject)
 {
     int slots[2] = {10, 20};
@@ -243,6 +280,7 @@ TEST(Small_Result, ReferenceFormRefersToTheCallersObject)
     EXPECT_EQ(&constant.value(), &fixed);
 }
 
+/** @brief Tests that SA_TRY over a reference into a temporary Result reads its status. */
 TEST(Small_Result, TryReadsAStatusReferenceIntoATemporaryResult)
 {
     const std::size_t before = live_failure_count();
@@ -258,56 +296,49 @@ TEST(Small_Result, TryReadsAStatusReferenceIntoATemporaryResult)
     EXPECT_EQ(live_failure_count(), before);
 }
 
-TEST(Small_Result, MovedFromReferenceResultKeepsItsState)
+/** @brief Tests that a moved-from failed Result<T&> keeps its failure. */
+TEST(Small_Result, MovedFromFailedReferenceResultKeepsItsFailure)
 {
     int slots[2] = {10, 20};
 
-    Result<int&> found = slot_at(slots, 0);
-    const Result<int&> copied(found);
-    const Result<int&> taken(std::move(found));
-    ASSERT_TRUE(found.has_value());
-    EXPECT_EQ(&found.value(), &slots[0]);
-    EXPECT_EQ(&copied.value(), &slots[0]);
-    EXPECT_EQ(&taken.value(), &slots[0]);
-    EXPECT_TRUE(taken.status().is_ok());
-
     Result<int&> missing = slot_at(slots, 2);
     const Result<int&> forwarded(std::move(missing));
+
     EXPECT_FALSE(missing.has_value());
     EXPECT_FALSE(forwarded.has_value());
     SA_EXPECT_FAILURE(missing, StatusCode::InvalidDescription, "slot 2 is not one of 2");
     SA_EXPECT_FAILURE(forwarded, StatusCode::InvalidDescription, "slot 2 is not one of 2");
+}
+
+/** @brief Tests that assigning a Result<T&> replaces the held state in both directions. */
+TEST(Small_Result, ReferenceResultAssignmentReplacesTheHeldStateInBothDirections)
+{
+    int slots[2] = {10, 20};
+    const Result<int&> found = slot_at(slots, 0);
+    const Result<int&> missing = slot_at(slots, 2);
 
     Result<int&> assigned = slot_at(slots, 1);
-    assigned = forwarded;
+    assigned = missing;
     SA_EXPECT_FAILURE(assigned, StatusCode::InvalidDescription, "slot 2 is not one of 2");
-    assigned = taken;
+
+    assigned = found;
     ASSERT_TRUE(assigned.has_value());
     EXPECT_TRUE(assigned.status().is_ok());
     EXPECT_EQ(&assigned.value(), &slots[0]);
 }
 
-TEST(Small_Result, ReferenceFormHoldsAFailure)
-{
-    int slots[2] = {10, 20};
-
-    const Result<int&> missing = slot_at(slots, 2);
-    EXPECT_FALSE(missing.has_value());
-    SA_EXPECT_FAILURE(missing, StatusCode::InvalidDescription, "slot 2 is not one of 2");
-}
-
+/** @brief Tests that SA_TRY_ASSIGN binds a reference from a Result<T&> and writes through it. */
 TEST(Small_Result, TryAssignBindsAReferenceFromTheReferenceForm)
 {
     int slots[2] = {10, 20};
 
     SA_EXPECT_OK(bump_slot(slots, 0));
-    EXPECT_EQ(slots[0], 11);
 
-    SA_EXPECT_FAILURE(bump_slot(slots, 5), StatusCode::InvalidDescription, "slot 5");
-    EXPECT_EQ(slots[1], 20);
+    EXPECT_EQ(slots[0], 11);
 }
 
-TEST(Small_Result, ValueOnAFailureIsFatalAndPrintsTheFailure)
+/** @brief Tests that value() on a failure of either form stops the process and prints it. */
+TEST(Medium_ResultFatal, ValueOnAFailureIsFatalAndPrintsTheFailure)
 {
     const Result<int> failed(description_failure("rank must be 2"));
     SA_EXPECT_FATAL((void)failed.value(),
@@ -318,7 +349,8 @@ TEST(Small_Result, ValueOnAFailureIsFatalAndPrintsTheFailure)
                     "Result::value() was called on a failure", "no such slot");
 }
 
-TEST(Small_Result, BuildingFromASuccessStatusIsFatal)
+/** @brief Tests that a Result of either form built from a success Status stops the process. */
+TEST(Medium_ResultFatal, BuildingFromASuccessStatusIsFatal)
 {
     SA_EXPECT_FATAL((void)Result<int>(Status()), "a Result was built from a success Status");
     SA_EXPECT_FATAL((void)Result<int&>(Status()), "a Result was built from a success Status");

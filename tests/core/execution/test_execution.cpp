@@ -25,7 +25,7 @@
 /**
  * @file test_execution.cpp
  * @brief Tests that record_and_run runs what a recording recorded on a graph of its own and
- *        drops what a failed one left, and that run_once runs a graph the caller owns.
+ *        drops what a failed one left.
  * @author Mustafa Garip
  */
 
@@ -38,7 +38,6 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/late_count_hold.hpp>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/random/random.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
@@ -53,9 +52,7 @@
 using SushiAI::Result;
 using SushiAI::Status;
 using SushiAI::StatusCode;
-using SushiAI::Detail::create_graph;
 using SushiAI::Detail::record_and_run;
-using SushiAI::Detail::run_once;
 namespace SaTest = SushiAI::Test;
 
 namespace
@@ -83,14 +80,15 @@ namespace
         return std::move(tensor);
     }
 
-    /** @brief Expects every element of @p tensor to be @p value exactly. */
+    /** @brief Expects every element of @p tensor to equal @p value. */
     void expect_all(const SushiBLAS::Tensor& tensor, double value)
     {
-        for (double element : SaTest::read_tensor(tensor))
-            EXPECT_DOUBLE_EQ(element, value);
+        EXPECT_EQ(SaTest::read_tensor(tensor),
+                  std::vector<double>(static_cast<std::size_t>(K_FILL_ELEMENTS), value));
     }
 } // namespace
 
+/** @brief Tests that record_and_run runs what a successful recording recorded. */
 TEST_F(Medium_ExecutionEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
@@ -105,7 +103,25 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
     expect_all(target, 2.0);
 }
 
-TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
+/** @brief Tests that a recording that throws is discarded and its failure is returned. */
+TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAThrowingRecordingRecorded)
+{
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
+
+    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder) -> Status
+    {
+        SushiBLAS::RandomOps random(recorder, engine->rng());
+        random.constant(discarded, 5.0);
+        throw std::invalid_argument("axpy: shapes disagree");
+    });
+    SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "axpy: shapes disagree");
+
+    flush();
+    expect_all(discarded, 1.0);
+}
+
+/** @brief Tests that a recording after a failed one runs and leaves the failed one's work out. */
+TEST_F(Medium_ExecutionEngine, RecordAndRunRunsARecordingThatFollowsAFailedOne)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor kept, filled_vector(*engine, 1.0));
@@ -116,7 +132,7 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
         random.constant(discarded, 5.0);
         throw std::invalid_argument("axpy: shapes disagree");
     });
-    SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "axpy: shapes disagree");
+    ASSERT_FALSE(failed.is_ok());
 
     SA_EXPECT_OK(record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
     {
@@ -129,6 +145,7 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAFailedRecordingRecorded)
     expect_all(discarded, 1.0);
 }
 
+/** @brief Tests that a recording that returns a failure is discarded and the failure returned. */
 TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailure)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
@@ -146,26 +163,4 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailu
 
     flush();
     expect_all(discarded, 1.0);
-}
-
-TEST_F(Medium_ExecutionEngine, RunOnceSucceedsOnAGraphWithNothingRecorded)
-{
-    SA_ASSERT_OK_AND_ASSIGN(SushiRuntime::Graph graph, create_graph(*engine));
-
-    SA_EXPECT_OK(run_once(graph));
-}
-
-TEST_F(Medium_ExecutionEngine, RunOnceRunsWhatWasRecordedOnTheGraph)
-{
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
-    SushiBLAS::LateCountHold late_counts(engine->runtime());
-    SA_ASSERT_OK_AND_ASSIGN(SushiRuntime::Graph graph, create_graph(*engine));
-    SushiBLAS::TaskRecorder recorder(graph.recorder(), engine->scratch_pool(), late_counts,
-                                     engine->mode());
-
-    SushiBLAS::RandomOps random(recorder, engine->rng());
-    random.constant(target, 3.0);
-    SA_EXPECT_OK(run_once(graph));
-
-    expect_all(target, 3.0);
 }

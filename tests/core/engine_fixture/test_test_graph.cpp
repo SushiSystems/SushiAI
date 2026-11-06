@@ -26,6 +26,7 @@
  * @author Mustafa Garip
  */
 
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/random/random.hpp>
@@ -71,6 +72,5 @@ TEST_F(Medium_TestGraph, RunExecutesWhatTheRecorderRecorded)
     flush();
 
     const float* values = tensor.data_as<float>();
-    for (int i = 0; i < 4; ++i)
-        EXPECT_EQ(values[i], K_FILL_VALUE);
+    EXPECT_EQ(std::vector<float>(values, values + 4), std::vector<float>(4, K_FILL_VALUE));
 }

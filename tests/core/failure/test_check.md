@@ -26,8 +26,3 @@ The helper returns 1 for a true flag and 2 for a false one.
 ## AssertIsOneStatementInAnUnbracedIfElse
 
 The helper returns 1 for a true flag and 2 for a false one, in a build with or without `NDEBUG`.
-
-## TheUncomposedReportSaysAFatalCheckFailed
-
-`Detail::K_UNCOMPOSED_FATAL_MESSAGE`, the text a fatal check reports when composing its own
-message threw, contains "fatal check failed".

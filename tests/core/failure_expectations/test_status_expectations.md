@@ -1,7 +1,7 @@
 # tests/core/failure_expectations/test_status_expectations.cpp
 
 
-Suites: `Small_StatusExpectations`.
+Suites: `Small_StatusExpectations`, `Medium_StatusExpectationsFatal`.
 
 Tests the assertions every test program uses to check a `Status`: `status_is_ok`,
 `status_names`, `death_pattern`, `require_value` and the macros built on them.
@@ -27,19 +27,32 @@ needle "b.bin", which the message does not hold; the refusal names "b.bin".
 ## DeathPatternJoinsAndEscapesItsNeedles
 
 `death_pattern` joins its needles with ".*" and puts a backslash before every regular-expression
-character, so "[2, 3]" and "(c)*" match literally. No needle gives an empty pattern.
+character, so "[2, 3]" and "(c)*" match literally. No needle gives an empty pattern. One plain
+needle is returned as it is, and each of `\ { } | ^ $ + ?` is escaped with a backslash.
 
-## TheMacrosReadAStatusAndAResult
+## ExpectOkPassesASuccess
 
-`SA_EXPECT_OK` passes for a success, `SA_EXPECT_FAILURE` passes for the failure as a `Status`
-and wrapped in a `Result`, and `SA_ASSERT_OK_AND_ASSIGN` binds 7 from a successful `Result`.
+`SA_EXPECT_OK` passes for a default `Status`.
 
-## RequireValueReturnsWhatTheResultHolds
+## ExpectFailurePassesAFailureHeldAsAStatusAndAsAResult
 
-`require_value` returns 7 for a `Result<int>` holding 7, and the same object for a `Result<int&>`
-over a local.
+`SA_EXPECT_FAILURE` passes for the failure of `short_header` as a `Status` and wrapped in a
+`Result<int>`.
+
+## AssertOkAndAssignBindsTheValueOfASuccess
+
+`SA_ASSERT_OK_AND_ASSIGN` binds 7 from a successful `Result<int>`.
+
+## RequireValueReturnsTheValueOfAResult
+
+`require_value` returns 7 for a `Result<int>` holding 7.
+
+## RequireValueReturnsTheReferenceOfAReferenceResult
+
+`require_value` returns the same object for a `Result<int&>` over a local.
 
 ## RequireValueStopsTheProcessOnAFailure
 
+Suite `Medium_StatusExpectationsFatal`: the case is a death test, which starts a child process.
 `require_value` over the failed `Result` of `short_header` stops the process with a report that
 holds "fixture is refused" and the failure's message.

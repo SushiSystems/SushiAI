@@ -91,32 +91,50 @@ TEST(Small_StatusExpectations, DeathPatternJoinsAndEscapesItsNeedles)
     EXPECT_EQ(death_pattern({"rank", "[2, 3]"}), "rank.*\\[2, 3\\]");
     EXPECT_EQ(death_pattern({"a.b", "(c)*"}), "a\\.b.*\\(c\\)\\*");
     EXPECT_EQ(death_pattern({}), "");
+    EXPECT_EQ(death_pattern({"plain words"}), "plain words");
+    EXPECT_EQ(death_pattern({"f(x)*2", "{} | ^$ + ? \\"}),
+              "f\\(x\\)\\*2.*\\{\\} \\| \\^\\$ \\+ \\? \\\\");
 }
 
-/** @brief Tests that the macros read a Status and a Result, and bind the value of a success. */
-TEST(Small_StatusExpectations, TheMacrosReadAStatusAndAResult)
+/** @brief Tests that SA_EXPECT_OK passes a success. */
+TEST(Small_StatusExpectations, ExpectOkPassesASuccess)
 {
     SA_EXPECT_OK(Status());
+}
+
+/** @brief Tests that SA_EXPECT_FAILURE passes a failure held as a Status and as a Result. */
+TEST(Small_StatusExpectations, ExpectFailurePassesAFailureHeldAsAStatusAndAsAResult)
+{
     SA_EXPECT_FAILURE(short_header(), StatusCode::InvalidFile, "a.bin");
     SA_EXPECT_FAILURE(Result<int>(short_header()), StatusCode::InvalidFile);
+}
 
+/** @brief Tests that SA_ASSERT_OK_AND_ASSIGN binds the value of a success. */
+TEST(Small_StatusExpectations, AssertOkAndAssignBindsTheValueOfASuccess)
+{
     SA_ASSERT_OK_AND_ASSIGN(const int value, Result<int>(7));
 
     EXPECT_EQ(value, 7);
 }
 
-/** @brief Tests that require_value returns the value or the reference a Result holds. */
-TEST(Small_StatusExpectations, RequireValueReturnsWhatTheResultHolds)
+/** @brief Tests that require_value returns the value a Result<T> holds. */
+TEST(Small_StatusExpectations, RequireValueReturnsTheValueOfAResult)
 {
     EXPECT_EQ(require_value(Result<int>(7)), 7);
+}
 
+/** @brief Tests that require_value returns the reference a Result<T&> holds. */
+TEST(Small_StatusExpectations, RequireValueReturnsTheReferenceOfAReferenceResult)
+{
     int target = 3;
+
     int& held = require_value(Result<int&>(target));
+
     EXPECT_EQ(&held, &target);
 }
 
 /** @brief Tests that require_value stops the process with the message of a failure. */
-TEST(Small_StatusExpectations, RequireValueStopsTheProcessOnAFailure)
+TEST(Medium_StatusExpectationsFatal, RequireValueStopsTheProcessOnAFailure)
 {
     SA_EXPECT_FATAL((void)require_value(Result<int>(short_header())), "fixture is refused",
                     "the header of 'a.bin' is short");

@@ -3,21 +3,10 @@
 
 Suites: `Medium_EngineTest`.
 
-Tests that `EngineTest` gives each case an engine on the shared runtime, and that its `flush`
-returns.
+Tests that `EngineTest` gives each case an engine on the shared runtime.
 
 The engine needs the runtime, which makes the file medium.
 
 ## SetUpGivesTheCaseAnEngine
 
 The fixture's `engine` is not null inside the case.
-
-## FlushReturnsWithNothingRecorded
-
-`flush` returns when the device has nothing to finish. A failed wait would stop the
-process, so reaching `SUCCEED` is the check.
-
-## TheEngineAllocatesATensorAndFlushes
-
-`allocate_tensor` on the engine yields a [2, 3] tensor of 6 elements with storage, and `flush`
-returns afterwards.
