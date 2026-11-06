@@ -15,7 +15,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -126,11 +126,13 @@ def report(checks: Sequence[Check], results: Sequence[tuple[int, str]], known: s
     return lines, 1 if failed else 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None,
+         run: Callable[[Sequence[Check]], list[tuple[int, str]]] | None = None) -> int:
     """Runs every check, all at once, and returns 1 when any of them failed.
 
     The checks read the repository and write nothing, so they run side by side; their output
-    is printed in the order they are listed.
+    is printed in the order they are listed. *run* runs the planned checks; it defaults to the
+    thread pool.
     """
     arguments = sys.argv[1:] if argv is None else argv
     root = Path(arguments[0]) if arguments else Path.cwd()
@@ -139,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
     except KnownFindingsError as error:
         print(error)
         return 1
-    checks, results = run_plan(root)
+    checks, results = run_plan(root, run)
     names = [check.name for check in checks if not check.is_suite]
     lines, code = report(checks, _judged(root, checks, results, entries), summary(entries),
                          orphan_lines(entries, names))
@@ -148,11 +150,13 @@ def main(argv: list[str] | None = None) -> int:
     return code
 
 
-def run_plan(root: Path) -> tuple[list[Check], list[tuple[int, str]]]:
+def run_plan(root: Path,
+             run: Callable[[Sequence[Check]], list[tuple[int, str]]] | None = None,
+             ) -> tuple[list[Check], list[tuple[int, str]]]:
     """Plans every check over a root, runs them and returns the checks with their raw results."""
     checks = plan_checks(root, K_TOOLS, sys.executable, own_checker_names(_read_found(K_TOOLS)),
                          _read_suite_folders(root))
-    return checks, _run_all(checks)
+    return checks, (run or _run_all)(checks)
 
 
 def _judged(root: Path, checks: Sequence[Check], results: Sequence[tuple[int, str]],

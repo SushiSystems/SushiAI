@@ -30,9 +30,9 @@ static int failures = 0;
 
 static void expect(bool condition, char const* promise)
 {
+    std::printf("%s %s\n", condition ? "PASS" : "FAIL", promise);
     if (!condition)
     {
-        std::printf("FAILED: %s\n", promise);
         ++failures;
     }
 }
@@ -78,26 +78,86 @@ def find_compiler() -> str | None:
     return None
 
 
-class ToleranceHeaderTest(unittest.TestCase):
-    """Builds the self-check in a temporary folder and runs it."""
+def _run_self_check(compiler: str) -> tuple[dict[str, str], str]:
+    """Builds the self-check with the compiler and runs it once.
 
-    def test_the_self_check_compiles_and_every_promise_holds(self) -> None:
+    Returns each promise's result, PASS or FAIL, and the output of a build or run that did not finish.
+    """
+    with tempfile.TemporaryDirectory() as folder:
+        source = Path(folder) / "check.cpp"
+        source.write_text(K_CHECK, encoding="utf-8")
+        program = Path(folder) / "check.exe"
+        if Path(compiler).stem.lower() == "cl":
+            command = [compiler, "/nologo", "/std:c++17", "/EHsc", f"/I{K_HEADER.parent}", str(source),
+                       f"/Fe{program}", f"/Fo{folder}\\"]
+        else:
+            command = [compiler, "-std=c++17", f"-I{K_HEADER.parent}", str(source), "-o", str(program)]
+        built = subprocess.run(command, capture_output=True, text=True, cwd=folder, check=False)
+        if built.returncode != 0:
+            return {}, built.stdout + built.stderr
+        ran = subprocess.run([str(program)], capture_output=True, text=True, check=False)
+    results = {}
+    for line in ran.stdout.splitlines():
+        status, _, promise = line.partition(" ")
+        results[promise] = status
+    return results, "" if ran.returncode == 0 else ran.stdout + ran.stderr
+
+
+class ToleranceHeaderTest(unittest.TestCase):
+    """Compiles the self-check once and checks each promise of the header against its result."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
         compiler = find_compiler()
         if compiler is None:
-            self.skipTest("no C++ compiler on this machine; set CXX")
-        with tempfile.TemporaryDirectory() as folder:
-            source = Path(folder) / "check.cpp"
-            source.write_text(K_CHECK, encoding="utf-8")
-            program = Path(folder) / "check.exe"
-            if Path(compiler).stem.lower() == "cl":
-                command = [compiler, "/nologo", "/std:c++17", "/EHsc", f"/I{K_HEADER.parent}", str(source),
-                           f"/Fe{program}", f"/Fo{folder}\\"]
-            else:
-                command = [compiler, "-std=c++17", f"-I{K_HEADER.parent}", str(source), "-o", str(program)]
-            built = subprocess.run(command, capture_output=True, text=True, cwd=folder, check=False)
-            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
-            ran = subprocess.run([str(program)], capture_output=True, text=True, check=False)
-            self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+            raise unittest.SkipTest("no C++ compiler on this machine; set CXX")
+        cls.results, cls.output = _run_self_check(compiler)
+
+    def assert_holds(self, promise: str) -> None:
+        """Fails unless the self-check reports the promise as PASS; the output explains a build that failed."""
+        self.assertEqual(self.results.get(promise), "PASS", self.output or promise)
+
+    def test_unit_roundoff_of_float_is_2_pow_minus_24(self) -> None:
+        self.assert_holds("unit roundoff of float is 2^-24")
+
+    def test_unit_roundoff_of_double_is_2_pow_minus_53(self) -> None:
+        self.assert_holds("unit roundoff of double is 2^-53")
+
+    def test_an_exact_result_passes_a_zero_bound(self) -> None:
+        self.assert_holds("an exact result passes a zero bound")
+
+    def test_an_inexact_result_fails_a_zero_bound(self) -> None:
+        self.assert_holds("an inexact result fails a zero bound")
+
+    def test_an_error_at_the_threshold_passes(self) -> None:
+        self.assert_holds("an error at the threshold passes")
+
+    def test_an_error_past_the_threshold_fails(self) -> None:
+        self.assert_holds("an error past the threshold fails")
+
+    def test_the_ratio_is_error_over_n_u_sum(self) -> None:
+        self.assert_holds("the ratio is error over n u sum")
+
+    def test_a_nan_where_a_number_is_expected_fails(self) -> None:
+        self.assert_holds("a NaN where a number is expected fails")
+
+    def test_a_number_where_a_nan_is_expected_fails(self) -> None:
+        self.assert_holds("a number where a NaN is expected fails")
+
+    def test_a_nan_where_a_nan_is_expected_passes(self) -> None:
+        self.assert_holds("a NaN where a NaN is expected passes")
+
+    def test_a_matching_infinity_passes(self) -> None:
+        self.assert_holds("a matching infinity passes")
+
+    def test_an_infinity_where_a_number_is_expected_fails(self) -> None:
+        self.assert_holds("an infinity where a number is expected fails")
+
+    def test_the_relative_bound_scales_with_the_reference(self) -> None:
+        self.assert_holds("the relative bound scales with the reference")
+
+    def test_describe_names_error_bound_ratio_and_threshold(self) -> None:
+        self.assert_holds("describe names error, bound, ratio and threshold")
 
 
 if __name__ == "__main__":

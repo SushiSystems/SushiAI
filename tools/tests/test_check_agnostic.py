@@ -73,10 +73,13 @@ class ProductTermsTest(unittest.TestCase):
     def test_allowed_name_is_not_reported(self) -> None:
         self.assertEqual(_found(rule_product_name, {"skills/a/SKILL.md": "The AcmeSkills doctrine.\n"}), [])
 
-    def test_company_tool_and_identity_are_reported_by_their_own_rule(self) -> None:
-        files = {"skills/a/SKILL.md": "Run acmecli.\nBy Jane Doe.\n"}
-        self.assertEqual(_found(rule_company_tool, files), [("SKILL.md", 1)])
-        self.assertEqual(_found(rule_identity, files), [("SKILL.md", 2)])
+    def test_a_company_tool_name_is_reported(self) -> None:
+        self.assertEqual(_found(rule_company_tool, {"skills/a/SKILL.md": "Run acmecli.\nBy Jane Doe.\n"}),
+                         [("SKILL.md", 1)])
+
+    def test_an_identity_is_reported(self) -> None:
+        self.assertEqual(_found(rule_identity, {"skills/a/SKILL.md": "Run acmecli.\nBy Jane Doe.\n"}),
+                         [("SKILL.md", 2)])
 
     def test_technology_name_is_reported_outside_the_exempt_folders(self) -> None:
         files = {"skills/a/SKILL.md": "Runs on Zephyr.\n",
@@ -138,10 +141,13 @@ class TermsFileTest(unittest.TestCase):
     """Covers a terms file that is missing, unreadable or holds a pattern that does not compile."""
     K_TEST_SIZE = "small"
 
-    def test_missing_terms_file_is_one_issue_and_silences_the_term_rules(self) -> None:
+    def test_a_missing_terms_file_is_one_issue(self) -> None:
         missing = _scope({"skills/a/SKILL.md": "AcmeLog\n"}, terms=parse_terms(K_ROOT / "terms.txt", None))
         self.assertEqual([(issue.path.name, issue.line) for issue in rule_terms_file(missing)],
                          [("terms.txt", 1)])
+
+    def test_a_missing_terms_file_silences_the_term_rules(self) -> None:
+        missing = _scope({"skills/a/SKILL.md": "AcmeLog\n"}, terms=parse_terms(K_ROOT / "terms.txt", None))
         self.assertEqual(list(rule_product_name(missing)), [])
 
     def test_unreadable_terms_line_is_reported_with_its_number(self) -> None:

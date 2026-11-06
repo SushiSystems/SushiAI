@@ -12,6 +12,7 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
@@ -42,6 +43,19 @@ K_BASELINE_TEXT = (
 )
 K_ROOT = Path("repo")
 K_TOOLS = K_ROOT / "tools"
+
+
+def first_check_fails(output: str) -> Callable[[list[Check]], list[tuple[int, str]]]:
+    """Returns a runner whose first check really fails with *output* and whose others pass."""
+    def run(checks: list[Check]) -> list[tuple[int, str]]:
+        failure = _run_check([sys.executable, "-c", f"print({output!r}); raise SystemExit(1)"])
+        return [failure, *[(0, "")] * (len(checks) - 1)]
+    return run
+
+
+def every_check_passes(checks: list[Check]) -> list[tuple[int, str]]:
+    """Returns a passing result for each check, without starting a process."""
+    return [(0, "")] * len(checks)
 
 
 class OwnCheckerNamesTest(unittest.TestCase):
@@ -78,20 +92,21 @@ class PlanChecksTest(unittest.TestCase):
                                          ("py", "-m", "unittest", "discover", "-q", "-s",
                                           str(K_ROOT / "gui" / "tests")), True))
 
-    def test_no_folder_that_exists_means_no_suite(self) -> None:
-        plan = plan_checks(K_ROOT, K_TOOLS, "py", [], [])
-        self.assertFalse(any(check.is_suite for check in plan))
-
 
 class ReportTest(unittest.TestCase):
     """Covers the lines and the exit code for a clean run, a failed run and several failures."""
 
     K_TEST_SIZE = "small"
 
-    def test_clean_run_counts_checkers_not_suites_and_exits_zero(self) -> None:
+    def test_clean_run_counts_checkers_not_suites(self) -> None:
         checks = [Check("a", (), False), Check("b", (), False), Check("tests", (), True)]
-        results = [(0, ""), (0, ""), (0, "")]
-        self.assertEqual(report(checks, results), (["clean: 2 checkers, tests"], 0))
+        lines, _ = report(checks, [(0, ""), (0, ""), (0, "")])
+        self.assertEqual(lines, ["clean: 2 checkers, tests"])
+
+    def test_clean_run_exits_zero(self) -> None:
+        checks = [Check("a", (), False), Check("tests", (), True)]
+        _, code = report(checks, [(0, ""), (0, "")])
+        self.assertEqual(code, 0)
 
     def test_failed_check_prints_its_trimmed_output_and_is_named(self) -> None:
         checks = [Check("a", (), False), Check("b", (), False)]
@@ -102,7 +117,6 @@ class ReportTest(unittest.TestCase):
         checks = [Check("a", (), False), Check("b", (), False), Check("c", (), False)]
         lines, code = report(checks, [(2, "one"), (0, ""), (1, "three")])
         self.assertEqual((lines, code), (["== a\none", "== c\nthree", "failed: a, c"], 1))
-
 
     def test_known_findings_end_the_clean_line(self) -> None:
         checks = [Check("a", (), False), Check("tests", (), True)]
@@ -174,40 +188,39 @@ class ShellTest(unittest.TestCase):
             self.assertEqual(folders, [check_all.K_TOOLS / "tests", root / "present"])
 
     def test_main_returns_one_when_a_check_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as folder, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(check_all.main([folder], first_check_fails("finding")), 1)
+
+    def test_a_baseline_makes_a_red_checker_pass(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            def fake_run_all(checks: list[Check]) -> list[tuple[int, str]]:
-                return [(1, "finding") if index == 0 else (0, "") for index in range(len(checks))]
+            self.write_baseline(folder, K_BASELINE_TEXT)
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = check_all.main([folder], first_check_fails("a.cs:1: rule_x: bad"))
+        self.assertEqual(code, 0)
 
-            with mock.patch.object(check_all, "_run_all", fake_run_all), \
-                    contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(check_all.main([folder]), 1)
-
-    def test_a_baseline_makes_a_red_checker_pass_and_the_clean_line_counts_it(self) -> None:
+    def test_the_clean_line_counts_the_known_findings(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "tools").mkdir()
-            (Path(folder) / "tools" / "known_findings.toml").write_text(K_BASELINE_TEXT, encoding="utf-8")
-
-            def fake_run_all(checks: list[Check]) -> list[tuple[int, str]]:
-                return [(1, "a.cs:1: rule_x: bad\n") if index == 0 else (0, "")
-                        for index in range(len(checks))]
-
+            self.write_baseline(folder, K_BASELINE_TEXT)
             out = io.StringIO()
-            with mock.patch.object(check_all, "_run_all", fake_run_all), contextlib.redirect_stdout(out):
-                code = check_all.main([folder])
-        self.assertEqual((code, out.getvalue().splitlines()[-1].split(";", 1)[1]),
-                         (0, " 1 known finding in 1 entry"))
+            with contextlib.redirect_stdout(out):
+                check_all.main([folder], first_check_fails("a.cs:1: rule_x: bad"))
+        self.assertEqual(out.getvalue().splitlines()[-1].split(";", 1)[1],
+                         " 1 known finding in 1 entry")
 
     def test_a_baseline_entry_for_no_checker_fails(self) -> None:
         text = K_BASELINE_TEXT.replace("documentation/check_source_comments.py", "nope/check_x.py")
         with tempfile.TemporaryDirectory() as folder:
-            (Path(folder) / "tools").mkdir()
-            (Path(folder) / "tools" / "known_findings.toml").write_text(text, encoding="utf-8")
+            self.write_baseline(folder, text)
             out = io.StringIO()
-            with mock.patch.object(check_all, "_run_all", lambda checks: [(0, "")] * len(checks)), \
-                    contextlib.redirect_stdout(out):
-                code = check_all.main([folder])
-        self.assertEqual(code, 1)
-        self.assertIn("known finding names no checker", out.getvalue())
+            with contextlib.redirect_stdout(out):
+                code = check_all.main([folder], every_check_passes)
+        self.assertEqual((code, "known finding names no checker" in out.getvalue()), (1, True))
+
+    @staticmethod
+    def write_baseline(folder: str, text: str) -> None:
+        """Writes *text* as the baseline file of the repository at *folder*."""
+        (Path(folder) / "tools").mkdir()
+        (Path(folder) / "tools" / "known_findings.toml").write_text(text, encoding="utf-8")
 
     def test_a_broken_baseline_file_returns_one(self) -> None:
         with tempfile.TemporaryDirectory() as folder:

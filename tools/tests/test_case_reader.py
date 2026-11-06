@@ -52,13 +52,25 @@ class CppCasesTest(unittest.TestCase):
         self.assertEqual(one(K_CPP, "TEST(Small_A, B) {\n  check_shape(t, 3);\n}\n").assertions, 0)
 
     def test_finds_literal_assertions_and_sleeps_by_line(self) -> None:
-        case = one(K_CPP, "TEST(Small_A, B) {\n  EXPECT_TRUE(true);\n  EXPECT_EQ(3, 3);\n  EXPECT_EQ(x, 3);\n"
-                          "  std::this_thread::sleep_for(10ms);\n}\n")
-        self.assertEqual((case.literal_lines, case.sleep_lines), ((2, 3), (5,)))
+        rows = [
+            (K_CPP, "TEST(Small_A, B) {\n  EXPECT_TRUE(true);\n  EXPECT_EQ(3, 3);\n  EXPECT_EQ(x, 3);\n"
+                    "  std::this_thread::sleep_for(10ms);\n}\n", ((2, 3), (5,))),
+            (K_PY, "def test_a():\n    assert True\n    time.sleep(1)\n", ((2,), (3,))),
+            (K_TS, "describe('small: a', () => {\n  it('x', () => {\n    expect(true).toBe(true);\n"
+                   "    setTimeout(f, 10);\n  });\n});\n", ((3,), (4,))),
+        ]
+        for path, text, expected in rows:
+            with self.subTest(language=path.suffix):
+                case = one(path, text)
+                self.assertEqual((case.literal_lines, case.sleep_lines), expected)
 
-    def test_knows_a_benchmark_and_an_unsized_suite(self) -> None:
+    def test_a_benchmark_suite_has_size_benchmark(self) -> None:
         self.assertEqual(one(K_CPP, "TEST(Benchmark_Wave, Run) {\n}\n").size, "benchmark")
+
+    def test_a_characterization_suite_takes_its_size_from_the_word_after_its_prefix(self) -> None:
         self.assertEqual(one(K_CPP, "TEST(Characterization_Large_Wave, Run) {\n}\n").size, "large")
+
+    def test_an_unsized_fixture_has_no_size(self) -> None:
         self.assertIsNone(one(K_CPP, "TEST_F(ShapeFixture, Run) {\n}\n").size)
 
 
@@ -72,10 +84,6 @@ class PythonCasesTest(unittest.TestCase):
 
     def test_a_test_that_only_prints_asserts_nothing(self) -> None:
         self.assertEqual(one(K_PY, "def test_a():\n    print(f())\n").assertions, 0)
-
-    def test_finds_a_literal_assert_and_a_sleep(self) -> None:
-        case = one(K_PY, "def test_a():\n    assert True\n    time.sleep(1)\n")
-        self.assertEqual((case.literal_lines, case.sleep_lines), ((2,), (3,)))
 
     def test_size_comes_from_the_function_then_the_class_then_the_file(self) -> None:
         text = ("import pytest\n\npytestmark = pytest.mark.medium\n\n@pytest.mark.small\n"
@@ -115,11 +123,6 @@ class TypeScriptCasesTest(unittest.TestCase):
         case = one(K_TS, "describe('medium: a', () => {\n  test('x', async () => {\n    const s = `}${y}`;\n"
                          "    expect(s).toBe('}');\n  });\n});\n")
         self.assertEqual(case.assertions, 1)
-
-    def test_finds_a_literal_expectation_and_a_timer(self) -> None:
-        case = one(K_TS, "describe('small: a', () => {\n  it('x', () => {\n    expect(true).toBe(true);\n"
-                         "    setTimeout(f, 10);\n  });\n});\n")
-        self.assertEqual((case.literal_lines, case.sleep_lines), ((3,), (4,)))
 
 
 class OtherFilesTest(unittest.TestCase):

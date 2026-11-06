@@ -50,11 +50,15 @@ class InstallTest(unittest.TestCase):
 
     K_TEST_SIZE = "medium"
 
-    def test_sets_the_hooks_path_and_reports_it(self) -> None:
+    def test_install_sets_the_hooks_path_of_a_repository(self) -> None:
         repo = Repo()
         self.addCleanup(repo.close)
         self.assertTrue(install_hooks.install(repo.root))
         self.assertEqual(repo.git("config", "core.hooksPath").strip(), "tools/hooks")
+
+    def test_main_reports_the_hooks_path_it_set(self) -> None:
+        repo = Repo()
+        self.addCleanup(repo.close)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             self.assertEqual(install_hooks.main([str(repo.root)]), 0)

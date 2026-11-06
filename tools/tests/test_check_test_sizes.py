@@ -54,18 +54,23 @@ class TestSizesRuleTest(unittest.TestCase):
         }
         self.assertEqual(found(rule_unsized_cpp_suite, files), [("tests/test_shape.cpp", 2)])
 
-    def test_python_rule_accepts_every_test_when_the_file_mark_sizes_it(self) -> None:
-        files = {
-            "tests/test_a.py": "import pytest\n\npytestmark = pytest.mark.small\n\n"
-                               "def test_x():\n    pass\n",
-            "tests/test_b.py": "import pytest\n\npytestmark = [pytest.mark.medium]\n\n"
-                               "def test_y():\n    pass\n",
-        }
-        self.assertEqual(found(rule_unsized_python_test, files), [])
+    def test_cpp_rule_reads_a_file_named_after_its_unit_with_a_test_suffix(self) -> None:
+        files = {"gui/tests/shape_test.cpp": "TEST_F(ShapeFixture, Bad) {}\n"}
+        self.assertEqual(found(rule_unsized_cpp_suite, files), [("gui/tests/shape_test.cpp", 1)])
 
-    def test_python_rule_accepts_every_test_when_the_size_constant_sizes_it(self) -> None:
-        files = {"tests/test_a.py": "K_TEST_SIZE = \"small\"\n\ndef test_x():\n    pass\n"}
-        self.assertEqual(found(rule_unsized_python_test, files), [])
+    def test_python_rule_accepts_every_test_when_the_file_mark_sizes_it(self) -> None:
+        rows = [
+            {
+                "tests/test_a.py": "import pytest\n\npytestmark = pytest.mark.small\n\n"
+                                   "def test_x():\n    pass\n",
+                "tests/test_b.py": "import pytest\n\npytestmark = [pytest.mark.medium]\n\n"
+                                   "def test_y():\n    pass\n",
+            },
+            {"tests/test_a.py": "K_TEST_SIZE = \"small\"\n\ndef test_x():\n    pass\n"},
+        ]
+        for files in rows:
+            with self.subTest(files=sorted(files)):
+                self.assertEqual(found(rule_unsized_python_test, files), [])
 
     def test_python_rule_reports_an_unsized_testcase_subclass_whatever_its_name(self) -> None:
         files = {"tests/test_a.py": "import unittest\n\nclass RuleTableTest(unittest.TestCase):\n    pass\n"}
@@ -108,20 +113,16 @@ class TestSizesRuleTest(unittest.TestCase):
         self.assertEqual(found(rule_unsized_cpp_suite, files), [("tests/test_a.cpp", 2)])
 
     def test_every_rule_skips_a_benchmark_suite(self) -> None:
-        files = {
-            "tests/test_a.cpp": "TEST(Benchmark_Wave, Run) {}\n",
-            "tests/a.test.ts": "describe('Benchmark_wave', () => {});\n",
-            "tests/test_b.py": "class TestBenchmark_Wave:\n    pass\n",
-            "tests/B.cs":
-                "[TestFixture]\npublic class Benchmark_Wave {\n  [Test] public void A() {}\n}\n",
-        }
-        rules = (
-            rule_unsized_cpp_suite,
-            rule_unsized_typescript_suite,
-            rule_unsized_python_test,
-            rule_unsized_csharp_fixture,
-        )
-        self.assertEqual([finding for rule in rules for finding in found(rule, files)], [])
+        rows = [
+            (rule_unsized_cpp_suite, "tests/test_a.cpp", "TEST(Benchmark_Wave, Run) {}\n"),
+            (rule_unsized_typescript_suite, "tests/a.test.ts", "describe('Benchmark_wave', () => {});\n"),
+            (rule_unsized_python_test, "tests/test_b.py", "class TestBenchmark_Wave:\n    pass\n"),
+            (rule_unsized_csharp_fixture, "tests/B.cs",
+             "[TestFixture]\npublic class Benchmark_Wave {\n  [Test] public void A() {}\n}\n"),
+        ]
+        for rule, path, text in rows:
+            with self.subTest(file=path):
+                self.assertEqual(found(rule, {path: text}), [])
 
 
 class TestSizesShellTest(unittest.TestCase):

@@ -6,8 +6,8 @@
 
 Usage: python tools/checking/copy_shared_tools.py ROOT --from UPSTREAM [--report] [--force] [--keep PATH]
 
-Upstream is read at HEAD. A shared file with text no upstream version held is a local edit. A copy refuses to
-overwrite it and writes nothing; --force overwrites it anyway, and --keep leaves a named file alone.
+Upstream is read at HEAD. A copy refuses a local edit (text no upstream version held) unless --force; --keep
+leaves a file alone; a file upstream dropped is named, never removed.
 """
 
 from __future__ import annotations
@@ -239,6 +239,29 @@ def shared_files(upstream: Path) -> list[str]:
     return [line for line in listed.stdout.splitlines() if line]
 
 
+def ever_shared(upstream: Path) -> list[str]:
+    """Returns every path any upstream commit held under its tools folder or among the community files."""
+    listed = subprocess.run(
+        ["git", "-C", str(upstream), "log", "--format=", "--name-only", K_REVISION, "--", K_TOOLS, *K_COMMUNITY],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    return sorted({line for line in listed.stdout.splitlines() if line}) if listed.returncode == 0 else []
+
+
+def held_files(root: Path) -> list[str]:
+    """Returns the files the repository tracks under its tools folder and among the community files."""
+    listed = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--", K_TOOLS, *K_COMMUNITY],
+        capture_output=True, text=True, encoding="utf-8",
+    )
+    return [line for line in listed.stdout.splitlines() if line] if listed.returncode == 0 else []
+
+
+def dropped(held: Iterable[str], shared: Iterable[str], once_shared: Iterable[str]) -> list[str]:
+    """Returns the held files upstream once shared and no longer does, in order."""
+    return sorted((set(held) & set(once_shared)) - set(shared))
+
+
 def main(argv: list[str] | None = None) -> int:
     """Copies the shared tools, or lists the files a copy would write with --report."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -256,6 +279,9 @@ def main(argv: list[str] | None = None) -> int:
     if notice:
         print(notice)
     shared = [relative for relative in shared_files(arguments.upstream) if relative not in arguments.keep]
+    for relative in dropped(held_files(arguments.root), shared_files(arguments.upstream),
+                            ever_shared(arguments.upstream)):
+        print(f"{relative}: dropped upstream; remove it")
     if arguments.report:
         files = pending(arguments.upstream, arguments.root, shared)
         edited = set(local_edits(arguments.upstream, arguments.root, shared))

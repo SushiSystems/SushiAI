@@ -15,7 +15,7 @@ import re
 import sys
 import tomllib
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -211,15 +211,22 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Runs the checkers of `check_all.py` over a root and writes the baseline of what they print."""
+def main(
+    argv: list[str] | None = None,
+    *,
+    run_plan: Callable[[Path], tuple[list, list[tuple[int, str]]]] | None = None,
+) -> int:
+    """Runs the checkers of `check_all.py` over a root and writes the baseline of what they print.
+
+    *run_plan* takes the root and returns the checks and their results; it defaults to `check_all.run_plan`.
+    """
     import check_all  # here, because check_all imports this module at its top
 
     arguments = _parse_arguments(sys.argv[1:] if argv is None else argv)
     if not re.fullmatch(K_ID_PATTERN, arguments.backlog):
         print(f"--backlog {arguments.backlog!r} does not match {K_ID_PATTERN}", file=sys.stderr)
         return K_EXIT_USAGE
-    checks, results = check_all.run_plan(arguments.root)
+    checks, results = (check_all.run_plan if run_plan is None else run_plan)(arguments.root)
     found: dict[str, Sequence[Finding]] = {}
     uncovered = []
     for check, (code, output) in zip(checks, results):

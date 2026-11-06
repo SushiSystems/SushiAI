@@ -16,7 +16,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from datetime import date
 from pathlib import Path
 from unittest import mock
 
@@ -32,6 +31,7 @@ from licensing.write_license_block import (  # noqa: E402
     is_source,
     main,
     parse_first_years,
+    pending,
     plan_changes,
     rewrite,
 )
@@ -164,23 +164,33 @@ class RewriteTest(unittest.TestCase):
         """Writes the block alone into an empty file."""
         self.assertEqual(_write("graph.py", ""), f"{K_HASHES}\n")
 
-    def test_keeps_newline_style_and_byte_order_mark(self) -> None:
-        """Keeps CRLF newlines and a leading byte order mark."""
-        text = "﻿" + f"{K_OLD_BOX}\n\n{K_DOC}".replace("\n", "\r\n")
-        expected = "﻿" + f"{K_BOX}\n\n{K_DOC}".replace("\n", "\r\n")
+    def test_keeps_crlf_newlines(self) -> None:
+        """Keeps CRLF newlines."""
+        text = f"{K_OLD_BOX}\n\n{K_DOC}".replace("\n", "\r\n")
+        expected = f"{K_BOX}\n\n{K_DOC}".replace("\n", "\r\n")
         self.assertEqual(_write("graph.hpp", text), expected)
+
+    def test_keeps_a_leading_byte_order_mark(self) -> None:
+        """Keeps a leading byte order mark."""
+        written = _write("graph.hpp", "\ufeff" + f"{K_OLD_BOX}\n\n{K_DOC}")
+        self.assertEqual(written, "\ufeff" + f"{K_BOX}\n\n{K_DOC}")
 
     def test_is_idempotent(self) -> None:
         """Changes nothing on a second run, for every opening."""
-        cases = {
-            "graph.hpp": [f"{K_OLD_BOX}\n\n{K_DOC}", K_DOC, "/* eslint-disable */\n'use server'\n"],
-            "graph.py": [f"{K_OLD_HASHES}{K_DOCSTRING}", K_DOCSTRING, "", "#!/bin/env python\nx = 1\n"],
-            "CMakeLists.txt": ["# Composes the policy targets.\nadd_library(policy INTERFACE)\n"],
-        }
-        for name, texts in cases.items():
-            for text in texts:
+        rows = (
+            ("graph.hpp", f"{K_OLD_BOX}\n\n{K_DOC}"),
+            ("graph.hpp", K_DOC),
+            ("graph.hpp", "/* eslint-disable */\n'use server'\n"),
+            ("graph.py", f"{K_OLD_HASHES}{K_DOCSTRING}"),
+            ("graph.py", K_DOCSTRING),
+            ("graph.py", ""),
+            ("graph.py", "#!/bin/env python\nx = 1\n"),
+            ("CMakeLists.txt", "# Composes the policy targets.\nadd_library(policy INTERFACE)\n"),
+        )
+        for name, text in rows:
+            with self.subTest(name=name, text=text[:30]):
                 once = _write(name, text)
-                self.assertEqual(_write(name, once), once, msg=f"{name}: {text[:30]!r}")
+                self.assertEqual(_write(name, once), once)
 
     def test_writes_the_closed_lines(self) -> None:
         """Writes the reserved-rights line and no grant in a closed repository."""
@@ -203,11 +213,16 @@ class RewriteTest(unittest.TestCase):
     def test_keeps_upstream_lines_on_a_plain_rerun(self) -> None:
         """Keeps a ported file's upstream rows when a later run names no upstream for it."""
         upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
-        ported = Header(K_PROJECT, K_ACME, upstream={"lapjv.cpp": upstream})
         for name, body in (("lapjv.cpp", K_DOC), ("lapjv.py", K_DOCSTRING)):
-            first = rewrite(name, body, Header(K_PROJECT, K_ACME, upstream={name: upstream}), 2026)
-            self.assertIn("Tomas Kazmar", first)
-            self.assertEqual(rewrite(name, first, K_HEADER, 2026), first)
+            with self.subTest(name=name):
+                first = rewrite(name, body, Header(K_PROJECT, K_ACME, upstream={name: upstream}), 2026)
+                self.assertIn("Tomas Kazmar", first)
+                self.assertEqual(rewrite(name, first, K_HEADER, 2026), first)
+
+    def test_a_newly_named_upstream_replaces_the_old_upstream_rows(self) -> None:
+        """Replaces a ported file's upstream rows when a later run names another upstream."""
+        upstream = ("Portions Copyright (c) 2012 Tomas Kazmar", "BSD-2-Clause")
+        ported = Header(K_PROJECT, K_ACME, upstream={"lapjv.cpp": upstream})
         replaced = rewrite("lapjv.cpp", rewrite("lapjv.cpp", K_DOC, ported, 2026),
                            Header(K_PROJECT, K_ACME, upstream={"lapjv.cpp": ("MIT",)}), 2026)
         self.assertNotIn("Tomas Kazmar", replaced)
@@ -254,6 +269,19 @@ class RewriteTest(unittest.TestCase):
     def test_uses_the_year_it_is_given(self) -> None:
         """Writes the file's first year into the copyright line."""
         self.assertIn("Copyright (c) 2024-present Jane Doe & Acme Corp", _write("graph.py", "", year=2024))
+
+
+class CommandLineTest(unittest.TestCase):
+    """Checks the refusals of the command line, which happen before any file is read."""
+    K_TEST_SIZE = "small"
+
+    def test_main_exits_two_and_names_the_form_when_upstream_is_malformed(self) -> None:
+        """Exits with code two and names PATH=LINE;LINE on stderr for an --upstream without a notice."""
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code = main(["unused", "--project", K_PROJECT, "--upstream", "lapjv.cpp"])
+        self.assertEqual(code, 2)
+        self.assertIn("--upstream takes PATH=LINE;LINE, got: lapjv.cpp", stderr.getvalue())
 
 
 class ParseFirstYearsTest(unittest.TestCase):
@@ -315,27 +343,37 @@ class RepositoryTest(unittest.TestCase):
         self._git(root, "commit", "-q", "-m", "rename", "--date=2026-03-01T00:00:00")
         return root
 
-    def test_report_writes_nothing_and_run_converges(self) -> None:
-        """Reports a pending file without touching it, then writes it once."""
+    def test_report_lists_a_pending_file_and_writes_nothing(self) -> None:
+        """Reports a pending file with exit code one without touching it."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self._repository(folder)
+            self.assertEqual(_main([str(root), "--project", K_PROJECT, "--report"]), 1)
+            self.assertEqual((root / "graph.py").read_text(encoding="utf-8"), K_DOCSTRING)
+
+    def test_run_writes_the_pending_file_dated_from_its_first_commit(self) -> None:
+        """Writes the pending file with its first year and leaves a third-party file alone."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self._repository(folder)
+            self.assertEqual(_main([str(root), "--project", K_PROJECT]), 0)
+            self.assertIn("Copyright (c) 2024-present ", (root / "graph.py").read_text(encoding="utf-8"))
+            self.assertEqual((root / "third_party" / "vendored.py").read_text(encoding="utf-8"), "x = 1\n")
+
+    def test_report_passes_once_the_run_has_written(self) -> None:
+        """Reports nothing pending, with exit code zero, after a run."""
         with tempfile.TemporaryDirectory() as folder:
             root = self._repository(folder)
             arguments = [str(root), "--project", K_PROJECT]
-            self.assertEqual(_main([*arguments, "--report"]), 1)
-            self.assertEqual((root / "graph.py").read_text(encoding="utf-8"), K_DOCSTRING)
-            self.assertEqual(_main(arguments), 0)
-            self.assertIn("Copyright (c) 2024-present ", (root / "graph.py").read_text(encoding="utf-8"))
-            self.assertEqual((root / "third_party" / "vendored.py").read_text(encoding="utf-8"), "x = 1\n")
+            _main(arguments)
             self.assertEqual(_main([*arguments, "--report"]), 0)
 
     def test_writes_a_file_that_is_staged_and_not_yet_committed(self) -> None:
-        """Gives a newly added file its block, dated this year."""
+        """Gives a newly added file its block, dated the year given."""
         with tempfile.TemporaryDirectory() as folder:
             root = self._repository(folder)
             (root / "fresh.py").write_text(K_DOCSTRING, encoding="utf-8")
             self._git(root, "add", "fresh.py")
-            self.assertEqual(_main([str(root), "--project", K_PROJECT]), 0)
-            written = (root / "fresh.py").read_text(encoding="utf-8")
-            self.assertIn(f"Copyright (c) {date.today().year}-present ", written)
+            written = dict(pending(root, K_HEADER, [], year=2031))[root / "fresh.py"]
+            self.assertIn("Copyright (c) 2031-present ", written)
 
     def test_skips_a_tracked_file_deleted_from_the_working_tree(self) -> None:
         """Leaves out a tracked file the working tree no longer holds."""

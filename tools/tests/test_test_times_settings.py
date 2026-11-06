@@ -56,12 +56,20 @@ def differences(table: dict[str, float], constants: dict[str, float]) -> list[st
 
 
 class TestTimesSettingsTest(unittest.TestCase):
-    """Reads the real skill when the repository has one, and sample tables otherwise."""
+    """Reads the real skill when the repository has one, and the settings constants."""
 
     def test_the_skill_table_matches_the_settings(self) -> None:
         if not K_SKILL.is_file():
             self.skipTest("this tree holds no skills/ folder")
         self.assertEqual(differences(read_times(K_SKILL.read_text(encoding="utf-8")), settings.K_TEST_TIMES), [])
+
+    def test_every_row_of_the_table_has_a_constant(self) -> None:
+        self.assertEqual(set(K_LABELS.values()), set(settings.K_TEST_TIMES))
+
+
+class TimesTextTest(unittest.TestCase):
+    """Reads and compares the text and the values of the Time table in memory."""
+    K_TEST_SIZE = "small"
 
     def test_reads_milliseconds_seconds_and_a_thousands_space_only_under_the_heading(self) -> None:
         text = ("## Time\n\n| Limit | Value |\n| --- | --- |\n"
@@ -77,9 +85,6 @@ class TestTimesSettingsTest(unittest.TestCase):
             "pre_merge_s: the skill says None, settings.py says 600.0",
             "small_test_s: the skill says 0.1, settings.py says 0.2",
         ])
-
-    def test_every_row_of_the_table_has_a_constant(self) -> None:
-        self.assertEqual(set(K_LABELS.values()), set(settings.K_TEST_TIMES))
 
 
 if __name__ == "__main__":

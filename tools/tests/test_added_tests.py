@@ -37,11 +37,14 @@ class TestAddedCases(unittest.TestCase):
     def test_a_case_moved_between_files_adds_nothing(self) -> None:
         self.assertEqual(new_case_names({K_CASE: K_ONE}, {K_CASE: "", K_OTHER_CASE: K_ONE}), [])
 
-    def test_a_renamed_suite_and_an_edited_body_add_nothing_but_a_new_name_with_a_new_body_does(self) -> None:
+    def test_a_renamed_suite_or_an_edited_body_adds_nothing(self) -> None:
         renamed = K_ONE.replace("Small_A", "Small_Renamed")
         edited = renamed.replace("f()", "g()")
         self.assertEqual(new_case_names({K_CASE: K_ONE}, {K_CASE: renamed}), [])
         self.assertEqual(new_case_names({K_CASE: renamed}, {K_CASE: edited}), [])
+
+    def test_a_new_name_with_a_new_body_is_listed(self) -> None:
+        edited = K_ONE.replace("Small_A", "Small_Renamed").replace("f()", "g()")
         self.assertEqual(new_case_names({K_CASE: edited},
                                         {K_CASE: edited + "\n" + K_TWO.replace("f()", "h()")}), ["Small_A.Two"])
 
@@ -49,15 +52,19 @@ class TestAddedCases(unittest.TestCase):
         self.assertEqual(new_case_names({K_CASE: K_ONE}, {K_CASE: K_ONE + "\n" + K_ONE.replace("One", "OneAgain")}),
                          ["Small_A.OneAgain"])
 
-    def test_a_benchmark_and_a_file_outside_the_test_folders_add_nothing(self) -> None:
+    def test_a_benchmark_case_adds_nothing(self) -> None:
         self.assertEqual(new_case_names({}, {K_OTHER_CASE: "TEST(Benchmark_A, Run) {\n}\n"}), [])
+
+    def test_only_files_under_the_test_folders_are_listed(self) -> None:
         self.assertEqual(under_test_folders(["tests/core/test_b.cpp", "tools/test_c.cpp"]), [K_OTHER_CASE])
 
     def test_a_removed_case_is_not_an_addition(self) -> None:
         self.assertEqual(new_case_names({K_CASE: K_ONE}, {K_CASE: ""}), [])
 
-    def test_the_first_program_of_a_folder_is_free_and_the_second_is_named(self) -> None:
+    def test_the_first_program_of_a_folder_is_free(self) -> None:
         self.assertEqual(new_program_files({}, {K_BUILD: K_PROGRAM.format(name="core_one")}), [])
+
+    def test_a_second_program_in_a_folder_is_named(self) -> None:
         self.assertEqual(new_program_files({K_BUILD: K_PROGRAM.format(name="core_one")},
                                            {K_BUILD: K_PROGRAM.format(name="core_one")
                                             + K_PROGRAM.format(name="core_two")}), [K_BUILD])

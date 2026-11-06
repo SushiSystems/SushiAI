@@ -104,18 +104,21 @@ def parse_programs(text: str) -> dict[str, str]:
     return json.loads(text)
 
 
-def _limit(key: str) -> float:
+def _limit(budget: dict[str, float], key: str) -> float:
     """Returns one limit of the budget."""
-    return float(K_BUDGET[key])
+    return float(budget[key])
 
 
 def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dict[str, str],
              rerun: list[Timing] | None, scope: str, wall: float | None, factor: float,
-             added: int | None, base: str, rebuilt: bool, open_backlog: frozenset[str] | None) -> Report:
+             added: int | None, base: str, rebuilt: bool, open_backlog: frozenset[str] | None,
+             budget: dict[str, float] | None = None) -> Report:
     """Applies the time limits to a run and returns its line, its findings and the tests to rerun.
 
     A `large` test has no time limit, only its timeout, so it counts in the shape and the totals alone.
+    *budget* holds the limits and defaults to K_TEST_TIMES of the settings.
     """
+    budget = K_BUDGET if budget is None else budget
     alone = {timing.name: timing.seconds for timing in rerun or []}
     findings: list[str] = []
     over: list[str] = []
@@ -132,7 +135,7 @@ def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dic
         key = K_TEST_LIMITS.get(size)
         if timing.name in exemptions:
             exempt_seconds += timing.seconds
-            if key is not None and timing.seconds <= _limit(key):
+            if key is not None and timing.seconds <= _limit(budget, key):
                 findings.append(f"{timing.name}: exempt as {exemptions[timing.name]} but within its limit; "
                                 f"remove the entry")
             continue
@@ -140,25 +143,27 @@ def evaluate(timings: list[Timing], *, programs: dict[str, str], exemptions: dic
         totals[(size, programs.get(suite, ""))] += timing.seconds
         if key is None:
             continue
-        limit = _limit(key)
+        limit = _limit(budget, key)
         if timing.seconds > limit:
             over.append(timing.name)
             if rerun is not None and alone.get(timing.name, 0.0) > limit:
                 findings.append(f"{timing.name}: {alone[timing.name]:.1f} s alone, over the {size} limit of {limit:g} s")
             elif rerun is None:
                 findings.append(f"{timing.name}: {timing.seconds:.1f} s, over the {size} limit of {limit:g} s (not rerun)")
-    findings += _whole_run_findings(scope, sized, wall, factor)
+    findings += _whole_run_findings(budget, scope, sized, wall, factor)
     findings += _exemption_findings(exemptions, open_backlog)
-    return Report(_line(totals, sized, counts, scope, wall, added, base, rebuilt, exempt_seconds, len(exemptions)),
+    return Report(_line(budget, totals, sized, counts, scope, wall, added, base, rebuilt, exempt_seconds,
+                       len(exemptions)),
                   tuple(findings), tuple(sorted(over)))
 
 
-def _whole_run_findings(scope: str, sized: dict[str, float], wall: float | None, factor: float) -> list[str]:
+def _whole_run_findings(budget: dict[str, float], scope: str, sized: dict[str, float], wall: float | None,
+                        factor: float) -> list[str]:
     """Returns a finding when a whole pre-merge run of small and medium tests is over its limit."""
     if scope != "default":
         return []
     seconds = wall if wall is not None else sized["small"] + sized["medium"]
-    limit = _limit("pre_merge_s")
+    limit = _limit(budget, "pre_merge_s")
     what = "wall time" if wall is not None else "sum of times"
     return [f"pre-merge run: {seconds:.0f} s {what}, over {limit:g} s x {factor:g}"] if seconds > limit * factor else []
 
@@ -180,9 +185,9 @@ def _exemption_findings(exemptions: dict[str, str], open_backlog: frozenset[str]
     return found
 
 
-def _line(totals: dict[tuple[str, str], float], sized: dict[str, float], counts: dict[str, int], scope: str,
-          wall: float | None, added: int | None, base: str, rebuilt: bool, exempt_seconds: float,
-          exempt_count: int) -> str:
+def _line(budget: dict[str, float], totals: dict[tuple[str, str], float], sized: dict[str, float],
+          counts: dict[str, int], scope: str, wall: float | None, added: int | None, base: str,
+          rebuilt: bool, exempt_seconds: float, exempt_count: int) -> str:
     """Returns the one-line summary of a run."""
     parts = []
     small = {program: seconds for (size, program), seconds in totals.items() if size == "small"}
@@ -191,7 +196,8 @@ def _line(totals: dict[tuple[str, str], float], sized: dict[str, float], counts:
         parts.append(f"small {small[worst]:.1f} s ({worst or 'no program map'})")
     if scope == "default":
         wall_text = f", {wall:.0f} s wall" if wall is not None else ""
-        parts.append(f"pre-merge {sized['small'] + sized['medium']:.0f} s sum{wall_text} of {_limit('pre_merge_s'):g} s")
+        merged_seconds = sized["small"] + sized["medium"]
+        parts.append(f"pre-merge {merged_seconds:.0f} s sum{wall_text} of {_limit(budget, 'pre_merge_s'):g} s")
     elif scope == "large":
         wall_text = f", {wall:.0f} s wall" if wall is not None else ""
         parts.append(f"large tier {sized['large']:.0f} s sum{wall_text}")
@@ -236,17 +242,19 @@ def _arguments(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, budget: dict[str, float] | None = None) -> int:
     """Prints the budget line, the tests to rerun and the findings of a run; returns the exit code.
 
     The JUnit file is what `ctest --output-junit` writes, with `Suite.Case` names. MAP is a JSON object
     from suite name to test program. The exemption TOML holds `"Suite.Case" = "RW-12"` under
     `[exempt]`, and an exempt test is left out of every limit and total. The first run names the tests
     over a limit in a `rerun:` line; the caller reruns them alone and passes that file as --rerun, and
-    then only a test over its limit alone is a finding. Without --gate the exit code is 0.
+    then only a test over its limit alone is a finding. Without --gate the exit code is 0. *budget* holds
+    the limits and defaults to K_TEST_TIMES of the settings.
     """
+    budget = K_BUDGET if budget is None else budget
     arguments = _arguments(sys.argv[1:] if argv is None else argv)
-    if not K_BUDGET:
+    if not budget:
         print("no K_TEST_TIMES in tools/settings.py", file=sys.stderr)
         return K_EXIT_USAGE
     exemptions = parse_exemptions(arguments.exemptions.read_text(encoding="utf-8")) if arguments.exemptions else {}
@@ -261,7 +269,7 @@ def main(argv: list[str] | None = None) -> int:
         read_junit(arguments.junit), programs=programs, exemptions=exemptions,
         rerun=read_junit(arguments.rerun) if arguments.rerun else None, scope=arguments.scope,
         wall=arguments.wall, factor=arguments.factor, added=added, base=arguments.base,
-        rebuilt=not arguments.not_rebuilt, open_backlog=open_backlog)
+        rebuilt=not arguments.not_rebuilt, open_backlog=open_backlog, budget=budget)
     for line in render(report, rerun_given=arguments.rerun is not None):
         print(line)
     return exit_code(report, gate=arguments.gate, rebuilt=not arguments.not_rebuilt)

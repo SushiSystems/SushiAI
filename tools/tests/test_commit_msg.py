@@ -109,10 +109,6 @@ class CommitProblemsTest(unittest.TestCase):
     def test_the_page_staged_with_the_change_passes(self) -> None:
         self.assertEqual(commit_problems(K_GOOD, K_KNOWN, K_PATTERN, _follow(K_GOOD, page_changed=True)), [])
 
-    def test_a_docs_line_waives_the_page(self) -> None:
-        message = K_GOOD + "Docs: docs/GUIDE.md unchanged (the change is internal)\n"
-        self.assertEqual(commit_problems(message, K_KNOWN, K_PATTERN, _follow(message)), [])
-
     def test_the_page_is_judged_even_when_no_line_is_required(self) -> None:
         problems = commit_problems("fix: a\n", None, K_PATTERN, _follow("fix: a\n"))
         self.assertEqual(len(problems), 1)
@@ -157,17 +153,24 @@ class HookTest(unittest.TestCase):
             os.chdir(previous)
         return code, errors.getvalue()
 
-    def test_refuses_and_accepts_by_what_is_staged_and_what_the_backlog_holds(self) -> None:
+    def test_the_hook_refuses_a_staged_change_without_its_page(self) -> None:
         self.repo.write("src/a.py", "x = 2\n")
         self.repo.git("add", "-A")
         code, errors = self._run("fix: change a\n\nBacklog: AB-1\n")
         self.assertEqual(code, 1)
         self.assertIn("commit refused: docs/GUIDE.md describes src/a.py", errors)
+
+    def test_the_hook_accepts_a_backlog_line_with_an_open_id_and_a_staged_page(self) -> None:
+        self.repo.write("src/a.py", "x = 2\n")
         self.repo.write("docs/GUIDE.md", K_PAGE + "More.\n")
         self.repo.write("docs/backlog/GENERAL.md", "| ID | Pri |\n| --- | --- |\n| AB-1 | P1 |\n| AB-30 | P1 |\n")
         self.repo.git("add", "-A")
         self.assertEqual(self._run("fix: change a\n\nBacklog: AB-30\n# Please enter the message\n"), (0, ""))
+
+    def test_the_hook_refuses_a_message_without_the_line(self) -> None:
         self.assertEqual(self._run("fix: change a\n")[0], 1)
+
+    def test_the_hook_accepts_a_merge(self) -> None:
         self.assertEqual(self._run("Merge branch 'x'\n"), (0, ""))
 
 

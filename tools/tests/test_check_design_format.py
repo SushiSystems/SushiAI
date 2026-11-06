@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Issue  # noqa: E402
+from documentation import tooling_bridge  # noqa: E402
 from documentation.check_design_format import K_CHECKER, Repository  # noqa: E402
 
 rule_no_commit_hashes = K_CHECKER.rules["rule_no_commit_hashes"]
@@ -54,6 +55,7 @@ None.
 """
 
 K_PATH = "docs/design/KERNELS.md"
+K_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 K_TEST_SIZE = "medium"
@@ -83,6 +85,8 @@ def _check(rule: Callable[[Repository], Iterator[Issue]], text: str, name: str =
 class RegistrationTest(unittest.TestCase):
     """Checks the rule table."""
 
+    K_TEST_SIZE = "small"
+
     def test_names_every_rule(self) -> None:
         """Holds the five rules under their names."""
         self.assertEqual(
@@ -94,22 +98,26 @@ class RegistrationTest(unittest.TestCase):
 class ValidDocumentTest(unittest.TestCase):
     """Checks that a document written to the format passes every rule."""
 
+    def test_the_tooling_package_that_owns_the_design_rules_loads(self) -> None:
+        """Fails when the package is absent, so a green run never rests on rules that did not run."""
+        self.assertIsNotNone(tooling_bridge.load("design", K_REPOSITORY_ROOT))
+
     def test_reports_nothing(self) -> None:
-        """Runs every rule over the valid document."""
+        """Runs each rule over the valid document."""
         for name, rule in K_CHECKER.rules.items():
-            self.assertEqual(_check(rule, K_DOCUMENT), [], name)
+            with self.subTest(rule=name):
+                self.assertEqual(_check(rule, K_DOCUMENT), [])
 
     def test_leaves_the_indexes_and_phase_files_alone(self) -> None:
-        """Skips the design map, the backlog and a phase file of a split topic."""
-        with tempfile.TemporaryDirectory() as folder:
-            files = {
-                "docs/design/README.md": "# Map\n",
-                "docs/design/REMAINING_WORK.md": "# Remaining work\n",
-                "docs/design/KERNELS/PHASE_ONE.md": "# Phase one\n\n## Anything\n",
-            }
-            repository = _repository(folder, files)
-            found = [issue for rule in K_CHECKER.rules.values() for issue in rule(repository)]
-            self.assertEqual(found, [])
+        """Skips the design map, the backlog and a phase file of a split topic, under each rule."""
+        files = {
+            "docs/design/README.md": "# Map\n",
+            "docs/design/REMAINING_WORK.md": "# Remaining work\n",
+            "docs/design/KERNELS/PHASE_ONE.md": "# Phase one\n\n## Anything\n",
+        }
+        for name, rule in K_CHECKER.rules.items():
+            with self.subTest(rule=name), tempfile.TemporaryDirectory() as folder:
+                self.assertEqual(_messages(rule(_repository(folder, files))), [])
 
     def test_reads_the_readme_of_a_split_topic(self) -> None:
         """Counts a split topic's README as its document."""

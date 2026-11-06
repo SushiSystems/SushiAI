@@ -12,9 +12,10 @@ The rules are those of `backlog check` in the tooling package's backlog module, 
 from __future__ import annotations
 
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -41,15 +42,19 @@ def collect(paths: list[Path]) -> Iterable[Repository]:
     return [Repository(path) for path in paths if (path / "docs").is_dir()]
 
 
-def rule_backlog(repository: Repository) -> Iterator[Issue]:
-    """Yields each fault `backlog check` finds, or one issue when the tooling package cannot be loaded."""
+def rule_backlog(repository: Repository,
+                 load_module: Callable[[str, Path], ModuleType | None] = load) -> Iterator[Issue]:
+    """Yields each fault `backlog check` finds, or one issue when the tooling package cannot be loaded.
+
+    *load_module* loads a module of the tooling package by name and root; it defaults to the bridge.
+    """
     if not repository.has_backlog():
         return
-    backlog = load("backlog", repository.root)
+    backlog = load_module("backlog", repository.root)
     if backlog is None:
         yield missing(repository.root / "docs", "backlog")
         return
-    design = load("design", repository.root)
+    design = load_module("design", repository.root)
     store = backlog.BacklogStore(repository.root)
     open_designs = design.DesignStore(repository.root).open_documents if design else (lambda: [])
     for fault in backlog.check_backlog(store, open_designs):

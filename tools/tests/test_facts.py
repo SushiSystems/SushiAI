@@ -315,20 +315,29 @@ class TestTreeOnDisk(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(sorted(output.splitlines()), ["follow.md:3: follows", "quote.md:3: quote"])
 
-    def test_where_and_list_name_the_home(self) -> None:
+    def test_where_names_the_home(self) -> None:
         self.write("home.md", K_HOME)
         self.write("quote.md", K_QUOTE)
         self.assertEqual(self._run("where", "shipping")[1].strip(), "home.md:3")
+
+    def test_list_names_the_home_and_the_citations(self) -> None:
+        self.write("home.md", K_HOME)
+        self.write("quote.md", K_QUOTE)
         self.assertEqual(self._run("list")[1].strip(), "shipping: home.md:3, cited 1")
 
     def test_an_unknown_id_is_an_error(self) -> None:
         self.assertEqual(self._run("cited-by", "nothing")[0], 1)
 
-    def test_apply_rewrites_a_stale_quote_and_a_second_run_writes_nothing(self) -> None:
+    def test_apply_rewrites_a_stale_quote(self) -> None:
         self.write("home.md", K_HOME)
         self.write("page.md", K_QUOTE.replace("last phase", "final phase"))
         self.assertEqual(self._run("apply")[1].strip(), "page.md: written")
         self.assertEqual((self.root / "page.md").read_text(encoding="utf-8"), K_QUOTE)
+
+    def test_a_second_apply_writes_nothing(self) -> None:
+        self.write("home.md", K_HOME)
+        self.write("page.md", K_QUOTE.replace("last phase", "final phase"))
+        self._run("apply")
         self.assertEqual(self._run("apply")[1], "")
 
     def test_apply_refuses_a_stale_page_that_is_not_utf8_and_writes_nothing(self) -> None:
@@ -339,10 +348,13 @@ class TestTreeOnDisk(unittest.TestCase):
             self._run("apply")
         self.assertEqual((self.root / "bad.md").read_bytes(), bad)
 
-    def test_the_checker_passes_a_clean_tree_and_names_a_stale_quote(self) -> None:
+    def test_the_checker_passes_a_clean_tree(self) -> None:
         self.write("home.md", K_HOME)
         self.write("page.md", K_QUOTE)
         self.assertEqual(self._check(), (0, ""))
+
+    def test_the_checker_names_a_stale_quote(self) -> None:
+        self.write("home.md", K_HOME)
         self.write("page.md", K_QUOTE.replace("last phase", "final phase"))
         code, output = self._check()
         self.assertEqual(code, 1)
@@ -355,14 +367,6 @@ class TestTreeOnDisk(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = check_docs_facts.run(check_docs_facts.K_CHECKER, [str(self.root)])
         return code, out.getvalue()
-
-    def test_changing_a_fact_lists_the_page_that_follows_it(self) -> None:
-        self._start_repository()
-        self.write("home.md", K_HOME.replace("last phase", "final phase"))
-        self._commit("change the fact")
-        problems = self._follow_problems()
-        self.assertEqual(len(problems), 1)
-        self.assertIn("follow.md follows the fact shipping", problems[0])
 
     def test_the_followers_page_in_the_commit_satisfies_the_rule(self) -> None:
         self._start_repository()

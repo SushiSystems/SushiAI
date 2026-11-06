@@ -50,11 +50,10 @@ class TrailerProblemsTest(unittest.TestCase):
     def test_a_message_without_the_line_is_refused(self) -> None:
         self.assertIn("no `Backlog:` line", trailer_problems("fix: a thing\n", K_KNOWN, K_PATTERN)[0])
 
-    def test_an_open_id_passes(self) -> None:
-        self.assertEqual(trailer_problems("fix: a thing\n\nBacklog: AB-1\n", K_KNOWN, K_PATTERN), [])
-
-    def test_several_ids_pass_when_each_is_open(self) -> None:
-        self.assertEqual(trailer_problems("fix: a thing\n\nBacklog: AB-1, AB-22\n", K_KNOWN, K_PATTERN), [])
+    def test_ids_pass_when_each_is_open(self) -> None:
+        for line in ("AB-1", "AB-1, AB-22"):
+            with self.subTest(line=line):
+                self.assertEqual(trailer_problems(f"fix: a thing\n\nBacklog: {line}\n", K_KNOWN, K_PATTERN), [])
 
     def test_an_id_that_is_not_open_is_refused(self) -> None:
         problems = trailer_problems("fix: a thing\n\nBacklog: AB-9\n", K_KNOWN, K_PATTERN)
@@ -88,9 +87,6 @@ class TrailerRuleTest(unittest.TestCase):
 
     def test_reads_the_rows_of_a_backlog_table(self) -> None:
         self.assertEqual(ids_in(K_TABLE), K_KNOWN)
-
-    def test_an_id_open_at_the_parent_or_in_the_commit_passes(self) -> None:
-        self.assertEqual(list(rule_trailer(_check("fix: close AB-1\n\nBacklog: AB-1\n"))), [])
 
     def test_a_commit_without_the_line_is_reported_on_its_short_hash(self) -> None:
         issues = list(rule_trailer(_check("fix: a thing\n")))
@@ -161,10 +157,13 @@ class RepositoryTest(unittest.TestCase):
         self._commit("fix: again\n\nBacklog: AB-1")
         self.assertEqual(len(self._findings()), 1)
 
-    def test_a_commit_that_closes_its_entry_and_one_that_adds_an_entry_both_pass(self) -> None:
+    def test_a_commit_that_closes_its_entry_passes(self) -> None:
         self._write(K_AREA, "| ID | Pri |\n| --- | --- |\n| AB-22 | P2 |\n")
         self._commit("fix: close AB-1\n\nBacklog: AB-1")
-        self._write(K_AREA, "| ID | Pri |\n| --- | --- |\n| AB-22 | P2 |\n| AB-23 | P1 |\n")
+        self.assertEqual(self._findings(), [])
+
+    def test_a_commit_that_adds_an_entry_passes(self) -> None:
+        self._write(K_AREA, "| ID | Pri |\n| --- | --- |\n| AB-1 | P1 |\n| AB-23 | P1 |\n")
         self._commit("fix: add AB-23\n\nBacklog: AB-23")
         self.assertEqual(self._findings(), [])
 

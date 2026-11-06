@@ -20,6 +20,7 @@ from checking.copy_shared_tools import (  # noqa: E402
     LocalEditsError,
     committed,
     copy,
+    dropped,
     first_year,
     known_bodies,
     local_edits,
@@ -55,6 +56,7 @@ def _git(root: Path, *arguments: str) -> None:
 
 class MergedTest(unittest.TestCase):
     """Covers how one shared file is rebuilt for a repository."""
+    K_TEST_SIZE = "small"
 
     def test_a_python_file_keeps_the_repository_header(self) -> None:
         self.assertEqual(merged("x.py", K_UPSTREAM_HEADER + K_BODY, K_LOCAL_HEADER + "old\n"),
@@ -95,13 +97,25 @@ class CopyTest(unittest.TestCase):
     def test_a_changed_shared_file_is_pending(self) -> None:
         self.assertEqual(pending(self.upstream, self.root, self.shared), ["tools/layering/check.py"])
 
-    def test_a_copy_writes_shared_files_and_keeps_settings_and_local_tools(self) -> None:
+    def test_a_copy_writes_a_changed_shared_file_under_the_repository_header(self) -> None:
         copy(self.upstream, self.root, self.shared)
         self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"), K_LOCAL_HEADER + K_BODY)
-        self.assertEqual((self.root / "tools/settings.py").read_text(encoding="utf-8"), 'K_TIER_ORDER = ("core",)\n')
-        self.assertEqual((self.root / "tools/naming/check_naming.py").read_text(encoding="utf-8"), "local\n")
-        self.assertEqual((self.root / "tools/README.md").read_text(encoding="utf-8"), "# tools\nlocal\n")
+
+    def test_a_copy_leaves_nothing_pending(self) -> None:
+        copy(self.upstream, self.root, self.shared)
         self.assertEqual(pending(self.upstream, self.root, self.shared), [])
+
+    def test_a_copy_keeps_the_settings_of_the_repository(self) -> None:
+        copy(self.upstream, self.root, self.shared)
+        self.assertEqual((self.root / "tools/settings.py").read_text(encoding="utf-8"), 'K_TIER_ORDER = ("core",)\n')
+
+    def test_a_copy_keeps_the_readme_of_the_repository(self) -> None:
+        copy(self.upstream, self.root, self.shared)
+        self.assertEqual((self.root / "tools/README.md").read_text(encoding="utf-8"), "# tools\nlocal\n")
+
+    def test_a_copy_keeps_the_local_tools(self) -> None:
+        copy(self.upstream, self.root, self.shared)
+        self.assertEqual((self.root / "tools/naming/check_naming.py").read_text(encoding="utf-8"), "local\n")
 
     def test_missing_settings_are_written_from_upstream(self) -> None:
         (self.root / "tools/settings.py").unlink()
@@ -158,6 +172,14 @@ class CopyTest(unittest.TestCase):
         _write(self.upstream, "tools/extra.py", "x\n")
         self.assertNotIn("tools/extra.py", shared_files(self.upstream))
 
+    def test_shared_files_lists_the_community_files_of_upstream(self) -> None:
+        _write(self.upstream, ".github/CODE_OF_CONDUCT.md", "conduct\n")
+        _write(self.upstream, ".github/SECURITY.md", "security\n")
+        _git(self.upstream, "add", "-A")
+        _git(self.upstream, "commit", "-q", "-m", "community")
+        community = {".github/CODE_OF_CONDUCT.md", ".github/SECURITY.md"}
+        self.assertEqual(community & set(shared_files(self.upstream)), community)
+
     def test_the_command_names_uncommitted_upstream_files(self) -> None:
         _write(self.upstream, "tools/layering/check.py", K_UPSTREAM_HEADER + K_EDITED_BODY)
         output = io.StringIO()
@@ -165,24 +187,34 @@ class CopyTest(unittest.TestCase):
             main([str(self.root), "--from", str(self.upstream), "--report"])
         self.assertIn("upstream has uncommitted changes, copying HEAD: tools/layering/check.py", output.getvalue())
 
-    def test_the_command_reports_a_local_edit_and_refuses_to_copy_it(self) -> None:
+    def test_the_command_reports_a_local_edit(self) -> None:
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
         output = io.StringIO()
         with contextlib.redirect_stdout(output):
-            self.assertEqual(main([str(self.root), "--from", str(self.upstream), "--report"]), 1)
+            code = main([str(self.root), "--from", str(self.upstream), "--report"])
+        self.assertEqual(code, 1)
         self.assertIn("tools/layering/check.py: differs from upstream (local edit)", output.getvalue())
+
+    def test_the_command_refuses_to_copy_a_local_edit(self) -> None:
+        _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
         with contextlib.redirect_stderr(io.StringIO()):
-            self.assertEqual(main([str(self.root), "--from", str(self.upstream)]), 1)
+            code = main([str(self.root), "--from", str(self.upstream)])
+        self.assertEqual(code, 1)
 
 
-    def test_a_kept_file_is_left_alone_and_the_rest_is_copied(self) -> None:
+    def test_a_kept_file_is_left_alone(self) -> None:
+        _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
+        with contextlib.redirect_stdout(io.StringIO()):
+            main([str(self.root), "--from", str(self.upstream), "--keep", "tools/layering/check.py"])
+        self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"),
+                         K_LOCAL_HEADER + K_EDITED_BODY)
+
+    def test_the_rest_is_copied_beside_a_kept_file(self) -> None:
         _write(self.root, "tools/layering/check.py", K_LOCAL_HEADER + K_EDITED_BODY)
         (self.root / "tools/settings.py").unlink()
         with contextlib.redirect_stdout(io.StringIO()):
             code = main([str(self.root), "--from", str(self.upstream), "--keep", "tools/layering/check.py"])
         self.assertEqual(code, 0)
-        self.assertEqual((self.root / "tools/layering/check.py").read_text(encoding="utf-8"),
-                         K_LOCAL_HEADER + K_EDITED_BODY)
         self.assertTrue((self.root / "tools/settings.py").exists())
 
 
@@ -223,7 +255,7 @@ class OtherSourceBlockTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._folder.cleanup()
 
-    def test_a_closed_repository_gets_its_own_box_and_a_second_copy_finds_no_difference(self) -> None:
+    def test_a_closed_repository_gets_its_own_box(self) -> None:
         self.assertEqual(copy(self.upstream, self.root, [K_HPP]), [K_HPP])
         text = (self.root / K_HPP).read_text(encoding="utf-8")
         self.assertIn("Acme secret.", text)
@@ -231,6 +263,9 @@ class OtherSourceBlockTest(unittest.TestCase):
         self.assertIn("https://acme.example", text)
         self.assertNotIn("PolyForm", text)
         self.assertTrue(text.endswith(K_HPP_BODY))
+
+    def test_a_second_copy_finds_no_difference(self) -> None:
+        copy(self.upstream, self.root, [K_HPP])
         self.assertEqual(pending(self.upstream, self.root, [K_HPP]), [])
         self.assertEqual(local_edits(self.upstream, self.root, [K_HPP]), [])
 
@@ -242,6 +277,7 @@ class OtherSourceBlockTest(unittest.TestCase):
 
 class SmallDecisionTest(unittest.TestCase):
     """Covers the pure decisions."""
+    K_TEST_SIZE = "small"
 
     def test_the_year_is_the_first_copyright_row_found(self) -> None:
         self.assertEqual(first_year(2030, None, "Copyright (c) 2024-present X", "Copyright (c) 2020-present X"), 2024)
@@ -256,8 +292,21 @@ class SmallDecisionTest(unittest.TestCase):
         self.assertEqual(uncommitted_notice(["a", "b"]), "upstream has uncommitted changes, copying HEAD: a, b")
 
 
+class DroppedTest(unittest.TestCase):
+    """Covers the files a repository holds that upstream no longer shares."""
+
+    def test_a_file_upstream_dropped_is_named(self) -> None:
+        held = ["tools/check_all.py", "tools/testing/check_test_additions.py"]
+        once = ["tools/check_all.py", "tools/testing/check_test_additions.py"]
+        self.assertEqual(dropped(held, ["tools/check_all.py"], once), ["tools/testing/check_test_additions.py"])
+
+    def test_a_local_tool_upstream_never_held_is_not_named(self) -> None:
+        self.assertEqual(dropped(["tools/own.py"], [], ["tools/check_all.py"]), [])
+
+
 class NewFileHeaderTest(unittest.TestCase):
     """Checks that a shared file new to a repository takes the repository's header."""
+    K_TEST_SIZE = "small"
 
     def test_a_new_python_file_takes_the_template_header_with_its_own_name(self) -> None:
         upstream = "# check_x.py\n# SushiSkills - url\n# Licensed A.\n\"\"\"Doc.\"\"\"\nbody\n"

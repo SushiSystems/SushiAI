@@ -20,20 +20,26 @@ class IsCitableTest(unittest.TestCase):
 
     K_TEST_SIZE = "small"
 
-    def test_accepts_the_manual_and_the_source(self) -> None:
+    def test_accepts_a_manual_page_a_source_file_and_a_top_level_tool_file(self) -> None:
         """Accepts a manual page, a source file and a top-level tool file of a known extension."""
-        for name in ("docs/guides/use.md", "modules/core/source/x.cpp", "tools/settings.py", "CMakeLists.txt"):
-            self.assertTrue(is_citable(name), name)
+        rows = ("docs/guides/use.md", "modules/core/source/x.cpp", "tools/settings.py", "CMakeLists.txt")
+        for name in rows:
+            with self.subTest(name=name):
+                self.assertTrue(is_citable(name))
 
     def test_refuses_the_archive_and_the_shared_tools(self) -> None:
         """Refuses a file under docs/archive and a file under a shared tools folder, which name paths as fixtures."""
-        for name in ("docs/archive/old.md", "tools/documentation/check_x.py", "tools/tests/test_x.py"):
-            self.assertFalse(is_citable(name), name)
+        rows = ("docs/archive/old.md", "tools/documentation/check_x.py", "tools/tests/test_x.py")
+        for name in rows:
+            with self.subTest(name=name):
+                self.assertFalse(is_citable(name))
 
     def test_refuses_a_skipped_folder_at_any_depth(self) -> None:
         """Refuses a file under a vendored, build or git folder wherever it sits."""
-        for name in ("third_party/lib/x.h", "modules/a/node_modules/b.md", "build/x.txt", "modules/a/.git/notes.md"):
-            self.assertFalse(is_citable(name), name)
+        rows = ("third_party/lib/x.h", "modules/a/node_modules/b.md", "build/x.txt", "modules/a/.git/notes.md")
+        for name in rows:
+            with self.subTest(name=name):
+                self.assertFalse(is_citable(name))
 
     def test_refuses_an_extension_no_citation_uses(self) -> None:
         """Refuses an image, and a file with no extension at all."""

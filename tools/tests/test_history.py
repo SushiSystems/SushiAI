@@ -21,6 +21,7 @@ from commits.history import (  # noqa: E402
     K_RECORD,
     blob_texts,
     commits_since,
+    git,
     parse_blob_stream,
     parse_log,
 )
@@ -102,15 +103,42 @@ class HistoryTest(unittest.TestCase):
         self.repo.write("a.md", "two\n")
         self.third = self.repo.commit("third")
 
-    def test_the_commits_after_a_base_come_oldest_first_with_parent_and_whole_message(self) -> None:
+    def test_the_commits_after_a_base_come_oldest_first(self) -> None:
         found = commits_since(self.repo.root, self.base.sha)
         self.assertEqual([c.sha for c in found], [self.second.sha, self.third.sha])
+
+    def test_each_commit_gives_its_parent(self) -> None:
+        found = commits_since(self.repo.root, self.base.sha)
         self.assertEqual([c.parent for c in found], [self.base.sha, self.second.sha])
+
+    def test_each_commit_gives_its_whole_message(self) -> None:
+        found = commits_since(self.repo.root, self.base.sha)
         self.assertIn("Backlog: none (test)", found[0].message)
 
-    def test_a_blob_is_read_by_its_hash_and_an_unknown_hash_is_left_out(self) -> None:
+    def test_commits_since_leaves_out_merge_commits(self) -> None:
+        self.repo.git("checkout", "-q", "-b", "side", self.base.sha)
+        self.repo.write("side.md", "side\n")
+        side = self.repo.commit("side work")
+        self.repo.git("checkout", "-q", "-")
+        self.repo.git("merge", "--no-ff", "-q", "side", "-m", "Merge branch side")
+        found = commits_since(self.repo.root, self.base.sha)
+        self.assertEqual(sorted(c.sha for c in found), sorted([self.second.sha, self.third.sha, side.sha]))
+
+    def test_commits_since_stops_with_a_message_when_git_cannot_read_the_range(self) -> None:
+        with self.assertRaises(SystemExit) as stopped:
+            commits_since(self.repo.root, "0" * 40)
+        self.assertEqual(stopped.exception.code,
+                         f"cannot read the history after {'0' * 40}; fetch the full history")
+
+    def test_git_returns_none_when_a_git_command_fails(self) -> None:
+        self.assertIsNone(git(self.repo.root, "rev-parse", "--verify", "no-such-ref"))
+
+    def test_a_blob_is_read_by_its_hash(self) -> None:
         blob = self.repo.git("rev-parse", "HEAD:a.md").strip()
-        self.assertEqual(blob_texts(self.repo.root, [blob, "0" * 40]), {blob: "two\n"})
+        self.assertEqual(blob_texts(self.repo.root, [blob]), {blob: "two\n"})
+
+    def test_an_unknown_hash_is_left_out(self) -> None:
+        self.assertEqual(blob_texts(self.repo.root, ["0" * 40]), {})
 
 
 if __name__ == "__main__":

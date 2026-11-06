@@ -148,12 +148,25 @@ class RunTest(unittest.TestCase):
             self.assertIn("docs/archive", (root / "docs/archive/specs/2026-01-01-a-b.md").read_text(encoding="utf-8"))
 
     def test_the_command_exits_one_for_a_dry_run_that_finds_something(self) -> None:
-        """Returns 1 without --apply while citations remain, and 0 once they are replaced."""
+        """Returns 1 without --apply while citations remain."""
         with tempfile.TemporaryDirectory() as folder:
             root = self._root(folder)
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root), "--prefix", "docs/archive"]), 1)
+
+    def test_the_command_exits_zero_when_apply_replaces_the_citations(self) -> None:
+        """Returns 0 with --apply, which replaces the citations it finds."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self._root(folder)
+            with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root), "--prefix", "docs/archive", "--apply"]), 0)
+
+    def test_a_dry_run_after_the_apply_finds_nothing_and_exits_zero(self) -> None:
+        """Returns 0 from a dry run once the citations are replaced."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self._root(folder)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([str(root), "--prefix", "docs/archive", "--apply"])
                 self.assertEqual(main([str(root), "--prefix", "docs/archive"]), 0)
 
 

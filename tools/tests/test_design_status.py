@@ -2,12 +2,13 @@
 # SushiSkills - https://github.com/SushiSystems/SushiSkills
 # Copyright (c) 2026-present Mustafa Garip & Sushi Systems
 # Licensed under the Apache License 2.0. See LICENSE.
-"""Tests the parser and the listings of design documents, from values only."""
+"""Tests the parser and the listings of design documents from values only, and the reader of the disk once on a temporary tree."""
 
 from __future__ import annotations
 
 import datetime
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from documentation.design_status import (  # noqa: E402
     first_content_line,
     is_under_revision,
     parse_status,
+    read_tree,
     section_body,
     section_names,
     status_documents,
@@ -162,6 +164,35 @@ class ListingTest(unittest.TestCase):
         """Answers yes for a path with the revision folder in it, and no for a live topic."""
         self.assertTrue(is_under_revision("docs/design/_REVISION/SOUND/README.md"))
         self.assertFalse(is_under_revision("docs/design/ECS.md"))
+
+
+class ReadTreeTest(unittest.TestCase):
+    """Reads a temporary repository into values: its docs folders and files, the module READMEs, and the text of each page."""
+
+    K_TEST_SIZE = "medium"
+
+    def test_read_tree_reads_the_docs_tree_and_the_module_readmes_into_values(self) -> None:
+        files = {
+            "docs/design/AUDIO.md": "# Audio\n",
+            "docs/agent/2026_01_01_X/SPEC.md": "# X\n",
+            "modules/core/audio/README.md": "# Audio module\n",
+            "modules/core/audio/source/a.cpp": "int a;\n",
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            for name, text in files.items():
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text(text, encoding="utf-8")
+            tree = read_tree(root)
+        self.assertEqual(tree.folders, frozenset({"docs", "docs/design", "docs/agent", "docs/agent/2026_01_01_X"}))
+        self.assertEqual(tree.files, frozenset({
+            "docs/design/AUDIO.md", "docs/agent/2026_01_01_X/SPEC.md", "modules/core/audio/README.md",
+        }))
+        self.assertEqual(tree.texts, {
+            "docs/design/AUDIO.md": "# Audio\n",
+            "docs/agent/2026_01_01_X/SPEC.md": "# X\n",
+            "modules/core/audio/README.md": "# Audio module\n",
+        })
 
 
 if __name__ == "__main__":

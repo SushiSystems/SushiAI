@@ -23,9 +23,13 @@ from documentation.check_source_comments import (  # noqa: E402
     K_CHECKER,
     K_PART_OF,
     CheckedSource,
+    rule_block_ceiling,
     rule_comment_runs,
+    rule_file_header,
+    rule_history,
     rule_license_block,
     rule_no_date,
+    rule_separators,
     split_source,
 )
 from documentation.licence import Licence  # noqa: E402
@@ -110,15 +114,11 @@ class LicenseBlockTest(unittest.TestCase):
         """Accepts a Python file that opens with the `#` block."""
         self.assertEqual(_messages("graph.py", _hashed("graph.py")), [])
 
-    def test_accepts_block_after_shebang(self) -> None:
-        """Accepts a Python file whose block follows a shebang line."""
-        text = _hashed("graph.py", first="#!/usr/bin/env python3\n")
-        self.assertEqual(_messages("graph.py", text), [])
-
     def test_accepts_block_after_coding_line(self) -> None:
-        """Accepts a Python file whose block follows a source encoding line."""
-        text = _hashed("graph.py", first="# -*- coding: utf-8 -*-\n")
-        self.assertEqual(_messages("graph.py", text), [])
+        """Accepts a Python file whose block follows a shebang line or a source encoding line."""
+        for first in ("#!/usr/bin/env python3\n", "# -*- coding: utf-8 -*-\n"):
+            with self.subTest(first=first):
+                self.assertEqual(_messages("graph.py", _hashed("graph.py", first=first)), [])
 
     def test_accepts_block_behind_a_byte_order_mark(self) -> None:
         """Accepts a correct block whose file begins with a UTF-8 byte order mark."""
@@ -211,6 +211,69 @@ class DateTagTest(unittest.TestCase):
         body = "/** @date 2026 */\nint a;\n/** \\date 2026 */\nint b;\n"
         found = list(rule_no_date(_source("trace.rgen", _boxed("trace.rgen") + body)))
         self.assertEqual(len(found), 2)
+
+
+def _found(rule, name: str, text: str) -> list[str]:
+    """Returns the messages one rule gives for a file with the given name and content."""
+    return [issue.message for issue in rule(_source(name, text))]
+
+
+class FileHeaderTest(unittest.TestCase):
+    """Covers the file block and the module docstring a file opens with."""
+
+    K_TEST_SIZE = "small"
+
+    def test_a_complete_file_block_is_clean(self) -> None:
+        self.assertEqual(_found(rule_file_header, "a.hpp", _boxed("a.hpp")), [])
+
+    def test_a_file_block_naming_another_file_is_reported(self) -> None:
+        self.assertEqual(_found(rule_file_header, "a.hpp", _boxed("a.hpp").replace("@file a.hpp", "@file b.hpp")),
+                         ["@file must name a.hpp"])
+
+    def test_a_python_file_without_a_docstring_is_reported(self) -> None:
+        text = _hashed("a.py").replace('"""Does nothing."""', "K_VALUE = 1")
+        self.assertEqual(_found(rule_file_header, "a.py", text), ["module must open with a docstring"])
+
+
+class BlockCeilingTest(unittest.TestCase):
+    """Covers the length of a symbol comment block."""
+
+    K_TEST_SIZE = "small"
+
+    def test_a_symbol_block_over_the_ceiling_is_reported(self) -> None:
+        block = "/**\n" + " * @brief Does it.\n" * 8 + " */\nint f();\n"
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + block),
+                         ["comment block exceeds 8 lines"])
+
+    def test_a_short_symbol_block_is_clean(self) -> None:
+        block = "/** @brief Does it. */\nint f();\n"
+        self.assertEqual(_found(rule_block_ceiling, "a.hpp", _boxed("a.hpp") + block), [])
+
+
+class SeparatorTest(unittest.TestCase):
+    """Covers separator lines in comments."""
+
+    K_TEST_SIZE = "small"
+
+    def test_a_separator_comment_is_reported(self) -> None:
+        self.assertEqual(_found(rule_separators, "a.hpp", _boxed("a.hpp") + "// ----------\nint f();\n"),
+                         ["separator line outside the license block"])
+
+    def test_the_license_box_is_not_a_separator(self) -> None:
+        self.assertEqual(_found(rule_separators, "a.hpp", _boxed("a.hpp")), [])
+
+
+class HistoryTest(unittest.TestCase):
+    """Covers backlog tags and history words in comments."""
+
+    K_TEST_SIZE = "small"
+
+    def test_a_todo_tag_is_reported(self) -> None:
+        self.assertEqual(_found(rule_history, "a.hpp", _boxed("a.hpp") + "// TODO speed up\nint f();\n"),
+                         ["'TODO' belongs in the backlog or git"])
+
+    def test_a_comment_that_says_what_a_thing_does_is_clean(self) -> None:
+        self.assertEqual(_found(rule_history, "a.hpp", _boxed("a.hpp") + "// Adds two numbers.\nint f();\n"), [])
 
 
 class CommandLineTest(unittest.TestCase):

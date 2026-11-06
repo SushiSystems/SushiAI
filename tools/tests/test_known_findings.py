@@ -12,8 +12,8 @@ import sys
 import tempfile
 import tomllib
 import unittest
+from collections.abc import Callable
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -52,6 +52,11 @@ def judge(output: str, entries: list[Entry], code: int = 1,
           open_backlog: frozenset[str] | None = None) -> tuple[int, str]:
     """Returns the verdict of apply_baseline for the test mirror checker."""
     return apply_baseline(K_CHECKER, code, output, entries, K_PATTERN, open_backlog)
+
+
+def _plan_of(checks: list[check_all.Check], results: list[tuple[int, str]]) -> Callable[[Path], tuple]:
+    """Returns a stand-in for check_all.run_plan that answers the given checks and results."""
+    return lambda _root: (checks, results)
 
 
 class ParseOutputTest(unittest.TestCase):
@@ -271,41 +276,47 @@ class ShellTest(unittest.TestCase):
     def test_the_writer_writes_what_the_checkers_print_and_reads_back(self) -> None:
         checks = [check_all.Check(K_CHECKER, (), False), check_all.Check("tests", (), True)]
         results = [(1, f"{K_A}\n{K_A2}\n"), (1, "FAIL: suite\n")]
+        plan = _plan_of(checks, results)
         with tempfile.TemporaryDirectory() as folder, \
-                mock.patch.object(check_all, "run_plan", return_value=(checks, results)), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             root = Path(folder)
             (root / "tools").mkdir()
             command = [str(root), "--write", "--backlog", "RW-1"]
-            self.assertEqual(known_findings.main(command), 0)
+            self.assertEqual(known_findings.main(command, run_plan=plan), 0)
             self.assertEqual(read_baseline(root), [entry(count=2)])
-            self.assertEqual(known_findings.main(command), 2)
-            self.assertEqual(known_findings.main([*command, "--replace"]), 0)
+            self.assertEqual(known_findings.main(command, run_plan=plan), 2)
+            self.assertEqual(known_findings.main([*command, "--replace"], run_plan=plan), 0)
 
     def test_the_writer_reports_a_checker_that_prints_more_than_findings(self) -> None:
         checks = [check_all.Check(K_CHECKER, (), False)]
+        plan = _plan_of(checks, [(1, "Traceback\n")])
         out = io.StringIO()
         with tempfile.TemporaryDirectory() as folder, \
-                mock.patch.object(check_all, "run_plan", return_value=(checks, [(1, "Traceback\n")])), \
                 contextlib.redirect_stdout(out):
             (Path(folder) / "tools").mkdir()
-            self.assertEqual(known_findings.main([folder, "--write", "--backlog", "RW-1"]), 1)
+            self.assertEqual(known_findings.main([folder, "--write", "--backlog", "RW-1"], run_plan=plan), 1)
         self.assertIn(f"not covered, prints more than findings: {K_CHECKER}", out.getvalue())
 
     def test_the_writer_reports_a_note_after_a_zero_exit_and_a_silent_failure(self) -> None:
         checks = [check_all.Check("a/check_a.py", (), False), check_all.Check("b/check_b.py", (), False)]
+        plan = _plan_of(checks, [(0, "a note\n"), (1, "")])
         out = io.StringIO()
         with tempfile.TemporaryDirectory() as folder, \
-                mock.patch.object(check_all, "run_plan",
-                                  return_value=(checks, [(0, "a note\n"), (1, "")])), \
                 contextlib.redirect_stdout(out):
             (Path(folder) / "tools").mkdir()
-            known_findings.main([folder, "--write", "--backlog", "RW-1"])
+            known_findings.main([folder, "--write", "--backlog", "RW-1"], run_plan=plan)
         self.assertEqual(out.getvalue().count("not covered"), 2)
+
+
+class CommandArgumentsTest(unittest.TestCase):
+    """Covers the command line the writer refuses before it reads a file or runs a checker."""
+
+    K_TEST_SIZE = "small"
 
     def test_the_command_needs_both_write_and_backlog(self) -> None:
         for command in (["x", "--backlog", "RW-1"], ["x", "--write"]):
-            with self.subTest(command=command), contextlib.redirect_stderr(io.StringIO()),                     self.assertRaises(SystemExit):
+            with self.subTest(command=command), contextlib.redirect_stderr(io.StringIO()), \
+                    self.assertRaises(SystemExit):
                 known_findings.main(command)
 
     def test_the_writer_rejects_a_backlog_id_that_does_not_match(self) -> None:

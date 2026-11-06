@@ -28,6 +28,8 @@ from checking.source_file import SourceFile, read_files  # noqa: E402
 from documentation.licence import K_UNSET_MESSAGE, Licence, load  # noqa: E402
 
 K_LICENCE: Licence | None = load()
+# Default of a licence parameter: read K_LICENCE when the function is called.
+K_FROM_SETTINGS = object()
 
 K_C_SUFFIXES = frozenset({".h", ".hpp", ".cpp", ".inc", ".glsl", ".comp", ".vert", ".frag", ".geom",
                            ".tesc", ".tese", ".mesh", ".task", ".rgen", ".rchit", ".rahit", ".rmiss", ".rint",
@@ -321,9 +323,13 @@ def _read_sources(paths: list[Path], licence: Licence) -> tuple[CheckedSource, .
     return tuple(split_source(source, licence) for source in files)
 
 
-def collect(paths: list[Path]) -> Iterable[CheckedSource]:
-    """Returns every source file below the given paths; stops when the settings describe no licence."""
-    licence = K_LICENCE
+def collect(paths: list[Path], *, licence: Licence | None | object = K_FROM_SETTINGS) -> Iterable[CheckedSource]:
+    """Returns every source file below the given paths; stops when there is no licence.
+
+    *licence* defaults to the one the settings describe, read at call time; None means there is none.
+    """
+    if licence is K_FROM_SETTINGS:
+        licence = K_LICENCE
     if licence is None:
         raise SystemExit(K_UNSET_MESSAGE)
     return _read_sources(paths, licence)

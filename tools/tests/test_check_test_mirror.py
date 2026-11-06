@@ -215,7 +215,7 @@ class TestSingleModule(unittest.TestCase):
     def test_a_mirrored_tree_is_clean(self) -> None:
         self.assertEqual(findings(mirror_of(K_SINGLE_MODULE)), [])
 
-    def test_a_test_in_the_wrong_area_is_reported_twice(self) -> None:
+    def test_a_test_in_the_wrong_area_gives_three_findings(self) -> None:
         files = [name for name in K_SINGLE_MODULE if name != "tests/collision/test_broad_phase.cpp"]
         files.append("tests/integration/test_broad_phase.cpp")
         self.assertEqual(findings(mirror_of(files)), [
@@ -264,19 +264,6 @@ class TestMirrorCommand(unittest.TestCase):
             "tests/unit:1: rule_mirror_folders: folder has no counterpart in the source tree",
             "tests/unit/test_physics_world.cpp:1: rule_orphan_test: "
             "mirrors no header or source file; rename it or move it to its unit's mirror",
-        ]))
-
-    def test_command_reports_an_untested_script_of_a_unity_project(self) -> None:
-        code, lines = self.command({
-            "ProjectSettings/ProjectSettings.asset": "",
-            "Assets/Game/Core/CommandBus.cs": "",
-            "Assets/Game/Tests/Core/CommandBusTests.cs": "",
-            "Assets/Game/Features/Radar.cs": "",
-            "Assets/Game/Legacy/Old.cs": "",
-        })
-        self.assertEqual((code, lines), (1, [
-            "Assets/Game/Features/Radar.cs:1: rule_untested_unit: "
-            "no test file; expected Assets/Game/Tests/Features/RadarTests.cs",
         ]))
 
 

@@ -107,7 +107,12 @@ class RelinkTest(unittest.TestCase):
         text = "[a](../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n"
         self.assertEqual(relink(text, "docs/design", "docs/design/AUDIO"), "[a](../../../x/R.md#top) [b](https://x.io/a.md) [c](#here)\n")
 
-    def test_a_link_into_the_moved_folder_stays_within_it(self) -> None:
+    def test_relink_leaves_an_absolute_path_or_a_scheme_link_alone(self) -> None:
+        """Keeps a link that starts at the root and a link with a scheme as they are."""
+        text = "[a](/x/R.md) [b](mailto:a@x.io)\n"
+        self.assertEqual(relink(text, "docs/design", "docs/design/AUDIO"), text)
+
+    def test_relink_makes_a_link_to_a_sibling_of_a_moved_folder_reach_that_sibling(self) -> None:
         """Rewrites a link to a sibling file so that it still reaches the same file from the new folder."""
         self.assertEqual(relink("[e](ECS.md)\n", "docs/design", "docs/design/AUDIO"), "[e](../ECS.md)\n")
 
@@ -160,13 +165,19 @@ class FoldTest(unittest.TestCase):
             fold(_other_spelling(self, real), True)
             self.assertEqual((real / "docs/design/AUDIO/README.md").read_text(encoding="utf-8"), "[a](../../../x/R.md)\n")
 
-    def test_the_command_exits_one_only_for_a_dry_run_with_work(self) -> None:
-        """Returns 1 for a dry run that finds a loose document and 0 after folding."""
+    def test_the_command_exits_one_for_a_dry_run_with_work(self) -> None:
+        """Returns 1 for a dry run that finds a loose document."""
         with tempfile.TemporaryDirectory() as folder:
             root = _root(folder)
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root)]), 1)
-                self.assertEqual(main([str(root), "--apply"]), 0)
+
+    def test_the_command_exits_zero_once_the_documents_are_folded(self) -> None:
+        """Returns 0 from a dry run after --apply has folded every loose document."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _root(folder)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([str(root), "--apply"])
                 self.assertEqual(main([str(root)]), 0)
 
 

@@ -19,10 +19,12 @@ from documentation.design_status import Tree  # noqa: E402
 from documentation.design_views import (  # noqa: E402
     expected_blocks,
     insert_block,
+    modules_with_designs,
     read_block,
     render_module_designs,
     render_topic_map,
     render_topic_work,
+    state_of,
     write_block,
 )
 from documentation.generate_design_views import main  # noqa: E402
@@ -140,6 +142,24 @@ class RenderTest(unittest.TestCase):
         names = sorted(block for _, block, _ in expected_blocks(_tree(K_FILES)))
         self.assertEqual(names, ["designs", "topics", "work"])
 
+    def test_state_of_names_the_state_word_of_a_status_line(self) -> None:
+        """Reads Shipped, Superseded and Withdrawn from the status word of a topic."""
+        rows = (
+            ("Open — phase A1 is building", "Open"),
+            ("Shipped — 2026-10-01", "Shipped"),
+            ("Superseded — 2026-10-01 by VIDEO", "Superseded"),
+            ("Withdrawn — 2026-10-01, no longer wanted", "Withdrawn"),
+        )
+        for line, state in rows:
+            with self.subTest(line=line):
+                self.assertEqual(state_of("docs/design/AUDIO.md", f"# Audio\n\n**Status:** {line}\n"), state)
+
+    def test_modules_with_designs_lists_each_module_once_in_order(self) -> None:
+        """Lists a module that two topics name once, and the modules sorted."""
+        video = K_TOPIC.replace("modules/domain/audio", "modules/domain/video, modules/domain/audio/")
+        tree = _tree({**K_FILES, "docs/design/VIDEO.md": video})
+        self.assertEqual(modules_with_designs(tree), ["modules/domain/audio", "modules/domain/video"])
+
 
 class BlockTest(unittest.TestCase):
     """Covers reading and writing between markers, on the text of a file."""
@@ -149,27 +169,33 @@ class BlockTest(unittest.TestCase):
         """Reads no block from a text that has no markers."""
         self.assertIsNone(read_block("# Design\n", "topics"))
 
-    def test_writes_between_the_markers_and_keeps_the_rest(self) -> None:
-        """Replaces what is between the markers and nothing else, and does nothing again on the same body."""
+    def test_write_block_replaces_only_what_is_between_the_markers(self) -> None:
+        """Replaces what is between the markers and nothing else."""
         text = "head\n<!-- topics:begin -->\nold\n<!-- topics:end -->\ntail\n"
-        written = write_block(text, "topics", "new one\nnew two")
-        self.assertEqual(written, "head\n<!-- topics:begin -->\nnew one\nnew two\n<!-- topics:end -->\ntail\n")
-        self.assertEqual(write_block(written, "topics", "new one\nnew two"), written)
+        self.assertEqual(write_block(text, "topics", "new one\nnew two"),
+                         "head\n<!-- topics:begin -->\nnew one\nnew two\n<!-- topics:end -->\ntail\n")
+
+    def test_write_block_changes_nothing_on_the_same_body(self) -> None:
+        """Returns the text itself when its block already holds the body."""
+        text = "head\n<!-- topics:begin -->\nnew\n<!-- topics:end -->\ntail\n"
+        self.assertEqual(write_block(text, "topics", "new"), text)
 
     def test_leaves_a_text_without_markers_as_it_was(self) -> None:
         """Returns the text itself when the text carries no such block."""
         self.assertEqual(write_block("plain\n", "topics", "new"), "plain\n")
 
-    def test_inserts_empty_blocks(self) -> None:
-        """Adds a block under a heading, and into the Phases section of a topic, once."""
-        index = K_FILES["docs/design/README.md"]
-        added = insert_block(index, "topics", "## Topics")
+    def test_insert_block_adds_a_block_under_its_heading_once(self) -> None:
+        """Adds a block under a heading, and adds nothing the second time."""
+        added = insert_block(K_FILES["docs/design/README.md"], "topics", "## Topics")
         self.assertIsNotNone(added)
         self.assertIsNone(insert_block(added, "topics", "## Topics"))
+
+    def test_insert_block_puts_the_work_block_at_the_end_of_the_phases_section(self) -> None:
+        """Adds the Work block after the phase table and before the next section."""
         topic = insert_block(K_TOPIC, "work", None)
         self.assertIsNotNone(topic)
+        self.assertLess(topic.index("| A1 |"), topic.index("### Work"))
         self.assertLess(topic.index("### Work"), topic.index("## Open questions"))
-        self.assertGreater(topic.index("### Work"), topic.index("| A1 |"))
 
 
 class GeneratorTest(unittest.TestCase):
@@ -185,18 +211,36 @@ class GeneratorTest(unittest.TestCase):
             self.assertIn("[AUDIO]", read_block((root / "modules/domain/audio/README.md").read_text(encoding="utf-8"), "designs") or "")
             self.assertIn("SPATIALIZER", read_block((root / "docs/design/AUDIO.md").read_text(encoding="utf-8"), "work") or "")
 
-    def test_check_reports_a_stale_block_and_writes_nothing(self) -> None:
-        """Exits 1 for a stale block and leaves the file as it was."""
+    @staticmethod
+    def make_stale(folder: str) -> Path:
+        """Initialises the views under a root, makes the topic map stale and returns the root."""
+        root = _write(folder, K_FILES)
+        main([str(root), "--init"])
+        path = root / "docs/design/README.md"
+        path.write_text(path.read_text(encoding="utf-8").replace("The sound the engine makes.", "stale text"), encoding="utf-8")
+        return root
+
+    def test_check_exits_one_and_names_a_stale_block(self) -> None:
+        """Exits 1 and names the stale block."""
         with tempfile.TemporaryDirectory() as folder:
-            root = _write(folder, K_FILES)
-            main([str(root), "--init"])
-            path = root / "docs/design/README.md"
-            path.write_text(path.read_text(encoding="utf-8").replace("The sound the engine makes.", "stale text"), encoding="utf-8")
+            root = self.make_stale(folder)
             with contextlib.redirect_stdout(io.StringIO()) as printed:
-                self.assertEqual(main([str(root), "--check"]), 1)
-            self.assertIn("the block 'topics' is stale", printed.getvalue())
-            self.assertIn("stale text", path.read_text(encoding="utf-8"))
-            self.assertEqual(main([str(root)]), 0)
+                code = main([str(root), "--check"])
+        self.assertEqual((code, "the block 'topics' is stale" in printed.getvalue()), (1, True))
+
+    def test_check_leaves_a_stale_file_as_it_was(self) -> None:
+        """Writes nothing when only checking."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self.make_stale(folder)
+            with contextlib.redirect_stdout(io.StringIO()):
+                main([str(root), "--check"])
+            self.assertIn("stale text", (root / "docs/design/README.md").read_text(encoding="utf-8"))
+
+    def test_the_write_repairs_a_stale_block(self) -> None:
+        """Writes the view again, so a later check exits 0."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self.make_stale(folder)
+            main([str(root)])
             self.assertEqual(main([str(root), "--check"]), 0)
 
     def test_leaves_a_file_without_markers_alone(self) -> None:

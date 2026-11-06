@@ -46,8 +46,10 @@ K_CS_CATEGORY = re.compile(r"Category\s*\(\s*\"(\w+)\"\s*\)")
 
 
 def _is_cpp_test(path: Path) -> bool:
-    """Returns whether a path names a C++ test source."""
-    return path.suffix in K_CPP_SUFFIXES and path.name.startswith("test_")
+    """Returns whether a path names a C++ test source, `test_<unit>` or `<unit>_test`."""
+    return path.suffix in K_CPP_SUFFIXES and (
+        path.name.startswith("test_") or path.stem.endswith("_test")
+    )
 
 
 def _is_python_test(path: Path) -> bool:

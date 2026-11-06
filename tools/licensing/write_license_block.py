@@ -24,7 +24,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.source_file import SourceFile  # noqa: E402
-from documentation.check_source_comments import K_C_SUFFIXES, K_LICENCE, K_PART_OF  # noqa: E402
+from documentation.check_source_comments import K_C_SUFFIXES, K_FROM_SETTINGS, K_LICENCE, K_PART_OF  # noqa: E402
 from documentation.licence import K_UNSET_MESSAGE, Licence  # noqa: E402
 
 K_PROJECT_SEPARATOR = " - "
@@ -257,11 +257,11 @@ def _parse_upstream(entries: list[str]) -> dict[str, tuple[str, ...]]:
     return upstream
 
 
-def _licence() -> Licence:
-    """Returns the licence the settings describe, or raises when they describe none."""
-    if K_LICENCE is None:
+def _licence(licence: Licence | None) -> Licence:
+    """Returns the given licence, or raises when there is none."""
+    if licence is None:
         raise LicenseWriterError(K_UNSET_MESSAGE)
-    return K_LICENCE
+    return licence
 
 
 def _git(root: Path, *arguments: str) -> str:
@@ -282,8 +282,11 @@ def _read(root: Path, path: str) -> SourceFile:
     return SourceFile(Path(path), text)
 
 
-def pending(root: Path, header: Header, globs: list[str]) -> Iterator[tuple[Path, str]]:
-    """Yields each source file whose text differs from what the writer produces, with that text."""
+def pending(root: Path, header: Header, globs: list[str], *, year: int | None = None) -> Iterator[tuple[Path, str]]:
+    """Yields each source file whose text differs from what the writer produces, with that text.
+
+    *year* dates a file that git has not yet recorded; it defaults to the current year.
+    """
     listing = _git(root, "ls-files")
     log = _git(root, "log", "-M", "--diff-filter=AR", "--name-status", "--format=@%ad", "--date=format:%Y")
     files = [
@@ -292,7 +295,7 @@ def pending(root: Path, header: Header, globs: list[str]) -> Iterator[tuple[Path
         if is_candidate(path, globs) and (root / path).is_file()
     ]
     years = parse_first_years(listing, log)
-    for change in plan_changes(files, header, years, date.today().year, globs):
+    for change in plan_changes(files, header, years, date.today().year if year is None else year, globs):
         yield root / change.path, change.text
 
 
@@ -308,13 +311,14 @@ def _parse_arguments(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Runs the writer from the command line and returns its exit code."""
+def main(argv: list[str] | None = None, *, licence: Licence | None | object = K_FROM_SETTINGS) -> int:
+    """Runs the writer from the command line and returns its exit code; *licence* defaults to the settings'."""
     arguments = _parse_arguments(sys.argv[1:] if argv is None else argv)
+    licence = K_LICENCE if licence is K_FROM_SETTINGS else licence
     try:
         header = Header(
             arguments.project,
-            _licence(),
+            _licence(licence),
             closed=arguments.closed,
             upstream=_parse_upstream(arguments.upstream),
         )

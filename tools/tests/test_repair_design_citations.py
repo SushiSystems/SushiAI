@@ -250,13 +250,19 @@ class RunTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertEqual((root / "docs/guides/use.md").read_text(encoding="utf-8"), "docs/design/S/M.md docs/design/S/R.md\n")
 
-    def test_exits_one_only_for_a_citation_it_cannot_place(self) -> None:
-        """Returns 0 after a plain repair and 1 while a citation is unplaced."""
+    def test_the_command_exits_zero_after_a_plain_repair(self) -> None:
+        """Returns 0 when --apply repairs every citation it can place."""
         with tempfile.TemporaryDirectory() as folder:
             root = self._root(folder)
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root), "--apply"]), 0)
-                (root / "docs/guides/other.md").write_text("docs/design/GHOST.md\n", encoding="utf-8")
+
+    def test_the_command_exits_one_for_a_citation_it_cannot_place(self) -> None:
+        """Returns 1 while a citation names a file the topic does not have."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = self._root(folder)
+            (root / "docs/guides/other.md").write_text("docs/design/GHOST.md\n", encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main([str(root)]), 1)
 
 

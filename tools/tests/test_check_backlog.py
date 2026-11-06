@@ -36,6 +36,8 @@ def _repository(folder: str, files: dict[str, str]) -> Repository:
 class RegistrationTest(unittest.TestCase):
     """Covers the rule table."""
 
+    K_TEST_SIZE = "small"
+
     def test_names_the_one_rule(self) -> None:
         """The rules of `backlog check` run as one."""
         self.assertEqual(sorted(K_CHECKER.rules), ["rule_backlog"])
@@ -48,8 +50,13 @@ class WithoutBacklogTest(unittest.TestCase):
         """A repository without a backlog is not asked for the tooling package."""
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"docs/README.md": "# Docs\n"})
-            with mock.patch.object(tooling_bridge, "_import", return_value=None):
-                self.assertEqual(list(rule_backlog(repository)), [])
+            asked: list[str] = []
+
+            def load_module(name: str, root: Path) -> None:
+                asked.append(name)
+
+            issues = list(rule_backlog(repository, load_module))
+        self.assertEqual((issues, asked), ([], []))
 
 
 class MissingToolingTest(unittest.TestCase):
@@ -59,10 +66,9 @@ class MissingToolingTest(unittest.TestCase):
         """One issue names the package and the version to install."""
         with tempfile.TemporaryDirectory() as folder:
             repository = _repository(folder, {"docs/backlog/backlog.toml": "[backlog]\n"})
-            with (mock.patch("documentation.check_backlog.load", return_value=None),
-                  mock.patch.object(tooling_bridge, "K_PACKAGE", "acmetool"),
+            with (mock.patch.object(tooling_bridge, "K_PACKAGE", "acmetool"),
                   mock.patch.object(tooling_bridge, "K_MINIMUM_VERSION", "1.2.3")):
-                issues = list(rule_backlog(repository))
+                issues = list(rule_backlog(repository, lambda name, root: None))
         self.assertEqual(len(issues), 1)
         self.assertIn("install acmetool 1.2.3", issues[0].message)
 

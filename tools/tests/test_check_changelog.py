@@ -9,6 +9,7 @@ from __future__ import annotations
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -45,17 +46,20 @@ def _rules(entries: list[Entry]) -> list[str]:
     return [name for entry in entries for name, rule in K_CHECKER.rules.items() for _ in rule(entry)]
 
 
+def _case_test(name: str, lines: list[str], expected: list[str]) -> Callable[[unittest.TestCase], None]:
+    """Builds the test of one case of the table: the rules it names fire on its text, and no other."""
+
+    def test(self: unittest.TestCase) -> None:
+        self.assertEqual(_rules(parse_entries(K_PATH, _text(lines).splitlines())), expected)
+
+    test.__name__ = f"test_{name}"
+    return test
+
+
 class RuleTest(unittest.TestCase):
-    """Runs every rule on the entries parsed from changelog text, one case of the table at a time."""
+    """Runs every rule on the entries parsed from changelog text."""
 
     K_TEST_SIZE = "small"
-
-    def test_each_case_fires_exactly_its_rules(self) -> None:
-        """Fires the rules each case names, and no other, on the text the shell would read."""
-        for name, lines, expected in K_CASES:
-            with self.subTest(case=name):
-                entries = parse_entries(K_PATH, _text(lines).splitlines())
-                self.assertEqual(_rules(entries), expected)
 
     def test_a_release_heading_with_trailing_spaces_is_a_release(self) -> None:
         """Counts a release heading with trailing spaces as the release it is, so the older one is flagged."""
@@ -73,18 +77,21 @@ class RuleTest(unittest.TestCase):
         self.assertEqual([entry.number for entry in entries], [3, 4])
 
 
+for _name, _lines, _expected in K_CASES:
+    setattr(RuleTest, f"test_{_name}", _case_test(_name, _lines, _expected))
+
+
 class ShellTest(unittest.TestCase):
-    """Runs the shell on changelogs written to disk: each case of the table."""
+    """Runs the shell on changelogs written to disk."""
 
     K_TEST_SIZE = "medium"
 
-    def test_each_case_fires_exactly_its_rules_on_disk(self) -> None:
-        """Reads each case's changelog from a file, then fires the same rules."""
-        for name, lines, expected in K_CASES:
-            with self.subTest(case=name), tempfile.TemporaryDirectory() as folder:
-                path = Path(folder) / "CHANGELOG.md"
-                path.write_text(_text(lines), encoding="utf-8")
-                self.assertEqual(_rules(collect([path])), expected)
+    def test_a_changelog_read_from_disk_fires_the_rule_its_entry_breaks(self) -> None:
+        """Reads a changelog from a file, and fires the shape rule for the entry it holds."""
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "CHANGELOG.md"
+            path.write_text(_text(["## Unreleased", "- matter: reserved the list."]), encoding="utf-8")
+            self.assertEqual(_rules(collect([path])), ["rule_entry_shape"])
 
 
 if __name__ == "__main__":

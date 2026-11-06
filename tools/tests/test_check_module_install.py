@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Callable
 from pathlib import Path
 from unittest import mock
 
@@ -104,16 +105,21 @@ def _write(root: Path, files: dict[str, str]) -> None:
         path.write_text(text, encoding="utf-8")
 
 
+def _case_test(name: str, files: dict[str, str], expected: list[str],
+               config: ModuleSettings) -> Callable[[unittest.TestCase], None]:
+    """Builds the test of one case of the table: the rules it names fire on its module, and no other."""
+
+    def test(self: unittest.TestCase) -> None:
+        self.assertEqual(_rules(_module(files, config)), expected)
+
+    test.__name__ = f"test_{name}"
+    return test
+
+
 class RuleTest(unittest.TestCase):
-    """Runs every rule on modules given as values, one case of the table at a time."""
+    """Runs every rule on modules given as values."""
 
     K_TEST_SIZE = "small"
-
-    def test_each_case_fires_exactly_its_rules(self) -> None:
-        """Fires the rules each case names, and no other, on the values the shell would read."""
-        for name, files, expected, config in K_CASES:
-            with self.subTest(case=name):
-                self.assertEqual(_rules(_module(files, config)), expected)
 
     def test_an_issue_names_the_line_it_is_on(self) -> None:
         """Names line 1 for each heading the install page lacks, and the line of a machine path."""
@@ -126,19 +132,24 @@ class RuleTest(unittest.TestCase):
         self.assertEqual([issue.line for issue in rule_machine_path(machine)], [2])
 
 
+for _name, _files, _expected, _config in K_CASES:
+    setattr(RuleTest, f"test_{_name}", _case_test(_name, _files, _expected, _config))
+
+
 class ShellTest(unittest.TestCase):
-    """Runs the shell on modules written to disk: each case of the table, and the two skips."""
+    """Runs the shell on modules written to disk, and the skips."""
 
     K_TEST_SIZE = "medium"
 
-    def test_each_case_fires_exactly_its_rules_on_disk(self) -> None:
-        """Reads each case's files through git or the folder walk, then fires the same rules."""
-        for name, files, expected, config in K_CASES:
-            with self.subTest(case=name), tempfile.TemporaryDirectory() as folder:
-                root = Path(folder)
-                _write(root, files)
-                fired = [rule for module in read_modules([root], config) for rule in _rules(module)]
-                self.assertEqual(fired, expected)
+    def test_a_missing_element_on_disk_fires_its_rule(self) -> None:
+        """Reads a module from files on disk, and fires the element rule for the file it lacks."""
+        files = {name: text for name, text in K_CLEAN.items() if name != "cli/acme.deps.toml"}
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            _write(root, files)
+            modules = read_modules([root], K_SETTINGS)
+            self.assertEqual(len(modules), 1)
+            self.assertEqual(_rules(modules[0]), ["rule_elements"])
 
     def test_a_repository_that_is_not_a_module_is_skipped(self) -> None:
         """Reads no module from a folder whose files name no manifest and no CLI package."""

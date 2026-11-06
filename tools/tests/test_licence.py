@@ -12,7 +12,6 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -39,8 +38,7 @@ class LicenceTest(unittest.TestCase):
     """Covers reading the settings and what a repository without them gets."""
 
     def test_reads_every_value_from_the_settings(self) -> None:
-        with mock.patch.object(licence, "settings", K_SETTINGS):
-            loaded = licence.load()
+        loaded = licence.from_module(K_SETTINGS)
         self.assertEqual(loaded.holder, "Jane Doe & Acme Corp")
         self.assertEqual(loaded.hash_lines, ("Open row.",))
         self.assertEqual(loaded.box_lines, ("Open box row.", "", "Second."))
@@ -49,8 +47,7 @@ class LicenceTest(unittest.TestCase):
 
     def test_a_closed_repository_takes_the_closed_rows(self) -> None:
         closed = SimpleNamespace(**{**vars(K_SETTINGS), "K_CLOSED": True})
-        with mock.patch.object(licence, "settings", closed):
-            loaded = licence.load()
+        loaded = licence.from_module(closed)
         self.assertEqual(loaded.hash_lines, ("Closed row.",))
         self.assertEqual(loaded.box_lines, ("Closed box row.",))
 
@@ -61,27 +58,35 @@ class LicenceTest(unittest.TestCase):
         self.assertEqual(loaded.hash_lines, ("Open row.",))
 
     def test_settings_without_a_holder_describe_no_licence(self) -> None:
-        with mock.patch.object(licence, "settings", SimpleNamespace()):
-            self.assertIsNone(licence.load())
+        self.assertIsNone(licence.from_module(SimpleNamespace()))
 
     def test_the_reserved_pattern_names_the_company_only_when_there_is_one(self) -> None:
-        with mock.patch.object(licence, "settings", K_SETTINGS):
-            loaded = licence.load()
+        loaded = licence.from_module(K_SETTINGS)
         self.assertTrue(loaded.reserved_line.search("Made by Acme Corp"))
         bare = SimpleNamespace(**{**vars(K_SETTINGS), "K_LICENSE_COMPANY": ""})
-        with mock.patch.object(licence, "settings", bare):
-            self.assertFalse(licence.load().reserved_line.search("Made by Acme Corp"))
+        self.assertFalse(licence.from_module(bare).reserved_line.search("Made by Acme Corp"))
+
+    def test_the_copyright_row_matches_the_holder_in_any_year_and_no_other(self) -> None:
+        pattern = licence.from_module(K_SETTINGS).copyright_line
+        rows = (
+            ("Copyright (c) 2026-present Jane Doe & Acme Corp", True),
+            ("Copyright (c) 1999-present Jane Doe & Acme Corp", True),
+            ("Copyright (c) 2026-present Someone Else", False),
+            ("Copyright (c) 2026 Jane Doe & Acme Corp", False),
+            ("Copyright (c) 2026-present Jane Doe & Acme Corp Ltd", False),
+        )
+        for row, matches in rows:
+            with self.subTest(row=row):
+                self.assertEqual(pattern.search(row) is not None, matches)
 
     def test_the_checker_stops_when_no_licence_is_configured(self) -> None:
-        with mock.patch.object(check_source_comments, "K_LICENCE", None):
-            with self.assertRaises(SystemExit) as stopped:
-                check_source_comments.collect([Path("unused")])
+        with self.assertRaises(SystemExit) as stopped:
+            check_source_comments.collect([Path("unused")], licence=None)
         self.assertIn("K_LICENSE_HOLDER", str(stopped.exception))
 
     def test_the_writer_stops_when_no_licence_is_configured(self) -> None:
-        with mock.patch.object(write_license_block, "K_LICENCE", None), \
-                contextlib.redirect_stderr(io.StringIO()) as stderr:
-            code = write_license_block.main(["unused", "--project", "P - https://x.example"])
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            code = write_license_block.main(["unused", "--project", "P - https://x.example"], licence=None)
         self.assertEqual((code, stderr.getvalue().strip()), (2, K_UNSET_MESSAGE))
 
 

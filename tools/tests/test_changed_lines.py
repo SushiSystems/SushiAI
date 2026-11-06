@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from testing.changed_lines import changed_lines, changed_lines_of  # noqa: E402
 
 K_ROOT = Path("repo")
+K_UNKNOWN_BASE = "0" * 40
 K_EDIT_AND_ADD = (
     "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
     "@@ -2 +2 @@\n-two\n+TWO\n"
@@ -46,8 +47,10 @@ class TestChangedLinesParse(unittest.TestCase):
         self.assertEqual(changed_lines_of(K_ROOT, "base", diff, {}), {})
 
     def test_an_unknown_base_stops_with_a_message(self) -> None:
-        with self.assertRaises(SystemExit):
-            changed_lines_of(K_ROOT, "0" * 40, None, {})
+        with self.assertRaises(SystemExit) as stopped:
+            changed_lines_of(K_ROOT, K_UNKNOWN_BASE, None, {})
+        self.assertEqual(stopped.exception.code,
+                         f"cannot read the changes after {K_UNKNOWN_BASE}; fetch the full history")
 
 
 class TestChangedLinesShell(unittest.TestCase):
@@ -76,13 +79,16 @@ class TestChangedLinesShell(unittest.TestCase):
         """Writes a file below the root."""
         (self.root / name).write_text(text, encoding="utf-8")
 
-    def test_a_commit_after_the_base_and_an_untracked_file_are_both_named(self) -> None:
+    def test_a_commit_after_the_base_is_named_by_its_added_lines(self) -> None:
         self.write("b.txt", "keep\nmore\n")
         self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "next")
+        found = changed_lines(self.root, self.base)
+        self.assertEqual(found[self.root / "b.txt"], frozenset({2}))
+
+    def test_an_untracked_file_in_a_repository_is_named(self) -> None:
         self.write("c.txt", "x\ny\n")
         found = changed_lines(self.root, self.base)
-        self.assertEqual((found[self.root / "b.txt"], found[self.root / "c.txt"]),
-                         (frozenset({2}), frozenset({1, 2})))
+        self.assertEqual(found[self.root / "c.txt"], frozenset({1, 2}))
 
 
 if __name__ == "__main__":

@@ -133,18 +133,35 @@ class RetireTest(unittest.TestCase):
             self.assertEqual(len(tracked_files(root)), 2)
             self.assertFalse((root / ".gitignore").exists())
 
-    def test_apply_tags_unstages_and_ignores_and_keeps_the_files(self) -> None:
-        """Stages the removal and the ignore line, tags the history and leaves the files on disk."""
+    def test_apply_tags_the_history_that_holds_the_archive(self) -> None:
+        """Tags the current history with the archive's day-stamped name."""
         with tempfile.TemporaryDirectory() as folder:
             root = _repository(folder)
             self.assertEqual(_run(root, "--apply")[0], 0)
             self.assertIn("docs-archive-", _git(root, "tag"))
+
+    def test_apply_unstages_the_archive_and_stages_its_removal(self) -> None:
+        """Removes the archive from the index, so that the removal is staged."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _repository(folder)
+            self.assertEqual(_run(root, "--apply")[0], 0)
             self.assertEqual(_git(root, "ls-files", "--", "docs/archive"), "")
+            self.assertIn("docs/archive/design/OLD.md", _git(root, "diff", "--cached", "--name-only").splitlines())
+
+    def test_apply_adds_the_archive_to_the_ignore_file(self) -> None:
+        """Writes the archive's line into .gitignore and stages the file."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _repository(folder)
+            self.assertEqual(_run(root, "--apply")[0], 0)
             self.assertIn("docs/archive/", (root / ".gitignore").read_text(encoding="utf-8"))
+            self.assertIn(".gitignore", _git(root, "diff", "--cached", "--name-only").splitlines())
+
+    def test_apply_keeps_the_archive_files_on_disk(self) -> None:
+        """Leaves every archived file where it was."""
+        with tempfile.TemporaryDirectory() as folder:
+            root = _repository(folder)
+            self.assertEqual(_run(root, "--apply")[0], 0)
             self.assertTrue((root / "docs/archive/design/OLD.md").is_file())
-            staged = _git(root, "diff", "--cached", "--name-only").splitlines()
-            self.assertIn(".gitignore", staged)
-            self.assertIn("docs/archive/design/OLD.md", staged)
 
     def test_refuses_while_something_cites_the_archive(self) -> None:
         """Lists each citation, exits 1 and stages nothing."""

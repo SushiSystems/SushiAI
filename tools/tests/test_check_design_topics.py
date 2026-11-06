@@ -16,6 +16,7 @@ from pathlib import Path, PurePosixPath
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from checking.checker import Issue  # noqa: E402
+from documentation import tooling_bridge  # noqa: E402
 from documentation.check_design_topics import (  # noqa: E402
     K_CHECKER,
     Repository,
@@ -30,6 +31,7 @@ from documentation.citation_files import archive_citation_lines, archive_citatio
 from documentation.design_status import Tree  # noqa: E402
 
 K_GLOSSARY = "docs/reference/GLOSSARY.md"
+K_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 K_TOPIC = """# Audio
 
@@ -285,8 +287,32 @@ class ShellTest(unittest.TestCase):
                 ["'modules/audio' is owned by AUDIO; merge the topics with `design merge` or drop it here"],
             )
 
-    def test_reports_nothing_for_valid_files_with_every_rule_on(self) -> None:
-        """Runs every rule over the valid files on disk, the topic in its folder, with the strict settings on."""
+    def test_the_tooling_package_that_owns_the_design_rules_loads(self) -> None:
+        """Fails when the package is absent, so a green run never rests on rules that did not run."""
+        self.assertIsNotNone(tooling_bridge.load("design", K_REPOSITORY_ROOT))
+
+    def test_the_delegated_rules_report_what_the_tooling_package_finds(self) -> None:
+        """Passes the finding of the package through, for each rule delegated to it, read from disk."""
+        header = "# Audio\n\n**Status:** Open — x\n"
+        rows = (
+            ("rule_topic_folder", {"docs/design/AUDIO.md": header},
+             "a topic is a folder: move it to AUDIO/README.md"),
+            ("rule_modules_required", {"docs/design/AUDIO/README.md": header},
+             "a topic names its modules on a '**Modules:**' line, or none"),
+            ("rule_modules_exist", {"docs/design/AUDIO/README.md": header + "**Modules:** `modules/gone`\n"},
+             "the module 'modules/gone' is not in the repository"),
+            ("rule_work_references",
+             {"docs/design/AUDIO/README.md": header + "**Modules:** none\n**About:** Sound.\n",
+              "docs/agent/2026_10_21_WORK/SPEC.md": "# Work\n\n**Status:** Open — x\n**Designs:** VIDEO\n"},
+             "'VIDEO' is not a design topic"),
+        )
+        for rule, files, message in rows:
+            with self.subTest(rule=rule), tempfile.TemporaryDirectory() as folder:
+                repository = collect([_write(folder, files)])[0]
+                self.assertEqual(_messages(K_CHECKER.rules[rule](repository)), [message])
+
+    def test_every_rule_reports_nothing_for_valid_files_on_disk(self) -> None:
+        """Runs each rule over the valid files, the topic in its folder, with the strict settings on."""
         files = {key: value for key, value in K_FILES.items() if key != "docs/design/AUDIO.md"}
         files["docs/design/AUDIO/README.md"] = K_TOPIC
         files[K_GLOSSARY] = "# Glossary\n\n**audio**: the sound of the engine.\n"
@@ -300,7 +326,8 @@ class ShellTest(unittest.TestCase):
                 archive_citations=tuple((path.relative_to(root).as_posix(), number) for path, number in archive_citations(root)),
             )
             for name, rule in K_CHECKER.rules.items():
-                self.assertEqual(_messages(rule(repository)), [], name)
+                with self.subTest(rule=name):
+                    self.assertEqual(_messages(rule(repository)), [])
 
 
 if __name__ == "__main__":

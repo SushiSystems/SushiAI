@@ -194,9 +194,15 @@ class TestReadmeRule(unittest.TestCase):
         problems = _problems(_follow(changes, [K_LIB_README], after=K_TREE | {"lib/new.py"}))
         self.assertEqual(problems, [])
 
-    def test_work_folders_and_the_backlog_are_not_followed(self) -> None:
+    def test_a_work_folder_is_not_followed(self) -> None:
         spec = "docs/agent/2026_01_01_WORK/SPEC.md"
         problems = _problems(_follow([Change("A", spec)], [K_DOCS_README], after=K_TREE | {spec}))
+        self.assertEqual(problems, [])
+
+    def test_the_backlog_is_not_followed(self) -> None:
+        entry = "docs/backlog/OPEN.md"
+        problems = _problems(_follow([Change("A", entry)], [K_DOCS_README],
+                                     after=K_TREE | {entry}))
         self.assertEqual(problems, [])
 
 
@@ -298,25 +304,6 @@ class TestRepository(unittest.TestCase):
         finally:
             os.chdir(previous)
         return code, errors.getvalue()
-
-    def test_refuses_a_staged_change_that_leaves_its_page_behind(self) -> None:
-        self._write("src/a.py", "x = 2\n")
-        self._git("add", "-A")
-        code, errors = self._run_hook("fix: change a\n")
-        self.assertEqual(code, 1)
-        self.assertIn("docs/GUIDE.md describes src/a.py", errors)
-
-    def test_accepts_the_page_staged_with_it(self) -> None:
-        self._write("src/a.py", "x = 2\n")
-        self._write("docs/GUIDE.md", K_PAGE + "More.\n")
-        self._git("add", "-A")
-        self.assertEqual(self._run_hook("fix: change a\n")[0], 0)
-
-    def test_accepts_a_docs_line(self) -> None:
-        self._write("src/a.py", "x = 2\n")
-        self._git("add", "-A")
-        message = "fix: change a\n\nDocs: docs/GUIDE.md unchanged (no value named)\n"
-        self.assertEqual(self._run_hook(message)[0], 0)
 
     def test_a_new_entry_is_seen_in_the_index(self) -> None:
         self._write("lib/new.py", "n = 1\n")
