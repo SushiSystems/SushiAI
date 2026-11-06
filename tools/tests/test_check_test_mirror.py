@@ -130,6 +130,15 @@ class TestMultiModule(unittest.TestCase):
         self.assertEqual(list(rule_mirror_folders(mirror)), [])
         self.assertEqual(list(rule_orphan_test(mirror)), [])
 
+    def test_a_compile_check_stands_for_the_unit_test_of_a_header_with_no_runtime_promise(self) -> None:
+        mirror = mirror_of((*K_MULTI_MODULE, "tests/physics/rigid_body/compile_contact_solver.cpp"))
+        self.assertEqual(findings(mirror), [])
+
+    def test_the_shared_test_support_folder_is_allowed(self) -> None:
+        mirror = mirror_of((*K_MULTI_MODULE, "tests/support/tolerance.hpp", "tests/support/test_fixture.hpp"))
+        self.assertEqual(list(rule_mirror_folders(mirror)), [])
+        self.assertEqual(list(rule_orphan_test(mirror)), [])
+
 
 class TestPrivateInclude(unittest.TestCase):
     """Covers tests that include a header from a module's or the root's source/ folder."""

@@ -88,7 +88,7 @@ def suite_and_size(name: str) -> tuple[str | None, str | None]:
     """Returns the suite and the size of a `Suite.Case` name; a parametrised name `Prefix/Suite.Case/0` works too."""
     for part in name.split(".")[0].split("/"):
         for size in K_SIZES:
-            if part.startswith(f"{size.capitalize()}_"):
+            if part.removeprefix("Characterization_").startswith(f"{size.capitalize()}_"):
                 return part, size
     return None, None
 

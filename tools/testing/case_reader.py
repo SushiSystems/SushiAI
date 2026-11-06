@@ -169,9 +169,10 @@ def _lines_of(pattern: re.Pattern[str], text: str, code: str, start: int, end: i
 
 
 def _cpp_size(suite: str) -> str | None:
-    """Returns the size a C++ suite name opens with, `benchmark` for a benchmark, or None."""
+    """Returns the size a C++ suite name opens with, after any `Characterization_`; `benchmark` for a benchmark, or None."""
     if suite.startswith("Benchmark_"):
         return K_BENCHMARK
+    suite = suite.removeprefix("Characterization_")
     for size in K_SIZES:
         if suite.startswith(f"{size.capitalize()}_"):
             return size

@@ -74,6 +74,9 @@ class TestReadingAndNames(unittest.TestCase):
         self.assertEqual(suite_and_size("Rows/Medium_Io.Read/3"), ("Medium_Io", "medium"))
         self.assertEqual(suite_and_size("Benchmark_Wave.Run"), (None, None))
 
+    def test_finds_the_size_of_a_characterization_suite(self) -> None:
+        self.assertEqual(suite_and_size("Characterization_Small_Io.Read"), ("Characterization_Small_Io", "small"))
+
     def test_reads_the_exemption_table(self) -> None:
         self.assertEqual(parse_exemptions('[exempt]\n"Large_Matter.Crush" = "RW-40"\n'),
                          {"Large_Matter.Crush": "RW-40"})

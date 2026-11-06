@@ -103,6 +103,10 @@ class TestSizesRuleTest(unittest.TestCase):
             [("tests/ShapeTests.cs", 6), ("tests/ShapeTests.cs", 10)],
         )
 
+    def test_a_characterization_suite_names_its_size_after_the_word(self) -> None:
+        files = {"tests/test_a.cpp": "TEST(Characterization_Medium_Exit, Pin) {}\nTEST(Characterization_Exit, Pin) {}\n"}
+        self.assertEqual(found(rule_unsized_cpp_suite, files), [("tests/test_a.cpp", 2)])
+
     def test_every_rule_skips_a_benchmark_suite(self) -> None:
         files = {
             "tests/test_a.cpp": "TEST(Benchmark_Wave, Run) {}\n",

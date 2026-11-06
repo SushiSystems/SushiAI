@@ -58,6 +58,7 @@ class CppCasesTest(unittest.TestCase):
 
     def test_knows_a_benchmark_and_an_unsized_suite(self) -> None:
         self.assertEqual(one(K_CPP, "TEST(Benchmark_Wave, Run) {\n}\n").size, "benchmark")
+        self.assertEqual(one(K_CPP, "TEST(Characterization_Large_Wave, Run) {\n}\n").size, "large")
         self.assertIsNone(one(K_CPP, "TEST_F(ShapeFixture, Run) {\n}\n").size)
 
 
