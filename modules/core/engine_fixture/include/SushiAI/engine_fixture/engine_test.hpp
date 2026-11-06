@@ -23,13 +23,12 @@
 
 /**
  * @file engine_test.hpp
- * @brief Declares EngineTest, the fixture that gives each test an Engine on the shared Runtime.
+ * @brief Declares EngineTest, the fixture that gives each test the one Engine of the program.
  * @author Mustafa Garip
  */
 
 #pragma once
 
-#include <memory>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
@@ -38,20 +37,16 @@ namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Provides a fresh Engine per test, on the shared Runtime. */
+        /** @brief Gives every test the one Engine of the program, rewound to a fresh Engine's state. */
         class EngineTest : public ::testing::Test
         {
             protected:
-                /** @brief Builds the test's Engine on the shared runtime. */
+                /** @brief Points the test at the program's Engine and rewinds its mode and random stream. */
                 void SetUp() override
                 {
-                    engine = std::make_unique<SushiBLAS::Engine>(TestEnvironment::runtime());
-                }
-
-                /** @brief Destroys the test's Engine. */
-                void TearDown() override
-                {
-                    engine.reset();
+                    engine = &TestEnvironment::engine();
+                    engine->set_mode(SushiBLAS::ExecutionMode::Auto);
+                    engine->rng().reseed(0);
                 }
 
                 /** @brief Waits for the device; a test runs the graph it records on itself. */
@@ -60,8 +55,8 @@ namespace SushiAI
                     TestEnvironment::runtime().wait().value();
                 }
 
-                /** @brief Holds the Engine the test records on. */
-                std::unique_ptr<SushiBLAS::Engine> engine;
+                /** @brief Points at the Engine the test records on; the program owns it. */
+                SushiBLAS::Engine* engine = nullptr;
         };
 
     } // namespace Test

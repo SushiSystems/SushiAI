@@ -36,6 +36,7 @@
 #include <utility>
 #include <gtest/gtest.h>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/execution/execution.hpp>
 
@@ -47,9 +48,10 @@ namespace SushiAI
         class TestEnvironment : public ::testing::Environment
         {
             public:
-                /** @brief Destroys the runtime after the last test, when one was created. */
+                /** @brief Destroys the Engine, then the runtime, after the last test. */
                 void TearDown() override
                 {
+                    engine_.reset();
                     runtime_.reset();
                 }
 
@@ -76,7 +78,21 @@ namespace SushiAI
                     return *runtime_;
                 }
 
+                /**
+                 * @brief Returns the Engine of the program, built on the shared runtime on first use.
+                 * @return The Engine every EngineTest of the program records on.
+                 */
+                static SushiBLAS::Engine& engine()
+                {
+                    if (!engine_)
+                        engine_.emplace(runtime());
+                    return *engine_;
+                }
+
             private:
+                /** @brief Holds the Engine of the program; released before the runtime it lives on. */
+                static inline std::optional<SushiBLAS::Engine> engine_;
+
                 /** @brief Holds the runtime from the first runtime() call to TearDown(). */
                 static inline std::optional<SushiRuntime::Runtime> runtime_;
 
