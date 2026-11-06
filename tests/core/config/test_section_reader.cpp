@@ -68,16 +68,26 @@ namespace
     }
 } // namespace
 
-/** @brief Tests the names of a member and of a list entry, and a quoted list. */
-TEST(Small_SectionReader, NamesAMemberAnEntryAndAList)
+/** @brief Tests the names of a member and of a list entry. */
+TEST(Small_SectionReader, NamesAMemberAndAnEntry)
 {
     EXPECT_EQ(Config::member_of("schedule", "steps"), "schedule 'steps'");
     EXPECT_EQ(Config::entry_of("schedule 'steps'", 2), "schedule 'steps' entry 2");
-    EXPECT_EQ(Config::list_quoted(keys()), "'type', 'base_rate', 'steps'");
-    EXPECT_EQ(Config::list_quoted(KeySpan()), "");
 
     const Value section = section_from("{}");
     EXPECT_EQ(SectionReader(section, K_WHERE).member("type"), "schedule 'type'");
+}
+
+/** @brief Tests that a list of keys is quoted in order and separated by commas. */
+TEST(Small_SectionReader, AListOfKeysIsQuotedInOrder)
+{
+    EXPECT_EQ(Config::list_quoted(keys()), "'type', 'base_rate', 'steps'");
+}
+
+/** @brief Tests that an empty list of keys is quoted to the empty string. */
+TEST(Small_SectionReader, AnEmptyListOfKeysIsQuotedToTheEmptyString)
+{
+    EXPECT_EQ(Config::list_quoted(KeySpan()), "");
 }
 
 /** @brief Tests that an object passes and that anything else is refused with its kind. */
@@ -105,16 +115,22 @@ TEST(Small_SectionReader, CheckKeysNamesTheKeyAndListsWhatIsAccepted)
                       "'type', 'base_rate', 'steps'");
 }
 
-/** @brief Tests the type key: absent passes, another string and another kind are refused. */
-TEST(Small_SectionReader, CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType)
+/** @brief Tests that an absent type key passes, and so does the same type. */
+TEST(Small_SectionReader, CheckTypeAcceptsAnAbsentKeyAndTheSameType)
 {
     const Value absent = section_from(R"({"base_rate": 0.1})");
     const Value same = section_from(R"({"type": "step"})");
-    const Value other = section_from(R"({"type": "cosine"})");
-    const Value number = section_from(R"({"type": 3})");
 
     SA_EXPECT_OK(SectionReader(absent, K_WHERE).check_type("type", "step", "a step schedule"));
     SA_EXPECT_OK(SectionReader(same, K_WHERE).check_type("type", "step", "a step schedule"));
+}
+
+/** @brief Tests that another type string and a type of another kind are refused. */
+TEST(Small_SectionReader, CheckTypeRefusesAnotherTypeAndAnotherKind)
+{
+    const Value other = section_from(R"({"type": "cosine"})");
+    const Value number = section_from(R"({"type": 3})");
+
     SA_EXPECT_FAILURE(
         SectionReader(other, K_WHERE).check_type("type", "step", "a step schedule"),
         StatusCode::InvalidDescription,

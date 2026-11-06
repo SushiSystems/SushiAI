@@ -177,12 +177,6 @@ TEST(Small_ModelConfig, AMissingModelVersionIsAnErrorThatSaysWhy)
                       StatusCode::InvalidFile, "sushiai_model", "misread");
 }
 
-TEST(Small_ModelConfig, AFutureModelVersionIsAnError)
-{
-    SA_EXPECT_FAILURE(model_from(R"({"sushiai_model": 2, "input": {"features": 6}, "layers": []})"),
-                      StatusCode::InvalidFile, "version 2", "version 1");
-}
-
 TEST(Small_ModelConfig, AnUnknownTopLevelModelKeyIsAnError)
 {
     SA_EXPECT_FAILURE(model_from(R"({
@@ -229,16 +223,6 @@ TEST(Small_ModelConfig, AVersionOneDocumentParsesToTheSameSpecAsItsVersionTwoRew
               "flatten from 2:''\n"
               "linear from 3:'' units=int 10\n"
               "output 4:'' as ''\n");
-}
-
-/** @brief Tests that a version 1 document still fills the shape and the feature count. */
-TEST(Small_ModelConfig, AVersionOneDocumentFillsTheInputShapeAndTheFeatureCount)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const ModelSpec model, model_from(K_GOOD_MODEL));
-
-    EXPECT_EQ(model.input_shape, (SushiAI::Shape{6}));
-    EXPECT_EQ(model.input_shape.num_elements(), 6);
-    EXPECT_EQ(SushiAI::Config::K_MODEL_VERSION, 2);
 }
 
 /** @brief Tests that a version 2 input shape of rank 3 is kept and its elements counted. */
@@ -331,8 +315,8 @@ TEST(Small_ModelConfig, AnInputElementTypeOutsideTheListIsAnError)
     })"), StatusCode::InvalidDescription, "'input' 'dtype'");
 }
 
-/** @brief Tests that an input shape above the rank limit or the element limit is refused. */
-TEST(Small_ModelConfig, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
+/** @brief Tests that an input shape above the rank limit is refused. */
+TEST(Small_ModelConfig, AnInputShapeAboveTheRankLimitIsAnError)
 {
     std::string extents = "1";
     for (std::int32_t i = 0; i < SushiAI::K_MAX_RANK; ++i)
@@ -341,7 +325,11 @@ TEST(Small_ModelConfig, AnInputShapeAboveTheRankOrTheElementLimitIsAnError)
     SA_EXPECT_FAILURE(model_from(R"({"format_version": 2, "input": {"shape": [)" + extents
                                  + R"(]}, "layers": [{"type": "relu"}]})"),
                       StatusCode::InvalidDescription, "'shape'", "at most");
+}
 
+/** @brief Tests that an input shape whose element count exceeds 64 bits is refused. */
+TEST(Small_ModelConfig, AnInputShapeAboveTheElementLimitIsAnError)
+{
     SA_EXPECT_FAILURE(model_from(R"({
         "format_version": 2, "input": {"shape": [4294967296, 4294967296]},
         "layers": [{"type": "relu"}]
@@ -355,12 +343,15 @@ TEST(Small_ModelConfig, AModelRootThatIsNotAnObjectIsAnError)
                       "'format_version'", "an array");
 }
 
-/** @brief Tests that a version above the newest is refused with both numbers named. */
+/** @brief Tests that a version above the newest, in either key, is refused with both numbers. */
 TEST(Small_ModelConfig, AVersionAboveTheNewestIsRefusedWithBothNumbers)
 {
     SA_EXPECT_FAILURE(model_from(R"({
         "format_version": 3, "input": {"shape": [6]}, "layers": [{"type": "relu"}]
     })"), StatusCode::InvalidFile, "model.json", "version 3", "version 2");
+
+    SA_EXPECT_FAILURE(model_from(R"({"sushiai_model": 2, "input": {"features": 6}, "layers": []})"),
+                      StatusCode::InvalidFile, "version 2", "version 1");
 }
 
 /** @brief Tests that format_version 1, which no file was ever written with, is refused. */
@@ -371,7 +362,7 @@ TEST(Small_ModelConfig, FormatVersionOneIsRefusedAndNamesTheVersionOneKey)
     })"), StatusCode::InvalidFile, "'format_version'", "'sushiai_model'");
 }
 
-/** @brief Tests that a version 1 document cannot use a version 2 key. */
+/** @brief Tests that a version 1 document cannot use a version 2 key: from, defaults, task. */
 TEST(Small_ModelConfig, AVersionOneDocumentRefusesTheVersionTwoKeys)
 {
     SA_EXPECT_FAILURE(model_from(R"({
@@ -383,6 +374,11 @@ TEST(Small_ModelConfig, AVersionOneDocumentRefusesTheVersionTwoKeys)
         "sushiai_model": 1, "input": {"features": 6}, "defaults": {},
         "layers": [{"type": "relu"}]
     })"), StatusCode::InvalidDescription, "'defaults'", "'layers'");
+
+    SA_EXPECT_FAILURE(model_from(R"({
+        "sushiai_model": 1, "input": {"features": 6}, "layers": [{"type": "gelu"}],
+        "task": {"type": "anchor_detection"}
+    })"), StatusCode::InvalidDescription, "'task'", "'layers'");
 }
 
 /** @brief Tests that each form of a from entry resolves to the absolute row it names. */
@@ -469,12 +465,11 @@ TEST(Small_ModelConfig, AnUnknownTopLevelKeyOfAVersionTwoDocumentIsAnError)
                       "'defaults'");
 }
 
-/** @brief Tests that a default reaches a row that omits the key and no row that states it. */
-TEST(Small_ModelConfig, DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne)
+/** @brief Tests that a default reaches a row of its type that omits the key, and no other row. */
+TEST(Small_ModelConfig, ADefaultFillsAnOmittedKeyOfItsTypeOnly)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ModelSpec model, current_model_from(R"([
         {"type": "conv", "filters": 16},
-        {"type": "conv", "filters": 32, "bn_momentum": 7},
         {"type": "relu"}
     ])", R"(, "defaults": {"conv": {"bn_momentum": 3, "kernel": 5}})"));
 
@@ -489,15 +484,23 @@ TEST(Small_ModelConfig, DefaultsFillAnOmittedKeyAndNeverOverrideAStatedOne)
     SA_ASSERT_OK_AND_ASSIGN(const std::int64_t kernel, stated_kernel.as_int("kernel"));
     EXPECT_EQ(kernel, 5);
 
-    EXPECT_EQ(model.layers[1].attributes.keys(),
+    // A default belongs to one type; a row of another type receives none of its keys.
+    EXPECT_EQ(model.layers[1].attributes.keys().size(), 0u);
+}
+
+/** @brief Tests that a default never overrides a key its row states. */
+TEST(Small_ModelConfig, ADefaultNeverOverridesAStatedKey)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ModelSpec model, current_model_from(R"([
+        {"type": "conv", "filters": 32, "bn_momentum": 7}
+    ])", R"(, "defaults": {"conv": {"bn_momentum": 3, "kernel": 5}})"));
+
+    EXPECT_EQ(model.layers[0].attributes.keys(),
               (std::vector<std::string>{"filters", "bn_momentum", "kernel"}));
     SA_ASSERT_OK_AND_ASSIGN(const Value& second_momentum,
-                            model.layers[1].attributes.at("bn_momentum", "row 1"));
+                            model.layers[0].attributes.at("bn_momentum", "row 0"));
     SA_ASSERT_OK_AND_ASSIGN(const std::int64_t second, second_momentum.as_int("bn_momentum"));
     EXPECT_EQ(second, 7);
-
-    // A default belongs to one type; a row of another type receives none of its keys.
-    EXPECT_EQ(model.layers[2].attributes.keys().size(), 0u);
 }
 
 /** @brief Tests that a defaults block of the wrong shape is refused with the type named. */
@@ -526,8 +529,8 @@ TEST(Small_ModelConfig, ADefaultsEntryForATypeNoLayerStatesIsAnError)
                       StatusCode::InvalidDescription, "'defaults'", "'covn'", "'conv', 'relu'");
 }
 
-/** @brief Tests that absent outputs publish the last row and stated ones keep their fields. */
-TEST(Small_ModelConfig, OutputsDefaultToTheLastRowAndKeepWhatTheFileStates)
+/** @brief Tests that absent outputs publish the last row. */
+TEST(Small_ModelConfig, AbsentOutputsPublishTheLastRow)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ModelSpec defaulted,
                             current_model_from(R"([{"type": "relu"}, {"type": "relu"}])"));
@@ -535,7 +538,11 @@ TEST(Small_ModelConfig, OutputsDefaultToTheLastRowAndKeepWhatTheFileStates)
     EXPECT_EQ(defaulted.outputs[0].node, 1);
     EXPECT_TRUE(defaulted.outputs[0].port.empty());
     EXPECT_TRUE(defaulted.outputs[0].name.empty());
+}
 
+/** @brief Tests that stated outputs keep their node, port and name. */
+TEST(Small_ModelConfig, StatedOutputsKeepTheirFields)
+{
     SA_ASSERT_OK_AND_ASSIGN(const ModelSpec stated, current_model_from(
         R"([{"type": "relu"}, {"type": "relu"}])",
         R"(, "outputs": [{"node": 0}, {"node": 1, "port": "boxes"},
@@ -625,13 +632,4 @@ TEST(Small_ModelConfig, AMalformedTaskIsAnError)
 
     SA_EXPECT_FAILURE(current_model_from(R"([{"type": "relu"}])", R"(, "task": {"type": 3})"),
                       StatusCode::InvalidDescription, "'task' 'type'", "a whole number");
-}
-
-/** @brief Tests that a version 1 document that states a task is refused. */
-TEST(Small_ModelConfig, AVersionOneDocumentRefusesATask)
-{
-    SA_EXPECT_FAILURE(model_from(R"({
-        "sushiai_model": 1, "input": {"features": 6}, "layers": [{"type": "gelu"}],
-        "task": {"type": "anchor_detection"}
-    })"), StatusCode::InvalidDescription, "'task'", "'layers'");
 }

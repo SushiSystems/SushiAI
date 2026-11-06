@@ -4,10 +4,11 @@ The tests of the module `core/config`, one file per header of `modules/core/conf
 
 ## test_json_events.cpp
 
-Suites: `Medium_JsonEvents`.
+Suites: `Small_JsonEvents`, `Medium_JsonEvents`.
 
-Tests `Config::read_json_events`. Each case writes a file under the system's temporary
-directory and removes it at its end. A local `EventLog` implements `Config::JSONEvents`, keeps
+Tests `Config::read_json_text_events` on text in memory (`Small_`) and `Config::read_json_events`
+on files (`Medium_`). A file case writes its file under the system's temporary directory and
+removes it at its end. A local `EventLog` implements `Config::JSONEvents`, keeps
 every event as one line of text and can return false at a chosen event.
 
 ### EventsArriveInTheOrderOfTheText
@@ -23,7 +24,7 @@ In `[9223372036854775807, 18446744073709551615]` the first entry arrives as
 
 ### ADocumentLongerThanTheBufferArrivesWhole
 
-An array of 40000 whole numbers, whose text is longer than twice
+A file holding an array of 40000 whole numbers, whose text is longer than twice
 `K_JSON_EVENT_BUFFER_BYTES`, gives 40002 events. The last number is "whole 39999" and the last
 event is the end of the array.
 
@@ -34,9 +35,14 @@ the read is ok.
 
 ### TextThatIsNoJSONIsRefusedWithItsOffset
 
-Three files fail with `InvalidFile` and "not valid JSON": a document cut short, which also
-names the file and "at byte 12", a document with trailing text ("at byte 5") and an empty file
-("at byte").
+Three texts fail with `InvalidFile` and "not valid JSON": a document cut short, which also
+names the text's name and "at byte 12", a document with trailing text ("at byte 5") and an
+empty text ("at byte").
+
+### AFileThatIsNoJSONIsRefusedByItsPath
+
+A file holding a document cut short fails with `InvalidFile`, its file name, "not valid JSON"
+and "at byte 12".
 
 ### AnAbsentFileIsRefusedByItsPath
 
@@ -127,7 +133,7 @@ A NaN under `rate` in entry 1 of the array under `layers` fails with a message c
 
 ## test_model_writer.cpp
 
-Suites: `Small_ModelWriter`.
+Suites: `Small_ModelWriter`, `Medium_ModelWriter`.
 
 Tests `Config::write_model`. Three models are parsed from text in the file. The chain model has
 three rows and states neither `from` nor `outputs`. The full model has a `defaults` block, an
@@ -255,11 +261,18 @@ Tests `Config::SectionReader` and the free readers of
 `modules/core/config/include/SushiAI/config/section_reader.hpp`. The reader of every case is
 named "schedule" and the accepted keys are `type`, `base_rate` and `steps`.
 
-### NamesAMemberAnEntryAndAList
+### NamesAMemberAndAnEntry
 
-`member_of("schedule", "steps")` is "schedule 'steps'", `entry_of` of that with 2 is "schedule
-'steps' entry 2", and `list_quoted` of the three keys is "'type', 'base_rate', 'steps'" and of
-an empty span "". `SectionReader::member("type")` is "schedule 'type'".
+`member_of("schedule", "steps")` is "schedule 'steps'" and `entry_of` of that with 2 is "schedule
+'steps' entry 2". `SectionReader::member("type")` is "schedule 'type'".
+
+### AListOfKeysIsQuotedInOrder
+
+`list_quoted` of the three keys is "'type', 'base_rate', 'steps'".
+
+### AnEmptyListOfKeysIsQuotedToTheEmptyString
+
+`list_quoted` of an empty span is "".
 
 ### CheckObjectRefusesAnotherKind
 
@@ -272,10 +285,14 @@ must be an object, but it is a string".
 with "schedule states the key 'gamma', which it does not have; it accepts 'type', 'base_rate',
 'steps'".
 
-### CheckTypeAcceptsAnAbsentKeyAndRefusesAnotherType
+### CheckTypeAcceptsAnAbsentKeyAndTheSameType
 
 `check_type("type", "step", "a step schedule")` is ok when `type` is absent and when it is
-"step". For "cosine" it fails with "schedule 'type' is 'cosine'; a step schedule states
+"step".
+
+### CheckTypeRefusesAnotherTypeAndAnotherKind
+
+`check_type("type", "step", "a step schedule")` for "cosine" fails with "schedule 'type' is 'cosine'; a step schedule states
 'step'", and for 3 with "schedule 'type' must be a string, but it is a whole number".
 
 ### FindReturnsTheMemberOrNamesTheAbsentKey
@@ -309,7 +326,9 @@ and `read_array` of a string with "steps must be an array, but it is a string".
 
 ## test_train_config.cpp
 
-Suites: `Medium_TrainConfig`.
+Suites: `Small_TrainConfig`, `Medium_TrainConfig`. The two cases that write or load a file,
+`ResolvesRelativePathsAgainstTheConfigsOwnDirectory` and `LoadingAnAbsentFileNamesThePath`, are
+medium; the others parse text.
 
 Tests `Config::parse_train`, `Config::check_start` and `Config::read_run_seed`. Most cases
 parse a file that states `sushiai_train`, `model`, `objective`, `data` and an `sgd` optimizer,

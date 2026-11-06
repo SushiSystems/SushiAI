@@ -129,13 +129,11 @@ namespace
 } // namespace
 
 /** @brief Tests that every kind of event arrives once, in the order of the text. */
-TEST(Medium_JsonEvents, EventsArriveInTheOrderOfTheText)
+TEST(Small_JsonEvents, EventsArriveInTheOrderOfTheText)
 {
-    const ScratchFile file("sushiai_test_json_events_order.json",
-                           R"({"a": [1, -2, 2.5, "x", true, null], "b": {"c": false}})");
-
     EventLog log;
-    SA_EXPECT_OK(Config::read_json_events(file.path(), log));
+    SA_EXPECT_OK(Config::read_json_text_events(
+        R"({"a": [1, -2, 2.5, "x", true, null], "b": {"c": false}})", "<test>", log));
 
     const std::vector<std::string> expected = {
         "{",        "key a",  "[",     "whole 1", "whole -2", "real 2.500000",
@@ -146,13 +144,11 @@ TEST(Medium_JsonEvents, EventsArriveInTheOrderOfTheText)
 }
 
 /** @brief Tests that a whole number above the largest int64 arrives as a real. */
-TEST(Medium_JsonEvents, AWholeNumberAboveInt64IsAReal)
+TEST(Small_JsonEvents, AWholeNumberAboveInt64IsAReal)
 {
-    const ScratchFile file("sushiai_test_json_events_wide.json",
-                           "[9223372036854775807, 18446744073709551615]");
-
     EventLog log;
-    SA_EXPECT_OK(Config::read_json_events(file.path(), log));
+    SA_EXPECT_OK(Config::read_json_text_events("[9223372036854775807, 18446744073709551615]",
+                                               "<test>", log));
 
     ASSERT_EQ(log.events().size(), 4u);
     EXPECT_EQ(log.events()[1], "whole 9223372036854775807");
@@ -180,31 +176,35 @@ TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
 }
 
 /** @brief Tests that an event that returns false ends the read with success. */
-TEST(Medium_JsonEvents, AHandlerThatStopsEndsTheReadWithSuccess)
+TEST(Small_JsonEvents, AHandlerThatStopsEndsTheReadWithSuccess)
 {
-    const ScratchFile file("sushiai_test_json_events_stop.json", R"({"a": [1, 2, 3]})");
-
     EventLog log(4);
-    SA_EXPECT_OK(Config::read_json_events(file.path(), log));
+    SA_EXPECT_OK(Config::read_json_text_events(R"({"a": [1, 2, 3]})", "<test>", log));
 
     const std::vector<std::string> expected = {"{", "key a", "[", "whole 1"};
     EXPECT_EQ(log.events(), expected);
 }
 
-/** @brief Tests that text that is no JSON is refused with the path and the byte offset. */
-TEST(Medium_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
+/** @brief Tests that text that is no JSON is refused with its name and the byte offset. */
+TEST(Small_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
+{
+    EventLog log;
+    SA_EXPECT_FAILURE(Config::read_json_text_events(R"({"a": [1, 2)", "<cut>", log),
+                      StatusCode::InvalidFile, "<cut>", "not valid JSON", "at byte 12");
+    SA_EXPECT_FAILURE(Config::read_json_text_events("[1] x", "<trailing>", log),
+                      StatusCode::InvalidFile, "not valid JSON", "at byte 5");
+    SA_EXPECT_FAILURE(Config::read_json_text_events("", "<empty>", log),
+                      StatusCode::InvalidFile, "not valid JSON", "at byte");
+}
+
+/** @brief Tests that a file whose text is no JSON is refused by its path. */
+TEST(Medium_JsonEvents, AFileThatIsNoJSONIsRefusedByItsPath)
 {
     const ScratchFile cut("sushiai_test_json_events_cut.json", R"({"a": [1, 2)");
-    const ScratchFile trailing("sushiai_test_json_events_trailing.json", "[1] x");
-    const ScratchFile empty("sushiai_test_json_events_empty.json", "");
 
     EventLog log;
     SA_EXPECT_FAILURE(Config::read_json_events(cut.path(), log), StatusCode::InvalidFile,
                       "sushiai_test_json_events_cut.json", "not valid JSON", "at byte 12");
-    SA_EXPECT_FAILURE(Config::read_json_events(trailing.path(), log),
-                      StatusCode::InvalidFile, "not valid JSON", "at byte 5");
-    SA_EXPECT_FAILURE(Config::read_json_events(empty.path(), log), StatusCode::InvalidFile,
-                      "not valid JSON", "at byte");
 }
 
 /** @brief Tests that a file that is not there is refused by its path. */

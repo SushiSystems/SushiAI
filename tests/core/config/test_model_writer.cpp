@@ -285,14 +285,16 @@ TEST(Small_ModelWriter, WritesTheInputFitOnlyWhenOneIsStated)
     EXPECT_EQ(model_from(stated).input_fit, "resize");
 }
 
-TEST(Small_ModelWriter, RoundTripsTheMNISTExample)
+/** @brief Tests that the MNIST example file survives a write and a read. */
+TEST(Medium_ModelWriter, RoundTripsTheMNISTExample)
 {
     const std::filesystem::path root = repository_root();
 
     expect_round_trip(require_value(Config::load_model(example_model_path(root, "mnist_cnn"))));
 }
 
-TEST(Small_ModelWriter, RoundTripsTheYOLO26Example)
+/** @brief Tests that the YOLO26 example file survives a write and a read. */
+TEST(Medium_ModelWriter, RoundTripsTheYOLO26Example)
 {
     const std::filesystem::path root = repository_root();
 

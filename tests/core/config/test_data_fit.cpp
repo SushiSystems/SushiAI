@@ -86,8 +86,8 @@ TEST(Small_DataFit, ABlockWithoutAFitTakesTheModels)
     EXPECT_EQ(require_value(require_value(fitted.at("batch_size", "test")).as_int("test")), 4);
 }
 
-/** @brief Tests that a block stating the model's fit is kept and one stating another refused. */
-TEST(Small_DataFit, ABlockStatingAnotherFitIsRefused)
+/** @brief Tests that a block stating the model's fit keeps it. */
+TEST(Small_DataFit, ABlockStatingTheModelsFitKeepsIt)
 {
     const ModelSpec model = model_fitting(std::string(K_FIT_RESIZE));
 
@@ -95,6 +95,12 @@ TEST(Small_DataFit, ABlockStatingAnotherFitIsRefused)
         const Value same,
         fit_data_to_model(data_block(std::string(K_FIT_RESIZE)), model, "model.json"));
     EXPECT_EQ(require_value(require_value(same.at("fit", "test")).as_string("test")), K_FIT_RESIZE);
+}
+
+/** @brief Tests that a block stating another fit than the model's is refused naming both. */
+TEST(Small_DataFit, ABlockStatingAnotherFitIsRefused)
+{
+    const ModelSpec model = model_fitting(std::string(K_FIT_RESIZE));
 
     SA_EXPECT_FAILURE(
         fit_data_to_model(data_block(std::string(K_FIT_LETTERBOX)), model, "model.json"),

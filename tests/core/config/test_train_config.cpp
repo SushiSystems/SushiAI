@@ -69,6 +69,14 @@ namespace
     constexpr std::string_view K_SCHEDULE_MEMBER =
         R"("schedule": {"type": "step", "base_rate": 0.001, "unread_here": [1, 2]})";
 
+#if defined(_WIN32)
+    /** @brief Holds a directory that is absolute on this platform. */
+    constexpr std::string_view K_ABSOLUTE_DIRECTORY = "C:/elsewhere";
+#else
+    /** @brief Holds a directory that is absolute on this platform. */
+    constexpr std::string_view K_ABSOLUTE_DIRECTORY = "/elsewhere";
+#endif
+
     /** @brief Parses @p text as a train document, resolving its paths against @p base. */
     Result<TrainSpec> parse_text(const std::string& text, const std::filesystem::path& base)
     {
@@ -85,7 +93,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a file without the section parses as before, with a null schedule. */
-TEST(Medium_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
+TEST(Small_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, parse_with(""));
 
@@ -95,7 +103,7 @@ TEST(Medium_TrainConfig, AFileWithoutAScheduleHoldsTheNullValue)
 }
 
 /** @brief Tests that the section is kept whole, its "type" and an unread key included. */
-TEST(Medium_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
+TEST(Small_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec,
                             parse_with(", " + std::string(K_SCHEDULE_MEMBER)));
@@ -111,7 +119,7 @@ TEST(Medium_TrainConfig, TheScheduleIsCarriedAsTheFileStatesIt)
 }
 
 /** @brief Tests that the parser accepts a schedule of any kind and leaves the check to optim. */
-TEST(Medium_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
+TEST(Small_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, parse_with(R"(, "schedule": "later")"));
 
@@ -119,21 +127,21 @@ TEST(Medium_TrainConfig, AScheduleOfAnotherKindIsCarriedUnchecked)
 }
 
 /** @brief Tests that a key beside the known ones is still refused by name. */
-TEST(Medium_TrainConfig, AKeyBesideTheScheduleIsStillRefused)
+TEST(Small_TrainConfig, AKeyBesideTheScheduleIsStillRefused)
 {
     SA_EXPECT_FAILURE(parse_with(R"(, "schedules": {})"), StatusCode::InvalidDescription,
                       "'schedules'");
 }
 
 /** @brief Tests that a file without "weights" leaves the path empty. */
-TEST(Medium_TrainConfig, AFileWithoutWeightsHoldsAnEmptyPath)
+TEST(Small_TrainConfig, AFileWithoutWeightsHoldsAnEmptyPath)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, parse_with(""));
     EXPECT_TRUE(spec.weights.empty());
 }
 
 /** @brief Tests that "weights" resolves against the directory of the file, as "model" does. */
-TEST(Medium_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
+TEST(Small_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
 {
     const std::string text =
         std::string(K_REQUIRED_MEMBERS) + R"(, "weights": "start.sushi"})";
@@ -145,13 +153,13 @@ TEST(Medium_TrainConfig, TheWeightsPathResolvesAgainstTheFile)
 }
 
 /** @brief Tests that "weights" of another kind than a string is refused by name. */
-TEST(Medium_TrainConfig, WeightsThatAreNoStringAreRefused)
+TEST(Small_TrainConfig, WeightsThatAreNoStringAreRefused)
 {
     SA_EXPECT_FAILURE(parse_with(R"(, "weights": 3)"), StatusCode::InvalidDescription, "'weights'");
 }
 
 /** @brief Tests that "resume" is empty when left out and resolves against the file. */
-TEST(Medium_TrainConfig, TheResumePathResolvesAgainstTheFile)
+TEST(Small_TrainConfig, TheResumePathResolvesAgainstTheFile)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec bare, parse_with(""));
     EXPECT_TRUE(bare.resume.empty());
@@ -166,14 +174,14 @@ TEST(Medium_TrainConfig, TheResumePathResolvesAgainstTheFile)
 }
 
 /** @brief Tests that "resume" of another kind than a string is refused by name. */
-TEST(Medium_TrainConfig, AResumeThatIsNoStringIsRefused)
+TEST(Small_TrainConfig, AResumeThatIsNoStringIsRefused)
 {
     SA_EXPECT_FAILURE(parse_with(R"(, "resume": true)"), StatusCode::InvalidDescription,
                       "'resume'");
 }
 
 /** @brief Tests that a file states "weights" or "resume", and is refused with both. */
-TEST(Medium_TrainConfig, WeightsAndResumeTogetherAreRefused)
+TEST(Small_TrainConfig, WeightsAndResumeTogetherAreRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec bare, parse_with(""));
     SA_EXPECT_OK(Config::check_start(bare, "train.json"));
@@ -191,7 +199,7 @@ TEST(Medium_TrainConfig, WeightsAndResumeTogetherAreRefused)
 }
 
 /** @brief Tests that "seed" is 0 when left out and holds the integer the file states. */
-TEST(Medium_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
+TEST(Small_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec bare, parse_with(""));
     EXPECT_EQ(bare.seed, 0);
@@ -208,14 +216,14 @@ TEST(Medium_TrainConfig, TheSeedIsZeroUnlessTheFileStatesOne)
 }
 
 /** @brief Tests that a "seed" that is no integer is refused by name. */
-TEST(Medium_TrainConfig, ASeedThatIsNoIntegerIsRefused)
+TEST(Small_TrainConfig, ASeedThatIsNoIntegerIsRefused)
 {
     SA_EXPECT_FAILURE(parse_with(R"(, "seed": "seven")"), StatusCode::InvalidDescription, "'seed'");
     SA_EXPECT_FAILURE(parse_with(R"(, "seed": 0.5)"), StatusCode::InvalidDescription, "'seed'");
 }
 
 /** @brief Tests that a negative "seed" parses and is refused with the file and the value. */
-TEST(Medium_TrainConfig, ANegativeSeedIsRefused)
+TEST(Small_TrainConfig, ANegativeSeedIsRefused)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec negative, parse_with(R"(, "seed": -3)"));
     SA_EXPECT_FAILURE(Config::read_run_seed(negative, "train.json"),
@@ -235,7 +243,7 @@ namespace
 } // namespace
 
 /** @brief Tests that a data block with a reader and no type takes the reader type whole. */
-TEST(Medium_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
+TEST(Small_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const TrainSpec spec,
@@ -249,7 +257,7 @@ TEST(Medium_TrainConfig, ADataBlockWithAReaderTakesTheReaderType)
 }
 
 /** @brief Tests that a typed data block is read as before, its type stripped. */
-TEST(Medium_TrainConfig, ATypedDataBlockKeepsItsType)
+TEST(Small_TrainConfig, ATypedDataBlockKeepsItsType)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec,
                             parse_with_data(R"({"type": "mnist", "directory": "data"})"));
@@ -260,7 +268,7 @@ TEST(Medium_TrainConfig, ATypedDataBlockKeepsItsType)
 }
 
 /** @brief Tests that a block with both keys is a typed block that still carries "reader". */
-TEST(Medium_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
+TEST(Small_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec,
                             parse_with_data(R"({"type": "mnist", "reader": "idx"})"));
@@ -270,7 +278,7 @@ TEST(Medium_TrainConfig, ATypeBesideAReaderStaysATypedBlock)
 }
 
 /** @brief Tests that a data block with neither key is refused for its missing type. */
-TEST(Medium_TrainConfig, ADataBlockWithNeitherKeyIsRefused)
+TEST(Small_TrainConfig, ADataBlockWithNeitherKeyIsRefused)
 {
     SA_EXPECT_FAILURE(parse_with_data(R"({"root": "data"})"), StatusCode::InvalidDescription,
                       "'type'");
@@ -335,7 +343,7 @@ namespace
 
 } // namespace
 
-TEST(Medium_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
+TEST(Small_TrainConfig, ParsesATrainDocumentIntoItsFourTypedBlocks)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::TrainSpec spec, train_from(K_GOOD_TRAIN));
 
@@ -367,10 +375,10 @@ TEST(Medium_TrainConfig, ResolvesRelativePathsAgainstTheConfigsOwnDirectory)
     EXPECT_EQ(spec.checkpoint, directory.path() / "out" / "model.sushi");
 }
 
-TEST(Medium_TrainConfig, LeavesAnAbsolutePathAlone)
+TEST(Small_TrainConfig, LeavesAnAbsolutePathAlone)
 {
     const std::filesystem::path absolute =
-        std::filesystem::temp_directory_path() / "elsewhere" / "model.json";
+        std::filesystem::path(K_ABSOLUTE_DIRECTORY) / "model.json";
 
     // generic_string() writes '/', which JSON does not escape; see tests/core/config/README.md.
     const std::string text =
@@ -385,7 +393,8 @@ TEST(Medium_TrainConfig, LeavesAnAbsolutePathAlone)
     EXPECT_EQ(spec.model_path, absolute);
 }
 
-TEST(Medium_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
+/** @brief Tests that epochs is one when the file omits it. */
+TEST(Small_TrainConfig, EpochsDefaultsToOne)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::TrainSpec defaulted, train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -395,7 +404,11 @@ TEST(Medium_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
     })"));
     EXPECT_EQ(defaulted.epochs, 1);
     EXPECT_TRUE(defaulted.checkpoint.empty());
+}
 
+/** @brief Tests that a non-positive epochs is refused. */
+TEST(Small_TrainConfig, ANonPositiveEpochsIsRefused)
+{
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 1, "model": "m.json",
         "objective": {"type": "cross_entropy"},
@@ -405,7 +418,7 @@ TEST(Medium_TrainConfig, EpochsDefaultsToOneAndMustBePositive)
     })"), StatusCode::InvalidDescription, "'epochs'", "positive");
 }
 
-TEST(Medium_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
+TEST(Small_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -416,7 +429,7 @@ TEST(Medium_TrainConfig, AnUnknownTopLevelTrainKeyIsAnError)
     })"), StatusCode::InvalidDescription, "'epochz'", "'epochs'");
 }
 
-TEST(Medium_TrainConfig, AMissingTrainBlockNamesIt)
+TEST(Small_TrainConfig, AMissingTrainBlockNamesIt)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -425,7 +438,7 @@ TEST(Medium_TrainConfig, AMissingTrainBlockNamesIt)
     })"), StatusCode::InvalidDescription, "'data'");
 }
 
-TEST(Medium_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
+TEST(Small_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -435,7 +448,7 @@ TEST(Medium_TrainConfig, ATypedBlockThatIsNotAnObjectIsAnError)
     })"), StatusCode::InvalidDescription, "'objective'", "a string");
 }
 
-TEST(Medium_TrainConfig, AFutureTrainVersionIsAnError)
+TEST(Small_TrainConfig, AFutureTrainVersionIsAnError)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 4, "model": "m.json",
@@ -446,7 +459,7 @@ TEST(Medium_TrainConfig, AFutureTrainVersionIsAnError)
 }
 
 /** @brief Tests that a version 1 file without a cluster section still reads. */
-TEST(Medium_TrainConfig, AVersionOneFileStillReads)
+TEST(Small_TrainConfig, AVersionOneFileStillReads)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, parse_with(""));
 
@@ -455,14 +468,14 @@ TEST(Medium_TrainConfig, AVersionOneFileStillReads)
 }
 
 /** @brief Tests that a version 1 file that states "cluster" is refused, naming the key. */
-TEST(Medium_TrainConfig, AClusterInAVersionOneFileIsRefused)
+TEST(Small_TrainConfig, AClusterInAVersionOneFileIsRefused)
 {
     SA_EXPECT_FAILURE(parse_with(R"(, "cluster": {})"), StatusCode::InvalidDescription,
                       "'cluster'");
 }
 
 /** @brief Tests that a version 2 file carries its cluster section as the file states it. */
-TEST(Medium_TrainConfig, AVersionTwoFileCarriesTheClusterUnread)
+TEST(Small_TrainConfig, AVersionTwoFileCarriesTheClusterUnread)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, train_from(R"({
         "sushiai_train": 2, "model": "m.json",
@@ -477,7 +490,7 @@ TEST(Medium_TrainConfig, AVersionTwoFileCarriesTheClusterUnread)
 }
 
 /** @brief Tests that a file that does not state "deterministic" asks for a deterministic run. */
-TEST(Medium_TrainConfig, ARunIsDeterministicUnlessTheFileSaysOtherwise)
+TEST(Small_TrainConfig, ARunIsDeterministicUnlessTheFileSaysOtherwise)
 {
     SA_ASSERT_OK_AND_ASSIGN(const TrainSpec spec, train_from(R"({
         "sushiai_train": 3, "model": "m.json",
@@ -490,7 +503,7 @@ TEST(Medium_TrainConfig, ARunIsDeterministicUnlessTheFileSaysOtherwise)
 }
 
 /** @brief Tests that "deterministic" reads back as the file states it, true or false. */
-TEST(Medium_TrainConfig, TheDeterministicKeyReadsBackAsStated)
+TEST(Small_TrainConfig, TheDeterministicKeyReadsBackAsStated)
 {
     const std::string head = R"({
         "sushiai_train": 3, "model": "m.json",
@@ -507,7 +520,7 @@ TEST(Medium_TrainConfig, TheDeterministicKeyReadsBackAsStated)
 }
 
 /** @brief Tests that "deterministic" must be a boolean and names the key when it is not. */
-TEST(Medium_TrainConfig, ADeterministicKeyThatIsNoBooleanNamesTheKey)
+TEST(Small_TrainConfig, ADeterministicKeyThatIsNoBooleanNamesTheKey)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 3, "model": "m.json",
@@ -519,7 +532,7 @@ TEST(Medium_TrainConfig, ADeterministicKeyThatIsNoBooleanNamesTheKey)
 }
 
 /** @brief Tests that a version 2 file that states "deterministic" is refused, naming the key. */
-TEST(Medium_TrainConfig, ADeterministicKeyInAVersionTwoFileIsRefused)
+TEST(Small_TrainConfig, ADeterministicKeyInAVersionTwoFileIsRefused)
 {
     SA_EXPECT_FAILURE(train_from(R"({
         "sushiai_train": 2, "model": "m.json",
@@ -530,7 +543,7 @@ TEST(Medium_TrainConfig, ADeterministicKeyInAVersionTwoFileIsRefused)
     })"), StatusCode::InvalidDescription, "'deterministic'");
 }
 
-TEST(Medium_TrainConfig, ParsesAnEvalDocument)
+TEST(Small_TrainConfig, ParsesAnEvalDocument)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(R"({
             "sushiai_data": 1,
@@ -548,7 +561,7 @@ TEST(Medium_TrainConfig, ParsesAnEvalDocument)
     EXPECT_EQ(seed_value, 3735928575);
 }
 
-TEST(Medium_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
+TEST(Small_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
 {
     // An eval document naming a model is an error; see tests/core/config/README.md.
     SA_ASSERT_OK_AND_ASSIGN(
@@ -559,7 +572,7 @@ TEST(Medium_TrainConfig, AnEvalDocumentCarriesNoModelBlock)
                       StatusCode::InvalidDescription, "'model'", "'data'");
 }
 
-TEST(Medium_TrainConfig, ADataRootResolvesAgainstTheDocumentsDirectory)
+TEST(Small_TrainConfig, ADataRootResolvesAgainstTheDocumentsDirectory)
 {
     SA_ASSERT_OK_AND_ASSIGN(const SushiAI::Config::TrainSpec spec, parse_text(R"({
         "sushiai_train": 1, "model": "m.json",
@@ -572,10 +585,9 @@ TEST(Medium_TrainConfig, ADataRootResolvesAgainstTheDocumentsDirectory)
     EXPECT_EQ(text, "examples/yolo/datasets/coco128");
 }
 
-TEST(Medium_TrainConfig, AnAbsoluteDataRootIsKeptAsStated)
+TEST(Small_TrainConfig, AnAbsoluteDataRootIsKeptAsStated)
 {
-    const std::filesystem::path absolute =
-        std::filesystem::temp_directory_path() / "elsewhere" / "coco128";
+    const std::filesystem::path absolute = std::filesystem::path(K_ABSOLUTE_DIRECTORY) / "coco128";
     SA_ASSERT_OK_AND_ASSIGN(const Value document, parse_json(
         R"({"sushiai_data": 1, "data": {"type": "rings", "root": ")" + absolute.generic_string()
             + R"("}})", "eval.json"));
@@ -586,7 +598,7 @@ TEST(Medium_TrainConfig, AnAbsoluteDataRootIsKeptAsStated)
     EXPECT_EQ(std::filesystem::path(text), absolute);
 }
 
-TEST(Medium_TrainConfig, AnEmptyBaseKeepsARelativeDataRoot)
+TEST(Small_TrainConfig, AnEmptyBaseKeepsARelativeDataRoot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value document, parse_json(
         R"({"sushiai_data": 1, "data": {"reader": "yolo_txt", "root": "datasets/coco128"}})",

@@ -98,17 +98,24 @@ TEST(Small_Value, KeepsTheKeyOrderTheFileSpelled)
     EXPECT_EQ(root.values().size(), 3u);
 }
 
-TEST(Small_Value, AnIntegerReadsAsARealButARealIsNotAWholeNumber)
+/** @brief Tests that an integer widens to a real. */
+TEST(Small_Value, AnIntegerReadsAsAReal)
 {
-    // An integer widens to a real, never the reverse; see tests/core/config/README.md.
-    SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(R"({"lr": 3, "units": 2.5})", "<test>"));
+    SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(R"({"lr": 3})", "<test>"));
     SA_ASSERT_OK_AND_ASSIGN(const Value& lr, root.at("lr", "<test>"));
-    SA_ASSERT_OK_AND_ASSIGN(const Value& units, root.at("units", "<test>"));
 
     SA_ASSERT_OK_AND_ASSIGN(const double widened, lr.as_real("lr"));
     EXPECT_DOUBLE_EQ(widened, 3.0);
     SA_ASSERT_OK_AND_ASSIGN(const std::int64_t whole, lr.as_int("lr"));
     EXPECT_EQ(whole, 3);
+}
+
+/** @brief Tests that a real is refused as a whole number. */
+TEST(Small_Value, ARealIsNotAWholeNumber)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Value root, parse_json(R"({"units": 2.5})", "<test>"));
+    SA_ASSERT_OK_AND_ASSIGN(const Value& units, root.at("units", "<test>"));
+
     SA_EXPECT_FAILURE(units.as_int("'units'"), StatusCode::InvalidDescription, "'units'",
                       "whole number");
 }
@@ -156,18 +163,22 @@ TEST(Small_Value, AnUnknownKeyIsAnErrorThatListsWhatIsAllowed)
                       "'type'");
 }
 
-TEST(Small_Value, AnAllowedKeySetIsAcceptedAndAnEmptyOneRefusesEverything)
+/** @brief Tests that a key set inside the allowed list is accepted. */
+TEST(Small_Value, AnAllowedKeySetIsAccepted)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Value with_keys,
                             parse_json(R"({"type": "linear", "units": 256})", "<test>"));
     const std::string_view keys[] = {"type", "units"};
     SA_EXPECT_OK(with_keys.reject_unknown_keys("layer 0", allowed(keys)));
+}
 
-    // An empty allowed set refuses every key; see tests/core/config/README.md.
-    const std::string_view none[] = {"type"};
+/** @brief Tests that a key outside the allowed list is refused with the layer and the key. */
+TEST(Small_Value, AKeyOutsideTheAllowedSetIsRefused)
+{
+    const std::string_view only_type[] = {"type"};
     SA_ASSERT_OK_AND_ASSIGN(const Value stray,
                             parse_json(R"({"type": "gelu", "units": 8})", "<test>"));
-    SA_EXPECT_FAILURE(stray.reject_unknown_keys("layer 1 'gelu'", allowed(none)),
+    SA_EXPECT_FAILURE(stray.reject_unknown_keys("layer 1 'gelu'", allowed(only_type)),
                       StatusCode::InvalidDescription, "layer 1 'gelu'", "'units'");
 }
 
@@ -238,7 +249,8 @@ TEST(Small_Value, RequireVersionRefusesAWrongOrAbsentVersionAsAnInvalidFile)
                       StatusCode::InvalidFile, "must be an object", "an array");
 }
 
-TEST(Small_Value, ParseJSONFileNamesAMissingFile)
+/** @brief Tests that parsing a file that is absent fails with its name. */
+TEST(Medium_Value, ParseJSONFileNamesAMissingFile)
 {
     const std::filesystem::path absent =
         std::filesystem::temp_directory_path() / "sushiai_test_value_absent.json";

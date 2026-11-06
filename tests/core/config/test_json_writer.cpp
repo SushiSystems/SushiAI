@@ -75,6 +75,32 @@ namespace
         SA_ASSERT_OK_AND_ASSIGN(const std::string text, write_json(value, K_ONE_LINE));
         read = require_value(parse_json(text, "<written>"));
     }
+
+    /** @brief Expects a one-entry array of @p integer to read back as the same Kind::Int. */
+    void expect_integer_reads_back(std::int64_t integer)
+    {
+        Value read;
+        ASSERT_NO_FATAL_FAILURE(read_back(Value::array({Value::integer(integer)}), read));
+
+        const std::vector<Value>& found = require_value(read.as_array("<written>"));
+        ASSERT_EQ(found.size(), 1u);
+        ASSERT_EQ(found[0].kind(), Kind::Int) << "integer " << integer;
+        EXPECT_EQ(require_value(found[0].as_int("<written>")), integer);
+    }
+
+    /** @brief Expects a one-entry array of @p real to read back as a real of the same bits. */
+    void expect_real_reads_back(double real)
+    {
+        Value read;
+        ASSERT_NO_FATAL_FAILURE(read_back(Value::array({Value::real(real)}), read));
+
+        const std::vector<Value>& found = require_value(read.as_array("<written>"));
+        ASSERT_EQ(found.size(), 1u);
+        ASSERT_EQ(found[0].kind(), Kind::Real) << "real " << real;
+        EXPECT_TRUE(same_bits(require_value(found[0].as_real("<written>")), real))
+            << "real " << real << " read back as "
+            << require_value(found[0].as_real("<written>"));
+    }
 }
 
 TEST(Small_JsonWriter, WritesEveryKindOnOneLineInTheOrderOfTheKeys)
@@ -139,57 +165,37 @@ TEST(Small_JsonWriter, SpellsNumbersInTheShortestFormThatReadsBack)
 
 TEST(Small_JsonWriter, AnIntegerReadsBackAsTheSameInteger)
 {
-    const std::vector<std::int64_t> integers = {
-        7, -3, 0, 1, -1, 9007199254740993,
-        std::numeric_limits<std::int64_t>::max(),
-        std::numeric_limits<std::int64_t>::min(),
-    };
-
-    std::vector<Value> entries;
-    for (const std::int64_t integer : integers)
-        entries.push_back(Value::integer(integer));
-
-    Value read;
-    ASSERT_NO_FATAL_FAILURE(read_back(Value::array(entries), read));
-
-    const std::vector<Value>& found = require_value(read.as_array("<written>"));
-    ASSERT_EQ(found.size(), integers.size());
-    for (std::size_t i = 0; i < integers.size(); ++i)
-    {
-        ASSERT_EQ(found[i].kind(), Kind::Int) << "entry " << i;
-        EXPECT_EQ(require_value(found[i].as_int("<written>")), integers[i]) << "entry " << i;
-    }
+    expect_integer_reads_back(7);
+    expect_integer_reads_back(-3);
+    expect_integer_reads_back(0);
+    expect_integer_reads_back(1);
+    expect_integer_reads_back(-1);
+    expect_integer_reads_back(9007199254740993);
+    expect_integer_reads_back(std::numeric_limits<std::int64_t>::max());
+    expect_integer_reads_back(std::numeric_limits<std::int64_t>::min());
 }
 
 TEST(Small_JsonWriter, ARealReadsBackAsTheSameBits)
 {
-    // Each real is compared bit for bit: the tolerance is zero, absolute and relative.
-    const std::vector<double> reals = {
-        0.001, 1e-3, 1.0, -1.0, 0.0, -0.0, 100.0, 2.5, -2.5, 0.1 + 0.2, 1.0 / 3.0,
-        1e22, 1e300, 123456789012345680000.0,
-        std::numeric_limits<double>::max(),
-        std::numeric_limits<double>::lowest(),
-        std::numeric_limits<double>::min(),
-        std::numeric_limits<double>::denorm_min(),
-        std::numeric_limits<double>::epsilon(),
-    };
-
-    std::vector<Value> entries;
-    for (const double real : reals)
-        entries.push_back(Value::real(real));
-
-    Value read;
-    ASSERT_NO_FATAL_FAILURE(read_back(Value::array(entries), read));
-
-    const std::vector<Value>& found = require_value(read.as_array("<written>"));
-    ASSERT_EQ(found.size(), reals.size());
-    for (std::size_t i = 0; i < reals.size(); ++i)
-    {
-        ASSERT_EQ(found[i].kind(), Kind::Real) << "entry " << i;
-        EXPECT_TRUE(same_bits(require_value(found[i].as_real("<written>")), reals[i]))
-            << "entry " << i << " was written from " << reals[i] << " and read back as "
-            << require_value(found[i].as_real("<written>"));
-    }
+    expect_real_reads_back(0.001);
+    expect_real_reads_back(1e-3);
+    expect_real_reads_back(1.0);
+    expect_real_reads_back(-1.0);
+    expect_real_reads_back(0.0);
+    expect_real_reads_back(-0.0);
+    expect_real_reads_back(100.0);
+    expect_real_reads_back(2.5);
+    expect_real_reads_back(-2.5);
+    expect_real_reads_back(0.1 + 0.2);
+    expect_real_reads_back(1.0 / 3.0);
+    expect_real_reads_back(1e22);
+    expect_real_reads_back(1e300);
+    expect_real_reads_back(123456789012345680000.0);
+    expect_real_reads_back(std::numeric_limits<double>::max());
+    expect_real_reads_back(std::numeric_limits<double>::lowest());
+    expect_real_reads_back(std::numeric_limits<double>::min());
+    expect_real_reads_back(std::numeric_limits<double>::denorm_min());
+    expect_real_reads_back(std::numeric_limits<double>::epsilon());
 }
 
 TEST(Small_JsonWriter, EscapesQuotesBackslashesAndControlCharacters)
