@@ -3,6 +3,9 @@
 SushiAI is Copyright (c) 2026-present Mustafa Garip & Sushi Systems and licensed under the Apache
 License 2.0; see `LICENSE`. The material below keeps its own licence.
 
+Every version of SushiAI published under the PolyForm Noncommercial License 1.0.0 is also
+licensed, from 2026-11-06 on, under the Apache License 2.0.
+
 Nothing third-party is vendored, ported or redistributed from this tree: it has no
 `third_party/` folder, no fetched source, no binary and no data set. Every component below is
 installed on the build machine and found there.
