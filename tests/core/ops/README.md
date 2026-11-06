@@ -65,7 +65,7 @@ it with no activation-specific knowledge in the fusion pass.
 K_SILU_BACKWARD, K_SOFTPLUS and K_SOFTPLUS_BACKWARD to a name other than "sushiai.unknown". The
 reason is the one EverySpatialIdentityIsListedInAll gives.
 
-### TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable
+### TheEightForwardIdentitiesAreDifferentiableAndTheThreeOthersAreNot
 
 `differentiable` is true for K_DIV, K_MINIMUM, K_MAXIMUM, K_ABS, K_ATAN, K_SOFTPLUS, K_SELECT and
 K_SILU, and

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_noexcept_surface.cpp                                              */
+/* compile_noexcept_surface.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,14 +23,12 @@
 
 
 /**
- * @file test_noexcept_surface.cpp
- * @brief Tests that every public function of the vision modules is noexcept.
+ * @file compile_noexcept_surface.cpp
+ * @brief Checks at compile time that every public function of the vision modules is noexcept.
  * @author Mustafa Garip
  */
 
 #include <utility>
-
-#include <gtest/gtest.h>
 
 #include <SushiAI/vision/blocks/attention.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
@@ -1399,12 +1397,12 @@ namespace SushiAI::Vision::Imaging
         "check_source is noexcept");
 } // namespace SushiAI::Vision::Imaging
 
-namespace SushiAI::Vision::Imaging::SushiAI::Vision::Imaging
+namespace SushiAI::Vision::Imaging
 {
     static_assert(
         noexcept(clip_labels(std::declval<Labels&>(), std::declval<ImageSize>())),
         "clip_labels is noexcept");
-} // namespace SushiAI::Vision::Imaging::SushiAI::Vision::Imaging
+} // namespace SushiAI::Vision::Imaging
 
 namespace SushiAI::Vision::Imaging
 {
@@ -2281,9 +2279,3 @@ namespace SushiAI::Vision::Training
                 std::declval<Detect::GroundTruthBatch&>())),
         "truth_from_roles is noexcept");
 } // namespace SushiAI::Vision::Training
-
-/** @brief Passes when the file compiled: the assertions above are the test. */
-TEST(Small_NoexceptSurface, EveryPublicFunctionIsNoexcept)
-{
-    SUCCEED();
-}

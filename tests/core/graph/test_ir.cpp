@@ -261,7 +261,7 @@ TEST(Small_Ir, InsertNodeIsFatalForAnOperandProducedNoEarlierThanItself)
                     "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
 }
 
-TEST(Small_IR, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
+TEST(Small_Ir, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
 {
     // Slots 8 and 9 carry the output extents out_h and out_w; see tests/core/graph/README.md.
     EXPECT_EQ(Graph::Attributes::K_CAPACITY, std::size_t{10});

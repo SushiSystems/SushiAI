@@ -234,12 +234,13 @@ TEST(Small_DetectAnchorDecode, SaturatedLogitsReachTheCellEdgesAndTheScoreBounds
     EXPECT_NEAR(head.score(0, 0)[1], 0.0f, K_TOLERANCE);
 }
 
-/** @brief Tests that a score is objectness times class: 0.5 times 1. */
-TEST(Small_DetectAnchorDecode, ZeroObjectnessLogitHalvesASaturatedClass)
+/** @brief Tests that a score is objectness times class: a saturated objectness times a zero class logit is 1 times 0.5. */
+TEST(Small_DetectAnchorDecode, SaturatedObjectnessScoresAZeroClassLogitAtHalf)
 {
     HeadCase head = make_case({1, 1, 1}, make_options(1, HeadCoding::Logit, 1.0f),
                               make_single_anchor_layout(0.25f, 0.5f));
-    head.at(0, 0, 0, 0, K_FIRST_CLASS) = K_SATURATED;
+    head.at(0, 0, 0, 0, K_OBJECTNESS) = K_SATURATED;
+    head.at(0, 0, 0, 0, K_FIRST_CLASS) = 0.0f;
 
     head.decode();
 

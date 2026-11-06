@@ -64,7 +64,7 @@ namespace
         training.bounds.update_relative = 1e-3;
         training.bounds.rolling_absolute = 1e-5;
         training.overfit_steps = 200;
-        training.overfit_cost_share = 0.33;
+        training.overfit_cost_share = 0.25;
         return training;
     }
 
@@ -160,11 +160,12 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDa
 
 /**
  * @brief Tests that 200 steps on the batch and truth of the step run bring the stored cost of
- *        the Separate model below 0.33 of the first step's.
+ *        the Separate model below 0.25 of the first step's.
  *
  * Darknet ends the same 200 steps at 0.226 of its first cost; see tests/vision/importers/README.md.
+ * The bound is that value plus a tenth of it, 0.2486, rounded up to 0.25. SushiAI ends at 0.216.
  */
-TEST_F(Medium_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAThird)
+TEST_F(Medium_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAQuarter)
 {
     SaTest::check_one_batch_overfit(*engine, training);
 }

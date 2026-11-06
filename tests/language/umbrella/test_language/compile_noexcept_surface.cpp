@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_noexcept_surface.cpp                                              */
+/* compile_noexcept_surface.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -23,14 +23,12 @@
 
 
 /**
- * @file test_noexcept_surface.cpp
- * @brief Tests that every public function of the language modules is noexcept.
+ * @file compile_noexcept_surface.cpp
+ * @brief Checks at compile time that every public function of the language modules is noexcept.
  * @author Mustafa Garip
  */
 
 #include <utility>
-
-#include <gtest/gtest.h>
 
 #include <SushiAI/language/blocks/causal_self_attention.hpp>
 #include <SushiAI/language/blocks/expert_projection.hpp>
@@ -587,9 +585,3 @@ namespace SushiAI::Language::Training
         noexcept(next_token_metrics(std::declval<double>())),
         "next_token_metrics is noexcept");
 } // namespace SushiAI::Language::Training
-
-/** @brief Passes when the file compiled: the assertions above are the test. */
-TEST(Small_NoexceptSurface, EveryPublicFunctionIsNoexcept)
-{
-    SUCCEED();
-}

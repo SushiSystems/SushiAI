@@ -7,7 +7,7 @@
 # both umbrellas as a consumer does, and SushiBLAS's instantiates kernels.
 
 sushiai_add_test_program(OWNER umbrella
-    SOURCES test_SushiAI/test_engine_smoke.cpp test_SushiAI/test_noexcept_surface.cpp
+    SOURCES test_SushiAI/test_engine_smoke.cpp test_SushiAI/compile_noexcept_surface.cpp
     DEVICE_SOURCES test_SushiAI/test_engine_smoke.cpp)
 
 # The distribution case compiles only where the library carries SA_DISTRIBUTED to its consumers.

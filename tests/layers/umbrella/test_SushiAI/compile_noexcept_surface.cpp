@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_noexcept_surface.cpp                                              */
+/* compile_noexcept_surface.cpp                                           */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,14 +22,12 @@
 /**************************************************************************/
 
 /**
- * @file test_noexcept_surface.cpp
- * @brief Tests that every public function of the core and layers modules is noexcept.
+ * @file compile_noexcept_surface.cpp
+ * @brief Checks at compile time that every public function of the core and layers modules is noexcept.
  * @author Mustafa Garip
  */
 
 #include <utility>
-
-#include <gtest/gtest.h>
 
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/autograd/backward.hpp>
@@ -4074,9 +4072,3 @@ namespace SushiAI::Distribution
     static_assert(noexcept(std::declval<const ReplicaTask&>().draws()), "draws is noexcept");
 } // namespace SushiAI::Distribution
 #endif
-
-/** @brief Passes when the file compiled: the assertions above are the test. */
-TEST(Small_NoexceptSurface, EveryPublicFunctionIsNoexcept)
-{
-    SUCCEED();
-}

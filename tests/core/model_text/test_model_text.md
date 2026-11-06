@@ -18,7 +18,7 @@ The text `{"units": 4, "bias": true}` parses to an object whose "units" is 4 and
 Text cut off after a key makes `try_attributes_from` return `InvalidFile`, with a message that
 names the origin "'<test>'" and says the text is not valid JSON.
 
-## AFixtureThatIsNotJSONStopsTheProcess
+## TheFixtureReadersStopTheProcessOnARefusal
 
 `attributes_from` over that text and `model_from` over a document with no layers and no version
 stop the process, with a report that names "'<test>'".

@@ -33,6 +33,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1557,8 +1558,33 @@ TEST(Small_Backward, EveryRuleInTheTableIsNamedByANumericTest)
     EXPECT_EQ(unproven.size(), K_UNPROVEN_RULES)
         << "the unproven list changed size; a rule may join it only with K_UNPROVEN_RULES edited";
 
+    // A proof in a suite this program hosts must be registered; other programs' suites are checked there.
+    const auto registered = [](std::string_view proof) -> std::optional<bool>
+    {
+        const std::size_t dot = proof.find('.');
+        const std::string_view suite = proof.substr(0, dot);
+        const std::string_view name = proof.substr(dot + 1);
+        const ::testing::UnitTest& registry = *::testing::UnitTest::GetInstance();
+        for (int s = 0; s < registry.total_test_suite_count(); ++s)
+        {
+            const ::testing::TestSuite& hosted = *registry.GetTestSuite(s);
+            if (suite != hosted.name())
+                continue;
+            for (int t = 0; t < hosted.total_test_count(); ++t)
+            {
+                if (name == hosted.GetTestInfo(t)->name())
+                    return true;
+            }
+            return false;
+        }
+        return std::nullopt;
+    };
+
     for (const Proven& entry : ledger)
     {
+        EXPECT_NE(registered(entry.proof), std::optional<bool>(false))
+            << Ops::name_of(entry.op) << " names " << entry.proof
+            << ", which its suite does not register";
         EXPECT_TRUE(Autograd::has_backward_rule(entry.op))
             << Ops::name_of(entry.op) << " lost its rule, but " << entry.proof
             << " still claims to prove it";

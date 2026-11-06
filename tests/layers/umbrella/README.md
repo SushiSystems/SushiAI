@@ -11,4 +11,4 @@ Each test file has a page beside it that says what its cases pin.
 | Test file | Page |
 | --- | --- |
 | `test_SushiAI/test_engine_smoke.cpp` | [`test_SushiAI/test_engine_smoke.md`](test_SushiAI/test_engine_smoke.md) |
-| `test_SushiAI/test_noexcept_surface.cpp` | [`test_SushiAI/test_noexcept_surface.md`](test_SushiAI/test_noexcept_surface.md) |
+| `test_SushiAI/compile_noexcept_surface.cpp` | [`test_SushiAI/compile_noexcept_surface.md`](test_SushiAI/compile_noexcept_surface.md) |

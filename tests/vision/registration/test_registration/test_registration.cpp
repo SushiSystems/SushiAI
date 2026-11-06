@@ -939,7 +939,7 @@ TEST_F(Medium_VisionMnist, AnImageLayoutYieldsRankFourBatches)
 }
 
 /** @brief Tests that an absent directory is unavailable, refused and named. */
-TEST_F(Medium_VisionMnist, MNISTFallsBackToSyntheticWhenTheFilesAreAbsent)
+TEST_F(Medium_VisionMnist, AnAbsentMNISTDirectoryIsUnavailableAndRefusedByName)
 {
     MNISTOptions options;
     options.directory = "this-directory-does-not-exist";

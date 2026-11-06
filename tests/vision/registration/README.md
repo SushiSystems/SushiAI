@@ -210,7 +210,7 @@ With `MNISTLayout::Image`, a batch size of 16 and 32 samples, the dataset's samp
 element type `Int32` and 10 classes. Batch 0 holds a rank-1 `Int32` label tensor of 16 entries
 and a [16, 28, 28, 1] input tensor.
 
-### MNISTFallsBackToSyntheticWhenTheFilesAreAbsent
+### AnAbsentMNISTDirectoryIsUnavailableAndRefusedByName
 
 For a directory that does not exist, `mnist_available` is false, `try_load_mnist` fails with
 `FileNotFound` and names the directory, and `mnist_expected_paths` is not empty.

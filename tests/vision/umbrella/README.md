@@ -11,4 +11,4 @@ Each test file has a page beside it that says what its cases pin.
 | Test file | Page |
 | --- | --- |
 | `test_vision/test_umbrella_reach.cpp` | [`test_vision/test_umbrella_reach.md`](test_vision/test_umbrella_reach.md) |
-| `test_vision/test_noexcept_surface.cpp` | [`test_vision/test_noexcept_surface.md`](test_vision/test_noexcept_surface.md) |
+| `test_vision/compile_noexcept_surface.cpp` | [`test_vision/compile_noexcept_surface.md`](test_vision/compile_noexcept_surface.md) |

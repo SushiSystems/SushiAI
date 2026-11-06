@@ -59,12 +59,14 @@ compared; `test_darknet_yolov3_tiny_training.cpp` above says why.
 
 The check is the one [`test_yolov3.md`](test_yolov3.md) describes, run on this model.
 
-## TheCostOfOneBatchFallsUnderAThird
+## TheCostOfOneBatchFallsUnderAQuarter
 
 200 steps on the batch and the truth of `yolov7_tiny_train_step` bring the stored cost of the
-Separate model below 0.33 of the first step's.
+Separate model below 0.25 of the first step's.
 
-The share is 0.33 where the other five models state 0.1, by the owner's ruling of 2026-10-12.
+The share is 0.25 where the other five models state 0.1. It is derived from CPU Darknet: its
+value below, 0.226, plus a tenth of it is 0.2486, rounded up to 0.25. An earlier bound of 0.33
+was the owner's ruling of 2026-10-12 and is replaced by this derivation.
 CPU Darknet, run for 200 steps on the same batch, weights and learning rate with no burn-in,
 takes its summed layer cost from 30.72 to 6.93, which is 0.226 of the first, and its lowest
 step holds 4.27. SushiAI goes from 30.71 to 6.63, which is 0.216. Neither reaches a tenth.

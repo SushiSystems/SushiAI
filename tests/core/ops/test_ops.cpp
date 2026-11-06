@@ -217,7 +217,7 @@ TEST(Small_Ops, EveryElementwiseAndSelectionIdentityIsListedInAll)
 }
 
 /** @brief Tests that the eight forward identities are flagged differentiable and three are not. */
-TEST(Small_Ops, TheComparisonAndTheActivationGradientsAreNotFlaggedDifferentiable)
+TEST(Small_Ops, TheEightForwardIdentitiesAreDifferentiableAndTheThreeOthersAreNot)
 {
     for (const Ops::OpName& entry : {Ops::K_DIV, Ops::K_MINIMUM, Ops::K_MAXIMUM, Ops::K_ABS, Ops::K_ATAN,
                                      Ops::K_SOFTPLUS, Ops::K_SELECT, Ops::K_SILU})
