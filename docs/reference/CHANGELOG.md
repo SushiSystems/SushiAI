@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-07 — deps: Moved the SushiLog pin to v0.3.1, which ships `LogCapture` (`cli/sushistack.deps.toml`).
+- 2026-11-07 — tests: Read every captured log record through SushiLog's `LogCapture` (RW-150, `test_log.cpp`, `test_replica_fallback_warning.cpp`).
 - 2026-11-07 — tools: Deleted `tools/tests/test_test_budget_settings.py` and `K_TEST_BUDGET`, which SushiSkills no longer ships (RW-153, `tools/settings.py`).
 - 2026-11-06 — licence: Relicensed SushiAI under the Apache License 2.0 and removed `COMMERCIAL.md`; every source file's licence block follows (`LICENSE`, `tools/settings.py`).
 - 2026-11-05 — tools: Took the shared checkers of 2026-11-05 with a baseline of the findings they meet, which RW-149 clears.

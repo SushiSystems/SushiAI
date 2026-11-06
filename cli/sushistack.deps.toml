@@ -34,8 +34,8 @@ depends_on = ["sushilog", "sushiprofiler", "sushiruntime", "sushiblas"]
 # SushiLog, the one logger of the process, and SushiProfiler, the stack's one profiler. sa builds a
 # package of each at the tag pinned here, or reuses one, and hands CMake its config folder.
 [sushisystems.sushilog]
-version = "v0.3.0"
-commit  = "30e302383527d8db55403509d244acc6266809f6"
+version = "v0.3.1"
+commit  = "97668009bb213e280701429d20ac9164a068ca88"
 
 [sushisystems.sushiprofiler]
 version = "v0.4.1"

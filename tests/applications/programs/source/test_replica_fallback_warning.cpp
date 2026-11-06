@@ -31,8 +31,8 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiLog/log/log_calls.hpp>
+#include <SushiLog/log/log_capture.hpp>
 #include <SushiLog/log/log_level.hpp>
-#include <SushiLog/log/log_record.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
@@ -62,21 +62,15 @@ namespace
             .value();
     }
 
-    /** @brief Routes every record to a list on the calling thread while it lives. */
+    /** @brief Captures every record through SushiLog's LogCapture with sushiai at Warn while it
+     *         lives. */
     class CapturedRecords final
     {
         public:
-            /** @brief Sets the sink and the sushiai level to Warn. */
+            /** @brief Sets the sushiai level to Warn. */
             CapturedRecords() : saved_(SushiLog::log_level(K_SUSHIAI_LOG_PROJECT))
             {
-                SushiLog::set_log_synchronous(true);
                 SushiLog::set_log_level(K_SUSHIAI_LOG_PROJECT, SushiLog::LogLevel::Warn);
-                SushiLog::set_log_sink([this](const SushiLog::LogRecord& record)
-                {
-                    categories.push_back(std::string(record.project) + "."
-                                         + std::string(record.module));
-                    messages.push_back(std::string(record.message));
-                });
             }
 
             CapturedRecords(const CapturedRecords&) = delete;
@@ -84,22 +78,36 @@ namespace
             CapturedRecords(CapturedRecords&&) = delete;
             CapturedRecords& operator=(CapturedRecords&&) = delete;
 
-            /** @brief Restores the stderr sink and the saved level. */
+            /** @brief Restores the saved level. */
             ~CapturedRecords()
             {
-                SushiLog::set_log_sink(nullptr);
                 SushiLog::set_log_level(K_SUSHIAI_LOG_PROJECT, saved_);
             }
 
-            /// @brief The project and module of each record, in order.
-            std::vector<std::string> categories;
+            /** @brief Returns the project and module of each record, in order. */
+            [[nodiscard]] std::vector<std::string> categories() const
+            {
+                std::vector<std::string> result;
+                for (const SushiLog::CapturedRecord& record : capture_.records())
+                    result.push_back(record.project + "." + record.module);
+                return result;
+            }
 
-            /// @brief The message of each record, in order.
-            std::vector<std::string> messages;
+            /** @brief Returns the message of each record, in order. */
+            [[nodiscard]] std::vector<std::string> messages() const
+            {
+                std::vector<std::string> result;
+                for (const SushiLog::CapturedRecord& record : capture_.records())
+                    result.push_back(record.message);
+                return result;
+            }
 
         private:
             /// @brief The sushiai level before the capture.
             SushiLog::LogLevel saved_;
+
+            /// @brief The scoped sink of SushiLog.
+            SushiLog::LogCapture capture_;
     };
 
     /** @brief Returns whether @p text holds @p part. */
@@ -118,9 +126,9 @@ TEST(Small_ReplicaFallbackWarning, AReplicaThatRanOnTheMasterWarnsOnceWithItsSte
     warning.on_served(1, Distribution::ReplicaPosition::at_step(5, 2));
     warning.on_served(1, Distribution::ReplicaPosition::at_step(6, 2));
 
-    ASSERT_EQ(captured.messages.size(), 1u);
-    EXPECT_EQ(captured.categories.front(), "sushiai.programs");
-    const std::string& message = captured.messages.front();
+    ASSERT_EQ(captured.messages().size(), 1u);
+    EXPECT_EQ(captured.categories().front(), "sushiai.programs");
+    const std::string message = captured.messages().front();
     EXPECT_TRUE(holds(message, "replica 1 ran on the master at step 5")) << message;
     EXPECT_TRUE(holds(message, "epoch 2, batch 1")) << message;
     EXPECT_TRUE(holds(message, "'left'")) << message;
@@ -135,7 +143,7 @@ TEST(Small_ReplicaFallbackWarning, AReplicaOnTheMastersMachineNeverWarns)
     warning.on_served(0, Distribution::ReplicaPosition::at_step(0, 2));
     warning.on_served(7, Distribution::ReplicaPosition::at_step(0, 2));
 
-    EXPECT_TRUE(captured.messages.empty());
+    EXPECT_TRUE(captured.messages().empty());
 }
 
 /** @brief Tests that each absent worker's replica warns once, naming what its policy does. */
@@ -148,12 +156,12 @@ TEST(Small_ReplicaFallbackWarning, AnAbsentWorkerWarnsEachOfItsReplicasOnce)
     warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", 1});
     warning.warn_absent_at_attach(Apps::AwaitedWorker{"right", 2});
 
-    ASSERT_EQ(captured.messages.size(), 2u);
-    EXPECT_TRUE(holds(captured.messages[0], "worker 'left' did not attach; replica 1 runs on "
+    ASSERT_EQ(captured.messages().size(), 2u);
+    EXPECT_TRUE(holds(captured.messages()[0], "worker 'left' did not attach; replica 1 runs on "
                                             "the master"))
-        << captured.messages[0];
-    EXPECT_TRUE(holds(captured.messages[1], "replica 2 waits up to 250 ms"))
-        << captured.messages[1];
+        << captured.messages()[0];
+    EXPECT_TRUE(holds(captured.messages()[1], "replica 2 waits up to 250 ms"))
+        << captured.messages()[1];
 }
 
 /** @brief Tests that a replica warned of at attach still warns when it first runs there. */
@@ -165,5 +173,5 @@ TEST(Small_ReplicaFallbackWarning, TheTwoCausesWarnApart)
     warning.warn_absent_at_attach(Apps::AwaitedWorker{"left", 1});
     warning.on_served(1, Distribution::ReplicaPosition::at_step(0, 2));
 
-    EXPECT_EQ(captured.messages.size(), 2u);
+    EXPECT_EQ(captured.messages().size(), 2u);
 }
