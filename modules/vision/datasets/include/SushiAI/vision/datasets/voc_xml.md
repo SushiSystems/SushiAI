@@ -23,3 +23,9 @@ objects of the split use, sorted by byte, so a split that lacks a class has fewe
 | `InvalidFile` | `parse_xml` refuses an annotation, with the file and the line; the root is not `annotation`; `size`, `width`, `height`, `name`, `bndbox` or an edge is absent, or a number is not one, with the file and the line; a box ends before it starts; an object names a class the class list lacks, with the file and the line of the object; the split holds no annotation |
 | `InvalidDescription` | The class list names a class twice; the split holds no object and the class list is empty |
 | `OutOfMemory` | An allocation fails |
+
+## Reading from memory
+
+`read_voc_xml(options, source)` does what `read_voc_xml(options)` does, with every file and folder read through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

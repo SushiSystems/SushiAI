@@ -59,3 +59,8 @@ With `image_suffix` "_left", the image `b.png` fails with `InvalidFile`, "images
 
 With `mask_suffix` "_ids", the mask `b_ids.png` without an image fails with `InvalidFile`,
 "masks/train/b_ids.png" and "the mask has no image".
+
+## AnImageAndAMaskServedFromMemoryArePaired
+
+A `MemorySource` holding `images/train/a.jpg` and `masks/train/a.png` gives one sample whose
+file is index 0 and whose mask is index 1.

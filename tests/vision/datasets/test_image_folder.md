@@ -44,3 +44,8 @@ The split "train" in an empty root fails with `FileNotFound` and "train".
 A split holding only a file fails with `InvalidFile`, "flat" and "no class folder". A split
 whose one class folder holds only a text file fails with `InvalidFile`, "text" and
 "no image file".
+
+## FoldersServedFromMemoryBecomeSortedClasses
+
+A `MemorySource` holding `cat/1.png`, `dog/2.png`, `dog/deeper/3.jpg` and `dog/readme.txt` below
+`data/train` gives the classes `cat` and `dog` and three samples, of the classes 0, 1 and 1.

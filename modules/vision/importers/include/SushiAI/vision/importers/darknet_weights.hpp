@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <iosfwd>
+#include <string_view>
 #include <vector>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -132,6 +133,17 @@ namespace SushiAI
          */
         [[nodiscard]] Result<DarknetWeights> read_darknet_weights(
             const std::filesystem::path& path,
+            SushiRuntime::span<const DarknetConvolutionShape> shapes) noexcept;
+
+        /**
+         * @brief Reads every convolution's floats from the bytes of a .weights file.
+         * @param bytes The file; it must hold exactly the header and the floats the shapes name.
+         * @param origin Names the bytes in a message, usually the path they came from.
+         * @param shapes One entry per convolutional layer, in file order.
+         * @return What the overload above returns, except that no file is opened.
+         */
+        [[nodiscard]] Result<DarknetWeights> read_darknet_weights(
+            SushiRuntime::span<const std::uint8_t> bytes, std::string_view origin,
             SushiRuntime::span<const DarknetConvolutionShape> shapes) noexcept;
 
     } // namespace Vision::Importers

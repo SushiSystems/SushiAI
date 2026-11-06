@@ -47,11 +47,12 @@ namespace SushiAI::Vision::Datasets
         constexpr std::string_view K_READER = "read_image_folder";
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const std::filesystem::path& directory)
+        [[nodiscard]] Result<SampleList> read_checked(const std::filesystem::path& directory,
+                                                      const ByteSource& source)
         {
             SA_TRY_ASSIGN(const std::vector<std::filesystem::path> folders,
-                          Detail::list_entries(directory, Detail::EntryKind::Directory,
-                                               Detail::ListDepth::Children, K_READER));
+                          source.list(directory, EntryKind::Directory, ListDepth::Children,
+                                      K_READER));
             SA_FAIL_IF(folders.empty(), StatusCode::InvalidFile,
                        "'{}': {}: the directory holds no class folder",
                        Detail::display_of(directory), K_READER);
@@ -65,8 +66,8 @@ namespace SushiAI::Vision::Datasets
                 list.class_names.push_back(folders[folder].filename().generic_string());
 
                 SA_TRY_ASSIGN(std::vector<std::filesystem::path> files,
-                              Detail::list_entries(folders[folder], Detail::EntryKind::File,
-                                                   Detail::ListDepth::Tree, K_READER));
+                              source.list(folders[folder], EntryKind::File, ListDepth::Tree,
+                                          K_READER));
 
                 for (std::filesystem::path& file : files)
                 {
@@ -91,10 +92,17 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_image_folder(const ImageFolderOptions& options) noexcept
     {
+        return read_image_folder(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_image_folder(const ImageFolderOptions& options,
+                                         const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
             return read_checked(options.split.empty() ? options.root
-                                                      : options.root / options.split);
+                                                      : options.root / options.split,
+                                source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

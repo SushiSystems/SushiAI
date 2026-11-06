@@ -43,6 +43,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/io/memory_input.hpp>
 
 static_assert(std::numeric_limits<float>::is_iec559 && sizeof(float) == 4,
               "the .weights reader stores each float as an IEEE 754 binary32 bit pattern");
@@ -275,6 +276,61 @@ namespace SushiAI
                 return Status();
             }
 
+            /**
+             * @brief Reads the convolutions of a stream that holds a whole .weights file.
+             * @param file_bytes The byte count of the file the stream reads.
+             * @param origin Named in every failure.
+             * @return What read_darknet_weights returns once the stream is open.
+             */
+            [[nodiscard]] Result<DarknetWeights> read_stream(
+                std::istream& stream, std::uint64_t file_bytes,
+                const std::filesystem::path& origin,
+                SushiRuntime::span<const DarknetConvolutionShape> shapes)
+            {
+                const Result<DarknetWeightsHeader> header = read_darknet_header(stream);
+                if (!header.has_value())
+                    return SA_ANNOTATE(header.status(), "'{}'", origin.string());
+
+                const DarknetWeightsHeader& fields = header.value();
+                const auto seen =
+                    static_cast<std::uint64_t>(seen_width(fields.major, fields.minor));
+                const std::uint64_t header_bytes = K_VERSION_BYTES + seen;
+                SA_TRY(check_layout(origin, shapes, header_bytes, file_bytes));
+
+                DarknetWeights weights;
+                weights.header = fields;
+                weights.convolutions.reserve(shapes.size());
+
+                std::vector<unsigned char> buffer;
+                for (const DarknetConvolutionShape& shape : shapes)
+                {
+                    const auto filters = static_cast<std::uint64_t>(shape.filters);
+                    SA_TRY_ASSIGN(const std::uint64_t weight_floats, weight_count(shape));
+
+                    DarknetConvolution convolution;
+                    SA_TRY_ASSIGN(convolution.biases,
+                                  read_floats(stream, filters, buffer, shape.layer, "biases"));
+                    if (shape.normalised)
+                    {
+                        SA_TRY_ASSIGN(convolution.scales,
+                                      read_floats(stream, filters, buffer, shape.layer,
+                                                  "scales"));
+                        SA_TRY_ASSIGN(convolution.rolling_mean,
+                                      read_floats(stream, filters, buffer, shape.layer,
+                                                  "rolling means"));
+                        SA_TRY_ASSIGN(convolution.rolling_variance,
+                                      read_floats(stream, filters, buffer, shape.layer,
+                                                  "rolling variances"));
+                    }
+                    SA_TRY_ASSIGN(convolution.weights,
+                                  read_floats(stream, weight_floats, buffer, shape.layer,
+                                              "weights"));
+
+                    weights.convolutions.push_back(std::move(convolution));
+                }
+                return weights;
+            }
+
         } // namespace
 
         Result<DarknetWeightsHeader> read_darknet_header(std::istream& stream) noexcept
@@ -309,45 +365,16 @@ namespace SushiAI
             SA_FAIL_IF(error, StatusCode::InvalidFile, "could not read the size of '{}': {}",
                        path.string(), error.message());
 
-            const Result<DarknetWeightsHeader> header = read_darknet_header(stream);
-            if (!header.has_value())
-                return SA_ANNOTATE(header.status(), "'{}'", path.string());
+            return read_stream(stream, static_cast<std::uint64_t>(file_size), path, shapes);
+        }
 
-            const DarknetWeightsHeader& fields = header.value();
-            const auto seen = static_cast<std::uint64_t>(seen_width(fields.major, fields.minor));
-            const std::uint64_t header_bytes = K_VERSION_BYTES + seen;
-            SA_TRY(check_layout(path, shapes, header_bytes, static_cast<std::uint64_t>(file_size)));
-
-            DarknetWeights weights;
-            weights.header = fields;
-            weights.convolutions.reserve(shapes.size());
-
-            std::vector<unsigned char> buffer;
-            for (const DarknetConvolutionShape& shape : shapes)
-            {
-                const auto filters = static_cast<std::uint64_t>(shape.filters);
-                SA_TRY_ASSIGN(const std::uint64_t weight_floats, weight_count(shape));
-
-                DarknetConvolution convolution;
-                SA_TRY_ASSIGN(convolution.biases,
-                              read_floats(stream, filters, buffer, shape.layer, "biases"));
-                if (shape.normalised)
-                {
-                    SA_TRY_ASSIGN(convolution.scales,
-                                  read_floats(stream, filters, buffer, shape.layer, "scales"));
-                    SA_TRY_ASSIGN(convolution.rolling_mean,
-                                  read_floats(stream, filters, buffer, shape.layer,
-                                              "rolling means"));
-                    SA_TRY_ASSIGN(convolution.rolling_variance,
-                                  read_floats(stream, filters, buffer, shape.layer,
-                                              "rolling variances"));
-                }
-                SA_TRY_ASSIGN(convolution.weights,
-                              read_floats(stream, weight_floats, buffer, shape.layer, "weights"));
-
-                weights.convolutions.push_back(std::move(convolution));
-            }
-            return weights;
+        Result<DarknetWeights> read_darknet_weights(
+            SushiRuntime::span<const std::uint8_t> bytes, std::string_view origin,
+            SushiRuntime::span<const DarknetConvolutionShape> shapes) noexcept
+        {
+            IO::MemoryInput stream(bytes);
+            return read_stream(stream, static_cast<std::uint64_t>(bytes.size()),
+                               std::filesystem::path(origin), shapes);
         }
 
     } // namespace Vision::Importers

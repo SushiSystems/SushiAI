@@ -19,3 +19,10 @@ whose size is not the header plus those bytes, and extents whose product passes 
 `source/mnist.cpp` still parses its own IDX headers. Its failure messages differ from those of
 `read_idx_header`, and it reads both files inside one guarded allocation, so moving it would
 change what a caller sees.
+
+## Reading from memory
+
+`read_idx_header(file, source)` and `read_idx_payload(file, header, source)` do what the
+one-argument forms do, with the bytes read through a `ByteSource` (`byte_source.hpp`). The header
+reads two ranges of the file, its four leading bytes and its extents, and the payload one range,
+so no call reads the whole file.

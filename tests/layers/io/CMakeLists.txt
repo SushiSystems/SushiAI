@@ -13,6 +13,7 @@ sushiai_add_test_program(OWNER io
         test_imported_model.cpp
         test_imported_model_writer.cpp
         test_importer_registry.cpp
+        test_memory_input.cpp
         test_run_checkpoint.cpp
         test_run_progress.cpp
     DEPENDS

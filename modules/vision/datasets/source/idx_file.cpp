@@ -29,14 +29,15 @@
 
 #include <SushiAI/vision/datasets/idx_file.hpp>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
-#include <istream>
+#include <ios>
 #include <limits>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 
 #include "disk.hpp"
@@ -63,28 +64,22 @@ namespace SushiAI::Vision::Datasets
             IDXElement::Int32, IDXElement::Float32, IDXElement::Float64,
         };
 
-        /** @brief Reads an exact number of bytes and reports whether all of them arrived. */
-        [[nodiscard]] bool read_exact(std::istream& in, unsigned char* out, std::size_t count)
-        {
-            in.read(reinterpret_cast<char*>(out), static_cast<std::streamsize>(count));
-            return in.gcount() == static_cast<std::streamsize>(count);
-        }
-
         /** @brief Reads a header; may throw what an allocation throws. */
-        [[nodiscard]] Result<IDXHeader> read_header_checked(const std::filesystem::path& file)
+        [[nodiscard]] Result<IDXHeader> read_header_checked(const std::filesystem::path& file,
+                                                            const ByteSource& source)
         {
             const std::string name = Detail::display_of(file);
             SA_TRY_ASSIGN(const std::uint64_t file_bytes,
-                          Detail::size_of_file(file, K_HEADER_READER));
+                          source.size_of(file, K_HEADER_READER));
+            SA_TRY_ASSIGN(const std::string lead_text,
+                          source.read_range(file, 0, K_LEAD_BYTES, K_HEADER_READER));
 
-            std::ifstream in(file, std::ios::binary);
-            SA_FAIL_IF(!in.is_open(), StatusCode::InvalidFile,
-                       "'{}': {}: the file cannot be opened for reading", name, K_HEADER_READER);
-
-            unsigned char lead[K_LEAD_BYTES] = {0, 0, 0, 0};
-            SA_FAIL_IF(!read_exact(in, lead, K_LEAD_BYTES), StatusCode::InvalidFile,
+            SA_FAIL_IF(lead_text.size() != K_LEAD_BYTES, StatusCode::InvalidFile,
                        "'{}': {}: the file ends inside its {} leading bytes", name,
                        K_HEADER_READER, K_LEAD_BYTES);
+
+            unsigned char lead[K_LEAD_BYTES] = {0, 0, 0, 0};
+            std::copy(lead_text.begin(), lead_text.end(), lead);
             SA_FAIL_IF(lead[0] != 0 || lead[1] != 0, StatusCode::InvalidFile,
                        "'{}': {}: the first two bytes are {} and {}; an IDX file opens with two "
                        "zero bytes",
@@ -110,15 +105,24 @@ namespace SushiAI::Vision::Datasets
             SA_FAIL_IF(rank == 0, StatusCode::InvalidFile,
                        "'{}': {}: the header declares no dimension", name, K_HEADER_READER);
 
+            SA_TRY_ASSIGN(const std::string extent_text,
+                          source.read_range(file, K_LEAD_BYTES, rank * K_EXTENT_BYTES,
+                                            K_HEADER_READER));
+
             header.extents.reserve(rank);
             header.payload_bytes = idx_element_bytes(header.element);
 
             for (std::size_t dimension = 0; dimension < rank; ++dimension)
             {
-                unsigned char bytes[K_EXTENT_BYTES] = {0, 0, 0, 0};
-                SA_FAIL_IF(!read_exact(in, bytes, K_EXTENT_BYTES), StatusCode::InvalidFile,
+                SA_FAIL_IF(extent_text.size() < (dimension + 1) * K_EXTENT_BYTES,
+                           StatusCode::InvalidFile,
                            "'{}': {}: the file ends inside the extent of dimension {} of {}",
                            name, K_HEADER_READER, dimension, rank);
+
+                unsigned char bytes[K_EXTENT_BYTES] = {0, 0, 0, 0};
+                std::copy_n(extent_text.begin() + static_cast<std::ptrdiff_t>(
+                                                      dimension * K_EXTENT_BYTES),
+                            K_EXTENT_BYTES, bytes);
 
                 const std::uint32_t extent = (static_cast<std::uint32_t>(bytes[0]) << 24) |
                                              (static_cast<std::uint32_t>(bytes[1]) << 16) |
@@ -148,7 +152,7 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Reads a payload; may throw what an allocation throws. */
         [[nodiscard]] Result<std::vector<std::uint8_t>> read_payload_checked(
-            const std::filesystem::path& file, const IDXHeader& header)
+            const std::filesystem::path& file, const IDXHeader& header, const ByteSource& source)
         {
             const std::string name = Detail::display_of(file);
             SA_FAIL_IF(header.payload_bytes >
@@ -156,35 +160,45 @@ namespace SushiAI::Vision::Datasets
                        StatusCode::Unsupported, "'{}': {}: {} bytes are more than one read holds",
                        name, K_PAYLOAD_READER, header.payload_bytes);
 
-            std::ifstream in(file, std::ios::binary);
-            SA_FAIL_IF(!in.is_open(), StatusCode::InvalidFile,
-                       "'{}': {}: the file cannot be opened for reading", name, K_PAYLOAD_READER);
-
-            in.seekg(static_cast<std::streamoff>(header.header_bytes()), std::ios::beg);
-
-            std::vector<std::uint8_t> bytes(static_cast<std::size_t>(header.payload_bytes));
-            SA_FAIL_IF(!read_exact(in, bytes.data(), bytes.size()), StatusCode::InvalidFile,
+            SA_TRY_ASSIGN(const std::string text,
+                          source.read_range(file, header.header_bytes(), header.payload_bytes,
+                                            K_PAYLOAD_READER));
+            SA_FAIL_IF(text.size() != header.payload_bytes, StatusCode::InvalidFile,
                        "'{}': {}: the read ended after {} of {} bytes", name, K_PAYLOAD_READER,
-                       in.gcount(), bytes.size());
+                       text.size(), header.payload_bytes);
 
-            return Result<std::vector<std::uint8_t>>(std::move(bytes));
+            return Result<std::vector<std::uint8_t>>(
+                std::vector<std::uint8_t>(text.begin(), text.end()));
         }
     } // namespace
 
     Result<IDXHeader> read_idx_header(const std::filesystem::path& file) noexcept
     {
+        return read_idx_header(file, Detail::FileSystemSource());
+    }
+
+    Result<IDXHeader> read_idx_header(const std::filesystem::path& file,
+                                      const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_HEADER_READER, [&]()
         {
-            return read_header_checked(file);
+            return read_header_checked(file, source);
         }, file);
     }
 
     Result<std::vector<std::uint8_t>> read_idx_payload(const std::filesystem::path& file,
                                                        const IDXHeader& header) noexcept
     {
+        return read_idx_payload(file, header, Detail::FileSystemSource());
+    }
+
+    Result<std::vector<std::uint8_t>> read_idx_payload(const std::filesystem::path& file,
+                                                       const IDXHeader& header,
+                                                       const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_PAYLOAD_READER, [&]()
         {
-            return read_payload_checked(file, header);
+            return read_payload_checked(file, header, source);
         }, file);
     }
 } // namespace SushiAI::Vision::Datasets

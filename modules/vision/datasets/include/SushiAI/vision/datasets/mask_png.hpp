@@ -34,6 +34,7 @@
 #include <string>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -72,4 +73,14 @@ namespace SushiAI::Vision::Datasets
      * @return The list, or a failure README.md, section mask_png.hpp, lists.
      */
     [[nodiscard]] Result<SampleList> read_mask_png(const MaskPNGOptions& options) noexcept;
+
+    /**
+     * @brief Lists the images of a split and pairs each with its mask, through @p source.
+     *
+     * read_mask_png(options) calls this with the file system; a MemorySource serves files
+     * that were never written.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_mask_png(const MaskPNGOptions& options,
+                                                   const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

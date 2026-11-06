@@ -251,6 +251,7 @@
 #include <SushiAI/config/json_events.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/io/run_checkpoint.hpp>
+#include <SushiAI/io/memory_input.hpp>
 #include <SushiAI/optim/run_state.hpp>
 
 /** @brief Short alias for the library's namespace, matching sb:: and sr::. */

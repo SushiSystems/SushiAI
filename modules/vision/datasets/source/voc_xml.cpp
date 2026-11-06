@@ -34,7 +34,6 @@
 #include <cmath>
 #include <cstddef>
 #include <string_view>
-#include <system_error>
 #include <utility>
 
 
@@ -102,18 +101,18 @@ namespace SushiAI::Vision::Datasets
          *         no annotation.
          */
         [[nodiscard]] Result<std::vector<std::filesystem::path>> listed_annotations(
-            const VOCXMLOptions& options, const std::filesystem::path& folder)
+            const VOCXMLOptions& options, const std::filesystem::path& folder,
+            const ByteSource& source)
         {
             const std::filesystem::path list =
                 options.root / K_LIST_FOLDER / with_extension(options.split, K_LIST_EXTENSION);
 
-            std::error_code ignored;
-            SA_FAIL_IF(!std::filesystem::is_regular_file(list, ignored), StatusCode::FileNotFound,
+            SA_FAIL_IF(source.kind_of(list) != PathKind::File, StatusCode::FileNotFound,
                        "'{}': {}: the split '{}' has no image list '{}'",
                        Detail::display_of(options.root), K_READER, options.split,
                        Detail::display_of(list));
 
-            SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(list, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(list, K_READER));
 
             std::vector<std::filesystem::path> annotations;
             std::size_t line = 0;
@@ -136,7 +135,7 @@ namespace SushiAI::Vision::Datasets
                 std::filesystem::path annotation =
                     folder / with_extension(std::filesystem::u8path(row.begin(), row.end()),
                                             K_XML_EXTENSION);
-                SA_FAIL_IF(!std::filesystem::is_regular_file(annotation, ignored),
+                SA_FAIL_IF(source.kind_of(annotation) != PathKind::File,
                            StatusCode::FileNotFound,
                            "'{}': line {}: {}: the annotation '{}' is not a file",
                            Detail::display_of(list), line, K_READER,
@@ -150,15 +149,14 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Returns the annotations of a split: its list, or every XML file for none. */
         [[nodiscard]] Result<std::vector<std::filesystem::path>> split_annotations(
-            const VOCXMLOptions& options)
+            const VOCXMLOptions& options, const ByteSource& source)
         {
             const std::filesystem::path folder = options.root / K_ANNOTATION_FOLDER;
             if (!options.split.empty())
-                return listed_annotations(options, folder);
+                return listed_annotations(options, folder, source);
 
             SA_TRY_ASSIGN(std::vector<std::filesystem::path> files,
-                          Detail::list_entries(folder, Detail::EntryKind::File,
-                                               Detail::ListDepth::Children, K_READER));
+                          source.list(folder, EntryKind::File, ListDepth::Children, K_READER));
 
             files.erase(std::remove_if(files.begin(), files.end(),
                                        [](const std::filesystem::path& file)
@@ -237,12 +235,13 @@ namespace SushiAI::Vision::Datasets
          * @return InvalidFile, with the file and the line, for what parse_xml refuses and for
          *         an element or a number the layout requires and the file lacks.
          */
-        [[nodiscard]] Result<VOCImage> read_annotation(const std::filesystem::path& path,
+        [[nodiscard]] Result<VOCImage> read_annotation(const ByteSource& source,
+                                                       const std::filesystem::path& path,
                                                        VOCDifficult difficult)
         {
             const std::string file = Detail::display_of(path);
 
-            SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(path, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(path, K_READER));
 
             Result<XMLElement> parsed = parse_xml(text);
             if (!parsed.status().is_ok())
@@ -343,10 +342,11 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const VOCXMLOptions& options)
+        [[nodiscard]] Result<SampleList> read_checked(const VOCXMLOptions& options,
+                                                      const ByteSource& source)
         {
             SA_TRY_ASSIGN(const std::vector<std::filesystem::path> annotations,
-                          split_annotations(options));
+                          split_annotations(options, source));
             SA_FAIL_IF(annotations.empty(), StatusCode::InvalidFile,
                        "'{}': {}: the split '{}' holds no annotation",
                        Detail::display_of(options.root), K_READER, options.split);
@@ -356,7 +356,8 @@ namespace SushiAI::Vision::Datasets
 
             for (const std::filesystem::path& annotation : annotations)
             {
-                SA_TRY_ASSIGN(VOCImage image, read_annotation(annotation, options.difficult));
+                SA_TRY_ASSIGN(VOCImage image,
+                              read_annotation(source, annotation, options.difficult));
                 images.push_back(std::move(image));
             }
 
@@ -400,9 +401,15 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_voc_xml(const VOCXMLOptions& options) noexcept
     {
+        return read_voc_xml(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_voc_xml(const VOCXMLOptions& options,
+                                    const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
-            return read_checked(options);
+            return read_checked(options, source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

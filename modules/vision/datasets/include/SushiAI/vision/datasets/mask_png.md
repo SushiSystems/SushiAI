@@ -23,3 +23,9 @@ are masks; the others in the mask folder are not listed. Cityscapes pairs with
 | `OutOfMemory` | An allocation fails |
 
 A mask extension is compared as `.png` in lower case, and a suffix byte for byte in UTF-8.
+
+## Reading from memory
+
+`read_mask_png(options, source)` does what `read_mask_png(options)` does, with every folder listed through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

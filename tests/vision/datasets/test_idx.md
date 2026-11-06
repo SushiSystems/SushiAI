@@ -53,3 +53,9 @@ element code 0x0C with `InvalidFile` and "code 12". One whose fourth dimension i
 
 An image file whose first extent is 0 fails with `InvalidFile`, "train-images-idx3-ubyte" and
 "no image".
+
+## ASplitServedFromMemoryListsItsLabelsAndPixelPlaces
+
+A `MemorySource` holding three 2 by 3 images and the labels 4, 0 and 2 gives 5 classes and three
+samples through `read_idx(options, source)`. Sample 1 has class 0 and sample 2 has its pixels at
+byte 28. No file is written.

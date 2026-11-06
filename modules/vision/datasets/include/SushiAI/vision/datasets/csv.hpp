@@ -34,6 +34,7 @@
 #include <vector>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -66,4 +67,14 @@ namespace SushiAI::Vision::Datasets
      * @return The list; a failure that names the file, the line and the column at fault.
      */
     [[nodiscard]] Result<SampleList> read_csv(const CSVOptions& options) noexcept;
+
+    /**
+     * @brief Reads the columns of a CSV file served by @p source.
+     *
+     * read_csv(options) calls this with the file system; a MemorySource serves files
+     * that were never written.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_csv(const CSVOptions& options,
+                                              const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

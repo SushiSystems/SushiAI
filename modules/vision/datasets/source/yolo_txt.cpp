@@ -34,7 +34,6 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -71,9 +70,10 @@ namespace SushiAI::Vision::Datasets
          *         line, for a path that names no file.
          */
         [[nodiscard]] Result<std::vector<std::filesystem::path>> listed_images(
-            const std::filesystem::path& list, const std::filesystem::path& root)
+            const ByteSource& source, const std::filesystem::path& list,
+            const std::filesystem::path& root)
         {
-            SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(list, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(list, K_READER));
 
             std::vector<std::filesystem::path> images;
             std::size_t line = 0;
@@ -96,9 +96,7 @@ namespace SushiAI::Vision::Datasets
                     image = root / image;
                 image = image.lexically_normal();
 
-                std::error_code ignored;
-                SA_FAIL_IF(!std::filesystem::is_regular_file(image, ignored),
-                           StatusCode::FileNotFound,
+                SA_FAIL_IF(source.kind_of(image) != PathKind::File, StatusCode::FileNotFound,
                            "'{}': line {}: {}: the image '{}' is not a file",
                            Detail::display_of(list), line, K_READER, Detail::display_of(image));
 
@@ -110,11 +108,10 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Returns the files with an image extension below a folder, sorted by path. */
         [[nodiscard]] Result<std::vector<std::filesystem::path>> folder_images(
-            const std::filesystem::path& folder)
+            const ByteSource& source, const std::filesystem::path& folder)
         {
             SA_TRY_ASSIGN(std::vector<std::filesystem::path> files,
-                          Detail::list_entries(folder, Detail::EntryKind::File,
-                                               Detail::ListDepth::Tree, K_READER));
+                          source.list(folder, EntryKind::File, ListDepth::Tree, K_READER));
 
             std::vector<std::filesystem::path> images;
             images.reserve(files.size());
@@ -133,23 +130,22 @@ namespace SushiAI::Vision::Datasets
          * @return The paths; FileNotFound when the split has neither form.
          */
         [[nodiscard]] Result<std::vector<std::filesystem::path>> split_images(
-            const YOLOTxtOptions& options)
+            const YOLOTxtOptions& options, const ByteSource& source)
         {
             const std::filesystem::path list =
                 options.root / (options.split + std::string(K_TEXT_EXTENSION));
             const std::filesystem::path folder = options.root / K_IMAGE_FOLDER / options.split;
 
-            std::error_code ignored;
-            if (std::filesystem::is_regular_file(list, ignored))
-                return listed_images(list, options.root);
+            if (source.kind_of(list) == PathKind::File)
+                return listed_images(source, list, options.root);
 
-            SA_FAIL_IF(!std::filesystem::is_directory(folder, ignored), StatusCode::FileNotFound,
+            SA_FAIL_IF(source.kind_of(folder) != PathKind::Directory, StatusCode::FileNotFound,
                        "'{}': {}: the split '{}' is neither the image list '{}' nor the image "
                        "folder '{}'",
                        Detail::display_of(options.root), K_READER, options.split,
                        Detail::display_of(list), Detail::display_of(folder));
 
-            return folder_images(folder);
+            return folder_images(source, folder);
         }
 
         /**
@@ -157,15 +153,14 @@ namespace SushiAI::Vision::Datasets
          * @return The objects, none for an absent file; InvalidFile, with the path and the
          *         line, for a file the parser rejects.
          */
-        [[nodiscard]] Result<Imaging::FileLabels> read_labels(const std::filesystem::path& label,
+        [[nodiscard]] Result<Imaging::FileLabels> read_labels(const ByteSource& source,
+                                                              const std::filesystem::path& label,
                                                               std::int32_t class_count)
         {
-            std::error_code ignored;
-            if (std::filesystem::status(label, ignored).type() ==
-                std::filesystem::file_type::not_found)
+            if (source.kind_of(label) == PathKind::Missing)
                 return Result<Imaging::FileLabels>(Imaging::FileLabels());
 
-            SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(label, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(label, K_READER));
 
             Result<Imaging::FileLabels> parsed = Imaging::parse_label_text(text, class_count);
             if (!parsed.has_value())
@@ -175,13 +170,14 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const YOLOTxtOptions& options)
+        [[nodiscard]] Result<SampleList> read_checked(const YOLOTxtOptions& options,
+                                                      const ByteSource& source)
         {
             SA_FAIL_IF(options.class_count < 1, StatusCode::InvalidDescription,
                        "{}: the class count is {}; it must be at least 1", K_READER,
                        options.class_count);
 
-            SA_TRY_ASSIGN(std::vector<std::filesystem::path> images, split_images(options));
+            SA_TRY_ASSIGN(std::vector<std::filesystem::path> images, split_images(options, source));
             SA_FAIL_IF(images.empty(), StatusCode::InvalidFile,
                        "'{}': {}: the split '{}' holds no image", Detail::display_of(options.root),
                        K_READER, options.split);
@@ -193,7 +189,8 @@ namespace SushiAI::Vision::Datasets
             for (std::size_t image = 0; image < images.size(); ++image)
             {
                 SA_TRY_ASSIGN(Imaging::FileLabels objects,
-                              read_labels(yolo_label_path(images[image]), options.class_count));
+                              read_labels(source, yolo_label_path(images[image]),
+                                          options.class_count));
 
                 Sample sample;
                 sample.file = static_cast<std::uint32_t>(image);
@@ -234,9 +231,15 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options) noexcept
     {
+        return read_yolo_txt(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options,
+                                     const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
-            return read_checked(options);
+            return read_checked(options, source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

@@ -1,7 +1,7 @@
 # tests/vision/importers/test_darknet_weights.cpp
 
 
-Suites: `Medium_DarknetWeights`.
+Suites: `Medium_DarknetWeights`, `Small_DarknetWeights`.
 
 Tests `read_darknet_header` over byte streams built in memory and `read_darknet_weights` over
 files the cases write under the system's temporary directory. The sample file holds a 20-byte
@@ -84,3 +84,9 @@ A shape of 2^40 filters over 2^40 channels fails with `InvalidDescription`,
 ## ReportsAMissingFileAsFileNotFound
 
 A path that does not exist fails with `FileNotFound` and "could not open".
+
+## ReadsEveryVectorFromBytesInMemory
+
+The 22-float sample file as a byte span, with the origin `memory.weights`, gives the same
+vectors as the file: the plain layer's biases from index 0, the normalised layer's rolling means
+from index 10 and its weights from index 16. This case is in the `Small_DarknetWeights` suite.

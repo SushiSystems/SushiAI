@@ -33,6 +33,7 @@
 #include <string>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -62,4 +63,13 @@ namespace SushiAI::Vision::Datasets
      * files and every status.
      */
     [[nodiscard]] Result<SampleList> read_idx(const IDXOptions& options) noexcept;
+
+    /**
+     * @brief Lists the images of an IDX image file with the files read through @p source.
+     *
+     * read_idx(options) calls this with the file system.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_idx(const IDXOptions& options,
+                                              const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

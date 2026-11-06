@@ -218,3 +218,25 @@ TEST(Small_DatasetsIdx, AnImageFileWithoutAnImageIsRefused)
     SA_EXPECT_FAILURE(read_idx(train_options(scratch)), StatusCode::InvalidFile,
                       "train-images-idx3-ubyte", "no image");
 }
+
+/** @brief Tests that an image file and a label file served from memory list their samples. */
+TEST(Small_DatasetsIdx, ASplitServedFromMemoryListsItsLabelsAndPixelPlaces)
+{
+    MemorySource source;
+    source.add_file("data/train-images-idx3-ubyte",
+                    Support::text_of(Support::idx_bytes(K_UBYTE, {3, 2, 3},
+                                                        Support::rising_bytes(18, 100))));
+    source.add_file("data/train-labels-idx1-ubyte",
+                    Support::text_of(Support::idx_bytes(K_UBYTE, {3}, {4, 0, 2})));
+
+    IDXOptions options;
+    options.root = "data";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_idx(options, source));
+
+    EXPECT_EQ(list.class_count, 5);
+    ASSERT_EQ(list.samples.size(), 3u);
+    EXPECT_EQ(list.samples[1].class_index, 0);
+    ASSERT_TRUE(list.samples[2].stored.has_value());
+    EXPECT_EQ(list.samples[2].stored->offset, 16u + 12u);
+}

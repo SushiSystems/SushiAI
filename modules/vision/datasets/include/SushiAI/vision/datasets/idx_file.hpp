@@ -35,6 +35,7 @@
 #include <vector>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
 namespace SushiAI::Vision::Datasets
@@ -94,6 +95,15 @@ namespace SushiAI::Vision::Datasets
     [[nodiscard]] Result<IDXHeader> read_idx_header(const std::filesystem::path& file) noexcept;
 
     /**
+     * @brief Reads and validates the header of an IDX file served by @p source.
+     *
+     * read_idx_header(file) calls this with the file system.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<IDXHeader> read_idx_header(const std::filesystem::path& file,
+                                                    const ByteSource& source) noexcept;
+
+    /**
      * @brief Reads every element byte of an IDX file, in the order the file stores them.
      * @param header The value read_idx_header returned for this file.
      * @return header.payload_bytes bytes; InvalidFile when the file cannot be opened or
@@ -101,4 +111,14 @@ namespace SushiAI::Vision::Datasets
      */
     [[nodiscard]] Result<std::vector<std::uint8_t>> read_idx_payload(
         const std::filesystem::path& file, const IDXHeader& header) noexcept;
+
+    /**
+     * @brief Reads every element byte of an IDX file served by @p source.
+     *
+     * read_idx_payload(file, header) calls this with the file system.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<std::vector<std::uint8_t>> read_idx_payload(
+        const std::filesystem::path& file, const IDXHeader& header,
+        const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

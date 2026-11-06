@@ -362,9 +362,10 @@ namespace SushiAI::Vision::Datasets
 
         /** @brief Reads one file; may throw what an allocation or a path throws. */
         [[nodiscard]] Result<SampleList> read_checked(const CSVOptions& options,
-                                                      const std::filesystem::path& path)
+                                                      const std::filesystem::path& path,
+                                                      const ByteSource& source)
         {
-            SA_TRY_ASSIGN(const std::string text, Detail::read_text_file(path, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(path, K_READER));
 
             CSVCursor cursor;
             cursor.text = text;
@@ -415,14 +416,21 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_csv(const CSVOptions& options) noexcept
     {
+        return read_csv(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_csv(const CSVOptions& options, const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]() -> Result<SampleList>
         {
             if (options.file.empty())
                 return read_checked(options,
-                                    options.root / (options.split + std::string(K_CSV_EXTENSION)));
+                                    options.root / (options.split + std::string(K_CSV_EXTENSION)),
+                                    source);
 
             return read_checked(options, options.file.is_relative() ? options.root / options.file
-                                                                    : options.file);
+                                                                    : options.file,
+                                source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

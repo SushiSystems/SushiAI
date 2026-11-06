@@ -12,6 +12,7 @@
 | RW-151 | P2 | blocked | Set the size timeouts to the testing skill's 1 s, 10 s and 120 s | SushiAITestProgram.cmake, cli/tests/conftest.py and tests/README.md give small 1 s, medium 10 s and large 120 s, and the gating run passes | external: the M jobs of the test review resize the tests that run longer | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-152 | P3 | open | Explain why yolov4-tiny's second mask differs by one anchor | DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor names the source of the difference or the anchor is fixed |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-153 | P3 | decision | Rule on tools/tests/test_test_budget_settings.py, which SushiSkills no longer ships | The file is deleted as a leftover of the copier, or its promise is checked in this repository |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
+| RW-154 | P2 | open | Give coco_json a byte seam through a JSON-events reader over text | read_coco_json reads from a ByteSource, and a Small_ test feeds it bytes |  | `docs/agent/2026_11_05_TEST_REVIEW/PLAN.md` | 2026-11-06 |
 
 ## Known issues
 

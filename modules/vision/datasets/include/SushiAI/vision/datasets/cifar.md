@@ -10,8 +10,9 @@ blue one, each row-major.
 | `CIFAR100Fine` | 2 | Byte 1 | 100 | `train.bin` | `test.bin` |
 | `CIFAR100Coarse` | 2 | Byte 0 | 20 | `train.bin` | `test.bin` |
 
-The rows are `K_FORMATS` in `source/cifar.cpp`. The reader seeks to the label byte of each record
-and reads it; it reads no pixel. The label that is not taken is not checked.
+The rows are `K_FORMATS` in `source/cifar.cpp`. The reader reads each file whole through the
+source and takes the label byte of each record from it; it keeps no pixel. The label that is not
+taken is not checked.
 
 | Code | When |
 | --- | --- |
@@ -19,3 +20,9 @@ and reads it; it reads no pixel. The label that is not taken is not checked.
 | `FileNotFound` | A file of the split is absent |
 | `InvalidFile` | A file is empty or not a whole number of records; a label is at or above the class count, and the message gives the file and the one-based record |
 | `OutOfMemory` | An allocation fails |
+
+## Reading from memory
+
+`read_cifar(options, source)` does what `read_cifar(options)` does, with every batch file read through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

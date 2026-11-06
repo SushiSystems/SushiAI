@@ -33,6 +33,7 @@
 #include <string>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -57,4 +58,14 @@ namespace SushiAI::Vision::Datasets
      *         holds no folder or no image, or cannot be listed; OutOfMemory.
      */
     [[nodiscard]] Result<SampleList> read_image_folder(const ImageFolderOptions& options) noexcept;
+
+    /**
+     * @brief Lists the images of every class folder of a split, listed through @p source.
+     *
+     * read_image_folder(options) calls this with the file system; a MemorySource serves files
+     * that were never written.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_image_folder(const ImageFolderOptions& options,
+                                                       const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

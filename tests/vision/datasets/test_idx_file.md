@@ -50,3 +50,9 @@ fails with "long.idx", "declares 2 bytes" and "holds 11 bytes".
 
 A file of element code 0x0E with three extents of 0xFFFFFFFF fails with `InvalidFile`,
 "huge.idx" and "overflow".
+
+## AHeaderAndItsPayloadReadFromMemory
+
+A `MemorySource` holding a 2 by 2 unsigned-byte file gives the header with extents 2 and 2 and 4
+payload bytes, and a payload of 1, 2, 3, 4, through the `ByteSource` forms of `read_idx_header`
+and `read_idx_payload`.

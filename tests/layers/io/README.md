@@ -92,7 +92,7 @@ message contains "running_mean".
 
 ## test_import_weights.cpp
 
-Suites: `Small_RenameRule`, `Medium_ImportWeights`.
+Suites: `Small_RenameRule`, `Small_MemoryInput`, `Medium_ImportWeights`.
 
 The four `Small_RenameRule` cases run the prefix rule with no device. They share this file with the
 integration cases, which load a checkpoint written under foreign names into a `NN::ModelState`.
@@ -144,6 +144,17 @@ and its message names both shapes. The shapes are compared, not the element coun
 
 A path that was never written is refused as `FileNotFound`, and the message contains
 "could not open".
+
+### ServesTheBytesOfACheckpointToItsReader
+
+A checkpoint of one record, written to a string stream, opens a `CheckpointReader` through
+`IO::MemoryInput`. The reader declares one record named `0.bias`, and its payload is the three
+floats that were written, byte for byte. No file and no device are used.
+
+### BytesInMemoryLoadWhatTheFileOfTheSameBytesLoads
+
+The bytes of a two-record checkpoint load into a second state through the span form of
+`import_weights`, and both tensors hold the first state's bytes.
 
 ## test_run_checkpoint.cpp
 

@@ -170,3 +170,25 @@ TEST(Small_DatasetsImageFolder, ASplitWithoutAClassOrAnImageIsRefused)
     SA_EXPECT_FAILURE(read_image_folder(options_of(scratch, "text")), StatusCode::InvalidFile,
                       "text", "no image file");
 }
+
+/** @brief Tests that class folders served from memory become classes in sorted order. */
+TEST(Small_DatasetsImageFolder, FoldersServedFromMemoryBecomeSortedClasses)
+{
+    MemorySource source;
+    source.add_file("data/train/dog/2.png", "x");
+    source.add_file("data/train/dog/deeper/3.jpg", "x");
+    source.add_file("data/train/dog/readme.txt", "x");
+    source.add_file("data/train/cat/1.png", "x");
+
+    ImageFolderOptions options;
+    options.root = "data";
+    options.split = "train";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_image_folder(options, source));
+
+    EXPECT_EQ(list.class_names, (std::vector<std::string>{"cat", "dog"}));
+    ASSERT_EQ(list.samples.size(), 3u);
+    EXPECT_EQ(list.samples[0].class_index, 0);
+    EXPECT_EQ(list.samples[1].class_index, 1);
+    EXPECT_EQ(list.samples[2].class_index, 1);
+}

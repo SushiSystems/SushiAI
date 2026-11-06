@@ -229,3 +229,23 @@ TEST(Small_DatasetsMaskPng, AMaskOfTheSuffixWithoutAnImageIsRefused)
     SA_EXPECT_FAILURE(read_mask_png(options), StatusCode::InvalidFile, "masks/train/b_ids.png",
                       "the mask has no image");
 }
+
+/** @brief Tests that an image and a mask served from memory are paired by their stems. */
+TEST(Small_DatasetsMaskPng, AnImageAndAMaskServedFromMemoryArePaired)
+{
+    MemorySource source;
+    source.add_file("data/images/train/a.jpg", "x");
+    source.add_file("data/masks/train/a.png", "x");
+
+    MaskPNGOptions options;
+    options.root = "data";
+    options.class_count = 3;
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_mask_png(options, source));
+
+    ASSERT_EQ(list.samples.size(), 1u);
+    ASSERT_EQ(list.files.size(), 2u);
+    ASSERT_TRUE(list.samples[0].mask.has_value());
+    EXPECT_EQ(list.samples[0].file, 0u);
+    EXPECT_EQ(*list.samples[0].mask, 1u);
+}

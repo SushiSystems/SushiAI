@@ -12,3 +12,9 @@ adding images to it later moves no class index.
 | `FileNotFound` | The split is not a directory |
 | `InvalidFile` | The split holds no folder, the folders hold no image file, or a directory cannot be listed |
 | `OutOfMemory` | An allocation fails |
+
+## Reading from memory
+
+`read_image_folder(options, source)` does what `read_image_folder(options)` does, with every folder listed through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

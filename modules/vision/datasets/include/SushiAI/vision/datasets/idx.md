@@ -21,3 +21,9 @@ largest label.
 | `InvalidFile` | `read_idx_header` rejects a file; the image file has another element type or rank; the label file is not one dimension of unsigned bytes; the two counts differ; there is no image |
 | `Unsupported` | A side outside [1, `Imaging::K_MAX_IMAGE_SIDE`] or more than four channels |
 | `OutOfMemory` | An allocation fails |
+
+## Reading from memory
+
+`read_idx(options, source)` does what `read_idx(options)` does, with every IDX file read through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

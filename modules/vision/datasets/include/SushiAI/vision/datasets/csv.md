@@ -25,3 +25,9 @@ the header, and its row of `SampleList::table` holds its features and then its t
 A column counts from 1. For a cell and for a field count the line is the line the record starts
 on, also when a quoted field of the record holds a line break. A failure of a quote names the
 line the quote is on.
+
+## Reading from memory
+
+`read_csv(options, source)` does what `read_csv(options)` does, with every file read through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.

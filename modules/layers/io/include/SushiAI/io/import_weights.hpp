@@ -29,6 +29,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -69,6 +70,18 @@ namespace SushiAI
          */
         [[nodiscard]] Status import_weights(const std::filesystem::path& path,
                                             NN::ModelState& state,
+                                            SushiRuntime::span<const RenameRule> rules) noexcept;
+
+        /**
+         * @brief Loads an SACP file held in memory into state, renaming each record first.
+         * @param bytes The checkpoint file; its run-state section is not read.
+         * @param origin Names the bytes in a message, usually the path they came from.
+         * @param state The state whose every entry the file must supply exactly once.
+         * @param rules The rules applied to each record name before the lookup.
+         * @return What the overload above returns, except that no file is opened.
+         */
+        [[nodiscard]] Status import_weights(SushiRuntime::span<const std::uint8_t> bytes,
+                                            std::string_view origin, NN::ModelState& state,
                                             SushiRuntime::span<const RenameRule> rules) noexcept;
 
     } // namespace IO

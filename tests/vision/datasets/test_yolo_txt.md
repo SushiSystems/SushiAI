@@ -66,3 +66,8 @@ A split with no list and no folder fails with `FileNotFound`, "train.txt" and "i
 ## ASplitWithoutAnImageIsRefused
 
 An image folder holding only `readme.txt` fails with `InvalidFile`, "'train'" and "no image".
+
+## ImagesAndLabelsServedFromMemoryArePaired
+
+A `MemorySource` holding two images and the label file of the second gives a first sample with
+no object and a second with one object of class 2.

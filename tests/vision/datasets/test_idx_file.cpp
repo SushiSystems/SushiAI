@@ -156,3 +156,19 @@ TEST(Small_DatasetsIdxFile, ExtentsThatOverflowAreRefused)
             "huge.idx", Support::idx_bytes(0x0E, {largest, largest, largest}, {}))),
         StatusCode::InvalidFile, "huge.idx", "overflow");
 }
+
+/** @brief Tests that a header and a payload are read from a file served from memory. */
+TEST(Small_DatasetsIdxFile, AHeaderAndItsPayloadReadFromMemory)
+{
+    MemorySource source;
+    source.add_file("memory.idx", Support::text_of(Support::idx_bytes(0x08, {2, 2}, {1, 2, 3, 4})));
+
+    SA_ASSERT_OK_AND_ASSIGN(const IDXHeader header, read_idx_header("memory.idx", source));
+    EXPECT_EQ(header.element, IDXElement::UInt8);
+    EXPECT_EQ(header.extents, (std::vector<std::uint32_t>{2, 2}));
+    EXPECT_EQ(header.payload_bytes, 4u);
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::uint8_t> payload,
+                            read_idx_payload("memory.idx", header, source));
+    EXPECT_EQ(payload, (std::vector<std::uint8_t>{1, 2, 3, 4}));
+}

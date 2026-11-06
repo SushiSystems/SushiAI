@@ -32,6 +32,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <string_view>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
@@ -63,6 +64,12 @@ namespace SushiAI
         Status load_checkpoint(const std::filesystem::path& path, NN::ModelState& state) noexcept
         {
             return import_weights(path, state, {});
+        }
+
+        Status load_checkpoint(SushiRuntime::span<const std::uint8_t> bytes,
+                               std::string_view origin, NN::ModelState& state) noexcept
+        {
+            return import_weights(bytes, origin, state, {});
         }
 
     } // namespace IO

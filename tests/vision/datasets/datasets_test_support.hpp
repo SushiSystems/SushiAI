@@ -136,6 +136,12 @@ namespace SushiAI::Vision::Datasets::Support
         return bytes;
     }
 
+    /** @brief Returns bytes as the text a MemorySource holds a file as. */
+    inline std::string text_of(const std::vector<std::uint8_t>& bytes)
+    {
+        return std::string(bytes.begin(), bytes.end());
+    }
+
     /** @brief Returns count bytes that rise by one from a first value, wrapping at 256. */
     inline std::vector<std::uint8_t> rising_bytes(std::size_t count, std::uint8_t first)
     {

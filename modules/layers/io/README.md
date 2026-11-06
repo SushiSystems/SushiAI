@@ -153,17 +153,22 @@ includes `SushiBLAS/tensor/tensor.hpp`, and `checkpoint.hpp` and `import_weights
 The module's dependencies link SushiBLAS and SushiRuntime as external public dependencies, so
 both reach the module through them.
 
+`import_weights` and `load_checkpoint` also take the bytes of a checkpoint and a name for them,
+`origin`, which a failure message uses where the path form uses the path. `MemoryInput` is the
+forward-only stream they read through; it copies nothing.
+
 ## Public entry points
 
 The headers sit in `modules/layers/io/include/SushiAI/io/`.
 
 | Header | Declares |
 | --- | --- |
-| `checkpoint.hpp` | `save_checkpoint`, `load_checkpoint` |
+| `checkpoint.hpp` | `save_checkpoint`, `load_checkpoint` (a path, or bytes in memory) |
 | `checkpoint_format.hpp` | `K_CHECKPOINT_MAGIC`, `K_CHECKPOINT_FIRST_VERSION`, `K_CHECKPOINT_VERSION`, `K_MAX_TENSOR_COUNT`, `K_MAX_RUN_STATE_COUNT`, `K_MAX_NAME_LENGTH`, `TensorRecord`, `CheckpointWriter`, `CheckpointReader` |
 | `run_checkpoint.hpp` | `save_run_checkpoint`, `load_run_checkpoint` |
 | `run_progress.hpp` | `K_RUN_SEED_STATE`, `K_RUN_STEP_RUNS_STATE`, `K_RUN_EPOCH_STATE`, `K_RUN_BATCH_STATE`, `RunProgress`, `check_run_seed` |
-| `import_weights.hpp` | `RenameRule`, `renamed`, `import_weights` |
+| `import_weights.hpp` | `RenameRule`, `renamed`, `import_weights` (a path, or bytes in memory) |
+| `memory_input.hpp` | `MemoryInput` |
 | `imported_model.hpp` | `ImportedTensor`, `ImportedModel` |
 | `importer_registry.hpp` | `ImporterFunction`, `ImporterEntry`, `ImporterRegistry`, `import_model` |
 | `imported_model_writer.hpp` | `K_IMPORTED_MODEL_FILE`, `K_IMPORTED_WEIGHTS_FILE`, `K_IMPORTED_TRAINING_FILE`, `K_IMPORTED_CHECKPOINT_FILE`, `ExistingFiles`, `WrittenImport`, `compose_training_file`, `write_imported_model` |

@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -73,6 +74,17 @@ namespace SushiAI
          * @return Success, or InvalidFile when the file cannot be written.
          */
         [[nodiscard]] Status save_checkpoint(const std::filesystem::path& path,
+                                             NN::ModelState& state) noexcept;
+
+        /**
+         * @brief Loads the model state of a checkpoint held in memory, strictly in both directions.
+         * @param bytes The checkpoint file; its run-state section is not read.
+         * @param origin Names the bytes in a message, usually the path they came from.
+         * @param state The state every entry of which the file must supply exactly once.
+         * @return Success, or the failure of import_weights() with no rename rule.
+         */
+        [[nodiscard]] Status load_checkpoint(SushiRuntime::span<const std::uint8_t> bytes,
+                                             std::string_view origin,
                                              NN::ModelState& state) noexcept;
 
         /**

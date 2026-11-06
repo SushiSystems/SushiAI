@@ -40,6 +40,7 @@
 #include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
 
@@ -396,4 +397,23 @@ TEST(Medium_DarknetWeights, ReportsAMissingFileAsFileNotFound)
 
     SA_EXPECT_FAILURE(read_darknet_weights(missing, shapes), StatusCode::FileNotFound,
                       "could not open");
+}
+
+/** @brief Tests that the bytes of a weights file in memory give each vector its own floats. */
+TEST(Small_DarknetWeights, ReadsEveryVectorFromBytesInMemory)
+{
+    const std::string bytes = sample_bytes(22);
+    const std::vector<DarknetConvolutionShape> shapes = sample_shapes();
+
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetWeights weights,
+        read_darknet_weights(
+            SushiRuntime::span<const std::uint8_t>(
+                reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()),
+            "memory.weights", shapes));
+
+    ASSERT_EQ(weights.convolutions.size(), 2u);
+    EXPECT_TRUE(holds_indices(weights.convolutions[0].biases, 0));
+    EXPECT_TRUE(holds_indices(weights.convolutions[1].rolling_mean, 10));
+    EXPECT_TRUE(holds_indices(weights.convolutions[1].weights, 16));
 }

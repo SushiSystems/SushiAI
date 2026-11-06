@@ -40,23 +40,13 @@
 
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 
 /** @brief Holds the units of the datasets module that no caller names. */
 namespace SushiAI::Vision::Datasets::Detail
 {
-    /** @brief Names what list_entries keeps of a directory. */
-    enum class EntryKind : std::uint8_t
-    {
-        Directory, /**< Entries that are directories. */
-        File,      /**< Entries that are regular files. */
-    };
-
-    /** @brief Names how far below a directory list_entries looks. */
-    enum class ListDepth : std::uint8_t
-    {
-        Children, /**< The entries of the directory itself. */
-        Tree,     /**< The entries of the directory and of every directory below it. */
-    };
+    using Datasets::EntryKind;
+    using Datasets::ListDepth;
 
     /** @brief Returns the text of a path with forward slashes, for a message. */
     [[nodiscard]] std::string display_of(const std::filesystem::path& path);
@@ -87,6 +77,33 @@ namespace SushiAI::Vision::Datasets::Detail
      */
     [[nodiscard]] Result<std::string> read_text_file(const std::filesystem::path& file,
                                                      std::string_view reader);
+
+    /**
+     * @class FileSystemSource
+     * @brief Serves the files and folders of the file system, through the calls above.
+     *
+     * It is the source a reader's path overload reads through.
+     */
+    class FileSystemSource final : public ByteSource
+    {
+        public:
+            [[nodiscard]] PathKind kind_of(const std::filesystem::path& path) const override;
+
+            [[nodiscard]] Result<std::uint64_t> size_of(const std::filesystem::path& file,
+                                                        std::string_view reader) const override;
+
+            [[nodiscard]] Result<std::string> read(const std::filesystem::path& file,
+                                                   std::string_view reader) const override;
+
+            [[nodiscard]] Result<std::string> read_range(const std::filesystem::path& file,
+                                                         std::uint64_t offset,
+                                                         std::uint64_t count,
+                                                         std::string_view reader) const override;
+
+            [[nodiscard]] Result<std::vector<std::filesystem::path>> list(
+                const std::filesystem::path& directory, EntryKind kind, ListDepth depth,
+                std::string_view reader) const override;
+    };
 
     /** @brief Holds what a message says of an allocation that failed. */
     inline constexpr std::string_view K_ALLOCATION_FAILED = "an allocation failed";

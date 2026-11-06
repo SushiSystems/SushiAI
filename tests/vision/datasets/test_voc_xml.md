@@ -53,3 +53,8 @@ Without the list file the read fails with `FileNotFound`, "read_voc_xml", "the s
 and "ImageSets/Main/train.txt". A stem on line 3 without an annotation fails with
 `FileNotFound`, "ImageSets/Main/train.txt", "line 3" and "Annotations/missing.xml". A list of
 one empty line fails with `InvalidFile` and "holds no annotation".
+
+## AListAndAnAnnotationServedFromMemoryAreRead
+
+A `MemorySource` holding `ImageSets/Main/train.txt` and one annotation of a dog gives the class
+list `dog`, one sample with one object of class 0, and the file `first.jpg` in `data/JPEGImages`.

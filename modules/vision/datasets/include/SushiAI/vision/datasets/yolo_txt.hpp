@@ -34,6 +34,7 @@
 #include <string>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -69,4 +70,14 @@ namespace SushiAI::Vision::Datasets
      *         and its line.
      */
     [[nodiscard]] Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options) noexcept;
+
+    /**
+     * @brief Lists the images of a split and parses their label files through @p source.
+     *
+     * read_yolo_txt(options) calls this with the file system; a MemorySource serves files
+     * that were never written.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_yolo_txt(const YOLOTxtOptions& options,
+                                                   const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

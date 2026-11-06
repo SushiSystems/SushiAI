@@ -150,11 +150,12 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const IDXOptions& options)
+        [[nodiscard]] Result<SampleList> read_checked(const IDXOptions& options,
+                                                      const ByteSource& source)
         {
             SA_TRY_ASSIGN(FilePair files, resolve_files(options));
-            SA_TRY_ASSIGN(const IDXHeader image_header, read_idx_header(files.images));
-            SA_TRY_ASSIGN(const IDXHeader label_header, read_idx_header(files.labels));
+            SA_TRY_ASSIGN(const IDXHeader image_header, read_idx_header(files.images, source));
+            SA_TRY_ASSIGN(const IDXHeader label_header, read_idx_header(files.labels, source));
             SA_TRY_ASSIGN(StoredPixels pixels, first_image(files.images, image_header));
 
             SA_FAIL_IF(label_header.element != IDXElement::UInt8 ||
@@ -174,7 +175,7 @@ namespace SushiAI::Vision::Datasets
                        Detail::display_of(files.images), K_READER);
 
             SA_TRY_ASSIGN(const std::vector<std::uint8_t> labels,
-                          read_idx_payload(files.labels, label_header));
+                          read_idx_payload(files.labels, label_header, source));
 
             SampleList list;
             list.files.push_back(std::move(files.images));
@@ -203,9 +204,14 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_idx(const IDXOptions& options) noexcept
     {
+        return read_idx(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_idx(const IDXOptions& options, const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
-            return read_checked(options);
+            return read_checked(options, source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

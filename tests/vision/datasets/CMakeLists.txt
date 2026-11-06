@@ -10,6 +10,7 @@ sushiai_add_test_program(OWNER vision/datasets
         test_augment_pipeline.cpp
         test_batch_inputs.cpp
         test_binary_collator.cpp
+        test_byte_source.cpp
         test_cifar.cpp
         test_classification_collator.cpp
         test_coco_json.cpp

@@ -44,3 +44,9 @@ With only `data_batch_1.bin` present, the "train" split fails with `FileNotFound
 ## AnotherSplitIsRefused
 
 The split "val" fails with `InvalidDescription` and "'val'".
+
+## ABatchServedFromMemoryListsItsRecords
+
+A `MemorySource` holding `test_batch.bin` in `data` of two records, labelled 3 and 9, gives the
+classes 3 and 9 of 10 through `read_cifar(options, source)`. The second record's pixels start at
+byte 3074. No file is written.

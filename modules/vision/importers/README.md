@@ -25,7 +25,7 @@ nothing throws across the module's surface.
 | Header | Declares |
 | --- | --- |
 | `<SushiAI/vision/importers/darknet_config.hpp>` | `DarknetOption`, `DarknetSection`, `DarknetConfig`, `parse_darknet_config`, `load_darknet_config` |
-| `<SushiAI/vision/importers/darknet_weights.hpp>` | `DarknetWeightsHeader`, `DarknetConvolutionShape`, `DarknetConvolution`, `DarknetWeights`, `read_darknet_header`, `read_darknet_weights` |
+| `<SushiAI/vision/importers/darknet_weights.hpp>` | `DarknetWeightsHeader`, `DarknetConvolutionShape`, `DarknetConvolution`, `DarknetWeights`, `read_darknet_header`, `read_darknet_weights` (a path, or bytes in memory) |
 | `<SushiAI/vision/importers/darknet_fold.hpp>` | `fold_darknet_normalisation` |
 | `<SushiAI/vision/importers/darknet_store.hpp>` | `DarknetWeightTarget`, `store_darknet_weights` |
 | `<SushiAI/vision/importers/darknet_model.hpp>` | `DarknetNormalisation`, `DarknetTranslation`, `DarknetHead`, `DarknetModel`, `translate_darknet_model` |

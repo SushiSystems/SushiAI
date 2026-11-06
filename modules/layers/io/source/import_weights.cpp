@@ -29,13 +29,17 @@
 
 #include <SushiAI/io/import_weights.hpp>
 
+#include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <ios>
+#include <istream>
 #include <string>
 #include <string_view>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/io/checkpoint_format.hpp>
+#include <SushiAI/io/memory_input.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include "model_records.hpp"
 
@@ -54,6 +58,20 @@ namespace SushiAI
             bool starts_with(std::string_view name, std::string_view prefix) noexcept
             {
                 return name.size() >= prefix.size() && name.substr(0, prefix.size()) == prefix;
+            }
+
+            /**
+             * @brief Loads the model-state records of a checkpoint stream into @p state.
+             * @param origin Names the stream in a message.
+             * @return What import_weights returns once the stream is open.
+             */
+            Status load_records(std::istream& in, const std::filesystem::path& origin,
+                                NN::ModelState& state, SushiRuntime::span<const RenameRule> rules)
+            {
+                SA_TRY_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
+
+                // A run-state section follows the model records and is left unread.
+                return Detail::read_model_records(reader, origin, state, rules);
             }
         } // namespace
 
@@ -80,10 +98,15 @@ namespace SushiAI
             SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
                        path.string());
 
-            SA_TRY_ASSIGN(CheckpointReader reader, CheckpointReader::open(in));
+            return load_records(in, path, state, rules);
+        }
 
-            // A run-state section follows the model records and is left unread.
-            return Detail::read_model_records(reader, path, state, rules);
+        Status import_weights(SushiRuntime::span<const std::uint8_t> bytes,
+                              std::string_view origin, NN::ModelState& state,
+                              SushiRuntime::span<const RenameRule> rules) noexcept
+        {
+            MemoryInput in(bytes);
+            return load_records(in, std::filesystem::path(origin), state, rules);
         }
 
     } // namespace IO

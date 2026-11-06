@@ -63,3 +63,8 @@ The header `a, b ,a` on line 2 fails with `InvalidFile`, "line 2", "column 3" an
 With the split "val" and no file, the read fails with `FileNotFound`, "val.csv" and
 "read_csv". A `val.csv` of two empty lines fails with `InvalidFile` and
 "holds no header row", and one with a header alone with "holds no record below its header".
+
+## AFileServedFromMemoryReadsIntoATable
+
+A `MemorySource` holding `train.csv` in `data` with the header `a,b,y` and two records gives two
+samples, two features, one target and the values 1 to 6 in row order.

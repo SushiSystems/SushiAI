@@ -249,3 +249,23 @@ TEST(Small_DatasetsYoloTxt, ASplitWithoutAnImageIsRefused)
     SA_EXPECT_FAILURE(read_yolo_txt(options_of(scratch, "train")), StatusCode::InvalidFile,
                       "'train'", "no image");
 }
+
+/** @brief Tests that images and label files served from memory pair by the label path. */
+TEST(Small_DatasetsYoloTxt, ImagesAndLabelsServedFromMemoryArePaired)
+{
+    MemorySource source;
+    source.add_file("data/images/train/a.jpg", "x");
+    source.add_file("data/images/train/b.jpg", "x");
+    source.add_file("data/labels/train/b.txt", "2 0.5 0.25 0.2 0.1\n");
+
+    YOLOTxtOptions options;
+    options.root = "data";
+    options.class_count = 3;
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_yolo_txt(options, source));
+
+    ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_TRUE(list.samples[0].objects.is_empty());
+    ASSERT_EQ(list.samples[1].objects.size(), 1u);
+    EXPECT_EQ(list.samples[1].objects.classes()[0], 2);
+}

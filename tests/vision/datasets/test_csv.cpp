@@ -210,3 +210,20 @@ TEST(Small_DatasetsCsv, AFileWithoutRecordsIsRefused)
     SA_EXPECT_FAILURE(read_csv(options), StatusCode::InvalidFile, "val.csv",
                       "holds no record below its header");
 }
+
+/** @brief Tests that a CSV file served from memory reads into a table of its columns. */
+TEST(Small_DatasetsCsv, AFileServedFromMemoryReadsIntoATable)
+{
+    MemorySource source;
+    source.add_file("data/train.csv", "a,b,y\n1,2,3\n4,5,6\n");
+
+    CSVOptions options;
+    options.root = "data";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_csv(options, source));
+
+    EXPECT_EQ(list.table.feature_count, 2);
+    EXPECT_EQ(list.table.target_count, 1);
+    EXPECT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(list.table.values, (std::vector<float>{1, 2, 3, 4, 5, 6}));
+}

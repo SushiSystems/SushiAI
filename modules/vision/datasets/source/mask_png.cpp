@@ -57,11 +57,10 @@ namespace SushiAI::Vision::Datasets
         /** @brief Returns the files below a folder that a predicate keeps, sorted by path. */
         template <typename Predicate>
         [[nodiscard]] Result<std::vector<std::filesystem::path>> files_of(
-            const std::filesystem::path& folder, Predicate is_kept)
+            const ByteSource& source, const std::filesystem::path& folder, Predicate is_kept)
         {
             SA_TRY_ASSIGN(std::vector<std::filesystem::path> files,
-                          Detail::list_entries(folder, Detail::EntryKind::File,
-                                               Detail::ListDepth::Tree, K_READER));
+                          source.list(folder, EntryKind::File, ListDepth::Tree, K_READER));
 
             files.erase(std::remove_if(files.begin(), files.end(),
                                        [&](const std::filesystem::path& file)
@@ -117,7 +116,8 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const MaskPNGOptions& options)
+        [[nodiscard]] Result<SampleList> read_checked(const MaskPNGOptions& options,
+                                                      const ByteSource& source)
         {
             SA_FAIL_IF(options.class_count < 1, StatusCode::InvalidDescription,
                        "{}: the class count is {}; it must be at least 1", K_READER,
@@ -129,9 +129,9 @@ namespace SushiAI::Vision::Datasets
                 split_folder(options.root / options.mask_folder, options.split);
 
             SA_TRY_ASSIGN(std::vector<std::filesystem::path> images,
-                          files_of(image_folder, has_image_extension));
+                          files_of(source, image_folder, has_image_extension));
             SA_TRY_ASSIGN(std::vector<std::filesystem::path> masks,
-                          files_of(mask_folder, [&](const std::filesystem::path& file)
+                          files_of(source, mask_folder, [&](const std::filesystem::path& file)
             {
                 return is_mask_file(file, options.mask_suffix);
             }));
@@ -185,9 +185,15 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_mask_png(const MaskPNGOptions& options) noexcept
     {
+        return read_mask_png(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_mask_png(const MaskPNGOptions& options,
+                                     const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
-            return read_checked(options);
+            return read_checked(options, source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

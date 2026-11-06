@@ -31,7 +31,9 @@
 
 #include <algorithm>
 #include <fstream>
+#include <iterator>
 #include <limits>
+#include <set>
 #include <system_error>
 
 #include <SushiLog/text/text_format.hpp>
@@ -71,6 +73,29 @@ namespace SushiAI::Vision::Datasets::Detail
                        "'{}': {}: the directory cannot be listed: {}", display_of(directory),
                        reader, error.message());
             return Status();
+        }
+
+        /** @brief Reports whether a path lies strictly below a directory, by its components. */
+        [[nodiscard]] bool is_below(const std::filesystem::path& path,
+                                    const std::filesystem::path& directory)
+        {
+            const auto stopped = std::mismatch(directory.begin(), directory.end(), path.begin(),
+                                               path.end());
+            return stopped.first == directory.end() &&
+                   std::distance(path.begin(), path.end()) >
+                       std::distance(directory.begin(), directory.end());
+        }
+
+        /** @brief Inserts a folder and every folder above it that has a name. */
+        void insert_with_parents(const std::filesystem::path& path,
+                                 std::set<std::filesystem::path>& folders)
+        {
+            for (std::filesystem::path folder = path;
+                 !folder.empty() && folder != folder.root_path(); folder = folder.parent_path())
+            {
+                if (!folders.insert(folder).second)
+                    break;
+            }
         }
     } // namespace
 
@@ -155,4 +180,163 @@ namespace SushiAI::Vision::Datasets::Detail
             return SushiLog::format_text("'{}': {}: {}", display_of(subject), reader, what);
         });
     }
+
+    PathKind FileSystemSource::kind_of(const std::filesystem::path& path) const
+    {
+        std::error_code ignored;
+        const std::filesystem::file_status status = std::filesystem::status(path, ignored);
+
+        if (status.type() == std::filesystem::file_type::not_found)
+            return PathKind::Missing;
+        if (std::filesystem::is_regular_file(status))
+            return PathKind::File;
+        if (std::filesystem::is_directory(status))
+            return PathKind::Directory;
+        return PathKind::Other;
+    }
+
+    Result<std::uint64_t> FileSystemSource::size_of(const std::filesystem::path& file,
+                                                    std::string_view reader) const
+    {
+        return size_of_file(file, reader);
+    }
+
+    Result<std::string> FileSystemSource::read(const std::filesystem::path& file,
+                                               std::string_view reader) const
+    {
+        return read_text_file(file, reader);
+    }
+
+    Result<std::string> FileSystemSource::read_range(const std::filesystem::path& file,
+                                                     std::uint64_t offset, std::uint64_t count,
+                                                     std::string_view reader) const
+    {
+        SA_TRY_ASSIGN(const std::uint64_t bytes, size_of_file(file, reader));
+
+        std::ifstream in(file, std::ios::binary);
+        SA_FAIL_IF(!in.is_open(), StatusCode::InvalidFile,
+                   "'{}': {}: the file cannot be opened for reading", display_of(file), reader);
+
+        const std::uint64_t wanted = std::min(count, bytes > offset ? bytes - offset : 0);
+        SA_FAIL_IF(wanted > static_cast<std::uint64_t>(std::numeric_limits<std::streamsize>::max()),
+                   StatusCode::Unsupported, "'{}': {}: {} bytes are more than one read holds",
+                   display_of(file), reader, wanted);
+
+        std::string out(static_cast<std::size_t>(wanted), '\0');
+        if (wanted != 0)
+        {
+            in.seekg(static_cast<std::streamoff>(offset), std::ios::beg);
+            in.read(out.data(), static_cast<std::streamsize>(out.size()));
+            out.resize(static_cast<std::size_t>(in.gcount()));
+        }
+
+        return Result<std::string>(std::move(out));
+    }
+
+    Result<std::vector<std::filesystem::path>> FileSystemSource::list(
+        const std::filesystem::path& directory, EntryKind kind, ListDepth depth,
+        std::string_view reader) const
+    {
+        return list_entries(directory, kind, depth, reader);
+    }
 } // namespace SushiAI::Vision::Datasets::Detail
+
+namespace SushiAI::Vision::Datasets
+{
+    void MemorySource::add_file(const std::filesystem::path& path, std::string bytes)
+    {
+        files_[path] = std::move(bytes);
+    }
+
+    void MemorySource::add_directory(const std::filesystem::path& path)
+    {
+        directories_.insert(path);
+    }
+
+    PathKind MemorySource::kind_of(const std::filesystem::path& path) const
+    {
+        if (files_.count(path) != 0)
+            return PathKind::File;
+
+        if (directories_.count(path) != 0)
+            return PathKind::Directory;
+
+        for (const auto& entry : files_)
+        {
+            if (Detail::is_below(entry.first, path))
+                return PathKind::Directory;
+        }
+
+        return PathKind::Missing;
+    }
+
+    Result<std::uint64_t> MemorySource::size_of(const std::filesystem::path& file,
+                                                std::string_view reader) const
+    {
+        const PathKind kind = kind_of(file);
+        SA_FAIL_IF(kind == PathKind::Missing, StatusCode::FileNotFound, "'{}': {}: no such file",
+                   Detail::display_of(file), reader);
+        SA_FAIL_IF(kind != PathKind::File, StatusCode::InvalidFile,
+                   "'{}': {}: the path does not name a regular file", Detail::display_of(file),
+                   reader);
+
+        return static_cast<std::uint64_t>(files_.at(file).size());
+    }
+
+    Result<std::string> MemorySource::read(const std::filesystem::path& file,
+                                           std::string_view reader) const
+    {
+        SA_TRY(size_of(file, reader));
+        return Result<std::string>(files_.at(file));
+    }
+
+    Result<std::string> MemorySource::read_range(const std::filesystem::path& file,
+                                                 std::uint64_t offset, std::uint64_t count,
+                                                 std::string_view reader) const
+    {
+        SA_TRY_ASSIGN(const std::uint64_t bytes, size_of(file, reader));
+
+        if (offset >= bytes)
+            return Result<std::string>(std::string());
+
+        const std::uint64_t wanted = std::min(count, bytes - offset);
+        return Result<std::string>(files_.at(file).substr(static_cast<std::size_t>(offset),
+                                                          static_cast<std::size_t>(wanted)));
+    }
+
+    Result<std::vector<std::filesystem::path>> MemorySource::list(
+        const std::filesystem::path& directory, EntryKind kind, ListDepth depth,
+        std::string_view reader) const
+    {
+        SA_FAIL_IF(kind_of(directory) != PathKind::Directory, StatusCode::FileNotFound,
+                   "'{}': {}: no such directory", Detail::display_of(directory), reader);
+
+        std::set<std::filesystem::path> candidates;
+        if (kind == EntryKind::File)
+        {
+            for (const auto& entry : files_)
+                candidates.insert(entry.first);
+        }
+        else
+        {
+            for (const auto& entry : files_)
+                Detail::insert_with_parents(entry.first.parent_path(), candidates);
+            for (const std::filesystem::path& folder : directories_)
+                Detail::insert_with_parents(folder, candidates);
+        }
+
+        std::vector<std::filesystem::path> found;
+        for (const std::filesystem::path& candidate : candidates)
+        {
+            if (!Detail::is_below(candidate, directory))
+                continue;
+
+            if (depth == ListDepth::Children && candidate.parent_path() != directory)
+                continue;
+
+            found.push_back(candidate);
+        }
+
+        return Result<std::vector<std::filesystem::path>>(std::move(found));
+    }
+} // namespace SushiAI::Vision::Datasets

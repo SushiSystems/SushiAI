@@ -126,7 +126,7 @@ TEST(Small_DatasetsCifar, ASampleRefersToThePlanesAfterItsLabel)
 
     const Sample& second = list.samples[1];
     ASSERT_TRUE(second.stored.has_value());
-    EXPECT_EQ(second.stored->offset, 3073u + 1u);
+    EXPECT_EQ(second.stored->offset, 3074u);
     EXPECT_EQ(second.stored->size.height, K_CIFAR_SIDE);
     EXPECT_EQ(second.stored->size.width, K_CIFAR_SIDE);
     EXPECT_EQ(second.stored->channels, 3);
@@ -213,4 +213,25 @@ TEST(Small_DatasetsCifar, AnotherSplitIsRefused)
 
     SA_EXPECT_FAILURE(read_cifar(options_of(scratch, CIFARVariant::CIFAR10, "val")),
                       StatusCode::InvalidDescription, "'val'");
+}
+
+/** @brief Tests that a batch file served from memory lists its records with their classes. */
+TEST(Small_DatasetsCifar, ABatchServedFromMemoryListsItsRecords)
+{
+    MemorySource source;
+    source.add_file("data/test_batch.bin",
+                    Support::text_of(joined(record({3}, {10, 20, 30}), record({9}, {40, 50, 60}))));
+
+    CIFAROptions options;
+    options.root = "data";
+    options.split = "test";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_cifar(options, source));
+
+    EXPECT_EQ(list.class_count, 10);
+    ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(list.samples[0].class_index, 3);
+    EXPECT_EQ(list.samples[1].class_index, 9);
+    ASSERT_TRUE(list.samples[1].stored.has_value());
+    EXPECT_EQ(list.samples[1].stored->offset, 3074u);
 }

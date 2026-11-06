@@ -31,7 +31,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <fstream>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -117,20 +116,18 @@ namespace SushiAI::Vision::Datasets
          *         empty or not a whole number of records, and for a label at or above the
          *         class count, with the one-based record.
          */
-        [[nodiscard]] Status append_file(const std::filesystem::path& file, const Format& format,
-                                         SampleList& list)
+        [[nodiscard]] Status append_file(const ByteSource& source,
+                                         const std::filesystem::path& file,
+                                         const Format& format, SampleList& list)
         {
             const std::string name = Detail::display_of(file);
             const std::uint64_t record_bytes = format.label_bytes + K_PIXEL_BYTES;
 
-            SA_TRY_ASSIGN(const std::uint64_t file_bytes, Detail::size_of_file(file, K_READER));
+            SA_TRY_ASSIGN(const std::string data, source.read(file, K_READER));
+            const std::uint64_t file_bytes = data.size();
             SA_FAIL_IF(file_bytes == 0 || file_bytes % record_bytes != 0, StatusCode::InvalidFile,
                        "'{}': {}: {} bytes are not a whole number of records of {} bytes", name,
                        K_READER, file_bytes, record_bytes);
-
-            std::ifstream in(file, std::ios::binary);
-            SA_FAIL_IF(!in.is_open(), StatusCode::InvalidFile,
-                       "'{}': {}: the file cannot be opened for reading", name, K_READER);
 
             const std::uint64_t records = file_bytes / record_bytes;
             const std::uint32_t file_index = static_cast<std::uint32_t>(list.files.size());
@@ -140,15 +137,8 @@ namespace SushiAI::Vision::Datasets
             for (std::uint64_t record = 0; record < records; ++record)
             {
                 const std::uint64_t start = record * record_bytes;
-                char byte = 0;
-
-                in.seekg(static_cast<std::streamoff>(start + format.taken_byte), std::ios::beg);
-                in.read(&byte, 1);
-                SA_FAIL_IF(in.gcount() != 1, StatusCode::InvalidFile,
-                           "'{}': {}: record {} of {}: the label cannot be read", name, K_READER,
-                           record + 1, records);
-
-                const std::int32_t label = static_cast<unsigned char>(byte);
+                const std::int32_t label = static_cast<unsigned char>(
+                    data[static_cast<std::size_t>(start + format.taken_byte)]);
                 SA_FAIL_IF(label >= format.class_count, StatusCode::InvalidFile,
                            "'{}': {}: record {} of {}: the label {} is not below the {} classes",
                            name, K_READER, record + 1, records, label, format.class_count);
@@ -166,7 +156,8 @@ namespace SushiAI::Vision::Datasets
         }
 
         /** @brief Lists one split; may throw what an allocation or a path throws. */
-        [[nodiscard]] Result<SampleList> read_checked(const CIFAROptions& options)
+        [[nodiscard]] Result<SampleList> read_checked(const CIFAROptions& options,
+                                                      const ByteSource& source)
         {
             SA_FAIL_IF(options.split != K_SPLIT_TRAIN && options.split != K_SPLIT_TEST,
                        StatusCode::InvalidDescription,
@@ -183,7 +174,7 @@ namespace SushiAI::Vision::Datasets
                 for (std::string_view name : options.split == K_SPLIT_TEST ? format.test
                                                                            : format.train)
                 {
-                    SA_TRY(append_file(options.root / name, format, list));
+                    SA_TRY(append_file(source, options.root / name, format, list));
                 }
             }
 
@@ -197,9 +188,14 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_cifar(const CIFAROptions& options) noexcept
     {
+        return read_cifar(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_cifar(const CIFAROptions& options, const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]()
         {
-            return read_checked(options);
+            return read_checked(options, source);
         }, options.root);
     }
 } // namespace SushiAI::Vision::Datasets

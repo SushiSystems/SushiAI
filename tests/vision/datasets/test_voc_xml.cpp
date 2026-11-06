@@ -250,3 +250,23 @@ TEST(Small_DatasetsVocXml, TheListAndItsStemsMustExist)
     SA_EXPECT_FAILURE(read_voc_xml(options_of(scratch)), StatusCode::InvalidFile,
                       "holds no annotation");
 }
+
+/** @brief Tests that an image list and an annotation served from memory are read. */
+TEST(Small_DatasetsVocXml, AListAndAnAnnotationServedFromMemoryAreRead)
+{
+    MemorySource source;
+    source.add_file("data/ImageSets/Main/train.txt", "first\n");
+    source.add_file("data/Annotations/first.xml",
+                    annotation_of(object_of("dog", "0", K_EDGES)));
+
+    VOCXMLOptions options;
+    options.root = "data";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_voc_xml(options, source));
+
+    EXPECT_EQ(list.class_names, (std::vector<std::string>{"dog"}));
+    ASSERT_EQ(list.samples.size(), 1u);
+    EXPECT_EQ(list.files[0].generic_string(), "data/JPEGImages/first.jpg");
+    ASSERT_EQ(list.samples[0].objects.size(), 1u);
+    EXPECT_EQ(list.samples[0].objects.classes()[0], 0);
+}

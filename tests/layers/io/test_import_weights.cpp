@@ -29,8 +29,10 @@
  */
 
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -274,4 +276,35 @@ TEST_F(Medium_ImportWeights, AMissingFileIsFileNotFound)
     SA_EXPECT_FAILURE(IO::import_weights(file.path(), target,
                                          SushiRuntime::span<const IO::RenameRule>()),
                       StatusCode::FileNotFound, "could not open");
+}
+
+/** @brief Tests that bytes in memory load a state as the file of the same bytes loads it. */
+TEST_F(Medium_ImportWeights, BytesInMemoryLoadWhatTheFileOfTheSameBytesLoads)
+{
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState source,
+                            NN::ModelState::from_entries(*engine, two_entries()));
+    fill_tensor(source, "0.weight", 1.25f);
+    fill_tensor(source, "0.bias", -3.0f);
+
+    std::ostringstream out;
+    SA_ASSERT_OK_AND_ASSIGN(IO::CheckpointWriter writer, IO::CheckpointWriter::create(out, 2));
+    SA_EXPECT_OK(writer.write(make_record("0.weight", Shape{2, 3}),
+                              tensor_of(source, "0.weight").data()));
+    SA_EXPECT_OK(writer.write(make_record("0.bias", Shape{3}), tensor_of(source, "0.bias").data()));
+    writer.finish();
+
+    SA_ASSERT_OK_AND_ASSIGN(NN::ModelState target,
+                            NN::ModelState::from_entries(*engine, two_entries()));
+    fill_tensor(target, "0.weight", 9.0f);
+    fill_tensor(target, "0.bias", 9.0f);
+
+    const std::string bytes = out.str();
+    SA_EXPECT_OK(IO::import_weights(
+        SushiRuntime::span<const std::uint8_t>(
+            reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size()),
+        "memory.sushi", target, {}));
+    EXPECT_EQ(SaTest::read_tensor_bytes(tensor_of(target, "0.weight")),
+              SaTest::read_tensor_bytes(tensor_of(source, "0.weight")));
+    EXPECT_EQ(SaTest::read_tensor_bytes(tensor_of(target, "0.bias")),
+              SaTest::read_tensor_bytes(tensor_of(source, "0.bias")));
 }

@@ -82,6 +82,7 @@ a CSV library: `source/xml_element.cpp` and `source/csv.cpp` parse their formats
 | `<SushiAI/vision/datasets/table_dataset.hpp>` | `TableDatasetOptions`, `TableDataset` |
 | `<SushiAI/vision/datasets/stored_pixels.hpp>` | `PlaneLayout`, `StoredPixels`, `read_stored_pixels` |
 | `<SushiAI/vision/datasets/image_extensions.hpp>` | `has_image_extension` |
+| `<SushiAI/vision/datasets/byte_source.hpp>` | `PathKind`, `EntryKind`, `ListDepth`, `ByteSource`, `MemorySource` |
 | `<SushiAI/vision/datasets/image_folder.hpp>` | `ImageFolderOptions`, `read_image_folder` |
 | `<SushiAI/vision/datasets/yolo_txt.hpp>` | `YOLOTxtOptions`, `yolo_label_path`, `read_yolo_txt` |
 | `<SushiAI/vision/datasets/idx_file.hpp>` | `IDXElement`, `idx_element_bytes`, `IDXHeader`, `read_idx_header`, `read_idx_payload` |
@@ -146,6 +147,10 @@ and a context string.
 ### yolo_txt.hpp
 
 [`include/SushiAI/vision/datasets/yolo_txt.md`](include/SushiAI/vision/datasets/yolo_txt.md) describes it.
+
+### byte_source.hpp
+
+[`include/SushiAI/vision/datasets/byte_source.md`](include/SushiAI/vision/datasets/byte_source.md) describes it.
 
 ### idx_file.hpp
 
@@ -282,7 +287,8 @@ adapter keeps the status and hands over an image of no pixels, which the pipelin
 
 A message opens with the path in quotes, written with forward slashes, then the name of the
 function that failed. A failure that has no path opens with the function. `source/disk.hpp` holds
-the file system calls the readers share and `at_boundary`, which turns what a reader or an
+the file system calls the readers share, `Detail::FileSystemSource`, which serves them through the
+`ByteSource` port, and `at_boundary`, which turns what a reader or an
 allocation throws into a status: `OutOfMemory` for `std::bad_alloc`, `InvalidFile` with the
 exception's text for anything else. A transform of `vision/imaging` returns its own status, and
 `fit_sample`, `fit_mask` and `AugmentPipeline` forward it.
@@ -306,6 +312,10 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
 - `read_yolo_txt` does not read the dataset file that names the classes, so `class_names` is
   empty and `class_count` comes from the caller.
 - `read_cifar` and `read_idx` read no class name file.
+- `read_coco_json` has no `ByteSource` form: `Config::read_json_events` streams a path and has no
+  entry that takes text or a stream. The other seven readers read from memory.
+- `read_cifar(options, source)` reads each batch file whole to take its label bytes; the file form
+  once seeked to each label. A CIFAR-10 batch file is about 30 MB.
 - Nothing of `read_coco_json`, `read_voc_xml`, `parse_xml`, `read_mask_png`, `read_csv`,
   `fit_mask`, `load_sample_mask`, `TableDataset` or the four newer collators has run either.
 - `read_coco_json` holds the text, the JSON library's document and the `Config::Value` tree at

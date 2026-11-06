@@ -23,3 +23,9 @@ read.
 | `FileNotFound` | The split has neither form; a line of the list names no file, and the message gives the list and the line |
 | `InvalidFile` | The parser rejects a label file, and the message gives the label file and the parser's text with its line; the split holds no image; a file cannot be read |
 | `OutOfMemory` | An allocation fails |
+
+## Reading from memory
+
+`read_yolo_txt(options, source)` does what `read_yolo_txt(options)` does, with every file and folder read through a
+`ByteSource` (`byte_source.hpp`). The one-argument form passes the file system. A
+`MemorySource` serves files that were never written, with the same statuses and messages.
