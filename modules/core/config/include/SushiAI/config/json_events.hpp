@@ -104,5 +104,16 @@ namespace SushiAI
         [[nodiscard]] Status read_json_events(const std::filesystem::path& path,
                                               JSONEvents& handler) noexcept;
 
+        /**
+         * @brief Hands the JSON document in @p text to @p handler, one event at a time.
+         * @param text The whole document, held by the caller for the call.
+         * @param name Names the document in a failure, as a path would.
+         * @param handler Receives the events, as read_json_events() hands them.
+         * @return InvalidFile, naming @p name and the byte offset, for text that is no JSON
+         *         document.
+         */
+        [[nodiscard]] Status read_json_text_events(std::string_view text, std::string_view name,
+                                                   JSONEvents& handler) noexcept;
+
     } // namespace Config
 } // namespace SushiAI

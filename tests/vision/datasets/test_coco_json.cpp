@@ -37,6 +37,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/coco_json.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
@@ -124,6 +125,39 @@ TEST(Small_DatasetsCocoJson, BoxesAndDenseClassesAreRead)
     EXPECT_NEAR(box.y_center, 30.0f / 100.0f, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(box.width, 50.0f / 200.0f, K_FRACTION_TOLERANCE);
     EXPECT_NEAR(box.height, 20.0f / 100.0f, K_FRACTION_TOLERANCE);
+}
+
+/** @brief Tests that a set served from memory is read with no file written. */
+TEST(Small_DatasetsCocoJson, ASetServedFromMemoryIsRead)
+{
+    MemorySource source;
+    source.add_directory("set/train");
+    source.add_file("set/annotations/instances_train.json",
+                    std::string("{") + K_IMAGES + ", " + K_CATEGORIES +
+                        R"(, "annotations": [{"id": 1, "image_id": 9, "category_id": 1,
+                                              "bbox": [0, 0, 100, 50]}]})");
+    COCOJSONOptions options;
+    options.root = "set";
+
+    SA_ASSERT_OK_AND_ASSIGN(const SampleList list, read_coco_json(options, source));
+
+    ASSERT_EQ(list.samples.size(), 2u);
+    EXPECT_EQ(list.files[list.samples[0].file].generic_string(), "set/train/b.jpg");
+    ASSERT_EQ(list.samples[0].objects.size(), 1u);
+    EXPECT_EQ(list.samples[0].objects.classes()[0], 0);
+}
+
+/** @brief Tests that text that is no JSON document is refused through a source. */
+TEST(Small_DatasetsCocoJson, TextThatIsNoJsonIsRefusedFromMemory)
+{
+    MemorySource source;
+    source.add_directory("set/train");
+    source.add_file("set/annotations/instances_train.json", "{\"images\": [");
+    COCOJSONOptions options;
+    options.root = "set";
+
+    SA_EXPECT_FAILURE(read_coco_json(options, source), StatusCode::InvalidFile,
+                      "instances_train.json", "not valid JSON");
 }
 
 /** @brief Tests that the file and the image folder may be named. */

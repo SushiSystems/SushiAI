@@ -34,6 +34,7 @@
 #include <string>
 
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/vision/datasets/byte_source.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 
 /** @brief Holds the readers of the on-disk layouts vision datasets are kept in. */
@@ -73,4 +74,15 @@ namespace SushiAI::Vision::Datasets
      * @return The list; a failure that names the file and the index of the entry at fault.
      */
     [[nodiscard]] Result<SampleList> read_coco_json(const COCOJSONOptions& options) noexcept;
+
+    /**
+     * @brief Reads the annotation file and checks the image folder of a COCO set served by
+     *        @p source.
+     *
+     * read_coco_json(options) calls this with the file system; a MemorySource serves files
+     * that were never written.
+     * @return What the overload above returns.
+     */
+    [[nodiscard]] Result<SampleList> read_coco_json(const COCOJSONOptions& options,
+                                                    const ByteSource& source) noexcept;
 } // namespace SushiAI::Vision::Datasets

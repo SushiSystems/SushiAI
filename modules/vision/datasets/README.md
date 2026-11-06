@@ -46,7 +46,7 @@ table gives the pipeline. A section's `fit`, `resize` or `letterbox`, replaces t
 - `vision/codecs`, for `load_sample_image`, `load_sample_mask` and `ReaderDataset`:
   `load_sample_image.hpp` names `Codecs::DecodeOptions` and the two sources call
   `Codecs::load_image`.
-- `config`, also for `read_coco_json`, which streams its file through `Config::read_json_events`.
+- `config`, also for `read_coco_json`, which hands its file's text to `Config::read_json_text_events`.
 - `vision/segment`, for `paint_polygon_mask`, which calls `Segment::rasterise_outlines`. No
   header of this module names a type of it, so the edge is private (`PRIVATE_DEPENDS`).
 - `data`, also for `Data::EpochAware`, `Data::EpochPermutation` and `Data::ThreadedLoader`.
@@ -312,15 +312,13 @@ exception's text for anything else. A transform of `vision/imaging` returns its 
 - `read_yolo_txt` does not read the dataset file that names the classes, so `class_names` is
   empty and `class_count` comes from the caller.
 - `read_cifar` and `read_idx` read no class name file.
-- `read_coco_json` has no `ByteSource` form: `Config::read_json_events` streams a path and has no
-  entry that takes text or a stream. The other seven readers read from memory.
+- `read_coco_json(options, source)` holds the whole annotation file as text while it reads it;
+  the file form once streamed it through 64 KiB. COCO's `instances_train2017.json` is about
+  450 MB.
 - `read_cifar(options, source)` reads each batch file whole to take its label bytes; the file form
   once seeked to each label. A CIFAR-10 batch file is about 30 MB.
 - Nothing of `read_coco_json`, `read_voc_xml`, `parse_xml`, `read_mask_png`, `read_csv`,
   `fit_mask`, `load_sample_mask`, `TableDataset` or the four newer collators has run either.
-- `read_coco_json` holds the text, the JSON library's document and the `Config::Value` tree at
-  once. For the 450 MB `instances_train2017.json` of COCO that is several gigabytes; the figure
-  has not been measured. `modules/core/config` has no streaming parser.
 - `read_coco_json` keeps one outline per object, the part of the largest area, because a
   `LabelSet` holds one polygon per object. It decodes no run-length mask, keeps no crowd
   annotation and does not check that an image file exists.

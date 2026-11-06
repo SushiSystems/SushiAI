@@ -14,7 +14,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T1 | `tests/support/tolerance.hpp` in use, with the ruling of decision 1 applied to every named epsilon |  | done |
 | T2 | One engine and device per program through SushiRuntime's fixture base; `EngineTest` stops making one per test | SushiRuntime T1 | done |
 | T3 | In-memory adapters beside their ports: a host `Dataset`, `Objective`, `EpochAware`, `ReplicaModel`, `ReplicaServeObserver`, `StepRecorder`, `GraphBuilder`, `PrecisionPolicy`, `RegionPartitioner`, `StepExecutor`, `Collator`, `SamplePipeline`, `SampleSource`, `MaskSource`, `PartnerSource`, and the failure module's block counter and fatal sink |  | done; no adapter for Dataset, the Collators, ReplicaModel (device tensors), GraphBuilder (concrete) or the block counter (a function) |
-| T4 | Byte-source and stream seams for the dataset readers, the checkpoint loader and the weight importer |  | done except coco_json (RW-154) |
+| T4 | Byte-source and stream seams for the dataset readers, the checkpoint loader and the weight importer |  | done |
 | T5 | The SushiLog sink moved to SushiLog's scoped in-memory sink | sushilog T1 | done |
 | T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | done; open items in RW-151, RW-152, RW-153 |
 | T7 | The CLI tests on sushicore's in-memory runner, console and CMake driver | sushicore T1 | done |

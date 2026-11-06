@@ -36,7 +36,6 @@
 #include <iterator>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -1105,18 +1104,19 @@ namespace SushiAI::Vision::Datasets
             return Result<SampleList>(std::move(list));
         }
 
-        /** @brief Reads one file into a list, in one pass over its events. */
+        /** @brief Reads one file served by @p source into a list, in one pass over its events. */
         [[nodiscard]] Result<SampleList> read_file(const std::filesystem::path& path,
                                                    const std::filesystem::path& folder,
-                                                   COCOSegmentation segmentation)
+                                                   COCOSegmentation segmentation,
+                                                   const ByteSource& source)
         {
             const std::string file = Detail::display_of(path);
 
-            SA_TRY(Detail::size_of_file(path, K_READER));
+            SA_TRY_ASSIGN(const std::string text, source.read(path, K_READER));
 
             RawFile raw;
             COCOEvents events(raw, segmentation);
-            const Status read = Config::read_json_events(path, events);
+            const Status read = Config::read_json_text_events(text, path.string(), events);
             if (!read.is_ok())
                 return Detail::boundary_failure(read.code(), K_READER, path, read.message());
 
@@ -1137,6 +1137,12 @@ namespace SushiAI::Vision::Datasets
 
     Result<SampleList> read_coco_json(const COCOJSONOptions& options) noexcept
     {
+        return read_coco_json(options, Detail::FileSystemSource());
+    }
+
+    Result<SampleList> read_coco_json(const COCOJSONOptions& options,
+                                      const ByteSource& source) noexcept
+    {
         return Detail::at_boundary(K_READER, [&]() -> Result<SampleList>
         {
             const std::filesystem::path file =
@@ -1149,13 +1155,12 @@ namespace SushiAI::Vision::Datasets
                 options.image_folder.empty() ? options.root / options.split
                                              : below(options.root, options.image_folder);
 
-            std::error_code ignored;
-            SA_FAIL_IF(!std::filesystem::is_directory(folder, ignored), StatusCode::FileNotFound,
+            SA_FAIL_IF(source.kind_of(folder) != PathKind::Directory, StatusCode::FileNotFound,
                        "'{}': {}: no such image folder", Detail::display_of(folder), K_READER);
 
             return Detail::at_boundary(K_READER, [&]()
             {
-                return read_file(file, folder, options.segmentation);
+                return read_file(file, folder, options.segmentation, source);
             }, file);
         }, options.root);
     }

@@ -34,6 +34,7 @@
 #include <ios>
 #include <limits>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -181,16 +182,21 @@ namespace SushiAI
             };
 
             /**
-             * @brief Parses @p in to @p adapter and returns what ended the read.
+             * @brief Runs @p parse, which feeds @p adapter, and returns what ended the read.
+             * @param parse Returns whether the parser finished; it may throw the parser's
+             *              exceptions and std::ios_base::failure.
+             * @param failed_read Returns whether the input failed under the parser.
              * @return InvalidFile for a syntax error, a failed read or a parser exception.
              */
-            [[nodiscard]] Status parse_stream(std::ifstream& in, EventAdapter& adapter,
-                                              const std::string& file)
+            template <typename Parse, typename FailedRead>
+            [[nodiscard]] Status parse_with(Parse&& parse, FailedRead&& failed_read,
+                                            EventAdapter& adapter, const std::string& file)
             {
                 try
                 {
-                    const bool finished = Document::sax_parse(in, &adapter);
-                    SA_FAIL_IF(in.bad(), StatusCode::InvalidFile, "failed reading '{}'", file);
+                    const bool finished = parse();
+                    SA_FAIL_IF(failed_read(), StatusCode::InvalidFile, "failed reading '{}'",
+                               file);
                     SA_FAIL_IF(!finished && adapter.has_error(), StatusCode::InvalidFile,
                                "'{}' is not valid JSON at byte {}: {}", file,
                                adapter.error_offset(), adapter.error_text());
@@ -228,7 +234,29 @@ namespace SushiAI
                 in.rdbuf()->pubsetbuf(buffer.data(), buffer_size);
 
                 EventAdapter adapter(handler);
-                return parse_stream(in, adapter, file);
+                return parse_with([&]()
+                {
+                    return Document::sax_parse(in, &adapter);
+                }, [&]()
+                {
+                    return in.bad();
+                }, adapter, file);
+            });
+        }
+
+        Status read_json_text_events(std::string_view text, std::string_view name,
+                                     JSONEvents& handler) noexcept
+        {
+            return Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
+            {
+                EventAdapter adapter(handler);
+                return parse_with([&]()
+                {
+                    return Document::sax_parse(text.begin(), text.end(), &adapter);
+                }, []()
+                {
+                    return false;
+                }, adapter, std::string(name));
             });
         }
 

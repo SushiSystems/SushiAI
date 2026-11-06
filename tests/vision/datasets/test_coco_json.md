@@ -5,7 +5,7 @@ Suites: `Small_DatasetsCocoJson`.
 
 Tests `read_coco_json` in
 `modules/vision/datasets/include/SushiAI/vision/datasets/coco_json.hpp` over files the cases
-write under the system's temporary directory. Unless a case says otherwise the annotation file
+write under the system's temporary directory, and, in two cases, over a `MemorySource`. Unless a case says otherwise the annotation file
 is `annotations/instances_train.json` beside a folder `train`. It lists `b.jpg` with id 9 and
 `sub/a.jpg` with id 4, both 200 by 100 pixels, and the categories brush (90), person (1) and
 cat (17).
@@ -17,6 +17,17 @@ and `train/sub/a.jpg`. Of that image's four annotations the crowd one and the on
 are left out; the other two have the classes 2 and 0 and no polygon. The box [10, 20, 50, 20]
 reads as the centre (35/200, 30/100) and the size (50/200, 20/100), and the sample has no class
 index.
+
+## ASetServedFromMemoryIsRead
+
+A `MemorySource` holds the folder `set/train` and the annotation file, with one annotation of
+class person on image 9, and no file is written. The list has two samples; the first is
+the image b.jpg of `set/train`, with one object of class 0.
+
+## TextThatIsNoJsonIsRefusedFromMemory
+
+An annotation file served from memory whose text stops inside the `images` list fails with
+`InvalidFile`, "instances_train.json" and "not valid JSON".
 
 ## TheFileAndTheFolderMayBeNamed
 

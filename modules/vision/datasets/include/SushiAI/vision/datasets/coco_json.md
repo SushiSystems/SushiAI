@@ -26,7 +26,8 @@ annotation is checked for its image and its category before it is left out, and 
 
 An index counts from 0 in the order of the list, as in "annotation 12".
 
-`Config::read_json_events` streams the file to the reader's handler through a 64 KiB buffer,
-so no document and no tree of `Config::Value` is held. The reader keeps the three lists it
-returns and nothing else of the file. A file that states `images`, `annotations` or
+The reader takes the file's text from its `ByteSource`, the file system in the one-argument
+form, and `Config::read_json_text_events` hands that text to the reader's handler, so no
+document and no tree of `Config::Value` is held. Besides the text, the reader keeps the three
+lists it returns and nothing else of the file. A file that states `images`, `annotations` or
 `categories` twice is refused.
