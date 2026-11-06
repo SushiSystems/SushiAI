@@ -46,6 +46,14 @@ def _ensure_sushicore() -> None:
 _ensure_sushicore()
 
 
+@pytest.fixture
+def project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Yields an empty SushiAI checkout and makes it the working directory."""
+    (tmp_path / "CMakeLists.txt").write_text("project(x)\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    return tmp_path
+
+
 K_SIZE_TIMEOUTS = {"small": 60, "medium": 300, "large": 900}
 
 

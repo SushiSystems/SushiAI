@@ -6,13 +6,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
+from recorded_tools import offline_config, recorded_tools
 from sushiai import cli
-from sushiai.services import distributed, project
+from sushiai.services import distributed
 
 pytestmark = pytest.mark.small
 
@@ -27,32 +28,19 @@ def test_distributed_define_switches_the_distributed_layer() -> None:
 @pytest.mark.parametrize(
     ("args", "expected"),
     [
-        (["build", "--distributed"], True),
-        (["build", "--no-distributed"], False),
+        (["build", "--distributed"], "-DSA_ENABLE_DISTRIBUTED=ON"),
+        (["build", "--no-distributed"], "-DSA_ENABLE_DISTRIBUTED=OFF"),
         (["build"], None),
     ],
 )
 def test_build_command_forwards_the_distributed_option(
-    monkeypatch: pytest.MonkeyPatch, args: list[str], expected: bool | None
+    project_root: Path, args: list[str], expected: str | None
 ) -> None:
-    """The build command hands the tri-state --distributed option to the service unchanged."""
-    received: list[bool | None] = []
-
-    def build(
-        build_type: project.BuildType,
-        clean: bool,
-        define: Sequence[str] | None,
-        sanitize: project.Sanitizer | None,
-        distributed_option: bool | None,
-        sycl_targets: str | None,
-        report: bool,
-        jobs: int | None,
-    ) -> int:
-        """Records the option and reports success."""
-        received.append(distributed_option)
-        return 0
-
-    monkeypatch.setattr(project, "build", build)
-    result = CliRunner().invoke(cli.app, args)
-    assert result.exit_code == 0
-    assert received == [expected]
+    """The build command hands the tri-state --distributed option to the configure unchanged."""
+    recorded = recorded_tools(offline_config())
+    result = CliRunner().invoke(cli.app, args, obj=recorded.tools)
+    assert result.exit_code == 0, result.output
+    configure = [command for command in recorded.runner.commands if "-S" in command.argv]
+    assert len(configure) == 1
+    entries = [word for word in configure[0].argv if word.startswith("-DSA_ENABLE_DISTRIBUTED")]
+    assert entries == ([] if expected is None else [expected])

@@ -10,10 +10,8 @@ import os
 import shutil
 from collections.abc import Sequence
 
-from sushicore.proc import Runner
-
-from .. import console
-from ..config import PROFILE, find_project_root
+from ..config import find_project_root
+from .toolbox import Toolbox
 
 #: The program `sa profile` forwards to; SushiProfiler's own command line.
 K_PROFILER_PROGRAM = "sp"
@@ -21,23 +19,23 @@ K_PROFILER_PROGRAM = "sp"
 #: Where SushiProfiler's command line comes from.
 K_PROFILER_HOME = "https://github.com/SushiSystems/SushiProfiler"
 
-_RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
-
 
 def is_installed() -> bool:
     """Returns whether `sp` is on the path."""
     return shutil.which(K_PROFILER_PROGRAM) is not None
 
 
-def run_profiler(args: Sequence[str]) -> int:
+def run_profiler(tools: Toolbox, args: Sequence[str]) -> int:
     """Runs `sp` with *args* from the project root.
 
     Args:
+        tools: The console and the runner the command works through.
         args: The arguments after `sa profile`, forwarded verbatim.
 
     Returns:
         1 when `sp` is not on the path, otherwise its own exit code.
     """
+    console = tools.console
     console.header("SushiProfiler")
     program = shutil.which(K_PROFILER_PROGRAM)
     if program is None:
@@ -47,4 +45,4 @@ def run_profiler(args: Sequence[str]) -> int:
         return 1
 
     console.info(f"Executing: {K_PROFILER_PROGRAM}")
-    return _RUNNER.run([program, *args], find_project_root(), dict(os.environ))
+    return tools.runner.run([program, *args], find_project_root(), dict(os.environ))

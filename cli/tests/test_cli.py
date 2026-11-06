@@ -9,19 +9,22 @@ from __future__ import annotations
 import importlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
 from sushicore.root_options import version_line
+
+from recorded_tools import doxygen_ready, recorded_tools, write_executable
 from sushiai import cli
 from sushiai import console as console_module
-from sushiai.services import profiler, project
+from sushiai.services import build_trees
+from sushiai.services.project import K_DEFAULT_TYPE
 
 pytestmark = pytest.mark.medium
 
@@ -48,14 +51,14 @@ K_ARCHIVE = "docs-bundle-1.2.3.tar.gz"
 K_DOXYFILE = Path(__file__).resolve().parents[2] / ".config" / "doxygen" / "Doxyfile"
 
 
-def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(monkeypatch, tmp_path):
+def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(project_root):
     """`sa docs` still builds the reference, and `sa docs bundle` asks for a release."""
-    monkeypatch.setattr(project, "doxygen", lambda: 6)
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
+    recorded = doxygen_ready(project_root, 6)
+    recorded.runner.script(6)
     runner = CliRunner()
-    assert runner.invoke(cli.app, ["docs"]).exit_code == 6
-    assert runner.invoke(cli.app, ["doxygen"]).exit_code == 6
-    missing = runner.invoke(cli.app, ["docs", "bundle"])
+    assert runner.invoke(cli.app, ["docs"], obj=recorded.tools).exit_code == 6
+    assert runner.invoke(cli.app, ["doxygen"], obj=recorded.tools).exit_code == 6
+    missing = runner.invoke(cli.app, ["docs", "bundle"], obj=recorded.tools)
     assert missing.exit_code == 2
     assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
 
@@ -166,9 +169,10 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
     """Writes the archive and its digest file at the checkout's root and reports both lines."""
     _published_checkout(tmp_path)
     monkeypatch.chdir(tmp_path / "docs" / "guides")
-    said: list[str] = []
-    monkeypatch.setattr(cli, "console", SimpleNamespace(success=said.append))
-    result = CliRunner().invoke(cli.app, ["docs", "bundle", "--release", "1.2.3"])
+    recorded = recorded_tools()
+    result = CliRunner().invoke(
+        cli.app, ["docs", "bundle", "--release", "1.2.3"], obj=recorded.tools)
+    said = recorded.console.texts("success")
     assert result.exit_code == 0, result.output
     bundle = tmp_path / "build" / "docs" / "bundle"
     assert (bundle / K_ARCHIVE).is_file()
@@ -178,53 +182,64 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
     assert said[1].startswith("sha256 ")
 
 
-def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(monkeypatch, tmp_path):
+def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(project_root):
     """Names `<OUTPUT_DIRECTORY>/<XML_OUTPUT>` of the Doxyfile, below the repository root."""
-    monkeypatch.setattr(cli, "find_project_root", lambda: tmp_path)
     written = Path(_doxyfile_value("OUTPUT_DIRECTORY", "")) / _doxyfile_value("XML_OUTPUT", "xml")
-    assert cli._api_source().xml_dir == tmp_path / written
+    assert cli._api_source().xml_dir == project_root / written
 
 
 @pytest.mark.parametrize("command, target, positional", [
     ("train", "sushiai_train", ["train.json"]),
     ("inference", "sushiai_inference", ["model.json", "model.sushi", "eval.json"]),
 ])
-def test_train_forwards_profile(monkeypatch, command, target, positional):
+def test_train_forwards_profile(project_root, command, target, positional):
     """`--profile <config>` reaches the program whole, wherever it stands on the line."""
-    forwarded = []
-    monkeypatch.setattr(
-        project, "run_app", lambda name, title, args: forwarded.append((name, list(args))) or 0)
+    recorded = recorded_tools()
+    write_executable(build_trees.build_dir(project_root, K_DEFAULT_TYPE.value) / target)
     runner = CliRunner()
 
-    after = runner.invoke(cli.app, [command, *positional, "--profile", "profile.json"])
-    before = runner.invoke(cli.app, [command, "--profile", "profile.json", *positional])
+    after = runner.invoke(
+        cli.app, [command, *positional, "--profile", "profile.json"], obj=recorded.tools)
+    before = runner.invoke(
+        cli.app, [command, "--profile", "profile.json", *positional], obj=recorded.tools)
 
     assert after.exit_code == 0 and before.exit_code == 0, after.output + before.output
-    assert forwarded == [
-        (target, [*positional, "--profile", "profile.json"]),
-        (target, ["--profile", "profile.json", *positional]),
+    assert [list(ran.argv[1:]) for ran in recorded.runner.commands] == [
+        [*positional, "--profile", "profile.json"],
+        ["--profile", "profile.json", *positional],
     ]
+    assert {Path(ran.argv[0]).stem for ran in recorded.runner.commands} == {target}
 
 
-def test_profile_runs_sp(monkeypatch, tmp_path):
+@pytest.fixture
+def sp_on_path(tmp_path, monkeypatch):
+    """Puts a program named `sp` on the path and returns where `which` finds it."""
+    folder = tmp_path / "tools"
+    write_executable(folder / "sp")
+    monkeypatch.setenv("PATH", str(folder))
+    return shutil.which("sp")
+
+
+def test_profile_runs_sp(project_root, sp_on_path):
     """`sa profile <args>` runs `sp <args>` from the project root and returns its exit code."""
-    ran = []
-    runner = SimpleNamespace(run=lambda command, cwd, env: ran.append((command, cwd)) or 3)
-    monkeypatch.setattr(profiler, "_RUNNER", runner)
-    monkeypatch.setattr(profiler.shutil, "which", lambda name: f"/tools/{name}")
-    monkeypatch.setattr(profiler, "find_project_root", lambda: tmp_path)
+    recorded = recorded_tools()
+    recorded.runner.script(3)
 
-    result = CliRunner().invoke(cli.app, ["profile", "record", "show", "run.sprec.json"])
+    result = CliRunner().invoke(
+        cli.app, ["profile", "record", "show", "run.sprec.json"], obj=recorded.tools)
 
     assert result.exit_code == 3, result.output
-    assert ran == [(["/tools/sp", "record", "show", "run.sprec.json"], tmp_path)]
+    assert [(list(ran.argv), ran.cwd) for ran in recorded.runner.commands] == [
+        ([sp_on_path, "record", "show", "run.sprec.json"], project_root)]
 
 
-def test_profile_without_sp_says_to_install_it(monkeypatch):
+def test_profile_without_sp_says_to_install_it(tmp_path, monkeypatch):
     """A machine with no `sp` on the path gets one error line that names SushiProfiler."""
-    monkeypatch.setattr(profiler.shutil, "which", lambda name: None)
+    monkeypatch.setenv("PATH", str(tmp_path))
+    recorded = recorded_tools()
 
-    result = CliRunner().invoke(cli.app, ["profile", "record", "show", "run.sprec.json"])
+    result = CliRunner().invoke(
+        cli.app, ["profile", "record", "show", "run.sprec.json"], obj=recorded.tools)
 
     assert result.exit_code == 1
-    assert "SushiProfiler" in K_ANSI_ESCAPE.sub("", result.output)
+    assert "SushiProfiler" in K_ANSI_ESCAPE.sub("", " ".join(recorded.errors()))

@@ -6,140 +6,89 @@
 
 from __future__ import annotations
 
-import shutil
+import dataclasses
 import subprocess
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
+from sushicore.cmake_driver import CMakeDriver
 
 from sushiai.services import project
+from sushiai.services.toolbox import default_toolbox
+
+from recorded_tools import Recorded, offline_config, recorded_tools
 
 pytestmark = pytest.mark.medium
 
 
-class _Console:
-    """Records every line the service prints, by kind."""
+class _StuckDriver(CMakeDriver):
+    """A driver whose clean leaves the tree in place, as a file another program holds open does."""
 
-    def __init__(self) -> None:
-        """Starts with nothing recorded."""
-        self.lines: list[tuple[str, str]] = []
-        self.console = self
-
-    def __getattr__(self, kind: str):
-        """Returns a printer that records its text under *kind*."""
-        return lambda text="", **_: self.lines.append((kind, str(text)))
-
-    def errors(self) -> list[str]:
-        """Returns the text of every error line."""
-        return [text for kind, text in self.lines if kind == "error"]
-
-
-class _Driver:
-    """Stands in for the CMake driver and records what it was asked to do."""
-
-    def __init__(self, removes: bool) -> None:
-        """Remembers whether clean_tree really removes the directory."""
-        self.calls: list[str] = []
-        self._removes = removes
-
-    def clean_tree(self, build_dir: Path) -> None:
-        """Records the call and removes the tree when told to."""
-        self.calls.append("clean_tree")
-        if self._removes:
-            shutil.rmtree(build_dir)
-
-    def ctest_run(self, cfg, build_dir, env, **options) -> int:
-        """Records the options of the ctest run and reports success."""
-        self.calls.append("ctest_run")
-        self.ctest_options = options
-        return 0
-
-
-class _Runner:
-    """Stands in for the process runner and records each command."""
-
-    def __init__(self) -> None:
-        """Starts with nothing run."""
-        self.commands: list[list[str]] = []
-
-    def run(self, cmd, cwd, env=None) -> int:
-        """Records the command and reports success."""
-        self.commands.append(list(cmd))
-        return 0
+    def clean_tree(self, build_dir: Path) -> bool:
+        """Leaves *build_dir* alone and reports that it is still there."""
+        return False
 
 
 @pytest.fixture
-def console(monkeypatch) -> _Console:
-    """Replaces the service's console with a recorder."""
-    recorder = _Console()
-    monkeypatch.setattr(project, "console", recorder)
-    return recorder
+def recorded() -> Recorded:
+    """Returns a toolbox that records its console and its commands."""
+    return recorded_tools()
 
 
 @pytest.fixture
-def tree(tmp_path, monkeypatch) -> Path:
+def tree(project_root: Path) -> Path:
     """Returns a project root that holds the default build tree and a file beside it."""
-    (tmp_path / "build" / "default-debug").mkdir(parents=True)
-    (tmp_path / "build" / "CMakeCache.txt").write_text("", encoding="utf-8")
-    monkeypatch.setattr(project, "find_project_root", lambda: tmp_path)
-    return tmp_path
+    (project_root / "build" / "default-debug").mkdir(parents=True)
+    (project_root / "build" / "CMakeCache.txt").write_text("", encoding="utf-8")
+    return project_root
 
 
-def _refuse(*_args, **_kwargs):
-    """Fails the way a locked file does on Windows."""
-    raise PermissionError(13, "Access is denied")
+def _stuck(recorded: Recorded) -> Recorded:
+    """Returns *recorded* with a driver that cannot remove a tree."""
+    driver = _StuckDriver(recorded.console, recorded.runner)
+    return dataclasses.replace(recorded, tools=dataclasses.replace(recorded.tools, driver=driver))
 
 
-def test_build_rejects_a_malformed_define_before_it_removes_the_tree(console, tree, monkeypatch):
+def test_build_rejects_a_malformed_define_before_it_removes_the_tree(recorded, tree):
     """`sa build --clean -D BAD` exits 2 and leaves build/ as it was."""
-    driver = _Driver(removes=True)
-    monkeypatch.setattr(project, "_DRIVER", driver)
-    assert project.build(project.K_DEFAULT_TYPE, clean=True, defines=["SA_BUILD_TESTS"]) == 2
-    assert driver.calls == []
+    assert project.build(recorded.tools, project.K_DEFAULT_TYPE, clean=True,
+                         defines=["SA_BUILD_TESTS"]) == 2
+    assert recorded.runner.commands == []
     assert (tree / "build" / "CMakeCache.txt").is_file()
-    assert "SA_BUILD_TESTS" in console.errors()[0]
+    assert "SA_BUILD_TESTS" in recorded.errors()[0]
 
 
-def test_clean_reports_a_tree_it_could_not_remove(console, tree, monkeypatch):
+def test_clean_reports_a_tree_it_could_not_remove(recorded, tree):
     """A build tree that survives the removal is an error naming it, and exit code 1."""
-    monkeypatch.setattr(project, "_DRIVER", _Driver(removes=False))
-    assert project.clean() == 1
-    assert str(tree / "build") in console.errors()[0]
+    assert project.clean(_stuck(recorded).tools) == 1
+    assert str(tree / "build") in recorded.errors()[0]
 
 
-def test_clean_succeeds_when_the_tree_is_gone(console, tree, monkeypatch):
+def test_clean_succeeds_when_the_tree_is_gone(recorded, tree):
     """A removed build tree is exit code 0 and no error."""
-    monkeypatch.setattr(project, "_DRIVER", _Driver(removes=True))
-    assert project.clean() == 0
-    assert console.errors() == []
+    assert project.clean(recorded.tools) == 0
+    assert recorded.errors() == []
+    assert not (tree / "build").exists()
 
 
-def test_the_package_suite_stops_on_a_stale_prefix_it_could_not_remove(
-        console, tree, monkeypatch):
+def test_the_package_suite_stops_on_a_stale_prefix_it_could_not_remove(recorded, tree):
     """A prefix left by an earlier run that cannot be removed ends the suite before install."""
     prefix = tree / "build" / "package" / "prefix"
-    prefix.mkdir(parents=True)
-    runner = _Runner()
-    monkeypatch.setattr(project, "_RUNNER", runner)
-    monkeypatch.setattr(shutil, "rmtree", _refuse)
-    cfg = SimpleNamespace(is_windows=True)
-    assert project.test_package(cfg, tree, tree / "build", {}) == 1
-    assert runner.commands == []
-    assert str(prefix) in console.errors()[0]
+    prefix.parent.mkdir(parents=True)
+    prefix.write_text("a file where a folder was", encoding="utf-8")
+    assert project.test_package(recorded.tools, offline_config(), tree, tree / "build", {}) == 1
+    assert recorded.runner.commands == []
+    assert str(prefix) in recorded.errors()[0]
 
 
-def test_staging_a_library_that_cannot_be_copied_is_one_error(console, tmp_path, monkeypatch):
-    """A locked DLL is reported with its name instead of raised."""
+def test_staging_a_library_that_cannot_be_copied_is_one_error(recorded, tmp_path):
+    """A library that cannot be copied is reported with its name instead of raised."""
     prefix, dest = tmp_path / "prefix", tmp_path / "dest"
-    (prefix / "bin").mkdir(parents=True)
+    (prefix / "bin" / "sushiai.dll").mkdir(parents=True)
     dest.mkdir()
-    (prefix / "bin" / "sushiai.dll").write_text("", encoding="utf-8")
-    monkeypatch.setattr(project, "_vcpkg_prefix", lambda cfg, root: None)
-    monkeypatch.setattr(shutil, "copy2", _refuse)
-    cfg = SimpleNamespace(is_windows=True)
-    assert project._deploy_consumer_dlls(cfg, tmp_path, prefix, dest) is False
-    assert len(console.errors()) == 1 and "sushiai.dll" in console.errors()[0]
+    cfg = offline_config("windows")
+    assert project._deploy_consumer_dlls(recorded.console, cfg, tmp_path, prefix, dest) is False
+    assert len(recorded.errors()) == 1 and "sushiai.dll" in recorded.errors()[0]
 
 
 def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
@@ -149,7 +98,7 @@ def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
         raise KeyboardInterrupt
 
     monkeypatch.setattr(subprocess, "run", interrupt)
-    assert project._RUNNER.run(["sushiai_example"], tmp_path) == 130
+    assert default_toolbox().runner.run(["sushiai_example"], tmp_path) == 130
 
 
 @pytest.mark.parametrize("target", ["sushiai_train", "sushiai_demo_mlp"])
@@ -165,17 +114,23 @@ def test_the_mlp_demo_names_its_program():
     assert project.demo_target("no-such-demo") is None
 
 
-@pytest.mark.parametrize("jobs", [3, None])
-def test_jobs_reach_ctest_as_given(jobs, console, tree, monkeypatch):
-    """--jobs reaches ctest_run unchanged, and None leaves the count to ctest."""
-    driver = _Driver(removes=False)
-    monkeypatch.setattr(project, "_DRIVER", driver)
-    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace(is_windows=False))
-    monkeypatch.setattr(project, "load_build_env", lambda cfg, build_dir: {})
-    monkeypatch.setattr(project, "_enter_memory_limit", lambda limit: True)
+def _ctest(recorded: Recorded) -> list[str]:
+    """Returns the words of the one ctest command that was run."""
+    ran = recorded.commands_with("--output-on-failure")
+    assert len(ran) == 1, recorded.runner.commands
+    return list(ran[0].argv)
 
-    assert project.test(jobs=jobs) == 0
-    assert driver.ctest_options["jobs"] == jobs
+
+def _value_of(words: list[str], option: str) -> str | None:
+    """Returns the word after *option*, or None when *option* is absent."""
+    return words[words.index(option) + 1] if option in words else None
+
+
+@pytest.mark.parametrize("jobs", [3, None])
+def test_jobs_reach_ctest_as_given(jobs, recorded, tree):
+    """--jobs reaches ctest unchanged, and None leaves the count to ctest."""
+    assert project.test(recorded.tools, jobs=jobs, memory_limit_gb=0.0) == 0
+    assert _value_of(_ctest(recorded), "--parallel") == (None if jobs is None else str(jobs))
 
 
 @pytest.mark.parametrize(("suite", "include", "exclude"), [
@@ -183,16 +138,10 @@ def test_jobs_reach_ctest_as_given(jobs, console, tree, monkeypatch):
     (project.Suite.large, "^(large)$", "^quarantined$"),
     (project.Suite.all, "^(small|medium|large)$", None),
 ])
-def test_a_suite_reaches_ctest_as_the_labels_of_the_shared_command(suite, include, exclude, console, tree,
-                                                                    monkeypatch):
+def test_a_suite_reaches_ctest_as_the_labels_of_the_shared_command(suite, include, exclude,
+                                                                    recorded, tree):
     """Each suite name becomes the shared label patterns, and every run asks ctest for a JUnit file."""
-    driver = _Driver(removes=False)
-    monkeypatch.setattr(project, "_DRIVER", driver)
-    monkeypatch.setattr(project, "load_config", lambda: SimpleNamespace(is_windows=False))
-    monkeypatch.setattr(project, "load_build_env", lambda cfg, build_dir: {})
-    monkeypatch.setattr(project, "_enter_memory_limit", lambda limit: True)
-
-    assert project.test(suite) == 0
-    options = driver.ctest_options
-    assert (options["label_regex"], options["exclude_label_regex"]) == (include, exclude)
-    assert options["output_junit"].name == "junit.xml"
+    assert project.test(recorded.tools, suite, memory_limit_gb=0.0) == 0
+    words = _ctest(recorded)
+    assert (_value_of(words, "-L"), _value_of(words, "-LE")) == (include, exclude)
+    assert Path(_value_of(words, "--output-junit")).name == "junit.xml"

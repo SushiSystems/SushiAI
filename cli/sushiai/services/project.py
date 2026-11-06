@@ -12,7 +12,6 @@ from __future__ import annotations
 import enum
 import os
 import shutil
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -20,21 +19,19 @@ from pathlib import Path
 from sushicore import build_admission, build_report
 from sushicore.build_tree import K_DEFAULT_BUILD_TYPE, refuse_another_build_type
 from sushicore.cmake_cache import cached_value
-from sushicore.cmake_driver import CMakeDriver
 from sushicore.testing import ModuleTests, TestLabel, run_tests, select_labels
-from sushicore.proc import Runner
 from sushicore.provision.sushi_packages import PackageError, PackageSet, configure_arguments
 from sushicore.toolchain_args import c_compiler_for as _resolved_c_compiler
 from sushicore.toolchain_args import vcpkg_prefix as _vcpkg_prefix
 
-from .. import console
 from .. import memory_limit
-from ..config import Config, PROFILE, find_project_root, load_config
-from ..env import load_build_env
+from ..config import PROFILE, Config, find_project_root
 from . import build_trees, discovery, library_packages
 from .distributed import K_DISTRIBUTED_VARIABLE, distributed_define
 from .sanitizer import Sanitizer, sanitize_define
+from .service_console import ServiceConsole
 from .sycl_targets import read_sycl_targets, record_sycl_targets
+from .toolbox import Toolbox
 
 
 class BuildType(str, enum.Enum):
@@ -99,7 +96,7 @@ def _build_hint(build_type: BuildType, sanitizer: Sanitizer | None) -> str:
     return hint
 
 
-def _built_tree(root: Path, build_type: BuildType,
+def _built_tree(console: ServiceConsole, root: Path, build_type: BuildType,
                 sanitizer: Sanitizer | None = None) -> Path | None:
     """Returns the tree of *build_type* and *sanitizer*, or None after naming the command to run."""
     tree = build_trees.build_dir(root, build_type.value, sanitizer)
@@ -107,10 +104,6 @@ def _built_tree(root: Path, build_type: BuildType,
         return tree
     console.error(f"{tree} not found. Run `{_build_hint(build_type, sanitizer)}` first.")
     return None
-
-
-_RUNNER = Runner(console, PROFILE.program, catch_interrupt=True)
-_DRIVER = CMakeDriver(console, _RUNNER)
 
 
 def _distributed(build_dir: Path, requested: bool | None) -> bool:
@@ -127,13 +120,13 @@ def _sycl_targets(build_dir: Path, requested: str | None) -> str:
     return read_sycl_targets(build_dir)
 
 
-def _run_env(cfg: Config, build_dir: Path) -> dict[str, str]:
+def _run_env(tools: Toolbox, cfg: Config, build_dir: Path) -> dict[str, str]:
     """Returns the environment a binary of *build_dir* runs under.
 
     It is the build environment with the run-time folders of the packages the tree linked first
     on the search path, so that no command that runs a binary resolves the packages again.
     """
-    env = load_build_env(cfg, build_dir)
+    env = tools.load_build_env(cfg, build_dir)
     library_packages.prepend_run_dirs(cfg, env, library_packages.read_run_dirs(build_dir))
     return env
 
@@ -200,7 +193,7 @@ def _define_args(defines: Sequence[str] | None) -> list[str]:
     return [f"-D{entry}" for entry in defines or ()]
 
 
-def _remove_tree(path: Path) -> bool:
+def _remove_tree(console: ServiceConsole, path: Path) -> bool:
     """Removes the directory *path* and returns whether it is gone, reporting a failure."""
     try:
         shutil.rmtree(path)
@@ -214,22 +207,22 @@ def _remove_tree(path: Path) -> bool:
     return True
 
 
-def _clean_build_tree(build_dir: Path) -> int:
+def _clean_build_tree(tools: Toolbox, build_dir: Path) -> int:
     """Removes *build_dir* through the driver and returns 1 when it is still there."""
-    _DRIVER.clean_tree(build_dir)
+    tools.driver.clean_tree(build_dir)
     if build_dir.exists():
-        console.error(
+        tools.console.error(
             f"Could not remove {build_dir}. "
             "Close the program that holds it open and run the command again.")
         return 1
     return 0
 
 
-def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
+def _configure_args(tools: Toolbox, cfg: Config, root: Path, build_dir: Path, build_type: str,
                     packages: PackageSet, define_args: Sequence[str] = ()) -> list[str]:
     """Returns the cmake configure command, with *define_args* after every default."""
     args = [
-        _DRIVER.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
+        tools.driver.cmake(cfg), "-S", str(root), "-B", str(build_dir), "-G", cfg.generator,
         f"-DCMAKE_BUILD_TYPE={build_type}",
     ]
     # Each library package reaches CMake as <Package>_DIR; CMake never builds or downloads one.
@@ -242,7 +235,7 @@ def _configure_args(cfg: Config, root: Path, build_dir: Path, build_type: str,
     return args + list(define_args)
 
 
-def build(build_type: BuildType, clean: bool = False,
+def build(tools: Toolbox, build_type: BuildType, clean: bool = False,
           defines: Sequence[str] | None = None,
           sanitizer: Sanitizer | None = None,
           distributed: bool | None = None,
@@ -261,6 +254,7 @@ def build(build_type: BuildType, clean: bool = False,
             entry sets CMAKE_BUILD_TYPE.
         sushicore.build_admission.BuildStoppedError: The gate's stop file exists.
     """
+    console = tools.console
     console.header("Project Build")
     try:
         define_args = _define_args([*(defines or ()), *sanitize_define(sanitizer),
@@ -269,23 +263,23 @@ def build(build_type: BuildType, clean: bool = False,
         console.error(str(error))
         return 2
     root = find_project_root()
-    cfg = load_config()
+    cfg = tools.load_config()
     cmake_build_type = _CMAKE_BUILD_TYPE[build_type]
     build_dir = build_trees.build_dir(root, build_type.value, sanitizer)
     refuse_another_build_type(build_dir, cmake_build_type, defines or ())
     build_admission.refuse_a_stopped_gate(build_dir)
 
-    if clean and (rc := _clean_build_tree(build_dir)) != 0:
+    if clean and (rc := _clean_build_tree(tools, build_dir)) != 0:
         return rc
 
     console.info(f"Compiler: {cfg.resolved_compiler(root)}")
 
-    env = load_build_env(cfg, build_dir)
+    env = tools.load_build_env(cfg, build_dir)
 
-    fresh = _DRIVER.needs_configure(build_dir, cfg.generator, root=root)
+    fresh = tools.driver.needs_configure(build_dir, cfg.generator, root=root)
     if fresh:
         console.info(f"Configuring CMake... (type={build_type.value})")
-        if build_dir.is_dir() and not _remove_tree(build_dir):
+        if build_dir.is_dir() and not _remove_tree(console, build_dir):
             return 1
     else:
         console.info("Reconfiguring in place...")
@@ -303,9 +297,9 @@ def build(build_type: BuildType, clean: bool = False,
 
     launcher_args = [f"-D{entry}" for entry in build_admission.launcher_defines(
         build_dir, build_admission.compiler_cache(cfg.ccache_exe))]
-    configure_args = _configure_args(cfg, root, build_dir, cmake_build_type, packages,
+    configure_args = _configure_args(tools, cfg, root, build_dir, cmake_build_type, packages,
                                      launcher_args + define_args)
-    rc = _DRIVER.configure(configure_args, cwd=root, env=env)
+    rc = tools.driver.configure(configure_args, cwd=root, env=env)
     if rc != 0:
         console.error("CMake configure failed.")
         return rc
@@ -314,10 +308,10 @@ def build(build_type: BuildType, clean: bool = False,
 
     console.info("Building...")
     offset = build_report.ninja_log_offset(build_dir)
-    rc = _DRIVER.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
+    rc = tools.driver.compile(cfg, build_dir, cwd=root, env=env, config=cmake_build_type,
                          jobs=jobs or build_admission.hardware_threads())
     if report:
-        _print_report(build_dir, offset)
+        _print_report(console, build_dir, offset)
     if rc == 0:
         console.success("Build completed successfully!")
     else:
@@ -325,7 +319,7 @@ def build(build_type: BuildType, clean: bool = False,
     return rc
 
 
-def _print_report(build_dir: Path, offset: int) -> None:
+def _print_report(console: ServiceConsole, build_dir: Path, offset: int) -> None:
     """Prints the measurements of the compile that appended to the tree's log from *offset*."""
     measured = build_report.of_build(build_dir, offset, build_admission.state_dir(build_dir))
     for line in measured.lines():
@@ -333,7 +327,7 @@ def _print_report(build_dir: Path, offset: int) -> None:
     console.info(f"Report: {measured.write(build_dir)}")
 
 
-def _enter_memory_limit(limit_gb: float | None) -> bool:
+def _enter_memory_limit(console: ServiceConsole, limit_gb: float | None) -> bool:
     """Applies the memory ceiling of a test or a run; returns False when it is refused."""
     try:
         limit = memory_limit.resolve_limit_bytes(
@@ -346,7 +340,7 @@ def _enter_memory_limit(limit_gb: float | None) -> bool:
     return True
 
 
-def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0,
+def test(tools: Toolbox, suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0,
          memory_limit_gb: float | None = None, cli: bool = False,
          jobs: int | None = None, build_type: BuildType = K_DEFAULT_TYPE,
          sanitizer: Sanitizer | None = None) -> int:
@@ -359,17 +353,18 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
     :func:`test_package`, which builds a separate project. The tests run in the tree of
     *build_type* and *sanitizer*.
     """
+    console = tools.console
     console.header("Project Test")
     root = find_project_root()
     if cli:
-        return test_cli(root, suite)
-    cfg = load_config()
-    build_dir = _built_tree(root, build_type, sanitizer)
+        return test_cli(tools, root, suite)
+    cfg = tools.load_config()
+    build_dir = _built_tree(console, root, build_type, sanitizer)
     if build_dir is None:
         return 1
 
-    env = _run_env(cfg, build_dir)
-    if not _enter_memory_limit(memory_limit_gb):
+    env = _run_env(tools, cfg, build_dir)
+    if not _enter_memory_limit(console, memory_limit_gb):
         return 2
 
     if suite is Suite.package:
@@ -377,7 +372,7 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
             # All three are ctest knobs, and this suite runs no ctest.
             console.error("--filter, --repeat and --jobs do not apply to the package suite.")
             return 2
-        return test_package(cfg, root, build_dir, env)
+        return test_package(tools, cfg, root, build_dir, env)
 
     if suite is Suite.all:
         # all covers every CTest test, which leaves the package suite out.
@@ -387,8 +382,9 @@ def test(suite: Suite = Suite.gating, filter: str | None = None, repeat: int = 0
 
     module = ModuleTests(
         profile=PROFILE, project_root=lambda: root, console=lambda: console,
-        build_tree=lambda: build_dir, run=_RUNNER.run,
-        run_ctest=lambda directory, **options: _DRIVER.ctest_run(cfg, directory, env, **options))
+        build_tree=lambda: build_dir, run=tools.runner.run,
+        run_ctest=lambda directory, **options: tools.driver.ctest_run(
+            cfg, directory, env, **options))
     # all and large name the large tests on purpose, so they are the two that lift its filter rule.
     labels = _SUITE_LABELS[suite] if suite is not Suite.all else (TestLabel.QUARANTINED,)
     return run_tests(module, select_labels(labels, every_size=suite is Suite.all), name_filter=filter,
@@ -405,23 +401,22 @@ _CLI_MARKERS = {
 }
 
 
-def test_cli(root: Path, suite: Suite) -> int:
+def test_cli(tools: Toolbox, root: Path, suite: Suite) -> int:
     """Runs the pytest tests of this CLI that *suite* selects and returns pytest's code.
 
     ``all`` runs every CLI test; ``package`` has no CLI tests and returns 2.
     """
     if suite is Suite.package:
-        console.error("--cli takes a size label, not package.")
+        tools.console.error("--cli takes a size label, not package.")
         return 2
     cmd = [sys.executable, "-m", "pytest", "-q"]
     if suite is not Suite.all:
         cmd += ["-m", _CLI_MARKERS[suite]]
-    console.info(" ".join(cmd))
-    return subprocess.run(cmd, cwd=root / "cli", check=False).returncode
+    return tools.runner.run(cmd, root / "cli")
 
 
-def _deploy_consumer_dlls(cfg: Config, root: Path, prefix: Path, dest: Path,
-                          run_dirs: Sequence[str] = ()) -> bool:
+def _deploy_consumer_dlls(console: ServiceConsole, cfg: Config, root: Path, prefix: Path,
+                          dest: Path, run_dirs: Sequence[str] = ()) -> bool:
     """Put the shared libraries the consumer needs beside its executable.
 
     In-tree targets get these from a POST_BUILD copy (see tests/CMakeLists.txt
@@ -513,7 +508,8 @@ def _consumer_run_env(cfg: Config, root: Path, env: dict[str, str],
     return stripped
 
 
-def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) -> int:
+def test_package(tools: Toolbox, cfg: Config, root: Path, build_dir: Path,
+                 env: dict[str, str]) -> int:
     """Install the package and build tests/package/ against it, as a consumer would.
 
     This is the only test in the repo that exercises what ``find_package(SushiAI)``
@@ -533,23 +529,26 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     Both intermediates live under build/, so `sa clean` reclaims them and nothing
     lands in the source tree.
 
+    @param tools The console, the runner and the driver this suite works through.
     @param cfg The resolved configuration.
     @param root The project root.
     @param build_dir The project's own build tree, which must already be built.
     @param env The snapshotted build environment.
     @return 0 when the consumer builds and runs, non-zero otherwise.
     """
+    console = tools.console
+    driver = tools.driver
     build_type = cached_value(build_dir, "CMAKE_BUILD_TYPE") or K_DEFAULT_BUILD_TYPE
     prefix = build_dir / "package" / "prefix"
     consumer = build_dir / "package" / "consumer"
 
     # The prefix and the consumer directory start from nothing; see cli/README.md.
     for stale in (prefix, consumer):
-        if not _remove_tree(stale):
+        if not _remove_tree(console, stale):
             return 1
 
     console.info(f"Installing to {prefix}...")
-    rc = _RUNNER.run([_DRIVER.cmake(cfg), "--install", str(build_dir),
+    rc = tools.runner.run([driver.cmake(cfg), "--install", str(build_dir),
                       "--prefix", str(prefix), "--config", build_type], root, env)
     if rc != 0:
         console.error("Install failed; the package could not be staged.")
@@ -570,7 +569,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
 
     console.info("Configuring the out-of-tree consumer...")
     configure = [
-        _DRIVER.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
+        driver.cmake(cfg), "-S", str(root / "tests" / "package"), "-B", str(consumer),
         "-G", cfg.generator,
         # The consumer leaves some shared toolchain flags unread; see cli/README.md.
         "--no-warn-unused-cli",
@@ -579,7 +578,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     ]
     configure += configure_arguments(cfg, root, packages)
     configure += _toolchain_args(cfg, root)
-    rc = _DRIVER.configure(configure, cwd=root, env=env)
+    rc = driver.configure(configure, cwd=root, env=env)
     if rc != 0:
         console.error(
             "The consumer could not configure against the installed package.\n"
@@ -591,7 +590,7 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         return rc
 
     console.info("Building the consumer...")
-    rc = _DRIVER.compile(cfg, consumer, cwd=root, env=env, config=build_type,
+    rc = driver.compile(cfg, consumer, cwd=root, env=env, config=build_type,
                          jobs=build_admission.hardware_threads())
     if rc != 0:
         console.error(
@@ -606,12 +605,12 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
         console.error("Built the consumer but could not find its executable.")
         return 1
 
-    if not _deploy_consumer_dlls(cfg, root, prefix, exe.parent,
+    if not _deploy_consumer_dlls(console, cfg, root, prefix, exe.parent,
                                  packages.run_dirs(cfg.platform)):
         return 1
 
     console.info(f"Executing: {exe.name}")
-    rc = _RUNNER.run([str(exe)], consumer, _consumer_run_env(cfg, root, env,
+    rc = tools.runner.run([str(exe)], consumer, _consumer_run_env(cfg, root, env,
                                                            packages.run_dirs(cfg.platform)))
     if rc == 0:
         console.success("Package consumer built and ran against the install prefix.")
@@ -624,29 +623,30 @@ def test_package(cfg: Config, root: Path, build_dir: Path, env: dict[str, str]) 
     return rc
 
 
-def run(target: str | None = None, sort: bool = False,
+def run(tools: Toolbox, target: str | None = None, sort: bool = False,
         app_args: list[str] | None = None, memory_limit_gb: float | None = None,
         build_type: BuildType = K_DEFAULT_TYPE, sanitizer: Sanitizer | None = None) -> int:
     """Runs an executable of the tree of *build_type* and *sanitizer*, forwarding *app_args*."""
+    console = tools.console
     console.header("Project Run")
     root = find_project_root()
-    cfg = load_config()
-    build_dir = _built_tree(root, build_type, sanitizer)
+    cfg = tools.load_config()
+    build_dir = _built_tree(console, root, build_type, sanitizer)
     if build_dir is None:
         return 1
 
-    env = _run_env(cfg, build_dir)
+    env = _run_env(tools, cfg, build_dir)
 
     exe = discovery.resolve(build_dir, console, target=target, sort=sort, default=cfg.target_bin)
     if exe is None:
         return 1
 
-    if not _enter_memory_limit(memory_limit_gb):
+    if not _enter_memory_limit(console, memory_limit_gb):
         return 2
 
     console.info(f"Executing: {exe.name}")
     console.console.print(f"[muted]{exe}[/muted]")
-    return _RUNNER.run([str(exe), *(app_args or [])], root, env)
+    return tools.runner.run([str(exe), *(app_args or [])], root, env)
 
 
 def demo_target(name: str) -> str | None:
@@ -664,28 +664,29 @@ def is_built(target: str) -> bool:
     return build_dir.is_dir() and discovery.match_by_name(build_dir, target) is not None
 
 
-def demo(name: str, app_args: Sequence[str] | None = None) -> int:
+def demo(tools: Toolbox, name: str, app_args: Sequence[str] | None = None) -> int:
     """Runs the showcase demo *name* through :func:`run_app`; an unknown name returns 2."""
     target = demo_target(name)
     if target is None:
-        console.header(f"SushiAI Demo: {name}")
+        tools.console.header(f"SushiAI Demo: {name}")
         available = ", ".join(sorted(_DEMO_TARGETS))
-        console.error(f"Unknown demo '{name}'. Available: {available}.")
+        tools.console.error(f"Unknown demo '{name}'. Available: {available}.")
         return 2
-    return run_app(target, f"SushiAI Demo: {name}", list(app_args or ()))
+    return run_app(tools, target, f"SushiAI Demo: {name}", list(app_args or ()))
 
 
-def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
+def run_app(tools: Toolbox, target: str, title: str, app_args: Sequence[str]) -> int:
     """Runs the built program *target* of the default tree, forwarding *app_args* to it.
 
     Returns:
         1 when the tree or the program is missing, otherwise the program's own exit code.
     """
+    console = tools.console
     console.header(title)
 
     root = find_project_root()
-    cfg = load_config()
-    build_dir = _built_tree(root, K_DEFAULT_TYPE)
+    cfg = tools.load_config()
+    build_dir = _built_tree(console, root, K_DEFAULT_TYPE)
     if build_dir is None:
         return 1
 
@@ -694,24 +695,24 @@ def run_app(target: str, title: str, app_args: Sequence[str]) -> int:
         console.error(f"'{target}' is not built. Run `sa build` first.")
         return 1
 
-    env = _run_env(cfg, build_dir)
+    env = _run_env(tools, cfg, build_dir)
     console.info(f"Executing: {exe.name}")
     console.console.print(f"[muted]{exe}[/muted]")
-    return _RUNNER.run([str(exe), *app_args], root, env)
+    return tools.runner.run([str(exe), *app_args], root, env)
 
 
-def clean() -> int:
+def clean(tools: Toolbox) -> int:
     """Removes every build tree and returns 1 when the folder is still there afterwards."""
-    console.header("Project Clean")
-    return _clean_build_tree(_build_root(find_project_root()))
+    tools.console.header("Project Clean")
+    return _clean_build_tree(tools, _build_root(find_project_root()))
 
 
-def doxygen() -> int:
+def doxygen(tools: Toolbox) -> int:
     """Builds the API reference from .config/doxygen/Doxyfile into build/docs/api-site."""
-    console.header("Doxygen Generation")
+    tools.console.header("Doxygen Generation")
     root = find_project_root()
-    cfg = load_config()
+    cfg = tools.load_config()
     build_dir = _build_root(root)
-    env = load_build_env(cfg, build_dir)
+    env = tools.load_build_env(cfg, build_dir)
     (build_dir / "docs").mkdir(parents=True, exist_ok=True)
-    return _DRIVER.doxygen(cfg, root / ".config" / "doxygen" / "Doxyfile", root, env)
+    return tools.driver.doxygen(cfg, root / ".config" / "doxygen" / "Doxyfile", root, env)

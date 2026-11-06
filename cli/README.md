@@ -108,6 +108,18 @@ and the demos prepend them to the library search path through `_run_env`, withou
 again. The package suite resolves once more, because its consumer needs the folders as
 `-D<Package>_DIR`, and runs the consumer without them on the path.
 
+## services/toolbox.py
+
+A `Toolbox` holds what a service reaches the outside through: the console, the process runner, the
+CMake driver and the two sources of configuration, `load_config` and `load_build_env`. Every public
+function of `services/project.py` and `services/profiler.py` takes one as its first argument and
+holds no module-level runner, driver or console. `default_toolbox()` builds the real one on first
+use, so importing touches no filesystem. The commands in `cli.py` read it from the Click context
+object with `_toolbox()` and fall back to the real one, so `sa` behaves as before while a test
+hands `CliRunner().invoke(app, args, obj=toolbox)` a toolbox over `sushicore.proc_memory.RecordingRunner`
+and `sushicore.console_memory.RecordingConsole`. `sa test --cli` now starts pytest through the runner,
+so the runner prints that command line instead of `console.info`.
+
 ## services/profiler.py
 
 `sa profile <args>` runs `sp <args>` from the project root and returns its exit code. `sp` is

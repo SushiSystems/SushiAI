@@ -22,6 +22,11 @@ from sushicore.provision.commands import ModuleProvision, register_provision_com
 from sushicore.root_options import register_root_options
 from sushicore.typer_help import help_group
 
+try:
+    from click import get_current_context
+except ImportError:  # typer 0.27 and later carry their own copy of click
+    from typer._click.globals import get_current_context
+
 from . import console
 from .aliases import K_ALIASES
 from .config import PROFILE, find_project_root, load_config
@@ -30,6 +35,7 @@ from .services import project as project_svc
 from .services.diag import DIAGNOSTICS
 from .services.project import K_DEFAULT_TYPE, BuildType, Suite
 from .services.sanitizer import Sanitizer
+from .services.toolbox import Toolbox, default_toolbox
 
 K_DISTRIBUTION = "sushiai-cli"
 K_PROJECT = "Project"
@@ -69,6 +75,13 @@ def _show_page_while_unbuilt(ctx: typer.Context, target: str) -> None:
     """Prints the command's own help page when help was asked for and *target* is not built."""
     if K_HELP_FLAG in ctx.args and not project_svc.is_built(target):
         typer.echo(ctx.get_help())
+
+
+def _toolbox() -> Toolbox:
+    """Returns the toolbox the running command was given, else the one of a real run."""
+    context = get_current_context(silent=True)
+    given = context.find_object(Toolbox) if context is not None else None
+    return given if given is not None else default_toolbox()
 
 
 def _print_error(message: str) -> None:
@@ -128,8 +141,8 @@ def build(
     flag on a later run does not unset them; pass VAR= to clear one, or
     --clean to start over.
     """
-    raise typer.Exit(project_svc.build(type, clean, define, sanitize, distributed, sycl_targets,
-                                       report=report, jobs=jobs))
+    raise typer.Exit(project_svc.build(_toolbox(), type, clean, define, sanitize, distributed,
+                                       sycl_targets, report=report, jobs=jobs))
 
 
 @app.command(
@@ -177,7 +190,7 @@ def test(
     --label package is the exception: it runs no CTest at all, so --filter,
     --repeat and --jobs are rejected there.
     """
-    raise typer.Exit(project_svc.test(suite, filter, repeat, memory_limit, cli, jobs,
+    raise typer.Exit(project_svc.test(_toolbox(), suite, filter, repeat, memory_limit, cli, jobs,
                                       build_type=type, sanitizer=sanitize))
 
 
@@ -209,7 +222,7 @@ def run(
         help="Run from the sanitizer tree: address-undefined | thread."),
 ) -> None:
     """Run a built executable. Args after `--` are forwarded to it."""
-    raise typer.Exit(project_svc.run(target=target, sort=sort, app_args=list(ctx.args),
+    raise typer.Exit(project_svc.run(_toolbox(), target=target, sort=sort, app_args=list(ctx.args),
                                      memory_limit_gb=memory_limit, build_type=type,
                                      sanitizer=sanitize))
 
@@ -221,17 +234,18 @@ def run(
 )
 def clean() -> None:
     """Remove build/, every build tree and the generated API reference included."""
-    raise typer.Exit(project_svc.clean())
+    raise typer.Exit(project_svc.clean(_toolbox()))
 
 
 def _api_source() -> ApiSource:
     """Returns how `sa` builds the API reference and where Doxygen leaves its XML."""
-    return ApiSource(build=project_svc.doxygen, xml_dir=find_project_root() / K_API_XML)
+    return ApiSource(
+        build=lambda: project_svc.doxygen(_toolbox()), xml_dir=find_project_root() / K_API_XML)
 
 
 def _docs_alias() -> None:
     """Builds the API reference; the callback behind the old spelling `sa doxygen`."""
-    raise typer.Exit(project_svc.doxygen())
+    raise typer.Exit(project_svc.doxygen(_toolbox()))
 
 
 register_docs_commands(
@@ -240,7 +254,7 @@ register_docs_commands(
     panel=K_PROJECT,
     project_root=find_project_root,
     api=_api_source,
-    report=lambda line: console.success(line),
+    report=lambda line: _toolbox().console.success(line),
     group_cls=_help_group,
 )
 
@@ -249,7 +263,7 @@ register_backlog_commands(
     program=PROFILE.program,
     panel=K_PROJECT,
     project_root=find_project_root,
-    report=lambda line: console.success(line),
+    report=lambda line: _toolbox().console.success(line),
     group_cls=_help_group,
 )
 
@@ -258,7 +272,7 @@ register_design_commands(
     program=PROFILE.program,
     panel=K_PROJECT,
     project_root=find_project_root,
-    report=lambda line: console.success(line),
+    report=lambda line: _toolbox().console.success(line),
     group_cls=_help_group,
 )
 
@@ -282,7 +296,7 @@ def demo_mlp(ctx: typer.Context) -> None:
     `sa demo mlp --help` prints its full list.
     """
     _show_page_while_unbuilt(ctx, project_svc.demo_target("mlp") or "")
-    raise typer.Exit(project_svc.demo("mlp", list(ctx.args)))
+    raise typer.Exit(project_svc.demo(_toolbox(), "mlp", list(ctx.args)))
 
 
 @app.command(
@@ -304,7 +318,8 @@ def train(ctx: typer.Context) -> None:
     is built.
     """
     _show_page_while_unbuilt(ctx, K_TRAIN_TARGET)
-    raise typer.Exit(project_svc.run_app(K_TRAIN_TARGET, "SushiAI Train", list(ctx.args)))
+    raise typer.Exit(
+        project_svc.run_app(_toolbox(), K_TRAIN_TARGET, "SushiAI Train", list(ctx.args)))
 
 
 @app.command(
@@ -326,7 +341,7 @@ def inference(ctx: typer.Context) -> None:
     """
     _show_page_while_unbuilt(ctx, K_INFERENCE_TARGET)
     raise typer.Exit(
-        project_svc.run_app(K_INFERENCE_TARGET, "SushiAI Inference", list(ctx.args)))
+        project_svc.run_app(_toolbox(), K_INFERENCE_TARGET, "SushiAI Inference", list(ctx.args)))
 
 
 @app.command(
@@ -344,7 +359,8 @@ def import_model(ctx: typer.Context) -> None:
     is built.
     """
     _show_page_while_unbuilt(ctx, K_IMPORT_TARGET)
-    raise typer.Exit(project_svc.run_app(K_IMPORT_TARGET, "SushiAI Import", list(ctx.args)))
+    raise typer.Exit(
+        project_svc.run_app(_toolbox(), K_IMPORT_TARGET, "SushiAI Import", list(ctx.args)))
 
 
 @app.command(
@@ -365,7 +381,7 @@ def tokenize(ctx: typer.Context) -> None:
     """
     _show_page_while_unbuilt(ctx, K_TOKENIZE_TARGET)
     raise typer.Exit(
-        project_svc.run_app(K_TOKENIZE_TARGET, "SushiAI Tokenize", list(ctx.args)))
+        project_svc.run_app(_toolbox(), K_TOKENIZE_TARGET, "SushiAI Tokenize", list(ctx.args)))
 
 
 @app.command(
@@ -385,7 +401,7 @@ def profile(ctx: typer.Context) -> None:
     """
     if K_HELP_FLAG in ctx.args and not profiler_svc.is_installed():
         typer.echo(ctx.get_help())
-    raise typer.Exit(profiler_svc.run_profiler(list(ctx.args)))
+    raise typer.Exit(profiler_svc.run_profiler(_toolbox(), list(ctx.args)))
 
 
 register_diagnostic_commands(app, DIAGNOSTICS, program=PROFILE.program, panel=K_DIAGNOSTICS)
@@ -394,7 +410,7 @@ register_provision_commands(app, ModuleProvision(
     profile=PROFILE,
     project_root=find_project_root,
     load_config=load_config,
-    console=lambda: console,
+    console=lambda: _toolbox().console,
     locate=lambda name: load_config().locate_sibling(find_project_root(), name),
     panel=K_DIAGNOSTICS,
     uses_base=True,

@@ -9,13 +9,14 @@ from __future__ import annotations
 import json
 import re
 from datetime import date
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from sushiai.aliases import K_ALIASES, K_REMOVED_AFTER
+from recorded_tools import doxygen_ready
 from sushiai.cli import app
-from sushiai.services import project
 
 pytestmark = pytest.mark.small
 
@@ -26,24 +27,16 @@ K_DOXYGEN_ROW = re.compile(r"^\s+doxygen\b", re.MULTILINE)
 
 
 @pytest.fixture
-def doxygen_runs(monkeypatch):
-    """Replaces the service behind `sa docs` and returns the list its calls are recorded in."""
-    calls: list[str] = []
-
-    def record() -> int:
-        """Records one run and reports the exit code 7."""
-        calls.append("doxygen")
-        return 7
-
-    monkeypatch.setattr(project, "doxygen", record)
-    return calls
+def doxygen_runs(project_root):
+    """Returns the recorded tools of a checkout where `doxygen` is found and exits with 7."""
+    return doxygen_ready(project_root, 7)
 
 
 @pytest.mark.parametrize("word", ["docs", "doxygen"])
 def test_the_old_word_runs_the_new_command(word, doxygen_runs):
     """`sa doxygen` runs what `sa docs` runs and returns its exit code."""
-    result = CliRunner().invoke(app, [word])
-    assert doxygen_runs == ["doxygen"]
+    result = CliRunner().invoke(app, [word], obj=doxygen_runs.tools)
+    assert [Path(command.argv[1]).name for command in doxygen_runs.runner.commands] == ["Doxyfile"]
     assert result.exit_code == 7
 
 
