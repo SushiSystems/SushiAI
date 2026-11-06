@@ -7,9 +7,10 @@ node types, conv, bottleneck, c3k, c3k2, c2f, c3, sppf, c2psa, detect and segmen
 `NN::NodeRegistry`, in that order. `register_datasets`
 adds the mnist row and the reader row to a `Data::DatasetRegistry`; the reader row's factory is
 `Datasets::make_reader_dataset`, and its type is `Config::K_READER_DATA_TYPE`, which a data block
-with `reader` and no `type` is given. `register_objectives` adds three rows to a
+with `reader` and no `type` is given. `register_objectives` adds four rows to a
 `Train::ObjectiveRegistry`, in this order: `anchor`, whose factory is
-`Training::make_anchor_objective`; `pixel_cross_entropy`, whose factory is
+`Training::make_anchor_objective`; `anchor_free`, whose factory is
+`Training::make_free_objective`; `pixel_cross_entropy`, whose factory is
 `Training::make_pixel_cross_entropy_objective`; and `dice`, whose factory is
 `Training::make_dice_objective`.
 `register_importers` adds the `darknet` row, whose function is

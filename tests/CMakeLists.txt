@@ -6,23 +6,14 @@
 # ============================================================================
 # SushiAI test pipeline
 #
-# Three GTest tiers, distinguished by the suite-name prefix and nothing else:
-# `Unit_*` is device-free host-lane work (shapes, graph topology, the
-# differentiation transform, the parameter walk, the gradient checker's own
-# arithmetic); `Integration_*` runs the real Engine through both siblings;
-# `Regression_*` pins a guarantee whose failure is silent, so a future change
-# cannot quietly take it away.
-#
-# THE PREFIX IS THE ONLY THING THAT ASSIGNS A CTEST LABEL to a GTest case. A
-# suite named without one is discovered by none of the gtest_discover_tests
-# calls (cmake/SushiAITestProgram.cmake and the blocks below), so it never runs under `sa test` and never runs in CI - it is
-# invisible rather than failing. Adding a fourth tier means a fourth block here
-# AND a matching entry in cli/sushiai/services/project.py's Suite enum and
-# _SUITE_LABEL_REGEX.
+# A case's size comes from its GoogleTest suite-name prefix, Small_, Medium_ or
+# Large_, and nothing else; cmake/SushiAITestProgram.cmake reads it and gives the
+# case its label and timeout. A suite without one of these prefixes fails the
+# configure.
 #
 # One test is not a GTest case: the `sa demo mlp` smoke test at the bottom runs
 # the demo binary itself, because the thing being guarded is the demo's printed
-# contract and no in-process test can see that. It carries the `integration`
+# contract and no in-process test can see that. It carries the `medium`
 # label explicitly.
 #
 # This whole directory is behind SA_BUILD_TESTS (root CMakeLists.txt).

@@ -62,8 +62,8 @@ namespace SushiAI::Vision
 {
     /**
      * @brief Adds the block node types to @p registry, in the order conv, bottleneck, c3k,
-     *        c3k2, sppf, c2psa, detect and segment_head.
-     * @param registry The registry that receives the eight rows.
+     *        c3k2, c2f, c3, sppf, c2psa, detect and segment_head.
+     * @param registry The registry that receives the ten rows.
      * @return Success, or the first failure of NodeRegistry::add().
      */
     [[nodiscard]] Status register_nodes(NN::NodeRegistry& registry) noexcept;
@@ -77,9 +77,9 @@ namespace SushiAI::Vision
     [[nodiscard]] Status register_datasets(Data::DatasetRegistry& registry) noexcept;
 
     /**
-     * @brief Adds the "anchor", "pixel_cross_entropy" and "dice" objective rows to
+     * @brief Adds the "anchor", "anchor_free", "pixel_cross_entropy" and "dice" objective rows to
      *        @p registry, in that order.
-     * @param registry The registry that receives the three rows.
+     * @param registry The registry that receives the four rows.
      * @return Success, or the first failure of ObjectiveRegistry::add().
      */
     [[nodiscard]] Status register_objectives(Train::ObjectiveRegistry& registry) noexcept;

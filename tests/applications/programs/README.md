@@ -4,7 +4,7 @@ The tests of `applications/programs`. The suite prefix of a case gives its ctest
 
 ## source/test_training_run.cpp, source/test_inference_run.cpp, source/test_run_start.cpp
 
-Suites: `Integration_ProgramRuns`, in `sushiai_programs_tests`.
+Suites: `Medium_TrainingRun`, `Medium_InferenceRun` and `Medium_RunStart`, in `sushiai_programs_tests`.
 
 The cases exercise the tables of `applications/programs`: the run table and its fallback, the report
 table, and the start of a run. The pieces of a run are an MLP of 6 features, 12 hidden units and 4
@@ -68,10 +68,10 @@ second replica states `fail`, or `wait` with `wait_ms` 250, is read under the de
 
 Suites: `Medium_TrainingReplicaModel`.
 
-### TheFingerprintKeepsItsValue
+### TheSameFilesGiveOneFingerprint
 
-For an architecture file holding `{"sushiai_model": 1}` and the objective `cross_entropy`, the
-fingerprint of `ReplicaSource::make` is 0xd043c6822d22eede, a value computed apart from SushiAI.
+Two sources made from the same files carry one fingerprint, and the model each one builds reports
+that fingerprint.
 
 ## source/test_training_program.cpp, source/test_inference_program.cpp
 

@@ -85,8 +85,8 @@ namespace SushiAI
                  * @param targets One contiguous tensor per entry of @p result_layout, in order, on
                  *        the device of @p parameters; @p binding and @p parameters outlive it.
                  * @return The exchange; InvalidDescription for an unshared parameter pack, no
-                 *         batch, too many replicas for ordered_sum(), a target unlike its entry
-                 *         or on another device; Unsupported for a uint32 target.
+                 *         batch, too many replicas, a target unlike its entry or on another
+                 *         device; Unsupported for a uint32 target, as no gradient is unsigned.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientExchange>> make(
                     SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
