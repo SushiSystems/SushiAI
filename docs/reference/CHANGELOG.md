@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-07 — cli: Raised the sushicore floor to 0.10.15 (`cli/pyproject.toml`).
 - 2026-11-07 — vision: Added `read_coco_json(options, source)`, which reads the annotation file from a `ByteSource` through the new `Config::read_json_text_events` (RW-154, `coco_json.hpp`, `json_events.hpp`).
 - 2026-11-07 — deps: Moved the SushiLog pin to v0.3.1, which ships `LogCapture` (`cli/sushistack.deps.toml`).
 - 2026-11-07 — tests: Read every captured log record through SushiLog's `LogCapture` (RW-150, `test_log.cpp`, `test_replica_fallback_warning.cpp`).

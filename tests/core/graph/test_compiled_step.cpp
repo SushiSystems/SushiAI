@@ -59,11 +59,13 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/splitmix64.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
 namespace SaTest = SushiAI::Test;
+using TestSupport::reference_splitmix64;
 using Graph::CompiledStep;
 using Graph::GraphBuilder;
 using Graph::TensorPool;
@@ -132,15 +134,6 @@ namespace
         SA_TRY_ASSIGN(made->step, CompiledStep::compile(engine, made->graph, made->pool));
         SaTest::write_tensor(made->pool.tensor(ones), std::vector<double>(K_ELEMENTS, 1.0));
         return std::move(made);
-    }
-
-    /** @brief Returns output @p index of the published SplitMix64 sequence seeded with @p state. */
-    std::uint64_t reference_splitmix64(std::uint64_t state, std::uint64_t index)
-    {
-        std::uint64_t value = state + (index + 1u) * 0x9E3779B97F4A7C15ull;
-        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
-        value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
-        return value ^ (value >> 31);
     }
 
     /**

@@ -34,8 +34,10 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/graph/dropout_mask.hpp>
+#include <support/splitmix64.hpp>
 
 using namespace SushiAI;
+using TestSupport::reference_splitmix64;
 
 namespace
 {
@@ -61,15 +63,6 @@ namespace
      * either always passes or always fails.
      */
     constexpr double K_FRACTION_TOLERANCE = K_FRACTION_Z * 0.5 / K_SQRT_DRAWS;
-
-    /** @brief Returns output @p index of the published SplitMix64 sequence seeded with @p state. */
-    std::uint64_t reference_splitmix64(std::uint64_t state, std::uint64_t index)
-    {
-        std::uint64_t value = state + (index + 1u) * 0x9E3779B97F4A7C15ull;
-        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
-        value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
-        return value ^ (value >> 31);
-    }
 
     /** @brief Returns the bits the rule gives element @p element of run @p run at @p seed. */
     std::uint64_t reference_bits(std::uint64_t seed, std::uint64_t run, std::uint64_t element)
