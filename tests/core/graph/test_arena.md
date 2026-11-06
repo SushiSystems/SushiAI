@@ -20,17 +20,21 @@ The memory planner rests on three device-side claims, and the file checks each o
 The file is laid out in four groups: region precision, element-counted offsets, mixed dtypes in
 one arena, and the pool's side of the contract.
 
-## TwoPackedTensorsShareABaseButNotAByte
+## TwoPackedTensorsShareOneAllocation
 
-The plan packs both values of the chain at different offsets, and the `ArenaSet` holds one arena.
-The two `[16]` float32 views report regions with the same base, which is the allocation base of the
-storage, and neither region overlaps the other. Each region is 64 bytes long and starts at the
-offset its placement states.
+The plan packs both values of the chain, and the `ArenaSet` holds one arena. The two `[16]` float32
+views report regions with the same base, which is the allocation base of the storage.
+
+## TwoPackedTensorsReportRegionsThatShareNoByte
+
+The regions of the two views do not overlap, in either direction. Each is 64 bytes long and starts
+at the offset its placement states.
 
 ## OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther
 
 This is the functional half of the region claim. Real SushiBLAS work runs on two views of one
-arena in one step, and each result must land only in its own bytes.
+arena in one step, and each result must land only in its own bytes: the first view holds 3 in all
+16 elements and the second 10.
 
 ## AViewAddressesItsOwnElements
 
@@ -41,7 +45,12 @@ size of a float. Its data pointer lies exactly that many bytes past the allocati
 
 An offset of four bytes into a float64 view can be written in bytes but not in the element
 count `Tensor` stores. Truncating it would put the tensor somewhere the planner never reserved.
-The same offset is valid for float32.
+The case is a death test.
+
+## AnOffsetOfOneFloatIsAValidFloat32Start
+
+The same offset of four bytes is one float32 element, so the float32 view has a `storage_offset`
+of 1.
 
 ## AViewThatWouldRunPastTheArenaIsRefused
 
@@ -52,7 +61,15 @@ contains "run past the end".
 
 The plan's alignment is set to 1 so that only the element-width floor holds the two values
 apart. With the default alignment the property holds for an uninteresting reason; at 1 it
-holds only because the planner rounds.
+holds only because the planner rounds. The float32 view starts at a multiple of 4 and the float64
+view at a multiple of 8.
+
+## MixedDtypesShareOneAllocationAndNoByte
+
+The float32 and the float64 view of the one arena report the same allocation base, and their
+regions do not overlap.
+
+## MixedDtypesRoundTripTheirBytes
 
 The round trip through each view proves the addresses are usable as well as aligned. A float64
 read through a mis-rounded start would come back as two halves of neighbouring values, not as

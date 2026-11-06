@@ -82,16 +82,44 @@ work. A 20-byte float32 buffer at offset 0 leaves the next free byte at 20, whic
 number of float64 elements. The float64 buffer therefore has to start at 24, or its
 storage_offset would not be representable at all.
 
-## ReuseCanBeSwitchedOffAndSaysSo
+## ReuseCanBeSwitchedOff
 
-With `reuse` false over a chain of three ReLUs, the plan reports reuse disabled, a non-empty
-`reuse_note` and 384 arena bytes.
+With `reuse` false over a chain of three ReLUs, the plan reports reuse disabled and 384 arena
+bytes, one slot for each of the three activations.
+
+## ReuseSwitchedOffIsSaidInTheNote
+
+The same plan carries a non-empty `reuse_note`.
 
 ## TooManyNodesDeclinesOverlapRatherThanApproximatingIt
 
 The refusal is the point. A planner that quietly fell back to overlapping linear intervals
 would produce a plan that is wrong in the way TwoUnorderedBranchesNeverShareBytes describes, and
 would report a saving for it.
+
+## ScratchRequestsOfTwoNodesShareBytes
+
+With two scratch requests on one node and one on a later node, the later node's buffer takes the
+offset of one of the earlier node's buffers.
+
+## ScratchRequestsOfOneNodeDoNotShareBytes
+
+The two scratch requests of one node are in the same arena at different offsets.
+
+## ScratchRequestsHaveAnArenaOfTheirOwn
+
+A scratch placement has an arena, and it is not the arena of the activations. A request with an
+index the node never made has no placement.
+
+## AReshapeKeepsItsCopyWhenARowWritesItsResult
+
+When a row accumulates into a reshape result, the result does not share its operand's buffer, and
+the operand stays packed.
+
+## AReshapeKeepsItsCopyWhenItIsPinned
+
+A pinned reshape result does not share its operand's buffer and is not packed; the operand stays
+packed.
 
 ## APinnedValueKeepsItsOwnAllocation
 

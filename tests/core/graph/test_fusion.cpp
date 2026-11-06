@@ -100,32 +100,70 @@ namespace
     }
 
     class Small_Fusion : public ::testing::Test {};
-}
 
-TEST_F(Small_Fusion, EveryFormRoundTripsThroughItsOperationIdentity)
-{
-    // Every form round-trips through its operation identity; see tests/core/graph/README.md.
-    constexpr FusedForm K_ALL[] = {
-        FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
-        FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
-        FusedForm::GEMMBiasGELU,
-        FusedForm::ExpSubScale,
-    };
-
-    for (FusedForm form : K_ALL)
+    /** @brief Expects every input of every node of @p graph to be written by an earlier node. */
+    void expect_topological_order(const Graph::Graph& graph)
     {
-        const OpID op = Graph::fused_form_op(form);
-        EXPECT_NE(Ops::name_of(op), "sushiai.unknown")
-            << Graph::fused_form_name(form) << " has no declared identity";
-        EXPECT_EQ(Graph::fused_form_of(op), form)
-            << Graph::fused_form_name(form) << " does not round-trip";
+        for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
+            for (ValueID in : graph.node(id).inputs)
+            {
+                const NodeID producer = graph.value(in).producer;
+                if (producer == K_NO_NODE) continue;
+                EXPECT_LT(producer, id) << "node " << id << " reads value " << in
+                                        << ", which node " << producer << " writes later";
+            }
     }
 
+    /**
+     * @brief Traces a linear layer and a ReLU over it into @p graph, names the layer's output as
+     * read by the caller after every replay, and fuses.
+     */
+    FusionReport fuse_with_the_linear_output_observed(Graph::Graph& graph)
+    {
+        const GraphBuilder builder(graph);
+        const LinearTrace layer = trace_linear(builder);
+        const ValueID activated = builder.relu(layer.biased).value();
+
+        const std::vector<ValueID> observed{layer.biased, activated};
+        FusionOptions options;
+        options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+        return Graph::fuse(graph, options);
+    }
+
+    /** @brief Runs each case once for every form that is given. */
+    class Small_FusionFormIdentity : public ::testing::TestWithParam<FusedForm> {};
+
+    /** @brief Runs each case once for every form that adds no second output. */
+    class Small_FusionFormWithoutSpill : public ::testing::TestWithParam<FusedForm> {};
+}
+
+/** @brief Tests that a form maps to a declared operation identity and back to itself. */
+TEST_P(Small_FusionFormIdentity, RoundTripsThroughItsOperationIdentity)
+{
+    // Every form round-trips through its operation identity; see tests/core/graph/README.md.
+    const FusedForm form = GetParam();
+    const OpID op = Graph::fused_form_op(form);
+
+    EXPECT_NE(Ops::name_of(op), "sushiai.unknown")
+        << Graph::fused_form_name(form) << " has no declared identity";
+    EXPECT_EQ(Graph::fused_form_of(op), form)
+        << Graph::fused_form_name(form) << " does not round-trip";
+}
+
+INSTANTIATE_TEST_SUITE_P(Forms, Small_FusionFormIdentity,
+                         ::testing::Values(FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
+                                           FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
+                                           FusedForm::GEMMBiasGELU, FusedForm::ExpSubScale));
+
+/** @brief Tests that an operation no form stands for maps to no form. */
+TEST_F(Small_Fusion, AnOperationOfNoFormMapsToNoForm)
+{
     EXPECT_EQ(Graph::fused_form_of(Ops::K_MATMUL.id), FusedForm::None);
     EXPECT_EQ(Graph::fused_form_of(Ops::K_RELU.id), FusedForm::None);
 }
 
-TEST_F(Small_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts)
+/** @brief Tests that an activation survives fusion exactly when its gradient reads its output. */
+TEST_F(Small_Fusion, AnActivationSurvivesFusionWhenItsGradientReadsItsOutput)
 {
     // RELU's gradient reads its output, so it survives fusion; see tests/core/graph/README.md.
     EXPECT_TRUE(Ops::activation_survives_fusion(Ops::K_RELU.id));
@@ -134,26 +172,41 @@ TEST_F(Small_Fusion, AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFa
 
     // GELU's gradient reads the pre-activation; see tests/core/graph/README.md.
     EXPECT_FALSE(Ops::activation_survives_fusion(Ops::K_GELU.id));
+}
 
+/** @brief Tests that only the catalog entry that spills folds GELU. */
+TEST_F(Small_Fusion, OnlyTheEntryThatSpillsFoldsGELU)
+{
     // Only the entry that spills folds GELU; see tests/core/graph/README.md.
     EXPECT_TRUE(Graph::catalog_folds_activation(Ops::K_GELU.id));
     EXPECT_TRUE(Graph::fused_form_spills(FusedForm::GEMMBiasGELU));
 
-    for (FusedForm form : {FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
-                           FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
-                           FusedForm::ExpSubScale})
-        EXPECT_FALSE(Graph::fused_form_spills(form))
-            << Graph::fused_form_name(form) << " grew a second output without a reason";
-
-    // Not an activation at all, so neither question applies to it.
+    // Not an activation at all, so the question does not apply to it.
     EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_MATMUL.id));
     EXPECT_FALSE(Graph::catalog_folds_activation(Ops::K_EXP.id));
+}
 
+/** @brief Tests that a form other than the GELU one grows no second output. */
+TEST_P(Small_FusionFormWithoutSpill, GrowsNoSecondOutput)
+{
+    EXPECT_FALSE(Graph::fused_form_spills(GetParam()))
+        << Graph::fused_form_name(GetParam()) << " grew a second output without a reason";
+}
+
+INSTANTIATE_TEST_SUITE_P(Forms, Small_FusionFormWithoutSpill,
+                         ::testing::Values(FusedForm::GEMMBias, FusedForm::GEMMBiasReLU,
+                                           FusedForm::GEMMBiasSigmoid, FusedForm::GEMMBiasTanh,
+                                           FusedForm::ExpSubScale));
+
+/** @brief Tests that a form names the activation it folds, or the leaf when it folds none. */
+TEST_F(Small_Fusion, AFormNamesTheActivationItFolds)
+{
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBias), Ops::K_LEAF.id);
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBiasReLU), Ops::K_RELU.id);
     EXPECT_EQ(Graph::fused_form_activation(FusedForm::GEMMBiasGELU), Ops::K_GELU.id);
 }
 
+/** @brief Tests that a matmul and a bias add become one node. */
 TEST_F(Small_Fusion, AMatmulAndABiasAddBecomeOneNode)
 {
     Graph::Graph graph;
@@ -190,6 +243,7 @@ TEST_F(Small_Fusion, AMatmulAndABiasAddBecomeOneNode)
     EXPECT_EQ(graph.value(layer.product).producer, K_NO_NODE);
 }
 
+/** @brief Tests that the longest match wins over the shorter one inside it. */
 TEST_F(Small_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
 {
     // The matcher walks roots in reverse; see tests/core/graph/README.md.
@@ -209,6 +263,7 @@ TEST_F(Small_Fusion, TheLongestMatchWinsOverTheShorterOneInsideIt)
     EXPECT_EQ(graph.node_count(), report.nodes_before() - 2u);
 }
 
+/** @brief Tests that the elementwise tail of the cross entropy gradient becomes one pass. */
 TEST_F(Small_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
 {
     Graph::Graph graph;
@@ -237,6 +292,7 @@ TEST_F(Small_Fusion, TheCrossEntropyGradientsElementwiseTailBecomesOnePass)
     EXPECT_EQ(graph.value(difference).producer, K_NO_NODE);
 }
 
+/** @brief Tests that a subtraction with its operands the other way round does not match. */
 TEST_F(Small_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
 {
     // The entry's link position refuses swapped operands; see tests/core/graph/README.md.
@@ -259,6 +315,7 @@ TEST_F(Small_Fusion, ASubtractionWithItsOperandsTheOtherWayRoundDoesNotMatch)
     EXPECT_EQ(report.nodes_after(), report.nodes_before());
 }
 
+/** @brief Tests that an intermediate with a second consumer is not fused away. */
 TEST_F(Small_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
 {
     Graph::Graph graph;
@@ -280,27 +337,29 @@ TEST_F(Small_Fusion, AnIntermediateWithASecondConsumerIsNotFusedAway)
     EXPECT_EQ(count_op(graph, Ops::K_BIAS_ADD.id), 1u);
 }
 
+/** @brief Tests that an intermediate the caller reads by id is declined as observed. */
 TEST_F(Small_Fusion, AnIntermediateTheCallerReadsByIDIsNotFusedAway)
 {
     Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const LinearTrace layer = trace_linear(builder);
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID activated, builder.relu(layer.biased));
 
     // The training loop reads `biased` after every replay; see tests/core/graph/README.md.
-    const std::vector<ValueID> observed{layer.biased, activated};
-    FusionOptions options;
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-
-    const FusionReport report = Graph::fuse(graph, options);
+    const FusionReport report = fuse_with_the_linear_output_observed(graph);
 
     EXPECT_EQ(report.count(FusedForm::GEMMBiasReLU), 0u);
     EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
+}
 
-    // The shorter form rooted at the bias_add still fuses; see tests/core/graph/README.md.
+/** @brief Tests that the shorter form still fuses around an observed value. */
+TEST_F(Small_Fusion, TheShorterFormStillFusesAroundAnObservedIntermediate)
+{
+    Graph::Graph graph;
+
+    const FusionReport report = fuse_with_the_linear_output_observed(graph);
+
     EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
 }
 
+/** @brief Tests that a parameter is protected without being listed. */
 TEST_F(Small_Fusion, AParameterIsProtectedWithoutBeingListed)
 {
     // A persistent value is protected without being listed; see tests/core/graph/README.md.
@@ -323,6 +382,7 @@ TEST_F(Small_Fusion, AParameterIsProtectedWithoutBeingListed)
     EXPECT_TRUE(declined_for(report, FusionDecline::ValueIsObserved));
 }
 
+/** @brief Tests that an activation differentiated at its input folds because the entry spills. */
 TEST_F(Small_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntrySpills)
 {
     // The fused node keeps writing the pre-activation; see tests/core/graph/README.md.
@@ -372,6 +432,7 @@ TEST_F(Small_Fusion, AnActivationDifferentiatedAtItsInputFoldsOnlyBecauseTheEntr
     EXPECT_EQ(backward.inputs[1], layer.biased);
 }
 
+/** @brief Tests that a spilled pre activation read before the fused node is refused. */
 TEST_F(Small_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
 {
     // A reader before the fused node would break the order; see tests/core/graph/README.md.
@@ -395,17 +456,9 @@ TEST_F(Small_Fusion, ASpilledPreActivationReadBeforeTheFusedNodeIsRefused)
     // The shorter form still fuses after the refusal; see tests/core/graph/README.md.
     EXPECT_EQ(report.count(FusedForm::GEMMBias), 1u);
     EXPECT_EQ(count_op(graph, Ops::K_GELU.id), 1u);
-
-    // The rewritten graph stays topological; see tests/core/graph/README.md.
-    for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
-        for (ValueID in : graph.node(id).inputs)
-        {
-            const NodeID producer = graph.value(in).producer;
-            if (producer == K_NO_NODE) continue;
-            EXPECT_LT(producer, id) << "node " << id << " reads value " << in;
-        }
 }
 
+/** @brief Tests that a spilled pre activation may be read from outside the graph. */
 TEST_F(Small_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
 {
     // A spilled pre-activation may be named as observed; see tests/core/graph/README.md.
@@ -425,6 +478,7 @@ TEST_F(Small_Fusion, ASpilledPreActivationMayBeReadFromOutsideTheGraph)
     EXPECT_NE(graph.value(layer.biased).producer, K_NO_NODE);
 }
 
+/** @brief Tests that the GELU fold still obeys every other refusal. */
 TEST_F(Small_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
 {
     // A spill licenses one interior value and no other; see tests/core/graph/README.md.
@@ -446,6 +500,7 @@ TEST_F(Small_Fusion, TheGELUFoldStillObeysEveryOtherRefusal)
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
+/** @brief Tests that disabling the GELU form falls back to the shorter one. */
 TEST_F(Small_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
@@ -471,6 +526,7 @@ TEST_F(Small_Fusion, DisablingTheGELUFormFallsBackToTheShorterOne)
     EXPECT_FALSE(declined_for(report, FusionDecline::NoCatalogEntry));
 }
 
+/** @brief Tests that a recoverable activation next to a fused GEMM is folded and not reported. */
 TEST_F(Small_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
 {
     // ReLU's gradient reads its own result, so it folds; see tests/core/graph/README.md.
@@ -494,6 +550,7 @@ TEST_F(Small_Fusion, ARecoverableActivationNextToAFusedGEMMIsFoldedNotReported)
     EXPECT_FALSE(declined_for(report, FusionDecline::GradientNeedsPreActivation));
 }
 
+/** @brief Tests that disabling the pass leaves the graph exactly as it was. */
 TEST_F(Small_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
 {
     Graph::Graph graph;
@@ -516,6 +573,7 @@ TEST_F(Small_Fusion, DisablingThePassLeavesTheGraphExactlyAsItWas)
     EXPECT_EQ(count_op(graph, Ops::K_MATMUL.id), 1u);
 }
 
+/** @brief Tests that disabling one form falls back to the shorter one. */
 TEST_F(Small_Fusion, DisablingOneFormFallsBackToTheShorterOne)
 {
     Graph::Graph graph;
@@ -537,6 +595,7 @@ TEST_F(Small_Fusion, DisablingOneFormFallsBackToTheShorterOne)
     EXPECT_TRUE(declined_for(report, FusionDecline::Disabled));
 }
 
+/** @brief Tests that value ids and their descriptions survive the rewrite. */
 TEST_F(Small_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
 {
     // Value ids and descriptions survive the rewrite; see tests/core/graph/README.md.
@@ -566,6 +625,7 @@ TEST_F(Small_Fusion, ValueIDsAndTheirDescriptionsSurviveTheRewrite)
     }
 }
 
+/** @brief Tests that the rewritten graph is still in topological order. */
 TEST_F(Small_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
 {
     // The fused node sits at the root's position; see tests/core/graph/README.md.
@@ -581,16 +641,10 @@ TEST_F(Small_Fusion, TheRewrittenGraphIsStillInTopologicalOrder)
 
     (void)Graph::fuse(graph, FusionOptions{});
 
-    for (NodeID id = 0; id < static_cast<NodeID>(graph.node_count()); ++id)
-        for (ValueID in : graph.node(id).inputs)
-        {
-            const NodeID producer = graph.value(in).producer;
-            if (producer == K_NO_NODE) continue;
-            EXPECT_LT(producer, id) << "node " << id << " reads value " << in
-                                    << ", which node " << producer << " writes later";
-        }
+    expect_topological_order(graph);
 }
 
+/** @brief Tests that the report names every subtree it collapsed. */
 TEST_F(Small_Fusion, TheReportNamesEverySubtreeItCollapsed)
 {
     Graph::Graph graph;

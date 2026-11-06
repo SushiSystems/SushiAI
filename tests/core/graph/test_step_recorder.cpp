@@ -39,16 +39,22 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/in_memory_step_recorder.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
 
 using namespace SushiAI;
+using Graph::InMemoryStepRecorder;
 using Graph::StepRecorder;
 using Graph::StepRecorderList;
+using Call = Graph::InMemoryStepRecorder::Call;
 
 namespace
 {
-    /** @brief Writes each call it receives to a shared journal as "<name>.<call>". */
+    /**
+     * @brief Writes each call it receives to a shared journal as "<name>.<call>"; the order across
+     * members is what the in-memory adapter, which journals per member, cannot show.
+     */
     class JournalRecorder final : public StepRecorder
     {
         public:
@@ -106,6 +112,28 @@ namespace
         return {"a." + call, "b." + call, "c." + call};
     }
 
+    /**
+     * @brief Adds the recorders a, b and c named by @p added to a list in that order, records the
+     * list into @p recording and expects the journal to be @p expected.
+     */
+    void expect_record_order(const Graph::StepRecording& recording,
+                             const std::vector<std::size_t>& added,
+                             const std::vector<std::string>& expected)
+    {
+        std::vector<std::string> journal;
+        JournalRecorder a("a", 1, journal);
+        JournalRecorder b("b", 1, journal);
+        JournalRecorder c("c", 1, journal);
+        StepRecorder* const recorders[] = {&a, &b, &c};
+        StepRecorderList list;
+        for (const std::size_t index : added)
+            SA_EXPECT_OK(list.add(*recorders[index]));
+
+        SA_EXPECT_OK(list.record_into_step(recording));
+
+        EXPECT_EQ(journal, expected);
+    }
+
     /** @brief Gives each test a graph and a recorder over it, on the shared runtime. */
     class Medium_StepRecorder : public ::testing::Test
     {
@@ -142,7 +170,7 @@ namespace
 
 } // namespace
 
-/** @brief Tests that a list with no member reports empty, records zero tasks and replays. */
+/** @brief Tests that a list with no member reports empty and records zero tasks. */
 TEST_F(Medium_StepRecorder, EmptyListRecordsNothing)
 {
     StepRecorderList list;
@@ -150,30 +178,26 @@ TEST_F(Medium_StepRecorder, EmptyListRecordsNothing)
     EXPECT_TRUE(list.empty());
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 0u);
-    EXPECT_NO_THROW(list.before_replay());
-    EXPECT_NO_THROW(list.after_replay());
 }
 
-/** @brief Tests that adding one recorder makes the list non-empty. */
+/** @brief Tests that adding one recorder makes the list non-empty and calls nothing on it. */
 TEST_F(Medium_StepRecorder, AddMakesTheListNonEmpty)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 1, journal);
+    InMemoryStepRecorder a(1);
     StepRecorderList list;
 
     SA_EXPECT_OK(list.add(a));
 
     EXPECT_FALSE(list.empty());
-    EXPECT_TRUE(journal.empty());
+    EXPECT_TRUE(a.calls().empty());
 }
 
 /** @brief Tests that record_into_step returns the sum of the members' task counts. */
 TEST_F(Medium_StepRecorder, RecordSumsTheMemberCounts)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 2, journal);
-    JournalRecorder b("b", 0, journal);
-    JournalRecorder c("c", 5, journal);
+    InMemoryStepRecorder a(2);
+    InMemoryStepRecorder b(0);
+    InMemoryStepRecorder c(5);
     StepRecorderList list;
     SA_EXPECT_OK(list.add(a));
     SA_EXPECT_OK(list.add(b));
@@ -186,33 +210,8 @@ TEST_F(Medium_StepRecorder, RecordSumsTheMemberCounts)
 /** @brief Tests that record_into_step calls each member once, in the order added. */
 TEST_F(Medium_StepRecorder, RecordCallsMembersInTheOrderAdded)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 1, journal);
-    JournalRecorder b("b", 1, journal);
-    JournalRecorder c("c", 1, journal);
-    StepRecorderList list;
-    SA_EXPECT_OK(list.add(a));
-    SA_EXPECT_OK(list.add(b));
-    SA_EXPECT_OK(list.add(c));
-
-    SA_EXPECT_OK(list.record_into_step(recording_));
-
-    EXPECT_EQ(journal, in_order_added("record"));
-}
-
-/** @brief Tests that the order of the calls follows add, not the order of construction. */
-TEST_F(Medium_StepRecorder, OrderFollowsAddNotConstruction)
-{
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 1, journal);
-    JournalRecorder b("b", 1, journal);
-    StepRecorderList list;
-    SA_EXPECT_OK(list.add(b));
-    SA_EXPECT_OK(list.add(a));
-
-    SA_EXPECT_OK(list.record_into_step(recording_));
-
-    EXPECT_EQ(journal, (std::vector<std::string>{"b.record", "a.record"}));
+    expect_record_order(recording_, {0, 1, 2}, {"a.record", "b.record", "c.record"});
+    expect_record_order(recording_, {1, 0}, {"b.record", "a.record"});
 }
 
 /** @brief Tests that before_replay calls each member once, in the order added. */
@@ -252,8 +251,7 @@ TEST_F(Medium_StepRecorder, AfterReplayCallsMembersInTheOrderAdded)
 /** @brief Tests that a member with no replay hooks still records through the list. */
 TEST_F(Medium_StepRecorder, MemberWithoutReplayHooksIsDriven)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 4, journal);
+    InMemoryStepRecorder a(4);
     RecordOnlyRecorder plain;
     StepRecorderList list;
     SA_EXPECT_OK(list.add(plain));
@@ -264,27 +262,27 @@ TEST_F(Medium_StepRecorder, MemberWithoutReplayHooksIsDriven)
     list.before_replay();
     list.after_replay();
 
-    EXPECT_EQ(journal, (std::vector<std::string>{"a.record", "a.before", "a.after"}));
+    EXPECT_EQ(a.calls(), (std::vector<Call>{Call::Record, Call::BeforeReplay, Call::AfterReplay}));
 }
 
-/** @brief Tests that a list driven through an IStepRecorder pointer reaches its members. */
+/** @brief Tests that a list driven through a StepRecorder reference reaches its members. */
 TEST_F(Medium_StepRecorder, ListIsDrivenThroughTheInterface)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 2, journal);
-    JournalRecorder b("b", 3, journal);
+    InMemoryStepRecorder a(2);
+    InMemoryStepRecorder b(3);
     StepRecorderList list;
     SA_EXPECT_OK(list.add(a));
     SA_EXPECT_OK(list.add(b));
-    StepRecorder* trailing = &list;
+    StepRecorder& trailing = list;
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, trailing->record_into_step(recording_));
+    SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, trailing.record_into_step(recording_));
     EXPECT_EQ(count, 5u);
-    trailing->before_replay();
-    trailing->after_replay();
+    trailing.before_replay();
+    trailing.after_replay();
 
-    EXPECT_EQ(journal, (std::vector<std::string>{"a.record", "b.record", "a.before", "b.before",
-                                                 "a.after", "b.after"}));
+    const std::vector<Call> expected = {Call::Record, Call::BeforeReplay, Call::AfterReplay};
+    EXPECT_EQ(a.calls(), expected);
+    EXPECT_EQ(b.calls(), expected);
 }
 
 /** @brief Tests that a list held as a member of another runs in its place in the outer order. */
@@ -309,8 +307,7 @@ TEST_F(Medium_StepRecorder, NestedListKeepsItsPlaceInTheOrder)
 /** @brief Tests that adding a recorder the list already holds is fatal and leaves one entry. */
 TEST_F(Medium_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 {
-    std::vector<std::string> journal;
-    JournalRecorder a("a", 2, journal);
+    InMemoryStepRecorder a(2);
     StepRecorderList list;
     SA_EXPECT_OK(list.add(a));
 
@@ -318,7 +315,7 @@ TEST_F(Medium_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t count, list.record_into_step(recording_));
     EXPECT_EQ(count, 2u);
-    EXPECT_EQ(journal, (std::vector<std::string>{"a.record"}));
+    EXPECT_EQ(a.calls(), (std::vector<Call>{Call::Record}));
 }
 
 /** @brief Tests that adding a list to itself is fatal and leaves the list empty. */

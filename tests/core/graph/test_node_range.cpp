@@ -28,17 +28,49 @@
  * @author Mustafa Garip
  */
 
+#include <cstdint>
+#include <memory>
 #include <gtest/gtest.h>
+#include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/builder.hpp>
+#include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/node_range.hpp>
+#include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 using namespace SushiAI;
+namespace SaTest = SushiAI::Test;
 
-/** @brief Tests that a default range starts at node 0 and ends at the graph's node count. */
-TEST(Small_NodeRange, TheDefaultRangeIsTheWholeGraph)
+namespace
 {
-    const Graph::NodeRange range;
+    /** @brief Provides the Engine the cases compile on. */
+    class Medium_NodeRange : public SaTest::EngineTest
+    {
 
-    EXPECT_EQ(range.first, 0u);
-    EXPECT_EQ(range.end, Graph::K_NO_NODE);
+    };
+} // namespace
+
+/** @brief Tests that a step compiled over the default range records what the whole range does. */
+TEST_F(Medium_NodeRange, TheDefaultRangeIsTheWholeGraph)
+{
+    Graph::Graph graph;
+    const Graph::GraphBuilder builder(graph);
+    const Graph::ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID doubled, builder.scale(leaf, 2.0));
+    static_cast<void>(builder.scale(doubled, 3.0));
+    Graph::TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    const Graph::NodeID count = static_cast<Graph::NodeID>(graph.node_count());
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Graph::CompiledStep> by_default,
+                            Graph::CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<Graph::CompiledStep> whole,
+        Graph::CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+                                     Graph::NodeRange{0, count}));
+
+    EXPECT_GE(by_default->operation_count(), 1u);
+    EXPECT_EQ(by_default->operation_count(), whole->operation_count());
 }

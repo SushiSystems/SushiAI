@@ -34,13 +34,18 @@ The cases fall into four groups, in file order:
 - the refusals, which are the half that matters
 - the pass keeps the graph usable
 
-## EveryFormRoundTripsThroughItsOperationIdentity
+## RoundTripsThroughItsOperationIdentity
 
-The lowering dispatches on `fused_form_op` and `fused_form_of`. A form that does not round-trip
-would lower as "no recorder for this operation", which is loud, but only at run time and only on
-a graph that happens to contain it.
+The case runs once for each of the six forms, in the suite `Small_FusionFormIdentity`. The lowering
+dispatches on `fused_form_op` and `fused_form_of`. A form that does not round-trip would lower as
+"no recorder for this operation", which is loud, but only at run time and only on a graph that
+happens to contain it.
 
-## AnActivationFoldsForFreeOrWithASpillAndTheTwoAreDifferentFacts
+## AnOperationOfNoFormMapsToNoForm
+
+`fused_form_of` of MATMUL and of RELU is `FusedForm::None`.
+
+## AnActivationSurvivesFusionWhenItsGradientReadsItsOutput
 
 `activation_survives_fusion(K_RELU)` is the property the static_assert in `modules/core/graph/source/fusion.cpp`
 reads. If it ever flips for an activation that has a catalog entry, the static_assert catches
@@ -52,10 +57,23 @@ pre-activation. An entry that wrote only its result would differentiate at a ten
 reached memory. That has not changed and must not, because it is the premise the static_assert
 reasons from.
 
+## OnlyTheEntryThatSpillsFoldsGELU
+
 `catalog_folds_activation(GELU)` is true because the conclusion drawn from that premise
 changed. The one entry that spills folds GELU. "Survives fusion" and "the catalog folds it" are
-now two questions with two answers, and a caller who reads the first as the second gets the
-wrong answer for exactly one activation.
+two questions with two answers, and a caller who reads the first as the second gets the wrong
+answer for exactly one activation. MATMUL and EXP are not activations, so the question does not
+apply to them.
+
+## GrowsNoSecondOutput
+
+The case runs once for each form but the GELU one, in the suite `Small_FusionFormWithoutSpill`.
+`fused_form_spills` is false for it.
+
+## AFormNamesTheActivationItFolds
+
+`fused_form_activation` is the leaf for `GEMMBias`, RELU for `GEMMBiasReLU` and GELU for
+`GEMMBiasGELU`.
 
 ## AMatmulAndABiasAddBecomeOneNode
 
@@ -92,7 +110,10 @@ result for that reader, or losing it.
 ## AnIntermediateTheCallerReadsByIDIsNotFusedAway
 
 The `observed` list names `biased`, which is the logits of a real classifier. The training loop
-reads it after every replay to score accuracy, and a fused form gives it no buffer to read.
+reads it after every replay to score accuracy, and a fused form gives it no buffer to read. The
+report counts no `GEMMBiasReLU` and holds a `ValueIsObserved` decline.
+
+## TheShorterFormStillFusesAroundAnObservedIntermediate
 
 `report.count(K_GEMM_BIAS)` is still 1: the pass falls back to the shorter form rooted at the
 bias_add, whose own intermediate is free.
@@ -132,8 +153,8 @@ written after it. Every pass downstream of fusion assumes that cannot happen.
 `report.count(K_GEMM_BIAS)` is 1: the pass still falls back to the shorter form, as it does after
 any other refusal of the three-node entry.
 
-The closing loop over the nodes checks that the rewritten graph is still topological, which is
-the property the refusal exists to protect.
+Whether the rewritten graph is still topological is checked by
+`TheRewrittenGraphIsStillInTopologicalOrder`.
 
 ## ASpilledPreActivationMayBeReadFromOutsideTheGraph
 

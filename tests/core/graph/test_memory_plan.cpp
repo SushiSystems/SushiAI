@@ -34,6 +34,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <set>
+#include <string_view>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -58,6 +60,77 @@ namespace
 {
     /** @brief 128 bytes of float32 - exactly one alignment unit, so offsets read cleanly. */
     Shape unit_shape() { return Shape{32}; }
+
+    /** @brief Appends @p length relus after @p from and returns the last value. */
+    ValueID append_relu_chain(const GraphBuilder& builder, ValueID from, int length)
+    {
+        ValueID last = from;
+        for (int step = 0; step < length; ++step)
+            last = builder.relu(last).value();
+        return last;
+    }
+
+    /** @brief Plans a chain of three relus over one input with reuse switched off. */
+    MemoryPlan plan_of_relu_chain_without_reuse()
+    {
+        Graph::Graph graph;
+        const GraphBuilder builder(graph);
+        append_relu_chain(builder, builder.input(unit_shape(), "x"), 3);
+
+        PlanOptions options;
+        options.reuse = false;
+        return MemoryPlan::build(graph, options).value();
+    }
+
+    /** @brief Returns the arena and the offset of each value of @p plan, in value order. */
+    std::vector<std::pair<std::size_t, std::size_t>> placements_of(const MemoryPlan& plan)
+    {
+        std::vector<std::pair<std::size_t, std::size_t>> placements;
+        for (ValueID id = 0; id < static_cast<ValueID>(plan.value_count()); ++id)
+            placements.emplace_back(plan.placement(id).arena, plan.placement(id).offset);
+        return placements;
+    }
+
+    /** @brief Holds x -> a -> b and three scratch requests: two of a's node, one of b's. */
+    class ScratchRequestPlan
+    {
+        public:
+            /** @brief Builds the graph and its plan. */
+            ScratchRequestPlan()
+            {
+                const GraphBuilder builder(graph);
+                const ValueID x = builder.input(unit_shape(), "x");
+                a = builder.relu(x).value();
+                const ValueID b = builder.relu(a).value();
+                first = graph.value(a).producer;
+                second = graph.value(b).producer;
+
+                const Graph::ScratchRequest requests[] = {
+                    {first, 0, unit_shape(), DType::Float32},
+                    {first, 1, unit_shape(), DType::Float32},
+                    {second, 0, unit_shape(), DType::Float32},
+                };
+                plan = MemoryPlan::build(
+                           graph, PlanOptions{},
+                           SushiRuntime::span<const Graph::ScratchRequest>(requests, 3))
+                           .value();
+            }
+
+            /** @brief Holds the graph. */
+            Graph::Graph graph;
+
+            /** @brief Names the first relu result. */
+            ValueID a = Graph::K_NO_VALUE;
+
+            /** @brief Names the node that writes the first relu result. */
+            NodeID first = K_NO_NODE;
+
+            /** @brief Names the node that writes the second relu result. */
+            NodeID second = K_NO_NODE;
+
+            /** @brief Holds the plan with the scratch of both nodes. */
+            MemoryPlan plan;
+    };
 
     /**
      * @brief Every node reachable from @p from, by a plain breadth-first walk.
@@ -336,43 +409,43 @@ TEST(Small_MemoryPlan, TwoScratchBuffersLiveAtOneNodeNeverShareBytes)
     EXPECT_NE(plan.placement(first).offset, plan.placement(second).offset);
 }
 
-TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytesAndThoseOfOneNodeDoNot)
+/** @brief Tests that the scratch of a later node takes bytes an earlier node's scratch held. */
+TEST(Small_MemoryPlan, ScratchRequestsOfTwoNodesShareBytes)
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(unit_shape(), "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
-    const NodeID first = graph.value(a).producer;
-    const NodeID second = graph.value(b).producer;
-
-    const Graph::ScratchRequest requests[] = {
-        {first, 0, unit_shape(), DType::Float32},
-        {first, 1, unit_shape(), DType::Float32},
-        {second, 0, unit_shape(), DType::Float32},
-    };
-
-    SA_ASSERT_OK_AND_ASSIGN(
-        const MemoryPlan plan,
-        MemoryPlan::build(graph, PlanOptions{},
-                          SushiRuntime::span<const Graph::ScratchRequest>(requests, 3)));
-
-    const Graph::Placement* const one = plan.scratch_placement(first, 0);
-    const Graph::Placement* const two = plan.scratch_placement(first, 1);
-    const Graph::Placement* const three = plan.scratch_placement(second, 0);
+    const ScratchRequestPlan fixture;
+    const Placement* const one = fixture.plan.scratch_placement(fixture.first, 0);
+    const Placement* const two = fixture.plan.scratch_placement(fixture.first, 1);
+    const Placement* const three = fixture.plan.scratch_placement(fixture.second, 0);
     ASSERT_NE(one, nullptr);
     ASSERT_NE(two, nullptr);
     ASSERT_NE(three, nullptr);
 
-    EXPECT_NE(one->arena, K_NO_ARENA);
-    EXPECT_EQ(one->arena, two->arena);
-    EXPECT_NE(one->offset, two->offset) << "two buffers of one node are live together";
-    EXPECT_TRUE(three->offset == one->offset || three->offset == two->offset)
-        << "the buffer of a later node takes the bytes of an earlier node's";
+    EXPECT_TRUE(three->offset == one->offset || three->offset == two->offset);
+}
 
-    EXPECT_NE(one->arena, plan.placement(a).arena) << "scratch has an arena of its own";
-    EXPECT_EQ(plan.scratch_placement(second, 1), nullptr);
+/** @brief Tests that two scratch buffers requested by one node get different bytes. */
+TEST(Small_MemoryPlan, ScratchRequestsOfOneNodeDoNotShareBytes)
+{
+    const ScratchRequestPlan fixture;
+    const Placement* const one = fixture.plan.scratch_placement(fixture.first, 0);
+    const Placement* const two = fixture.plan.scratch_placement(fixture.first, 1);
+    ASSERT_NE(one, nullptr);
+    ASSERT_NE(two, nullptr);
+
+    EXPECT_EQ(one->arena, two->arena);
+    EXPECT_NE(one->offset, two->offset);
+}
+
+/** @brief Tests that scratch lives in an arena of its own, apart from the activations. */
+TEST(Small_MemoryPlan, ScratchRequestsHaveAnArenaOfTheirOwn)
+{
+    const ScratchRequestPlan fixture;
+    const Placement* const one = fixture.plan.scratch_placement(fixture.first, 0);
+    ASSERT_NE(one, nullptr);
+
+    EXPECT_NE(one->arena, K_NO_ARENA);
+    EXPECT_NE(one->arena, fixture.plan.placement(fixture.a).arena);
+    EXPECT_EQ(fixture.plan.scratch_placement(fixture.second, 1), nullptr);
 }
 
 TEST(Small_MemoryPlan, AScratchRequestOfAnUnknownNodeIsFatal)
@@ -407,7 +480,8 @@ TEST(Small_MemoryPlan, AReshapeResultSharesTheBufferOfItsOperand)
     EXPECT_EQ(plan.placement(flat).offset, plan.placement(a).offset);
 }
 
-TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
+/** @brief Tests that a reshape keeps its own copy when a row writes its result. */
+TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResult)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -416,6 +490,21 @@ TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID written, builder.reshape(a, Shape{32}));
     SA_EXPECT_OK(builder.accumulate(written, builder.relu(written)));
+
+    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph));
+
+    EXPECT_NE(plan.buffer_of(written), plan.buffer_of(a));
+    EXPECT_TRUE(plan.is_packed(a));
+}
+
+/** @brief Tests that a reshape keeps its own copy when its result is pinned. */
+TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenItIsPinned)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{4, 8}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID kept, builder.reshape(a, Shape{8, 4}));
     SA_EXPECT_OK(builder.relu(kept));
 
@@ -424,7 +513,6 @@ TEST(Small_MemoryPlan, AReshapeKeepsItsCopyWhenARowWritesItsResultOrItIsPinned)
     options.pinned = SushiRuntime::span<const ValueID>(pinned, 1);
     SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
 
-    EXPECT_NE(plan.buffer_of(written), plan.buffer_of(a));
     EXPECT_NE(plan.buffer_of(kept), plan.buffer_of(a));
     EXPECT_FALSE(plan.is_packed(kept));
     EXPECT_TRUE(plan.is_packed(a));
@@ -501,40 +589,30 @@ TEST(Small_MemoryPlan, EveryStartIsAWholeNumberOfItsOwnElements)
         << "20 bytes of float32 rounded up to the next whole float64";
 }
 
-TEST(Small_MemoryPlan, ReuseCanBeSwitchedOffAndSaysSo)
+/** @brief Tests that switching reuse off gives every activation a slot of its own. */
+TEST(Small_MemoryPlan, ReuseCanBeSwitchedOff)
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(unit_shape(), "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID a, builder.relu(x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID b, builder.relu(a));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID c, builder.relu(b));
-    (void)c;
-
-    PlanOptions options;
-    options.reuse = false;
-
-    SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan plan, MemoryPlan::build(graph, options));
+    const MemoryPlan plan = plan_of_relu_chain_without_reuse();
 
     EXPECT_FALSE(plan.reuse_enabled());
-    EXPECT_FALSE(plan.reuse_note().empty());
     EXPECT_EQ(plan.arena_bytes(), 384u) << "three activations, three slots";
 }
 
+/** @brief Tests that a plan with reuse switched off carries a note that says so. */
+TEST(Small_MemoryPlan, ReuseSwitchedOffIsSaidInTheNote)
+{
+    const MemoryPlan plan = plan_of_relu_chain_without_reuse();
+
+    EXPECT_FALSE(plan.reuse_note().empty());
+}
+
+/** @brief Tests that a graph over the node limit declines overlap rather than approximating it. */
 TEST(Small_MemoryPlan, TooManyNodesDeclinesOverlapRatherThanApproximatingIt)
 {
     // Over the node limit the planner declines to overlap; see tests/core/graph/README.md.
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(unit_shape(), "x");
-    SA_ASSERT_OK_AND_ASSIGN(ValueID last, builder.relu(x));
-    for (int i = 0; i < 4; ++i)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(last, builder.relu(last));
-    }
-    (void)last;
+    append_relu_chain(builder, builder.input(unit_shape(), "x"), 5);
 
     PlanOptions options;
     options.reuse_node_limit = 2;
@@ -618,6 +696,7 @@ TEST(Small_MemoryPlan, AskingForAValueThePlanDoesNotCoverIsFatal)
                     "this plan covers 1 values");
 }
 
+/** @brief Tests that two builds of one graph place every value at the same arena and offset. */
 TEST(Small_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
 {
     // Two builds give byte-identical offsets; see tests/core/graph/README.md.
@@ -634,12 +713,7 @@ TEST(Small_MemoryPlan, ThePlanIsDeterministicForTheSameGraph)
     SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan first, MemoryPlan::build(graph));
     SA_ASSERT_OK_AND_ASSIGN(const MemoryPlan second, MemoryPlan::build(graph));
 
-    ASSERT_EQ(first.value_count(), second.value_count());
-    for (ValueID id = 0; id < static_cast<ValueID>(first.value_count()); ++id)
-    {
-        EXPECT_EQ(first.placement(id).arena, second.placement(id).arena) << "value " << id;
-        EXPECT_EQ(first.placement(id).offset, second.placement(id).offset) << "value " << id;
-    }
+    EXPECT_EQ(placements_of(first), placements_of(second));
 }
 
 TEST(Small_MemoryPlan, TheTwoResultsOfOneNodeAreNeverGivenTheSameBytes)

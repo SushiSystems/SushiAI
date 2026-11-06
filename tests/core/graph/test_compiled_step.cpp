@@ -134,16 +134,48 @@ namespace
         return std::move(made);
     }
 
-    /** @brief Expects @p mask to hold what the generator draws for K_SEED in run @p run. */
-    void expect_mask_of_run(const std::vector<double>& mask, std::uint64_t run)
+    /** @brief Returns output @p index of the published SplitMix64 sequence seeded with @p state. */
+    std::uint64_t reference_splitmix64(std::uint64_t state, std::uint64_t index)
     {
-        ASSERT_EQ(mask.size(), K_ELEMENTS);
+        std::uint64_t value = state + (index + 1u) * 0x9E3779B97F4A7C15ull;
+        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9ull;
+        value = (value ^ (value >> 27)) * 0x94D049BB133111EBull;
+        return value ^ (value >> 31);
+    }
+
+    /**
+     * @brief Returns the mask the published rule gives for run @p run of K_SEED: an element is
+     * kept, and scaled by 1 / K_KEEP, when the top 53 bits of its draw, as a number in [0, 1),
+     * fall below K_KEEP.
+     */
+    std::vector<double> reference_mask_of_run(std::uint64_t run)
+    {
+        std::vector<double> mask(K_ELEMENTS, 0.0);
         for (std::size_t element = 0; element < K_ELEMENTS; ++element)
         {
-            const double expected =
-                Graph::dropout_keeps(K_SEED, run, element, K_KEEP) ? 1.0 / K_KEEP : 0.0;
-            EXPECT_NEAR(mask[element], expected, K_TOLERANCE) << "at element " << element;
+            const std::uint64_t bits =
+                reference_splitmix64(reference_splitmix64(K_SEED, run), element);
+            const double unit = static_cast<double>(bits >> 11) / 9007199254740992.0;
+            mask[element] = unit < K_KEEP ? 1.0 / K_KEEP : 0.0;
         }
+
+        return mask;
+    }
+
+    /** @brief Expects @p mask to hold what the published rule draws for K_SEED in run @p run. */
+    void expect_mask_of_run(const std::vector<double>& mask, std::uint64_t run)
+    {
+        const std::vector<double> expected = reference_mask_of_run(run);
+        ASSERT_EQ(mask.size(), expected.size());
+        for (std::size_t element = 0; element < expected.size(); ++element)
+            EXPECT_NEAR(mask[element], expected[element], K_TOLERANCE) << "at element " << element;
+    }
+
+    /** @brief Runs @p made once and expects the masked value to hold the mask of run @p run. */
+    void run_and_expect_mask_of_run(MaskedOnes& made, std::uint64_t run)
+    {
+        SA_EXPECT_OK(made.step->run());
+        expect_mask_of_run(SaTest::read_tensor(made.pool.tensor(made.masked)), run);
     }
 } // namespace
 
@@ -155,8 +187,9 @@ TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
                             make_masked_ones(*engine));
     ASSERT_EQ(whole->step->replay_prelude_count(), 1u);
 
-    for (int run = 0; run < 3; ++run)
-        SA_EXPECT_OK(whole->step->run());
+    SA_EXPECT_OK(whole->step->run());
+    SA_EXPECT_OK(whole->step->run());
+    SA_EXPECT_OK(whole->step->run());
     const std::vector<double> third = SaTest::read_tensor(whole->pool.tensor(whole->masked));
 
     EXPECT_EQ(resumed->step->run_count(), 0u);
@@ -174,11 +207,9 @@ TEST_F(Medium_CompiledStep, RunDrawsTheMaskOfItsRunCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
 
-    for (std::uint64_t run = 0; run < 3; ++run)
-    {
-        SA_EXPECT_OK(made->step->run());
-        expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), run);
-    }
+    run_and_expect_mask_of_run(*made, 0);
+    run_and_expect_mask_of_run(*made, 1);
+    run_and_expect_mask_of_run(*made, 2);
 }
 
 /** @brief Tests that run_at() draws the mask of the index it is given and counts the run. */
@@ -290,12 +321,6 @@ TEST_F(Medium_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
 
 namespace
 {
-    /** @brief Provides the Engine every case compiles on. */
-    class Medium_CompiledStepAttribution : public SaTest::EngineTest
-    {
-
-    };
-
     /** @brief Holds the element count of the chain's input. */
     constexpr int64_t K_CHAIN_ELEMENTS = 8;
 
@@ -456,6 +481,26 @@ namespace
         return origin_of(graph, graph.value(value).producer);
     }
 
+    /** @brief Returns the origin of every node of @p graph. */
+    std::set<std::string> node_origins_of(const Graph::Graph& graph)
+    {
+        std::set<std::string> known;
+        for (Graph::NodeID id = 0; id < static_cast<Graph::NodeID>(graph.node_count()); ++id)
+            known.insert(origin_of(graph, id));
+        return known;
+    }
+
+    /** @brief Expects every origin of @p origins to be non-empty and to be in @p known. */
+    void expect_origins_known(const std::multiset<std::string>& origins,
+                              const std::set<std::string>& known)
+    {
+        for (const std::string& origin : origins)
+        {
+            EXPECT_FALSE(origin.empty());
+            EXPECT_EQ(known.count(origin), 1u) << "'" << origin << "' names no node of the graph";
+        }
+    }
+
     /** @brief Returns the origins of the rows of @p table. */
     std::multiset<std::string> origins_of(const SushiRuntime::NodeTable& table)
     {
@@ -464,6 +509,32 @@ namespace
             origins.insert(row.origin);
         return origins;
     }
+
+    /** @brief Provides the Engine every case compiles on. */
+    class Medium_CompiledStepAttribution : public SaTest::EngineTest
+    {
+        protected:
+            /** @brief Runs the steps "first.step" and "second.step" and returns the runs heard. */
+            std::vector<SeenRun> observe_two_steps()
+            {
+                const auto collector = std::make_shared<RunCollector>();
+                const SushiRuntime::RunObserverHandle handle =
+                    engine->runtime().add_run_observer(collector);
+                Result<std::unique_ptr<Chain>> first = make_chain(*engine, "first.step", false);
+                Result<std::unique_ptr<Chain>> second = make_chain(*engine, "second.step", false);
+                if (!first.has_value() || !second.has_value())
+                    return {};
+
+                SA_EXPECT_OK(first.value()->step->run());
+                flush();
+                SA_EXPECT_OK(second.value()->step->run());
+                flush();
+                if (collector->lost())
+                    return {};
+
+                return collector->runs();
+            }
+    };
 } // namespace
 
 /** @brief Tests that no task of a step has an empty origin and each names a node of its graph. */
@@ -482,46 +553,44 @@ TEST_F(Medium_CompiledStepAttribution, EveryTaskOfANodeCarriesItsOrigin)
     const std::vector<SeenRun> runs = collector->runs();
     ASSERT_EQ(runs.size(), 1u);
     ASSERT_NE(runs[0].table, nullptr);
-    std::set<std::string> known;
-    for (Graph::NodeID id = 0; id < static_cast<Graph::NodeID>(chain->graph.node_count()); ++id)
-        known.insert(origin_of(chain->graph, id));
     const std::multiset<std::string> origins = origins_of(*runs[0].table);
     ASSERT_FALSE(origins.empty());
-    for (const std::string& origin : origins)
-    {
-        EXPECT_FALSE(origin.empty());
-        EXPECT_EQ(known.count(origin), 1u) << "'" << origin << "' names no node of the graph";
-    }
+    expect_origins_known(origins, node_origins_of(chain->graph));
     EXPECT_GE(origins.count(origin_of_producer(chain->graph, chain->first)), 1u);
     EXPECT_GE(origins.count(origin_of_producer(chain->graph, chain->second)), 1u);
     EXPECT_EQ(origins.count(std::string(K_TRAILING_ORIGIN)), 0u);
 }
 
-/** @brief Tests that two steps of equal node indices keep apart by label and graph id. */
+/** @brief Tests that two steps keep their own labels. */
 TEST_F(Medium_CompiledStepAttribution, TwoStepsHaveTwoLabels)
 {
-    const auto collector = std::make_shared<RunCollector>();
-    const SushiRuntime::RunObserverHandle handle =
-        engine->runtime().add_run_observer(collector);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> first,
-                            make_chain(*engine, "first.step", false));
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> second,
-                            make_chain(*engine, "second.step", false));
+    const std::vector<SeenRun> runs = observe_two_steps();
 
-    SA_EXPECT_OK(first->step->run());
-    flush();
-    SA_EXPECT_OK(second->step->run());
-    flush();
-
-    ASSERT_FALSE(collector->lost());
-    const std::vector<SeenRun> runs = collector->runs();
     ASSERT_EQ(runs.size(), 2u);
     ASSERT_NE(runs[0].table, nullptr);
     ASSERT_NE(runs[1].table, nullptr);
     EXPECT_EQ(runs[0].table->label(), "first.step");
     EXPECT_EQ(runs[1].table->label(), "second.step");
+}
+
+/** @brief Tests that two steps over equal node indices keep apart by graph id. */
+TEST_F(Medium_CompiledStepAttribution, TwoStepsHaveTwoGraphIds)
+{
+    const std::vector<SeenRun> runs = observe_two_steps();
+
+    ASSERT_EQ(runs.size(), 2u);
     EXPECT_NE(runs[0].graph_id, 0u);
     EXPECT_NE(runs[0].graph_id, runs[1].graph_id);
+}
+
+/** @brief Tests that two steps of equal graphs carry equal origins. */
+TEST_F(Medium_CompiledStepAttribution, TwoStepsOfEqualGraphsCarryEqualOrigins)
+{
+    const std::vector<SeenRun> runs = observe_two_steps();
+
+    ASSERT_EQ(runs.size(), 2u);
+    ASSERT_NE(runs[0].table, nullptr);
+    ASSERT_NE(runs[1].table, nullptr);
     EXPECT_EQ(origins_of(*runs[0].table), origins_of(*runs[1].table));
 }
 

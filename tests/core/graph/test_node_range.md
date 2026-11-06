@@ -1,7 +1,7 @@
 # tests/core/graph/test_node_range.cpp
 
 
-Suites: `Small_NodeRange`.
+Suites: `Medium_NodeRange`.
 
 Tests the default `NodeRange`. The header declares only the struct; compiling a step over
 a range, and the refusal of a range outside the graph, are covered in
@@ -9,4 +9,5 @@ a range, and the refusal of a range outside the graph, are covered in
 
 ## TheDefaultRangeIsTheWholeGraph
 
-A default range starts at node 0 and ends at `K_NO_NODE`, which stands for the node count.
+A step compiled over a default `NodeRange` records as many operations as one compiled over
+`{0, node_count}`, and at least one.
