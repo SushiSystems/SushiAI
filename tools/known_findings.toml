@@ -15,13 +15,6 @@ backlog = "RW-149"
 [[finding]]
 checker = "testing/check_test_sizes.py"
 rule = "rule_unsized_python_test"
-path = "tools/tests/test_check_test_additions.py"
-count = 1
-backlog = "RW-149"
-
-[[finding]]
-checker = "testing/check_test_sizes.py"
-rule = "rule_unsized_python_test"
 path = "tools/tests/test_export_yolo26_reference.py"
 count = 5
 backlog = "RW-149"

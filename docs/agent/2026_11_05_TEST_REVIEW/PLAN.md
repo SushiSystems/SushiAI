@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — not started; the owner chooses inline or parallel
+**Status:** Open — in progress, parallel mode
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -18,7 +18,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T5 | The SushiLog sink moved to SushiLog's scoped in-memory sink | sushilog T1 | todo |
 | T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | todo |
 | T7 | The CLI tests on sushicore's in-memory runner, console and CMake driver | sushicore T1 | todo |
-| T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | todo |
+| T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
 | M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
