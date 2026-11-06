@@ -30,7 +30,9 @@
 
 #include <SushiAI/profile/timelines.hpp>
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <SushiProfiler/periods/period_timeline.hpp>
@@ -45,20 +47,29 @@ namespace
     using SushiAI::Profile::mark_period;
     using SushiAI::Profile::Timeline;
     using SushiAI::Profile::TimelineBinding;
-    using SushiAI::Profile::timeline_name;
 
     /** @brief Returns a configuration that follows `train.step` for one warm-up and three periods. */
     SushiProfiler::ProfilerConfig train_step_window()
     {
         return SushiAI::Test::following_timeline("train.step", 1U, 3U);
     }
-} // namespace
 
-TEST(Small_Timelines, NamesAreTrainStepAndInferenceBatch)
-{
-    EXPECT_EQ(timeline_name(Timeline::TrainStep), "train.step");
-    EXPECT_EQ(timeline_name(Timeline::InferenceBatch), "inference.batch");
-}
+    /** @brief Marks the train step @p count times in the binding in force. */
+    void mark_train_steps(std::uint32_t count)
+    {
+        for (std::uint32_t index = 0U; index < count; ++index)
+            mark_period(Timeline::TrainStep);
+    }
+
+    /** @brief Returns the index of each period of @p record, in the order the record holds them. */
+    std::vector<std::size_t> period_indices(const SushiProfiler::RunRecord& record)
+    {
+        std::vector<std::size_t> indices;
+        for (const SushiProfiler::PeriodRecord& period : record.periods)
+            indices.push_back(static_cast<std::size_t>(period.index));
+        return indices;
+    }
+} // namespace
 
 TEST(Small_Timelines, MarkWithNoBindingDoesNothing)
 {
@@ -75,6 +86,7 @@ TEST(Small_Timelines, MarkWithNoBindingDoesNothing)
     static_cast<void>(started.session->stop());
 }
 
+/** @brief Tests that each mark under a bound session opens one period of its timeline. */
 TEST(Medium_Timelines, ABoundSessionRecordsOnePeriodPerMark)
 {
     const SushiProfiler::Registry registry;
@@ -86,8 +98,7 @@ TEST(Medium_Timelines, ABoundSessionRecordsOnePeriodPerMark)
     SushiProfiler::PeriodTimeline& batch = session.timeline("inference.batch");
     {
         const TimelineBinding binding(session);
-        for (std::uint32_t index = 0U; index < 5U; ++index)
-            mark_period(Timeline::TrainStep);
+        mark_train_steps(5U);
         mark_period(Timeline::InferenceBatch);
         mark_period(Timeline::InferenceBatch);
     }
@@ -100,6 +111,5 @@ TEST(Medium_Timelines, ABoundSessionRecordsOnePeriodPerMark)
     EXPECT_TRUE(stopped.problems.empty());
     ASSERT_EQ(stopped.record.periods.size(), 4U);
     EXPECT_TRUE(stopped.record.periods[0].warmup);
-    for (std::size_t index = 0U; index < stopped.record.periods.size(); ++index)
-        EXPECT_EQ(stopped.record.periods[index].index, index);
+    EXPECT_EQ(period_indices(stopped.record), (std::vector<std::size_t>{0U, 1U, 2U, 3U}));
 }

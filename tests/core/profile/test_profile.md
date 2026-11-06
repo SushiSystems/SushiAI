@@ -8,4 +8,5 @@ real SushiProfiler session that follows one timeline.
 ## AZoneCarriesItsGroupAndStageName
 
 `SA_ZONE("data", "read")` in each of three periods records a zone site named `data.read` in the
-group `data`. The case skips itself when `SA_PROFILE_LEVEL` is 0.
+group `data`. The test is compiled only when `SA_PROFILE_LEVEL` is at least 1, since below that
+level `SA_ZONE` records nothing.

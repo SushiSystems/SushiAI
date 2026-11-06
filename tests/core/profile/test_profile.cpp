@@ -31,34 +31,45 @@
 #include <SushiAI/profile/profile.hpp>
 #include <SushiAI/profile_records/profile_records.hpp>
 
+#include <algorithm>
+
 #include <gtest/gtest.h>
 #include <SushiProfiler/registry/registry.hpp>
 #include <SushiProfiler/session/session.hpp>
 
+// SA_ZONE compiles to nothing below level 1, so the test exists only where a zone records.
+#if SA_PROFILE_LEVEL >= 1
+namespace
+{
+    /** @brief Opens the next period of @p timeline and runs one zone inside it. */
+    void run_zoned_period(SushiProfiler::PeriodTimeline& timeline)
+    {
+        static_cast<void>(timeline.mark());
+        SA_ZONE("data", "read");
+    }
+} // namespace
+
+/** @brief Tests that a zone run in a period is recorded as a site named by its group and stage. */
 TEST(Medium_Profile, AZoneCarriesItsGroupAndStageName)
 {
-    if (SA_PROFILE_LEVEL < 1)
-        GTEST_SKIP() << "the build compiles every zone away";
     const SushiProfiler::Registry registry;
     SushiProfiler::SessionStart started =
         SushiProfiler::Session::start(SushiAI::Test::following_timeline("zones", 0U, 2U), registry);
     ASSERT_TRUE(started.ok()) << started.error;
     SushiProfiler::PeriodTimeline& timeline = started.session->timeline("zones");
-    for (int index = 0; index < 3; ++index)
-    {
-        static_cast<void>(timeline.mark());
-        SA_ZONE("data", "read");
-    }
+    run_zoned_period(timeline);
+    run_zoned_period(timeline);
+    run_zoned_period(timeline);
 
     const SushiProfiler::SessionStop stopped = started.session->stop();
 
-    const SushiProfiler::SiteRecord* found = nullptr;
-    for (const SushiProfiler::SiteRecord& site : stopped.record.sites)
+    const auto found = std::find_if(stopped.record.sites.begin(), stopped.record.sites.end(),
+                                    [](const SushiProfiler::SiteRecord& site)
     {
-        if (site.name == "data.read")
-            found = &site;
-    }
-    ASSERT_NE(found, nullptr);
+        return site.name == "data.read";
+    });
+    ASSERT_NE(found, stopped.record.sites.end());
     EXPECT_EQ(found->group, "data");
     EXPECT_EQ(found->role, SushiProfiler::SiteRole::Zone);
 }
+#endif

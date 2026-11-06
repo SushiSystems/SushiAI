@@ -30,31 +30,62 @@
 
 #include <SushiAI/dtype/dtype.hpp>
 
+#include <array>
+#include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 
 using SushiAI::DType;
 
-/** @brief Tests that every element type has its width in bytes and its diagnostic name. */
-TEST(Small_DType, EveryElementTypeHasItsWidthAndItsName)
+namespace
 {
-    EXPECT_EQ(SushiAI::dtype_size(DType::Half), 2u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Float32), 4u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Float64), 8u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Complex32), 8u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Complex64), 16u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Int32), 4u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::Int64), 8u);
-    EXPECT_EQ(SushiAI::dtype_size(DType::UInt32), 4u);
+    /** @brief One element type with the width in bytes and the diagnostic name it must have. */
+    struct ElementTypeRow
+    {
+        DType type;
+        std::size_t width;
+        const char* name;
+    };
 
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Half), "half");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Float32), "float32");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Float64), "float64");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Complex32), "complex32");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Complex64), "complex64");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Int32), "int32");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::Int64), "int64");
-    EXPECT_STREQ(SushiAI::dtype_name(DType::UInt32), "uint32");
+    /** @brief Lists every element type with its width and its diagnostic name. */
+    constexpr std::array<ElementTypeRow, 8> K_ELEMENT_TYPE_ROWS = {{
+        {DType::Half, 2U, "half"},
+        {DType::Float32, 4U, "float32"},
+        {DType::Float64, 8U, "float64"},
+        {DType::Complex32, 8U, "complex32"},
+        {DType::Complex64, 16U, "complex64"},
+        {DType::Int32, 4U, "int32"},
+        {DType::Int64, 8U, "int64"},
+        {DType::UInt32, 4U, "uint32"},
+    }};
+
+    /** @brief Runs one case per element type of K_ELEMENT_TYPE_ROWS. */
+    class Small_DTypeRow : public ::testing::TestWithParam<ElementTypeRow>
+    {
+
+    };
+
+    /** @brief Names a Small_DTypeRow case after the diagnostic name of its element type. */
+    std::string element_type_case_name(const ::testing::TestParamInfo<ElementTypeRow>& info)
+    {
+        return std::string(info.param.name);
+    }
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(, Small_DTypeRow, ::testing::ValuesIn(K_ELEMENT_TYPE_ROWS),
+                         element_type_case_name);
+
+/** @brief Tests that an element type has the width in bytes that its row gives. */
+TEST_P(Small_DTypeRow, HasItsWidthInBytes)
+{
+    EXPECT_EQ(SushiAI::dtype_size(GetParam().type), GetParam().width);
+}
+
+/** @brief Tests that an element type has the diagnostic name that its row gives. */
+TEST_P(Small_DTypeRow, HasItsDiagnosticName)
+{
+    EXPECT_STREQ(SushiAI::dtype_name(GetParam().type), GetParam().name);
 }
 
 /** @brief Tests that only the three real floating-point types count as real floats. */

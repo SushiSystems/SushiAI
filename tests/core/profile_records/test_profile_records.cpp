@@ -41,6 +41,37 @@
 
 namespace SaTest = SushiAI::Test;
 
+namespace
+{
+    /** @brief A record and a period with one zone per group of K_ZONE_GROUPS, and what they hold. */
+    struct OneZonePerGroup
+    {
+        SushiProfiler::RunRecord record;
+        SushiProfiler::PeriodRecord period;
+        std::map<std::string, std::string> expected;
+    };
+
+    /** @brief Builds the record and period of one zone `<group>.stage` for each shared group. */
+    OneZonePerGroup one_zone_per_shared_group()
+    {
+        OneZonePerGroup built;
+        SushiProfiler::ZoneTree tree;
+        built.record.sites.resize(SushiAI::Profile::K_ZONE_GROUPS.size());
+        for (std::uint32_t site = 0U; site < built.record.sites.size(); ++site)
+        {
+            const std::string group(SushiAI::Profile::K_ZONE_GROUPS[site]);
+            built.record.sites[site].name = group + ".stage";
+            built.record.sites[site].group = group;
+            built.expected[group + ".stage"] = group;
+            SushiProfiler::ZoneNode node;
+            node.site = site;
+            tree.nodes.push_back(node);
+        }
+        built.period.zones.push_back(tree);
+        return built;
+    }
+} // namespace
+
 /** @brief Tests that the timeline, the window and a zero linger land in the configuration. */
 TEST(Small_ProfileRecords, FollowingTimelineSetsTheWindowAndNoLinger)
 {
@@ -107,28 +138,30 @@ TEST(Small_ProfileRecords, SushiAIZonesOfLeavesOutTheLibraryGroups)
 /** @brief Tests that sushiai_zones_of keeps a zone of every group in K_ZONE_GROUPS. */
 TEST(Small_ProfileRecords, SushiAIZonesOfKeepsEveryGroupOfTheSharedList)
 {
-    SushiProfiler::RunRecord record;
-    SushiProfiler::PeriodRecord period;
-    SushiProfiler::ZoneTree tree;
-    record.sites.resize(SushiAI::Profile::K_ZONE_GROUPS.size());
-    std::map<std::string, std::string> expected;
-    for (std::uint32_t site = 0U; site < record.sites.size(); ++site)
-    {
-        const std::string group(SushiAI::Profile::K_ZONE_GROUPS[site]);
-        record.sites[site].name = group + ".stage";
-        record.sites[site].group = group;
-        expected[group + ".stage"] = group;
-        SushiProfiler::ZoneNode node;
-        node.site = site;
-        tree.nodes.push_back(node);
-    }
-    period.zones.push_back(tree);
+    const OneZonePerGroup built = one_zone_per_shared_group();
 
-    EXPECT_EQ(SaTest::sushiai_zones_of(record, period), expected);
+    EXPECT_EQ(SaTest::sushiai_zones_of(built.record, built.period), built.expected);
 }
 
-/** @brief Tests that the written configuration file reads back through SushiProfiler. */
-TEST(Small_ProfileRecords, TheWrittenConfigurationIsReadBySushiProfiler)
+/** @brief Tests that a configuration text in the written format reads back through SushiProfiler. */
+TEST(Small_ProfileRecords, TheConfigurationTextIsReadBySushiProfiler)
+{
+    const std::string text =
+        "{\"sushiprofiler\": 1, \"timeline\": \"train.step\","
+        " \"window\": {\"warmup\": 0, \"active\": 2},"
+        " \"writers\": {\"record\": {\"path\": \"run.sprec.json\"}},"
+        " \"output\": \"run\","
+        " \"buffers\": {\"linger_ms\": 0}}";
+
+    const SushiProfiler::ConfigReadResult read = SushiProfiler::read_profiler_config(text);
+    ASSERT_TRUE(read.ok()) << read.error;
+    EXPECT_EQ(read.config->timeline, "train.step");
+    EXPECT_EQ(read.config->window.active, 2U);
+    EXPECT_EQ(read.config->writers.size(), 1u);
+}
+
+/** @brief Tests that the file write_profile_config makes reads back through SushiProfiler. */
+TEST(Medium_ProfileRecords, TheWrittenFileReadsBackThroughSushiProfiler)
 {
     const SaTest::ScratchDirectory folder("sushiai_profile_records");
 

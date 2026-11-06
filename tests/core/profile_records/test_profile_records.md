@@ -1,6 +1,6 @@
 # tests/core/profile_records/test_profile_records.cpp
 
-Suites: `Small_ProfileRecords`.
+Suites: `Small_ProfileRecords`, `Medium_ProfileRecords`.
 
 Tests the helpers in `modules/core/profile_records/include/SushiAI/profile_records/profile_records.hpp`. None starts a session.
 
@@ -20,6 +20,10 @@ A period with the zones `device.run` of group `device`, `chain.wait` of group `R
 
 A record with one zone `<group>.stage` for each group of `K_ZONE_GROUPS` (`SushiAI/profile/zone_groups.hpp`) gives `sushiai_zones_of` all of them. A group added to the list is covered with no edit to the case.
 
-## TheWrittenConfigurationIsReadBySushiProfiler
+## TheConfigurationTextIsReadBySushiProfiler
 
-`write_profile_config` writes a file that `read_profiler_config` accepts. The read configuration follows `train.step`, has 2 active periods and one writer.
+`read_profiler_config` accepts a configuration text in the format `write_profile_config` writes. The read configuration follows `train.step`, has 2 active periods and one writer. The case reads the text and touches no file.
+
+## TheWrittenFileReadsBackThroughSushiProfiler
+
+Suite `Medium_ProfileRecords`: the case writes a file in a scratch folder, so it is `medium`. `write_profile_config` writes a file that `read_profiler_config` accepts, after `read_text` reads it back. The read configuration follows `train.step`, has 2 active periods and one writer.

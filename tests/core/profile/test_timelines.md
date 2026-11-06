@@ -2,15 +2,10 @@
 
 Suites: `Small_Timelines`, `Medium_Timelines`.
 
-Tests `Timeline`, `mark_period` and `timeline_name` in
+Tests `Timeline` and `mark_period` in
 `modules/core/profile/include/SushiAI/profile/timelines.hpp`, and
 `TimelineBinding`. The cases start a real SushiProfiler session that follows
 `train.step` for one warm-up period and three active ones, and stop it before they end.
-
-## NamesAreTrainStepAndInferenceBatch
-
-`timeline_name` returns `train.step` for `TrainStep` and `inference.batch` for
-`InferenceBatch`.
 
 ## MarkWithNoBindingDoesNothing
 

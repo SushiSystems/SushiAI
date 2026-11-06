@@ -9,18 +9,22 @@ names each of the ten groups in a `SA_REQUIRE_ZONE_GROUP` at namespace scope, so
 from the list stops the compile of this program. A call site with a group outside the list stops
 the compile of its own file, in a build with the profiler and in one without.
 
-## TheListHoldsTheSpecifiedGroups
+## TheContractListsTheSpecifiedGroupsInOrder
 
 `K_ZONE_GROUPS` equals `compile`, `copy`, `data`, `device`, `eager`, `eval`, `host`, `io`,
 `optim` and `train`, the groups of section 3 of
 `docs/agent/2026_10_26_PROFILER_ADOPTION/SPEC.md`. Adding a group changes this case in the same
 commit.
 
-## NoGroupIsEmptyOrRepeated
+## IsNonEmptyAndListedOnce
 
-Every entry is non-empty and occurs once.
+One case per listed group. The group is not empty and occurs once in `K_ZONE_GROUPS`.
 
-## IsZoneGroupAcceptsOnlyTheListedGroups
+## IsZoneGroupAcceptsIt
 
-Each listed group passes `is_zone_group`; the empty string, `hos`, `hosts`, `Host` and `BLAS`
-do not.
+One case per listed group. `is_zone_group` accepts it.
+
+## IsZoneGroupRefusesIt
+
+One case per name of the near-miss table: the empty string, `hos`, `hosts`, `Host` and `BLAS`.
+`is_zone_group` refuses each.

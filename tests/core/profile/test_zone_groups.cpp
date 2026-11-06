@@ -33,11 +33,41 @@
 
 #include <algorithm>
 #include <array>
-#include <cstddef>
+#include <string>
 #include <string_view>
 #include <gtest/gtest.h>
 
 namespace Profile = SushiAI::Profile;
+
+namespace
+{
+    /** @brief Lists the names that are close to a group but are not one, and must be refused. */
+    constexpr std::array<std::string_view, 5> K_NEAR_MISSES = {"", "hos", "hosts", "Host", "BLAS"};
+
+    /** @brief Runs one case per listed group of K_ZONE_GROUPS. */
+    class Small_ZoneGroupEntry : public ::testing::TestWithParam<std::string_view>
+    {
+
+    };
+
+    /** @brief Runs one case per name of K_NEAR_MISSES. */
+    class Small_ZoneGroupNearMiss : public ::testing::TestWithParam<std::string_view>
+    {
+
+    };
+
+    /** @brief Names a case after its position in its table. */
+    std::string case_index_name(const ::testing::TestParamInfo<std::string_view>& info)
+    {
+        return std::to_string(info.index);
+    }
+} // namespace
+
+INSTANTIATE_TEST_SUITE_P(, Small_ZoneGroupEntry, ::testing::ValuesIn(Profile::K_ZONE_GROUPS),
+                         case_index_name);
+
+INSTANTIATE_TEST_SUITE_P(, Small_ZoneGroupNearMiss, ::testing::ValuesIn(K_NEAR_MISSES),
+                         case_index_name);
 
 // Each group of K_ZONE_GROUPS passes the check SA_ZONE runs, or this file does not compile.
 SA_REQUIRE_ZONE_GROUP("compile");
@@ -53,8 +83,11 @@ SA_REQUIRE_ZONE_GROUP("train");
 
 static_assert(!Profile::is_zone_group("Runtime"), "a library group is not a SushiAI group");
 
-/** @brief Tests that the list holds the ten groups of the profiling specification, in order. */
-TEST(Small_ZoneGroups, TheListHoldsTheSpecifiedGroups)
+/**
+ * @brief Tests the contract: K_ZONE_GROUPS lists the ten groups of the profiling specification,
+ *        in the specified order.
+ */
+TEST(Small_ZoneGroups, TheContractListsTheSpecifiedGroupsInOrder)
 {
     const std::array<std::string_view, 10> expected = {
         "compile", "copy", "data", "device", "eager", "eval", "host", "io", "optim", "train"};
@@ -62,27 +95,24 @@ TEST(Small_ZoneGroups, TheListHoldsTheSpecifiedGroups)
     EXPECT_EQ(Profile::K_ZONE_GROUPS, expected);
 }
 
-/** @brief Tests that no group is empty or listed twice. */
-TEST(Small_ZoneGroups, NoGroupIsEmptyOrRepeated)
+/** @brief Tests that a listed group is not empty and occurs once in K_ZONE_GROUPS. */
+TEST_P(Small_ZoneGroupEntry, IsNonEmptyAndListedOnce)
 {
-    for (std::size_t index = 0; index < Profile::K_ZONE_GROUPS.size(); ++index)
-    {
-        EXPECT_FALSE(Profile::K_ZONE_GROUPS[index].empty());
-        const auto first = Profile::K_ZONE_GROUPS.begin();
-        EXPECT_EQ(std::count(first, Profile::K_ZONE_GROUPS.end(), Profile::K_ZONE_GROUPS[index]), 1)
-            << Profile::K_ZONE_GROUPS[index];
-    }
+    const std::string_view group = GetParam();
+
+    EXPECT_FALSE(group.empty());
+    EXPECT_EQ(std::count(Profile::K_ZONE_GROUPS.begin(), Profile::K_ZONE_GROUPS.end(), group), 1)
+        << group;
 }
 
-/** @brief Tests that is_zone_group accepts each listed group and refuses a near miss. */
-TEST(Small_ZoneGroups, IsZoneGroupAcceptsOnlyTheListedGroups)
+/** @brief Tests that is_zone_group accepts each listed group. */
+TEST_P(Small_ZoneGroupEntry, IsZoneGroupAcceptsIt)
 {
-    for (const std::string_view group : Profile::K_ZONE_GROUPS)
-        EXPECT_TRUE(Profile::is_zone_group(group)) << group;
+    EXPECT_TRUE(Profile::is_zone_group(GetParam())) << GetParam();
+}
 
-    EXPECT_FALSE(Profile::is_zone_group(""));
-    EXPECT_FALSE(Profile::is_zone_group("hos"));
-    EXPECT_FALSE(Profile::is_zone_group("hosts"));
-    EXPECT_FALSE(Profile::is_zone_group("Host"));
-    EXPECT_FALSE(Profile::is_zone_group("BLAS"));
+/** @brief Tests that is_zone_group refuses a name that is close to a group but is not one. */
+TEST_P(Small_ZoneGroupNearMiss, IsZoneGroupRefusesIt)
+{
+    EXPECT_FALSE(Profile::is_zone_group(GetParam())) << GetParam();
 }

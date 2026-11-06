@@ -50,7 +50,28 @@ namespace
     }
 } // namespace
 
-TEST(Medium_TimelineBinding, MarksStopWhenTheBindingEndsAndResumeWithTheNext)
+/** @brief Tests that a mark after a TimelineBinding has ended changes no timeline. */
+TEST(Medium_TimelineBinding, MarksStopWhenTheBindingEnds)
+{
+    const SushiProfiler::Registry registry;
+    SushiProfiler::SessionStart started =
+        SushiProfiler::Session::start(following_train_step(), registry);
+    ASSERT_TRUE(started.ok()) << started.error;
+    SushiProfiler::Session& session = *started.session;
+    SushiProfiler::PeriodTimeline& step = session.timeline("train.step");
+    {
+        const TimelineBinding binding(session);
+        mark_period(Timeline::TrainStep);
+    }
+    EXPECT_EQ(step.current(), 0U);
+
+    mark_period(Timeline::TrainStep);
+    EXPECT_EQ(step.current(), 0U);
+    static_cast<void>(session.stop());
+}
+
+/** @brief Tests that a TimelineBinding made after another one ended marks the next period. */
+TEST(Medium_TimelineBinding, ALaterBindingBindsAgain)
 {
     const SushiProfiler::Registry registry;
     SushiProfiler::SessionStart started =
@@ -62,10 +83,6 @@ TEST(Medium_TimelineBinding, MarksStopWhenTheBindingEndsAndResumeWithTheNext)
         const TimelineBinding first(session);
         mark_period(Timeline::TrainStep);
     }
-    EXPECT_EQ(step.current(), 0U);
-
-    mark_period(Timeline::TrainStep);
-    EXPECT_EQ(step.current(), 0U);
     {
         const TimelineBinding second(session);
         mark_period(Timeline::TrainStep);
