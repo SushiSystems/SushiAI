@@ -48,12 +48,25 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the path is the name under the temporary directory. */
-TEST(Medium_ScratchDirectory, ThePathIsTheNameUnderTheTemporaryDirectory)
+/** @brief Tests that the path under a base is the name below it. */
+TEST(Small_ScratchDirectory, ThePathUnderABaseIsTheNameBelowIt)
 {
-    const ScratchDirectory directory(K_NAME);
+    const std::filesystem::path base = "base";
 
-    EXPECT_EQ(directory.path(), std::filesystem::temp_directory_path() / K_NAME);
+    EXPECT_EQ(ScratchDirectory::path_under(base, K_NAME), base / K_NAME);
+}
+
+/** @brief Tests that a directory made under a base removes the leftover tree of that base. */
+TEST(Medium_ScratchDirectory, ConstructionUnderABaseRemovesTheLeftoverTreeOfThatBase)
+{
+    const ScratchDirectory base(K_NAME);
+    fill(base.path() / "inner");
+    ASSERT_TRUE(std::filesystem::exists(base.path() / "inner" / "nested" / "deep.txt"));
+
+    const ScratchDirectory directory(base.path(), "inner");
+
+    EXPECT_EQ(directory.path(), base.path() / "inner");
+    EXPECT_FALSE(std::filesystem::exists(directory.path()));
 }
 
 /** @brief Tests that construction creates nothing, so the directory need not exist. */

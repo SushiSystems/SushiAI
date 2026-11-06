@@ -71,7 +71,8 @@ namespace
     }
 } // namespace
 
-TEST(Small_Timelines, MarkWithNoBindingDoesNothing)
+/** @brief Tests that a mark with no session leaves a running session's timelines alone. */
+TEST(Small_Timelines, MarkWithNoSessionDoesNothing)
 {
     const SushiProfiler::Registry registry;
     SushiProfiler::SessionStart started =
@@ -79,10 +80,27 @@ TEST(Small_Timelines, MarkWithNoBindingDoesNothing)
     ASSERT_TRUE(started.ok()) << started.error;
     SushiProfiler::PeriodTimeline& step = started.session->timeline("train.step");
 
-    mark_period(Timeline::TrainStep);
-    mark_period(Timeline::InferenceBatch);
+    mark_period(Timeline::TrainStep, nullptr);
+    mark_period(Timeline::InferenceBatch, nullptr);
 
     EXPECT_EQ(step.current(), SushiProfiler::PeriodTimeline::K_NO_PERIOD);
+    static_cast<void>(started.session->stop());
+}
+
+/** @brief Tests that a mark on a session opens a period of the timeline with the name given. */
+TEST(Small_Timelines, AMarkOnASessionOpensAPeriodOfItsTimelineOfThatName)
+{
+    const SushiProfiler::Registry registry;
+    SushiProfiler::SessionStart started =
+        SushiProfiler::Session::start(train_step_window(), registry);
+    ASSERT_TRUE(started.ok()) << started.error;
+    SushiProfiler::PeriodTimeline& step = started.session->timeline("train.step");
+    SushiProfiler::PeriodTimeline& batch = started.session->timeline("inference.batch");
+
+    mark_period(Timeline::TrainStep, started.session.get());
+
+    EXPECT_EQ(step.current(), 0U);
+    EXPECT_EQ(batch.current(), SushiProfiler::PeriodTimeline::K_NO_PERIOD);
     static_cast<void>(started.session->stop());
 }
 

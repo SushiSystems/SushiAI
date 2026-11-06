@@ -217,14 +217,17 @@ namespace SushiAI
 
         } // namespace
 
-        Status read_json_events(const std::filesystem::path& path, JSONEvents& handler) noexcept
+        Status read_json_events(const std::filesystem::path& path, JSONEvents& handler,
+                                std::size_t buffer_bytes) noexcept
         {
+            SA_FATAL_IF(buffer_bytes == 0, "A JSON file cannot be read through an empty buffer");
+
             return Detail::guard(Detail::SeamPhase::Allocate, [&]() -> Status
             {
                 const std::string file = path.string();
 
                 // libstdc++ takes a buffer before the open only, the MSVC library after it only.
-                std::vector<char> buffer(K_JSON_EVENT_BUFFER_BYTES);
+                std::vector<char> buffer(buffer_bytes);
                 const std::streamsize buffer_size = static_cast<std::streamsize>(buffer.size());
                 std::ifstream in;
                 in.rdbuf()->pubsetbuf(buffer.data(), buffer_size);

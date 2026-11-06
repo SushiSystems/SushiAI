@@ -73,8 +73,8 @@ paths resolve against.
 
 `parse_json_file` holds the text, the parser's document and the `Value` tree at once, which
 is right for a configuration file and too much for a file of hundreds of megabytes.
-`read_json_events(path, handler)` builds none of the three. It streams the file through a
-buffer of `K_JSON_EVENT_BUFFER_BYTES`, 64 KiB, and calls one method of the `JSONEvents` handler
+`read_json_events(path, handler, buffer_bytes)` builds none of the three. It streams the file through a
+buffer of `K_JSON_EVENT_BUFFER_BYTES`, 64 KiB, unless the caller passes a `buffer_bytes`, and calls one method of the `JSONEvents` handler
 per token: `begin_object`, `end_object`, `begin_array`, `end_array`, `key`, `null`, `boolean`,
 `whole`, `real` and `string`. A key and a string are views that last for the call. A whole
 number above the largest `std::int64_t` arrives as `real`.

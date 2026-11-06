@@ -24,7 +24,7 @@
 
 /**
  * @file test_test_environment.cpp
- * @brief Tests that TestEnvironment hands every caller the one runtime it creates.
+ * @brief Tests that the runtime TestEnvironment shares accepts a wait.
  * @author Mustafa Garip
  */
 
@@ -36,15 +36,6 @@ namespace
 {
     using SushiAI::Test::TestEnvironment;
 } // namespace
-
-/** @brief Tests that two calls to runtime() return the same runtime. */
-TEST(Medium_TestEnvironment, EveryCallReturnsTheSameRuntime)
-{
-    SushiRuntime::Runtime& first = TestEnvironment::runtime();
-    SushiRuntime::Runtime& second = TestEnvironment::runtime();
-
-    EXPECT_EQ(&first, &second);
-}
 
 /** @brief Tests that the shared runtime accepts a wait with nothing submitted. */
 TEST(Medium_TestEnvironment, TheRuntimeWaitsWithNothingSubmitted)

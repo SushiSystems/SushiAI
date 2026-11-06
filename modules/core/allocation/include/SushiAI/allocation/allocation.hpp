@@ -40,6 +40,14 @@
 namespace SushiAI
 {
     /**
+     * @brief Returns the element count of @p dims without allocating anything.
+     * @param dims The extents, outermost first.
+     * @return The product of the extents, or InvalidDescription for an extent that is not
+     *         positive or a product no index can address.
+     */
+    [[nodiscard]] Result<int64_t> check_tensor_extents(SushiRuntime::span<const int64_t> dims);
+
+    /**
      * @brief Allocates a tensor of @p dims with its own Storage.
      * @param engine The engine whose context owns the allocator.
      * @param dims The extents, outermost first.

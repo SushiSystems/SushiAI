@@ -95,14 +95,14 @@ namespace SushiAI
 
         /**
          * @brief Streams the JSON document at @p path to @p handler, one event at a time.
-         * @param handler Receives the events; an event that returns false ends the read
-         *                with success, and the handler keeps its own reason.
+         * @param handler Receives the events; false from an event ends the read with success.
+         * @param buffer_bytes Bytes of the file held in memory at once; must be positive.
          * @return FileNotFound for a file that cannot be opened; InvalidFile, naming the
-         *         path and the byte offset, for text that is no JSON document, and for a
-         *         read that fails.
+         *         path and the byte offset, for text that is no JSON, and for a failed read.
          */
-        [[nodiscard]] Status read_json_events(const std::filesystem::path& path,
-                                              JSONEvents& handler) noexcept;
+        [[nodiscard]] Status read_json_events(
+            const std::filesystem::path& path, JSONEvents& handler,
+            std::size_t buffer_bytes = K_JSON_EVENT_BUFFER_BYTES) noexcept;
 
         /**
          * @brief Hands the JSON document in @p text to @p handler, one event at a time.

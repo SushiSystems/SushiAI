@@ -7,8 +7,11 @@
 sushiai_add_test_program(OWNER failure
     SOURCES
         test_check.cpp
+        test_failure_block_counter.cpp
+        test_in_memory_failure_block_counter.cpp
         test_in_memory_fatal_sink.cpp
         test_result.cpp
         test_status.cpp
     DEPENDS
-        failure_expectations)
+        failure_expectations
+        log)

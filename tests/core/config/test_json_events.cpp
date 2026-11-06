@@ -158,17 +158,18 @@ TEST(Small_JsonEvents, AWholeNumberAboveInt64IsAReal)
 /** @brief Tests that a document longer than the read buffer arrives whole. */
 TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
 {
-    constexpr std::size_t entries = 40000;
+    constexpr std::size_t entries = 100;
+    constexpr std::size_t buffer_bytes = 16;
     std::string text = "[";
     for (std::size_t entry = 0; entry < entries; ++entry)
         text += (entry == 0 ? "" : ",") + std::to_string(entry);
     text += "]";
-    ASSERT_GT(text.size(), 2 * Config::K_JSON_EVENT_BUFFER_BYTES);
+    ASSERT_GT(text.size(), 2 * buffer_bytes);
 
     const ScratchFile file("sushiai_test_json_events_long.json", text);
 
     EventLog log;
-    SA_EXPECT_OK(Config::read_json_events(file.path(), log));
+    SA_EXPECT_OK(Config::read_json_events(file.path(), log, buffer_bytes));
 
     ASSERT_EQ(log.events().size(), entries + 2);
     EXPECT_EQ(log.events()[entries], "whole " + std::to_string(entries - 1));

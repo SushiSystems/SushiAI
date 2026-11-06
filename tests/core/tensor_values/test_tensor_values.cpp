@@ -71,7 +71,23 @@ TEST_F(Medium_TensorValues, AFloat64TensorRoundTripsExactly)
     EXPECT_EQ(SaTest::read_tensor(tensor), values);
 }
 
-/** @brief Tests that a float32 tensor holds each value rounded to float and reads it widened. */
+/**
+ * @brief Tests that rounding to float32 gives the nearest float of each value.
+ *
+ * The oracle is the nearest float written as a hexadecimal literal: 0.1 lies between
+ * 0x1.99999ap-4 and 0x1.999998p-4 and is nearer the first, one third lies between 0x1.555556p-2
+ * and 0x1.555554p-2 and is nearer the first, and -2.5 is exact.
+ */
+TEST(Small_TensorValues, RoundToFloat32GivesTheNearestFloatOfEachValue)
+{
+    const std::vector<double> values = {0.1, -2.5, 1.0 / 3.0};
+
+    const std::vector<float> rounded = SaTest::round_to_float32(span_of(values));
+
+    EXPECT_EQ(rounded, (std::vector<float>{0x1.99999ap-4f, -2.5f, 0x1.555556p-2f}));
+}
+
+/** @brief Tests that a float32 tensor reads back each written value rounded to float. */
 TEST_F(Medium_TensorValues, AFloat32TensorHoldsEachValueRoundedToFloat)
 {
     const std::vector<double> values = {0.1, -2.5, 1.0 / 3.0};
@@ -79,11 +95,9 @@ TEST_F(Medium_TensorValues, AFloat32TensorHoldsEachValueRoundedToFloat)
                             allocate_tensor(*engine, Shape{3}, DType::Float32));
 
     SaTest::write_tensor(tensor, span_of(values));
-    const std::vector<double> read = SaTest::read_tensor(tensor);
 
-    ASSERT_EQ(read.size(), values.size());
-    for (std::size_t i = 0; i < values.size(); ++i)
-        EXPECT_EQ(read[i], static_cast<double>(static_cast<float>(values[i])));
+    const std::vector<double> expected = {0x1.99999ap-4, -2.5, 0x1.555556p-2};
+    EXPECT_EQ(SaTest::read_tensor(tensor), expected);
 }
 
 /** @brief Tests that the bytes of a tensor count its elements times the element size. */

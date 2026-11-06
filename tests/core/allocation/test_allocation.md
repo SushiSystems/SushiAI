@@ -1,7 +1,7 @@
 # tests/core/allocation/test_allocation.cpp
 
 
-Suites: `Medium_Allocation`.
+Suites: `Small_Allocation`, `Medium_Allocation`.
 
 Tests what `allocate_tensor`, `allocate_like` and `allocate_arena` give back and what they
 refuse. Every case allocates on the engine `EngineTest` gives it, on the CPU SYCL device. The
@@ -14,7 +14,16 @@ of at least 24 times `dtype_size(DType::Float64)` bytes.
 
 ## AnExtentThatIsNotPositiveIsRefused
 
-The extents 4 and 0, passed as a span, are refused with `StatusCode::InvalidDescription`.
+The extents 4 and 0, passed as a span to `check_tensor_extents`, are refused with
+`StatusCode::InvalidDescription`. No engine is involved.
+
+## PositiveExtentsGiveTheirProduct
+
+The extents 2, 3 and 4 give 24 elements.
+
+## ExtentsWhoseProductOverflowsAreRefused
+
+The extents `int64` maximum and 2 are refused with `StatusCode::InvalidDescription`.
 
 ## ALikeTensorCopiesTheDescriptionAndSharesNothing
 

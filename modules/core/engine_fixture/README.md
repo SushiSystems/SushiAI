@@ -13,7 +13,8 @@ the engine's own graph: it builds a `TestGraph`, records through its `recorder()
 
 `Detail::create_runtime()` starts a worker pool, probes the topology and builds SYCL queues.
 Doing that per test would dominate the run and restart the thread pool while other work is
-settling, so `TestEnvironment` keeps one runtime for the whole program and `EngineTest` gives
+settling, so `TestEnvironment` keeps one runtime for the whole program, held in a `LazyShared`
+whose factory is `Detail::create_runtime()` and which `TestEnvironment(factory)` replaces and `EngineTest` gives
 each test its own `Engine`, so no test inherits another's graph or random offset. `SetUp()`
 fails the run with the message of the `Status` when the runtime cannot be created.
 
@@ -31,6 +32,7 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
+| `SushiAI/engine_fixture/lazy_shared.hpp` | `LazyShared` |
 | `SushiAI/engine_fixture/test_environment.hpp` | `TestEnvironment` |
 | `SushiAI/engine_fixture/engine_test.hpp` | `EngineTest` |
 | `SushiAI/engine_fixture/test_graph.hpp` | `TestGraph` |

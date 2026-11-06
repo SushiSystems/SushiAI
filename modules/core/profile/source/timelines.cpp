@@ -88,6 +88,12 @@ namespace SushiAI
                 static_cast<void>(bound->mark());
         }
 
+        void mark_period(Timeline timeline, SushiProfiler::Session* session) noexcept
+        {
+            if (session != nullptr)
+                static_cast<void>(session->timeline(K_TIMELINE_NAMES[slot_of(timeline)]).mark());
+        }
+
         TimelineBinding::TimelineBinding(SushiProfiler::Session& session)
         {
             for (std::size_t slot = 0; slot < K_TIMELINE_COUNT; ++slot)
@@ -105,6 +111,11 @@ namespace SushiAI
         }
 #else
         void mark_period(Timeline) noexcept
+        {
+
+        }
+
+        void mark_period(Timeline, SushiProfiler::Session*) noexcept
         {
 
         }

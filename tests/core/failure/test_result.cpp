@@ -34,6 +34,7 @@
 #include <type_traits>
 #include <utility>
 #include <gtest/gtest.h>
+#include <SushiAI/failure/in_memory_failure_block_counter.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -41,7 +42,7 @@
 using SushiAI::Result;
 using SushiAI::Status;
 using SushiAI::StatusCode;
-using SushiAI::Detail::live_failure_count;
+using SushiAI::InMemoryFailureBlockCounter;
 
 static_assert(!std::is_default_constructible<Result<int>>::value, "a Result needs a state");
 static_assert(!std::is_default_constructible<Result<int&>>::value, "a Result needs a state");
@@ -172,7 +173,7 @@ TEST(Small_Result, AReturnStatementConvertsFromAFailedStatus)
 /** @brief Tests that a Result holding a value allocates no failure block. */
 TEST(Small_Result, SuccessPathCreatesNoFailureBlock)
 {
-    const std::size_t before = live_failure_count();
+    const InMemoryFailureBlockCounter counter;
 
     const Result<int> made = checked_extent(3);
     const Result<int> copied(made);
@@ -181,7 +182,7 @@ TEST(Small_Result, SuccessPathCreatesNoFailureBlock)
     SA_ASSERT_OK_AND_ASSIGN(const int doubled, doubled_extent(3));
 
     EXPECT_EQ(copied.value() + moved.value() + doubled, 13);
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 }
 
 /** @brief Tests that std::move(result).value() moves a move-only value out. */
@@ -283,17 +284,17 @@ TEST(Small_Result, ReferenceFormRefersToTheCallersObject)
 /** @brief Tests that SA_TRY over a reference into a temporary Result reads its status. */
 TEST(Small_Result, TryReadsAStatusReferenceIntoATemporaryResult)
 {
-    const std::size_t before = live_failure_count();
+    const InMemoryFailureBlockCounter counter;
     bool passed = false;
 
     SA_EXPECT_FAILURE(forward_temporary_status(-4, passed), StatusCode::InvalidDescription,
                       "extent must be positive", "got -4");
     EXPECT_FALSE(passed);
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 
     SA_EXPECT_OK(forward_temporary_status(4, passed));
     EXPECT_TRUE(passed);
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 }
 
 /** @brief Tests that a moved-from failed Result<T&> keeps its failure. */

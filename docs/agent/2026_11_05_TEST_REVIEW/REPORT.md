@@ -122,6 +122,7 @@ dispatch: J16 M16 slice C (graph rest) — sonnet medium, 1 round, passed, rung 
 dispatch: J16 M10, M22, M23 (dtype, profile) — haiku high, 1 round, passed, rung 1
 dispatch: J16 M16 slice D (graph builder) — sonnet medium, 1 round, passed, rung 1
 dispatch: J16 M8 core/data — sonnet medium, 1 round, passed, rung 1
+dispatch: J17 RW-155 core seams (allocation, scratch_files, tensor_values, json_events, engine_fixture, failure, profile) — sonnet medium, 1 round, passed, rung 1
 
 ## Totals
 

@@ -40,9 +40,15 @@ namespace SushiAI
         class ScratchDirectory final
         {
             public:
-                /** @brief Removes whatever a previous run left under @p name. */
+                /** @brief Removes whatever a previous run left at @p name in the temporary directory. */
                 explicit ScratchDirectory(const char* name) noexcept
-                    : path_(std::filesystem::temp_directory_path() / name)
+                    : ScratchDirectory(std::filesystem::temp_directory_path(), name)
+                {
+                }
+
+                /** @brief Removes whatever a previous run left at @p name in @p base. */
+                ScratchDirectory(const std::filesystem::path& base, const char* name) noexcept
+                    : path_(path_under(base, name))
                 {
                     std::error_code ignored;
                     std::filesystem::remove_all(path_, ignored);
@@ -59,6 +65,13 @@ namespace SushiAI
                 ScratchDirectory& operator=(const ScratchDirectory&) = delete;
                 ScratchDirectory(ScratchDirectory&&) = delete;
                 ScratchDirectory& operator=(ScratchDirectory&&) = delete;
+
+                /** @brief Returns the path @p name takes under @p base, touching nothing. */
+                static std::filesystem::path path_under(const std::filesystem::path& base,
+                                                        const char* name)
+                {
+                    return base / name;
+                }
 
                 /** @brief Returns the directory, which need not exist. */
                 const std::filesystem::path& path() const noexcept { return path_; }

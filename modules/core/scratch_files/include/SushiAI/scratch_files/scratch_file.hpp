@@ -40,9 +40,15 @@ namespace SushiAI
         class ScratchFile
         {
             public:
-                /** @brief Removes any file a previous run left under @p name. */
+                /** @brief Removes any file a previous run left at @p name in the temporary directory. */
                 explicit ScratchFile(const char* name) noexcept
-                    : path_(std::filesystem::temp_directory_path() / name)
+                    : ScratchFile(std::filesystem::temp_directory_path(), name)
+                {
+                }
+
+                /** @brief Removes any file a previous run left at @p name in @p base. */
+                ScratchFile(const std::filesystem::path& base, const char* name) noexcept
+                    : path_(path_under(base, name))
                 {
                     std::error_code ignored;
                     std::filesystem::remove(path_, ignored);
@@ -57,6 +63,13 @@ namespace SushiAI
 
                 ScratchFile(const ScratchFile&) = delete;
                 ScratchFile& operator=(const ScratchFile&) = delete;
+
+                /** @brief Returns the path @p name takes under @p base, touching nothing. */
+                static std::filesystem::path path_under(const std::filesystem::path& base,
+                                                        const char* name)
+                {
+                    return base / name;
+                }
 
                 /** @brief Returns the path this file removes on destruction. */
                 const std::filesystem::path& path() const noexcept { return path_; }

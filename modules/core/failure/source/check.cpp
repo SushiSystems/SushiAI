@@ -73,12 +73,25 @@ namespace SushiAI
             handler(file, line, message);
         }
 
-        void fail_fast(const char* file, int line, std::string_view message) noexcept
+        void flush_and_abort() noexcept
         {
-            report_fatal(file, line, message);
-
             // A null stream flushes every open output stream, stdout included.
             std::fflush(nullptr);
+            std::abort();
+        }
+
+        void report_then_stop(const char* file, int line, std::string_view message,
+                              FatalStop stop) noexcept
+        {
+            report_fatal(file, line, message);
+            stop();
+        }
+
+        void fail_fast(const char* file, int line, std::string_view message) noexcept
+        {
+            report_then_stop(file, line, message, &flush_and_abort);
+
+            // flush_and_abort never returns; this line keeps the compiler honest about it.
             std::abort();
         }
 

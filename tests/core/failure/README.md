@@ -84,7 +84,8 @@ where a `Result<int>` is declared.
 
 A default `Status` has the code `Ok` and an empty message. The case constructs, copies, moves,
 copy-assigns and move-assigns successful statuses and calls `annotated` on one. The annotation's
-composer never runs, both results are ok, and `live_failure_count()` is what it was before.
+composer never runs, both results are ok, and an `InMemoryFailureBlockCounter` installed before
+the case counts no live block.
 
 ### FailIfFormatsOnlyWhenTheConditionHolds
 
@@ -94,9 +95,9 @@ call to `counted`.
 
 ### CopiesShareOneBlockAndTheLastOneFreesIt
 
-A failure, a copy of it and a status assigned from the copy leave `live_failure_count()` one
-above its start, and the third status's `message().data()` is the first one's pointer. After
-the scope closes the count is back at its start.
+A failure, a copy of it and a status assigned from the copy leave an
+`InMemoryFailureBlockCounter` at one live block, and the third status's `message().data()` is
+the first one's pointer. After the scope closes the counter reads zero.
 
 ### MovedFromStatusKeepsItsFailure
 
@@ -105,8 +106,8 @@ and both targets still report `Unsupported` and "no kernel for int64".
 
 ### AssignmentReplacesTheHeldFailure
 
-Assigning a second failure to a status that holds one leaves one live block and the second
-failure's code and message. A self-assignment through a const reference keeps the failure.
+Assigning a second failure to a status that holds one leaves one live block on an
+`InMemoryFailureBlockCounter`, and the second failure's code and message. A self-assignment through a const reference keeps the failure.
 Assigning `Status()` makes the status ok and frees the block.
 
 ### AnnotatedPrefixesTheMessageAndKeepsTheCode
@@ -136,10 +137,17 @@ With an `InMemoryFatalSink` installed, one call of
 `Detail::report_fatal("layer.cpp", 42, "a sealed trace was reused")` leaves one report in the
 sink, with that file, line and message.
 
-### NullFatalHandlerInstallsTheDefaultOne
+### NullFatalHandlerInstallsTheDefaultOneThatLogsAtFatal
 
-`set_fatal_handler(nullptr)` returns the handler that was installed, `&record_fatal`. The
-handler in place after it is not null and is not `record_fatal`.
+With an `InMemoryFatalSink` installed, `set_fatal_handler(nullptr)` replaces it with the default
+handler. Calling that handler with "layer.cpp", 42 and "a sealed trace was reused" under a
+`SushiLog::LogCapture` leaves one record at `Fatal` in `sushiai.failure`, with that file, line
+and message.
+
+### TheHandlerRunsBeforeTheStop
+
+`Detail::report_then_stop` with an `InMemoryFatalSink` installed and a stop function that
+returns: the stop function sees one report in the sink, and the sink holds the message "stop 3".
 
 ### FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse
 
@@ -167,11 +175,6 @@ is refused". The case calls `stop_when(false, ...)` first to learn that line.
 `stop_with_unformattable_message` stops the process with a FATAL record of `[sushiai.failure]`
 at a call site in `test_status.cpp`, with the text "a fatal check failed" and "its message could
 not be composed".
-
-### ReplacedFatalHandlerRunsBeforeTheStop
-
-`stop_under_announcer` stops the process and its stderr contains "recorded: stop 3", the line
-`announce_fatal` writes.
 
 ### AssertStopsOnAFalseConditionInADebugBuild
 

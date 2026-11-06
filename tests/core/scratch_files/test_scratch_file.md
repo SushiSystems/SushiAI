@@ -1,17 +1,22 @@
 # tests/core/scratch_files/test_scratch_file.cpp
 
 
-Suites: `Medium_ScratchFile`.
+Suites: `Small_ScratchFile`, `Medium_ScratchFile`.
 
 Tests that `ScratchFile` names a file under the temporary directory and removes it on
 construction and on destruction.
 
-This file writes to the temporary directory, which makes it medium. Every case uses the name
-"sushiai_scratch_file_test.txt".
+The case that composes a path touches nothing and is small. The others write to the temporary
+directory, which makes them medium. Every case uses the name "sushiai_scratch_file_test.txt".
 
-## ThePathIsTheNameUnderTheTemporaryDirectory
+## ThePathUnderABaseIsTheNameBelowIt
 
-`path()` equals the temporary directory joined with the name.
+`ScratchFile::path_under` gives the base joined with the name.
+
+## ConstructionUnderABaseRemovesTheLeftoverFileOfThatBase
+
+A `ScratchFile` made with a base and a name has that base and name as its path, and removes a
+file a previous run left there. The base is a `ScratchDirectory`.
 
 ## ConstructionRemovesALeftoverFile
 

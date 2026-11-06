@@ -31,10 +31,12 @@
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
+#include <SushiAI/scratch_files/scratch_directory.hpp>
 #include <SushiAI/scratch_files/scratch_file.hpp>
 
 namespace
 {
+    using SushiAI::Test::ScratchDirectory;
     using SushiAI::Test::ScratchFile;
 
     /** @brief Holds the file name every case uses. */
@@ -48,12 +50,26 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the path is the name under the temporary directory. */
-TEST(Medium_ScratchFile, ThePathIsTheNameUnderTheTemporaryDirectory)
+/** @brief Tests that the path under a base is the name below it. */
+TEST(Small_ScratchFile, ThePathUnderABaseIsTheNameBelowIt)
 {
-    const ScratchFile file(K_NAME);
+    const std::filesystem::path base = "base";
 
-    EXPECT_EQ(file.path(), std::filesystem::temp_directory_path() / K_NAME);
+    EXPECT_EQ(ScratchFile::path_under(base, K_NAME), base / K_NAME);
+}
+
+/** @brief Tests that a file made under a base removes the leftover file of that base. */
+TEST(Medium_ScratchFile, ConstructionUnderABaseRemovesTheLeftoverFileOfThatBase)
+{
+    const ScratchDirectory base("sushiai_scratch_file_base_test");
+    std::filesystem::create_directories(base.path());
+    write_line(base.path() / K_NAME);
+    ASSERT_TRUE(std::filesystem::exists(base.path() / K_NAME));
+
+    const ScratchFile file(base.path(), K_NAME);
+
+    EXPECT_EQ(file.path(), base.path() / K_NAME);
+    EXPECT_FALSE(std::filesystem::exists(file.path()));
 }
 
 /** @brief Tests that construction removes a file a previous run left under the name. */

@@ -41,8 +41,18 @@ namespace SushiAI
 {
     namespace Test
     {
+        /** @brief Returns @p values each rounded to the nearest float, as a FLOAT32 tensor holds them. */
+        inline std::vector<float> round_to_float32(SushiRuntime::span<const double> values)
+        {
+            std::vector<float> rounded(values.size());
+            for (std::size_t i = 0; i < values.size(); ++i)
+                rounded[i] = static_cast<float>(values[i]);
+            return rounded;
+        }
+
         /** @brief Writes host doubles into a FLOAT32 or FLOAT64 tensor's shared USM. */
-        inline void write_tensor(SushiBLAS::Tensor& tensor, SushiRuntime::span<const double> values) noexcept
+        inline void write_tensor(SushiBLAS::Tensor& tensor,
+                                 SushiRuntime::span<const double> values) noexcept
         {
             EXPECT_EQ(static_cast<std::size_t>(tensor.num_elements), values.size());
 
@@ -53,8 +63,9 @@ namespace SushiAI
                 return;
             }
 
+            const std::vector<float> rounded = round_to_float32(values);
             float* data = tensor.data_as<float>();
-            for (std::size_t i = 0; i < values.size(); ++i) data[i] = static_cast<float>(values[i]);
+            for (std::size_t i = 0; i < rounded.size(); ++i) data[i] = rounded[i];
         }
 
         /** @brief Reads a FLOAT32 or FLOAT64 tensor's shared USM back as host doubles. */

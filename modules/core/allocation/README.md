@@ -15,4 +15,4 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/allocation/allocation.hpp` | `allocate_tensor`, `allocate_like`, `allocate_arena`, `view_tensor` |
+| `SushiAI/allocation/allocation.hpp` | `check_tensor_extents`, `allocate_tensor`, `allocate_like`, `allocate_arena`, `view_tensor` |

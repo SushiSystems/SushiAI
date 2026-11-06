@@ -39,6 +39,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/engine_fixture/lazy_shared.hpp>
 
 namespace SushiAI
 {
@@ -48,11 +49,26 @@ namespace SushiAI
         class TestEnvironment : public ::testing::Environment
         {
             public:
+                /** @brief Names the call that creates the runtime of the program. */
+                using RuntimeFactory = LazyShared<SushiRuntime::Runtime>::Factory;
+
+                /** @brief Creates the runtime with Detail::create_runtime(). */
+                TestEnvironment() = default;
+
+                /**
+                 * @brief Creates the runtime with @p factory in place of Detail::create_runtime().
+                 * @pre runtime() has not been called yet.
+                 */
+                explicit TestEnvironment(RuntimeFactory factory)
+                {
+                    runtime_.use_factory(std::move(factory));
+                }
+
                 /** @brief Destroys the Engine, then the runtime, after the last test. */
                 void TearDown() override
                 {
                     engine_.reset();
-                    runtime_.reset();
+                    runtime_.release();
                 }
 
                 /**
@@ -63,19 +79,15 @@ namespace SushiAI
                  */
                 static SushiRuntime::Runtime& runtime() noexcept
                 {
-                    if (!runtime_)
+                    Result<SushiRuntime::Runtime&> acquired = runtime_.acquire();
+                    if (!acquired.has_value())
                     {
-                        Result<SushiRuntime::Runtime> created = Detail::create_runtime();
-                        if (!created.has_value())
-                        {
-                            const std::string_view message = created.status().message();
-                            std::fprintf(stderr, "cannot create the runtime: %.*s\n",
-                                         static_cast<int>(message.size()), message.data());
-                            std::abort();
-                        }
-                        runtime_.emplace(std::move(created).value());
+                        const std::string_view message = acquired.status().message();
+                        std::fprintf(stderr, "cannot create the runtime: %.*s\n",
+                                     static_cast<int>(message.size()), message.data());
+                        std::abort();
                     }
-                    return *runtime_;
+                    return acquired.value();
                 }
 
                 /**
@@ -94,7 +106,11 @@ namespace SushiAI
                 static inline std::optional<SushiBLAS::Engine> engine_;
 
                 /** @brief Holds the runtime from the first runtime() call to TearDown(). */
-                static inline std::optional<SushiRuntime::Runtime> runtime_;
+                static inline LazyShared<SushiRuntime::Runtime> runtime_{
+                    []()
+                    {
+                        return Detail::create_runtime();
+                    }};
 
         };
 

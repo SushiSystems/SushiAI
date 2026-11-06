@@ -33,6 +33,11 @@
 #include <cstdint>
 #include <string_view>
 
+namespace SushiProfiler
+{
+    class Session;
+} // namespace SushiProfiler
+
 namespace SushiAI
 {
     namespace Profile
@@ -49,6 +54,14 @@ namespace SushiAI
          *        nothing.
          */
         void mark_period(Timeline timeline) noexcept;
+
+        /**
+         * @brief Opens the next period of the timeline of @p session with the name of
+         *        @p timeline.
+         * @param session The session to mark; a null pointer does nothing. It is not the
+         *                session a TimelineBinding holds, which the call never reads.
+         */
+        void mark_period(Timeline timeline, SushiProfiler::Session* session) noexcept;
 
         /** @brief Returns the name of @p timeline, as a session's configuration names it. */
         [[nodiscard]] std::string_view timeline_name(Timeline timeline) noexcept;

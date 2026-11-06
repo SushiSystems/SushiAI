@@ -7,10 +7,15 @@ Tests `Timeline` and `mark_period` in
 `TimelineBinding`. The cases start a real SushiProfiler session that follows
 `train.step` for one warm-up period and three active ones, and stop it before they end.
 
-## MarkWithNoBindingDoesNothing
+## MarkWithNoSessionDoesNothing
 
-With a session running and no `TimelineBinding`, `mark_period` on either timeline leaves the
-session's `train.step` timeline at `K_NO_PERIOD`.
+`mark_period` on either timeline with a null session leaves the `train.step` timeline of a
+running session at `K_NO_PERIOD`. The case reads no `TimelineBinding`.
+
+## AMarkOnASessionOpensAPeriodOfItsTimelineOfThatName
+
+`mark_period(Timeline::TrainStep, session)` moves the session's `train.step` timeline to period
+0 and leaves its `inference.batch` timeline at `K_NO_PERIOD`. No binding is made.
 
 ## ABoundSessionRecordsOnePeriodPerMark
 

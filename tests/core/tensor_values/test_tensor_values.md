@@ -3,7 +3,8 @@
 
 Suites: `Medium_TensorValues`, `Small_TensorValues`.
 
-Tests `write_tensor`, `read_tensor`, `read_tensor_bytes` and `first_difference`.
+Tests `round_to_float32`, `write_tensor`, `read_tensor`, `read_tensor_bytes` and
+`first_difference`.
 
 The `Medium_TensorValues` fixture needs an engine to allocate tensors. The writes and reads touch
 shared memory from the host, so no case records work on the device.
@@ -12,10 +13,15 @@ shared memory from the host, so no case records work on the device.
 
 Four doubles written to a float64 [4] tensor read back equal, 1e-300 included.
 
+## RoundToFloat32GivesTheNearestFloatOfEachValue
+
+0.1, -2.5 and one third rounded to float32 equal the hexadecimal literals `0x1.99999ap-4`,
+`-2.5` and `0x1.555556p-2`. No engine is involved.
+
 ## AFloat32TensorHoldsEachValueRoundedToFloat
 
-0.1, -2.5 and one third written to a float32 [3] tensor read back as each value rounded to
-float and widened to double, compared exactly.
+0.1, -2.5 and one third written to a float32 [3] tensor read back as the same three literals
+widened to double, compared exactly.
 
 ## TheBytesOfATensorAreItsElementStorage
 

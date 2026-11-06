@@ -30,14 +30,18 @@
 
 #include <algorithm>
 #include <array>
-#include <cstdio>
+#include <cstddef>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
+#include <vector>
 #include <gtest/gtest.h>
+#include <SushiLog/log/log_capture.hpp>
+#include <SushiLog/log/log_level.hpp>
 #include <SushiAI/failure/check.hpp>
+#include <SushiAI/failure/in_memory_failure_block_counter.hpp>
 #include <SushiAI/failure/in_memory_fatal_sink.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -45,7 +49,8 @@
 using SushiAI::FatalHandler;
 using SushiAI::Status;
 using SushiAI::StatusCode;
-using SushiAI::Detail::live_failure_count;
+using SushiAI::InMemoryFailureBlockCounter;
+using SushiAI::InMemoryFatalSink;
 
 static_assert(sizeof(Status) == sizeof(void*), "a Status is one pointer");
 static_assert(std::is_nothrow_default_constructible<Status>::value, "success never throws");
@@ -88,17 +93,16 @@ namespace
         return Status();
     }
 
-    /** @brief Ignores a fatal report; a handler to tell apart from the default one. */
-    void record_fatal(const char*, int, std::string_view) noexcept
-    {
-    }
+    /** @brief Points at the sink whose reports note_stop counts. */
+    const InMemoryFatalSink* g_sink_at_stop = nullptr;
 
-    /** @brief Writes "recorded: <message>" to stderr, where a death test reads it. */
-    void announce_fatal(const char*, int, std::string_view message) noexcept
+    /** @brief Holds the number of reports the sink kept when note_stop ran. */
+    std::size_t g_reports_at_stop = 0;
+
+    /** @brief Records how many reports the sink holds at the moment of the stop, and returns. */
+    void note_stop() noexcept
     {
-        std::fputs("recorded: ", stderr);
-        std::fwrite(message.data(), 1, message.size(), stderr);
-        std::fputs("\n", stderr);
+        g_reports_at_stop = g_sink_at_stop->reports().size();
     }
 
     /**
@@ -122,13 +126,6 @@ namespace
     void stop_with_unformattable_message() noexcept
     {
         SA_FATAL("{}", refused_text());
-    }
-
-    /** @brief Installs announce_fatal and stops the process. */
-    void stop_under_announcer() noexcept
-    {
-        SushiAI::set_fatal_handler(&announce_fatal);
-        SA_FATAL("stop {}", 3);
     }
 
 #ifndef NDEBUG
@@ -197,7 +194,7 @@ TEST(Small_Status, FromMessageCarriesTheCodeAndTheText)
  */
 TEST(Small_Status, SuccessPathCreatesNoFailureBlock)
 {
-    const std::size_t before = live_failure_count();
+    const InMemoryFailureBlockCounter counter;
     int composed = 0;
 
     const Status made;
@@ -218,7 +215,7 @@ TEST(Small_Status, SuccessPathCreatesNoFailureBlock)
     EXPECT_TRUE(annotated.is_ok());
     EXPECT_TRUE(assigned.is_ok());
     EXPECT_EQ(composed, 0);
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 }
 
 /** @brief Tests that SA_FAIL_IF formats its arguments only when its condition holds. */
@@ -237,21 +234,21 @@ TEST(Small_Status, FailIfFormatsOnlyWhenTheConditionHolds)
 /** @brief Tests that copies of a failure share one block, which the last of them frees. */
 TEST(Small_Status, CopiesShareOneBlockAndTheLastOneFreesIt)
 {
-    const std::size_t before = live_failure_count();
+    const InMemoryFailureBlockCounter counter;
 
     {
         const Status first = failure_of(StatusCode::Incompatible, "two shapes disagree");
-        EXPECT_EQ(live_failure_count(), before + 1);
+        EXPECT_EQ(counter.live(), 1u);
 
         const Status second(first);
         Status third;
         third = second;
-        EXPECT_EQ(live_failure_count(), before + 1);
+        EXPECT_EQ(counter.live(), 1u);
         EXPECT_EQ(third.code(), StatusCode::Incompatible);
         EXPECT_EQ(third.message().data(), first.message().data());
     }
 
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 }
 
 /** @brief Tests that a moved-from failed Status keeps its failure. */
@@ -270,11 +267,11 @@ TEST(Small_Status, MovedFromStatusKeepsItsFailure)
 /** @brief Tests that assigning a Status replaces the failure it holds, and a success frees it. */
 TEST(Small_Status, AssignmentReplacesTheHeldFailure)
 {
-    const std::size_t before = live_failure_count();
+    const InMemoryFailureBlockCounter counter;
 
     Status status = failure_of(StatusCode::InvalidFile, "first");
     status = failure_of(StatusCode::FileNotFound, "second");
-    EXPECT_EQ(live_failure_count(), before + 1);
+    EXPECT_EQ(counter.live(), 1u);
     SA_EXPECT_FAILURE(status, StatusCode::FileNotFound, "second");
 
     const Status& alias = status;
@@ -283,7 +280,7 @@ TEST(Small_Status, AssignmentReplacesTheHeldFailure)
 
     status = Status();
     EXPECT_TRUE(status.is_ok());
-    EXPECT_EQ(live_failure_count(), before);
+    EXPECT_EQ(counter.live(), 0u);
 }
 
 /** @brief Tests that annotated prefixes the message and keeps the code. */
@@ -338,7 +335,7 @@ TEST(Small_Status, TryForwardsAFailureAndPassesASuccess)
 /** @brief Tests that a report delivered to the installed sink carries file, line and text. */
 TEST(Small_Status, ReportFatalDeliversFileLineAndMessageOnceToTheInstalledSink)
 {
-    const SushiAI::InMemoryFatalSink sink;
+    const InMemoryFatalSink sink;
 
     SushiAI::Detail::report_fatal("layer.cpp", 42, "a sealed trace was reused");
 
@@ -348,16 +345,41 @@ TEST(Small_Status, ReportFatalDeliversFileLineAndMessageOnceToTheInstalledSink)
     EXPECT_EQ(sink.reports()[0].message, "a sealed trace was reused");
 }
 
-/** @brief Tests that a null handler installs the default one, which is no earlier handler. */
-TEST(Small_Status, NullFatalHandlerInstallsTheDefaultOne)
+/** @brief Tests that a null handler installs the default one, which logs the report at FATAL. */
+TEST(Small_Status, NullFatalHandlerInstallsTheDefaultOneThatLogsAtFatal)
 {
-    const FatalHandler original = SushiAI::set_fatal_handler(&record_fatal);
+    const InMemoryFatalSink sink;
     const FatalHandler recorder = SushiAI::set_fatal_handler(nullptr);
-    const FatalHandler standard = SushiAI::set_fatal_handler(original);
+    const FatalHandler standard = SushiAI::set_fatal_handler(recorder);
+    std::vector<SushiLog::CapturedRecord> records;
+    {
+        const SushiLog::LogCapture capture;
 
-    EXPECT_EQ(recorder, &record_fatal);
-    ASSERT_NE(standard, nullptr);
-    EXPECT_NE(standard, &record_fatal);
+        standard("layer.cpp", 42, "a sealed trace was reused");
+
+        records = capture.records();
+    }
+
+    ASSERT_EQ(records.size(), 1u);
+    EXPECT_EQ(records.front().level, SushiLog::LogLevel::Fatal);
+    EXPECT_EQ(records.front().project + "." + records.front().module, "sushiai.failure");
+    EXPECT_EQ(records.front().file, "layer.cpp");
+    EXPECT_EQ(records.front().line, 42u);
+    EXPECT_EQ(records.front().message, "a sealed trace was reused");
+}
+
+/** @brief Tests that the handler has kept its report by the time the stop runs. */
+TEST(Small_Status, TheHandlerRunsBeforeTheStop)
+{
+    const InMemoryFatalSink sink;
+    g_sink_at_stop = &sink;
+    g_reports_at_stop = 0;
+
+    SushiAI::Detail::report_then_stop("layer.cpp", 7, "stop 3", &note_stop);
+
+    EXPECT_EQ(g_reports_at_stop, 1u);
+    ASSERT_EQ(sink.reports().size(), 1u);
+    EXPECT_EQ(sink.reports()[0].message, "stop 3");
 }
 
 /** @brief Tests that SA_FATAL_IF formats nothing and returns when its condition is false. */
@@ -402,12 +424,6 @@ TEST(Medium_StatusFatal, FatalCheckWhoseMessageCannotBeFormattedReportsTheFixedM
     SA_EXPECT_FATAL(stop_with_unformattable_message(),
                     "[FATAL] [sushiai.failure]", "[test_status.cpp:",
                     "a fatal check failed", "its message could not be composed");
-}
-
-/** @brief Tests that the installed handler runs before the process stops. */
-TEST(Medium_StatusFatal, ReplacedFatalHandlerRunsBeforeTheStop)
-{
-    SA_EXPECT_FATAL(stop_under_announcer(), "recorded: stop 3");
 }
 
 #ifndef NDEBUG

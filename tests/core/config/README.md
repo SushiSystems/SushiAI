@@ -24,9 +24,9 @@ In `[9223372036854775807, 18446744073709551615]` the first entry arrives as
 
 ### ADocumentLongerThanTheBufferArrivesWhole
 
-A file holding an array of 40000 whole numbers, whose text is longer than twice
-`K_JSON_EVENT_BUFFER_BYTES`, gives 40002 events. The last number is "whole 39999" and the last
-event is the end of the array.
+A file holding an array of 100 whole numbers, read through a 16-byte buffer given to
+`read_json_events`, whose text is longer than twice that buffer, gives 102 events. The last
+number is "whole 99" and the last event is the end of the array.
 
 ### AHandlerThatStopsEndsTheReadWithSuccess
 

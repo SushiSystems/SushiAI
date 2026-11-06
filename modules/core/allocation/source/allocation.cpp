@@ -40,32 +40,6 @@ namespace SushiAI
     namespace
     {
         /**
-         * @brief Returns the element count of @p dims, verifying non-overflow.
-         * @param dims The extents.
-         * @return The product of the extents, or InvalidDescription when an extent is not
-         *         positive or the product overflows.
-         */
-        [[nodiscard]] Result<int64_t> checked_element_count(SushiRuntime::span<const int64_t> dims)
-        {
-            int64_t elements = 1;
-
-            for (int64_t extent : dims)
-            {
-                SA_FAIL_IF(extent <= 0, StatusCode::InvalidDescription,
-                           "Tensor extents must be positive; got {}", extent);
-                SA_FAIL_IF(extent > std::numeric_limits<int64_t>::max() / elements,
-                           StatusCode::InvalidDescription,
-                           "A tensor of these extents holds more than {} elements, which no "
-                           "index arithmetic in this library can address; the extent that "
-                           "overflowed it is {}",
-                           std::numeric_limits<int64_t>::max(), extent);
-                elements *= extent;
-            }
-
-            return elements;
-        }
-
-        /**
          * @brief Renders extents as "[a, b]", for a diagnostic.
          * @param dims The extents.
          * @return The bracketed rendering.
@@ -123,12 +97,32 @@ namespace SushiAI
         }
     }
 
+    Result<int64_t> check_tensor_extents(SushiRuntime::span<const int64_t> dims)
+    {
+        int64_t elements = 1;
+
+        for (int64_t extent : dims)
+        {
+            SA_FAIL_IF(extent <= 0, StatusCode::InvalidDescription,
+                       "Tensor extents must be positive; got {}", extent);
+            SA_FAIL_IF(extent > std::numeric_limits<int64_t>::max() / elements,
+                       StatusCode::InvalidDescription,
+                       "A tensor of these extents holds more than {} elements, which no "
+                       "index arithmetic in this library can address; the extent that "
+                       "overflowed it is {}",
+                       std::numeric_limits<int64_t>::max(), extent);
+            elements *= extent;
+        }
+
+        return elements;
+    }
+
     Result<SushiBLAS::Tensor> allocate_tensor(SushiBLAS::Engine& engine,
                                               SushiRuntime::span<const int64_t> dims,
                                               DType dtype) noexcept
     {
-        // checked_element_count validates positive extents and non-overflowing product.
-        SA_TRY_ASSIGN(const int64_t elements, checked_element_count(dims));
+        // check_tensor_extents validates positive extents and non-overflowing product.
+        SA_TRY_ASSIGN(const int64_t elements, check_tensor_extents(dims));
 
         SA_FAIL_IF(static_cast<std::uint64_t>(elements)
                        > std::numeric_limits<std::size_t>::max() / dtype_size(dtype),
@@ -163,7 +157,7 @@ namespace SushiAI
         // The new tensor takes the layout of like, not the engine's.
         const SushiRuntime::span<const int64_t> dims(like.shape.data(),
                                                      static_cast<std::size_t>(like.rank));
-        SA_TRY_ASSIGN(const int64_t elements, checked_element_count(dims));
+        SA_TRY_ASSIGN(const int64_t elements, check_tensor_extents(dims));
 
         const std::size_t bytes = static_cast<std::size_t>(elements) * dtype_size(like.dtype);
 

@@ -22,17 +22,17 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M4 | the tests of `core/allocation` (1 file): 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo: its one record waits on RW-155 |
+| M4 | the tests of `core/allocation` (1 file): 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M5 | the tests of `core/autograd` (14 files): 36 rewrite, 5 resize, 19 split, 11 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M6 | the tests of `core/config` (9 files): 2 rewrite, 43 resize, 9 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except one resize that waits on RW-155 |
+| M6 | the tests of `core/config` (9 files): 2 rewrite, 43 resize, 9 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M7 | the tests of `core/darknet_reference` (1 file): 4 rewrite, 4 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M8 | the tests of `core/data` (9 files): 25 rewrite, 9 resize, 1 split, 22 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except the records that wait on RW-155 |
 | M9 | the tests of `core/distribution` (13 files): 27 rewrite, 3 resize, 11 split, 25 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M10 | the tests of `core/dtype` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M12 | the tests of `core/engine_fixture` (3 files): 1 rewrite, 1 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except one resize that waits on RW-155 |
+| M12 | the tests of `core/engine_fixture` (3 files): 1 rewrite, 1 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M13 | the tests of `core/execution` (1 file): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M14 | the tests of `core/failure` (3 files): 14 rewrite, 4 resize, 6 split, 1 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except the records that wait on RW-155 (block counter, log and fatal seams) |
+| M14 | the tests of `core/failure` (3 files): 14 rewrite, 4 resize, 6 split, 1 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built, not yet built or run) |
 | M15 | the tests of `core/failure_expectations` (1 file): 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M16 | the tests of `core/graph` (33 files): 147 rewrite, 22 resize, 37 split, 2 merge, 12 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except the records that wait on RW-155; test_step_recording kept for the mirror rule |
 | M17 | the tests of `core/hash` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
@@ -40,13 +40,13 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M19 | the tests of `core/model_text` (1 file): 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M20 | the tests of `core/ops` (1 file): 12 rewrite, 2 merge | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M21 | the tests of `core/optim` (16 files): 46 rewrite, 9 resize, 10 split, 8 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M22 | the tests of `core/profile` (4 files): 5 rewrite, 1 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except one resize that waits on RW-155 |
+| M22 | the tests of `core/profile` (4 files): 5 rewrite, 1 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M23 | the tests of `core/profile_records` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M24 | the tests of `core/scratch_files` (2 files): 2 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except two resizes that wait on RW-155 |
+| M24 | the tests of `core/scratch_files` (2 files): 2 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M25 | the tests of `core/seam` (1 file): 5 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M26 | the tests of `core/seeded_noise` (1 file): 1 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M27 | the tests of `core/shape` (2 files): 4 resize, 3 split, 4 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M28 | the tests of `core/tensor_values` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done except one rewrite that waits on RW-155 |
+| M28 | the tests of `core/tensor_values` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M29 | the tests of `core/version` (1 file): 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M30 | the tests of `language` (46 files): 152 rewrite, 27 resize, 33 split, 19 merge, 15 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M31 | the tests of `layers/classifier_objective` (1 file): 1 split, 1 merge | T1, T2, T3, T4, T5, T6, T7, T8 | todo |

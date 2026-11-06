@@ -4,9 +4,11 @@ An internal module: only the test programs link it, its headers are never instal
 
 ## Owns
 
-`ScratchFile`, a named file under the temporary directory. It removes a file a previous run
+`ScratchFile`, a named file under the temporary directory, or under a base directory the caller
+gives. It removes a file a previous run
 left under that name when it is made, and removes the file again when it goes.
-`ScratchDirectory` does the same for a directory and everything in it.
+`ScratchDirectory` does the same for a directory and everything in it. `path_under` of each
+gives the path a base and a name make, touching nothing.
 
 ## Depends on
 

@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <gtest/gtest.h>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/core/span.hpp>
@@ -74,12 +75,34 @@ TEST_F(Medium_Allocation, ATensorHasTheExtentsAndTypeItWasAskedFor)
 }
 
 /** @brief Tests that an extent that is not positive is refused as InvalidDescription. */
-TEST_F(Medium_Allocation, AnExtentThatIsNotPositiveIsRefused)
+TEST(Small_Allocation, AnExtentThatIsNotPositiveIsRefused)
 {
     const std::int64_t dims[2] = {4, 0};
 
     SA_EXPECT_FAILURE(
-        SushiAI::allocate_tensor(*engine, SushiRuntime::span<const std::int64_t>(dims, 2)),
+        SushiAI::check_tensor_extents(SushiRuntime::span<const std::int64_t>(dims, 2)),
+        StatusCode::InvalidDescription);
+}
+
+/** @brief Tests that the extent check gives the product of positive extents. */
+TEST(Small_Allocation, PositiveExtentsGiveTheirProduct)
+{
+    const std::int64_t dims[3] = {2, 3, 4};
+
+    SA_ASSERT_OK_AND_ASSIGN(const std::int64_t elements,
+                            SushiAI::check_tensor_extents(
+                                SushiRuntime::span<const std::int64_t>(dims, 3)));
+
+    EXPECT_EQ(elements, 24);
+}
+
+/** @brief Tests that extents whose product no index can address are refused. */
+TEST(Small_Allocation, ExtentsWhoseProductOverflowsAreRefused)
+{
+    const std::int64_t dims[2] = {std::numeric_limits<std::int64_t>::max(), 2};
+
+    SA_EXPECT_FAILURE(
+        SushiAI::check_tensor_extents(SushiRuntime::span<const std::int64_t>(dims, 2)),
         StatusCode::InvalidDescription);
 }
 

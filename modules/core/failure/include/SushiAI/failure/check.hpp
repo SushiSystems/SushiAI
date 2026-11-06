@@ -55,6 +55,20 @@ namespace SushiAI
         /** @brief Delivers one report to the installed handler and returns. */
         void report_fatal(const char* file, int line, std::string_view message) noexcept;
 
+        /** @brief Names the action that ends the process once a report is delivered. */
+        using FatalStop = void (*)() noexcept;
+
+        /** @brief Flushes every output stream and aborts the process. */
+        [[noreturn]] void flush_and_abort() noexcept;
+
+        /**
+         * @brief Delivers the report to the installed handler, then runs @p stop.
+         * @param stop Ends the process in production; a test passes one that returns, to read
+         *             what the handler kept before the stop.
+         */
+        void report_then_stop(const char* file, int line, std::string_view message,
+                              FatalStop stop) noexcept;
+
         /** @brief Delivers the report, flushes every output stream and aborts the process. */
         [[noreturn]] void fail_fast(const char* file, int line, std::string_view message) noexcept;
 

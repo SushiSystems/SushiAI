@@ -4,7 +4,8 @@ An internal module: only the test programs link it, its headers are never instal
 
 ## Owns
 
-The host reads and writes of the elements of a tensor. `write_tensor` and `read_tensor` go
+The host reads and writes of the elements of a tensor. `round_to_float32` is the host rounding
+the float32 write applies, callable with no tensor. `write_tensor` and `read_tensor` go
 through the shared-USM pointer and not through a queue copy: every tensor a pool hands out is
 `Residency::Shared`, and a test waits before it reads. Reading this way also keeps a test from
 queueing work into the graph it is inspecting.
@@ -25,4 +26,4 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/tensor_values/tensor_values.hpp` | `write_tensor`, `read_tensor`, `read_tensor_bytes`, `read_row_bytes`, `first_difference` |
+| `SushiAI/tensor_values/tensor_values.hpp` | `round_to_float32`, `write_tensor`, `read_tensor`, `read_tensor_bytes`, `read_row_bytes`, `first_difference` |

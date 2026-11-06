@@ -9,6 +9,8 @@ includes SushiProfiler. `profile.hpp` defines the `SA_ZONE`, `SA_ZONE_FINE`, `SA
 `train.step` and `inference.batch`, and `mark_period` opens the next period of one. A program
 that runs a session creates a `TimelineBinding`, which points each `Timeline` at the session's
 timeline of the same name; with no binding, `mark_period` does nothing.
+`mark_period(timeline, session)` opens the next period of that session's timeline with the name
+of `timeline`, whether or not a binding lives, and does nothing for a null session.
 
 `SA_ENABLE_PROFILER` and `SA_PROFILE_LEVEL` come from `profile_config.hpp`, which the build
 generates from `profile_config.hpp.in`. Under `SA_ENABLE_PROFILER` 0 every macro expands to
