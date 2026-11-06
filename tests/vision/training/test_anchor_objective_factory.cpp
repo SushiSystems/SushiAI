@@ -68,9 +68,6 @@ namespace
     /** @brief Holds the channels of a head of two anchors: 2 * (5 + K_CLASSES). */
     constexpr std::int64_t K_HEAD_CHANNELS = 14;
 
-    /** @brief Bounds the error of a float32 a section states as a short binary fraction. */
-    constexpr double K_OPTION_TOLERANCE = 0.0;
-
     /** @brief Holds a task of two heads of two anchors each over K_CLASSES classes. */
     constexpr std::string_view K_TASK = R"({
         "type": "anchor_detection",
@@ -185,7 +182,7 @@ TEST(Small_AnchorObjectiveFactory, EachHeadTakesItsExtentsFromItsPublishedOutput
     EXPECT_EQ(coarse.shape.height, 2);
     EXPECT_EQ(coarse.shape.width, 1);
     EXPECT_EQ(coarse.options.coding, HeadCoding::Activated);
-    EXPECT_NEAR(coarse.options.scale_xy, 1.5, K_OPTION_TOLERANCE);
+    EXPECT_EQ(coarse.options.scale_xy, 1.5);
 }
 
 /** @brief Tests that the section's options reach every head, defaults for keys left out. */
@@ -200,8 +197,8 @@ TEST(Small_AnchorObjectiveFactory, TheSectionSetsTheTrainingOptionsOfEveryHead)
 
     for (const AnchorHead& head : objective.heads())
     {
-        EXPECT_NEAR(head.training.box_weight, 0.5, K_OPTION_TOLERANCE);
-        EXPECT_NEAR(head.training.object_weight, defaults.object_weight, K_OPTION_TOLERANCE);
+        EXPECT_EQ(head.training.box_weight, 0.5);
+        EXPECT_EQ(head.training.object_weight, defaults.object_weight);
         EXPECT_EQ(head.training.box_loss, defaults.box_loss);
     }
 }

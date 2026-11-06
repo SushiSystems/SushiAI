@@ -36,6 +36,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/language/blocks/rotary_positions.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Blocks::rotary_angle;
@@ -43,11 +44,19 @@ using Language::Blocks::write_rotary_row;
 
 namespace
 {
-    /** @brief Bounds a double against a hand-worked value, absolutely. */
-    constexpr double K_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the Bounds a double against a hand-worked value, absolutely: 16384 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Bounds a float32 cosine or sine against the host's double, absolutely. */
-    constexpr float K_ROW_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the Bounds a float32 cosine or sine against the host's double, absolutely: 32
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-6f.
+     */
+    constexpr float K_ROW_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Writes the row of @p position over @p pairs pairs into the two vectors. */
     void row_of(std::int64_t position, std::size_t pairs, std::vector<float>& cosines,

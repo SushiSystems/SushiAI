@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/polygon.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -40,11 +41,20 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance of a resampled coordinate of magnitude up to 4. */
-    constexpr float K_POINT_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of a resampled coordinate of magnitude up to 4: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_POINT_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute tolerance, in pixels, of a box edge of magnitude up to 100. */
-    constexpr float K_BOX_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of a box edge of magnitude up to 100: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4f.
+     */
+    constexpr float K_BOX_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the image the reference's segment2box was run on: 80 rows by 100 columns. */
     constexpr ImageSize K_IMAGE{80, 100};

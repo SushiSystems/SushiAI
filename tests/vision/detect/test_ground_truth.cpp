@@ -42,8 +42,6 @@ namespace
     using SushiAI::Vision::Detect::GroundTruthBatch;
     using SushiAI::Vision::Detect::pad_ground_truth;
 
-    /** @brief Holds the tolerance of a corner that is a multiple of 8, which float32 holds. */
-    constexpr float K_EXACT = 0.0f;
 } // namespace
 
 /** @brief Tests that a default batch has no images, no rows and no arrays. */
@@ -82,7 +80,7 @@ TEST(Small_DetectGroundTruth, PaddingIntoAUsedBatchKeepsNoEarlierRow)
     const std::vector<float> expected{8.0f, 8.0f, 24.0f, 24.0f};
     ASSERT_EQ(padded.boxes.size(), expected.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(padded.boxes[i], expected[i], K_EXACT) << "value " << i;
+        EXPECT_EQ(padded.boxes[i], expected[i]) << "value " << i;
 }
 
 /** @brief Tests that a batch without images and row arrays of unequal lengths are refused. */

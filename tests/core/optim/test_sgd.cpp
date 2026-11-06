@@ -43,6 +43,7 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Optim::SGD;
@@ -56,8 +57,11 @@ namespace
     /** @brief Holds the value every parameter element starts at. */
     constexpr double K_START = 1.0;
 
-    /** @brief Bounds the absolute error of a float32 value of order one after two updates. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute error of a float32 value of order one after two updates; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Provides an engine and one parameter slot with a gradient the case chooses. */
     class Medium_SGD : public SaTest::EngineTest

@@ -45,7 +45,10 @@ namespace
     /** @brief Holds the element count of the kept-fraction cases, 2^20. */
     constexpr std::size_t K_DRAWS = std::size_t{1} << 20;
 
-    /** @brief Bounds the kept fraction of K_DRAWS draws; a deviation of one part is 0.0003. */
+    /**
+     * @brief Bounds the absolute difference of the kept fraction from the drop rate; a statistical
+     * share of K_DRAWS draws, not a rounding bound. A deviation of one part is 0.0003.
+     */
     constexpr double K_FRACTION_TOLERANCE = 0.002;
 
     /** @brief Returns the mask of one run as a string of '1' for kept and '0' for dropped. */

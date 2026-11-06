@@ -36,9 +36,22 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a double result; 16384 unit roundoffs of double, the
+     * smallest power of two that covers 1e-12.
+     */
+    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
+    /**
+     * @brief Bounds the absolute error of a double result; 16 unit roundoffs of double, the
+     * smallest power of two that covers 1e-15.
+     */
+    constexpr double K_DOUBLE_TIGHT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
+
     using SushiAI::StatusCode;
     using SushiAI::Distribution::ReplicaPlan;
     using SushiAI::Distribution::ReplicaShare;
@@ -140,11 +153,12 @@ TEST(Small_ReplicaPlan, TheWeightOfAReplicaIsItsRowsOverTheBatch)
     double sum = 0.0;
     for (std::size_t replica = 0; replica < 5; ++replica)
     {
-        EXPECT_NEAR(plan.weight_of(replica), wanted[replica], 1e-15) << "replica " << replica;
+        EXPECT_NEAR(plan.weight_of(replica), wanted[replica], K_DOUBLE_TIGHT_TOLERANCE)
+            << "replica " << replica;
         sum += plan.weight_of(replica);
     }
 
-    EXPECT_NEAR(sum, 1.0, 1e-12);
+    EXPECT_NEAR(sum, 1.0, K_DOUBLE_TOLERANCE);
 }
 
 /** @brief Tests that a replica of zero rows takes none and leaves the others contiguous. */
@@ -156,7 +170,7 @@ TEST(Small_ReplicaPlan, AReplicaOfZeroRowsSitsOut)
     EXPECT_EQ(plan.batch_rows(), 8);
     EXPECT_EQ(plan.rows(0, 3).count, 0u);
     EXPECT_EQ(plan.micro_batch_count_of(0), 0);
-    EXPECT_NEAR(plan.weight_of(0), 0.0, 1e-15);
+    EXPECT_NEAR(plan.weight_of(0), 0.0, K_DOUBLE_TIGHT_TOLERANCE);
     EXPECT_EQ(plan.rows(1, 3).first, 24u);
     EXPECT_EQ(plan.rows(2, 3).first, 30u);
 }
@@ -166,7 +180,7 @@ TEST(Small_ReplicaPlan, ASingleReplicaTakesTheWholeBatch)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ReplicaPlan plan, ReplicaPlan::make({{16, 8}}));
 
-    EXPECT_NEAR(plan.weight_of(0), 1.0, 1e-15);
+    EXPECT_NEAR(plan.weight_of(0), 1.0, K_DOUBLE_TIGHT_TOLERANCE);
     EXPECT_EQ(plan.rows(0, 5).first, 80u);
     EXPECT_EQ(plan.rows(0, 5).count, 16u);
 }

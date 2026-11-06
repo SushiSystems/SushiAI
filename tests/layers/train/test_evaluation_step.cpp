@@ -70,6 +70,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
@@ -83,8 +84,11 @@ namespace
     /** @brief Holds what the running sum is before the first run and after a reset. */
     constexpr double K_INITIAL = 1.0;
 
-    /** @brief Holds the absolute tolerance of a sum of small whole numbers in float32. */
-    constexpr float K_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of a sum of small whole numbers in float32; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr float K_TOLERANCE = static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Names the leaf the accumulator is fed beside the model input. */
     constexpr std::string_view K_GAIN_LEAF = "gain";

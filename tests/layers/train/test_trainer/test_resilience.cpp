@@ -68,6 +68,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
@@ -79,6 +80,36 @@ using Graph::ValueID;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 262144 unit roundoffs of float, the
+     * smallest power of two that covers 1e-2.
+     */
+    constexpr double K_FLOAT_COARSE_TOLERANCE = 262144.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 65536 unit roundoffs of float, the
+     * smallest power of two that covers 2e-3.
+     */
+    constexpr double K_FLOAT_WIDE_TOLERANCE = 65536.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 256 unit roundoffs of float, the smallest
+     * power of two that covers 1e-5.
+     */
+    constexpr double K_FLOAT_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 32 unit roundoffs of float, the smallest
+     * power of two that covers 1e-6.
+     */
+    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_Resilience : public SaTest::EngineTest {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
@@ -484,7 +515,7 @@ TEST_F(Medium_Resilience, ASingleSampleWithASingleFeatureTrains)
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics first, trainer->run_step(dataset_batch));
-    EXPECT_NEAR(first.loss, std::log(static_cast<double>(classes)), 1e-5);
+    EXPECT_NEAR(first.loss, std::log(static_cast<double>(classes)), K_FLOAT_TOLERANCE);
 
     for (int step = 0; step < 8; ++step)
     {
@@ -536,14 +567,14 @@ TEST_F(Medium_Resilience, ASingleClassIsDegenerateButNotUndefined)
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
                             trainer->run_step(dataset_batch));
 
-    EXPECT_NEAR(metrics.loss, 0.0, 1e-4);
+    EXPECT_NEAR(metrics.loss, 0.0, K_FLOAT_LOOSE_TOLERANCE);
     EXPECT_DOUBLE_EQ(metrics.metrics.value_or("accuracy", 0.0), 1.0);
     EXPECT_TRUE(all_finite(SaTest::read_tensor(slots[0].parameter), "weight"));
 
     const std::vector<double> gradient = SaTest::read_tensor(slots[0].gradient);
     EXPECT_TRUE(all_finite(gradient, "gradient"));
     for (std::size_t i = 0; i < gradient.size(); ++i)
-        EXPECT_NEAR(gradient[i], 0.0, 1e-4) << "at " << i;
+        EXPECT_NEAR(gradient[i], 0.0, K_FLOAT_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
@@ -588,7 +619,7 @@ TEST_F(Medium_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
                               * w_seen[static_cast<std::size_t>(j * n + k)];
 
                 const double actual = got[static_cast<std::size_t>(i * n + j)];
-                ASSERT_NEAR(actual, expected, 2e-3)
+                ASSERT_NEAR(actual, expected, K_FLOAT_WIDE_TOLERANCE)
                     << "n=" << n << " at (" << i << ", " << j << ")";
             }
         }
@@ -680,7 +711,8 @@ TEST_F(Medium_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
 
         ASSERT_TRUE(all_finite(got, "log_softmax")) << "at magnitude " << magnitude;
         for (std::size_t i = 0; i < got.size(); ++i)
-            EXPECT_NEAR(got[i], expected, 1e-5) << "magnitude " << magnitude << " at " << i;
+            EXPECT_NEAR(got[i], expected, K_FLOAT_TOLERANCE)
+                << "magnitude " << magnitude << " at " << i;
     }
 }
 
@@ -699,8 +731,8 @@ TEST_F(Medium_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
                             log_softmax_of(*engine, rows, columns, logits));
 
     ASSERT_TRUE(all_finite(got, "log_softmax"));
-    EXPECT_NEAR(got[0], 0.0, 1e-6);
-    EXPECT_NEAR(got[4], 0.0, 1e-6);
+    EXPECT_NEAR(got[0], 0.0, K_FLOAT_TIGHT_TOLERANCE);
+    EXPECT_NEAR(got[4], 0.0, K_FLOAT_TIGHT_TOLERANCE);
     EXPECT_LT(got[1], -1e29);
     EXPECT_LT(got[3], -1e29);
 }
@@ -721,10 +753,10 @@ TEST_F(Medium_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
 
     // Equal spread gives equal log-probabilities; see tests/layers/train/README.md.
     for (std::size_t column = 0; column < 3; ++column)
-        EXPECT_NEAR(got[column], got[column + 3], 1e-4) << "column " << column;
+        EXPECT_NEAR(got[column], got[column + 3], K_FLOAT_LOOSE_TOLERANCE) << "column " << column;
 
     const double denominator = 1.0 + std::exp(-1.0) + std::exp(-2.0);
-    EXPECT_NEAR(got[0], -std::log(denominator), 1e-4);
+    EXPECT_NEAR(got[0], -std::log(denominator), K_FLOAT_LOOSE_TOLERANCE);
 }
 
 TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
@@ -756,7 +788,8 @@ TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
 
     const double correct = SaTest::read_tensor(run->pool.tensor(loss))[0];
     EXPECT_TRUE(std::isfinite(correct));
-    EXPECT_NEAR(correct, 0.0, 1e-5) << "a perfectly confident correct prediction costs nothing";
+    EXPECT_NEAR(correct, 0.0, K_FLOAT_TOLERANCE)
+        << "a perfectly confident correct prediction costs nothing";
 
     // A wrong confident loss is large but finite; see tests/layers/train/README.md.
     SaTest::write_tensor(run->pool.tensor(targets),
@@ -765,7 +798,7 @@ TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
 
     const double wrong = SaTest::read_tensor(run->pool.tensor(loss))[0];
     EXPECT_TRUE(std::isfinite(wrong)) << "loss on a confidently wrong prediction";
-    EXPECT_NEAR(wrong, 160.0, 1e-2);
+    EXPECT_NEAR(wrong, 160.0, K_FLOAT_COARSE_TOLERANCE);
 }
 
 TEST_F(Medium_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
@@ -794,7 +827,7 @@ TEST_F(Medium_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 
     // With no decay and no gradient the parameter must be untouched.
     for (std::size_t i = 0; i < initial.size(); ++i)
-        EXPECT_NEAR(after[i], initial[i], 1e-6) << "at " << i;
+        EXPECT_NEAR(after[i], initial[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
 
     // The bias corrections differ on step two; see tests/layers/train/README.md.
     SA_EXPECT_OK(optimizer->step());

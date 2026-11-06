@@ -38,6 +38,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_fit.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -50,8 +51,11 @@ namespace
     using SushiAI::Vision::Detect::Anchor::measure_anchor_fit;
     using SushiAI::Vision::Detect::Anchor::shape_iou;
 
-    /** @brief Holds the absolute tolerance of a share or a mean summed in double. */
-    constexpr double K_FIT_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute tolerance of a share or a mean summed in double: 16777216 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-9.
+     */
+    constexpr double K_FIT_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns three anchors whose half-size boxes fit no other anchor above 0.2. */
     AnchorLayout make_separated_layout()

@@ -62,6 +62,7 @@
 #include <SushiAI/vision/datasets/task_table.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -396,7 +397,12 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionBuildsLetterboxedBatches)
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
 
     // Row 0 of each 4 by 4 by 3 input is padding of 114, which only a letterbox leaves.
-    constexpr float K_SCALE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance: 32 times the float unit roundoff, the smallest power of
+     *        two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_SCALE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
     EXPECT_NEAR(batch.inputs.data_as<float>()[0], 114.0f / 255.0f, K_SCALE_TOLERANCE);
 
     const Data::BatchTarget* const valid = Data::find_target(batch.targets, Data::K_ROLE_VALID);
@@ -424,7 +430,12 @@ TEST_F(Medium_DatasetsReaderSection, ADetectionSectionStatingResizeStretchesTheI
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
 
     // A uniform 255 image stretched to 4 by 4 leaves no padding, so row 0 is 1 as well.
-    constexpr float K_SCALE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance: 32 times the float unit roundoff, the smallest power of
+     *        two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_SCALE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
     EXPECT_NEAR(batch.inputs.data_as<float>()[0], 1.0f, K_SCALE_TOLERANCE);
 }
 
@@ -730,7 +741,12 @@ TEST_F(Medium_DatasetsReaderSection, ACacheIsWrittenAndRead)
 
     Data::Batch batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, batch)));
-    constexpr float K_SCALE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance: 32 times the float unit roundoff, the smallest power of
+     *        two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_SCALE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
     EXPECT_NEAR(batch.inputs.data_as<float>()[12], 1.0f, K_SCALE_TOLERANCE);
 }
 

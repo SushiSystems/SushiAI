@@ -45,6 +45,7 @@
 #include <SushiAI/vision/training/dice_targets.hpp>
 #include <SushiAI/vision/training/pixel_labels.hpp>
 #include <SushiAI/vision/training/pixel_targets.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::DiceLeaves;
@@ -68,8 +69,12 @@ namespace
     /** @brief Holds the value a leaf starts at, which no fill of these cases writes. */
     constexpr double K_UNTOUCHED = -7.0;
 
-    /** @brief Bounds the absolute error of a float32 holding 1 / n for n below ten. */
-    constexpr double K_TOLERANCE = 1e-7;
+    /**
+     * @brief Holds the Bounds the absolute error of a float32 holding 1 / n for n below ten: 2
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-7.
+     */
+    constexpr double K_TOLERANCE = 2.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Names a list of class indices, one per pixel. */
     using Classes = std::vector<std::int32_t>;

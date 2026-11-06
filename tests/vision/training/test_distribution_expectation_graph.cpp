@@ -46,6 +46,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
 #include <SushiAI/vision/training/distribution_expectation_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::CompiledStep;
@@ -67,8 +68,12 @@ namespace
     /** @brief Seeds the logits of the second anchor. */
     constexpr std::uint64_t K_LOGIT_SEED = 20261025;
 
-    /** @brief Bounds the error of a float32 expectation below 4 against the double host decode. */
-    constexpr double K_VALUE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute Bounds the error of a float32 expectation below 4 against the
+     *        double host decode: 256 times the float unit roundoff, the smallest power of two not
+     *        tighter than the earlier 1e-5.
+     */
+    constexpr double K_VALUE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Counts the nodes of @p graph whose operation is @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)

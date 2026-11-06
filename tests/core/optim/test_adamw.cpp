@@ -44,6 +44,7 @@
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Optim::AdamW;
@@ -60,8 +61,11 @@ namespace
     /** @brief Holds the step size of the update case. */
     constexpr double K_RATE = 0.1;
 
-    /** @brief Bounds the absolute error of a float32 value of order one after one update. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute error of a float32 value of order one after one update; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the gradient of the one parameter; signs and sizes differ per element. */
     const std::vector<double> K_GRADIENT{2.0, -3.0, 0.5};

@@ -63,6 +63,7 @@
 
 #include "exchange_test_support.hpp"
 #include "replica_test_support.hpp"
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -72,11 +73,17 @@ namespace
     using namespace SushiAI::Distribution::Support;
     namespace Distributed = SushiRuntime::Distributed;
 
-    /** @brief Bounds the absolute difference of a float32 sum against one machine's step. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute difference of a float32 sum against one machine's step; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the relative difference of a float32 sum against one machine's step. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds the relative difference of a float32 sum against one machine's step; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the rows of one batch: two replicas of two rows. */
     constexpr std::int64_t K_BATCH_ROWS = 4;

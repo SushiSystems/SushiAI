@@ -45,6 +45,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/anchor/shape_ratio_delta.hpp>
 #include <SushiAI/vision/detect/anchor/target_assignment.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -76,10 +77,18 @@ namespace
      * The complete IoU is measured in float, about 1e-7 of a loss near 1, which a step of
      * 2e-3 turns into 5e-5 before the box factor of 0.075; the curvature adds about 1e-6.
      */
-    constexpr double K_DIFFERENCE_TOLERANCE = 1e-4;
+    /**
+     * @brief Holds the absolute tolerance: 2048 times the float unit roundoff, the smallest power
+     *        of two not tighter than the earlier 1e-4.
+     */
+    constexpr double K_DIFFERENCE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the tolerance of a value worked by hand; each is near exact in float. */
-    constexpr double K_HAND_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute the tolerance of a value worked by hand; each is near exact in
+     *        float: 256 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-5.
+     */
+    constexpr double K_HAND_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the class count of the two-level fixture. */
     constexpr std::int64_t K_CLASSES = 3;
@@ -410,7 +419,9 @@ TEST(Small_DetectAnchorShapeRatioDelta, RefusesAHeadOrAnAssignmentItCannotRead)
         StatusCode::InvalidDescription, "outside head 1");
 }
 
-/** @brief Tests that two records for one slot of one cell are refused, whichever order they sit in. */
+/**
+ * @brief Tests that two records for one slot of one cell are refused, whichever order they sit in.
+ */
 TEST(Small_DetectAnchorShapeRatioDelta, RefusesTwoAssignmentsToOneSlot)
 {
     const AnchorLayout layout = make_two_level_layout();

@@ -39,6 +39,18 @@ using namespace SushiAI::Autograd;
 
 namespace
 {
+    /**
+     * @brief Bounds the relative error of an exact gradient under central differences in double; the
+     * truncation of the difference, not a rounding bound.
+     */
+    constexpr double K_EXACT_GRADIENT_ERROR = 1e-7;
+
+    /**
+     * @brief Bounds from below the relative error a gradient wrong by a tenth of a percent must
+     * show; a detection floor above the double noise, not a rounding bound.
+     */
+    constexpr double K_WRONG_GRADIENT_ERROR_FLOOR = 1e-4;
+
     /** @brief f(x) = sum(x_i^3) - sum(x_i^2) / 2, a smooth non-quadratic. */
     double cubic(SushiRuntime::span<const double> x)
     {
@@ -79,7 +91,7 @@ TEST(Small_GradCheck, AcceptsAnExactGradient)
     const GradCheckResult result = check_full_jacobian(cubic, cubic_gradient, x);
 
     EXPECT_TRUE(result.passed) << result.to_string();
-    EXPECT_LT(result.max_relative_error, 1e-7) << result.to_string();
+    EXPECT_LT(result.max_relative_error, K_EXACT_GRADIENT_ERROR) << result.to_string();
     EXPECT_EQ(result.probes, x.size());
 }
 
@@ -91,7 +103,7 @@ TEST(Small_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
 
     EXPECT_FALSE(result.passed) << result.to_string();
     EXPECT_EQ(result.worst_index, 2u);
-    EXPECT_GT(result.max_relative_error, 1e-4);
+    EXPECT_GT(result.max_relative_error, K_WRONG_GRADIENT_ERROR_FLOOR);
 }
 
 TEST(Small_GradCheck, LeavesTheProbePointUnchanged)

@@ -33,6 +33,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -42,8 +43,12 @@ namespace
     using SushiAI::Vision::Detect::Anchor::shape_iou;
     using SushiAI::Vision::Detect::Anchor::validate_anchor_layout;
 
-    /** @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each. */
-    constexpr float K_IOU_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_IOU_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns six anchors of rising area and two heads of three slots each. */
     AnchorLayout make_two_head_layout()

@@ -41,6 +41,7 @@
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -55,11 +56,21 @@ namespace
     /** @brief Holds the tolerance of hand cases whose values float32 represents exactly. */
     constexpr float K_EXACT = 0.0f;
 
-    /** @brief Holds the tolerance of a decode in pixels: two float32 steps at 640. */
-    constexpr float K_DECODE_TOLERANCE = 1.3e-4f;
+    /**
+     * @brief Holds the absolute the tolerance of a decode in pixels: two float32 steps at 640: 4096
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1.3e-4f.
+     */
+    constexpr float K_DECODE_TOLERANCE =
+        static_cast<float>(4096.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the tolerance of decode then encode in grid units: two steps at 80. */
-    constexpr float K_ROUND_TRIP_TOLERANCE = 1.6e-5f;
+    /**
+     * @brief Holds the absolute the tolerance of decode then encode in grid units: two steps at 80:
+     *        512 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1.6e-5f.
+     */
+    constexpr float K_ROUND_TRIP_TOLERANCE =
+        static_cast<float>(512.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the anchors of a 640 px input, from "levels" in MANIFEST.json. */
     constexpr std::size_t K_REFERENCE_ANCHORS = 8400;

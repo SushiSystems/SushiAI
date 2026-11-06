@@ -44,9 +44,16 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a double result; 16 unit roundoffs of double, the
+     * smallest power of two that covers 1e-15.
+     */
+    constexpr double K_DOUBLE_TIGHT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
+
     using SushiAI::StatusCode;
     using SushiAI::Config::Value;
     using SushiAI::Distribution::ClusterSection;
@@ -106,7 +113,8 @@ TEST(Small_ClusterSection, FiveReplicasBecomeRowsMicroBatchesAndWeights)
     {
         EXPECT_EQ(plan.rows_of(replica), rows[replica]) << "replica " << replica;
         EXPECT_EQ(plan.micro_batch_of(replica), micro_batches[replica]) << "replica " << replica;
-        EXPECT_NEAR(plan.weight_of(replica), weights[replica], 1e-15) << "replica " << replica;
+        EXPECT_NEAR(plan.weight_of(replica), weights[replica], K_DOUBLE_TIGHT_TOLERANCE)
+            << "replica " << replica;
 
         const RowPositions range = plan.rows(replica, 2);
         EXPECT_EQ(range.first, firsts[replica]) << "replica " << replica;

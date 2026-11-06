@@ -52,8 +52,6 @@ namespace
     using SushiAI::Optim::StepSchedule;
     using SushiAI::Optim::write_rate_schedule_section;
 
-    /** @brief Bounds the error of a rate a section states and a double holds as read. */
-    constexpr double K_RATE_TOLERANCE = 0.0;
 } // namespace
 
 /** @brief Tests that a step schedule is written as "step" and reads back as a step schedule. */
@@ -70,7 +68,7 @@ TEST(Small_RateScheduleSection, AStepScheduleIsWrittenAsStep)
     EXPECT_EQ(require_value(require_value(written.at("type", "section")).as_string("type")),
               "step");
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(read));
-    EXPECT_NEAR(std::get<StepSchedule>(read).base_rate, 0.5, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(read).base_rate, 0.5);
     EXPECT_EQ(std::get<StepSchedule>(read).steps.size(), 1u);
 }
 

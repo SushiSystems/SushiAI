@@ -42,7 +42,10 @@ namespace SushiAI::Language::Generation::Support
     /** @brief Holds the draws a frequency is counted over. */
     inline constexpr int K_DRAWS = 20000;
 
-    /** @brief Bounds how far a counted share may lie from its probability, absolutely. */
+    /**
+     * @brief Bounds how far a counted share may lie from its probability, absolutely: statistical,
+     *        above five standard errors of 0.0035 over 20000 draws.
+     */
     inline constexpr double K_SHARE_TOLERANCE = 0.02;
 
     /** @brief Views the logits of a test as the span a sampler reads. */

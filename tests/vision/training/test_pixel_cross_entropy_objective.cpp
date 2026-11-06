@@ -78,6 +78,7 @@
 #include <SushiAI/train/training_step.hpp>
 #include <SushiAI/vision/blocks/conv_norm.hpp>
 #include <SushiAI/vision/blocks/segment_head.hpp>
+#include <support/tolerance.hpp>
 #include <SushiAI/vision/training/dice_objective.hpp>
 #include <SushiAI/vision/training/pixel_cross_entropy_objective.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
@@ -307,8 +308,12 @@ namespace
     /** @brief Holds the pixels of mask_labels() that are not K_IGNORE. */
     constexpr double K_KEPT = 4.0;
 
-    /** @brief Bounds the absolute error of a float32 loss or gradient of order one. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the Bounds the absolute error of a float32 loss or gradient of order one: 256
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the step of the central difference a host gradient is taken with. */
     constexpr double K_DIFFERENCE_STEP = 1e-4;

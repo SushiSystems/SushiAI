@@ -46,6 +46,7 @@
 #include <SushiAI/nn/conv2d.hpp>
 #include <SushiAI/nn/loss.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Conv2d;
@@ -55,8 +56,11 @@ static_assert(!NN::ModuleContainer<Conv2d>, "Conv2d must not look like a contain
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
+     * roundoffs of double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Builds a layer with a square window, one stride and one pad for both axes. */
     Conv2d make_conv(int64_t in_channels, int64_t out_channels, int64_t kernel,

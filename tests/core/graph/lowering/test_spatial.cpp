@@ -45,6 +45,7 @@
 #include <SushiAI/graph/lowering/spatial.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -62,8 +63,11 @@ namespace
 
     };
 
-    /** @brief Bounds a FLOAT32 result computed on the device against a double host value. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds a FLOAT32 result computed on the device against a double host value; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow

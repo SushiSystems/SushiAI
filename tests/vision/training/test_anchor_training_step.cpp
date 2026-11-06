@@ -75,6 +75,7 @@
 #include <SushiAI/vision/training/anchor_objective.hpp>
 #include <SushiAI/vision/training/anchor_training_step.hpp>
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/vision/training/README.md.
@@ -117,14 +118,19 @@ namespace
     /** @brief Seeds the input image. */
     constexpr std::uint64_t K_INPUT_SEED = 20261009ull;
 
-    /** @brief Bounds the difference of a leaf from the delta it is a copy of. */
-    constexpr double K_FED_TOLERANCE = 0.0;
+    /**
+     * @brief Holds the absolute Bounds, relative to the value, a double sum of some hundred float32
+     *        squares: 16777216 times the double unit roundoff, the smallest power of two not
+     *        tighter than the earlier 1e-9.
+     */
+    constexpr double K_COST_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Bounds, relative to the value, a double sum of some hundred float32 squares. */
-    constexpr double K_COST_TOLERANCE = 1e-9;
-
-    /** @brief Bounds the absolute error of a float32 value of order one after one update. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the Bounds the absolute error of a float32 value of order one after one update:
+     *        256 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-5.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the least change of a value that counts as having moved. */
     constexpr double K_MOVED = 1e-7;
@@ -365,7 +371,7 @@ TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
         for (std::size_t i = 0; i < fed.size(); ++i)
         {
             const double value = static_cast<double>(expected.delta[i]);
-            EXPECT_NEAR(fed[i], value, K_FED_TOLERANCE) << "head " << head << " element " << i;
+            EXPECT_EQ(fed[i], value) << "head " << head << " element " << i;
             squares += value * value;
         }
     }
@@ -426,7 +432,7 @@ TEST_F(Medium_AnchorTrainingStep, TheShapeRatioRuleFeedsItsDeltasAndItsLoss)
         ASSERT_EQ(fed.size(), expected[head].delta.size()) << "head " << head;
         for (std::size_t i = 0; i < fed.size(); ++i)
         {
-            EXPECT_NEAR(fed[i], static_cast<double>(expected[head].delta[i]), K_FED_TOLERANCE)
+            EXPECT_EQ(fed[i], static_cast<double>(expected[head].delta[i]))
                 << "head " << head << " element " << i;
         }
     }

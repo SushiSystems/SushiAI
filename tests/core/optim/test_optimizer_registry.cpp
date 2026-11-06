@@ -53,9 +53,6 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the error of a rate a configuration states and a double holds as read. */
-    constexpr double K_RATE_TOLERANCE = 0.0;
-
     /** @brief Provides an engine and one parameter slot for every optimizer built. */
     class Medium_OptimizerRegistry : public SaTest::EngineTest
     {
@@ -119,6 +116,6 @@ TEST_F(Medium_OptimizerRegistry, TheStatedRateReachesTheOptimizer)
             entry.make(*engine, make_slots(), attributes_from(R"({"learning_rate": 0.25})"),
                        "optimizer"));
 
-        EXPECT_NEAR(optimizer->learning_rate(), 0.25, K_RATE_TOLERANCE) << entry.type;
+        EXPECT_DOUBLE_EQ(optimizer->learning_rate(), 0.25) << entry.type;
     }
 }

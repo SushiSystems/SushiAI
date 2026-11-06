@@ -43,6 +43,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
@@ -70,11 +71,19 @@ namespace
         double relative; /**< @brief Holds the factor applied to the expected magnitude. */
     };
 
-    /** @brief Bounds a FLOAT32 result: a few units in the last place of a device kernel. */
-    constexpr Tolerance K_FLOAT32_TOLERANCE = {1e-6, 1e-5};
+    /**
+     * @brief Bounds a FLOAT32 result of a device kernel; 32 unit roundoffs of float absolute and 256
+     * relative, the smallest powers of two that cover 1e-6 and 1e-5.
+     */
+    constexpr Tolerance K_FLOAT32_TOLERANCE = {32.0 * TestSupport::unit_roundoff<float>(),
+                                               256.0 * TestSupport::unit_roundoff<float>()};
 
-    /** @brief Bounds a FLOAT64 result. */
-    constexpr Tolerance K_FLOAT64_TOLERANCE = {1e-12, 1e-9};
+    /**
+     * @brief Bounds a FLOAT64 result; 16384 unit roundoffs of double absolute and 2^24 relative, the
+     * smallest powers of two that cover 1e-12 and 1e-9.
+     */
+    constexpr Tolerance K_FLOAT64_TOLERANCE = {16384.0 * TestSupport::unit_roundoff<double>(),
+                                               16777216.0 * TestSupport::unit_roundoff<double>()};
 
     /** @brief Names a builder emitter that takes one operand. */
     using UnaryEmitter = Traced (GraphBuilder::*)(const Traced&) const;
@@ -584,6 +593,6 @@ TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
         }
     }
 
-    const Tolerance window_tolerance = {1e-6, 0.0};
+    const Tolerance window_tolerance = {K_FLOAT32_TOLERANCE.absolute, 0.0};
     expect_elements(read_tensor(run.pool.tensor(y)), expected, window_tolerance);
 }

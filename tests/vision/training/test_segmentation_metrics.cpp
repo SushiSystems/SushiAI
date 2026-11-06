@@ -51,6 +51,7 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/vision/training/pixel_extents.hpp>
 #include <SushiAI/vision/training/segmentation_metrics.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::measure_segmentation;
@@ -66,8 +67,12 @@ namespace
     /** @brief Holds the mask value of a pixel of no class. */
     constexpr std::int32_t K_IGNORE = 255;
 
-    /** @brief Bounds the absolute error of a ratio of two counts below ten, in double. */
-    constexpr double K_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the Bounds the absolute error of a ratio of two counts below ten, in double: 16
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-15.
+     */
+    constexpr double K_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Stands for a metric the step did not report; no ratio equals it. */
     constexpr double K_ABSENT = -1.0;

@@ -40,6 +40,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -63,14 +64,24 @@ namespace
     /** @brief Holds the largest share a side is jittered by. */
     constexpr double K_JITTER = 0.02;
 
-    /** @brief Holds the relative tolerance of a recovered centre's side. */
+    /**
+     * @brief Holds the relative tolerance of a recovered centre's side: 2.5 times the 0.02 jitter,
+     *        not a rounding bound.
+     */
     constexpr double K_CENTRE_TOLERANCE = 0.05;
 
-    /** @brief Holds the absolute tolerance of a mean summed in double. */
-    constexpr double K_MEAN_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute tolerance of a mean summed in double: 16777216 times the double
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-9.
+     */
+    constexpr double K_MEAN_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Holds the absolute tolerance of an anchor that equals a box. */
-    constexpr float K_SIDE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of an anchor that equals a box: 32 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_SIDE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns the centre of rung @p rung: 0.03 x 0.05 times 1.8 per rung. */
     AnchorSize make_rung(std::int64_t rung)

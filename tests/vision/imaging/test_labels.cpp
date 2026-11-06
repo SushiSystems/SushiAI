@@ -34,6 +34,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/labels.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
@@ -44,8 +45,12 @@ namespace
     /** @brief Holds the class count the cases parse with. */
     constexpr std::int32_t K_CLASS_COUNT = 80;
 
-    /** @brief Holds the absolute tolerance of a parsed value, a fraction of the image. */
-    constexpr float K_FRACTION_TOLERANCE = 1e-7f;
+    /**
+     * @brief Holds the absolute tolerance of a parsed value, a fraction of the image: 2 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-7f.
+     */
+    constexpr float K_FRACTION_TOLERANCE =
+        static_cast<float>(2.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Checks the four values of a normalized box against expected values. */
     void expect_box(const NormalizedBox& actual, float x_center, float y_center, float width,

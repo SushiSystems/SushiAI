@@ -40,6 +40,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/cosine_schedule.hpp>
 #include <SushiAI/optim/cosine_schedule_section.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -51,8 +52,11 @@ namespace
     using SushiAI::Optim::validate_cosine_schedule;
     using SushiAI::Optim::write_cosine_schedule_section;
 
-    /** @brief Bounds the error of a rate that is a few products of doubles of order one. */
-    constexpr double K_RATE_TOLERANCE = 1e-15;
+    /**
+     * @brief Bounds the error of a rate that is a few products of doubles of order one; 16 unit
+     * roundoffs of double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_RATE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns a rate of 1 after 10 updates of warm-up that decays to 0.1 by 110. */
     CosineSchedule make_schedule()

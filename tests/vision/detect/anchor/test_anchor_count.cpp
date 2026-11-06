@@ -42,6 +42,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_clustering.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_count.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -77,11 +78,17 @@ namespace
     /** @brief Holds the largest factor a side of the blob lies from its centre by. */
     constexpr double K_BLOB_FACTOR = 1.1;
 
-    /** @brief Holds the absolute tolerance of a mean summed in double. */
-    constexpr double K_MEAN_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute tolerance of a mean summed in double: 16777216 times the double
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-9.
+     */
+    constexpr double K_MEAN_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Holds the absolute tolerance of a mean of shape_iou values computed in float. */
-    constexpr double K_FLOAT_MEAN_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of a mean of shape_iou values computed in float: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_FLOAT_MEAN_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the next draw of @p engine as a double in [0, 1), from its upper 53 bits. */
     double draw_unit(std::mt19937_64& engine)

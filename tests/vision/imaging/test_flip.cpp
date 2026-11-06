@@ -36,6 +36,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::FlipPlan;
@@ -49,8 +50,13 @@ using Vision::Imaging::Random;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here. */
-    constexpr float K_BOX_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4f.
+     */
+    constexpr float K_BOX_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Counts the seeds, 0 to this minus one, that a statistical test draws from. */
     constexpr std::uint64_t K_SEED_COUNT = 10000;

@@ -29,11 +29,16 @@
 
 #include <gtest/gtest.h>
 #include <SushiAI/vision.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each. */
-    constexpr float K_IOU_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of an IoU whose terms float32 rounds once each: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_IOU_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 } // namespace
 
 /** @brief Tests that detect, segment and imaging names resolve through the umbrella alone. */

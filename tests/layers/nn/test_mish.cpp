@@ -49,6 +49,7 @@
 #include <SushiAI/nn/mish.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Mish;
@@ -175,8 +176,11 @@ namespace
     {
     };
 
-    /** @brief Bounds an engine result by one part in a million of the exact value's magnitude. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the relative error of an engine FLOAT32 result against the exact value; 32 unit
+     * roundoffs of float, the smallest power of two that covers one part in a million.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the sweep's half range: the sweep runs from -30 to 30. */
     constexpr double K_SWEEP_HALF_RANGE = 30.0;
@@ -187,8 +191,11 @@ namespace
     /** @brief Holds the magnitude past which Darknet's softplus leaves log(exp(x) + 1). */
     constexpr double K_DARKNET_SOFTPLUS_CUTOFF = 20.0;
 
-    /** @brief Bounds the largest absolute difference between Darknet's form and the exact form. */
-    constexpr double K_DARKNET_DIFFERENCE_BOUND = 1e-12;
+    /**
+     * @brief Bounds the largest absolute difference between Darknet's form and the exact form, both
+     * in double; 16384 unit roundoffs of double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_DARKNET_DIFFERENCE_BOUND = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Computes x * tanh(log1p(exp(x))) in double; the exact value the engine is held to. */
     double exact_mish(double x)

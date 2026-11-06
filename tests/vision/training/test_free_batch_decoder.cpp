@@ -39,6 +39,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/training/free_batch_decoder.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::FreeBatchDecoder;
@@ -47,8 +48,11 @@ using Vision::Training::FreeModelFacts;
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a decoded value. */
-    constexpr float K_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance of a decoded value: 2048 times the float unit roundoff,
+     *        the smallest power of two not tighter than the earlier 1e-4f.
+     */
+    constexpr float K_TOLERANCE = static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the class count of the fixture. */
     constexpr std::int64_t K_CLASSES = 2;

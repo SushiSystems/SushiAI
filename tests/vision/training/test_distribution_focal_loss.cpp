@@ -50,6 +50,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/detect/free/distribution_targets.hpp>
 #include <SushiAI/vision/training/distribution_focal_loss.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::CompiledStep;
@@ -74,8 +75,12 @@ namespace
     /** @brief Seeds the logits of the gradient check. */
     constexpr std::uint64_t K_LOGIT_SEED = 20261026;
 
-    /** @brief Bounds the error a float32 rounding of each bin weight leaves in a sum near 1. */
-    constexpr double K_VALUE_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute Bounds the error a float32 rounding of each bin weight leaves in a
+     *        sum near 1: 32 times the float unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-6.
+     */
+    constexpr double K_VALUE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the bin weights of the first anchor's targets; the second is background. */
     std::vector<double> hand_weights()

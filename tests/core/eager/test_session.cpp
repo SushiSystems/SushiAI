@@ -61,6 +61,7 @@
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Eager::Direction;
@@ -87,8 +88,11 @@ namespace
     /** @brief Holds the widths of the three-layer model. */
     const std::vector<int64_t> K_THREE_LAYERS{6, 5, 4, 3};
 
-    /** @brief Bounds the loss of a scoped loop against the unscoped one, in FLOAT32. */
-    constexpr double K_LOSS_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds the loss of a scoped loop against the unscoped one, in FLOAT32; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_LOSS_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the same model and update compiled once through Graph::CompiledStep. */
     struct Compiled

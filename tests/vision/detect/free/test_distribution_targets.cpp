@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/distribution_targets.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -41,8 +42,13 @@ namespace
     /** @brief Holds the bins per side of the hand cases. */
     constexpr std::int64_t K_BINS = 4;
 
-    /** @brief Holds the tolerance of a weight below 1: eight float32 steps at 1. */
-    constexpr float K_WEIGHT_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute the tolerance of a weight below 1: eight float32 steps at 1: 32
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-6f.
+     */
+    constexpr float K_WEIGHT_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a foreground anchor's normalized weight; a quarter of it is 0.2. */
     constexpr float K_FOREGROUND_WEIGHT = 0.8f;

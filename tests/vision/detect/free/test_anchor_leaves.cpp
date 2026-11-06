@@ -40,15 +40,12 @@ namespace
     using SushiAI::Vision::Detect::Free::build_anchor_leaves;
     using SushiAI::Vision::Detect::Free::FeatureLevel;
 
-    /** @brief Holds the tolerance of a cell centre or a stride, each a multiple of 0.5. */
-    constexpr float K_EXACT = 0.0f;
-
-    /** @brief Expects @p actual to hold @p expected, value for value, within K_EXACT. */
+    /** @brief Expects @p actual to hold @p expected, value for value, exactly. */
     void expect_values(const std::vector<float>& actual, const std::vector<float>& expected)
     {
         ASSERT_EQ(actual.size(), expected.size());
         for (std::size_t i = 0; i < expected.size(); ++i)
-            EXPECT_NEAR(actual[i], expected[i], K_EXACT) << "value " << i;
+            EXPECT_EQ(actual[i], expected[i]) << "value " << i;
     }
 } // namespace
 

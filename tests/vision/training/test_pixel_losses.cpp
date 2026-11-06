@@ -117,5 +117,5 @@ TEST(Small_VisionTrainingPixelLosses, DefaultOperandsNameNoValueAndTheEpsilonIsA
     EXPECT_EQ(operands.kept, Graph::K_NO_VALUE);
     EXPECT_EQ(operands.class_pixels, Graph::K_NO_VALUE);
     EXPECT_EQ(operands.class_weights, Graph::K_NO_VALUE);
-    EXPECT_NEAR(K_DICE_EPSILON, 1e-6, 0.0);
+    EXPECT_EQ(K_DICE_EPSILON, 1e-6);
 }

@@ -70,6 +70,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 
@@ -81,6 +82,12 @@ using Graph::TensorPool;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 256 unit roundoffs of float, the smallest
+     * power of two that covers 1e-5.
+     */
+    constexpr double K_FLOAT_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_Fusion : public ::testing::Test {};
 
     constexpr int64_t K_BATCH = 8;
@@ -434,7 +441,7 @@ TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
                           * w_values[static_cast<std::size_t>(col * K_IN_DIM + k)];
 
             const std::size_t index = static_cast<std::size_t>(row * K_OUT_DIM + col);
-            EXPECT_NEAR(spilled[index], expected, 1e-5)
+            EXPECT_NEAR(spilled[index], expected, K_FLOAT_TOLERANCE)
                 << "the spill at (" << row << ", " << col << ") is not the pre-activation";
 
             // Only a negative element separates them; see tests/layers/train/README.md.

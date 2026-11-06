@@ -54,9 +54,6 @@ namespace
     using SushiAI::Optim::StepSchedule;
     using SushiAI::Optim::write_rate_schedule_section;
 
-    /** @brief Bounds the error of a rate a section states and a double holds as read. */
-    constexpr double K_RATE_TOLERANCE = 0.0;
-
     /** @brief Holds a step section with a rate and one step. */
     constexpr std::string_view K_STEP_SECTION = R"({
         "type": "step",
@@ -91,9 +88,9 @@ TEST(Small_RateSchedule, ASectionIsReadByTheTypeItStates)
 
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(step));
     ASSERT_TRUE(std::holds_alternative<CosineSchedule>(cosine));
-    EXPECT_NEAR(std::get<StepSchedule>(step).base_rate, 0.5, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(step).base_rate, 0.5);
     EXPECT_EQ(std::get<CosineSchedule>(cosine).total_iterations, 10);
-    EXPECT_NEAR(std::get<CosineSchedule>(cosine).final_rate, 0.125, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(std::get<CosineSchedule>(cosine).final_rate, 0.125);
 }
 
 /** @brief Tests that a section that states no type is read as a step schedule. */
@@ -137,12 +134,12 @@ TEST(Small_RateSchedule, TheRateIsThatOfTheScheduleHeld)
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule cosine,
                             read_rate_schedule_section(section_from(K_COSINE_SECTION)));
 
-    EXPECT_NEAR(SushiAI::Optim::rate_at(step, 2), 0.5, K_RATE_TOLERANCE);
-    EXPECT_NEAR(SushiAI::Optim::rate_at(step, 3), 0.25, K_RATE_TOLERANCE);
-    EXPECT_NEAR(SushiAI::Optim::rate_at(cosine, 1), 0.125, K_RATE_TOLERANCE);
-    EXPECT_NEAR(SushiAI::Optim::rate_at(cosine, 10), 0.125, K_RATE_TOLERANCE);
-    EXPECT_NEAR(SushiAI::Optim::base_rate_of(step), 0.5, K_RATE_TOLERANCE);
-    EXPECT_NEAR(SushiAI::Optim::base_rate_of(cosine), 0.25, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(step, 2), 0.5);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(step, 3), 0.25);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(cosine, 1), 0.125);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(cosine, 10), 0.125);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::base_rate_of(step), 0.5);
+    EXPECT_DOUBLE_EQ(SushiAI::Optim::base_rate_of(cosine), 0.25);
 }
 
 /** @brief Tests that a written section states the type of the schedule held and reads back. */
@@ -189,7 +186,7 @@ TEST(Small_RateSchedule, ARunReadsAStepScheduleAsAStepSchedule)
         read_rate_schedule(section_from(K_STEP_SECTION), section_from("{}")));
     ASSERT_TRUE(read.has_value());
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(*read));
-    EXPECT_NEAR(std::get<StepSchedule>(*read).base_rate, 0.5, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(*read).base_rate, 0.5);
 }
 
 /** @brief Tests that a held schedule is checked by the validation of its own type. */

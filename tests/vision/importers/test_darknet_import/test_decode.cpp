@@ -48,6 +48,7 @@
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -63,8 +64,11 @@ namespace
     using Vision::Importers::DarknetModel;
     using Vision::Importers::DarknetTranslation;
 
-    /** @brief Holds the absolute bound on a decoded box and on a decoded score. */
-    constexpr double K_DECODE_ABSOLUTE = 1e-6;
+    /**
+     * @brief Holds the absolute bound on a decoded box and on a decoded score: 32 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_DECODE_ABSOLUTE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the class count of the six cfgs this test reads (COCO). */
     constexpr std::int64_t K_CLASSES = 80;

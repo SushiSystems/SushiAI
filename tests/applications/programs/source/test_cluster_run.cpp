@@ -65,6 +65,7 @@
 #include "training_replica_model.hpp"
 #include "training_run.hpp"
 #include "training_setup.hpp"
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -92,11 +93,17 @@ namespace
         return bytes;
     }
 
-    /** @brief Holds the absolute tolerance of a parameter against the single-machine step. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of a parameter against the single-machine step; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the relative tolerance of a parameter against the single-machine step. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the relative tolerance of a parameter against the single-machine step; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Stops a started worker agent when the test leaves its scope, however it leaves. */
     class AgentStop final

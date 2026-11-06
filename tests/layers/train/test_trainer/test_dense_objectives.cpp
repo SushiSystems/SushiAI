@@ -67,6 +67,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
@@ -80,14 +81,23 @@ namespace
     /** @brief Holds the features of a sample. */
     constexpr int64_t K_FEATURES = 3;
 
-    /** @brief Bounds the absolute error of a float32 loss of order one. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds the absolute error of a float32 loss of order one; 256 unit roundoffs of float,
+     * the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the absolute error of a float32 loss of order one hundred. */
-    constexpr double K_LARGE_TOLERANCE = 1e-3;
+    /**
+     * @brief Bounds the absolute error of a float32 loss of order one hundred; 32768 unit roundoffs
+     * of float, the smallest power of two that covers 1e-3.
+     */
+    constexpr double K_LARGE_TOLERANCE = 32768.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the difference between a ratio of small counts and its exact value. */
-    constexpr double K_RATIO_TOLERANCE = 1e-12;
+    /**
+     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
+     * roundoffs of double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Stands for a metric the step did not report; no ratio and no error equals it. */
     constexpr double K_ABSENT = -1.0;

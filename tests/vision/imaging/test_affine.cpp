@@ -39,15 +39,53 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/affine.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    /**
+     * @brief Holds the absolute tolerance of a filter threshold: 32 times the float unit roundoff,
+     *        the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FILTER_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
+
+    /**
+     * @brief Holds the absolute gap under which two fractions count as equal: 32 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_DISTINCT_FRACTION_GAP =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
+
+    /**
+     * @brief Holds the absolute tolerance of a default area ratio: 2 times the float unit roundoff,
+     *        the smallest power of two not tighter than the earlier 1e-7f.
+     */
+    constexpr float K_DEFAULT_RATIO_TOLERANCE =
+        static_cast<float>(2.0 * TestSupport::unit_roundoff<float>());
+
+    /**
+     * @brief Holds the statistical bound of the mean scale over 20000 draws: six standard errors of
+     *        0.0020.
+     */
+    constexpr double K_SCALE_MEAN_TOLERANCE = 0.012;
+
+    /**
+     * @brief Holds the statistical bound of a mean fraction over 20000 draws: more than six
+     *        standard errors of 0.0004.
+     */
+    constexpr double K_FRACTION_MEAN_TOLERANCE = 0.0025;
+
     using SushiAI::StatusCode;
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance, in pixels, of a box edge or a matrix term. */
-    constexpr float K_PIXEL_TOLERANCE = 1e-3f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of a box edge or a matrix term: 32768 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-3f.
+     */
+    constexpr float K_PIXEL_TOLERANCE =
+        static_cast<float>(32768.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a 3 by 3 float matrix, row-major, as the reference builds its factors. */
     using Matrix3 = std::array<float, 9>;
@@ -210,8 +248,8 @@ TEST(Small_ImagingAffine, PlanCarriesSizesBorderValueAndFilter)
     EXPECT_TRUE(plan.source == (ImageSize{20, 30}));
     EXPECT_TRUE(plan.output == (ImageSize{8, 12}));
     EXPECT_EQ(plan.border_value, 37);
-    EXPECT_NEAR(plan.filter.min_side, 5.0f, 1e-6f);
-    EXPECT_NEAR(plan.filter.min_area_ratio, 0.25f, 1e-6f);
+    EXPECT_NEAR(plan.filter.min_side, 5.0f, K_FILTER_TOLERANCE);
+    EXPECT_NEAR(plan.filter.min_area_ratio, 0.25f, K_FILTER_TOLERANCE);
 }
 
 TEST(Small_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
@@ -262,16 +300,16 @@ TEST(Small_ImagingAffine, DrawnParametersStayInRangeAndCentreOnTheirMeans)
             y_min = std::min(y_min, y_fraction);
             y_max = std::max(y_max, y_fraction);
 
-            // Fractions closer than 1e-6 would mean one draw served both axes.
-            if (std::abs(x_fraction - y_fraction) < 1e-6f)
+            // Fractions closer than K_DISTINCT_FRACTION_GAP would mean one draw served both axes.
+            if (std::abs(x_fraction - y_fraction) < K_DISTINCT_FRACTION_GAP)
                 ++equal_fractions;
         }
     }
 
     // 20000 draws: the standard error is 0.0020 for the scale and 0.0004 for a fraction.
-    EXPECT_NEAR(scale_sum / count, 1.0, 0.012);
-    EXPECT_NEAR(x_sum / count, 0.5, 0.0025);
-    EXPECT_NEAR(y_sum / count, 0.5, 0.0025);
+    EXPECT_NEAR(scale_sum / count, 1.0, K_SCALE_MEAN_TOLERANCE);
+    EXPECT_NEAR(x_sum / count, 0.5, K_FRACTION_MEAN_TOLERANCE);
+    EXPECT_NEAR(y_sum / count, 0.5, K_FRACTION_MEAN_TOLERANCE);
 
     EXPECT_LT(scale_min, 0.51f);
     EXPECT_GT(scale_max, 1.49f);
@@ -626,11 +664,11 @@ TEST(Small_ImagingAffine, FiltersDefaultToTheBoxAndThePolygonAreaRatios)
     const AffinePlan plan =
         require_value(plan_affine(settings, ImageSize{8, 8}, ImageSize{8, 8}, random));
 
-    EXPECT_NEAR(settings.filter.min_area_ratio, 0.10f, 1e-7f);
-    EXPECT_NEAR(settings.polygon_filter.min_area_ratio, 0.01f, 1e-7f);
-    EXPECT_NEAR(plan.filter.min_area_ratio, 0.10f, 1e-7f);
-    EXPECT_NEAR(plan.polygon_filter.min_area_ratio, 0.01f, 1e-7f);
-    EXPECT_NEAR(AffinePlan{}.polygon_filter.min_area_ratio, 0.01f, 1e-7f);
+    EXPECT_NEAR(settings.filter.min_area_ratio, 0.10f, K_DEFAULT_RATIO_TOLERANCE);
+    EXPECT_NEAR(settings.polygon_filter.min_area_ratio, 0.01f, K_DEFAULT_RATIO_TOLERANCE);
+    EXPECT_NEAR(plan.filter.min_area_ratio, 0.10f, K_DEFAULT_RATIO_TOLERANCE);
+    EXPECT_NEAR(plan.polygon_filter.min_area_ratio, 0.01f, K_DEFAULT_RATIO_TOLERANCE);
+    EXPECT_NEAR(AffinePlan{}.polygon_filter.min_area_ratio, 0.01f, K_DEFAULT_RATIO_TOLERANCE);
 }
 
 /** @brief Tests that every vertex of a polygon is scaled, then moved by the matrix translation. */

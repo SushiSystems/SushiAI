@@ -40,6 +40,7 @@
 #include <SushiAI/vision/segment/confusion_matrix.hpp>
 #include <SushiAI/vision/segment/intersection_over_union.hpp>
 #include <SushiAI/vision/segment/pixel_accuracy.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Segment::ConfusionMatrix;
@@ -52,8 +53,12 @@ namespace
     /** @brief Holds the index the tests mark a pixel of no class with. */
     constexpr std::int32_t K_IGNORE = 255;
 
-    /** @brief Bounds the absolute error of a ratio of two counts below ten, in double. */
-    constexpr double K_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the Bounds the absolute error of a ratio of two counts below ten, in double: 16
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-15.
+     */
+    constexpr double K_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns a matrix of @p classes classes that counted the two lists. */
     Result<ConfusionMatrix> counted(std::int32_t classes, const Classes& predicted,

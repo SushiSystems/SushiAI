@@ -54,6 +54,7 @@
 #include <SushiAI/vision/blocks/detect_head.hpp>
 #include <SushiAI/vision/training/free_bias_init.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Blocks::DetectHead;
@@ -64,6 +65,12 @@ using Vision::Training::initialize_free_biases;
 
 namespace
 {
+    /**
+     * @brief Holds the absolute tolerance of the closed-form class bias: 16384 times the double
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_CLOSED_FORM_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     /** @brief Runs each test on a fresh engine. */
     class Medium_TrainingFreeBiasInit : public SushiAI::Test::EngineTest
     {
@@ -91,8 +98,12 @@ namespace
     /** @brief Names the row the head's state hangs under. */
     constexpr std::string_view K_PREFIX = "23";
 
-    /** @brief Holds the tolerance of a float32 bias against its double closed form. */
-    constexpr double K_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute the tolerance of a float32 bias against its double closed form: 32
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-6.
+     */
+    constexpr double K_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds a traced head, its state and its facts. */
     struct TracedHead
@@ -152,7 +163,7 @@ namespace
 /** @brief Tests that the class bias of stride 8 over 80 classes is log(5 / 80 / 6400). */
 TEST(Small_TrainingFreeClassBias, MatchesTheClosedForm)
 {
-    EXPECT_NEAR(free_class_bias(80, 8), std::log(5.0 / 80.0 / 6400.0), 1e-12);
+    EXPECT_NEAR(free_class_bias(80, 8), std::log(5.0 / 80.0 / 6400.0), K_CLOSED_FORM_TOLERANCE);
 }
 
 /** @brief Tests that both copies' last box biases are 1 and class biases follow the stride. */

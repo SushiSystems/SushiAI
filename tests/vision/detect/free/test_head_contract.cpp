@@ -32,13 +32,18 @@
 #include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/free/head_contract.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
     using namespace SushiAI::Vision::Detect::Free;
 
-    /** @brief Bounds the error of a class bias against the value computed apart, in nats. */
-    constexpr double K_BIAS_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the error of a class bias against the value computed apart,
+     *        in nats: 16384 times the double unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-12.
+     */
+    constexpr double K_BIAS_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 } // namespace
 
 /** @brief Tests that the copy, role and branch names equal the literals checkpoints carry. */

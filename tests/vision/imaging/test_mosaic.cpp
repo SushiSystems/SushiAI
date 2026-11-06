@@ -39,18 +39,40 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    /**
+     * @brief Holds the absolute tolerance of the default probability: 2 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-7f.
+     */
+    constexpr float K_PROBABILITY_TOLERANCE =
+        static_cast<float>(2.0 * TestSupport::unit_roundoff<float>());
+
+    /**
+     * @brief Holds the statistical bound of the mean of 10000 values of standard deviation 185:
+     *        five sigma of 1.85.
+     */
+    constexpr double K_PATCH_MEAN_TOLERANCE = 10.0;
+
+    /** @brief Holds the statistical bound of the enabled share: almost six sigma of 0.0068. */
+    constexpr double K_ENABLED_SHARE_TOLERANCE = 0.04;
+
     using SushiAI::Test::require_value;
     /** @brief Holds the training size of the small mosaics below; the canvas is 16 by 16. */
     constexpr std::int32_t K_SIDE = 8;
 
-    /** @brief Holds the absolute tolerance, in pixels, of a box edge made of small integers. */
-    constexpr float K_BOX_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of a box edge made of small integers: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4f.
+     */
+    constexpr float K_BOX_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the four patch sizes of a mosaic, patch 0 first. */
     using PatchSizes = std::array<ImageSize, K_MOSAIC_PATCHES>;
@@ -245,7 +267,7 @@ TEST(Small_ImagingMosaic, SettingsDefaultToTheReferenceProbabilityAndFill)
 {
     const MosaicSettings settings;
 
-    EXPECT_NEAR(settings.probability, 1.0f, 1e-7f);
+    EXPECT_NEAR(settings.probability, 1.0f, K_PROBABILITY_TOLERANCE);
     EXPECT_EQ(settings.fill_value, 114);
     EXPECT_EQ(K_MOSAIC_PATCHES, 4u);
 }
@@ -334,7 +356,7 @@ TEST(Small_ImagingMosaic, CentreStaysInTheReferenceRangeOverManySeeds)
     }
 
     // 10000 values of standard deviation 185 give a mean within 1.85 of 639.5; 10 is 5 sigma.
-    EXPECT_NEAR(sum / static_cast<double>(2 * seeds), 639.5, 10.0);
+    EXPECT_NEAR(sum / static_cast<double>(2 * seeds), 639.5, K_PATCH_MEAN_TOLERANCE);
     EXPECT_LE(smallest, 330) << "the low end of the range is never drawn";
     EXPECT_GE(largest, 949) << "the high end of the range is never drawn";
 }
@@ -403,7 +425,8 @@ TEST(Small_ImagingMosaic, GateOpensWithItsProbability)
     }
 
     // The standard deviation of the fraction is 0.0068; 0.04 is almost 6 sigma.
-    EXPECT_NEAR(static_cast<double>(enabled) / static_cast<double>(seeds), 0.25, 0.04);
+    EXPECT_NEAR(static_cast<double>(enabled) / static_cast<double>(seeds), 0.25,
+                K_ENABLED_SHARE_TOLERANCE);
 }
 
 TEST(Small_ImagingMosaic, PlanCutsPatchesAtTheLeftAndBottomEdges)

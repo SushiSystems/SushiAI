@@ -40,6 +40,7 @@
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/voc_xml.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -47,8 +48,12 @@ using SushiAI::Vision::Imaging::NormalizedBox;
 
 namespace
 {
-    /** @brief Holds the absolute difference a box fraction may have from its quotient. */
-    constexpr float K_FRACTION_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute difference a box fraction may have from its quotient: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FRACTION_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns options that read the split "train" of a directory. */
     VOCXMLOptions options_of(const Support::ScratchDirectory& scratch)

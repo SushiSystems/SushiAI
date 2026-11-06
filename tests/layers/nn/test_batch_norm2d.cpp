@@ -53,6 +53,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/reference_files/reference_file.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BatchNorm2d;
@@ -69,14 +70,25 @@ namespace
     /** @brief Holds the momentum the reference layers were run with. */
     constexpr double K_REFERENCE_MOMENTUM = 0.03;
 
-    /** @brief Holds 4 float32 epsilons of the unit case's largest running variance, 1.1086. */
-    constexpr float K_UNIT_CASE_TOLERANCE = 5.3e-7f;
+    /**
+     * @brief Bounds the absolute error of a float32 running variance in the unit case, whose largest
+     * value is 1.1086; 9 unit roundoffs of float, which cover 4 machine epsilons of it.
+     */
+    constexpr float K_UNIT_CASE_TOLERANCE =
+        static_cast<float>(9.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds 4 float32 epsilons of the model case's largest running variance, 1.4578. */
-    constexpr float K_MODEL_CASE_TOLERANCE = 7.0e-7f;
+    /**
+     * @brief Bounds the absolute error of a float32 running variance in the model case, whose largest
+     * value is 1.4578; 12 unit roundoffs of float, which cover 4 machine epsilons of it.
+     */
+    constexpr float K_MODEL_CASE_TOLERANCE =
+        static_cast<float>(12.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute tolerance of a double computed the same way on both sides. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Bounds the absolute error of a double computed the same way on both sides; 16 unit
+     * roundoffs of double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Counts the nodes of @p graph that carry the operation @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)

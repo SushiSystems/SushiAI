@@ -45,6 +45,7 @@
 #include <SushiAI/graph/lowering/elementwise.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -62,8 +63,11 @@ namespace
 
     };
 
-    /** @brief Bounds a FLOAT32 result computed on the device against a double host value. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds a FLOAT32 result computed on the device against a double host value; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Bounds a conversion of values that FLOAT32 holds exactly; it loses nothing. */
     constexpr double K_EXACT = 0.0;

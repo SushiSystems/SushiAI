@@ -63,6 +63,7 @@
 #include <SushiAI/train/step_view.hpp>
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Train::BinaryCrossEntropyObjective;
@@ -73,8 +74,11 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the difference between a ratio of small counts and its exact value. */
-    constexpr double K_RATIO_TOLERANCE = 1e-12;
+    /**
+     * @brief Bounds the difference between a ratio of small counts and its exact value; 16384 unit
+     * roundoffs of double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the samples of the batch the graph cases build. */
     constexpr int64_t K_BATCH = 4;

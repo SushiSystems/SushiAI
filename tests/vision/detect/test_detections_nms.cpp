@@ -170,13 +170,13 @@ TEST(Medium_DetectPostprocess, SuppressionDefaultsMatchTheValidator)
 {
     const NMSConfig config;
 
-    EXPECT_NEAR(config.confidence_threshold, 0.001f, K_EXACT);
-    EXPECT_NEAR(config.iou_threshold, 0.7f, K_EXACT);
+    EXPECT_EQ(config.confidence_threshold, 0.001f);
+    EXPECT_EQ(config.iou_threshold, 0.7f);
     EXPECT_EQ(config.label_mode, LabelMode::MultiLabel);
     EXPECT_EQ(config.class_mode, ClassMode::ClassAware);
     EXPECT_EQ(config.max_detections, 300);
     EXPECT_EQ(config.max_candidates, 30000);
-    EXPECT_NEAR(config.class_offset, 7680.0f, K_EXACT);
+    EXPECT_EQ(config.class_offset, 7680.0f);
 }
 
 /** @brief Tests that the lower-scoring of two overlapping boxes is suppressed. */

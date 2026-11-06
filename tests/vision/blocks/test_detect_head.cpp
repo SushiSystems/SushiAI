@@ -51,6 +51,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/detect_head.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
@@ -266,8 +267,12 @@ namespace
     /** @brief Holds the strides of the three fixture levels. */
     const std::vector<double> K_STRIDES = {8.0, 16.0, 32.0};
 
-    /** @brief Holds the tolerance for comparing a bias with its closed form. */
-    constexpr double K_BIAS_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute the tolerance for comparing a bias with its closed form: 16384
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-12.
+     */
+    constexpr double K_BIAS_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Builds a head over K_SIDES and K_WIDTHS with @p options, or fails the test. */
     std::unique_ptr<DetectHead> make_head(const DetectOptions& options)

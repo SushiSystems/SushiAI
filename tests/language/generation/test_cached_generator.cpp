@@ -69,6 +69,7 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/train/evaluation_step.hpp>
 #include <SushiAI/train/steps.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Generation::CachedGenerator;
@@ -93,8 +94,12 @@ namespace
     /** @brief Holds the tokens of a run whose context reaches the window and slides. */
     constexpr std::int64_t K_SLIDING_TOKENS = 12;
 
-    /** @brief Holds the absolute tolerance between a logit of the two float32 passes. */
-    constexpr float K_LOGIT_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance between a logit of the two float32 passes: 2048 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-4f.
+     */
+    constexpr float K_LOGIT_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Views ids as the span a generator reads. */
     SushiRuntime::span<const TokenID> span_of(const std::vector<TokenID>& ids)

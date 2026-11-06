@@ -72,6 +72,7 @@
 #include <SushiAI/shape/shape.hpp>
 
 #include "replica_test_support.hpp"
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -86,11 +87,17 @@ namespace
     /** @brief Names the device the packs live on: the engine's default, which its tensors use. */
     constexpr std::size_t K_DEVICE = 0;
 
-    /** @brief Bounds the absolute difference of a float32 result over two micro-batches. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute difference of a float32 result over two micro-batches; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the relative difference of a float32 result over two micro-batches. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds the relative difference of a float32 result over two micro-batches; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns options whose policy sends a task of any size to a worker. */
     Distributed::ClusterOptions eager_options()

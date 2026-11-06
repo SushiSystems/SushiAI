@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
+#include <support/tolerance.hpp>
 
 namespace Detect = SushiAI::Vision::Detect;
 
@@ -52,17 +53,30 @@ namespace
     /** @brief Holds the half step of the central difference. */
     constexpr double K_DIFFERENCE_STEP = 1e-6;
 
-    /** @brief Holds the relative tolerance of the analytic form against the difference. */
-    constexpr double K_ANALYTIC_RELATIVE = 1e-6;
+    /**
+     * @brief Holds the relative tolerance of the analytic form against the difference: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_ANALYTIC_RELATIVE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the absolute floor of that tolerance, for components near zero. */
-    constexpr double K_ANALYTIC_ABSOLUTE = 1e-7;
+    /**
+     * @brief Holds the absolute floor of that tolerance, for components near zero: 2 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-7.
+     */
+    constexpr double K_ANALYTIC_ABSOLUTE = 2.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the relative tolerance against the dumped deltas, as the report asks. */
-    constexpr double K_DUMP_RELATIVE = 1e-4;
+    /**
+     * @brief Holds the relative tolerance against the dumped deltas, as the report asks: 2048 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-4.
+     */
+    constexpr double K_DUMP_RELATIVE = 2048.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the tolerance of the hand cases, relative, with the same value as floor. */
-    constexpr double K_HAND_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute the tolerance of the hand cases, relative, with the same value as
+     *        floor: 256 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-5.
+     */
+    constexpr double K_HAND_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the least gap between edges at which a difference crosses no kink. */
     constexpr double K_KINK_GAP = 1e-3;

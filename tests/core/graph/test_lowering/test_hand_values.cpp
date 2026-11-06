@@ -43,6 +43,7 @@
 #include <SushiAI/graph/fusion.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
@@ -56,6 +57,36 @@ using SaTest::write_tensor;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 256 unit roundoffs of float, the smallest
+     * power of two that covers 1e-5.
+     */
+    constexpr double K_FLOAT_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 32 unit roundoffs of float, the smallest
+     * power of two that covers 1e-6.
+     */
+    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a double result; 16777216 unit roundoffs of double, the
+     * smallest power of two that covers 1e-9.
+     */
+    constexpr double K_DOUBLE_LOOSE_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
+
+    /**
+     * @brief Bounds the absolute error of a double result; 16384 unit roundoffs of double, the
+     * smallest power of two that covers 1e-12.
+     */
+    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     class Medium_Forward : public SaTest::EngineTest {};
 
     /** @brief Names the suite of the cases that expect the process to stop. */
@@ -115,12 +146,12 @@ TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
     const std::vector<double> expected_pre = {-1.0, 1.5, 4.0, 1.0, 3.5, 8.0};
     const std::vector<double> pre = read_tensor(run.pool.tensor(y));
     for (std::size_t i = 0; i < expected_pre.size(); ++i)
-        EXPECT_NEAR(pre[i], expected_pre[i], 1e-5) << "at " << i;
+        EXPECT_NEAR(pre[i], expected_pre[i], K_FLOAT_TOLERANCE) << "at " << i;
 
     const std::vector<double> expected_post = {0.0, 1.5, 4.0, 1.0, 3.5, 8.0};
     const std::vector<double> post = read_tensor(run.pool.tensor(z));
     for (std::size_t i = 0; i < expected_post.size(); ++i)
-        EXPECT_NEAR(post[i], expected_post[i], 1e-5) << "at " << i;
+        EXPECT_NEAR(post[i], expected_post[i], K_FLOAT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, SumRowsProducesColumnSums)
@@ -139,8 +170,8 @@ TEST_F(Medium_Forward, SumRowsProducesColumnSums)
 
     const std::vector<double> result = read_tensor(run.pool.tensor(sums));
     ASSERT_EQ(result.size(), 2u);
-    EXPECT_NEAR(result[0], 9.0, 1e-5);
-    EXPECT_NEAR(result[1], 12.0, 1e-5);
+    EXPECT_NEAR(result[0], 9.0, K_FLOAT_TOLERANCE);
+    EXPECT_NEAR(result[1], 12.0, K_FLOAT_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
@@ -160,7 +191,7 @@ TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), 12u);
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], static_cast<double>(i), 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], static_cast<double>(i), K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
@@ -185,7 +216,7 @@ TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
@@ -222,16 +253,16 @@ TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
 
     for (std::size_t i = 0; i < 4; ++i)
     {
-        EXPECT_NEAR(got_sum[i], expect_sum[i], 1e-5) << "add at " << i;
-        EXPECT_NEAR(got_difference[i], expect_difference[i], 1e-5) << "sub at " << i;
-        EXPECT_NEAR(got_product[i], expect_product[i], 1e-5) << "mul at " << i;
-        EXPECT_NEAR(got_scaled[i], expect_scaled[i], 1e-5) << "scale at " << i;
+        EXPECT_NEAR(got_sum[i], expect_sum[i], K_FLOAT_TOLERANCE) << "add at " << i;
+        EXPECT_NEAR(got_difference[i], expect_difference[i], K_FLOAT_TOLERANCE) << "sub at " << i;
+        EXPECT_NEAR(got_product[i], expect_product[i], K_FLOAT_TOLERANCE) << "mul at " << i;
+        EXPECT_NEAR(got_scaled[i], expect_scaled[i], K_FLOAT_TOLERANCE) << "scale at " << i;
     }
 
-    EXPECT_NEAR(got_exponent[0], std::exp(0.5), 1e-5);
-    EXPECT_NEAR(got_exponent[1], std::exp(-1.0), 1e-5);
-    EXPECT_NEAR(got_exponent[2], std::exp(2.0), 1e-5);
-    EXPECT_NEAR(got_exponent[3], 1.0, 1e-5);
+    EXPECT_NEAR(got_exponent[0], std::exp(0.5), K_FLOAT_TOLERANCE);
+    EXPECT_NEAR(got_exponent[1], std::exp(-1.0), K_FLOAT_TOLERANCE);
+    EXPECT_NEAR(got_exponent[2], std::exp(2.0), K_FLOAT_TOLERANCE);
+    EXPECT_NEAR(got_exponent[3], 1.0, K_FLOAT_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
@@ -265,11 +296,12 @@ TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
 
     for (std::size_t i = 0; i < inputs.size(); ++i)
     {
-        EXPECT_NEAR(relu[i], std::max(0.0, inputs[i]), 1e-5) << "relu at " << i;
-        EXPECT_NEAR(sigmoid[i], 1.0 / (1.0 + std::exp(-inputs[i])), 1e-5) << "sigmoid at " << i;
-        EXPECT_NEAR(hyperbolic[i], std::tanh(inputs[i]), 1e-5) << "tanh at " << i;
-        EXPECT_NEAR(leaky[i], expected_leaky[i], 1e-5) << "leaky_relu at " << i;
-        EXPECT_NEAR(unchanged[i], inputs[i], 1e-12) << "input mutated at " << i;
+        EXPECT_NEAR(relu[i], std::max(0.0, inputs[i]), K_FLOAT_TOLERANCE) << "relu at " << i;
+        EXPECT_NEAR(sigmoid[i], 1.0 / (1.0 + std::exp(-inputs[i])), K_FLOAT_TOLERANCE)
+            << "sigmoid at " << i;
+        EXPECT_NEAR(hyperbolic[i], std::tanh(inputs[i]), K_FLOAT_TOLERANCE) << "tanh at " << i;
+        EXPECT_NEAR(leaky[i], expected_leaky[i], K_FLOAT_TOLERANCE) << "leaky_relu at " << i;
+        EXPECT_NEAR(unchanged[i], inputs[i], K_DOUBLE_TOLERANCE) << "input mutated at " << i;
     }
 }
 
@@ -296,14 +328,14 @@ TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
                                           1.0 - lse, 2.0 - lse, 3.0 - lse};
 
     for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(l_values[i], expected[i], 1e-4) << "at " << i;
+        EXPECT_NEAR(l_values[i], expected[i], K_FLOAT_LOOSE_TOLERANCE) << "at " << i;
 
     for (int row = 0; row < 2; ++row)
     {
         double mass = 0.0;
         for (int column = 0; column < 3; ++column)
             mass += std::exp(l_values[static_cast<std::size_t>(row * 3 + column)]);
-        EXPECT_NEAR(mass, 1.0, 1e-4) << "row " << row << " is not normalised";
+        EXPECT_NEAR(mass, 1.0, K_FLOAT_LOOSE_TOLERANCE) << "row " << row << " is not normalised";
     }
 }
 
@@ -326,7 +358,7 @@ TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], std::log(5.0), 1e-5);
+    EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], std::log(5.0), K_FLOAT_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
@@ -346,7 +378,7 @@ TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     SA_EXPECT_OK(run.step->run());
 
     const double lse = 3.0 + std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
-    EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], lse - 3.0, 1e-5);
+    EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], lse - 3.0, K_FLOAT_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
@@ -370,8 +402,9 @@ TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
 
     for (std::size_t i = 0; i < 4; ++i)
     {
-        EXPECT_NEAR(result[i], accumulator[i], 1e-12) << "the result must alias the accumulator";
-        EXPECT_NEAR(result[i], static_cast<double>(11 * (i + 1)), 1e-5) << "at " << i;
+        EXPECT_NEAR(result[i], accumulator[i], K_DOUBLE_TOLERANCE)
+            << "the result must alias the accumulator";
+        EXPECT_NEAR(result[i], static_cast<double>(11 * (i + 1)), K_FLOAT_TOLERANCE) << "at " << i;
     }
 }
 
@@ -396,7 +429,7 @@ TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
     const std::vector<double> expected = {1.0, -2.0, 3.0, 1.0, -2.0, 3.0};
 
     for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
@@ -421,7 +454,7 @@ TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
     const std::vector<double> expected = {0, 1, 2, 3};
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
@@ -446,7 +479,7 @@ TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
     const std::vector<double> expected = {1, 2, 1, 2, 4, 2, 1, 2, 1};
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
@@ -495,7 +528,7 @@ TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDe
     };
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9)
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE)
             << "at row " << (i / 9) << " tap " << (i % 9);
 }
 
@@ -519,7 +552,7 @@ TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
 
     const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
     ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 3.0, 1e-9);
+    EXPECT_NEAR(result[0], 3.0, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
@@ -555,7 +588,7 @@ TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
     ASSERT_EQ(middle.size(), permuted.size());
     for (std::size_t i = 0; i < permuted.size(); ++i)
-        EXPECT_NEAR(middle[i], permuted[i], 1e-9)
+        EXPECT_NEAR(middle[i], permuted[i], K_DOUBLE_LOOSE_TOLERANCE)
             << "at " << i << ": the NCHW intermediate was not permuted. If this reads back "
                "as 1..8 the convert copied straight through, and the round trip below is "
                "two no-ops composing to an identity that proves nothing.";
@@ -564,7 +597,7 @@ TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     const std::vector<double> result = read_tensor(run.pool.tensor(back));
     ASSERT_EQ(result.size(), original.size());
     for (std::size_t i = 0; i < original.size(); ++i)
-        EXPECT_NEAR(result[i], original[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], original[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
@@ -612,18 +645,18 @@ TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradi
 
     const std::vector<double> pooled_values = read_tensor(run.pool.tensor(pooled.output));
     ASSERT_EQ(pooled_values.size(), 2u);
-    EXPECT_NEAR(pooled_values[0], 6.0, 1e-9);
-    EXPECT_NEAR(pooled_values[1], 7.0, 1e-9);
+    EXPECT_NEAR(pooled_values[0], 6.0, K_DOUBLE_LOOSE_TOLERANCE);
+    EXPECT_NEAR(pooled_values[1], 7.0, K_DOUBLE_LOOSE_TOLERANCE);
 
     const std::vector<double> dx = read_tensor(run.pool.tensor(gradients[0]));
     ASSERT_EQ(dx.size(), 8u);
 
     for (std::size_t i = 0; i < 6; ++i)
-        EXPECT_NEAR(dx[i], 0.0, 1e-9)
+        EXPECT_NEAR(dx[i], 0.0, K_DOUBLE_LOOSE_TOLERANCE)
             << "tap " << i << " did not win its window but was given a gradient";
 
-    EXPECT_GT(std::abs(dx[6]), 1e-6) << "the c=0 maximum received no gradient at all";
-    EXPECT_GT(std::abs(dx[7]), 1e-6) << "the c=1 maximum received no gradient at all";
+    EXPECT_GT(std::abs(dx[6]), K_FLOAT_TIGHT_TOLERANCE) << "the c=0 maximum received no gradient at all";
+    EXPECT_GT(std::abs(dx[7]), K_FLOAT_TIGHT_TOLERANCE) << "the c=1 maximum received no gradient at all";
 }
 
 TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
@@ -646,7 +679,7 @@ TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
 
     const std::vector<double> result = read_tensor(run.pool.tensor(pooled));
     ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 1.5, 1e-9);
+    EXPECT_NEAR(result[0], 1.5, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
@@ -668,7 +701,7 @@ TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     const std::vector<double> expected = {5.0, 5.0, 5.0, 5.0};
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
@@ -688,7 +721,7 @@ TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
 
     const std::vector<double> result = read_tensor(run.pool.tensor(mean));
     ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 1.5, 1e-9);
+    EXPECT_NEAR(result[0], 1.5, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
 TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
@@ -715,7 +748,7 @@ TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
     const std::vector<double> expected = {10.0, 20.0};
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
@@ -737,7 +770,7 @@ TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     const std::vector<double> expected = {2.0, 3.0};
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-9) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
@@ -764,7 +797,7 @@ TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     const std::vector<double> result = read_tensor(run.pool.tensor(y));
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-6) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
@@ -791,16 +824,16 @@ TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 
     const std::vector<double> mean = read_tensor(run.pool.tensor(bn.saved_mean));
     ASSERT_EQ(mean.size(), 2u);
-    EXPECT_NEAR(mean[0], 2.5, 1e-6);
-    EXPECT_NEAR(mean[1], 25.0, 1e-6);
+    EXPECT_NEAR(mean[0], 2.5, K_FLOAT_TIGHT_TOLERANCE);
+    EXPECT_NEAR(mean[1], 25.0, K_FLOAT_TIGHT_TOLERANCE);
 
     const double inv0 = 1.0 / std::sqrt(1.25 + K_EPSILON);
     const double inv1 = 1.0 / std::sqrt(125.0 + K_EPSILON);
 
     const std::vector<double> inv_std = read_tensor(run.pool.tensor(bn.saved_inv_std));
     ASSERT_EQ(inv_std.size(), 2u);
-    EXPECT_NEAR(inv_std[0], inv0, 1e-6);
-    EXPECT_NEAR(inv_std[1], inv1, 1e-6);
+    EXPECT_NEAR(inv_std[0], inv0, K_FLOAT_TIGHT_TOLERANCE);
+    EXPECT_NEAR(inv_std[1], inv1, K_FLOAT_TIGHT_TOLERANCE);
 
     const std::array<double, 4> channel0 = {1.0, 2.0, 3.0, 4.0};
     const std::array<double, 4> channel1 = {10.0, 20.0, 30.0, 40.0};
@@ -815,7 +848,7 @@ TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     const std::vector<double> result = read_tensor(run.pool.tensor(bn.output));
     ASSERT_EQ(result.size(), expected.size());
     for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], 1e-5) << "at " << i;
+        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)

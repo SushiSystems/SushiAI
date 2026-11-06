@@ -71,6 +71,7 @@
 #include <SushiAI/vision/training/truth_from_roles.hpp>
 
 #include "detection_loop_support.hpp"
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::DetectionLoopTest;
@@ -114,11 +115,12 @@ namespace
     /** @brief Seeds the input images. */
     constexpr std::uint64_t K_INPUT_SEED = 20261011ull;
 
-    /** @brief Bounds the error of a rate that is one product of two doubles. */
-    constexpr double K_RATE_TOLERANCE = 1e-15;
-
-    /** @brief Bounds the difference of a cost in the report from the callback's copy of it. */
-    constexpr double K_COPY_TOLERANCE = 0.0;
+    /**
+     * @brief Holds the absolute Bounds the error of a rate that is one product of two doubles: 16
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-15.
+     */
+    constexpr double K_RATE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns a rate of 0.1 that halves from update 2 and again from update 5. */
     Optim::StepSchedule make_halving_schedule()
@@ -266,8 +268,8 @@ TEST_F(Medium_AnchorTrainingLoop, EachUpdateTakesTheRateOfItsIteration)
     EXPECT_EQ(report.updates, 6u);
     EXPECT_NEAR(report.last_rate, 0.025, K_RATE_TOLERANCE);
     EXPECT_NEAR(optimizer_->learning_rate(), 0.025, K_RATE_TOLERANCE);
-    EXPECT_NEAR(report.first.total, seen.front().cost.total, K_COPY_TOLERANCE);
-    EXPECT_NEAR(report.last.total, seen.back().cost.total, K_COPY_TOLERANCE);
+    EXPECT_EQ(report.first.total, seen.front().cost.total);
+    EXPECT_EQ(report.last.total, seen.back().cost.total);
     EXPECT_EQ(optimizer_->step_count(), 6u);
     EXPECT_EQ(step_->training().step().compile_count(), 1u);
 }

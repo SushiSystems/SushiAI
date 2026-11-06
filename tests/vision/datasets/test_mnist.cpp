@@ -49,9 +49,6 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the error of a pixel the loader scales and the test scales the same way. */
-    constexpr float K_PIXEL_TOLERANCE = 0.0f;
-
     /** @brief Holds the IDX code of unsigned bytes. */
     constexpr std::uint8_t K_UNSIGNED_BYTE = 0x08;
 
@@ -117,7 +114,7 @@ TEST_F(Medium_DatasetsMNIST, TheSamplesLoadAsWholeBatches)
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(1, batch)));
     const float* pixels = batch.inputs.data_as<float>();
     for (std::size_t i = 0; i < 12; ++i)
-        EXPECT_NEAR(pixels[i], static_cast<float>(12 + i) / 255.0f, K_PIXEL_TOLERANCE) << i;
+        EXPECT_EQ(pixels[i], static_cast<float>(12 + i) / 255.0f) << i;
     const std::int32_t* labels = batch.targets[0].values.data_as<std::int32_t>();
     EXPECT_EQ(labels[0], 4);
     EXPECT_EQ(labels[1], 1);

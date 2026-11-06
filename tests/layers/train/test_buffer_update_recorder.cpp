@@ -55,6 +55,7 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/buffer_update_recorder.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -69,8 +70,11 @@ namespace
     /** @brief The factor the batch value is scaled by before it is blended in. */
     constexpr double K_SOURCE_SCALE = 2.0;
 
-    /** @brief The absolute tolerance of one blended element, in double precision. */
-    constexpr double K_BLEND_TOLERANCE = 1e-9;
+    /**
+     * @brief The absolute tolerance of one blended element, in double precision; 16777216 unit
+     * roundoffs of double, the smallest power of two that covers 1e-9.
+     */
+    constexpr double K_BLEND_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief The state identity the bind cases give the buffer their update targets. */
     constexpr std::uint64_t K_TARGET_STATE = 7;

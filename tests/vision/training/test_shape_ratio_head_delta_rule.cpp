@@ -45,6 +45,7 @@
 #include <SushiAI/vision/training/shape_ratio_head_delta_rule.hpp>
 
 #include "head_delta_rule_fixture.hpp"
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -68,8 +69,12 @@ namespace
     using Vision::Training::AnchorHead;
     using Vision::Training::ShapeRatioHeadDeltaRule;
 
-    /** @brief Holds the tolerance of a sum of doubles taken in two orders. */
-    constexpr double K_SUM_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute the tolerance of a sum of doubles taken in two orders: 16384 times
+     *        the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-12.
+     */
+    constexpr double K_SUM_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 } // namespace
 
 /** @brief Tests that heads of logits with squared sigmoid sides are accepted. */

@@ -36,13 +36,18 @@
 #include <SushiAI/vision/detect/detections_nms.hpp>
 #include <SushiAI/vision/detect/prediction_shape.hpp>
 #include <SushiAI/vision/detect/suppression_criterion.hpp>
+#include <support/tolerance.hpp>
 
 namespace Detect = SushiAI::Vision::Detect;
 
 namespace
 {
-    /** @brief Holds the tolerance of every measure, absolute, in float32 units. */
-    constexpr float K_MEASURE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the tolerance of every measure, absolute, in float32 units: 32 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_MEASURE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the first box of the centre-distance cases: a 10 by 10 square at the origin. */
     const std::vector<float> K_SQUARE{0.0f, 0.0f, 10.0f, 10.0f};

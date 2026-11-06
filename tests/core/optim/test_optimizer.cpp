@@ -50,6 +50,7 @@
 #include <SushiAI/optim/optimizer_registry.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
@@ -72,8 +73,11 @@ namespace
     /** @brief Holds a parameter after one decayed update of a zero gradient, for both rules. */
     constexpr double K_DECAYED = K_START * (1.0 - K_RATE * K_DECAY);
 
-    /** @brief Bounds the absolute error of a float32 value of order one after one update. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute error of a float32 value of order one after one update; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Provides an engine and two slots of zero gradient, the second without decay. */
     class Medium_ParameterDecay : public SaTest::EngineTest

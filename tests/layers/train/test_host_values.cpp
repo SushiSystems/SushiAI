@@ -45,9 +45,6 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the difference between a stored element and the double read back. */
-    constexpr double K_READ_TOLERANCE = 0.0;
-
     /** @brief Provides the engine the tensors are allocated on. */
     class Medium_HostValues : public SaTest::EngineTest
     {
@@ -70,8 +67,8 @@ TEST_F(Medium_HostValues, AFloat32ElementIsReadAsADouble)
                             tensor_of(Shape{3}, DType::Float32, {0.5, -1.25, 3.0}));
 
     SA_EXPECT_OK(Train::require_host_reals(tensor, 3, "the scores"));
-    EXPECT_NEAR(Train::host_real(tensor, 1), -1.25, K_READ_TOLERANCE);
-    EXPECT_NEAR(Train::host_real(tensor, 2), 3.0, K_READ_TOLERANCE);
+    EXPECT_DOUBLE_EQ(Train::host_real(tensor, 1), -1.25);
+    EXPECT_DOUBLE_EQ(Train::host_real(tensor, 2), 3.0);
 }
 
 /** @brief Tests that a float64 element comes back unrounded, unlike its float32 neighbour. */
@@ -83,7 +80,7 @@ TEST_F(Medium_HostValues, AFloat64ElementIsReadUnrounded)
                             tensor_of(Shape{2}, DType::Float32, {0.1, 0.2}));
 
     SA_EXPECT_OK(Train::require_host_reals(wide, 2, "the scores"));
-    EXPECT_NEAR(Train::host_real(wide, 0), 0.1, K_READ_TOLERANCE);
-    EXPECT_NEAR(Train::host_real(narrow, 0), static_cast<double>(0.1f), K_READ_TOLERANCE);
+    EXPECT_DOUBLE_EQ(Train::host_real(wide, 0), 0.1);
+    EXPECT_DOUBLE_EQ(Train::host_real(narrow, 0), static_cast<double>(0.1f));
     EXPECT_NE(Train::host_real(narrow, 0), 0.1);
 }

@@ -50,6 +50,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/traced.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -1030,7 +1031,8 @@ TEST(Small_ElementwiseOps, AComparisonOfAParameterRequiresNoGradient)
 TEST(Small_ElementwiseOps, ConstantWritesAnOperandFreeNodeHoldingItsValue)
 {
     constexpr double K_VALUE = 1e-7;
-    constexpr double K_VALUE_TOLERANCE = 1e-20;
+    /** @brief Bounds the relative error of a stored double; 1024 unit roundoffs of it. */
+    constexpr double K_VALUE_TOLERANCE = 1024.0 * K_VALUE * TestSupport::unit_roundoff<double>();
 
     Graph::Graph graph;
     const GraphBuilder builder(graph);

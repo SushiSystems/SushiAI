@@ -47,12 +47,19 @@
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/optimizer_registry.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float32 point's radius; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_RADIUS_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
     /** @brief The "rings" row, as register_datasets adds it. */
     constexpr Data::DatasetEntry K_RINGS_ROW{"rings", &Data::make_rings};
 
@@ -241,8 +248,8 @@ TEST_F(Medium_Registries, RingsPlacesEachClassInItsOwnRadiusBand)
         const double radius = std::sqrt(px * px + py * py);
         const double band = static_cast<double>(labels[r]);
 
-        EXPECT_GE(radius, band - 1e-4) << "row " << r;
-        EXPECT_LT(radius, band + options.ring_width + 1e-4) << "row " << r;
+        EXPECT_GE(radius, band - K_RADIUS_TOLERANCE) << "row " << r;
+        EXPECT_LT(radius, band + options.ring_width + K_RADIUS_TOLERANCE) << "row " << r;
     }
 }
 

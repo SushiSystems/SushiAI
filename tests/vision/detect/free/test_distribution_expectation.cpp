@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/detect/free/distribution_expectation.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -42,8 +43,13 @@ namespace
     /** @brief Holds the bins per side of the hand cases. */
     constexpr std::int64_t K_BINS = 4;
 
-    /** @brief Holds the tolerance of an expectation below 4: eight float32 steps at 4. */
-    constexpr float K_EXPECTATION_TOLERANCE = 4e-6f;
+    /**
+     * @brief Holds the absolute the tolerance of an expectation below 4: eight float32 steps at 4:
+     *        128 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 4e-6f.
+     */
+    constexpr float K_EXPECTATION_TOLERANCE =
+        static_cast<float>(128.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns the logits of one anchor whose four sides hold the hand distributions. */
     std::vector<float> hand_logits()

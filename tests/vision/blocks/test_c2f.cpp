@@ -50,6 +50,7 @@
 #include <SushiAI/nn/module_list.hpp>
 #include <SushiAI/vision/blocks/bottleneck.hpp>
 #include <SushiAI/vision/blocks/c2f.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
@@ -174,8 +175,11 @@ namespace
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Builds @p repeats bottlenecks of width 4 that keep their width. */
     NN::ModuleList<Bottleneck> make_chain(int64_t repeats, bool shortcut)

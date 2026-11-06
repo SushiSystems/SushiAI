@@ -112,9 +112,6 @@ namespace
     /** @brief Holds the number of levels the head reads. */
     constexpr std::size_t K_LEVELS = 3;
 
-    /** @brief Holds the bound of a threshold read back; each is the same float32 constant. */
-    constexpr float K_THRESHOLD_TOLERANCE = 0.0f;
-
     /** @brief Returns the path of the model file in @p folder. */
     std::filesystem::path model_path(const char* folder)
     {
@@ -240,9 +237,8 @@ TEST(Medium_UltralyticsFiles, TheTaskSectionReadsBackAsTheDefaults)
         SA_ASSERT_OK_AND_ASSIGN(const FreeTask task,
                                 Vision::Detect::Free::read_free_task(spec.task));
 
-        EXPECT_NEAR(task.score_threshold, defaults.score_threshold, K_THRESHOLD_TOLERANCE);
-        EXPECT_NEAR(task.suppression_threshold, defaults.suppression_threshold,
-                    K_THRESHOLD_TOLERANCE);
+        EXPECT_EQ(task.score_threshold, defaults.score_threshold);
+        EXPECT_EQ(task.suppression_threshold, defaults.suppression_threshold);
         EXPECT_EQ(task.criterion, defaults.criterion);
     }
 }

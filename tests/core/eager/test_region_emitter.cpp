@@ -50,6 +50,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Eager::RegionEmitter;
@@ -68,8 +69,11 @@ namespace
 
     };
 
-    /** @brief Bounds a FLOAT32 result against the same sum computed in double. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds a FLOAT32 result against the same sum computed in double; 256 unit roundoffs of
+     * float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the program of relu(x * weight + bias) and a pool with its tensors bound. */
     struct Recorded

@@ -40,6 +40,7 @@
 #include <SushiAI/vision/datasets/coco_json.hpp>
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -47,8 +48,12 @@ using SushiAI::Vision::Imaging::NormalizedBox;
 
 namespace
 {
-    /** @brief Holds the absolute difference a fraction may have from its quotient. */
-    constexpr float K_FRACTION_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute difference a fraction may have from its quotient: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FRACTION_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds two images of 200 by 100 pixels, the second listed first by id. */
     constexpr const char* K_IMAGES =

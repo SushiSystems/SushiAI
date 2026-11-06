@@ -37,6 +37,7 @@
 #include <SushiAI/vision/detect/anchor/shape_ratio_assignment.hpp>
 #include <SushiAI/vision/detect/anchor/target_assignment.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -51,8 +52,12 @@ namespace
     using SushiAI::Vision::Detect::Anchor::ShapeRatioOptions;
     using SushiAI::Vision::Detect::Anchor::TargetAssignment;
 
-    /** @brief Holds the tolerance of a box target; every value below is exact in float. */
-    constexpr float K_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute the tolerance of a box target; every value below is exact in float:
+     *        32 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-6f.
+     */
+    constexpr float K_TOLERANCE = static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the network input of 64 pixels; the 8 by 8 grid has a stride of 8. */
     constexpr NetworkSize K_NETWORK{64, 64};

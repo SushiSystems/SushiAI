@@ -49,6 +49,7 @@
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
@@ -58,6 +59,12 @@ using Optim::StepSchedule;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a double result; 16384 unit roundoffs of double, the
+     * smallest power of two that covers 1e-12.
+     */
+    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     /** @brief Holds the elements of the one parameter the optimizers update. */
     constexpr std::int64_t K_ELEMENTS = 3;
 
@@ -67,11 +74,17 @@ namespace
     /** @brief Holds the rate the optimizers are made with, which no schedule below gives. */
     constexpr double K_MADE_RATE = 0.75;
 
-    /** @brief Bounds the error of a rate that is one product of two doubles. */
-    constexpr double K_RATE_TOLERANCE = 1e-15;
+    /**
+     * @brief Bounds the error of a rate that is one product of two doubles; 16 unit roundoffs of
+     * double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_RATE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Bounds the absolute error of a float32 parameter of order one after an update. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds the absolute error of a float32 parameter of order one after an update; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns a rate of 0.5 that halves from update 2 and again from update 3. */
     StepSchedule make_halving_schedule()
@@ -200,5 +213,5 @@ TEST_F(Medium_ApplyStepSchedule, ACosineScheduleTakesTheSameSeam)
 
     const Optim::RateSchedule stepped = make_halving_schedule();
     EXPECT_NEAR(apply_step_schedule(stepped, *optimizer), 0.125, K_RATE_TOLERANCE);
-    EXPECT_NEAR(apply_step_schedule(held, *optimizer), 0.25, 1e-12);
+    EXPECT_NEAR(apply_step_schedule(held, *optimizer), 0.25, K_DOUBLE_TOLERANCE);
 }

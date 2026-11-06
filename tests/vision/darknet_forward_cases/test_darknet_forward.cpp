@@ -40,6 +40,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -48,8 +49,12 @@ using Vision::Detect::Anchor::HeadOptions;
 
 namespace
 {
-    /** @brief Bounds the error of a logistic and a stretch the test works out by hand. */
-    constexpr double K_YOLO_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute Bounds the error of a logistic and a stretch the test works out by
+     *        hand: 32 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-6.
+     */
+    constexpr double K_YOLO_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Names a model no reference data directory holds. */
     constexpr std::string_view K_ABSENT_STEM = "sushiai_no_such_model";

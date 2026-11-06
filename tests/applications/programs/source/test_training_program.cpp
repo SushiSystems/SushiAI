@@ -143,6 +143,10 @@ TEST_F(Medium_TrainingProgram, AFreshAnchorRunStartsTheObjectnessAndClassBiasesF
     constexpr std::int64_t K_SLOTS = 2;
     constexpr std::int64_t K_CHANNELS = Vision::Detect::Anchor::K_FIRST_CLASS_ENTRY + 2;
     // Two SGD updates at rate 0.001 move a bias by far less than this.
+    /**
+     * @brief Bounds the absolute movement of a bias after two SGD updates at rate 0.001; a training
+     * bound, not a rounding bound.
+     */
     constexpr double K_TOLERANCE = 0.5;
     const double objectness = std::log(8.0 / (320.0 * 320.0));
     const double classes = std::log(0.6 / (2.0 - 0.99));

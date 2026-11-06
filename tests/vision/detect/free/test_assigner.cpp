@@ -43,6 +43,7 @@
 #include <SushiAI/vision/detect/free/assignment.hpp>
 #include <SushiAI/vision/detect/free/target_leaves.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -61,14 +62,29 @@ namespace
     /** @brief Holds the tolerance of copied values and of multiples of 0.5. */
     constexpr float K_EXACT = 0.0f;
 
-    /** @brief Holds the tolerance of a hand-computed target score, eight float32 steps at 1. */
-    constexpr float K_SCORE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute the tolerance of a hand-computed target score, eight float32 steps
+     *        at 1: 32 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-6f.
+     */
+    constexpr float K_SCORE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the tolerance of a reference target score; pow and atan may round apart. */
-    constexpr float K_REFERENCE_SCORE_TOLERANCE = 1e-5f;
+    /**
+     * @brief Holds the absolute the tolerance of a reference target score; pow and atan may round
+     *        apart: 256 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-5f.
+     */
+    constexpr float K_REFERENCE_SCORE_TOLERANCE =
+        static_cast<float>(256.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the tolerance of a reference target box in pixels: two float32 steps at 640. */
-    constexpr float K_REFERENCE_BOX_TOLERANCE = 1.3e-4f;
+    /**
+     * @brief Holds the absolute the tolerance of a reference target box in pixels: two float32
+     *        steps at 640: 4096 times the float unit roundoff, the smallest power of two not
+     *        tighter than the earlier 1.3e-4f.
+     */
+    constexpr float K_REFERENCE_BOX_TOLERANCE =
+        static_cast<float>(4096.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the side of the hand-built grid in cells. */
     constexpr std::size_t K_GRID_SIDE = 4;
@@ -357,10 +373,10 @@ TEST(Medium_DetectAssigner, OneToManyPresetMatchesTheReferenceSettings)
     EXPECT_EQ(config.topk, 10);
     EXPECT_EQ(config.topk2, 10);
     EXPECT_EQ(config.num_classes, 80);
-    EXPECT_NEAR(config.alpha, 0.5f, K_EXACT);
-    EXPECT_NEAR(config.beta, 6.0f, K_EXACT);
-    EXPECT_NEAR(config.stride_val, 16.0f, K_EXACT);
-    EXPECT_NEAR(config.eps, 1e-9f, K_EXACT);
+    EXPECT_EQ(config.alpha, 0.5f);
+    EXPECT_EQ(config.beta, 6.0f);
+    EXPECT_EQ(config.stride_val, 16.0f);
+    EXPECT_EQ(config.eps, 1e-9f);
 }
 
 /** @brief Tests that the one-to-one preset keeps seven candidates and then one. */
@@ -373,9 +389,9 @@ TEST(Medium_DetectAssigner, OneToOnePresetMatchesTheReferenceSettings)
     // The values are "assigner.one2one" of loss.sacp in the registration MANIFEST.json.
     EXPECT_EQ(config.topk, 7);
     EXPECT_EQ(config.topk2, 1);
-    EXPECT_NEAR(config.alpha, 0.5f, K_EXACT);
-    EXPECT_NEAR(config.beta, 6.0f, K_EXACT);
-    EXPECT_NEAR(config.stride_val, 16.0f, K_EXACT);
+    EXPECT_EQ(config.alpha, 0.5f);
+    EXPECT_EQ(config.beta, 6.0f);
+    EXPECT_EQ(config.stride_val, 16.0f);
 }
 
 /** @brief Tests that stride_val is the second stride, or the only one of a one-level model. */
@@ -384,15 +400,12 @@ TEST(Medium_DetectAssigner, PresetTakesStrideValFromTheSecondLevel)
     const std::vector<float> two{4.0f, 12.0f};
     const std::vector<float> one{4.0f};
     const std::vector<float> none;
-    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, two).stride_val,
-                12.0f,
-                K_EXACT);
-    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, one).stride_val,
-                4.0f,
-                K_EXACT);
-    EXPECT_NEAR(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, none).stride_val,
-                16.0f,
-                K_EXACT);
+    EXPECT_EQ(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, two).stride_val,
+                12.0f);
+    EXPECT_EQ(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, one).stride_val,
+                4.0f);
+    EXPECT_EQ(SushiAI::Vision::Detect::Free::one_to_many_assigner_config(3, none).stride_val,
+                16.0f);
 }
 
 /** @brief Tests that the member defaults are the defaults of the reference's constructor. */
@@ -404,10 +417,10 @@ TEST(Medium_DetectAssigner, ConfigDefaultsMatchTheReferenceConstructor)
     EXPECT_EQ(config.topk, 13);
     EXPECT_EQ(config.topk2, 13);
     EXPECT_EQ(config.num_classes, 80);
-    EXPECT_NEAR(config.alpha, 1.0f, K_EXACT);
-    EXPECT_NEAR(config.beta, 6.0f, K_EXACT);
-    EXPECT_NEAR(config.stride_val, 16.0f, K_EXACT);
-    EXPECT_NEAR(config.eps, 1e-9f, K_EXACT);
+    EXPECT_EQ(config.alpha, 1.0f);
+    EXPECT_EQ(config.beta, 6.0f);
+    EXPECT_EQ(config.stride_val, 16.0f);
+    EXPECT_EQ(config.eps, 1e-9f);
 }
 
 /** @brief Tests that a config with no candidates, a negative stride_val or eps is refused. */
@@ -456,8 +469,8 @@ TEST(Medium_DetectAssigner, TheMetricRaisesTheScoreToAlphaAndTheOverlapToBeta)
     const float cube = overlap * overlap * overlap;
 
     // Anchor 5 has sqrt(0.25) * 1 = 0.5 and anchor 10 has sqrt(0.81) * (35 / 64)^6 = 0.024.
-    EXPECT_NEAR(one.alpha, 0.5f, K_EXACT);
-    EXPECT_NEAR(one.beta, 6.0f, K_EXACT);
+    EXPECT_EQ(one.alpha, 0.5f);
+    EXPECT_EQ(one.beta, 6.0f);
     EXPECT_TRUE(equal_reference(foreground_anchors(best), std::vector<std::int64_t>{5}));
     EXPECT_TRUE(equal_reference(foreground_anchors(both), std::vector<std::int64_t>{5, 10}));
 
@@ -512,7 +525,7 @@ TEST(Medium_DetectAssigner, APredictionApartFromItsBoxHasNoOverlap)
 
     // A third place goes to the first candidate of metric zero, anchor 0, and scores nothing.
     EXPECT_TRUE(equal_reference(foreground_anchors(three), std::vector<std::int64_t>{0, 4, 5}));
-    EXPECT_NEAR(three.target_scores[0 * K_CLASSES], 0.0f, K_EXACT);
+    EXPECT_EQ(three.target_scores[0 * K_CLASSES], 0.0f);
     EXPECT_NEAR(three.target_scores[4 * K_CLASSES], 0.2f / 0.2f, K_SCORE_TOLERANCE);
     EXPECT_NEAR(three.target_scores[5 * K_CLASSES], 0.1f / 0.2f, K_SCORE_TOLERANCE);
 }
@@ -534,7 +547,7 @@ TEST(Medium_DetectAssigner, AContestedAnchorOfEqualOverlapsGoesToTheFirstBox)
     EXPECT_EQ(assignment.target_indices[5], 0);
     EXPECT_EQ(assignment.target_labels[5], 0);
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES], 1.0f, K_SCORE_TOLERANCE);
-    EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 0.0f, K_EXACT);
+    EXPECT_EQ(assignment.target_scores[5 * K_CLASSES + 1], 0.0f);
 }
 
 /** @brief Tests that a contested anchor goes to the box of largest overlap that did not keep it. */
@@ -560,7 +573,7 @@ TEST(Medium_DetectAssigner, AContestedAnchorCanGoToABoxThatDidNotKeepIt)
     // Anchor 5 predicts box 2 exactly, so box 2 has its largest overlap and takes it.
     EXPECT_EQ(assignment.target_indices[5], 2);
     EXPECT_EQ(assignment.target_labels[5], 1);
-    EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES], 0.0f, K_EXACT);
+    EXPECT_EQ(assignment.target_scores[5 * K_CLASSES], 0.0f);
 
     // Box 2 holds anchor 5 at metric 0.1 * 1 beside its best, 0.9, and its largest overlap is 1.
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 0.1f / 0.9f, K_SCORE_TOLERANCE);
@@ -614,7 +627,7 @@ TEST(Medium_DetectAssigner, KeepsTheTopKCandidatesWhenABoxHoldsMore)
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 0.9f / 0.9f, K_SCORE_TOLERANCE);
     EXPECT_NEAR(assignment.target_scores[10 * K_CLASSES + 1], 0.6f / 0.9f, K_SCORE_TOLERANCE);
     EXPECT_NEAR(assignment.target_scores[2 * K_CLASSES + 1], 0.3f / 0.9f, K_SCORE_TOLERANCE);
-    EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES], 0.0f, K_EXACT);
+    EXPECT_EQ(assignment.target_scores[5 * K_CLASSES], 0.0f);
     EXPECT_TRUE(equal_reference(assignment.target_labels,
                                 std::vector<std::int64_t>(K_GRID_ANCHORS, 1)));
 }
@@ -651,9 +664,9 @@ TEST(Medium_DetectAssigner, AContestedAnchorGoesToTheHigherOverlap)
         assignment.target_labels,
         std::vector<std::int64_t>{0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0}));
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 1.0f, K_SCORE_TOLERANCE);
-    EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES], 0.0f, K_EXACT);
-    EXPECT_NEAR(assignment.target_boxes[5 * 4], 8.0f, K_EXACT);
-    EXPECT_NEAR(assignment.target_boxes[4 * 4 + 2], 16.0f, K_EXACT);
+    EXPECT_EQ(assignment.target_scores[5 * K_CLASSES], 0.0f);
+    EXPECT_EQ(assignment.target_boxes[5 * 4], 8.0f);
+    EXPECT_EQ(assignment.target_boxes[4 * 4 + 2], 16.0f);
 }
 
 /** @brief Tests that the contested anchor goes to the first box when it overlaps that one more. */
@@ -670,7 +683,7 @@ TEST(Medium_DetectAssigner, AContestedAnchorCanGoToTheFirstBox)
         assignment.target_indices,
         std::vector<std::int64_t>{0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0}));
     EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES], 1.0f, K_SCORE_TOLERANCE);
-    EXPECT_NEAR(assignment.target_scores[5 * K_CLASSES + 1], 0.0f, K_EXACT);
+    EXPECT_EQ(assignment.target_scores[5 * K_CLASSES + 1], 0.0f);
 }
 
 /** @brief Tests that a box smaller than stride_val is enlarged before anchors are tested. */
@@ -695,7 +708,7 @@ TEST(Medium_DetectAssigner, ASmallBoxIsEnlargedToStrideVal)
     EXPECT_TRUE(equal_reference(foreground_anchors(enlarged),
                                 std::vector<std::int64_t>{5, 6, 9, 10}));
     EXPECT_TRUE(foreground_anchors(unchanged).empty());
-    EXPECT_NEAR(enlarged.target_boxes[5 * 4], 13.0f, K_EXACT);
+    EXPECT_EQ(enlarged.target_boxes[5 * 4], 13.0f);
 }
 
 /** @brief Tests that each image of a batch is assigned from its own predictions and boxes. */
@@ -868,8 +881,8 @@ TEST(Small_DetectTargetLeaves, ReadsEachRowsAnchorAcrossImagesAndLevels)
 
     // The weights are 0.5 and 1, so their sum is 1.5 and the rows hold 1/3 and 2/3 of it.
     EXPECT_NEAR(leaves.target_scores_sum[0], 1.5f, K_SCORE_TOLERANCE);
-    EXPECT_NEAR(leaves.weight[1], 0.5f, K_EXACT);
-    EXPECT_NEAR(leaves.weight[9], 1.0f, K_EXACT);
+    EXPECT_EQ(leaves.weight[1], 0.5f);
+    EXPECT_EQ(leaves.weight[9], 1.0f);
     EXPECT_NEAR(leaves.normalized_weight[1], 0.5f / 1.5f, K_SCORE_TOLERANCE);
     EXPECT_NEAR(leaves.normalized_weight[9], 1.0f / 1.5f, K_SCORE_TOLERANCE);
 
@@ -928,8 +941,8 @@ TEST(Small_DetectTargetLeaves, AnUnassignedRowCarriesTheSafeBoxAndNoWeight)
     EXPECT_TRUE(near_reference(row0_scale, zeros, K_EXACT));
     EXPECT_TRUE(near_reference(row0_distances, zeros, K_EXACT));
     EXPECT_TRUE(near_reference(row5_safe, safe, K_EXACT));
-    EXPECT_NEAR(leaves.weight[0], 0.0f, K_EXACT);
-    EXPECT_NEAR(leaves.normalized_weight[0], 0.0f, K_EXACT);
+    EXPECT_EQ(leaves.weight[0], 0.0f);
+    EXPECT_EQ(leaves.normalized_weight[0], 0.0f);
 }
 
 /** @brief Tests that the sum of target scores is clamped to 1 when nothing is assigned. */
@@ -948,7 +961,7 @@ TEST(Small_DetectTargetLeaves, TheScoreSumIsAtLeastOne)
     SA_EXPECT_OK(SushiAI::Vision::Detect::Free::build_target_leaves(
                      assignment, {points, strides, 32.0f, 32.0f}, leaves));
 
-    EXPECT_NEAR(leaves.target_scores_sum[0], 1.0f, K_EXACT);
+    EXPECT_EQ(leaves.target_scores_sum[0], 1.0f);
 }
 
 /** @brief Tests that padding the reference labels gives the boxes its assignment targets hold. */

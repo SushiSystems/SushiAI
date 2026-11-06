@@ -44,21 +44,30 @@
 #include <SushiAI/vision/imaging/gray.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    /**
+     * @brief Holds the absolute tolerance of a letterbox ratio: 16384 times the double unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_RATIO_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     using SushiAI::Test::require_value;
     /** @brief Holds the training size of the tests; a mosaic canvas is 64 by 64. */
     constexpr std::int32_t K_SIDE = 32;
 
-    /** @brief Holds the tolerance of a replayed draw, which repeats the same arithmetic. */
-    constexpr float K_REPLAY_TOLERANCE = 0.0f;
-
-    /** @brief Holds the absolute tolerance, in pixels, of a box edge made of small integers. */
-    constexpr float K_BOX_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of a box edge made of small integers: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4f.
+     */
+    constexpr float K_BOX_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds one step of the 24-bit uniform over the default scale range of width 1. */
     constexpr float K_MIN_SCALE_GAP = 1.0f / 16777216.0f;
@@ -242,17 +251,15 @@ namespace
         for (std::size_t i = 0; i < expected.size(); ++i)
         {
             SCOPED_TRACE(::testing::Message() << "object " << i);
-            EXPECT_NEAR(actual.boxes()[i].x1, expected.boxes()[i].x1, K_REPLAY_TOLERANCE);
-            EXPECT_NEAR(actual.boxes()[i].y1, expected.boxes()[i].y1, K_REPLAY_TOLERANCE);
-            EXPECT_NEAR(actual.boxes()[i].x2, expected.boxes()[i].x2, K_REPLAY_TOLERANCE);
-            EXPECT_NEAR(actual.boxes()[i].y2, expected.boxes()[i].y2, K_REPLAY_TOLERANCE);
+            EXPECT_EQ(actual.boxes()[i].x1, expected.boxes()[i].x1);
+            EXPECT_EQ(actual.boxes()[i].y1, expected.boxes()[i].y1);
+            EXPECT_EQ(actual.boxes()[i].x2, expected.boxes()[i].x2);
+            EXPECT_EQ(actual.boxes()[i].y2, expected.boxes()[i].y2);
             ASSERT_EQ(actual.polygons()[i].size(), expected.polygons()[i].size());
             for (std::size_t j = 0; j < expected.polygons()[i].size(); ++j)
             {
-                EXPECT_NEAR(actual.polygons()[i][j].x, expected.polygons()[i][j].x,
-                            K_REPLAY_TOLERANCE);
-                EXPECT_NEAR(actual.polygons()[i][j].y, expected.polygons()[i][j].y,
-                            K_REPLAY_TOLERANCE);
+                EXPECT_EQ(actual.polygons()[i][j].x, expected.polygons()[i][j].x);
+                EXPECT_EQ(actual.polygons()[i][j].y, expected.polygons()[i][j].y);
             }
         }
     }
@@ -262,17 +269,17 @@ namespace
     {
         EXPECT_EQ(actual.source, expected.source);
         EXPECT_EQ(actual.output, expected.output);
-        EXPECT_NEAR(actual.scale, expected.scale, K_REPLAY_TOLERANCE);
-        EXPECT_NEAR(actual.translate_x, expected.translate_x, K_REPLAY_TOLERANCE);
-        EXPECT_NEAR(actual.translate_y, expected.translate_y, K_REPLAY_TOLERANCE);
+        EXPECT_EQ(actual.scale, expected.scale);
+        EXPECT_EQ(actual.translate_x, expected.translate_x);
+        EXPECT_EQ(actual.translate_y, expected.translate_y);
     }
 
     /** @brief Checks that a colour jitter plan holds the three draws of another. */
     void expect_same_hsv(const HSVPlan& actual, const HSVPlan& expected)
     {
-        EXPECT_NEAR(actual.hue, expected.hue, K_REPLAY_TOLERANCE);
-        EXPECT_NEAR(actual.saturation, expected.saturation, K_REPLAY_TOLERANCE);
-        EXPECT_NEAR(actual.value, expected.value, K_REPLAY_TOLERANCE);
+        EXPECT_EQ(actual.hue, expected.hue);
+        EXPECT_EQ(actual.saturation, expected.saturation);
+        EXPECT_EQ(actual.value, expected.value);
     }
 
     /** @brief Loads one image the way a pipeline does and returns its pixel labels. */
@@ -939,7 +946,7 @@ TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
     EXPECT_EQ(plan.source, (ImageSize{16, 32}));
     EXPECT_EQ(plan.target, (ImageSize{K_SIDE, K_SIDE}));
     EXPECT_EQ(plan.resized, (ImageSize{16, 32}));
-    EXPECT_NEAR(plan.ratio, 1.0, 1e-12);
+    EXPECT_NEAR(plan.ratio, 1.0, K_RATIO_TOLERANCE);
     EXPECT_EQ(plan.top, 8);
     EXPECT_EQ(plan.bottom, 8);
     EXPECT_EQ(plan.left, 0);

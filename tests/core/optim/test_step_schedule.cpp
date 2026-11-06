@@ -33,6 +33,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -46,11 +47,17 @@ namespace
     /** @brief The warm-up length of the warm-up cases. */
     constexpr std::int64_t K_WARMUP = 1000;
 
-    /** @brief Absolute part of the tolerance every rate comparison uses. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-15;
+    /**
+     * @brief Absolute part of the tolerance every rate comparison uses; 16 unit roundoffs of
+     * double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Relative part of the tolerance every rate comparison uses. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-12;
+    /**
+     * @brief Relative part of the tolerance every rate comparison uses; 16384 unit roundoffs of
+     * double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /**
      * @brief Expects the schedule's rate at @p iteration to equal @p expected within tolerance.

@@ -53,6 +53,7 @@
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/vision/training/head_delta_loss.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -65,8 +66,12 @@ using Graph::TensorPool;
 
 namespace
 {
-    /** @brief Bounds the error allowed on the factor the SCALE node stores. */
-    constexpr double K_ATTRIBUTE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the error allowed on the factor the SCALE node stores: 16384
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-12.
+     */
+    constexpr double K_ATTRIBUTE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the factor the tests pass, one over a batch of four. */
     constexpr double K_SCALE = 0.25;
@@ -204,11 +209,18 @@ namespace
     /** @brief Seeds the delta's values. */
     constexpr std::uint64_t K_DELTA_SEED = 20261010;
 
-    /** @brief Bounds the absolute error of each float32 gradient element. */
-    constexpr double K_GRADIENT_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the Bounds the absolute error of each float32 gradient element: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_GRADIENT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the absolute error of the float32 sum of 126 products below 1. */
-    constexpr double K_VALUE_TOLERANCE = 1e-4;
+    /**
+     * @brief Holds the Bounds the absolute error of the float32 sum of 126 products below 1: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4.
+     */
+    constexpr double K_VALUE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the graph of one head and its delta, compiled, with host copies of both. */
     struct DeltaLossCase

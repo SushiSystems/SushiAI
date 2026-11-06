@@ -48,6 +48,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -60,6 +61,12 @@ using SaTest::write_tensor;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_LogSoftmaxStability : public SaTest::EngineTest {};
 
     /** @brief Classes per row in every case here. */
@@ -145,7 +152,7 @@ TEST_F(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorr
                 << ". A row whose exponentials all underflow under the batch's "
                    "global maximum has a row sum of exactly zero, and log(0) "
                    "propagates as +inf through the final subtraction.";
-            EXPECT_NEAR(got[i], K_EXPECTED_ROW[c], 1e-4)
+            EXPECT_NEAR(got[i], K_EXPECTED_ROW[c], K_FLOAT_LOOSE_TOLERANCE)
                 << "element " << i << " at a gap of " << gap
                 << "; worst error over the batch was " << worst_error(got);
         }
@@ -182,7 +189,7 @@ TEST_F(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
         const double got = read_tensor(pool.tensor(loss))[0];
         EXPECT_TRUE(std::isfinite(got))
             << "loss is " << got << " at a gap of " << gap;
-        EXPECT_NEAR(got, 2.0 + K_LSE, 1e-4) << "at a gap of " << gap;
+        EXPECT_NEAR(got, 2.0 + K_LSE, K_FLOAT_LOOSE_TOLERANCE) << "at a gap of " << gap;
     }
 }
 
@@ -236,7 +243,7 @@ TEST_F(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
                 << gap << ". A non-finite gradient here is the failure that ends a "
                    "run silently: the optimizer writes it into the parameters and "
                    "every later step trains on NaN.";
-            EXPECT_NEAR(got[i], expected, 1e-4)
+            EXPECT_NEAR(got[i], expected, K_FLOAT_LOOSE_TOLERANCE)
                 << "gradient element " << i << " at a gap of " << gap;
         }
     }

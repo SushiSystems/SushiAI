@@ -78,6 +78,7 @@
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/nn/trace.hpp>
+#include <support/tolerance.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/apply_step_schedule.hpp>
 #include <SushiAI/optim/cosine_schedule.hpp>
@@ -291,7 +292,11 @@ TEST(Medium_LanguageTrainingNextTokenObjective, ABatchAloneFeedsTheObjective)
 TEST(Medium_LanguageTrainingNextTokenObjective, MeasureReportsThePerplexityOfTheLoss)
 {
     // A uniform guess over 8 tokens costs ln(8) nats and has a perplexity of 8.
-    constexpr double K_RELATIVE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the relative tolerance: 16384 times the double unit roundoff, the smallest power
+     *        of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<NextTokenObjective> objective,
                             NextTokenObjective::make(K_BATCH, K_LENGTH, K_VOCABULARY));
     const Data::Batch batch{};
@@ -362,8 +367,12 @@ TEST(Medium_LanguageTrainingNextTokenObjective, TheFactoryRefusesAnOutputItCanno
 namespace
 {
 
-    /** @brief Bounds the absolute error of a float32 loss or gradient of order one. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the Bounds the absolute error of a float32 loss or gradient of order one: 256
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the token of each of the N * T positions, row after row. */
     std::vector<std::int32_t> token_ids()
@@ -506,8 +515,12 @@ namespace
     /** @brief Holds the passes fit() makes over the one batch. */
     constexpr std::int64_t K_EPOCHS = 30;
 
-    /** @brief Bounds the difference between exp of a float32 loss and the reported perplexity. */
-    constexpr double K_TRAINER_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute Bounds the difference between exp of a float32 loss and the
+     *        reported perplexity: 16777216 times the double unit roundoff, the smallest power of
+     *        two not tighter than the earlier 1e-9.
+     */
+    constexpr double K_TRAINER_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns the description of [T] int32 ids per sample. */
     Data::InputDescription token_input()
@@ -643,7 +656,10 @@ namespace
     /** @brief Holds the fraction of the first loss the last one must be below. */
     constexpr double K_REMAINING_FRACTION = 0.1;
 
-    /** @brief Bounds how far the first loss may lie from ln(V), the loss of a uniform guess. */
+    /**
+     * @brief Bounds how far the first loss may lie from ln(V), the loss of a uniform guess;
+     *        absolute, a loss margin and not a rounding bound.
+     */
     constexpr double K_FIRST_LOSS_TOLERANCE = 0.5;
 
     /** @brief Holds the norm every update's gradients are clipped to. */
@@ -741,7 +757,10 @@ namespace
             std::filesystem::path path_;
     };
 
-    /** @brief Returns K_OVERFIT_BATCH windows of K_OVERFIT_LENGTH + 1 ids, id i being 7 i^2 + 3 i + 1 mod V. */
+    /**
+     * @brief Returns K_OVERFIT_BATCH windows of K_OVERFIT_LENGTH + 1 ids, id i being 7 i^2 + 3 i +
+     *        1 mod V.
+     */
     std::vector<Language::Text::TokenID> make_ids()
     {
         const std::int64_t count = K_OVERFIT_BATCH * (K_OVERFIT_LENGTH + 1);

@@ -51,6 +51,7 @@
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::CastOptions;
@@ -1349,8 +1350,11 @@ namespace
         return names;
     }
 
-    /** @brief Bounds the error allowed on an attribute that a rule writes as an exact constant. */
-    constexpr double K_ATTRIBUTE_TOLERANCE = 1e-12;
+    /**
+     * @brief Bounds the error allowed on an attribute that a rule writes as an exact constant;
+     * 16384 unit roundoffs of double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_ATTRIBUTE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Counts the rules that no finite-difference case names; an entry is a visible edit. */
     constexpr std::size_t K_UNPROVEN_RULES = 8;

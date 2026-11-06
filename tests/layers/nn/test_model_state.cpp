@@ -60,9 +60,6 @@ namespace
 
     using Medium_ModelStateDeathTest = Medium_ModelState;
 
-    /** @brief The absolute tolerance of a value that is stored and read back unchanged. */
-    constexpr double K_STORED_TOLERANCE = 0.0;
-
     /** @brief The architecture every case that needs a parameter model traces. */
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
@@ -139,11 +136,11 @@ TEST_F(Medium_ModelState, CreateListsBuffersAfterATrainingTrace)
     EXPECT_EQ(entries[2].name, "bn.running_mean");
     EXPECT_EQ(entries[2].kind, NN::StateKind::Buffer);
     EXPECT_EQ(entries[2].init.kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(entries[2].init.constant, 0.0, K_STORED_TOLERANCE);
+    EXPECT_DOUBLE_EQ(entries[2].init.constant, 0.0);
     EXPECT_EQ(entries[3].name, "bn.running_var");
     EXPECT_EQ(entries[3].kind, NN::StateKind::Buffer);
     EXPECT_EQ(entries[3].init.kind, NN::ParameterInit::Kind::Constant);
-    EXPECT_NEAR(entries[3].init.constant, 1.0, K_STORED_TOLERANCE);
+    EXPECT_DOUBLE_EQ(entries[3].init.constant, 1.0);
 }
 
 /** @brief Tests that a model never traced gives a valid state with no entries. */
@@ -262,5 +259,5 @@ TEST_F(Medium_ModelState, TwoPoolsAttachedToOneStateShareStorage)
 
     const Graph::ValueID leaf = graph.state_leaves().front().second;
     first.tensor(leaf).data_as<float>()[0] = 42.5f;
-    EXPECT_NEAR(second.tensor(leaf).data_as<float>()[0], 42.5, K_STORED_TOLERANCE);
+    EXPECT_DOUBLE_EQ(second.tensor(leaf).data_as<float>()[0], 42.5);
 }

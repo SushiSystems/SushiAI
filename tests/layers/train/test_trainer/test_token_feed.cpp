@@ -99,9 +99,6 @@ namespace
     /** @brief Classes the MLP ends in. */
     constexpr int64_t K_CLASSES = 3;
 
-    /** @brief Bounds the difference between a table row and its copy, which is exact. */
-    constexpr double K_EXACT_TOLERANCE = 0.0;
-
     /** @brief Returns the ids of the one batch, row by row. */
     std::vector<std::int32_t> token_ids()
     {
@@ -207,8 +204,7 @@ TEST_F(Medium_TokenFeed, AnInt32BatchOfADatasetFeedsAnEmbedding)
         const std::size_t row = static_cast<std::size_t>(ids[position]);
         for (std::size_t column = 0; column < width; ++column)
         {
-            EXPECT_NEAR(embedded[position * width + column], table[row * width + column],
-                        K_EXACT_TOLERANCE)
+            EXPECT_DOUBLE_EQ(embedded[position * width + column], table[row * width + column])
                 << "position " << position << ", column " << column;
         }
     }

@@ -51,7 +51,10 @@ using SushiAI::Vision::Imaging::K_MAX_IMAGE_SIDE;
 
 namespace
 {
-    /** @brief Holds the absolute difference per channel a decoded level may have, in levels. */
+    /**
+     * @brief Holds the absolute difference per channel a decoded level may have, in levels; a
+     *        count of codec levels, not a rounding bound.
+     */
     constexpr int K_JPEG_TOLERANCE = 3;
 
     /** @brief Holds the side of a quadrant image: four blocks of 8 by 8 pixels. */

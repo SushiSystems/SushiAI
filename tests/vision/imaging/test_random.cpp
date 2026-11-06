@@ -40,6 +40,30 @@ using SushiAI::Vision::Imaging::Random;
 
 namespace
 {
+    /**
+     * @brief Holds the statistical bound of the mean over 65536 draws: five standard errors of
+     *        0.0011.
+     */
+    constexpr double K_MEAN_TOLERANCE = 0.006;
+
+    /**
+     * @brief Holds the statistical bound of the variance over 65536 draws: five standard errors of
+     *        0.00029.
+     */
+    constexpr double K_VARIANCE_TOLERANCE = 0.0015;
+
+    /**
+     * @brief Holds the statistical bound of a bucket count: above five standard deviations of 93
+     *        around 10000 hits.
+     */
+    constexpr std::int32_t K_BUCKET_TOLERANCE = 500;
+
+    /**
+     * @brief Holds the statistical bound of a success rate over 65536 draws: above five standard
+     *        errors of 0.0017.
+     */
+    constexpr double K_RATE_TOLERANCE = 0.01;
+
     using SushiAI::Test::require_value;
     /** @brief Holds the seed of every statistical case in this file. */
     constexpr std::uint64_t K_SEED = 2026;
@@ -171,10 +195,10 @@ TEST(Small_ImagingRandom, UniformHasTheMeanAndVarianceOfAUniformVariable)
     const double variance = sum_of_squares / K_SAMPLES - mean * mean;
 
     // The standard error of the mean over 65536 draws is 0.0011; 0.006 is five of them.
-    EXPECT_NEAR(mean, 0.5, 0.006);
+    EXPECT_NEAR(mean, 0.5, K_MEAN_TOLERANCE);
 
     // The standard error of the variance over 65536 draws is 0.00029; 0.0015 is five of them.
-    EXPECT_NEAR(variance, 1.0 / 12.0, 0.0015);
+    EXPECT_NEAR(variance, 1.0 / 12.0, K_VARIANCE_TOLERANCE);
 }
 
 TEST(Small_ImagingRandom, RangedUniformMapsTheUnitDrawLinearly)
@@ -274,7 +298,8 @@ TEST(Small_ImagingRandom, IndexStaysBelowTheCountAndFillsEveryBucketEvenly)
 
     // A bucket expects 10000 hits with a standard deviation of 93; 500 is above five of them.
     for (std::size_t bucket = 0; bucket < buckets.size(); ++bucket)
-        EXPECT_NEAR(buckets[bucket], K_DRAWS / static_cast<std::int32_t>(K_BUCKETS), 500)
+        EXPECT_NEAR(buckets[bucket], K_DRAWS / static_cast<std::int32_t>(K_BUCKETS),
+                    K_BUCKET_TOLERANCE)
             << "bucket " << bucket;
 }
 
@@ -341,7 +366,7 @@ TEST(Small_ImagingRandom, BernoulliSucceedsAtTheRateOfItsProbability)
         successes += random.bernoulli(0.25f) ? 1 : 0;
 
     // The standard error of the rate over 65536 draws is 0.0017; 0.01 is above five of them.
-    EXPECT_NEAR(static_cast<double>(successes) / K_SAMPLES, 0.25, 0.01);
+    EXPECT_NEAR(static_cast<double>(successes) / K_SAMPLES, 0.25, K_RATE_TOLERANCE);
 }
 
 TEST(Small_ImagingRandom, DeriveStartsAtTheMixOfTheStateAndTheKeyedMix)

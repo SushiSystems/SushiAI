@@ -38,8 +38,6 @@ namespace
     using SushiAI::Vision::Detect::K_MAX_DETECTIONS;
     using SushiAI::Vision::Detect::K_VALIDATION_CONFIDENCE;
 
-    /** @brief Holds the tolerance of a constant compared with the literal it is defined by. */
-    constexpr float K_EXACT = 0.0f;
 } // namespace
 
 /** @brief Tests that a row holds four corners, then the score, then the class. */
@@ -55,5 +53,5 @@ TEST(Small_DetectDetectionRow, ARowHoldsFourCornersThenTheScoreThenTheClass)
 TEST(Small_DetectDetectionRow, TheLimitsAreTheReferenceValues)
 {
     EXPECT_EQ(K_MAX_DETECTIONS, 300);
-    EXPECT_NEAR(K_VALIDATION_CONFIDENCE, 0.001f, K_EXACT);
+    EXPECT_EQ(K_VALIDATION_CONFIDENCE, 0.001f);
 }

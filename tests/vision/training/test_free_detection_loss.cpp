@@ -52,6 +52,7 @@
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::CompiledStep;
@@ -79,8 +80,12 @@ namespace
     /** @brief Seeds the box logits of the reg_max 4 cases. */
     constexpr std::uint64_t K_LOGIT_SEED = 20261025;
 
-    /** @brief Bounds the difference of the graph and the host, both in double. */
-    constexpr double K_VALUE_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute Bounds the difference of the graph and the host, both in double:
+     *        16777216 times the double unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-9.
+     */
+    constexpr double K_VALUE_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the score logits of both anchors, two classes each. */
     const std::vector<double> K_SCORES = {0.3, -1.2, 0.8, 0.1};

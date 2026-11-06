@@ -46,6 +46,7 @@
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_recipe.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Importers::DarknetConfig;
@@ -69,11 +70,18 @@ namespace
     namespace SaTest = SushiAI::Test;
 
     using SushiAI::Test::require_value;
-    /** @brief Holds the tolerance of every double a test reads back, absolute. */
-    constexpr double K_DOUBLE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the tolerance of every double a test reads back, absolute: 16384 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Holds the tolerance of every float a test reads back, absolute. */
-    constexpr float K_FLOAT_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the tolerance of every float a test reads back, absolute: 32 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FLOAT_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a [net] section with a solver, a schedule and three keys without a place. */
     constexpr std::string_view K_SOLVER =

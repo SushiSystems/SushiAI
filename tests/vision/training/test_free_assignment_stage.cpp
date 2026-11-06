@@ -46,6 +46,7 @@
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/training/free_assignment_stage.hpp>
 #include <SushiAI/vision/training/free_model_facts.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::FreeAssignmentStage;
@@ -80,8 +81,12 @@ namespace
     /** @brief Holds the logit that leaves a bin out of the softmax in float32. */
     constexpr float K_ABSENT_BIN = -100.0f;
 
-    /** @brief Holds the tolerance of a value that passes through a CIoU or a softmax. */
-    constexpr float K_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute the tolerance of a value that passes through a CIoU or a softmax:
+     *        2048 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-4f.
+     */
+    constexpr float K_TOLERANCE = static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the foreground anchor of truth A in image 0: level 0, row 1, column 1. */
     constexpr std::size_t K_ANCHOR_A = 5;

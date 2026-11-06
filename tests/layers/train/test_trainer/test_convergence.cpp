@@ -65,6 +65,7 @@
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
 #include <SushiAI/train/training_step.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
@@ -74,6 +75,24 @@ using Graph::ValueID;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 65536 unit roundoffs of float, the
+     * smallest power of two that covers 2e-3.
+     */
+    constexpr double K_FLOAT_WIDE_TOLERANCE = 65536.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 32 unit roundoffs of float, the smallest
+     * power of two that covers 1e-6.
+     */
+    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_Training : public SaTest::EngineTest {};
 
     /** @brief The model every test here trains, so a failure names one variable. */
@@ -105,8 +124,11 @@ namespace
     /** @brief The seed of the data the cases over the normalised model and the feed draw. */
     constexpr std::uint64_t K_DATA_SEED = 20261009ull;
 
-    /** @brief Absolute tolerance for values of order one that a float32 tensor holds. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Absolute tolerance for values of order one that a float32 tensor holds; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief The least change of a value that counts as having moved. */
     constexpr double K_MOVED = 1e-7;
@@ -202,7 +224,7 @@ TEST_F(Medium_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
                             trainer->run_step(dataset_batch));
-    EXPECT_NEAR(metrics.loss, std::log(static_cast<double>(classes)), 1e-5);
+    EXPECT_NEAR(metrics.loss, std::log(static_cast<double>(classes)), K_TOLERANCE);
 }
 
 TEST_F(Medium_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
@@ -340,7 +362,7 @@ TEST_F(Medium_Training, SGDDrivesTheLossDownOnASeparableProblem)
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
-    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(classes)), 1e-4);
+    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(classes)), K_FLOAT_LOOSE_TOLERANCE);
     EXPECT_LT(report.last_loss, report.first_loss * 0.25) << report.to_string();
     ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
     EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.9) << report.to_string();
@@ -446,11 +468,12 @@ TEST_F(Medium_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate
     for (std::size_t i = 0; i < before.size(); ++i)
     {
         // Coordinates where eps matters are skipped; see tests/layers/train/README.md.
-        if (std::abs(gradient[i]) < 1e-4) continue;
+        if (std::abs(gradient[i]) < K_FLOAT_LOOSE_TOLERANCE) continue;
 
         const double moved = (after[i] - before[i]) / -adam.learning_rate;
         const double expected = gradient[i] > 0.0 ? 1.0 : -1.0;
-        EXPECT_NEAR(moved, expected, 2e-3) << "at " << i << " (gradient " << gradient[i] << ")";
+        EXPECT_NEAR(moved, expected, K_FLOAT_WIDE_TOLERANCE)
+            << "at " << i << " (gradient " << gradient[i] << ")";
         ++checked;
     }
 
@@ -504,7 +527,8 @@ TEST_F(Medium_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGrad
     const std::vector<double> gradient = SaTest::read_tensor(slots[0].gradient);
 
     for (std::size_t i = 0; i < before.size(); ++i)
-        EXPECT_NEAR(after[i], before[i] - sgd.learning_rate * gradient[i], 1e-6) << "at " << i;
+        EXPECT_NEAR(after[i], before[i] - sgd.learning_rate * gradient[i], K_FLOAT_TIGHT_TOLERANCE)
+            << "at " << i;
 }
 
 TEST_F(Medium_Training, ADisconnectedParameterIsRejectedRatherThanSilentlySkipped)

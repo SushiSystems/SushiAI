@@ -55,6 +55,7 @@
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -67,6 +68,24 @@ using Graph::ValueID;
 
 namespace
 {
+    /**
+     * @brief Bounds the relative difference of a mixed precision loss from the single precision one;
+     * a training bound, not a rounding bound.
+     */
+    constexpr double K_MIXED_LOSS_RELATIVE_TOLERANCE = 2e-2;
+
+    /**
+     * @brief Bounds from below the scale of a relative loss difference; 32 unit roundoffs of float,
+     * the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_MixedPrecision : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
@@ -142,7 +161,8 @@ TEST_F(Medium_MixedPrecision, AModelWithFP16ProductsStillLearns)
     EXPECT_TRUE(std::isfinite(report.last_loss));
 
     // ln(4) is where a zeroed classifier starts; see tests/layers/train/README.md.
-    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)), 1e-4);
+    EXPECT_NEAR(report.first_loss, std::log(static_cast<double>(K_CLASSES)),
+        K_FLOAT_LOOSE_TOLERANCE);
     EXPECT_LT(report.last_loss, 0.5 * report.first_loss);
     ASSERT_NE(report.last_metrics.find("accuracy"), nullptr);
     EXPECT_GT(report.last_metrics.find("accuracy")->value, 0.75);
@@ -442,8 +462,8 @@ TEST_F(Medium_MixedPrecisionRegressions, MixedAndSinglePrecisionTrainToTheSamePl
     {
         ASSERT_TRUE(std::isfinite(mixed.losses[step])) << "step " << step;
 
-        const double scale = std::max(std::abs(fp32.losses[step]), 1e-6);
-        EXPECT_LT(std::abs(mixed.losses[step] - fp32.losses[step]) / scale, 2e-2)
+        const double scale = std::max(std::abs(fp32.losses[step]), K_FLOAT_TIGHT_TOLERANCE);
+        EXPECT_LT(std::abs(mixed.losses[step] - fp32.losses[step]) / scale, K_MIXED_LOSS_RELATIVE_TOLERANCE)
             << "step " << step << ": fp32 " << fp32.losses[step]
             << " vs mixed " << mixed.losses[step];
     }

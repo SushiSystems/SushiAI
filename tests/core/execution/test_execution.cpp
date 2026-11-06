@@ -69,9 +69,6 @@ namespace
     /** @brief Holds the element count of the tensors the record_and_run cases fill. */
     constexpr std::int64_t K_FILL_ELEMENTS = 4;
 
-    /** @brief Holds the error allowed in a filled element; a constant fill stores the value. */
-    constexpr double K_FILL_TOLERANCE = 0.0;
-
     /** @brief Allocates a float32 vector of K_FILL_ELEMENTS whose elements are all @p value. */
     Result<SushiBLAS::Tensor> filled_vector(SushiBLAS::Engine& engine, double value)
     {
@@ -86,11 +83,11 @@ namespace
         return std::move(tensor);
     }
 
-    /** @brief Expects every element of @p tensor to be @p value within K_FILL_TOLERANCE. */
+    /** @brief Expects every element of @p tensor to be @p value exactly. */
     void expect_all(const SushiBLAS::Tensor& tensor, double value)
     {
         for (double element : SaTest::read_tensor(tensor))
-            EXPECT_NEAR(element, value, K_FILL_TOLERANCE);
+            EXPECT_DOUBLE_EQ(element, value);
     }
 } // namespace
 

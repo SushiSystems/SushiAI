@@ -63,6 +63,7 @@
 #include <SushiAI/train/steps.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/layers/train/README.md.
@@ -77,6 +78,12 @@ using SaTest::write_tensor;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
     /** @brief Provides the Engine every dropout case records on. */
     class Medium_Dropout : public SaTest::EngineTest
     {
@@ -101,10 +108,16 @@ namespace
     /** @brief Holds the site seed of every probe that does not state another. */
     constexpr std::uint64_t K_SEED = 0xE220A8397B1DCDAFull;
 
-    /** @brief Bounds a FLOAT32 product computed on the device against a double host value. */
-    constexpr double K_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds a FLOAT32 product computed on the device against a double host value; 256 unit
+     * roundoffs of float, the smallest power of two that covers 1e-5.
+     */
+    constexpr double K_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the kept fraction of K_ELEMENTS draws, four deviations of 0.0068. */
+    /**
+     * @brief Bounds the absolute difference of the kept fraction; a statistical share of K_ELEMENTS
+     * draws, four deviations of 0.0068, not a rounding bound.
+     */
     constexpr double K_FRACTION_TOLERANCE = 0.03;
 
     /** @brief Holds the seed of the values written into the masked leaf. */
@@ -405,7 +418,7 @@ TEST_F(Medium_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
         }
 
         // The loss is the sum of about 3000 values near 2.7, read back from FLOAT32.
-        EXPECT_NEAR(probe.loss(), sum, 1e-4 * sum) << "at run " << run;
+        EXPECT_NEAR(probe.loss(), sum, K_FLOAT_LOOSE_TOLERANCE * sum) << "at run " << run;
     }
 }
 

@@ -66,6 +66,7 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Blocks::AttentionMask;
@@ -700,8 +701,12 @@ namespace
 
     };
 
-    /** @brief Bounds the distance of a FLOAT64 gradient from its closed form on the host. */
-    constexpr double K_CLOSED_FORM_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the distance of a FLOAT64 gradient from its closed form on
+     *        the host: 16384 times the double unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-12.
+     */
+    constexpr double K_CLOSED_FORM_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds T, the number of positions of the sequence the block cases read. */
     constexpr int64_t K_GRADIENT_LENGTH = 4;
@@ -1097,7 +1102,7 @@ namespace
         const std::vector<double> expected = masked_on_host(values, 4, K_FILL);
         ASSERT_EQ(got.size(), expected.size());
         for (std::size_t i = 0; i < expected.size(); ++i)
-            EXPECT_NEAR(got[i], expected[i], K_EXACT_TOLERANCE) << "at element " << i;
+            EXPECT_EQ(got[i], expected[i]) << "at element " << i;
     }
 
     /** @brief Holds what two runs of one block gave: before and after a later input changed. */
@@ -1239,7 +1244,7 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
             const std::size_t i = row * K_SIDE + column;
             const double kept = (std::exp(values[i]) / total - one_hot[i]) / 4.0;
             const double expected = column <= row ? kept : 0.0;
-            const double bound = column <= row ? 1e-12 : K_EXACT_TOLERANCE;
+            const double bound = column <= row ? K_CLOSED_FORM_TOLERANCE : K_EXACT_TOLERANCE;
             EXPECT_NEAR(got[i], expected, bound) << "at row " << row << " column " << column;
         }
     }

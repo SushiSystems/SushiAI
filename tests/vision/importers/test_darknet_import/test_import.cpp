@@ -51,6 +51,7 @@
 #include <SushiAI/vision/importers/darknet_import.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using IO::ImportedModel;
@@ -70,8 +71,12 @@ namespace
         return SaTest::require_value(SaTest::require_value(value.at(key, key)).as_string(key));
     }
 
-    /** @brief Holds the tolerance of an anchor read back from the task section, absolute. */
-    constexpr float K_FLOAT_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the tolerance of an anchor read back from the task section, absolute: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FLOAT_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a 32 by 32 network: a normalised convolution, a plain one and one head. */
     constexpr std::string_view K_SMALL_CFG =

@@ -45,6 +45,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
 #include <SushiAI/vision/detect/anchor/seeded_sequence.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -79,14 +80,23 @@ namespace
     /** @brief Holds the factor on every side of the shifted ladder. */
     constexpr double K_SHIFT = 0.75;
 
-    /** @brief Holds the relative tolerance of a proposed anchor's side. */
+    /**
+     * @brief Holds the relative tolerance of a proposed anchor's side: 2.5 times the 0.02 jitter,
+     *        not a rounding bound.
+     */
     constexpr double K_CENTRE_TOLERANCE = 0.05;
 
-    /** @brief Holds the absolute tolerance of a fit against the test's own sums in double. */
-    constexpr double K_FIT_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of a fit against the test's own sums in double: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_FIT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the absolute tolerance of two runs of one computation. */
-    constexpr double K_SAME_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute tolerance of two runs of one computation: 16384 times the double
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_SAME_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns the ladder of SPEC 5.6 with every side times @p factor, rung by rung. */
     std::vector<AnchorSize> make_ladder(double factor)

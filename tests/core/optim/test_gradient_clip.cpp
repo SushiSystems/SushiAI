@@ -53,6 +53,7 @@
 #include <SushiAI/optim/optimizer_registry.hpp>
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
@@ -60,11 +61,11 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the absolute error of a float32 value of order one after one update. */
-    constexpr double K_UPDATE_TOLERANCE = 1e-6;
-
-    /** @brief Bounds the error of a norm a double holds as it was set. */
-    constexpr double K_EXACT_TOLERANCE = 0.0;
+    /**
+     * @brief Bounds the absolute error of a float32 value of order one after one update; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Provides an engine and slots of zero parameters with stated gradients. */
     class Medium_GradientClip : public SaTest::EngineTest
@@ -146,7 +147,7 @@ TEST_F(Medium_GradientClip, ANormBelowTheThresholdLeavesTheUpdate)
     flush();
 
     expect_values(parameter, {-3.0, -4.0, 0.0, 0.0});
-    EXPECT_NEAR(optimizer->gradient_clip()->applied_scale(), 1.0, K_EXACT_TOLERANCE);
+    EXPECT_DOUBLE_EQ(optimizer->gradient_clip()->applied_scale(), 1.0);
 }
 
 /** @brief Tests that the norm is taken over every slot, not slot by slot. */
@@ -180,7 +181,7 @@ TEST_F(Medium_GradientClip, AThresholdSetAtRunTimeIsTheNextUpdates)
     expect_values(parameter, {-3.0, -4.0});
 
     optimizer->set_clip_norm(2.5);
-    EXPECT_NEAR(optimizer->gradient_clip()->max_norm(), 2.5, K_EXACT_TOLERANCE);
+    EXPECT_DOUBLE_EQ(optimizer->gradient_clip()->max_norm(), 2.5);
     SA_EXPECT_OK(optimizer->step());
     flush();
     expect_values(parameter, {-4.5, -6.0});
@@ -286,7 +287,7 @@ TEST_F(Medium_GradientClip, TheKeyClipNormEnablesTheClip)
                                   "optimizer"));
 
         ASSERT_NE(clipped->gradient_clip(), nullptr) << type;
-        EXPECT_NEAR(clipped->gradient_clip()->max_norm(), 0.5, K_EXACT_TOLERANCE) << type;
+        EXPECT_DOUBLE_EQ(clipped->gradient_clip()->max_norm(), 0.5) << type;
         EXPECT_EQ(plain->gradient_clip(), nullptr) << type;
 
         SA_EXPECT_FAILURE(

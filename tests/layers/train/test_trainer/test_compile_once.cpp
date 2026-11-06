@@ -51,6 +51,7 @@
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 
@@ -60,6 +61,12 @@ using Graph::TensorPool;
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 256 unit roundoffs of float, the smallest
+     * power of two that covers 1e-5.
+     */
+    constexpr double K_FLOAT_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_CompileOnce : public SaTest::EngineTest {};
 
     using MLP = NN::Sequential<NN::Linear, NN::ReLU, NN::Linear>;
@@ -220,7 +227,7 @@ TEST_F(Medium_CompileOnce,
 
     const std::vector<double> first = SaTest::read_tensor(pool.tensor(y));
     for (std::size_t i = 0; i < inputs.size(); ++i)
-        ASSERT_NEAR(first[i], inputs[i] * 2.0, 1e-5)
+        ASSERT_NEAR(first[i], inputs[i] * 2.0, K_FLOAT_TOLERANCE)
             << "the first run() left element " << i << " untouched - the plan reported "
                "complete without dispatching anything";
 
@@ -240,7 +247,7 @@ TEST_F(Medium_CompileOnce,
 
         const std::vector<double> got = SaTest::read_tensor(pool.tensor(y));
         for (std::size_t i = 0; i < next.size(); ++i)
-            ASSERT_NEAR(got[i], next[i] * 2.0, 1e-5)
+            ASSERT_NEAR(got[i], next[i] * 2.0, K_FLOAT_TOLERANCE)
                 << "replay " << replay << " did not dispatch at element " << i;
     }
 

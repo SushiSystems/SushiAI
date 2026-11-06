@@ -59,6 +59,7 @@
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
@@ -88,8 +89,11 @@ namespace
     /** @brief Holds the site seed of the one dropout of every case. */
     constexpr std::uint64_t K_SEED = 0x5EEDC0DE20261011ull;
 
-    /** @brief Bounds a FLOAT32 scale read back as a double. */
-    constexpr double K_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds a FLOAT32 scale read back as a double; 32 unit roundoffs of float, the smallest
+     * power of two that covers 1e-6.
+     */
+    constexpr double K_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds a compiled step that masks a leaf of ones, so its output is the mask. */
     struct MaskedOnes

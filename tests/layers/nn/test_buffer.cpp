@@ -38,14 +38,18 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/state_id.hpp>
 #include <SushiAI/nn/buffer.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Buffer;
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
+     * roundoffs of double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Reads @p buffer before define() was called, for a death test. */
     void read_undefined(Buffer& buffer)

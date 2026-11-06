@@ -49,6 +49,7 @@
 #include <SushiAI/nn/max_pool2d.hpp>
 #include <SushiAI/nn/module.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::MaxPool2d;
@@ -66,6 +67,12 @@ static_assert(!NN::ModuleContainer<MaxPool2d>, "MaxPool2d must not look like a c
 
 namespace
 {
+    /**
+     * @brief Bounds the absolute error of a float result; 32 unit roundoffs of float, the smallest
+     * power of two that covers 1e-6.
+     */
+    constexpr double K_FLOAT_TIGHT_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
+
     /** @brief Builds a layer whose window has the given taps, steps and leading pads. */
     MaxPool2d make_pool(int64_t kernel_h, int64_t kernel_w, int64_t stride_h, int64_t stride_w,
                         int64_t pad_top = 0, int64_t pad_left = 0)
@@ -516,7 +523,7 @@ TEST_F(Medium_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps)
 
     ASSERT_EQ(pooled.size(), expected.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(pooled[i], expected[i], 1e-6) << "at " << i;
+        EXPECT_NEAR(pooled[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
 }
 
 TEST_F(Medium_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
@@ -530,5 +537,5 @@ TEST_F(Medium_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
 
     ASSERT_EQ(pooled.size(), expected.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(pooled[i], expected[i], 1e-6) << "at " << i;
+        EXPECT_NEAR(pooled[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
 }

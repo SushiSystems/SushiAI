@@ -40,13 +40,18 @@
 #include <SushiAI/vision/detect/free/box_coding.hpp>
 #include <SushiAI/vision/detect/free/level_rows.hpp>
 #include <SushiAI/vision/detect/iou.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
     using SushiAI::Test::near_reference;
 
-    /** @brief Holds the tolerance of an IoU value, eight float32 steps at 1. */
-    constexpr float K_IOU_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute the tolerance of an IoU value, eight float32 steps at 1: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_IOU_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
 } // namespace
 

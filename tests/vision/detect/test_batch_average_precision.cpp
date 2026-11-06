@@ -35,6 +35,7 @@
 #include <SushiAI/vision/detect/average_precision.hpp>
 #include <SushiAI/vision/detect/batch_average_precision.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -43,8 +44,11 @@ namespace
     using SushiAI::Vision::Detect::GroundTruthBatch;
     using SushiAI::Vision::Detect::MetricsSummary;
 
-    /** @brief Holds the absolute tolerance of a metric: 4500 float64 steps at 1. */
-    constexpr double K_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute tolerance of a metric: 4500 float64 steps at 1: 16384 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the area under an envelope that is 1 up to recall 1: 0.99 + 0.01 / 2. */
     constexpr double K_FULL_AP = 0.995;

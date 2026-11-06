@@ -73,9 +73,6 @@ namespace
     class Medium_FreeTrainingZones : public SaTest::EngineTest {};
 #endif
 
-    /** @brief Bounds the difference of two runs of one seed: none. */
-    constexpr double K_SAME = 0.0;
-
     /** @brief Holds the least change of a weight that counts as having moved. */
     constexpr double K_MOVED = 1e-9;
 
@@ -122,7 +119,7 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
         ASSERT_EQ(left[entry].size(), right[entry].size()) << "entry " << entry;
         for (std::size_t i = 0; i < left[entry].size(); ++i)
         {
-            EXPECT_NEAR(left[entry][i], right[entry][i], K_SAME)
+            EXPECT_EQ(left[entry][i], right[entry][i])
                 << "entry " << entry << " element " << i;
             moved = std::fmax(moved, std::fabs(left[entry][i] - start[entry][i]));
         }
@@ -133,7 +130,7 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
     {
         EXPECT_TRUE(std::isfinite(first_terms[run].total)) << "run " << run;
         EXPECT_GT(first_terms[run].total, 0.0) << "run " << run;
-        EXPECT_NEAR(first_terms[run].total, second_terms[run].total, K_SAME) << "run " << run;
+        EXPECT_EQ(first_terms[run].total, second_terms[run].total) << "run " << run;
     }
     EXPECT_EQ(first.step->run_count(), 2u);
 }
@@ -149,15 +146,15 @@ TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
 
     const std::vector<double> sum = model.leaf_values("free.target_scores_sum");
     ASSERT_EQ(sum.size(), 1u);
-    EXPECT_NEAR(sum[0],
-                static_cast<double>(model.step->stage().targets().target_scores_sum[0]), K_SAME);
+    EXPECT_EQ(sum[0],
+                static_cast<double>(model.step->stage().targets().target_scores_sum[0]));
     EXPECT_GE(sum[0], 1.0);
 
     const std::vector<double> projection =
         model.leaf_values(Vision::Training::K_FREE_PROJECTION_ROLE);
     ASSERT_EQ(projection.size(), static_cast<std::size_t>(K_REG_MAX));
-    EXPECT_NEAR(projection[0], 0.0, K_SAME);
-    EXPECT_NEAR(projection[1], 1.0, K_SAME);
+    EXPECT_EQ(projection[0], 0.0);
+    EXPECT_EQ(projection[1], 1.0);
 }
 
 /** @brief Tests that a one-to-one copy trains every port and reads both branch weights. */
@@ -189,8 +186,8 @@ TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeightAndReadsBothBranchW
         model.leaf_values(Vision::Training::K_FREE_ONE_TO_ONE_WEIGHT_ROLE);
     ASSERT_EQ(many.size(), 1u);
     ASSERT_EQ(one.size(), 1u);
-    EXPECT_NEAR(many[0], 0.25, K_SAME);
-    EXPECT_NEAR(one[0], 0.75, K_SAME);
+    EXPECT_EQ(many[0], 0.25);
+    EXPECT_EQ(one[0], 0.75);
     EXPECT_GE(model.leaf_values("free.one_to_one.target_scores_sum")[0], 1.0);
     for (const FreeLossTerms& measured : terms)
         EXPECT_TRUE(std::isfinite(measured.total));

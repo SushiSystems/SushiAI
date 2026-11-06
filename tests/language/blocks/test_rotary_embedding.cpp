@@ -56,6 +56,7 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 #include <SushiAI/train/steps.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Blocks::RotaryEmbedding;
@@ -81,8 +82,12 @@ namespace
     /** @brief Holds the nodes a trace adds besides the two leaves of its angles. */
     constexpr std::size_t K_TURN_NODES = 18;
 
-    /** @brief Bounds a table entry against the host's cosine or sine, absolutely. */
-    constexpr double K_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the Bounds a table entry against the host's cosine or sine, absolutely: 16 times
+     *        the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-15.
+     */
+    constexpr double K_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Counts the nodes of @p graph that carry @p op. */
     std::size_t count_nodes(const Graph::Graph& graph, OpID op)
@@ -303,8 +308,11 @@ namespace
 
     };
 
-    /** @brief Bounds a float32 result against the host's double, absolutely. */
-    constexpr double K_VALUE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the Bounds a float32 result against the host's double, absolutely: 256 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-5.
+     */
+    constexpr double K_VALUE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the channels of a group in every case: two pairs. */
     constexpr std::size_t K_GROUP = 4;

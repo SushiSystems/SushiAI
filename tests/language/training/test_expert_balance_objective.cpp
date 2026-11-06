@@ -56,6 +56,7 @@
 #include <SushiAI/train/objective.hpp>
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/train/step_view.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Training::ExpertBalanceObjective;
@@ -69,8 +70,12 @@ namespace
     /** @brief Holds the experts of each block the cases describe. */
     constexpr std::int64_t K_EXPERTS = 4;
 
-    /** @brief Bounds the difference between a float32 share and the metric read from it. */
-    constexpr double K_TOLERANCE = 1e-7;
+    /**
+     * @brief Holds the absolute Bounds the difference between a float32 share and the metric read
+     *        from it: 2 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-7.
+     */
+    constexpr double K_TOLERANCE = 2.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the attributes of an objective that states no key. */
     Config::Value no_keys()

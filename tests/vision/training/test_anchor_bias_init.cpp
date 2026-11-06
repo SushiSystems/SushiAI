@@ -44,6 +44,7 @@
 #include <SushiAI/train/objective_context.hpp>
 #include <SushiAI/vision/detect/anchor/anchor_task.hpp>
 #include <SushiAI/vision/training/anchor_bias_init.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Training::AnchorBiasHead;
@@ -55,11 +56,19 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Bounds the error of a float32 bias against the double formula. */
-    constexpr double K_BIAS_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute Bounds the error of a float32 bias against the double formula: 256
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-5.
+     */
+    constexpr double K_BIAS_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the error of the double formula against a value computed offline. */
-    constexpr double K_FORMULA_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the error of the double formula against a value computed
+     *        offline: 16384 times the double unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-12.
+     */
+    constexpr double K_FORMULA_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the entries of one anchor slot with two classes. */
     constexpr std::int64_t K_SLOT_ENTRIES = 7;

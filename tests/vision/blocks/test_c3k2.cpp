@@ -52,6 +52,7 @@
 #include <SushiAI/vision/blocks/bottleneck.hpp>
 #include <SushiAI/vision/blocks/c3k.hpp>
 #include <SushiAI/vision/blocks/c3k2.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Blocks::Bottleneck;
@@ -64,8 +65,11 @@ using NN::Trace;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};

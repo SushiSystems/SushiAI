@@ -63,9 +63,6 @@ namespace
     /** @brief Holds the elements of each parameter the optimizers update. */
     constexpr std::int64_t K_ELEMENTS = 3;
 
-    /** @brief Bounds the error of a scale, which is a power of two and is kept exactly. */
-    constexpr double K_SCALE_TOLERANCE = 0.0;
-
     /** @brief Views @p scalars as restore_scalars() takes them. */
     SushiRuntime::span<const StateScalar> view(const std::vector<StateScalar>& scalars)
     {
@@ -231,12 +228,12 @@ TEST(Small_LossScaleStateRestore, TakesASavedScaleAndRefusesOneOutOfBounds)
     SA_ASSERT_OK_AND_ASSIGN(Optim::LossScaleState state, Optim::LossScaleState::make());
 
     SA_EXPECT_OK(state.restore(4096.0, 1999));
-    EXPECT_NEAR(state.scale(), 4096.0, K_SCALE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(state.scale(), 4096.0);
     EXPECT_EQ(state.consecutive_good_steps(), 1999u);
 
     // One more clean step completes the growth interval of 2000.
     state.observe(false);
-    EXPECT_NEAR(state.scale(), 8192.0, K_SCALE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(state.scale(), 8192.0);
     EXPECT_EQ(state.consecutive_good_steps(), 0u);
 
     SA_EXPECT_FAILURE(state.restore(3000.0, 0), StatusCode::Incompatible, "3000",
@@ -244,5 +241,5 @@ TEST(Small_LossScaleStateRestore, TakesASavedScaleAndRefusesOneOutOfBounds)
     SA_EXPECT_FAILURE(state.restore(0.5, 0), StatusCode::Incompatible, "0.5", "bounds");
     SA_EXPECT_FAILURE(state.restore(4096.0, 2000), StatusCode::Incompatible, "2000",
                       "growth interval");
-    EXPECT_NEAR(state.scale(), 8192.0, K_SCALE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(state.scale(), 8192.0);
 }

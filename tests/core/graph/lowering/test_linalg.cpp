@@ -46,6 +46,7 @@
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 // SaTest stays reachable inside a TEST_F body; see tests/core/graph/README.md.
@@ -65,8 +66,11 @@ namespace
 
     };
 
-    /** @brief Bounds a FLOAT32 result computed on the device against a double host value. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-6;
+    /**
+     * @brief Bounds a FLOAT32 result computed on the device against a double host value; 32 unit
+     * roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /**
      * @brief Returns @p count values of a fixed pattern, scale * ((i * stride) % 11 - 5).

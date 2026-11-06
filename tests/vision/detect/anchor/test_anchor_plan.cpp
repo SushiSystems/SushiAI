@@ -48,6 +48,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_size.hpp>
 #include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
 #include <SushiAI/vision/detect/anchor/head_assignment.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -91,14 +92,21 @@ namespace
     /** @brief Holds the largest factor a side of the blob lies from its centre by. */
     constexpr double K_BLOB_FACTOR = 1.1;
 
-    /** @brief Holds the absolute tolerance between a plan and the same steps made by hand. */
-    constexpr double K_SAME_TOLERANCE = 1e-9;
+    /**
+     * @brief Holds the absolute tolerance between a plan and the same steps made by hand: 16777216
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-9.
+     */
+    constexpr double K_SAME_TOLERANCE = 16777216.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the absolute tolerance between two plans of the same arguments: none. */
     constexpr double K_IDENTICAL = 0.0;
 
-    /** @brief Holds the absolute tolerance of a threshold, a float32. */
-    constexpr double K_THRESHOLD_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of a threshold, a float32: 32 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_THRESHOLD_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the next draw of @p engine as a double in [0, 1), from its upper 53 bits. */
     double draw_unit(std::mt19937_64& engine)

@@ -45,6 +45,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/detect/ground_truth.hpp>
 #include <SushiAI/vision/detect/iou_gradient.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -63,14 +64,26 @@ namespace
     using SushiAI::Vision::Detect::Anchor::NetworkSize;
     using SushiAI::Vision::Detect::GroundTruthBatch;
 
-    /** @brief Holds the absolute tolerance of an objectness or class delta. */
-    constexpr double K_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of an objectness or class delta: 32 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the absolute tolerance of a box delta against a central difference. */
-    constexpr double K_ABSOLUTE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute tolerance of a box delta against a central difference: 256 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-5.
+     */
+    constexpr double K_ABSOLUTE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the tolerance of a box delta relative to a central difference. */
-    constexpr double K_RELATIVE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the tolerance of a box delta relative to a central difference: 256 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-5.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
+
+    /** @brief Holds the least width gradient magnitude that shows a factor on the width entry. */
+    constexpr double K_WIDTH_GRADIENT_FLOOR = 1e-2;
 
     /** @brief Holds a logit whose float32 logistic is exactly 1, and exactly 0 when negated. */
     constexpr float K_SATURATED = 100.0f;
@@ -346,7 +359,7 @@ TEST(Small_DetectAnchorDeltaIou, AFurtherAssignmentAddsItsIoUToTheSum)
     ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_EQ(head.result.assignments, 2);
-    EXPECT_NEAR(head.result.iou_sum, 1.0 + 0.2 / 0.29, 1e-6);
+    EXPECT_NEAR(head.result.iou_sum, 1.0 + 0.2 / 0.29, K_TOLERANCE);
 }
 
 /** @brief Tests that a match threshold of 1 assigns the best anchor alone. */
@@ -505,8 +518,12 @@ TEST(Small_DetectAnchorDeltaIou, ANonFiniteBoxComponentAddsZero)
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of every delta, from the unit's acceptance. */
-    constexpr float K_DELTA_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of every delta, from the unit's acceptance: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_DELTA_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the natural logarithm of 2, the width target of a truth twice its anchor. */
     constexpr double K_LOG_OF_TWO = 0.69314718055994530942;
@@ -687,7 +704,7 @@ TEST(Small_DetectAnchorDelta, AnAssignedSlotThatCoversItsTruthAddsOneToTheIoUSum
     ASSERT_TRUE(status_is_ok(head.compute()));
 
     EXPECT_EQ(head.result.assignments, 1);
-    EXPECT_NEAR(head.result.iou_sum, 1.0, 1e-6);
+    EXPECT_NEAR(head.result.iou_sum, 1.0, K_TOLERANCE);
 }
 
 /** @brief Tests that a truth whose best anchor another head owns assigns nothing. */
@@ -834,11 +851,17 @@ namespace
     using SushiAI::Vision::Detect::Anchor::HeadCoding;
     using SushiAI::Vision::Detect::Anchor::ObjectnessTarget;
 
-    /** @brief Holds the absolute tolerance of a box delta against a central difference. */
-    constexpr double K_BOX_ABSOLUTE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute tolerance of a box delta against a central difference: 256 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-5.
+     */
+    constexpr double K_BOX_ABSOLUTE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the tolerance of a box delta relative to a central difference. */
-    constexpr double K_BOX_RELATIVE_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the tolerance of a box delta relative to a central difference: 256 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-5.
+     */
+    constexpr double K_BOX_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the entries of a slot of the two-class cases. */
     constexpr std::size_t K_ENTRIES = K_FIRST_CLASS + 2;
@@ -1052,7 +1075,7 @@ TEST(Small_DetectAnchorDeltaActivated, TheBoxDeltaIsTheWeightedGradientWithNoSiz
 
     const Quad expected = expect_box_delta(head.decode(K_BEST_SLOT), truth_box(), 0.75);
     // A width gradient this large would show a factor on the width entry.
-    ASSERT_GT(std::abs(expected[K_WIDTH]), 1e-2);
+    ASSERT_GT(std::abs(expected[K_WIDTH]), K_WIDTH_GRADIENT_FLOOR);
     for (std::size_t entry = 0; entry < K_BOX_ENTRIES; ++entry)
     {
         const double bound =
@@ -1088,14 +1111,24 @@ namespace
     /** @brief Holds four float32 values: a box as centre and size, or pixel corners. */
     using Box = std::array<float, 4>;
 
-    /** @brief Holds the tolerance of the hand cases, relative, with the same value as floor. */
-    constexpr double K_HAND_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute the tolerance of the hand cases, relative, with the same value as
+     *        floor: 256 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-5.
+     */
+    constexpr double K_HAND_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the relative tolerance against the dumped deltas, as the report asks. */
-    constexpr double K_DUMP_RELATIVE = 1e-4;
+    /**
+     * @brief Holds the relative tolerance against the dumped deltas, as the report asks: 2048 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-4.
+     */
+    constexpr double K_DUMP_RELATIVE = 2048.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the absolute tolerance of a dumped cell's IoU, printed to six digits. */
-    constexpr double K_DUMP_IOU_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute tolerance of a dumped cell's IoU, printed to six digits: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_DUMP_IOU_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the side of the network input; every truth corner of a case is exact on it. */
     constexpr std::int64_t K_GRADIENT_NETWORK_SIDE = 20;

@@ -39,14 +39,22 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/importers/darknet_fold.hpp>
 #include <SushiAI/vision/importers/darknet_weights.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
     using SushiAI::Vision::Importers::DarknetConvolution;
     using SushiAI::Vision::Importers::fold_darknet_normalisation;
 
-    /** @brief Holds the epsilon the batch-norm formula adds under the variance. */
+    /** @brief Holds the epsilon the batch-norm formula adds under the variance, an input value. */
     constexpr long double K_EPSILON = 0.00001L;
+
+    /**
+     * @brief Holds the absolute tolerance of the folded output against the unfolded one: 256
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-5.
+     */
+    constexpr double K_FOLD_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the seed of every random draw in this file. */
     constexpr std::uint32_t K_SEED = 20261009u;
@@ -187,7 +195,7 @@ TEST(Small_DarknetFold, FoldedAndUnfoldedConvolutionsAgreeOnTheHost)
             }
         }
     }
-    EXPECT_LE(largest, 1e-5) << "largest difference " << largest;
+    EXPECT_LE(largest, K_FOLD_TOLERANCE) << "largest difference " << largest;
 }
 
 /**

@@ -56,6 +56,7 @@
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
 #include <SushiAI/vision/imaging/raw_cache.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Datasets;
@@ -65,11 +66,19 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a byte divided by 255 in float. */
-    constexpr float K_SCALE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of a byte divided by 255 in float: 32 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_SCALE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute tolerance of a box coordinate, in pixels. */
-    constexpr float K_PIXEL_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance of a box coordinate, in pixels: 2048 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-4f.
+     */
+    constexpr float K_PIXEL_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Provides an engine and the builders of the lists these tests read. */
     class Medium_DatasetsReaderDataset : public SaTest::EngineTest

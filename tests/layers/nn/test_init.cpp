@@ -65,9 +65,6 @@ namespace
 {
     class Medium_InitState : public SaTest::EngineTest {};
 
-    /** @brief The absolute tolerance of a value that is stored and read back unchanged. */
-    constexpr double K_STORED_TOLERANCE = 0.0;
-
     /** @brief The architecture every case that needs a parameter model traces. */
     using MLP = NN::Sequential<NN::Linear, NN::GELU, NN::Linear>;
 
@@ -119,7 +116,7 @@ namespace
     {
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* tensor, state.tensor(name));
         for (const double value : SaTest::read_tensor(*tensor))
-            EXPECT_NEAR(value, expected, K_STORED_TOLERANCE);
+            EXPECT_DOUBLE_EQ(value, expected);
     }
 } // namespace
 
@@ -174,7 +171,7 @@ TEST_F(Medium_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* last, state.tensor("2.weight"));
     bool any_nonzero = false;
     for (const double value : SaTest::read_tensor(*last))
-        if (std::abs(value) > K_STORED_TOLERANCE) any_nonzero = true;
+        if (value != 0.0) any_nonzero = true;
     EXPECT_TRUE(any_nonzero);
 }
 
@@ -213,7 +210,15 @@ TEST_F(Medium_InitState, ANormalFillHasTheDeviationItStates)
     // 64 * 32 draws: the sample deviation of 2048 normals is within 1.6 % at one sigma.
     constexpr int64_t K_ROWS = 64;
     constexpr int64_t K_WIDTH = 32;
+    /**
+     * @brief Bounds the absolute difference of a sample deviation from the target; a statistical
+     * share of 2048 draws, not a rounding bound.
+     */
     constexpr double K_DEVIATION_TOLERANCE = 0.002;
+    /**
+     * @brief Bounds the absolute difference of a sample mean from zero; a statistical share of 2048
+     * draws, not a rounding bound.
+     */
     constexpr double K_MEAN_TOLERANCE = 0.0025;
 
     NN::Embedding model{};

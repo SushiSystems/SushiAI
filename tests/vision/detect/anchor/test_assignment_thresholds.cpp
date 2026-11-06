@@ -32,6 +32,7 @@
 #include <gtest/gtest.h>
 #include <SushiAI/vision/detect/anchor/anchor_fit.hpp>
 #include <SushiAI/vision/detect/anchor/assignment_thresholds.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -39,8 +40,12 @@ namespace
     using SushiAI::Vision::Detect::Anchor::AssignmentThresholds;
     using SushiAI::Vision::Detect::Anchor::derive_assignment_thresholds;
 
-    /** @brief Holds the absolute tolerance of a threshold narrowed from double to float. */
-    constexpr float K_THRESHOLD_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of a threshold narrowed from double to float: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_THRESHOLD_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds one fit and the thresholds worked out for it by hand. */
     struct ThresholdCase

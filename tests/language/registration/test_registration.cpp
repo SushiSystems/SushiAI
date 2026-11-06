@@ -78,6 +78,7 @@
 #include <SushiAI/nn/model_outputs.hpp>
 #include <SushiAI/nn/model_state.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <support/tolerance.hpp>
 #include <SushiAI/nn/node_registry.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/optim/adamw.hpp>
@@ -283,8 +284,12 @@ namespace
     /** @brief Holds the experts of the block cases. */
     constexpr std::size_t K_EXPERTS = 3;
 
-    /** @brief Bounds the distance of a FLOAT64 result from the host computation. */
-    constexpr double K_HOST_TOLERANCE = 1e-10;
+    /**
+     * @brief Holds the absolute Bounds the distance of a FLOAT64 result from the host computation:
+     *        1048576 times the double unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-10.
+     */
+    constexpr double K_HOST_TOLERANCE = 1048576.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the weight of the balance term in the loss a gradient case checks. */
     constexpr double K_PROBE_BALANCE_WEIGHT = 0.5;
@@ -680,8 +685,12 @@ namespace
     /** @brief Holds the smallest share an expert keeps of the batch with the balance on. */
     constexpr double K_SMALLEST_SHARE = 0.10;
 
-    /** @brief Bounds the rounding of a float32 share around the equal share, 1 / experts. */
-    constexpr double K_SHARE_TOLERANCE = 1e-5;
+    /**
+     * @brief Bounds the rounding of a float32 share around the equal share, 1 / experts,
+     *        absolutely: 256 times the float unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-5.
+     */
+    constexpr double K_SHARE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds a decoder of two blocks of four experts that publishes their ports. */
     constexpr std::string_view K_EXPERT_DECODER = R"({

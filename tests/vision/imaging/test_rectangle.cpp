@@ -36,12 +36,19 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/rectangle.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
+    /**
+     * @brief Holds the absolute tolerance of the padding value: 16384 times the double unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_PAD_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     using SushiAI::Test::require_value;
     /** @brief Returns seven image sizes with ratios below, at and above one, two of them equal. */
     std::vector<ImageSize> make_sizes()
@@ -69,7 +76,7 @@ TEST(Small_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
     EXPECT_EQ(settings.image_size, 640);
     EXPECT_EQ(settings.batch_size, 32);
     EXPECT_EQ(settings.stride, 32);
-    EXPECT_NEAR(settings.pad, 0.5, 1e-12);
+    EXPECT_NEAR(settings.pad, 0.5, K_PAD_TOLERANCE);
 }
 
 /** @brief Tests that images are ordered by rising height over width, ties in index order. */

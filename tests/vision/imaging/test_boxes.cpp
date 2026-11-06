@@ -33,19 +33,32 @@
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance of a pixel coordinate, in pixels. */
-    constexpr float K_PIXEL_TOLERANCE = 1e-3f;
+    /**
+     * @brief Holds the absolute tolerance of a pixel coordinate, in pixels: 32768 times the float
+     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-3f.
+     */
+    constexpr float K_PIXEL_TOLERANCE =
+        static_cast<float>(32768.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute tolerance of a normalized coordinate, a fraction of the image. */
-    constexpr float K_FRACTION_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of a normalized coordinate, a fraction of the image: 32
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-6f.
+     */
+    constexpr float K_FRACTION_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute tolerance of the filter's default epsilon, which is 1e-16. */
+    /**
+     * @brief Holds the absolute tolerance of the filter's default epsilon, which is 1e-16; about 17
+     *        float roundoffs of that value.
+     */
     constexpr float K_EPSILON_TOLERANCE = 1e-22f;
 
     /** @brief Holds the size the hand-computed cases use: 480 rows by 640 columns. */

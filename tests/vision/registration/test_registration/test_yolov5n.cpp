@@ -59,6 +59,7 @@
 #include <SushiAI/vision/registration/registration.hpp>
 #include <SushiAI/vision/training/anchor_bias_init.hpp>
 #include "registration_test_support.hpp"
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::ModelGraph;
@@ -102,11 +103,19 @@ namespace
                                              {30, 61},   {62, 45},   {59, 119},
                                              {116, 90},  {156, 198}, {373, 326}};
 
-    /** @brief Bounds the error of an anchor read back as float32 fractions of the input. */
-    constexpr double K_ANCHOR_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute Bounds the error of an anchor read back as float32 fractions of the
+     *        input: 256 times the float unit roundoff, the smallest power of two not tighter than
+     *        the earlier 1e-5.
+     */
+    constexpr double K_ANCHOR_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds the error of a float32 bias against the double formula. */
-    constexpr double K_BIAS_TOLERANCE = 1e-5;
+    /**
+     * @brief Holds the absolute Bounds the error of a float32 bias against the double formula: 256
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-5.
+     */
+    constexpr double K_BIAS_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Returns the path of the yolov5n model file. */
     std::filesystem::path model_path()

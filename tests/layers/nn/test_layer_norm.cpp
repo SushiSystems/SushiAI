@@ -61,6 +61,7 @@
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/seeded_noise/host_noise.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::LayerNorm;
@@ -298,11 +299,17 @@ namespace
     /** @brief Holds the epsilon every case passes. */
     constexpr double K_EPSILON = 1e-5;
 
-    /** @brief Bounds a FLOAT32 result computed on the device against a double host value. */
-    constexpr double K_FLOAT32_TOLERANCE = 2e-5;
+    /**
+     * @brief Bounds the absolute error of a FLOAT32 result computed on the device against a double
+     * host value; 512 unit roundoffs of float, the smallest power of two that covers 2e-5.
+     */
+    constexpr double K_FLOAT32_TOLERANCE = 512.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds a FLOAT64 result computed on the device against a double host value. */
-    constexpr double K_FLOAT64_TOLERANCE = 1e-12;
+    /**
+     * @brief Bounds the absolute error of a FLOAT64 result computed on the device against a double
+     * host value; 16384 unit roundoffs of double, the smallest power of two that covers 1e-12.
+     */
+    constexpr double K_FLOAT64_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the row length of the value the gradient cases normalise. */
     constexpr int64_t K_WIDTH = 4;

@@ -38,8 +38,6 @@ using namespace SushiAI;
 
 namespace
 {
-    /** @brief Bounds the difference between the loss a view is given and the one it returns. */
-    constexpr double K_LOSS_TOLERANCE = 0.0;
 } // namespace
 
 /** @brief Tests that a default StepOutput names nothing and points at no tensor. */
@@ -65,7 +63,7 @@ TEST(Small_StepView, AViewCarriesTheBatchTheLossAndTheOutputsInOrder)
         SushiRuntime::span<const Train::StepOutput>(outputs.data(), outputs.size())};
 
     EXPECT_EQ(&view.batch, &batch);
-    EXPECT_NEAR(view.loss, 0.75, K_LOSS_TOLERANCE);
+    EXPECT_DOUBLE_EQ(view.loss, 0.75);
     ASSERT_EQ(view.outputs.size(), 2u);
     EXPECT_EQ(view.outputs[0].name, "p3");
     EXPECT_EQ(view.outputs[0].tensor, &small);

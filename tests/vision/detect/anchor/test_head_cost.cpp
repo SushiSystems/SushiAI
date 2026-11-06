@@ -35,6 +35,7 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -46,8 +47,12 @@ namespace
     using SushiAI::Vision::Detect::Anchor::HeadTrainingOptions;
     using SushiAI::Vision::Detect::Anchor::measure_head_cost;
 
-    /** @brief Holds the tolerance of the cost sums; they are exact in double for these inputs. */
-    constexpr double K_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute the tolerance of the cost sums; they are exact in double for these
+     *        inputs: 16384 times the double unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-12.
+     */
+    constexpr double K_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the classes of the head: two, so a slot has 5 + 2 = 7 entries. */
     constexpr std::int64_t K_CLASSES = 2;

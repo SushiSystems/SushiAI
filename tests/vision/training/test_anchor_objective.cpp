@@ -52,6 +52,7 @@
 #include <SushiAI/vision/detect/anchor/head_delta.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
 #include <SushiAI/vision/training/anchor_objective.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Graph::GraphBuilder;
@@ -65,11 +66,19 @@ using Vision::Training::AnchorObjective;
 
 namespace
 {
-    /** @brief Bounds the error of a sum of a few small integers and halves, held in double. */
-    constexpr double K_COST_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the error of a sum of a few small integers and halves, held
+     *        in double: 16384 times the double unit roundoff, the smallest power of two not tighter
+     *        than the earlier 1e-12.
+     */
+    constexpr double K_COST_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Bounds the error allowed on the factor a SCALE node stores. */
-    constexpr double K_ATTRIBUTE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds the error allowed on the factor a SCALE node stores: 16384
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-12.
+     */
+    constexpr double K_ATTRIBUTE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the batch every head of these tests is declared with. */
     constexpr std::int64_t K_BATCH = 2;

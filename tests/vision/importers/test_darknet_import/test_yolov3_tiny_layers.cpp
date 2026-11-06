@@ -47,6 +47,7 @@
 #include <SushiAI/vision/darknet_forward_cases/darknet_forward.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_model.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -97,11 +98,17 @@ namespace
         "route",         "convolutional", "convolutional", "yolo",
     };
 
-    /** @brief Holds the absolute bound on a layer value (SPEC 6.3, the head tolerance). */
-    constexpr double K_LAYER_ABSOLUTE = 1e-3;
+    /**
+     * @brief Holds the absolute bound on a layer value (SPEC 6.3, the head tolerance): 32768 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-3.
+     */
+    constexpr double K_LAYER_ABSOLUTE = 32768.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Holds the relative bound on a layer value (SPEC 6.3, the head tolerance). */
-    constexpr double K_LAYER_RELATIVE = 1e-4;
+    /**
+     * @brief Holds the relative bound on a layer value (SPEC 6.3, the head tolerance): 2048 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-4.
+     */
+    constexpr double K_LAYER_RELATIVE = 2048.0 * TestSupport::unit_roundoff<float>();
 
     /** @brief Holds the type of the section whose output is the host computation of SPEC 4.4. */
     constexpr std::string_view K_HEAD_TYPE = "yolo";

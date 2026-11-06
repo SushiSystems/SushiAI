@@ -45,6 +45,7 @@
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -57,6 +58,12 @@ using SaTest::write_tensor;
 
 namespace
 {
+    /**
+     * @brief Bounds from below the largest gradient element that proves a comparison is not vacuous;
+     * 32 unit roundoffs of float, the smallest power of two that covers 1e-6.
+     */
+    constexpr double K_NON_VACUOUS_FLOOR = 32.0 * TestSupport::unit_roundoff<float>();
+
     class Medium_Rematerialise : public SaTest::EngineTest {};
 
     /**
@@ -184,7 +191,7 @@ TEST_F(Medium_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
     double largest = 0.0;
     for (double value : stored.weight_gradient)
         largest = std::max(largest, std::abs(value));
-    ASSERT_GT(largest, 1e-6) << "the reference gradient is empty; the comparison is vacuous";
+    ASSERT_GT(largest, K_NON_VACUOUS_FLOOR) << "the reference gradient is empty; the comparison is vacuous";
 
     for (std::size_t i = 0; i < stored.weight_gradient.size(); ++i)
         EXPECT_EQ(recomputed.weight_gradient[i], stored.weight_gradient[i])

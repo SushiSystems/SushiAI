@@ -51,9 +51,6 @@ namespace
     /** @brief Names the row in every diagnostic of this file. */
     constexpr std::string_view K_CONTEXT = "row 2 'conv'";
 
-    /** @brief Bounds the error of a real a row states and a double holds as read. */
-    constexpr double K_REAL_TOLERANCE = 0.0;
-
     /** @brief Parses @p text as the attributes of one row. */
     Config::Value row(std::string_view text)
     {
@@ -142,10 +139,10 @@ TEST(Small_NodeAttributes, ReadRealTakesAnyNumber)
 {
     SA_ASSERT_OK_AND_ASSIGN(const double whole,
                             NNDetail::read_real(row(R"({"scale": 2})"), "scale", K_CONTEXT));
-    EXPECT_NEAR(whole, 2.0, K_REAL_TOLERANCE);
+    EXPECT_DOUBLE_EQ(whole, 2.0);
     SA_ASSERT_OK_AND_ASSIGN(const double real,
                             NNDetail::read_real(row(R"({"scale": 0.25})"), "scale", K_CONTEXT));
-    EXPECT_NEAR(real, 0.25, K_REAL_TOLERANCE);
+    EXPECT_DOUBLE_EQ(real, 0.25);
 
     SA_EXPECT_FAILURE(NNDetail::read_real(row("{}"), "scale", K_CONTEXT),
                       StatusCode::InvalidDescription, "'scale'", "absent");
@@ -158,21 +155,21 @@ TEST(Small_NodeAttributes, TheNormReadersDefaultToTheLayersValues)
 {
     SA_ASSERT_OK_AND_ASSIGN(const double layer_epsilon,
                             NNDetail::read_layer_norm_epsilon(row("{}"), K_CONTEXT));
-    EXPECT_NEAR(layer_epsilon, NN::K_LAYER_NORM_EPSILON, K_REAL_TOLERANCE);
+    EXPECT_DOUBLE_EQ(layer_epsilon, NN::K_LAYER_NORM_EPSILON);
     SA_EXPECT_FAILURE(NNDetail::read_layer_norm_epsilon(row(R"({"ln_epsilon": 0})"), K_CONTEXT),
                       StatusCode::InvalidDescription, "'ln_epsilon'", "positive");
 
     SA_ASSERT_OK_AND_ASSIGN(const NN::NormOptions defaults,
                             NNDetail::read_norm_options(row("{}"), K_CONTEXT));
-    EXPECT_NEAR(defaults.epsilon, NN::NormOptions{}.epsilon, K_REAL_TOLERANCE);
-    EXPECT_NEAR(defaults.momentum, NN::NormOptions{}.momentum, K_REAL_TOLERANCE);
+    EXPECT_DOUBLE_EQ(defaults.epsilon, NN::NormOptions{}.epsilon);
+    EXPECT_DOUBLE_EQ(defaults.momentum, NN::NormOptions{}.momentum);
 
     SA_ASSERT_OK_AND_ASSIGN(
         const NN::NormOptions stated,
         NNDetail::read_norm_options(row(R"({"bn_epsilon": 0.001, "bn_momentum": 0.03})"),
                                   K_CONTEXT));
-    EXPECT_NEAR(stated.epsilon, 0.001, K_REAL_TOLERANCE);
-    EXPECT_NEAR(stated.momentum, 0.03, K_REAL_TOLERANCE);
+    EXPECT_DOUBLE_EQ(stated.epsilon, 0.001);
+    EXPECT_DOUBLE_EQ(stated.momentum, 0.03);
     SA_EXPECT_FAILURE(NNDetail::read_norm_options(row(R"({"bn_momentum": 1.5})"), K_CONTEXT),
                       StatusCode::InvalidDescription, "'bn_momentum'", "[0, 1]");
 }

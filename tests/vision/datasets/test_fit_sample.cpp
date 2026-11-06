@@ -39,6 +39,7 @@
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -50,8 +51,12 @@ using SushiAI::Vision::Imaging::PixelBox;
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a box coordinate, in pixels. */
-    constexpr float K_PIXEL_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance of a box coordinate, in pixels: 2048 times the float unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-4f.
+     */
+    constexpr float K_PIXEL_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the padding byte of the default letterbox settings. */
     constexpr std::uint8_t K_PADDING = 114;

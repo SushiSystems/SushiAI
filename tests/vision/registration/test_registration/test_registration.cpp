@@ -78,6 +78,7 @@
 #include <SushiAI/layer_traces/trace_summary.hpp>
 #include <SushiAI/model_text/model_text.hpp>
 #include <SushiAI/nn/buffer.hpp>
+#include <support/tolerance.hpp>
 #include <SushiAI/nn/layer_registry.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_outputs.hpp>
@@ -159,8 +160,12 @@ namespace
     /** @brief Holds the row of the YOLO26n file whose inner block is missing. */
     constexpr std::size_t K_ATTENTION_INNER_ROW = 22;
 
-    /** @brief Holds the absolute bound on a real compared here; each is exact in the file. */
-    constexpr double K_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the absolute bound on a real compared here; each is exact in the file: 16384
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-12.
+     */
+    constexpr double K_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /**
      * @brief Lists a minimal object for every single-port row of register_nodes, in the rows'
@@ -981,14 +986,27 @@ namespace
         RowUse use;              /**< What the row is to the model. */
     };
 
-    /** @brief Holds the absolute bound on a feature map and on a raw head output. */
-    constexpr float K_ACTIVATION_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute bound on a feature map and on a raw head output: 2048 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-4f.
+     */
+    constexpr float K_ACTIVATION_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute bound on a decoded box in pixels: two float32 steps at 640. */
-    constexpr float K_DECODE_TOLERANCE = 1.3e-4f;
+    /**
+     * @brief Holds the absolute bound on a decoded box in pixels: two float32 steps at 640: 4096
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1.3e-4f.
+     */
+    constexpr float K_DECODE_TOLERANCE =
+        static_cast<float>(4096.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the absolute bound on a class probability. */
-    constexpr float K_PROBABILITY_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute bound on a class probability: 32 times the float unit roundoff, the
+     *        smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_PROBABILITY_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds the class count of the detect row of the model file. */
     constexpr std::int64_t K_CLASSES = 80;

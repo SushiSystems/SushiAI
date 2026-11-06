@@ -53,6 +53,7 @@
 #include <SushiAI/optim/sgd.hpp>
 #include <SushiAI/train/trainer.hpp>
 #include <SushiAI/train/training_graph.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 
@@ -170,16 +171,26 @@ namespace
         0.000865, 0.000353, 0.000528, 0.002215,
     };
 
+    /**
+     * @brief Bounds the absolute error of a float result; 2048 unit roundoffs of float, the
+     * smallest power of two that covers 1e-4.
+     */
+    constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
+
     /** @brief Steps from this index on are compared relatively; earlier steps absolutely. */
     constexpr std::size_t K_TAIL_FIRST_STEP = 6;
 
-    /** @brief Absolute drift a head step's loss may show before it counts as a change. */
+    /**
+     * @brief Absolute drift a head step's loss may show before it counts as a change; a training
+     * bound read off the loss curve, not a rounding bound.
+     */
     constexpr double K_LOSS_TOLERANCE = 0.02;
 
     /**
      * @brief Relative drift a tail step's loss may show, as a fraction of its reference.
      *
-     * Two per cent pins each tail value to about its second significant digit.
+     * Two per cent pins each tail value to about its second significant digit. It is a training
+     * bound, not a rounding bound.
      */
     constexpr double K_LOSS_RELATIVE_TOLERANCE = 0.02;
 
@@ -235,7 +246,7 @@ TEST_F(Medium_LearningCurve, TheTrajectoryHasTheShapeALearningModelHas)
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> losses, recorded_trajectory());
     ASSERT_FALSE(losses.empty());
 
-    EXPECT_NEAR(losses.front(), std::log(static_cast<double>(K_CLASSES)), 1e-4)
+    EXPECT_NEAR(losses.front(), std::log(static_cast<double>(K_CLASSES)), K_FLOAT_LOOSE_TOLERANCE)
         << "the zeroed classifier's first loss is ln(C) exactly, or something initialised it";
 
     for (std::size_t step = 0; step < losses.size(); ++step)

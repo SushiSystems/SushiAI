@@ -35,6 +35,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::Image;
@@ -47,8 +48,13 @@ using Vision::Imaging::PixelBox;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here. */
-    constexpr float K_BOX_TOLERANCE = 1e-4f;
+    /**
+     * @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here: 2048
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-4f.
+     */
+    constexpr float K_BOX_TOLERANCE =
+        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns an image whose byte at offset i is first + i modulo 256. */
     Image make_counted_image(ImageSize size, std::int32_t channels, std::uint8_t first)

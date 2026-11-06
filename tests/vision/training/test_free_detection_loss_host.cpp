@@ -35,6 +35,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/training/free_detection_loss_host.hpp>
 #include <SushiAI/vision/training/free_loss_gains.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -43,11 +44,18 @@ namespace
     using SushiAI::Vision::Training::FreeLossGains;
     using SushiAI::Vision::Training::FreeLossTerms;
 
-    /** @brief Bounds a term the closed forms below give exactly, up to rounding. */
-    constexpr double K_EXACT = 1e-12;
+    /**
+     * @brief Holds the absolute Bounds a term the closed forms below give exactly, up to rounding:
+     *        16384 times the double unit roundoff, the smallest power of two not tighter than the
+     *        earlier 1e-12.
+     */
+    constexpr double K_EXACT = 16384.0 * TestSupport::unit_roundoff<double>();
 
-    /** @brief Bounds a box term, whose CIoU guards add epsilons of 1e-7. */
-    constexpr double K_BOX_TOLERANCE = 1e-6;
+    /**
+     * @brief Holds the absolute Bounds a box term, whose CIoU guards add epsilons of 1e-7: 32 times
+     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6.
+     */
+    constexpr double K_BOX_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
     /**
      * @brief Holds the values of one level of one row, so a case changes only what it tests.

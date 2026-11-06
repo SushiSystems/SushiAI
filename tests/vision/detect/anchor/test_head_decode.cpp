@@ -37,6 +37,7 @@
 #include <SushiAI/vision/detect/anchor/anchor_layout.hpp>
 #include <SushiAI/vision/detect/anchor/head_decode.hpp>
 #include <SushiAI/vision/detect/anchor/head_options.hpp>
+#include <support/tolerance.hpp>
 
 namespace
 {
@@ -51,8 +52,12 @@ namespace
     using SushiAI::Vision::Detect::Anchor::HeadShape;
     using SushiAI::Vision::Detect::Anchor::SizeForm;
 
-    /** @brief Holds the absolute tolerance of every decoded value, from the unit's acceptance. */
-    constexpr float K_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute tolerance of every decoded value, from the unit's acceptance: 32
+     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-6f.
+     */
+    constexpr float K_TOLERANCE = static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Holds a logit whose float32 logistic is exactly 1, and exactly 0 when negated. */
     constexpr float K_SATURATED = 100.0f;

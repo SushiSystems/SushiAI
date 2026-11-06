@@ -48,6 +48,7 @@
 #include <SushiAI/language/training/next_token_targets.hpp>
 #include <SushiAI/language/training/perplexity.hpp>
 #include <SushiAI/train/objective.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Language::Training::fill_next_token_targets;
@@ -157,10 +158,14 @@ TEST_F(Medium_LanguageTrainingNextTokenTargets, AFillThatDoesNotFitIsRefused)
 TEST(Small_LanguageTrainingPerplexity, ThePerplexityIsTheExponentialOfTheLoss)
 {
     // A uniform guess over 64 tokens costs ln(64) nats and has a perplexity of 64.
-    constexpr double K_RELATIVE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the relative tolerance: 16384 times the double unit roundoff, the smallest power
+     *        of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
     const double uniform = std::log(64.0);
 
-    EXPECT_NEAR(Language::Training::perplexity(0.0), 1.0, 0.0);
+    EXPECT_EQ(Language::Training::perplexity(0.0), 1.0);
     EXPECT_NEAR(Language::Training::perplexity(uniform), 64.0, 64.0 * K_RELATIVE_TOLERANCE);
     EXPECT_TRUE(std::isinf(Language::Training::perplexity(1e6)));
 }
@@ -168,13 +173,19 @@ TEST(Small_LanguageTrainingPerplexity, ThePerplexityIsTheExponentialOfTheLoss)
 /** @brief Tests that the two metrics are named loss and perplexity and read as bare numbers. */
 TEST(Small_LanguageTrainingPerplexity, TheMetricsAreTheLossAndThePerplexity)
 {
+    /**
+     * @brief Holds the relative tolerance: 16384 times the double unit roundoff, the smallest power
+     *        of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_RELATIVE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
+
     const std::array<Train::Metric, 2> metrics =
         Language::Training::next_token_metrics(std::log(8.0));
 
     EXPECT_EQ(metrics[0].name, "loss");
-    EXPECT_NEAR(metrics[0].value, std::log(8.0), 0.0);
+    EXPECT_EQ(metrics[0].value, std::log(8.0));
     EXPECT_FALSE(metrics[0].is_fraction);
     EXPECT_EQ(metrics[1].name, "perplexity");
-    EXPECT_NEAR(metrics[1].value, 8.0, 8.0 * 1e-12);
+    EXPECT_NEAR(metrics[1].value, 8.0, 8.0 * K_RELATIVE_TOLERANCE);
     EXPECT_FALSE(metrics[1].is_fraction);
 }

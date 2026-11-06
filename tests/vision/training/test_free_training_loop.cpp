@@ -52,6 +52,7 @@
 
 #include "detection_loop_support.hpp"
 #include "free_two_level_case.hpp"
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::DetectionLoopTest;
@@ -71,8 +72,12 @@ namespace
     /** @brief Holds the batches of one epoch of the dataset. */
     constexpr std::size_t K_BATCHES = 3;
 
-    /** @brief Bounds the error of a rate that is one product of two doubles. */
-    constexpr double K_RATE_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute Bounds the error of a rate that is one product of two doubles: 16
+     *        times the double unit roundoff, the smallest power of two not tighter than the earlier
+     *        1e-15.
+     */
+    constexpr double K_RATE_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Returns a rate of 0.1 that halves from update 2 and again from update 5. */
     Optim::StepSchedule make_halving_schedule()

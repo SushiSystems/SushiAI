@@ -38,6 +38,7 @@
 #include <SushiAI/vision/detect/anchor/head_training_options.hpp>
 #include <SushiAI/vision/importers/darknet_config.hpp>
 #include <SushiAI/vision/importers/darknet_training.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Detect::Anchor::BoxLoss;
@@ -51,11 +52,18 @@ using Vision::Importers::read_darknet_training;
 
 namespace
 {
-    /** @brief Holds the tolerance of every float field, absolute. */
-    constexpr float K_FLOAT_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the tolerance of every float field, absolute: 32 times the float unit roundoff,
+     *        the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_FLOAT_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
-    /** @brief Holds the tolerance of every double field, absolute. */
-    constexpr double K_DOUBLE_TOLERANCE = 1e-12;
+    /**
+     * @brief Holds the tolerance of every double field, absolute: 16384 times the double unit
+     *        roundoff, the smallest power of two not tighter than the earlier 1e-12.
+     */
+    constexpr double K_DOUBLE_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the head values a test expects; the thresholds are the match and ignore. */
     struct ExpectedHead

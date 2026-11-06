@@ -173,8 +173,8 @@ TEST(Small_Embedding, TheTableIsAnEmbeddingDrawnFromANormalOfFixedDeviation)
     EXPECT_EQ(layer.weight.dtype(), DType::Float64);
     EXPECT_EQ(layer.weight.role(), NN::ParameterRole::Embedding);
     EXPECT_EQ(layer.weight.init().kind, NN::ParameterInit::Kind::Normal);
-    EXPECT_NEAR(layer.weight.init().deviation, NN::K_EMBEDDING_DEVIATION, 0.0);
-    EXPECT_NEAR(NN::K_EMBEDDING_DEVIATION, 0.02, 0.0);
+    EXPECT_DOUBLE_EQ(layer.weight.init().deviation, NN::K_EMBEDDING_DEVIATION);
+    EXPECT_DOUBLE_EQ(NN::K_EMBEDDING_DEVIATION, 0.02);
     EXPECT_EQ(layer.weight.fan_in(), K_LENGTH);
     EXPECT_EQ(layer.weight.fan_out(), K_LENGTH);
     EXPECT_EQ(graph.value(y).dtype, DType::Float64);
@@ -369,9 +369,6 @@ namespace
     {
     };
 
-    /** @brief Bounds a copied element and a sum of dyadic values, both of which are exact. */
-    constexpr double K_EXACT_TOLERANCE = 0.0;
-
     /** @brief Holds how often the determinism case replays its step. */
     constexpr int K_REPLAYS = 4;
 
@@ -418,12 +415,12 @@ namespace
         return sums;
     }
 
-    /** @brief Expects @p got to equal @p expected element by element, to K_EXACT_TOLERANCE. */
+    /** @brief Expects @p got to equal @p expected element by element, exactly. */
     void expect_exact(const std::vector<double>& got, const std::vector<double>& expected)
     {
         ASSERT_EQ(got.size(), expected.size());
         for (std::size_t i = 0; i < expected.size(); ++i)
-            EXPECT_NEAR(got[i], expected[i], K_EXACT_TOLERANCE) << "at element " << i;
+            EXPECT_DOUBLE_EQ(got[i], expected[i]) << "at element " << i;
     }
 
     /** @brief Returns [0.25, 0.5, 0.75, ...], @p count dyadic values whose sums are exact. */
@@ -520,8 +517,8 @@ TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
 
     const std::vector<double> expected = scattered_on_host(rows, 2, indices, 5);
     expect_exact(read_tensor(pool.tensor(sums.value())), expected);
-    EXPECT_NEAR(expected[2 * 2], 0.0, K_EXACT_TOLERANCE) << "row 2 is named by no index";
-    EXPECT_NEAR(expected[4 * 2], 0.0, K_EXACT_TOLERANCE) << "row 4 is named by no index";
+    EXPECT_DOUBLE_EQ(expected[2 * 2], 0.0) << "row 2 is named by no index";
+    EXPECT_DOUBLE_EQ(expected[4 * 2], 0.0) << "row 4 is named by no index";
 }
 
 /**

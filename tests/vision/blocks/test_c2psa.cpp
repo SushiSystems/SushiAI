@@ -48,6 +48,7 @@
 #include <SushiAI/nn/node.hpp>
 #include <SushiAI/nn/trace.hpp>
 #include <SushiAI/vision/blocks/c2psa.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::BufferUpdateList;
@@ -58,8 +59,11 @@ using Vision::Blocks::C2PSA;
 namespace
 {
     using SushiAI::Test::require_value;
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged: 16 times the
+     *        double unit roundoff, the smallest power of two not tighter than the earlier 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Holds the epsilon and the momentum MANIFEST.json records for YOLO26n. */
     constexpr NormOptions K_YOLO_NORM{1e-3, 0.03};

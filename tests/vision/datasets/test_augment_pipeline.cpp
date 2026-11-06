@@ -64,9 +64,6 @@ namespace
     /** @brief Holds the seed of every pipeline below. */
     constexpr std::uint64_t K_SEED = 20261011;
 
-    /** @brief Holds the absolute tolerance of a box that repeats the same arithmetic. */
-    constexpr float K_REPLAY_TOLERANCE = 0.0f;
-
     /** @brief Returns an RGB image whose bytes rise from a first value, wrapping at 256. */
     Image rising_image(ImageSize size, std::uint8_t first)
     {
@@ -165,8 +162,8 @@ namespace
 
         for (std::size_t i = 0; i < a.objects.size(); ++i)
         {
-            EXPECT_NEAR(a.objects.boxes()[i].x1, b.objects.boxes()[i].x1, K_REPLAY_TOLERANCE);
-            EXPECT_NEAR(a.objects.boxes()[i].y2, b.objects.boxes()[i].y2, K_REPLAY_TOLERANCE);
+            EXPECT_EQ(a.objects.boxes()[i].x1, b.objects.boxes()[i].x1);
+            EXPECT_EQ(a.objects.boxes()[i].y2, b.objects.boxes()[i].y2);
         }
     }
 

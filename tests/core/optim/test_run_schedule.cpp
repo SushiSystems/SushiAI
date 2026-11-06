@@ -49,9 +49,6 @@ namespace
     using SushiAI::Optim::read_rate_schedule;
     using SushiAI::Optim::StepSchedule;
 
-    /** @brief Bounds the error of a rate a section states and a double holds as read. */
-    constexpr double K_RATE_TOLERANCE = 0.0;
-
     /** @brief Holds a schedule section with a rate, a warm-up and one step. */
     constexpr std::string_view K_SCHEDULE = R"({
         "type": "step",
@@ -88,7 +85,7 @@ TEST(Small_RunSchedule, AScheduleIsReadWhenTheOptimizerStatesNoRate)
     ASSERT_TRUE(schedule.has_value());
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(*schedule));
     const StepSchedule& step = std::get<StepSchedule>(*schedule);
-    EXPECT_NEAR(step.base_rate, 0.00261, K_RATE_TOLERANCE);
+    EXPECT_DOUBLE_EQ(step.base_rate, 0.00261);
     EXPECT_EQ(step.warmup_iterations, 1000);
     ASSERT_EQ(step.steps.size(), 1u);
     EXPECT_EQ(step.steps[0], 400000);

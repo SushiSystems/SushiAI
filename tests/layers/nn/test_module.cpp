@@ -47,6 +47,7 @@
 #include <SushiAI/nn/layer.hpp>
 #include <SushiAI/nn/layers.hpp>
 #include <SushiAI/nn/module.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using NN::Linear;
@@ -56,8 +57,11 @@ using NN::Sequential;
 
 namespace
 {
-    /** @brief Holds the absolute tolerance of a double stored and read back unchanged. */
-    constexpr double K_EXACT_TOLERANCE = 1e-15;
+    /**
+     * @brief Holds the absolute tolerance of a double stored and read back unchanged; 16 unit
+     * roundoffs of double, the smallest power of two that covers 1e-15.
+     */
+    constexpr double K_EXACT_TOLERANCE = 16.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief Collects the walk's output as "name:extents" strings. */
     template<typename M>

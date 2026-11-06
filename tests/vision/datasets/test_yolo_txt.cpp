@@ -40,6 +40,7 @@
 #include <SushiAI/vision/datasets/sample.hpp>
 #include <SushiAI/vision/datasets/yolo_txt.hpp>
 #include <SushiAI/vision/imaging/boxes.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Vision::Datasets;
 using SushiAI::StatusCode;
@@ -47,8 +48,12 @@ using SushiAI::Vision::Imaging::NormalizedBox;
 
 namespace
 {
-    /** @brief Holds the absolute difference a parsed coordinate may have from its text. */
-    constexpr float K_COORDINATE_TOLERANCE = 1e-6f;
+    /**
+     * @brief Holds the absolute difference a parsed coordinate may have from its text: 32 times the
+     *        float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     */
+    constexpr float K_COORDINATE_TOLERANCE =
+        static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /** @brief Returns options that read one split of a directory with three classes. */
     YOLOTxtOptions options_of(const Support::ScratchDirectory& scratch, const char* split)
