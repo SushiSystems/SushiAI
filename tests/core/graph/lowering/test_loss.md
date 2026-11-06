@@ -3,6 +3,8 @@
 
 Suites: `Medium_LogSoftmaxStability`.
 
+Each case is a row per gap: 0, 90, 100, 104 and 200.
+
 This file tests a log-softmax that was stabilised by the wrong maximum.
 
 Shifting the whole batch by the batch's global maximum rests on the argument that
@@ -31,7 +33,7 @@ came out 2.7033e-02 off. That is 6.6% of the largest true log-probability (-0.40
 "about 7% low at 100" that SushiBLAS's GPU_VALIDATION.md recorded for this defect before the fix.
 
 The residual at the gaps that pass is absent from both columns, on both sides of the fix, because
-it was never measured. A passing EXPECT_NEAR bounds it under 1e-4 and says nothing more. Do not
+it was never measured. A passing EXPECT_NEAR bounds it under `K_FLOAT_LOOSE_TOLERANCE` and says nothing more. Do not
 quote a figure for it. An earlier draft of the file header did, and the invented numbers survived a
 full run unchallenged because nothing in the suite fails when a comment is wrong.
 
@@ -52,7 +54,8 @@ This test reproduces the defect itself. At a gap of 104 the old code returned `+
 90 it had drifted 2.15e-06 off its own gap-0 answer. The per-row maximum removes the gap from the
 arithmetic, so the answer is the same at every gap, and the single shared expectation asserts that.
 
-The tolerance in this test is 1e-4, which is wide enough to pass at gap 90 both before and after
+The tolerance in this test is `K_FLOAT_LOOSE_TOLERANCE`, 2048 unit roundoffs of float (about
+1.2e-4), which is wide enough to pass at gap 90 both before and after
 the fix. That is intended. This case exists to catch `+inf` and gross error.
 TheAnswerDoesNotDependOnTheGapAtAll makes the finer claim, that the gap changes nothing, at exact
 equality.
@@ -80,9 +83,9 @@ and divides by the batch size of 2.
 ## TheAnswerDoesNotDependOnTheGapAtAll
 
 This test states the property that makes the fix a fix and not a wider threshold: nothing in the
-answer depends on the gap. Two batches differing only by a constant offset applied to one row must
-produce identical log-probabilities for the row that did not move, and identical ones for the row
-that did.
+answer depends on the gap. One compiled step runs on the batch at a gap of 0 and then on the batch at the gap of the row. The
+two batches differ only by a constant offset applied to one row, and the log-probabilities of
+both rows must be identical.
 
 A shift by the global maximum fails this at any gap large enough to matter. A shift by each row's
 own maximum passes it at every gap, because the gap never enters the arithmetic.

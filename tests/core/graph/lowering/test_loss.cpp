@@ -29,11 +29,9 @@
  * @author Mustafa Garip
  */
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -67,7 +65,12 @@ namespace
      */
     constexpr double K_FLOAT_LOOSE_TOLERANCE = 2048.0 * TestSupport::unit_roundoff<float>();
 
-    class Medium_LogSoftmaxStability : public SaTest::EngineTest {};
+    /** @brief Runs once per gap of K_GAPS, on the engine every case records on. */
+    class Medium_LogSoftmaxStability : public SaTest::EngineTest,
+                                       public ::testing::WithParamInterface<double>
+    {
+
+    };
 
     /** @brief Classes per row in every case here. */
     constexpr int64_t K_CLASSES = 3;
@@ -93,200 +96,174 @@ namespace
         return {0.0, 1.0, 2.0, -gap, 1.0 - gap, 2.0 - gap};
     }
 
-    /**
-     * @brief The largest absolute deviation of @p got from the per-row expectation.
-     *
-     * Infinite when any element is not finite, so a `+inf` row reports as `inf`
-     * rather than as a NaN comparison that quietly comes out false.
-     */
-    double worst_error(const std::vector<double>& got)
+    /** @brief The log-softmax of both rows of logits_with_gap, which no gap changes. */
+    std::vector<double> expected_log_softmax()
     {
-        double worst = 0.0;
-        for (std::size_t row = 0; row < got.size() / static_cast<std::size_t>(K_CLASSES); ++row)
-        {
-            for (std::size_t c = 0; c < static_cast<std::size_t>(K_CLASSES); ++c)
-            {
-                const double value = got[row * static_cast<std::size_t>(K_CLASSES) + c];
-                if (!std::isfinite(value))
-                    return std::numeric_limits<double>::infinity();
+        std::vector<double> rows = K_EXPECTED_ROW;
+        rows.insert(rows.end(), K_EXPECTED_ROW.begin(), K_EXPECTED_ROW.end());
+        return rows;
+    }
 
-                worst = std::max(worst, std::fabs(value - K_EXPECTED_ROW[c]));
-            }
+    /** @brief The cross-entropy gradient of both rows, (softmax - one-hot) / 2. */
+    std::vector<double> expected_cross_entropy_gradient()
+    {
+        const double mass = 1.0 + std::exp(-1.0) + std::exp(-2.0);
+        const double first = std::exp(-2.0) / mass;
+        const double second = std::exp(-1.0) / mass;
+        const double third = 1.0 / mass;
+
+        return {(first - 1.0) / 2.0, second / 2.0, third / 2.0,
+                (first - 1.0) / 2.0, second / 2.0, third / 2.0};
+    }
+
+    /** @brief Expects each element of @p got to be finite and within @p tolerance of @p expected. */
+    void expect_finite_and_near(const std::vector<double>& got, const std::vector<double>& expected,
+                                double tolerance)
+    {
+        ASSERT_EQ(expected.size(), got.size());
+
+        for (std::size_t i = 0; i < got.size(); ++i)
+        {
+            EXPECT_TRUE(std::isfinite(got[i])) << "element " << i << " is " << got[i];
+            EXPECT_NEAR(got[i], expected[i], tolerance) << "element " << i;
         }
-        return worst;
     }
 }
 
 /**
- * @brief Tests that log-softmax of a row far below the batch maximum is finite and within 1e-4.
+ * @brief Tests that log-softmax of a row far below the batch maximum is finite and within
+ *        K_FLOAT_LOOSE_TOLERANCE.
+ *
+ * A row whose exponentials all underflow under the batch's global maximum has a row sum of
+ * exactly zero, and log(0) propagates as +inf through the final subtraction.
  * @see tests/core/graph/README.md
  */
-TEST_F(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
+TEST_P(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorrect)
 {
-    for (double gap : K_GAPS)
-    {
-        SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
+    const double gap = GetParam();
+    SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
 
-        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
+    const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
-        TensorPool pool(*engine);
-        SA_EXPECT_OK(pool.materialise_leaves(graph));
-        write_tensor(pool.tensor(x), logits_with_gap(gap));
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    write_tensor(pool.tensor(x), logits_with_gap(gap));
 
-        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                                CompiledStep::compile(*engine, graph, pool));
-        SA_EXPECT_OK(step->run());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(*engine, graph, pool));
+    SA_EXPECT_OK(step->run());
 
-        const std::vector<double> got = read_tensor(pool.tensor(l));
-        ASSERT_EQ(6u, got.size());
-
-        for (std::size_t i = 0; i < got.size(); ++i)
-        {
-            const std::size_t c = i % static_cast<std::size_t>(K_CLASSES);
-            EXPECT_TRUE(std::isfinite(got[i]))
-                << "element " << i << " is " << got[i] << " at a gap of " << gap
-                << ". A row whose exponentials all underflow under the batch's "
-                   "global maximum has a row sum of exactly zero, and log(0) "
-                   "propagates as +inf through the final subtraction.";
-            EXPECT_NEAR(got[i], K_EXPECTED_ROW[c], K_FLOAT_LOOSE_TOLERANCE)
-                << "element " << i << " at a gap of " << gap
-                << "; worst error over the batch was " << worst_error(got);
-        }
-    }
+    expect_finite_and_near(read_tensor(pool.tensor(l)), expected_log_softmax(),
+                           K_FLOAT_LOOSE_TOLERANCE);
 }
 
 /**
  * @brief Tests that cross-entropy over such a row is finite and equals 2 + k.
  * @see tests/core/graph/README.md
  */
-TEST_F(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
+TEST_P(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
 {
-    for (double gap : K_GAPS)
-    {
-        SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
+    const double gap = GetParam();
+    SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
 
-        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
-        const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                                builder.nll_loss(builder.log_softmax(x), targets));
+    const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+    const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            builder.nll_loss(builder.log_softmax(x), targets));
 
-        TensorPool pool(*engine);
-        SA_EXPECT_OK(pool.materialise_leaves(graph));
-        write_tensor(pool.tensor(x), logits_with_gap(gap));
-        write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    write_tensor(pool.tensor(x), logits_with_gap(gap));
+    write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
-        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                                CompiledStep::compile(*engine, graph, pool));
-        SA_EXPECT_OK(step->run());
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(*engine, graph, pool));
+    SA_EXPECT_OK(step->run());
 
-        const double got = read_tensor(pool.tensor(loss))[0];
-        EXPECT_TRUE(std::isfinite(got))
-            << "loss is " << got << " at a gap of " << gap;
-        EXPECT_NEAR(got, 2.0 + K_LSE, K_FLOAT_LOOSE_TOLERANCE) << "at a gap of " << gap;
-    }
+    expect_finite_and_near(read_tensor(pool.tensor(loss)), {2.0 + K_LSE},
+                           K_FLOAT_LOOSE_TOLERANCE);
 }
 
 /**
  * @brief Tests that the cross-entropy gradient over such a row is finite and matches the softmax.
+ *
+ * A non-finite gradient is the failure that ends a run silently: the optimizer writes it into
+ * the parameters and every later step trains on NaN.
  * @see tests/core/graph/README.md
  */
-TEST_F(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
+TEST_P(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
 {
-    const double mass = 1.0 + std::exp(-1.0) + std::exp(-2.0);
-    const std::vector<double> softmax_row =
-        {std::exp(-2.0) / mass, std::exp(-1.0) / mass, 1.0 / mass};
+    const double gap = GetParam();
+    SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
-    for (double gap : K_GAPS)
-    {
-        SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
+    const ValueID x = builder.parameter(Shape{2, K_CLASSES}, "x");
+    const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
+                            builder.nll_loss(builder.log_softmax(x), targets));
 
-        const ValueID x = builder.parameter(Shape{2, K_CLASSES}, "x");
-        const ValueID targets = builder.input(Shape{2, K_CLASSES}, "targets");
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                                builder.nll_loss(builder.log_softmax(x), targets));
+    const std::vector<ValueID> wrt = {x};
+    const std::vector<ValueID> grads = Autograd::differentiate(
+        graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
+    ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
 
-        const std::vector<ValueID> wrt = {x};
-        const std::vector<ValueID> grads = Autograd::differentiate(
-            graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())).value();
-        ASSERT_NE(grads.at(0), Graph::K_NO_VALUE);
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    write_tensor(pool.tensor(x), logits_with_gap(gap));
+    write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
-        TensorPool pool(*engine);
-        SA_EXPECT_OK(pool.materialise_leaves(graph));
-        write_tensor(pool.tensor(x), logits_with_gap(gap));
-        write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(*engine, graph, pool));
+    SA_EXPECT_OK(step->run());
 
-        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                                CompiledStep::compile(*engine, graph, pool));
-        SA_EXPECT_OK(step->run());
-
-        const std::vector<double> got = read_tensor(pool.tensor(grads[0]));
-        ASSERT_EQ(6u, got.size());
-
-        for (std::size_t i = 0; i < got.size(); ++i)
-        {
-            const std::size_t c = i % static_cast<std::size_t>(K_CLASSES);
-            const double target = (c == 0) ? 1.0 : 0.0;
-            const double expected = (softmax_row[c] - target) / 2.0;
-
-            EXPECT_TRUE(std::isfinite(got[i]))
-                << "gradient element " << i << " is " << got[i] << " at a gap of "
-                << gap << ". A non-finite gradient here is the failure that ends a "
-                   "run silently: the optimizer writes it into the parameters and "
-                   "every later step trains on NaN.";
-            EXPECT_NEAR(got[i], expected, K_FLOAT_LOOSE_TOLERANCE)
-                << "gradient element " << i << " at a gap of " << gap;
-        }
-    }
+    expect_finite_and_near(read_tensor(pool.tensor(grads[0])),
+                           expected_cross_entropy_gradient(), K_FLOAT_LOOSE_TOLERANCE);
 }
 
 /**
- * @brief Tests that the log-probabilities are exactly equal at every gap.
+ * @brief Tests that the log-probabilities at a gap are exactly equal to those at no gap.
+ *
+ * Log-softmax is invariant to a per-row offset, so any difference is entirely the stabilising
+ * shift's doing.
  * @see tests/core/graph/README.md
  */
-TEST_F(Medium_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
+TEST_P(Medium_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
 {
-    std::vector<double> baseline;
+    const double gap = GetParam();
+    SCOPED_TRACE("row-to-batch-maximum gap of " + std::to_string(gap));
 
-    for (double gap : K_GAPS)
-    {
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
 
-        const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
+    const ValueID x = builder.input(Shape{2, K_CLASSES}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
-        TensorPool pool(*engine);
-        SA_EXPECT_OK(pool.materialise_leaves(graph));
-        write_tensor(pool.tensor(x), logits_with_gap(gap));
+    TensorPool pool(*engine);
+    SA_EXPECT_OK(pool.materialise_leaves(graph));
+    SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
+                            CompiledStep::compile(*engine, graph, pool));
 
-        SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                                CompiledStep::compile(*engine, graph, pool));
-        SA_EXPECT_OK(step->run());
+    write_tensor(pool.tensor(x), logits_with_gap(0.0));
+    SA_EXPECT_OK(step->run());
+    const std::vector<double> baseline = read_tensor(pool.tensor(l));
 
-        const std::vector<double> got = read_tensor(pool.tensor(l));
-        if (baseline.empty())
-        {
-            baseline = got;
-            continue;
-        }
+    write_tensor(pool.tensor(x), logits_with_gap(gap));
+    SA_EXPECT_OK(step->run());
 
-        for (std::size_t i = 0; i < got.size(); ++i)
-        {
-            EXPECT_EQ(got[i], baseline[i])
-                << "element " << i << " moved by " << (got[i] - baseline[i])
-                << " when row 1 was offset by " << gap
-                << ". Log-softmax is invariant to a per-row offset, so this "
-                   "difference is entirely the stabilising shift's doing.";
-        }
-    }
+    EXPECT_EQ(read_tensor(pool.tensor(l)), baseline);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Medium_LogSoftmaxStability, ::testing::ValuesIn(K_GAPS),
+                         [](const ::testing::TestParamInfo<double>& info)
+                         {
+                             return "Gap" + std::to_string(static_cast<int>(info.param));
+                         });

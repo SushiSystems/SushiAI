@@ -31,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
@@ -72,9 +73,20 @@ namespace
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow
     {
+        std::size_t index; /**< The position of the row in the table. */
         OpID op;           /**< The operation. */
         LoweringRule rule; /**< The row that lowers it. */
     };
+
+    /** @brief Compares every element of @p got with @p expected to within @p absolute. */
+    void expect_elements(const std::vector<double>& got, const std::vector<double>& expected,
+                         double absolute)
+    {
+        ASSERT_EQ(got.size(), expected.size());
+
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            EXPECT_NEAR(got[i], expected[i], absolute) << "at " << i;
+    }
 
     /** @brief Writes @p values into @p leaf, runs @p graph once and returns @p out. */
     std::vector<double> run_one(SushiBLAS::Engine& engine, const Graph::Graph& graph, ValueID leaf,
@@ -91,41 +103,62 @@ namespace
         EXPECT_TRUE(step.value()->run().is_ok());
         return SaTest::read_tensor(pool.tensor(out));
     }
-} // namespace
 
-/** @brief Tests that each row pairs its operation with the function the header names. */
-TEST(Small_SpatialLowerings, EachRowPairsItsOperationWithItsLowering)
-{
-    const std::array<ExpectedRow, 15> expected = {{
-        {Ops::K_IM2COL.id, &Graph::lower_im2col},
-        {Ops::K_COL2IM.id, &Graph::lower_col2im},
-        {Ops::K_MAXPOOL2D.id, &Graph::lower_maxpool2d},
-        {Ops::K_MAXPOOL2D_BACKWARD.id, &Graph::lower_maxpool2d_backward},
-        {Ops::K_AVGPOOL2D.id, &Graph::lower_avgpool2d},
-        {Ops::K_AVGPOOL2D_BACKWARD.id, &Graph::lower_avgpool2d_backward},
-        {Ops::K_UPSAMPLE2D.id, &Graph::lower_upsample2d},
-        {Ops::K_UPSAMPLE2D_BACKWARD.id, &Graph::lower_upsample2d_backward},
-        {Ops::K_SPATIAL_MEAN.id, &Graph::lower_spatial_mean},
-        {Ops::K_SPATIAL_MEAN_BACKWARD.id, &Graph::lower_spatial_mean_backward},
-        {Ops::K_CONCAT_CHANNELS.id, &Graph::lower_concat_channels},
-        {Ops::K_SLICE_CHANNELS.id, &Graph::lower_slice_channels},
-        {Ops::K_DEPTHWISE_CONV2D.id, &Graph::lower_depthwise_conv2d},
-        {Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id, &Graph::lower_depthwise_conv2d_backward_input},
-        {Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
+    /** @brief Runs once per row the header names for the spatial table. */
+    class Small_SpatialRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the spatial table in the order the header writes them. */
+    const std::array<ExpectedRow, 15> K_EXPECTED_ROWS = {{
+        {0, Ops::K_IM2COL.id, &Graph::lower_im2col},
+        {1, Ops::K_COL2IM.id, &Graph::lower_col2im},
+        {2, Ops::K_MAXPOOL2D.id, &Graph::lower_maxpool2d},
+        {3, Ops::K_MAXPOOL2D_BACKWARD.id, &Graph::lower_maxpool2d_backward},
+        {4, Ops::K_AVGPOOL2D.id, &Graph::lower_avgpool2d},
+        {5, Ops::K_AVGPOOL2D_BACKWARD.id, &Graph::lower_avgpool2d_backward},
+        {6, Ops::K_UPSAMPLE2D.id, &Graph::lower_upsample2d},
+        {7, Ops::K_UPSAMPLE2D_BACKWARD.id, &Graph::lower_upsample2d_backward},
+        {8, Ops::K_SPATIAL_MEAN.id, &Graph::lower_spatial_mean},
+        {9, Ops::K_SPATIAL_MEAN_BACKWARD.id, &Graph::lower_spatial_mean_backward},
+        {10, Ops::K_CONCAT_CHANNELS.id, &Graph::lower_concat_channels},
+        {11, Ops::K_SLICE_CHANNELS.id, &Graph::lower_slice_channels},
+        {12, Ops::K_DEPTHWISE_CONV2D.id, &Graph::lower_depthwise_conv2d},
+        {13, Ops::K_DEPTHWISE_CONV2D_BACKWARD_INPUT.id,
+         &Graph::lower_depthwise_conv2d_backward_input},
+        {14, Ops::K_DEPTHWISE_CONV2D_BACKWARD_WEIGHT.id,
          &Graph::lower_depthwise_conv2d_backward_weight},
     }};
+} // namespace
 
-    ASSERT_EQ(Graph::K_SPATIAL_LOWERINGS.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        const Graph::LoweringEntry& row = Graph::K_SPATIAL_LOWERINGS[i];
-        EXPECT_EQ(row.op, expected[i].op) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.rule, expected[i].rule) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.scratch, nullptr) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(Graph::find_lowering(expected[i].op), expected[i].rule)
-            << Ops::name_of(expected[i].op);
-    }
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_SpatialLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
+{
+    EXPECT_EQ(Graph::K_SPATIAL_LOWERINGS.size(), K_EXPECTED_ROWS.size());
 }
+
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_SpatialRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    ASSERT_LT(row.index, Graph::K_SPATIAL_LOWERINGS.size());
+    const Graph::LoweringEntry& entry = Graph::K_SPATIAL_LOWERINGS[row.index];
+
+    EXPECT_EQ(entry.op, row.op) << name;
+    EXPECT_EQ(entry.rule, row.rule) << name;
+    EXPECT_EQ(entry.scratch, nullptr) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_SpatialRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return name;
+                         });
 
 /** @brief Tests that the upsampling gradient sums each 2 x 2 block of dy onto its pixel. */
 TEST_F(Medium_SpatialLowerings, UpsampleGradientSumsEachBlockOntoItsPixel)
@@ -137,21 +170,12 @@ TEST_F(Medium_SpatialLowerings, UpsampleGradientSumsEachBlockOntoItsPixel)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID dx,
                             builder.upsample2d_backward(dy, Shape{1, 2, 2, 1}, 2, 2));
 
-    std::vector<double> upstream(16);
-    for (std::size_t i = 0; i < upstream.size(); ++i)
-        upstream[i] = static_cast<double>(i);
+    // Each pixel of dx sums its 2 x 2 block of the values 0 to 15: 0 + 1 + 4 + 5, and so on.
+    const std::vector<double> upstream = {0.0,  1.0,  2.0,  3.0,  4.0,  5.0,  6.0,  7.0,
+                                          8.0,  9.0,  10.0, 11.0, 12.0, 13.0, 14.0, 15.0};
+    const std::vector<double> expected = {10.0, 18.0, 42.0, 50.0};
 
-    std::vector<double> expected(4, 0.0);
-    for (std::size_t h = 0; h < 4; ++h)
-    {
-        for (std::size_t w = 0; w < 4; ++w)
-            expected[(h / 2) * 2 + w / 2] += upstream[h * 4 + w];
-    }
-
-    const std::vector<double> got = run_one(*engine, graph, dy, upstream, dx);
-    ASSERT_EQ(got.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(got[i], expected[i], K_ABSOLUTE_TOLERANCE) << "at " << i;
+    expect_elements(run_one(*engine, graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
 }
 
 /** @brief Tests that the spatial mean gradient writes dy[n, c] / (H * W) at every pixel. */
@@ -165,11 +189,8 @@ TEST_F(Medium_SpatialLowerings, SpatialMeanGradientSpreadsEvenlyOverThePlane)
 
     const std::vector<double> upstream = {4.0, -2.0};
 
-    const std::vector<double> got = run_one(*engine, graph, dy, upstream, dx);
-    ASSERT_EQ(got.size(), 8u);
-    for (std::size_t pixel = 0; pixel < 4; ++pixel)
-    {
-        EXPECT_NEAR(got[pixel * 2 + 0], 1.0, K_ABSOLUTE_TOLERANCE) << "pixel " << pixel;
-        EXPECT_NEAR(got[pixel * 2 + 1], -0.5, K_ABSOLUTE_TOLERANCE) << "pixel " << pixel;
-    }
+    // Each of the four pixels holds (4 / 4, -2 / 4), channels interleaved.
+    const std::vector<double> expected = {1.0, -0.5, 1.0, -0.5, 1.0, -0.5, 1.0, -0.5};
+
+    expect_elements(run_one(*engine, graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
 }

@@ -54,9 +54,6 @@ namespace
 
     };
 
-    /** @brief Bounds the values of a constant fill, which FLOAT32 holds exactly. */
-    constexpr double K_EXACT = 0.0;
-
     /** @brief Returns the bytes of a FLOAT32 tensor of @p elements elements. */
     constexpr std::size_t float_bytes(std::size_t elements)
     {
@@ -64,7 +61,7 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a value is allocated on its first request and handed back after. */
+/** @brief Tests that a value is allocated on its first request and its tensor is returned after. */
 TEST_F(Medium_TensorPool, AValueIsAllocatedOnceAndKeepsItsTensor)
 {
     Graph::Graph graph;
@@ -81,13 +78,26 @@ TEST_F(Medium_TensorPool, AValueIsAllocatedOnceAndKeepsItsTensor)
     EXPECT_TRUE(pool.is_bound(x));
     EXPECT_EQ(&pool.tensor(x), &first);
     EXPECT_EQ(pool.tensor_count(), 1u);
+}
+
+/** @brief Tests that the pool accounts the bytes of bound values and holds no plan. */
+TEST_F(Medium_TensorPool, TheBytesOfBoundValuesAreAccounted)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 6}, "x");
+
+    TensorPool pool(*engine);
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & tensor, pool.materialise(x, graph.value(x)));
+    static_cast<void>(tensor);
+
     EXPECT_EQ(pool.bytes().values, float_bytes(24));
     EXPECT_EQ(pool.allocated_bytes(), pool.unpacked_bytes());
     EXPECT_FALSE(pool.has_plan());
 }
 
-/** @brief Tests that the ones tensor is shared per shape and type and holds ones after a flush. */
-TEST_F(Medium_TensorPool, OnesAreSharedPerShapeAndTypeAndFilledByTheFlush)
+/** @brief Tests that the ones tensor is shared per shape and type. */
+TEST_F(Medium_TensorPool, OnesAreSharedPerShapeAndType)
 {
     TensorPool pool(*engine);
 
@@ -98,16 +108,23 @@ TEST_F(Medium_TensorPool, OnesAreSharedPerShapeAndTypeAndFilledByTheFlush)
     EXPECT_EQ(&first, &again);
     EXPECT_NE(&first, &wider);
     EXPECT_EQ(pool.bytes().ones, float_bytes(3) + 3 * sizeof(double));
+}
+
+/** @brief Tests that the flush fills every ones tensor with ones. */
+TEST_F(Medium_TensorPool, TheFlushFillsTheOnesTensorsWithOnes)
+{
+    TensorPool pool(*engine);
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & narrow, pool.ones(Shape{3}, DType::Float32));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & wider, pool.ones(Shape{3}, DType::Float64));
 
     SA_EXPECT_OK(pool.flush_constants());
 
-    for (const double value : SaTest::read_tensor(first))
-        EXPECT_NEAR(value, 1.0, K_EXACT);
-    for (const double value : SaTest::read_tensor(wider))
-        EXPECT_NEAR(value, 1.0, K_EXACT);
+    const std::vector<double> ones = {1.0, 1.0, 1.0};
+    EXPECT_EQ(SaTest::read_tensor(narrow), ones);
+    EXPECT_EQ(SaTest::read_tensor(wider), ones);
 }
 
-/** @brief Tests that a scratch buffer is keyed by node and slot and outside a plan owns bytes. */
+/** @brief Tests that a scratch buffer is keyed by node and slot. */
 TEST_F(Medium_TensorPool, ScratchIsKeyedByNodeAndSlot)
 {
     TensorPool pool(*engine);
@@ -125,6 +142,23 @@ TEST_F(Medium_TensorPool, ScratchIsKeyedByNodeAndSlot)
     EXPECT_NE(&first, &other_slot);
     EXPECT_NE(&first, &other_node);
     EXPECT_EQ(pool.tensor_count(), 3u);
+}
+
+/** @brief Tests that outside a plan each scratch buffer owns its bytes. */
+TEST_F(Medium_TensorPool, ScratchBytesAreAccountedPerBuffer)
+{
+    TensorPool pool(*engine);
+
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & first,
+                            pool.scratch(4, 0, Shape{2, 2}, DType::Float32));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & other_slot,
+                            pool.scratch(4, 1, Shape{2, 2}, DType::Float32));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & other_node,
+                            pool.scratch(5, 0, Shape{2, 2}, DType::Float32));
+    static_cast<void>(first);
+    static_cast<void>(other_slot);
+    static_cast<void>(other_node);
+
     EXPECT_EQ(pool.bytes().scratch, float_bytes(12));
 }
 
@@ -147,21 +181,25 @@ TEST_F(Medium_TensorPool, AnAliasSharesTheStorageOfItsSource)
 
     EXPECT_EQ(pool.tensor(target).storage, pool.tensor(source).storage);
     const std::vector<double> got = SaTest::read_tensor(pool.tensor(target));
-    ASSERT_EQ(got.size(), values.size());
-    for (std::size_t i = 0; i < values.size(); ++i)
-        EXPECT_NEAR(got[i], values[i], K_EXACT) << "at " << i;
+    EXPECT_EQ(got, values);
 }
 
-/** @brief Tests that the flush writes a queued constant, and that an empty flush succeeds. */
+/** @brief Tests that the flush writes a queued constant into its tensor. */
 TEST_F(Medium_TensorPool, AQueuedConstantIsWrittenByTheFlush)
 {
     TensorPool pool(*engine);
-    SA_EXPECT_OK(pool.flush_constants());
-
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor, pool.create(Shape{4}, DType::Float32));
     SA_EXPECT_OK(pool.request_constant(tensor, 2.5));
+
     SA_EXPECT_OK(pool.flush_constants());
 
-    for (const double value : SaTest::read_tensor(tensor))
-        EXPECT_NEAR(value, 2.5, K_EXACT);
+    EXPECT_EQ(SaTest::read_tensor(tensor), (std::vector<double>{2.5, 2.5, 2.5, 2.5}));
+}
+
+/** @brief Tests that a flush with no queued constant succeeds. */
+TEST_F(Medium_TensorPool, AnEmptyFlushSucceeds)
+{
+    TensorPool pool(*engine);
+
+    SA_EXPECT_OK(pool.flush_constants());
 }

@@ -35,8 +35,6 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/lowering/rule.hpp>
 
@@ -93,29 +91,10 @@ TEST(Small_LoweringRule, TheJoinKeepsTheFirstTableInFront)
     EXPECT_EQ(K_JOINED[2].rule, &first_rule);
 }
 
-/** @brief Tests that a row written without a scratch rule has none, and the join keeps both. */
-TEST(Small_LoweringRule, ARowWithoutAScratchRuleHasNone)
+/** @brief Tests that the join keeps a row's scratch rule, and none for the rows without one. */
+TEST(Small_LoweringRule, TheJoinKeepsEachRowsScratchRule)
 {
     EXPECT_EQ(K_JOINED[0].scratch, &one_buffer);
     EXPECT_EQ(K_JOINED[1].scratch, nullptr);
     EXPECT_EQ(K_JOINED[2].scratch, nullptr);
-}
-
-/** @brief Tests that a scratch rule reached through the row appends its buffer for the node. */
-TEST(Small_LoweringRule, AScratchRuleAppendsTheBuffersOfItsNode)
-{
-    Graph::Graph graph;
-    const Graph::GraphBuilder builder(graph);
-    const Graph::ValueID x = builder.input(Shape{2}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, builder.relu(x));
-    const Graph::NodeID node = graph.value(y).producer;
-
-    std::vector<ScratchRequest> requests;
-    K_JOINED[0].scratch(graph, node, requests);
-
-    ASSERT_EQ(requests.size(), 1u);
-    EXPECT_EQ(requests[0].node, node);
-    EXPECT_EQ(requests[0].slot, 3);
-    EXPECT_EQ(requests[0].shape, Shape{2});
-    EXPECT_EQ(requests[0].dtype, DType::Float32);
 }

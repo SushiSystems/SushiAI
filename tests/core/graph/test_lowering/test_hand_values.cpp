@@ -31,6 +31,7 @@
 #include <array>
 #include <cmath>
 #include <memory>
+#include <numeric>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -117,8 +118,39 @@ namespace
             const Graph::Graph* graph_;
             SushiBLAS::Engine* engine_;
     };
+
+    /** @brief Compares every element of @p got with @p expected to within @p absolute. */
+    void expect_elements(const std::vector<double>& got, const std::vector<double>& expected,
+                         double absolute)
+    {
+        ASSERT_EQ(got.size(), expected.size());
+
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            EXPECT_NEAR(got[i], expected[i], absolute) << "at " << i;
+    }
+
+    /** @brief Returns @p function applied to every element of @p values. */
+    template <typename Function>
+    std::vector<double> mapped(const std::vector<double>& values, Function function)
+    {
+        std::vector<double> result(values.size());
+        for (std::size_t i = 0; i < values.size(); ++i)
+            result[i] = function(values[i]);
+        return result;
+    }
+
+    /** @brief Returns the sum of exp over @p count elements of @p values from @p first. */
+    double exponential_mass(const std::vector<double>& values, std::size_t first,
+                            std::size_t count)
+    {
+        double mass = 0.0;
+        for (std::size_t i = first; i < first + count; ++i)
+            mass += std::exp(values[i]);
+        return mass;
+    }
 }
 
+/** @brief Tests that a linear layer and the ReLU after it equal the values worked out by hand. */
 TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
 {
     Graph::Graph graph;
@@ -143,17 +175,13 @@ TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
     SA_EXPECT_OK(run.step->run());
 
     // X * W^T = [[1, 2, 3], [3, 4, 7]], then + b.
-    const std::vector<double> expected_pre = {-1.0, 1.5, 4.0, 1.0, 3.5, 8.0};
-    const std::vector<double> pre = read_tensor(run.pool.tensor(y));
-    for (std::size_t i = 0; i < expected_pre.size(); ++i)
-        EXPECT_NEAR(pre[i], expected_pre[i], K_FLOAT_TOLERANCE) << "at " << i;
-
-    const std::vector<double> expected_post = {0.0, 1.5, 4.0, 1.0, 3.5, 8.0};
-    const std::vector<double> post = read_tensor(run.pool.tensor(z));
-    for (std::size_t i = 0; i < expected_post.size(); ++i)
-        EXPECT_NEAR(post[i], expected_post[i], K_FLOAT_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(y)),
+                    std::vector<double>{-1.0, 1.5, 4.0, 1.0, 3.5, 8.0}, K_FLOAT_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(z)),
+                    std::vector<double>{0.0, 1.5, 4.0, 1.0, 3.5, 8.0}, K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that sum_rows gives the sum of each column. */
 TEST_F(Medium_Forward, SumRowsProducesColumnSums)
 {
     Graph::Graph graph;
@@ -168,12 +196,11 @@ TEST_F(Medium_Forward, SumRowsProducesColumnSums)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(sums));
-    ASSERT_EQ(result.size(), 2u);
-    EXPECT_NEAR(result[0], 9.0, K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(result[1], 12.0, K_FLOAT_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(sums)), std::vector<double>{9.0, 12.0},
+                    K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that a reshape keeps the row-major linear order of the elements. */
 TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
 {
     Graph::Graph graph;
@@ -183,17 +210,16 @@ TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.reshape(x, Shape{2, 6}));
 
     OneShot run(*engine, graph);
-    write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11});
+    const std::vector<double> values = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    write_tensor(run.pool.tensor(x), values);
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(y));
-    ASSERT_EQ(result.size(), 12u);
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], static_cast<double>(i), K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(y)), values, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that a layout convert to NCHW puts the channels outermost. */
 TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
 {
     Graph::Graph graph;
@@ -212,26 +238,19 @@ TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
     SA_EXPECT_OK(run.step->run());
 
     // For each c, the two W positions in order; see tests/core/graph/README.md.
-    const std::vector<double> expected = {0, 3, 1, 4, 2, 5};
-    const std::vector<double> result = read_tensor(run.pool.tensor(y));
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(y)), std::vector<double>{0, 3, 1, 4, 2, 5},
+                    K_FLOAT_TOLERANCE);
 }
 
-TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
+/** @brief Tests that add writes the sum of its two operands. */
+TEST_F(Medium_Forward, AddMatchesItsDefinition)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
     const ValueID a = builder.input(Shape{2, 2}, "a");
     const ValueID b = builder.input(Shape{2, 2}, "b");
-
     SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(a, b));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(a, b));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.mul(a, b));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(a, -2.5));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(b));
 
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
@@ -240,41 +259,118 @@ TEST_F(Medium_Forward, ElementwiseAndScaleMatchTheirDefinitions)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> expect_sum = {1.5, 1.0, 5.0, 4.0};
-    const std::vector<double> expect_difference = {0.5, 3.0, 1.0, 4.0};
-    const std::vector<double> expect_product = {0.5, -2.0, 6.0, 0.0};
-    const std::vector<double> expect_scaled = {-2.5, -5.0, -7.5, -10.0};
-
-    const std::vector<double> got_sum = read_tensor(run.pool.tensor(sum));
-    const std::vector<double> got_difference = read_tensor(run.pool.tensor(difference));
-    const std::vector<double> got_product = read_tensor(run.pool.tensor(product));
-    const std::vector<double> got_scaled = read_tensor(run.pool.tensor(scaled));
-    const std::vector<double> got_exponent = read_tensor(run.pool.tensor(exponent));
-
-    for (std::size_t i = 0; i < 4; ++i)
-    {
-        EXPECT_NEAR(got_sum[i], expect_sum[i], K_FLOAT_TOLERANCE) << "add at " << i;
-        EXPECT_NEAR(got_difference[i], expect_difference[i], K_FLOAT_TOLERANCE) << "sub at " << i;
-        EXPECT_NEAR(got_product[i], expect_product[i], K_FLOAT_TOLERANCE) << "mul at " << i;
-        EXPECT_NEAR(got_scaled[i], expect_scaled[i], K_FLOAT_TOLERANCE) << "scale at " << i;
-    }
-
-    EXPECT_NEAR(got_exponent[0], std::exp(0.5), K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(got_exponent[1], std::exp(-1.0), K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(got_exponent[2], std::exp(2.0), K_FLOAT_TOLERANCE);
-    EXPECT_NEAR(got_exponent[3], 1.0, K_FLOAT_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(sum)), std::vector<double>{1.5, 1.0, 5.0, 4.0},
+                    K_FLOAT_TOLERANCE);
 }
 
-TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
+/** @brief Tests that sub writes the first operand minus the second. */
+TEST_F(Medium_Forward, SubMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{2, 2}, "a");
+    const ValueID b = builder.input(Shape{2, 2}, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(a, b));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
+    write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(difference)),
+                    std::vector<double>{0.5, 3.0, 1.0, 4.0}, K_FLOAT_TOLERANCE);
+}
+
+/** @brief Tests that mul writes the elementwise product of its two operands. */
+TEST_F(Medium_Forward, MulMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{2, 2}, "a");
+    const ValueID b = builder.input(Shape{2, 2}, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.mul(a, b));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
+    write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(product)),
+                    std::vector<double>{0.5, -2.0, 6.0, 0.0}, K_FLOAT_TOLERANCE);
+}
+
+/** @brief Tests that scale multiplies every element by its constant. */
+TEST_F(Medium_Forward, ScaleMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID a = builder.input(Shape{2, 2}, "a");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(a, -2.5));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(scaled)),
+                    std::vector<double>{-2.5, -5.0, -7.5, -10.0}, K_FLOAT_TOLERANCE);
+}
+
+/** @brief Tests that exp writes e raised to each element. */
+TEST_F(Medium_Forward, ExpMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID b = builder.input(Shape{2, 2}, "b");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(b));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(exponent)),
+                    std::vector<double>{std::exp(0.5), std::exp(-1.0), std::exp(2.0), 1.0},
+                    K_FLOAT_TOLERANCE);
+}
+
+/** @brief Tests that relu keeps the positive elements and zeroes the others. */
+TEST_F(Medium_Forward, ReluMatchesItsDefinition)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID r, builder.relu(x));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{-2.0, -0.5, 0.5, 2.0});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(r)), std::vector<double>{0.0, 0.0, 0.5, 2.0},
+                    K_FLOAT_TOLERANCE);
+}
+
+/** @brief Tests that sigmoid writes 1 / (1 + e^-x) for each element. */
+TEST_F(Medium_Forward, SigmoidMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID s, builder.sigmoid(x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID t, builder.tanh(x));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID lr, builder.leaky_relu(x, 0.1));
 
     OneShot run(*engine, graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
@@ -283,28 +379,83 @@ TEST_F(Medium_Forward, ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> relu = read_tensor(run.pool.tensor(r));
-    const std::vector<double> sigmoid = read_tensor(run.pool.tensor(s));
-    const std::vector<double> hyperbolic = read_tensor(run.pool.tensor(t));
-    const std::vector<double> leaky = read_tensor(run.pool.tensor(lr));
-
-    // relu and gelu backward read the forward input; see tests/core/graph/README.md.
-    const std::vector<double> unchanged = read_tensor(run.pool.tensor(x));
-
-    // Slope 0.1, inputs on both sides of zero; see tests/core/graph/README.md.
-    const std::vector<double> expected_leaky = {-0.2, -0.05, 0.5, 2.0};
-
-    for (std::size_t i = 0; i < inputs.size(); ++i)
-    {
-        EXPECT_NEAR(relu[i], std::max(0.0, inputs[i]), K_FLOAT_TOLERANCE) << "relu at " << i;
-        EXPECT_NEAR(sigmoid[i], 1.0 / (1.0 + std::exp(-inputs[i])), K_FLOAT_TOLERANCE)
-            << "sigmoid at " << i;
-        EXPECT_NEAR(hyperbolic[i], std::tanh(inputs[i]), K_FLOAT_TOLERANCE) << "tanh at " << i;
-        EXPECT_NEAR(leaky[i], expected_leaky[i], K_FLOAT_TOLERANCE) << "leaky_relu at " << i;
-        EXPECT_NEAR(unchanged[i], inputs[i], K_DOUBLE_TOLERANCE) << "input mutated at " << i;
-    }
+    expect_elements(read_tensor(run.pool.tensor(s)),
+                    mapped(inputs, [](double v) { return 1.0 / (1.0 + std::exp(-v)); }),
+                    K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that tanh writes the hyperbolic tangent of each element. */
+TEST_F(Medium_Forward, TanhMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{1, 4}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID t, builder.tanh(x));
+
+    OneShot run(*engine, graph);
+    const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
+    write_tensor(run.pool.tensor(x), inputs);
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(t)),
+                    mapped(inputs, [](double v) { return std::tanh(v); }), K_FLOAT_TOLERANCE);
+}
+
+/**
+ * @brief Tests that leaky_relu scales the negative elements by its slope and keeps the others.
+ *
+ * Slope 0.1 with inputs on both sides of zero, so that both branches run: -2 gives -0.2, -0.5
+ * gives -0.05, 0.5 gives 0.5, 2 gives 2.
+ */
+TEST_F(Medium_Forward, LeakyReluMatchesItsDefinition)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{1, 4}, "x");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID lr, builder.leaky_relu(x, 0.1));
+
+    OneShot run(*engine, graph);
+    write_tensor(run.pool.tensor(x), std::vector<double>{-2.0, -0.5, 0.5, 2.0});
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(lr)),
+                    std::vector<double>{-0.2, -0.05, 0.5, 2.0}, K_FLOAT_TOLERANCE);
+}
+
+/**
+ * @brief Tests that the activations write a new buffer and leave their input as it was.
+ *
+ * The backward rules for relu and gelu read the forward input, so an in-place activation would
+ * hand them the output.
+ */
+TEST_F(Medium_Forward, ActivationsLeaveTheirInputAlone)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+
+    const ValueID x = builder.input(Shape{1, 4}, "x");
+    SA_EXPECT_OK(builder.relu(x));
+    SA_EXPECT_OK(builder.sigmoid(x));
+    SA_EXPECT_OK(builder.tanh(x));
+    SA_EXPECT_OK(builder.leaky_relu(x, 0.1));
+
+    OneShot run(*engine, graph);
+    const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
+    write_tensor(run.pool.tensor(x), inputs);
+
+    ASSERT_NO_FATAL_FAILURE(run.compile());
+    SA_EXPECT_OK(run.step->run());
+
+    expect_elements(read_tensor(run.pool.tensor(x)), inputs, K_DOUBLE_TOLERANCE);
+}
+
+/** @brief Tests that log-softmax rows match the hand values and exponentiate to a sum of one. */
 TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
 {
     Graph::Graph graph;
@@ -324,22 +475,17 @@ TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
 
     // log-sum-exp of [1, 2, 3] is 3 + log(1 + e^-1 + e^-2).
     const double lse = 3.0 + std::log(1.0 + std::exp(-1.0) + std::exp(-2.0));
-    const std::vector<double> expected = {1.0 - lse, 2.0 - lse, 3.0 - lse,
-                                          1.0 - lse, 2.0 - lse, 3.0 - lse};
+    expect_elements(l_values,
+                    std::vector<double>{1.0 - lse, 2.0 - lse, 3.0 - lse,
+                                        1.0 - lse, 2.0 - lse, 3.0 - lse},
+                    K_FLOAT_LOOSE_TOLERANCE);
 
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(l_values[i], expected[i], K_FLOAT_LOOSE_TOLERANCE) << "at " << i;
-
-    for (int row = 0; row < 2; ++row)
-    {
-        double mass = 0.0;
-        for (int column = 0; column < 3; ++column)
-            mass += std::exp(l_values[static_cast<std::size_t>(row * 3 + column)]);
-        EXPECT_NEAR(mass, 1.0, K_FLOAT_LOOSE_TOLERANCE) << "row " << row << " is not normalised";
-    }
+    EXPECT_NEAR(exponential_mass(l_values, 0, 3), 1.0, K_FLOAT_LOOSE_TOLERANCE) << "row 0";
+    EXPECT_NEAR(exponential_mass(l_values, 3, 3), 1.0, K_FLOAT_LOOSE_TOLERANCE) << "row 1";
 }
 
-TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
+/** @brief Tests that the cross-entropy of uniform logits is ln of the class count. */
+TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsLogC)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -351,9 +497,12 @@ TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     OneShot run(*engine, graph);
     write_tensor(run.pool.tensor(x), std::vector<double>(20, 0.0));
 
-    std::vector<double> one_hot(20, 0.0);
-    for (int row = 0; row < 4; ++row) one_hot[static_cast<std::size_t>(row * 5 + row)] = 1.0;
-    write_tensor(run.pool.tensor(targets), one_hot);
+    // Row r targets class r.
+    write_tensor(run.pool.tensor(targets),
+                 std::vector<double>{1, 0, 0, 0, 0,
+                                     0, 1, 0, 0, 0,
+                                     0, 0, 1, 0, 0,
+                                     0, 0, 0, 1, 0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
@@ -361,6 +510,7 @@ TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsExactlyLogC)
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], std::log(5.0), K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that the cross-entropy of one row equals its hand-computed value. */
 TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
 {
     Graph::Graph graph;
@@ -381,6 +531,7 @@ TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     EXPECT_NEAR(read_tensor(run.pool.tensor(loss))[0], lse - 3.0, K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that accumulate adds into its first operand and returns that same buffer. */
 TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
 {
     Graph::Graph graph;
@@ -398,16 +549,12 @@ TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
     SA_EXPECT_OK(run.step->run());
 
     const std::vector<double> result = read_tensor(run.pool.tensor(total));
-    const std::vector<double> accumulator = read_tensor(run.pool.tensor(a));
 
-    for (std::size_t i = 0; i < 4; ++i)
-    {
-        EXPECT_NEAR(result[i], accumulator[i], K_DOUBLE_TOLERANCE)
-            << "the result must alias the accumulator";
-        EXPECT_NEAR(result[i], static_cast<double>(11 * (i + 1)), K_FLOAT_TOLERANCE) << "at " << i;
-    }
+    EXPECT_EQ(result, read_tensor(run.pool.tensor(a))) << "the result must alias the accumulator";
+    expect_elements(result, std::vector<double>{11, 22, 33, 44}, K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that a replay writes the zero buffer's bias sum again and does not accumulate. */
 TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
 {
     Graph::Graph graph;
@@ -425,13 +572,11 @@ TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
     SA_EXPECT_OK(run.step->run());
 
     // A replay must not accumulate into the result; see tests/core/graph/README.md.
-    const std::vector<double> result = read_tensor(run.pool.tensor(broadcast));
-    const std::vector<double> expected = {1.0, -2.0, 3.0, 1.0, -2.0, 3.0};
-
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(broadcast)),
+                    std::vector<double>{1.0, -2.0, 3.0, 1.0, -2.0, 3.0}, K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that im2col gathers one window in tap order with the channel innermost. */
 TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
 {
     // One 2x2 window covers the whole image; see tests/core/graph/README.md.
@@ -450,13 +595,11 @@ TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
-    const std::vector<double> expected = {0, 1, 2, 3};
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(cols)), std::vector<double>{0, 1, 2, 3},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that col2im gives a pixel the sum of every window that covers it. */
 TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
 {
     // A pixel receives the sum of its windows; see tests/core/graph/README.md.
@@ -475,13 +618,11 @@ TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(image));
-    const std::vector<double> expected = {1, 2, 1, 2, 4, 2, 1, 2, 1};
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(image)),
+                    std::vector<double>{1, 2, 1, 2, 4, 2, 1, 2, 1}, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that an asymmetrically padded im2col uses the extents it was given. */
 TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDerivedOnes)
 {
     // out_h is 5 and out_w is 4, not the transpose; see tests/core/graph/README.md.
@@ -497,13 +638,12 @@ TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDe
 
     OneShot run(*engine, graph);
     std::vector<double> image(20);
-    for (std::size_t i = 0; i < image.size(); ++i) image[i] = static_cast<double>(i);
+    std::iota(image.begin(), image.end(), 0.0);
     write_tensor(run.pool.tensor(x), image);
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(cols));
     const std::vector<double> expected = {
         0,  0,  0,  0,  0,  1,  0,  5,  6,
         0,  0,  0,  0,  1,  2,  5,  6,  7,
@@ -526,12 +666,10 @@ TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDe
        16, 17, 18,  0,  0,  0,  0,  0,  0,
        17, 18, 19,  0,  0,  0,  0,  0,  0,
     };
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE)
-            << "at row " << (i / 9) << " tap " << (i % 9);
+    expect_elements(read_tensor(run.pool.tensor(cols)), expected, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that max-pooling a window gives its maximum. */
 TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
 {
     // One 2x2 window over 0..3 has maximum 3; see tests/core/graph/README.md.
@@ -550,11 +688,11 @@ TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(pooled.output));
-    ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 3.0, K_DOUBLE_LOOSE_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(pooled.output)), std::vector<double>{3.0},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that a layout round trip permutes the buffer on the way out and restores it. */
 TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
 {
     // The permuted intermediate is the real test; see tests/core/graph/README.md.
@@ -583,23 +721,14 @@ TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    // NCHW index is ((c*2)+h)*2+w; see tests/core/graph/README.md.
-    const std::vector<double> permuted = {1, 3, 5, 7, 2, 4, 6, 8};
-    const std::vector<double> middle = read_tensor(run.pool.tensor(nchw));
-    ASSERT_EQ(middle.size(), permuted.size());
-    for (std::size_t i = 0; i < permuted.size(); ++i)
-        EXPECT_NEAR(middle[i], permuted[i], K_DOUBLE_LOOSE_TOLERANCE)
-            << "at " << i << ": the NCHW intermediate was not permuted. If this reads back "
-               "as 1..8 the convert copied straight through, and the round trip below is "
-               "two no-ops composing to an identity that proves nothing.";
-
-    const std::vector<double> original = {1, 2, 3, 4, 5, 6, 7, 8};
-    const std::vector<double> result = read_tensor(run.pool.tensor(back));
-    ASSERT_EQ(result.size(), original.size());
-    for (std::size_t i = 0; i < original.size(); ++i)
-        EXPECT_NEAR(result[i], original[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    // NCHW index is ((c*2)+h)*2+w; an intermediate that reads back 1..8 was copied, not permuted.
+    expect_elements(read_tensor(run.pool.tensor(nchw)),
+                    std::vector<double>{1, 3, 5, 7, 2, 4, 6, 8}, K_DOUBLE_LOOSE_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(back)),
+                    std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8}, K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that max-pooling survives the pass pipeline and still routes its gradient. */
 TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradient)
 {
     // Passes run in Trainer::build order; see tests/core/graph/README.md.
@@ -643,22 +772,22 @@ TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradi
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> pooled_values = read_tensor(run.pool.tensor(pooled.output));
-    ASSERT_EQ(pooled_values.size(), 2u);
-    EXPECT_NEAR(pooled_values[0], 6.0, K_DOUBLE_LOOSE_TOLERANCE);
-    EXPECT_NEAR(pooled_values[1], 7.0, K_DOUBLE_LOOSE_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(pooled.output)), std::vector<double>{6.0, 7.0},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 
     const std::vector<double> dx = read_tensor(run.pool.tensor(gradients[0]));
     ASSERT_EQ(dx.size(), 8u);
 
-    for (std::size_t i = 0; i < 6; ++i)
-        EXPECT_NEAR(dx[i], 0.0, K_DOUBLE_LOOSE_TOLERANCE)
-            << "tap " << i << " did not win its window but was given a gradient";
-
-    EXPECT_GT(std::abs(dx[6]), K_FLOAT_TIGHT_TOLERANCE) << "the c=0 maximum received no gradient at all";
-    EXPECT_GT(std::abs(dx[7]), K_FLOAT_TIGHT_TOLERANCE) << "the c=1 maximum received no gradient at all";
+    // Taps 0 to 5 did not win their window; taps 6 and 7 are the maxima of the two channels.
+    expect_elements(std::vector<double>(dx.begin(), dx.begin() + 6),
+                    std::vector<double>(6, 0.0), K_DOUBLE_LOOSE_TOLERANCE);
+    EXPECT_GT(std::abs(dx[6]), K_FLOAT_TIGHT_TOLERANCE)
+        << "the c=0 maximum received no gradient at all";
+    EXPECT_GT(std::abs(dx[7]), K_FLOAT_TIGHT_TOLERANCE)
+        << "the c=1 maximum received no gradient at all";
 }
 
+/** @brief Tests that average-pooling divides the window sum by the full window area. */
 TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
 {
     // Same window as the max-pool case above; the average of 0,1,2,3 is 1.5.
@@ -677,11 +806,11 @@ TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(pooled));
-    ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 1.5, K_DOUBLE_LOOSE_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(pooled)), std::vector<double>{1.5},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that upsampling copies each pixel over its whole block. */
 TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
 {
     // One pixel at scale 2x2 becomes a 2x2 block of the same value.
@@ -697,13 +826,11 @@ TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(up));
-    const std::vector<double> expected = {5.0, 5.0, 5.0, 5.0};
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(up)), std::vector<double>{5.0, 5.0, 5.0, 5.0},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that the spatial mean averages the whole plane of each channel. */
 TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
 {
     // N=1, H=2, W=2, C=1, values 0,1,2,3: the mean of the whole plane is 1.5.
@@ -719,11 +846,11 @@ TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(mean));
-    ASSERT_EQ(result.size(), 1u);
-    EXPECT_NEAR(result[0], 1.5, K_DOUBLE_LOOSE_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(mean)), std::vector<double>{1.5},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that concatenating channels places each operand at its own offset. */
 TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
 {
     // Left [10] and right [20] must land as [10, 20].
@@ -744,13 +871,11 @@ TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(cat));
-    const std::vector<double> expected = {10.0, 20.0};
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(cat)), std::vector<double>{10.0, 20.0},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that slicing channels returns the chosen range unchanged. */
 TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
 {
     // Slicing [1, 3) of [1, 2, 3, 4] must return [2, 3].
@@ -766,13 +891,11 @@ TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> result = read_tensor(run.pool.tensor(sliced));
-    const std::vector<double> expected = {2.0, 3.0};
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_DOUBLE_LOOSE_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(sliced)), std::vector<double>{2.0, 3.0},
+                    K_DOUBLE_LOOSE_TOLERANCE);
 }
 
+/** @brief Tests that channel_affine scales and shifts per channel, not per row. */
 TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
 {
     // Two pixels share one pair of parameters; see tests/core/graph/README.md.
@@ -793,16 +916,14 @@ TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     SA_EXPECT_OK(run.step->run());
 
     // [1*2+10, 2*3+20, 3*2+10, 4*3+20]
-    const std::vector<double> expected = {12.0, 26.0, 16.0, 32.0};
-    const std::vector<double> result = read_tensor(run.pool.tensor(y));
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TIGHT_TOLERANCE) << "at " << i;
+    expect_elements(read_tensor(run.pool.tensor(y)),
+                    std::vector<double>{12.0, 26.0, 16.0, 32.0}, K_FLOAT_TIGHT_TOLERANCE);
 }
 
+/** @brief Tests that batchnorm2d normalises each channel over the whole batch. */
 TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
 {
-    // Variance is biased, divided by N*H*W; see tests/core/graph/README.md.
+    // Variance is biased, divided by N*H*W; K_EPSILON is the layer's argument, not a tolerance.
     constexpr double K_EPSILON = 1e-5;
 
     Graph::Graph graph;
@@ -822,35 +943,26 @@ TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     ASSERT_NO_FATAL_FAILURE(run.compile());
     SA_EXPECT_OK(run.step->run());
 
-    const std::vector<double> mean = read_tensor(run.pool.tensor(bn.saved_mean));
-    ASSERT_EQ(mean.size(), 2u);
-    EXPECT_NEAR(mean[0], 2.5, K_FLOAT_TIGHT_TOLERANCE);
-    EXPECT_NEAR(mean[1], 25.0, K_FLOAT_TIGHT_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(bn.saved_mean)), std::vector<double>{2.5, 25.0},
+                    K_FLOAT_TIGHT_TOLERANCE);
 
     const double inv0 = 1.0 / std::sqrt(1.25 + K_EPSILON);
     const double inv1 = 1.0 / std::sqrt(125.0 + K_EPSILON);
 
-    const std::vector<double> inv_std = read_tensor(run.pool.tensor(bn.saved_inv_std));
-    ASSERT_EQ(inv_std.size(), 2u);
-    EXPECT_NEAR(inv_std[0], inv0, K_FLOAT_TIGHT_TOLERANCE);
-    EXPECT_NEAR(inv_std[1], inv1, K_FLOAT_TIGHT_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(bn.saved_inv_std)),
+                    std::vector<double>{inv0, inv1}, K_FLOAT_TIGHT_TOLERANCE);
 
-    const std::array<double, 4> channel0 = {1.0, 2.0, 3.0, 4.0};
-    const std::array<double, 4> channel1 = {10.0, 20.0, 30.0, 40.0};
-
-    std::vector<double> expected(8);
-    for (std::size_t i = 0; i < 4; ++i)
-    {
-        expected[i * 2]     = 2.0 * (channel0[i] - 2.5) * inv0 + 0.0;
-        expected[i * 2 + 1] = 1.0 * (channel1[i] - 25.0) * inv1 + 5.0;
-    }
-
-    const std::vector<double> result = read_tensor(run.pool.tensor(bn.output));
-    ASSERT_EQ(result.size(), expected.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        EXPECT_NEAR(result[i], expected[i], K_FLOAT_TOLERANCE) << "at " << i;
+    // Elements alternate: channel 0 (gamma 2, beta 0), then channel 1 (gamma 1, beta 5).
+    const std::vector<double> expected = {
+        2.0 * (1.0 - 2.5) * inv0,  (10.0 - 25.0) * inv1 + 5.0,
+        2.0 * (2.0 - 2.5) * inv0,  (20.0 - 25.0) * inv1 + 5.0,
+        2.0 * (3.0 - 2.5) * inv0,  (30.0 - 25.0) * inv1 + 5.0,
+        2.0 * (4.0 - 2.5) * inv0,  (40.0 - 25.0) * inv1 + 5.0,
+    };
+    expect_elements(read_tensor(run.pool.tensor(bn.output)), expected, K_FLOAT_TOLERANCE);
 }
 
+/** @brief Tests that compiling a graph with an unbound leaf stops the process with its name. */
 TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbage)
 {
     Graph::Graph graph;
@@ -864,6 +976,7 @@ TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbag
                     "Leaf value", "'x'", "has no tensor bound");
 }
 
+/** @brief Tests that compiling a node with no lowering row stops the process naming it. */
 TEST_F(Medium_ForwardDeathTest, AnUnimplementedOperationNamesItself)
 {
     Graph::Graph graph;

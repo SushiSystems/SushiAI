@@ -99,8 +99,8 @@ TEST(Small_CastInsertion, AGraphAlreadyNarrowHasNoMismatchUnderTheMixedPolicy)
     EXPECT_TRUE(Graph::find_dtype_mismatches(graph, policy).empty());
 }
 
-/** @brief Tests that the description names the node, its operation, both types and the side. */
-TEST(Small_CastInsertion, TheDescriptionNamesTheNodeTheTypesAndTheSide)
+/** @brief Tests that the description of a result mismatch names the node, types and side. */
+TEST(Small_CastInsertion, TheDescriptionOfAResultMismatchNamesTheNodeTheTypesAndTheSide)
 {
     DTypeMismatch mismatch;
     mismatch.node = 3;
@@ -114,8 +114,19 @@ TEST(Small_CastInsertion, TheDescriptionNamesTheNodeTheTypesAndTheSide)
                                + ") computes in " + dtype_name(DType::Half)
                                + " but its result value 7 is " + dtype_name(DType::Float32);
     EXPECT_EQ(Graph::describe(mismatch), expected);
+}
 
+/** @brief Tests that the description of an operand mismatch names the operand side. */
+TEST(Small_CastInsertion, TheDescriptionOfAnOperandMismatchNamesTheOperandSide)
+{
+    DTypeMismatch mismatch;
+    mismatch.node = 3;
+    mismatch.op = Ops::K_MATMUL.id;
+    mismatch.value = 7;
+    mismatch.found = DType::Float32;
+    mismatch.expected = DType::Half;
     mismatch.is_result = false;
+
     EXPECT_NE(Graph::describe(mismatch).find("its operand value 7"), std::string::npos);
 }
 

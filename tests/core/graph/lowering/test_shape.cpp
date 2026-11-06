@@ -30,6 +30,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/all.hpp>
@@ -43,29 +44,50 @@ namespace
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow
     {
+        std::size_t index; /**< The position of the row in the table. */
         OpID op;           /**< The operation. */
         LoweringRule rule; /**< The row that lowers it. */
     };
+
+    /** @brief Runs once per row the header names for the shape table. */
+    class Small_ShapeRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the shape table in the order the header writes them. */
+    const std::array<ExpectedRow, 4> K_EXPECTED_ROWS = {{
+        {0, Ops::K_LEAF.id, &Graph::lower_leaf},
+        {1, Ops::K_RESHAPE.id, &Graph::lower_reshape},
+        {2, Ops::K_LAYOUT_CONVERT.id, &Graph::lower_layout_convert},
+        {3, Ops::K_STOP_GRADIENT.id, &Graph::lower_stop_gradient},
+    }};
 } // namespace
 
-/** @brief Tests that each row pairs its operation with the function the header names. */
-TEST(Small_ShapeLowerings, EachRowPairsItsOperationWithItsLowering)
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_ShapeLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
 {
-    const std::array<ExpectedRow, 4> expected = {{
-        {Ops::K_LEAF.id, &Graph::lower_leaf},
-        {Ops::K_RESHAPE.id, &Graph::lower_reshape},
-        {Ops::K_LAYOUT_CONVERT.id, &Graph::lower_layout_convert},
-        {Ops::K_STOP_GRADIENT.id, &Graph::lower_stop_gradient},
-    }};
-
-    ASSERT_EQ(Graph::K_SHAPE_LOWERINGS.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        const Graph::LoweringEntry& row = Graph::K_SHAPE_LOWERINGS[i];
-        EXPECT_EQ(row.op, expected[i].op) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.rule, expected[i].rule) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.scratch, nullptr) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(Graph::find_lowering(expected[i].op), expected[i].rule)
-            << Ops::name_of(expected[i].op);
-    }
+    EXPECT_EQ(Graph::K_SHAPE_LOWERINGS.size(), K_EXPECTED_ROWS.size());
 }
+
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_ShapeRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    ASSERT_LT(row.index, Graph::K_SHAPE_LOWERINGS.size());
+    const Graph::LoweringEntry& entry = Graph::K_SHAPE_LOWERINGS[row.index];
+
+    EXPECT_EQ(entry.op, row.op) << name;
+    EXPECT_EQ(entry.rule, row.rule) << name;
+    EXPECT_EQ(entry.scratch, nullptr) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_ShapeRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return name;
+                         });

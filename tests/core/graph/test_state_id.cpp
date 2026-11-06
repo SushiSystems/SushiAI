@@ -24,7 +24,7 @@
 
 /**
  * @file test_state_id.cpp
- * @brief Tests the process-wide state identity counter and self-assignment of a holder.
+ * @brief Tests the process-wide state identity counter and the identity a holder draws.
  * @author Mustafa Garip
  */
 
@@ -38,10 +38,9 @@ using Graph::K_NO_STATE;
 using Graph::StateID;
 using Graph::StateIdentity;
 
-/** @brief Tests that the identity meaning "none" is zero, which the counter never hands out. */
-TEST(Small_StateID, NoStateIsZeroAndIsNeverDrawn)
+/** @brief Tests that no drawn identity is the one meaning "none". */
+TEST(Small_StateID, NoDrawnIdentityIsNoState)
 {
-    EXPECT_EQ(static_cast<std::uint64_t>(K_NO_STATE), 0u);
     EXPECT_NE(Graph::Detail::draw_state_id(), K_NO_STATE);
 }
 
@@ -56,16 +55,103 @@ TEST(Small_StateID, EachDrawIsAboveTheOneBefore)
     EXPECT_LT(static_cast<std::uint64_t>(second), static_cast<std::uint64_t>(third));
 }
 
-/** @brief Tests that assigning a holder to itself, by copy or by move, keeps its identity. */
-TEST(Small_StateID, SelfAssignmentKeepsTheIdentity)
+/** @brief Tests that assigning a holder to itself by copy keeps its identity. */
+TEST(Small_StateID, CopySelfAssignmentKeepsTheIdentity)
 {
     StateIdentity holder;
     const StateID drawn = holder.get();
 
     StateIdentity& alias = holder;
     holder = alias;
-    EXPECT_EQ(holder.peek(), drawn);
 
-    holder = std::move(alias);
     EXPECT_EQ(holder.peek(), drawn);
+}
+
+/** @brief Tests that assigning a holder to itself by move keeps its identity. */
+TEST(Small_StateID, MoveSelfAssignmentKeepsTheIdentity)
+{
+    StateIdentity holder;
+    const StateID drawn = holder.get();
+
+    StateIdentity& alias = holder;
+    holder = std::move(alias);
+
+    EXPECT_EQ(holder.peek(), drawn);
+}
+
+/** @brief Tests that get() draws an identity once and returns it on every later call. */
+TEST(Small_StateID, GetDrawsOneStableIdentity)
+{
+    StateIdentity holder;
+
+    EXPECT_EQ(holder.peek(), K_NO_STATE);
+
+    const StateID drawn = holder.get();
+    EXPECT_NE(drawn, K_NO_STATE);
+    EXPECT_EQ(holder.get(), drawn);
+    EXPECT_EQ(holder.peek(), drawn);
+}
+
+/** @brief Tests that two holders never share an identity. */
+TEST(Small_StateID, TwoHoldersNeverShareAnIdentity)
+{
+    StateIdentity first;
+    StateIdentity second;
+
+    EXPECT_NE(second.get(), first.get());
+}
+
+/** @brief Tests that a copy-constructed holder is new state and draws its own identity. */
+TEST(Small_StateID, ACopyConstructedHolderDoesNotShareTheSourcesIdentity)
+{
+    StateIdentity source;
+    const StateID drawn = source.get();
+
+    StateIdentity copied(source);
+
+    EXPECT_EQ(copied.peek(), K_NO_STATE);
+    EXPECT_NE(copied.get(), drawn);
+    EXPECT_EQ(source.peek(), drawn);
+}
+
+/** @brief Tests that a copy-assigned holder drops its identity and never takes the source's. */
+TEST(Small_StateID, ACopyAssignedHolderDoesNotShareTheSourcesIdentity)
+{
+    StateIdentity source;
+    const StateID drawn = source.get();
+    StateIdentity assigned;
+    const StateID replaced = assigned.get();
+
+    assigned = source;
+
+    EXPECT_EQ(assigned.peek(), K_NO_STATE);
+    EXPECT_NE(assigned.get(), drawn);
+    EXPECT_NE(assigned.get(), replaced);
+    EXPECT_EQ(source.peek(), drawn);
+}
+
+/** @brief Tests that move construction carries the identity to the target and empties the source. */
+TEST(Small_StateID, AMoveConstructedHolderCarriesTheIdentityAway)
+{
+    StateIdentity source;
+    const StateID drawn = source.get();
+
+    StateIdentity moved(std::move(source));
+
+    EXPECT_EQ(moved.peek(), drawn);
+    EXPECT_EQ(source.peek(), K_NO_STATE);
+}
+
+/** @brief Tests that move assignment carries the identity to the target and empties the source. */
+TEST(Small_StateID, AMoveAssignedHolderCarriesTheIdentityAway)
+{
+    StateIdentity source;
+    const StateID drawn = source.get();
+    StateIdentity assigned;
+    (void)assigned.get();
+
+    assigned = std::move(source);
+
+    EXPECT_EQ(assigned.peek(), drawn);
+    EXPECT_EQ(source.peek(), K_NO_STATE);
 }

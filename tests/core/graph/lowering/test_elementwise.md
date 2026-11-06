@@ -1,17 +1,21 @@
 # tests/core/graph/lowering/test_elementwise.cpp
 
 
-Suites: `Small_ElementwiseLowerings`, `Medium_ElementwiseLowerings`.
+Suites: `Small_ElementwiseLowerings`, `Small_ElementwiseRow`, `Medium_ElementwiseLowerings`.
 
 Tests `K_ELEMENTWISE_LOWERINGS`, DYNAMIC_SCALE and CAST. The other elementwise rows are compared
 with host values in `tests/core/graph/test_lowering/test_hand_values.cpp` and
 `tests/core/graph/test_lowering/test_host_values.cpp`. The medium cases run on an engine; scaled
-values are compared within 1e-6 and converted values exactly, since float32 holds them without
+values are compared within `K_ABSOLUTE_TOLERANCE`, 32 unit roundoffs of float and converted values exactly, since float32 holds them without
 rounding.
+
+## TheTableHoldsExactlyTheRowsTheHeaderNames
+
+The table has as many rows as the header names (seventeen).
 
 ## EachRowPairsItsOperationWithItsLowering
 
-The table has seventeen rows, in the order the header writes them. Each row names its operation,
+One row per entry of the table, in the order the header writes them. Each row names its operation,
 the function the header declares for it and no scratch rule, and `find_lowering` returns that
 function for the operation.
 

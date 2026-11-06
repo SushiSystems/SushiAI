@@ -16,23 +16,22 @@ Every case but the first two draws from the site seed 2026. A mask is compared a
 ## EachSiteOfATraceHasItsOwnSeed
 
 `dropout_site_seed(0, 0)` and `dropout_site_seed(0, 1)` are the first two numbers of the case
-above. `dropout_site_seed(7, 0)` is 0x63CBE1E459320DD7 and `dropout_site_seed(7, 1)` is
-0x044C3CD7F43C661C.
+above. `dropout_site_seed(7, 0)` and `dropout_site_seed(7, 1)` equal the first two numbers of
+the SplitMix64 sequence of seed 7, which the test computes from the published constants.
 
-## TheBitsOfASeedARunAndAnElementAreGolden
+## TheBitsOfASeedARunAndAnElementFollowTheRule
 
-`dropout_bits` for elements 0 to 3 of runs 0 and 1 equals eight 64-bit constants written in the
-test.
+`dropout_bits` for elements 0 and 3 of runs 0 and 1 equals the test's own SplitMix64 of the
+SplitMix64 of the run: the sequence of the run seeds the sequence of the element.
 
-## TheMaskOfARunIsGolden
+## TheMaskOfARunKeepsTheElementsWhoseBitsFallBelowTheKeep
 
-At a keep of 0.5 the first 32 elements of run 0 are "11110000011001111110011111110000" and those
-of run 1 are "01110100100110000111111111000011".
+At a keep of 0.5 the first 32 elements of runs 0 and 1 equal the mask the rule gives: an element
+is kept when its top 53 bits, as a number in [0, 1), fall below the keep.
 
-## TheFillAgreesWithTheElementwiseQuestion
+## TheFillWritesTheMaskTheRuleGives
 
-For 257 elements of run 5 at a keep of 0.7, each element of the filled mask is 1 exactly when
-`dropout_keeps` returns true for it.
+For 257 elements of run 5 at a keep of 0.7, the filled mask equals the mask the rule gives.
 
 ## AShorterFillIsAPrefixOfALongerOne
 
@@ -42,15 +41,19 @@ A fill of 40 elements of run 2 at a keep of 0.9 equals the first 40 elements of 
 
 Two fills of 4096 elements of run 9 at a keep of 0.8 are equal.
 
-## TwoRunsAndTwoSitesDrawDifferentMasks
+## TwoRunsDrawDifferentMasks
 
-Runs 0 and 1 at a keep of 0.5 differ in 2033 of 4096 elements. The masks of the site seeds
-`dropout_site_seed(0, 0)` and `dropout_site_seed(0, 1)` are not equal.
+Runs 0 and 1 at a keep of 0.5 draw different masks of 4096 elements.
+
+## TwoSitesDrawDifferentMasks
+
+The masks of the site seeds `dropout_site_seed(0, 0)` and `dropout_site_seed(0, 1)` are not equal.
 
 ## TheKeptFractionIsTheKeepProbability
 
-Over 2^20 draws the kept fraction is within 0.002 of the keep: 0.9 and 0.5 in run 0, and 0.9 in
-run 3.
+Over 2^20 draws the kept fraction is within `K_FRACTION_TOLERANCE` of the keep: 0.9 and 0.5 in
+run 0, and 0.9 in run 3. The bound is 4.1 standard deviations of the worst case, 0.5 / 2^10, which
+is 0.002002 and a false-failure rate of 4.1e-5 for a fair draw. The seed is fixed.
 
 ## TheTwoEndsOfTheKeepRangeAreExact
 

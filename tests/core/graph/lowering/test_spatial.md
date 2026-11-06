@@ -1,16 +1,20 @@
 # tests/core/graph/lowering/test_spatial.cpp
 
 
-Suites: `Small_SpatialLowerings`, `Medium_SpatialLowerings`.
+Suites: `Small_SpatialLowerings`, `Small_SpatialRow`, `Medium_SpatialLowerings`.
 
 Tests `K_SPATIAL_LOWERINGS` and two gradient rows no other file compares with host values. The
 forward spatial rows are covered in `tests/core/graph/test_lowering/test_hand_values.cpp`. The
 file-local `run_one` writes one leaf, compiles and runs the graph once and reads one result. Results
-are FLOAT32, compared within 1e-6.
+are FLOAT32, compared within `K_ABSOLUTE_TOLERANCE`, 32 unit roundoffs of float.
+
+## TheTableHoldsExactlyTheRowsTheHeaderNames
+
+The table has as many rows as the header names (fifteen).
 
 ## EachRowPairsItsOperationWithItsLowering
 
-The table has fifteen rows, in the order the header writes them. Each row names its operation,
+One row per entry of the table, in the order the header writes them. Each row names its operation,
 the function the header declares for it and no scratch rule, and `find_lowering` returns that
 function for the operation.
 

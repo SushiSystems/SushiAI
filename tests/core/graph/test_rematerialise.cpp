@@ -180,25 +180,20 @@ TEST_F(Medium_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
     ASSERT_EQ(recomputed.cols_lifetime, Graph::Lifetime::Scratch);
 
     // Equality is exact, not within a tolerance; see tests/core/graph/README.md.
-    ASSERT_EQ(recomputed.loss.size(), stored.loss.size());
-    for (std::size_t i = 0; i < stored.loss.size(); ++i)
-        EXPECT_EQ(recomputed.loss[i], stored.loss[i]) << "loss element " << i;
+    EXPECT_EQ(recomputed.loss, stored.loss);
 
-    ASSERT_EQ(recomputed.weight_gradient.size(), stored.weight_gradient.size());
     ASSERT_EQ(recomputed.weight_gradient.size(), std::size_t{18 * 4});
 
     // A gradient of all zeros would compare equal without proving anything.
-    double largest = 0.0;
-    for (double value : stored.weight_gradient)
-        largest = std::max(largest, std::abs(value));
-    ASSERT_GT(largest, K_NON_VACUOUS_FLOOR) << "the reference gradient is empty; the comparison is vacuous";
+    ASSERT_TRUE(std::any_of(stored.weight_gradient.begin(), stored.weight_gradient.end(),
+                            [](double value) { return std::abs(value) > K_NON_VACUOUS_FLOOR; }))
+        << "the reference gradient is empty; the comparison is vacuous";
 
-    for (std::size_t i = 0; i < stored.weight_gradient.size(); ++i)
-        EXPECT_EQ(recomputed.weight_gradient[i], stored.weight_gradient[i])
-            << "weight gradient element " << i;
+    EXPECT_EQ(recomputed.weight_gradient, stored.weight_gradient);
 }
 
-TEST_F(Medium_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
+/** @brief Tests that after the pass the column matrix is planned in a Scratch arena. */
+TEST(Small_Rematerialise, TheColumnMatrixLeavesTheActivationArena)
 {
     // The planner must agree with the lifetime; see tests/core/graph/README.md.
     Graph::Graph graph;

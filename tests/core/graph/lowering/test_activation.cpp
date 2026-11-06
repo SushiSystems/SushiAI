@@ -31,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
@@ -68,45 +69,96 @@ namespace
      */
     constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
+    /** @brief Compares every element of @p got with @p expected to within @p absolute. */
+    void expect_elements(const std::vector<double>& got, const std::vector<double>& expected,
+                         double absolute)
+    {
+        ASSERT_EQ(got.size(), expected.size());
+
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            EXPECT_NEAR(got[i], expected[i], absolute) << "at " << i;
+    }
+
+    /** @brief Returns dy * (1 - y * y) element by element, the tanh gradient given its output. */
+    std::vector<double> host_tanh_gradient(const std::vector<double>& upstream,
+                                           const std::vector<double>& output)
+    {
+        std::vector<double> gradient(upstream.size());
+        for (std::size_t i = 0; i < upstream.size(); ++i)
+            gradient[i] = upstream[i] * (1.0 - output[i] * output[i]);
+        return gradient;
+    }
+
+    /** @brief Returns dy * y * (1 - y) element by element, the sigmoid gradient given its output. */
+    std::vector<double> host_sigmoid_gradient(const std::vector<double>& upstream,
+                                              const std::vector<double>& output)
+    {
+        std::vector<double> gradient(upstream.size());
+        for (std::size_t i = 0; i < upstream.size(); ++i)
+            gradient[i] = upstream[i] * output[i] * (1.0 - output[i]);
+        return gradient;
+    }
+
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow
     {
+        std::size_t index; /**< The position of the row in the table. */
         OpID op;          /**< The operation. */
         LoweringRule rule; /**< The row that lowers it. */
     };
+
+    /** @brief Runs once per row the header names for the activation table. */
+    class Small_ActivationRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the activation table in the order the header writes them. */
+    const std::array<ExpectedRow, 14> K_EXPECTED_ROWS = {{
+        {0, Ops::K_RELU.id, &Graph::lower_relu},
+        {1, Ops::K_GELU.id, &Graph::lower_gelu},
+        {2, Ops::K_SIGMOID.id, &Graph::lower_sigmoid},
+        {3, Ops::K_TANH.id, &Graph::lower_tanh},
+        {4, Ops::K_SILU.id, &Graph::lower_silu},
+        {5, Ops::K_SOFTPLUS.id, &Graph::lower_softplus},
+        {6, Ops::K_LEAKY_RELU.id, &Graph::lower_leaky_relu},
+        {7, Ops::K_RELU_BACKWARD.id, &Graph::lower_relu_backward},
+        {8, Ops::K_GELU_BACKWARD.id, &Graph::lower_gelu_backward},
+        {9, Ops::K_SIGMOID_BACKWARD.id, &Graph::lower_sigmoid_backward},
+        {10, Ops::K_TANH_BACKWARD.id, &Graph::lower_tanh_backward},
+        {11, Ops::K_SILU_BACKWARD.id, &Graph::lower_silu_backward},
+        {12, Ops::K_SOFTPLUS_BACKWARD.id, &Graph::lower_softplus_backward},
+        {13, Ops::K_LEAKY_RELU_BACKWARD.id, &Graph::lower_leaky_relu_backward},
+    }};
 } // namespace
 
-/** @brief Tests that each row pairs its operation with the function the header names. */
-TEST(Small_ActivationLowerings, EachRowPairsItsOperationWithItsLowering)
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_ActivationLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
 {
-    const std::array<ExpectedRow, 14> expected = {{
-        {Ops::K_RELU.id, &Graph::lower_relu},
-        {Ops::K_GELU.id, &Graph::lower_gelu},
-        {Ops::K_SIGMOID.id, &Graph::lower_sigmoid},
-        {Ops::K_TANH.id, &Graph::lower_tanh},
-        {Ops::K_SILU.id, &Graph::lower_silu},
-        {Ops::K_SOFTPLUS.id, &Graph::lower_softplus},
-        {Ops::K_LEAKY_RELU.id, &Graph::lower_leaky_relu},
-        {Ops::K_RELU_BACKWARD.id, &Graph::lower_relu_backward},
-        {Ops::K_GELU_BACKWARD.id, &Graph::lower_gelu_backward},
-        {Ops::K_SIGMOID_BACKWARD.id, &Graph::lower_sigmoid_backward},
-        {Ops::K_TANH_BACKWARD.id, &Graph::lower_tanh_backward},
-        {Ops::K_SILU_BACKWARD.id, &Graph::lower_silu_backward},
-        {Ops::K_SOFTPLUS_BACKWARD.id, &Graph::lower_softplus_backward},
-        {Ops::K_LEAKY_RELU_BACKWARD.id, &Graph::lower_leaky_relu_backward},
-    }};
-
-    ASSERT_EQ(Graph::K_ACTIVATION_LOWERINGS.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        const Graph::LoweringEntry& row = Graph::K_ACTIVATION_LOWERINGS[i];
-        EXPECT_EQ(row.op, expected[i].op) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.rule, expected[i].rule) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.scratch, nullptr) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(Graph::find_lowering(expected[i].op), expected[i].rule)
-            << Ops::name_of(expected[i].op);
-    }
+    EXPECT_EQ(Graph::K_ACTIVATION_LOWERINGS.size(), K_EXPECTED_ROWS.size());
 }
+
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_ActivationRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    ASSERT_LT(row.index, Graph::K_ACTIVATION_LOWERINGS.size());
+    const Graph::LoweringEntry& entry = Graph::K_ACTIVATION_LOWERINGS[row.index];
+
+    EXPECT_EQ(entry.op, row.op) << name;
+    EXPECT_EQ(entry.rule, row.rule) << name;
+    EXPECT_EQ(entry.scratch, nullptr) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_ActivationRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return name;
+                         });
 
 /**
  * @brief Tests that the tanh and sigmoid gradients read the forward output, not the input.
@@ -129,13 +181,8 @@ TEST_F(Medium_ActivationLowerings, TanhAndSigmoidGradientsReadTheForwardOutput)
     const std::vector<double> upstream = {1.0, -2.0, 0.5, 3.0, -0.25, 1.5};
     const std::vector<double> output = {0.1, 0.25, 0.5, 0.75, 0.9, 0.05};
 
-    std::vector<double> expected_tanh(6);
-    std::vector<double> expected_sigmoid(6);
-    for (std::size_t i = 0; i < 6; ++i)
-    {
-        expected_tanh[i] = upstream[i] * (1.0 - output[i] * output[i]);
-        expected_sigmoid[i] = upstream[i] * output[i] * (1.0 - output[i]);
-    }
+    const std::vector<double> expected_tanh = host_tanh_gradient(upstream, output);
+    const std::vector<double> expected_sigmoid = host_sigmoid_gradient(upstream, output);
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -146,13 +193,8 @@ TEST_F(Medium_ActivationLowerings, TanhAndSigmoidGradientsReadTheForwardOutput)
     SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
     SA_EXPECT_OK(step->run());
 
-    const std::vector<double> got_tanh = SaTest::read_tensor(pool.tensor(tanh_dx));
-    const std::vector<double> got_sigmoid = SaTest::read_tensor(pool.tensor(sigmoid_dx));
-    ASSERT_EQ(got_tanh.size(), 6u);
-    ASSERT_EQ(got_sigmoid.size(), 6u);
-    for (std::size_t i = 0; i < 6; ++i)
-    {
-        EXPECT_NEAR(got_tanh[i], expected_tanh[i], K_ABSOLUTE_TOLERANCE) << "at " << i;
-        EXPECT_NEAR(got_sigmoid[i], expected_sigmoid[i], K_ABSOLUTE_TOLERANCE) << "at " << i;
-    }
+    expect_elements(SaTest::read_tensor(pool.tensor(tanh_dx)), expected_tanh,
+                    K_ABSOLUTE_TOLERANCE);
+    expect_elements(SaTest::read_tensor(pool.tensor(sigmoid_dx)), expected_sigmoid,
+                    K_ABSOLUTE_TOLERANCE);
 }

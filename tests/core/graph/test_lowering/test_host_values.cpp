@@ -235,6 +235,90 @@ namespace
     {
         return 1.0 / (1.0 + std::exp(-x));
     }
+
+    /** @brief Returns @p count values of the pattern ((i * stride) % modulus) - offset. */
+    std::vector<double> patterned(std::size_t count, std::size_t stride, std::size_t modulus,
+                                  double offset)
+    {
+        std::vector<double> values(count);
+        for (std::size_t i = 0; i < count; ++i)
+            values[i] = static_cast<double>((i * stride) % modulus) - offset;
+        return values;
+    }
+
+    /** @brief Returns @p function applied to every element of @p values. */
+    template <typename Function>
+    std::vector<double> mapped(const std::vector<double>& values, Function function)
+    {
+        std::vector<double> result(values.size());
+        for (std::size_t i = 0; i < values.size(); ++i)
+            result[i] = function(values[i]);
+        return result;
+    }
+
+    /** @brief Returns @p function applied to every pair of elements of @p left and @p right. */
+    template <typename Function>
+    std::vector<double> zipped(const std::vector<double>& left, const std::vector<double>& right,
+                               Function function)
+    {
+        std::vector<double> result(left.size());
+        for (std::size_t i = 0; i < left.size(); ++i)
+            result[i] = function(left[i], right[i]);
+        return result;
+    }
+
+    /**
+     * @brief Returns the 3 x 3 depthwise convolution of a [4, 4, 2] image with a [3, 3, 2] kernel
+     *        and one pixel of padding at the top and left, taken on the host.
+     *
+     * Each output sums the taps whose input pixel lies inside the image; the rest add nothing.
+     */
+    std::vector<double> host_depthwise_conv(const std::vector<double>& image,
+                                            const std::vector<double>& taps)
+    {
+        constexpr int64_t K_HEIGHT = 4;
+        constexpr int64_t K_WIDTH = 4;
+        constexpr int64_t K_CHANNELS = 2;
+        constexpr int64_t K_KERNEL = 3;
+        constexpr int64_t K_PAD = 1;
+
+        const auto pixel = [](int64_t row, int64_t col, int64_t c)
+        {
+            return static_cast<std::size_t>((row * K_WIDTH + col) * K_CHANNELS + c);
+        };
+        const auto tap = [](int64_t r, int64_t s, int64_t c)
+        {
+            return static_cast<std::size_t>((r * K_KERNEL + s) * K_CHANNELS + c);
+        };
+
+        std::vector<double> result(image.size(), 0.0);
+        for (int64_t row = 0; row < K_HEIGHT; ++row)
+        {
+            for (int64_t col = 0; col < K_WIDTH; ++col)
+            {
+                for (int64_t c = 0; c < K_CHANNELS; ++c)
+                {
+                    for (int64_t r = 0; r < K_KERNEL; ++r)
+                    {
+                        for (int64_t s = 0; s < K_KERNEL; ++s)
+                        {
+                            const int64_t in_row = row + r - K_PAD;
+                            const int64_t in_col = col + s - K_PAD;
+                            if (in_row < 0 || in_row >= K_HEIGHT || in_col < 0
+                                || in_col >= K_WIDTH)
+                            {
+                                continue;
+                            }
+
+                            result[pixel(row, col, c)] +=
+                                image[pixel(in_row, in_col, c)] * taps[tap(r, s, c)];
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    }
 }
 
 /** @brief Tests that DIV divides elementwise over both signs of each operand. */
@@ -246,11 +330,8 @@ TEST_F(Medium_LoweredOperations, DivDividesElementwise)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::div, dividend, divisor, result));
 
-    std::vector<double> expected(dividend.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = dividend[i] / divisor[i];
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, zipped(dividend, divisor, [](double a, double b) { return a / b; }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that MINIMUM takes the smaller element whichever operand holds it. */
@@ -262,11 +343,8 @@ TEST_F(Medium_LoweredOperations, MinimumTakesTheSmallerOperand)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::minimum, left, right, result));
 
-    std::vector<double> expected(left.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = std::min(left[i], right[i]);
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, zipped(left, right, [](double a, double b) { return std::min(a, b); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that MAXIMUM takes the larger element whichever operand holds it. */
@@ -278,11 +356,8 @@ TEST_F(Medium_LoweredOperations, MaximumTakesTheLargerOperand)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::maximum, left, right, result));
 
-    std::vector<double> expected(left.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = std::max(left[i], right[i]);
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, zipped(left, right, [](double a, double b) { return std::max(a, b); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that ABS returns the magnitude of negative, zero and positive elements. */
@@ -293,11 +368,8 @@ TEST_F(Medium_LoweredOperations, AbsReturnsTheMagnitude)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::abs, input, result));
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = std::abs(input[i]);
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, mapped(input, [](double v) { return std::abs(v); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that ATAN returns the arctangent on both sides of zero and near its limit. */
@@ -308,11 +380,8 @@ TEST_F(Medium_LoweredOperations, AtanReturnsTheArctangent)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::atan, input, result));
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = std::atan(input[i]);
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, mapped(input, [](double v) { return std::atan(v); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that LESS_EQUAL writes 1 for less and for equal, and 0 for greater. */
@@ -325,11 +394,9 @@ TEST_F(Medium_LoweredOperations, LessEqualWritesOneForLessAndForEqual)
     ASSERT_NO_FATAL_FAILURE(
         run_binary(*engine, &GraphBuilder::less_equal, left, right, result));
 
-    std::vector<double> expected(left.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = left[i] <= right[i] ? 1.0 : 0.0;
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result,
+                    zipped(left, right, [](double a, double b) { return a <= b ? 1.0 : 0.0; }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that SELECT takes the first branch where the mask is 1 and the second at 0. */
@@ -354,11 +421,9 @@ TEST_F(Medium_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
 
     ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
 
-    std::vector<double> expected(mask.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = mask[i] != 0.0 ? taken[i] : other[i];
-
-    expect_elements(read_tensor(run.pool.tensor(y)), expected, K_FLOAT32_TOLERANCE);
+    // Where the mask is 1 the first branch, where it is 0 the second.
+    expect_elements(read_tensor(run.pool.tensor(y)),
+                    std::vector<double>{-1.0, -20.0, 0.0, 0.0, 50.0, 6.0}, K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that CONSTANT fills every element with its attribute, on each run. */
@@ -388,11 +453,8 @@ TEST_F(Medium_LoweredOperations, ConstantFillsEveryElementWithItsValue)
     expect_elements(read_tensor(run.pool.tensor(like)), std::vector<double>(6, K_LIKE_FILL),
                     K_FLOAT32_TOLERANCE);
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = input[i] + K_LIKE_FILL;
-
-    expect_elements(read_tensor(run.pool.tensor(shifted)), expected, K_FLOAT32_TOLERANCE);
+    expect_elements(read_tensor(run.pool.tensor(shifted)),
+                    mapped(input, [](double v) { return v + K_LIKE_FILL; }), K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that SILU returns x * sigmoid(x) on both sides of zero. */
@@ -403,11 +465,8 @@ TEST_F(Medium_LoweredOperations, SiLUMatchesItsDefinition)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::silu, input, result));
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = input[i] * host_sigmoid(input[i]);
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, mapped(input, [](double v) { return v * host_sigmoid(v); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests that SOFTPLUS returns log(1 + exp(x)), including where it nears 0 and x. */
@@ -418,11 +477,8 @@ TEST_F(Medium_LoweredOperations, SoftplusMatchesItsDefinition)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::softplus, input, result));
 
-    std::vector<double> expected(input.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = std::log1p(std::exp(input[i]));
-
-    expect_elements(result, expected, K_FLOAT32_TOLERANCE);
+    expect_elements(result, mapped(input, [](double v) { return std::log1p(std::exp(v)); }),
+                    K_FLOAT32_TOLERANCE);
 }
 
 /** @brief Tests SILU_BACKWARD against sigmoid(x) * (1 + x * (1 - sigmoid(x))). */
@@ -435,14 +491,14 @@ TEST_F(Medium_LoweredOperations, SiLUBackwardMatchesTheClosedFormDerivative)
     ASSERT_NO_FATAL_FAILURE(
         run_activation_gradient(*engine, &GraphBuilder::silu, point, targets, gradient));
 
-    std::vector<double> expected(point.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
+    const std::vector<double> derivative = mapped(point, [](double v)
     {
-        const double s = host_sigmoid(point[i]);
-        expected[i] = -targets[i] / 2.0 * s * (1.0 + point[i] * (1.0 - s));
-    }
-
-    expect_elements(gradient, expected, K_FLOAT64_TOLERANCE);
+        const double s = host_sigmoid(v);
+        return s * (1.0 + v * (1.0 - s));
+    });
+    expect_elements(gradient,
+                    zipped(targets, derivative, [](double t, double d) { return -t / 2.0 * d; }),
+                    K_FLOAT64_TOLERANCE);
 }
 
 /** @brief Tests SOFTPLUS_BACKWARD against sigmoid(x), the derivative of log(1 + exp(x)). */
@@ -455,11 +511,10 @@ TEST_F(Medium_LoweredOperations, SoftplusBackwardMatchesTheClosedFormDerivative)
     ASSERT_NO_FATAL_FAILURE(
         run_activation_gradient(*engine, &GraphBuilder::softplus, point, targets, gradient));
 
-    std::vector<double> expected(point.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-        expected[i] = -targets[i] / 2.0 * host_sigmoid(point[i]);
-
-    expect_elements(gradient, expected, K_FLOAT64_TOLERANCE);
+    expect_elements(gradient,
+                    zipped(targets, mapped(point, host_sigmoid),
+                           [](double t, double d) { return -t / 2.0 * d; }),
+                    K_FLOAT64_TOLERANCE);
 }
 
 /** @brief Tests that STOP_GRADIENT copies its operand's elements unchanged. */
@@ -470,7 +525,7 @@ TEST_F(Medium_LoweredOperations, StopGradientCopiesItsOperand)
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::stop_gradient, input, result));
 
-    expect_elements(result, input, K_FLOAT32_TOLERANCE);
+    EXPECT_EQ(result, input);
 }
 
 /** @brief Tests that BATCHNORM_FOLD writes gamma / sqrt(variance + eps) and its shift. */
@@ -502,13 +557,11 @@ TEST_F(Medium_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
 
     ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
 
-    std::vector<double> expected_scale(gammas.size());
-    std::vector<double> expected_shift(gammas.size());
-    for (std::size_t i = 0; i < gammas.size(); ++i)
-    {
-        expected_scale[i] = gammas[i] / std::sqrt(variances[i] + K_EPSILON);
-        expected_shift[i] = betas[i] - means[i] * expected_scale[i];
-    }
+    const std::vector<double> expected_scale =
+        zipped(gammas, variances, [](double g, double v) { return g / std::sqrt(v + K_EPSILON); });
+    const std::vector<double> expected_shift =
+        zipped(betas, zipped(means, expected_scale, [](double m, double s) { return m * s; }),
+               [](double b, double scaled_mean) { return b - scaled_mean; });
 
     expect_elements(read_tensor(run.pool.tensor(fold.scale)), expected_scale,
                     K_FLOAT32_TOLERANCE);
@@ -516,7 +569,7 @@ TEST_F(Medium_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
                     K_FLOAT32_TOLERANCE);
 }
 
-/** @brief Tests that DEPTHWISE_CONV2D matches three nested loops over a padded 3x3 window. */
+/** @brief Tests that DEPTHWISE_CONV2D equals the sums over a padded 3x3 window taken on the host. */
 TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
 {
     constexpr int64_t K_HEIGHT = 4;
@@ -526,17 +579,10 @@ TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
     constexpr int64_t K_PAD = 1;
 
     // Integer-valued data, so every product and sum is exact in FLOAT32.
-    std::vector<double> image(static_cast<std::size_t>(K_HEIGHT * K_WIDTH * K_CHANNELS));
-    for (std::size_t i = 0; i < image.size(); ++i)
-    {
-        image[i] = static_cast<double>((i * 7) % 11) - 5.0;
-    }
-
-    std::vector<double> taps(static_cast<std::size_t>(K_KERNEL * K_KERNEL * K_CHANNELS));
-    for (std::size_t i = 0; i < taps.size(); ++i)
-    {
-        taps[i] = static_cast<double>((i * 5) % 7) - 3.0;
-    }
+    const std::vector<double> image =
+        patterned(static_cast<std::size_t>(K_HEIGHT * K_WIDTH * K_CHANNELS), 7, 11, 5.0);
+    const std::vector<double> taps =
+        patterned(static_cast<std::size_t>(K_KERNEL * K_KERNEL * K_CHANNELS), 5, 7, 3.0);
 
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -557,42 +603,7 @@ TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
 
     ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
 
-    const auto pixel = [](int64_t row, int64_t col, int64_t c)
-    {
-        return static_cast<std::size_t>((row * K_WIDTH + col) * K_CHANNELS + c);
-    };
-    const auto tap = [](int64_t r, int64_t s, int64_t c)
-    {
-        return static_cast<std::size_t>((r * K_KERNEL + s) * K_CHANNELS + c);
-    };
-
-    // Each output sums the taps whose input pixel lies inside the image; the rest add nothing.
-    std::vector<double> expected(image.size(), 0.0);
-    for (int64_t row = 0; row < K_HEIGHT; ++row)
-    {
-        for (int64_t col = 0; col < K_WIDTH; ++col)
-        {
-            for (int64_t c = 0; c < K_CHANNELS; ++c)
-            {
-                for (int64_t r = 0; r < K_KERNEL; ++r)
-                {
-                    for (int64_t s = 0; s < K_KERNEL; ++s)
-                    {
-                        const int64_t in_row = row + r - K_PAD;
-                        const int64_t in_col = col + s - K_PAD;
-                        if (in_row < 0 || in_row >= K_HEIGHT || in_col < 0 || in_col >= K_WIDTH)
-                        {
-                            continue;
-                        }
-
-                        expected[pixel(row, col, c)] +=
-                            image[pixel(in_row, in_col, c)] * taps[tap(r, s, c)];
-                    }
-                }
-            }
-        }
-    }
-
     const Tolerance window_tolerance = {K_FLOAT32_TOLERANCE.absolute, 0.0};
-    expect_elements(read_tensor(run.pool.tensor(y)), expected, window_tolerance);
+    expect_elements(read_tensor(run.pool.tensor(y)), host_depthwise_conv(image, taps),
+                    window_tolerance);
 }

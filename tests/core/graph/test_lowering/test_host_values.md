@@ -9,9 +9,10 @@ builds a graph with one operation, compiles it with `CompiledStep::compile`, run
 result back. The gradient cases reach the gradient through `Autograd::differentiate`, on a
 negative log-likelihood root, and compare it with the closed-form derivative.
 
-The forward cases allow an absolute error of 1e-6 and a relative error of 1e-5. The gradient cases
-allow 1e-12 and 1e-9. These bounds are estimates, and nothing has checked them against the device
-kernels.
+The forward cases allow `K_FLOAT32_TOLERANCE`: an absolute error of 32 unit roundoffs of float and
+a relative error of 256. The gradient cases allow `K_FLOAT64_TOLERANCE`: 16384 unit roundoffs of
+double absolute and 2^24 relative. These bounds are estimates, and nothing has checked them against
+the device kernels.
 
 Before this file, the integration and regression tiers built none of these operations. The unit
 tier builds them as nodes and never compiles them. The fixture is a local copy of `OneShot` from
@@ -71,7 +72,7 @@ closed-form derivative of softplus.
 
 ## StopGradientCopiesItsOperand
 
-STOP_GRADIENT copies its operand forward unchanged. The case checks only that forward copy. It does
+STOP_GRADIENT copies its operand forward unchanged, element for element. The case checks only that forward copy. It does
 not check that the gradient is blocked on the device.
 
 ## BatchNormFoldWritesTheScaleAndTheShift
@@ -84,7 +85,7 @@ denominator.
 
 A 3x3 depthwise convolution with a pad of 1 runs over a `[1, 4, 4, 2]` image of integer values with
 integer taps. Each output equals the sum of the taps whose input pixel lies inside the image,
-computed by a host loop, within 1e-6.
+computed on the host, within the absolute part of `K_FLOAT32_TOLERANCE`.
 
 Suites: `Small_ArgmaxLifetime`.
 

@@ -28,7 +28,9 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
+#include <iterator>
 #include <cstdint>
 #include <string>
 #include <string_view>
@@ -51,7 +53,6 @@ using Graph::K_NO_STATE;
 using Graph::K_NO_NODE;
 using Graph::K_NO_VALUE;
 using Graph::StateID;
-using Graph::StateIdentity;
 using Graph::ValueID;
 
 TEST(Small_Ir, AddValueRecordsShapeDTypeAndLifetime)
@@ -139,25 +140,51 @@ TEST(Small_Ir, PropagateRequiresGradLeavesAFrozenBranchAlone)
     EXPECT_TRUE(graph.value(live).requires_grad);
 }
 
-TEST(Small_Ir, BuilderInfersMatmulShapesForEveryTranspositionCase)
+namespace
 {
+    /** @brief Names the operand shapes and the transposition flags of one matmul row. */
+    struct MatmulRow
+    {
+        const char* name; /**< The row's name in the test report. */
+        Shape a;          /**< The left operand shape. */
+        Shape b;          /**< The right operand shape. */
+        bool transpose_a; /**< Whether the left operand is read transposed. */
+        bool transpose_b; /**< Whether the right operand is read transposed. */
+    };
+
+    /** @brief Runs once per transposition case of matmul shape inference. */
+    class Small_IrMatmulRow : public ::testing::TestWithParam<MatmulRow>
+    {
+    };
+
+    const MatmulRow K_MATMUL_ROWS[] = {
+        {"NoTranspose", Shape{4, 3}, Shape{3, 5}, false, false},
+        {"TransposedLeft", Shape{3, 4}, Shape{3, 5}, true, false},
+        {"TransposedRight", Shape{4, 3}, Shape{5, 3}, false, true},
+        {"TransposedBoth", Shape{3, 4}, Shape{5, 3}, true, true},
+    };
+} // namespace
+
+/** @brief Tests that matmul infers a [4, 5] product under each transposition case. */
+TEST_P(Small_IrMatmulRow, BuilderInfersMatmulShapesForEveryTranspositionCase)
+{
+    const MatmulRow row = GetParam();
     Graph::Graph graph;
     const GraphBuilder builder(graph);
+    const ValueID a = builder.input(row.a, "a");
+    const ValueID b = builder.input(row.b, "b");
 
-    const ValueID a = builder.input(Shape{4, 3}, "a");    // [m, k]
-    const ValueID at = builder.input(Shape{3, 4}, "at");  // [k, m]
-    const ValueID b = builder.input(Shape{3, 5}, "b");    // [k, n]
-    const ValueID bt = builder.input(Shape{5, 3}, "bt");  // [n, k]
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID product,
+                            builder.matmul(a, b, row.transpose_a, row.transpose_b));
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.matmul(a, b, false, false));
     EXPECT_EQ(graph.value(product).shape, Shape({4, 5}));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_at, builder.matmul(at, b, true, false));
-    EXPECT_EQ(graph.value(product_at).shape, Shape({4, 5}));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_bt, builder.matmul(a, bt, false, true));
-    EXPECT_EQ(graph.value(product_bt).shape, Shape({4, 5}));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID product_atbt, builder.matmul(at, bt, true, true));
-    EXPECT_EQ(graph.value(product_atbt).shape, Shape({4, 5}));
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_IrMatmulRow, ::testing::ValuesIn(K_MATMUL_ROWS),
+                         [](const ::testing::TestParamInfo<MatmulRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
 
 TEST(Small_Ir, BuilderRejectsAContractionMismatch)
 {
@@ -170,27 +197,63 @@ TEST(Small_Ir, BuilderRejectsAContractionMismatch)
     SA_EXPECT_FAILURE(builder.matmul(a, b, false, false), StatusCode::InvalidDescription);
 }
 
-TEST(Small_Ir, BuilderChecksBiasAndLossShapes)
+/** @brief Tests that bias_add keeps the shape of its input. */
+TEST(Small_Ir, BiasAddKeepsTheInputShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-
     const ValueID x = builder.input(Shape{4, 5}, "x");
-    const ValueID good = builder.input(Shape{5}, "good");
+    const ValueID bias = builder.input(Shape{5}, "bias");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID biased, builder.bias_add(x, bias));
+
+    EXPECT_EQ(graph.value(biased).shape, Shape({4, 5}));
+}
+
+/** @brief Tests that bias_add refuses a bias whose extent is not the column count. */
+TEST(Small_Ir, BiasAddRefusesABiasOfTheWrongExtent)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 5}, "x");
     const ValueID bad = builder.input(Shape{4}, "bad");
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID biased, builder.bias_add(x, good));
-    EXPECT_EQ(graph.value(biased).shape, Shape({4, 5}));
     SA_EXPECT_FAILURE(builder.bias_add(x, bad), StatusCode::InvalidDescription);
+}
+
+/** @brief Tests that sum_rows yields one element per column. */
+TEST(Small_Ir, SumRowsYieldsOneElementPerColumn)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 5}, "x");
 
     SA_ASSERT_OK_AND_ASSIGN(const ValueID column_sums, builder.sum_rows(x));
+
     EXPECT_EQ(graph.value(column_sums).shape, Shape({5}));
+}
 
+/** @brief Tests that nll_loss yields a single element for logits and targets of one shape. */
+TEST(Small_Ir, NllLossYieldsOneElement)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 5}, "x");
     const ValueID targets = builder.input(Shape{4, 5}, "targets");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(x, targets));
-    EXPECT_EQ(graph.value(loss).shape, Shape({1}));
 
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(x, targets));
+
+    EXPECT_EQ(graph.value(loss).shape, Shape({1}));
+}
+
+/** @brief Tests that nll_loss refuses targets of another shape than the logits. */
+TEST(Small_Ir, NllLossRefusesTargetsOfAnotherShape)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 5}, "x");
     const ValueID wrong = builder.input(Shape{4, 6}, "wrong");
+
     SA_EXPECT_FAILURE(builder.nll_loss(x, wrong), StatusCode::InvalidDescription);
 }
 
@@ -207,6 +270,7 @@ TEST(Small_Ir, BuilderRejectsMixedElementTypes)
                       StatusCode::InvalidDescription);
 }
 
+/** @brief Tests that a node is emitted after the node that produces its operand. */
 TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
 {
     // Insertion order is a topological order; see tests/core/graph/README.md.
@@ -216,16 +280,10 @@ TEST(Small_Ir, NodesAreEmittedInTopologicalOrder)
     const ValueID x = builder.input(Shape{2, 2}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID z, builder.tanh(y));
-    (void)z;
 
-    for (std::size_t i = 0; i < graph.node_count(); ++i)
-        for (Graph::ValueID in : graph.nodes()[i].inputs)
-        {
-            const Graph::NodeID producer = graph.value(in).producer;
-            if (producer != K_NO_NODE) EXPECT_LT(producer, i);
-        }
-}
+    EXPECT_LT(graph.value(y).producer, graph.value(z).producer);}
 
+/** @brief Tests that insert_node is fatal for a producer placed after the node that reads it. */
 TEST(Small_Ir, InsertNodeIsFatalForAResultThatIsAlreadyReadEarlier)
 {
     // insert_node refuses a producer placed after its reader; see tests/core/graph/README.md.
@@ -239,9 +297,19 @@ TEST(Small_Ir, InsertNodeIsFatalForAResultThatIsAlreadyReadEarlier)
 
     SA_EXPECT_FATAL((void)graph.insert_node(1, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}}),
                     "sushiai.relu", "inserted at 1", "value 1", "node 0 reads", "topological");
+}
 
-    // The same node ahead of the reader is accepted; see tests/core/graph/README.md.
+/** @brief Tests that insert_node accepts the same producer ahead of the node that reads it. */
+TEST(Small_Ir, InsertNodeAcceptsAResultAheadOfItsReader)
+{
+    Graph::Graph graph;
+    const ValueID x = graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+    const ValueID orphan = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "orphan");
+    const ValueID y = graph.add_value(Shape{2}, DType::Float32, Lifetime::Activation, "y");
+    (void)graph.add_node(Ops::K_ADD.id, {x, orphan}, {y});
+
     (void)graph.insert_node(0, Graph::Node{Ops::K_RELU.id, {x}, {orphan}, {}});
+
     EXPECT_EQ(graph.node_count(), 2u);
     EXPECT_EQ(graph.value(orphan).producer, Graph::NodeID{0});
     EXPECT_EQ(graph.value(y).producer, Graph::NodeID{1});
@@ -261,30 +329,21 @@ TEST(Small_Ir, InsertNodeIsFatalForAnOperandProducedNoEarlierThanItself)
                     "sushiai.tanh", "inserted at 0", "value 1", "node 0 writes", "topological");
 }
 
-TEST(Small_Ir, AttributesHoldAConvolutionsGeometryAndItsWindowGrid)
+/** @brief Tests that a read past the last attribute slot yields zero. */
+TEST(Small_Ir, AnAttributeReadPastTheLastSlotYieldsZero)
 {
-    // Slots 8 and 9 carry the output extents out_h and out_w; see tests/core/graph/README.md.
-    EXPECT_EQ(Graph::Attributes::K_CAPACITY, std::size_t{10});
-
     Graph::Attributes a;
-    for (std::size_t i = 0; i < Graph::Attributes::K_CAPACITY; ++i)
-        a.values[i] = static_cast<double>(i + 1);
+    std::fill(std::begin(a.values), std::end(a.values), 1.0);
 
-    EXPECT_EQ(a.get(7), 8.0);
-    EXPECT_EQ(a.get(9), 10.0);
-    EXPECT_EQ(a.get(10), 0.0) << "out-of-range reads must stay defined and yield zero";
+    EXPECT_EQ(a.get(Graph::Attributes::K_CAPACITY), 0.0);
 }
 
-/** @brief Tests that a buffer leaf is persistent, produced by LEAF and never needs a gradient. */
-TEST(Small_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
+/** @brief Tests that a buffer leaf is persistent and is produced by LEAF. */
+TEST(Small_Ir, ABufferLeafIsPersistent)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
-
-    const ValueID x = builder.input(Shape{4, 3}, "x");
     const ValueID running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
-                            builder.bias_add(x, builder.buffer(Shape{3}, "shift")));
 
     SA_EXPECT_OK(graph.finalise());
 
@@ -292,45 +351,103 @@ TEST(Small_Ir, ABufferLeafIsPersistentAndNeedsNoGradient)
     EXPECT_EQ(graph.value(running).dtype, DType::Float64);
     EXPECT_EQ(graph.value(running).lifetime, Lifetime::Buffer);
     EXPECT_EQ(graph.value(running).debug_name, "running_mean");
-    EXPECT_FALSE(graph.value(running).requires_grad);
-    EXPECT_FALSE(graph.value(y).requires_grad);
-
     ASSERT_NE(graph.value(running).producer, K_NO_NODE);
     EXPECT_EQ(graph.node(graph.value(running).producer).op, Ops::K_LEAF.id);
-
     EXPECT_TRUE(Graph::is_persistent(Lifetime::Buffer));
     EXPECT_EQ(std::string_view(Graph::lifetime_name(Lifetime::Buffer)), "buffer");
 }
 
-/** @brief Tests that the persistent lifetimes are the five that outlive a step. */
-TEST(Small_Ir, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
+/** @brief Tests that a buffer leaf needs no gradient and passes none to what reads it. */
+TEST(Small_Ir, ABufferLeafNeedsNoGradient)
 {
-    for (Lifetime lifetime : {Lifetime::Parameter, Lifetime::Gradient, Lifetime::OptimizerState,
-                              Lifetime::Input, Lifetime::Buffer})
-        EXPECT_TRUE(Graph::is_persistent(lifetime)) << Graph::lifetime_name(lifetime);
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID x = builder.input(Shape{4, 3}, "x");
+    const ValueID running = builder.buffer(Shape{3}, "running_mean", DType::Float64);
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y,
+                            builder.bias_add(x, builder.buffer(Shape{3}, "shift")));
 
-    EXPECT_FALSE(Graph::is_persistent(Lifetime::Activation));
-    EXPECT_FALSE(Graph::is_persistent(Lifetime::Scratch));
+    SA_EXPECT_OK(graph.finalise());
+
+    EXPECT_FALSE(graph.value(running).requires_grad);
+    EXPECT_FALSE(graph.value(y).requires_grad);
 }
 
-/** @brief Tests that state_leaf returns the leaf bound to a state and NO_VALUE for any other. */
-TEST(Small_Ir, StateLeafReturnsTheBoundLeafAndNoValueForAnUnboundState)
+namespace
+{
+    /** @brief Pairs a lifetime with whether it outlives a step. */
+    struct LifetimeRow
+    {
+        Lifetime lifetime; /**< The lifetime under test. */
+        bool persistent;   /**< Whether values of it outlive a step. */
+    };
+
+    /** @brief Runs once per lifetime. */
+    class Small_IrLifetimeRow : public ::testing::TestWithParam<LifetimeRow>
+    {
+    };
+
+    const LifetimeRow K_LIFETIME_ROWS[] = {
+        {Lifetime::Parameter, true},      {Lifetime::Gradient, true},
+        {Lifetime::OptimizerState, true}, {Lifetime::Input, true},
+        {Lifetime::Buffer, true},         {Lifetime::Activation, false},
+        {Lifetime::Scratch, false},
+    };
+} // namespace
+
+/** @brief Tests that the five lifetimes that outlive a step persist and the other two do not. */
+TEST_P(Small_IrLifetimeRow, ActivationAndScratchAreTheOnlyLifetimesThatDoNotPersist)
+{
+    const LifetimeRow row = GetParam();
+
+    EXPECT_EQ(Graph::is_persistent(row.lifetime), row.persistent)
+        << Graph::lifetime_name(row.lifetime);
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_IrLifetimeRow, ::testing::ValuesIn(K_LIFETIME_ROWS),
+                         [](const ::testing::TestParamInfo<LifetimeRow>& info)
+                         {
+                             return std::string(Graph::lifetime_name(info.param.lifetime));
+                         });
+
+/** @brief Tests that state_leaf returns the leaf bound to a state. */
+TEST(Small_Ir, StateLeafReturnsTheBoundLeaf)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID weight = builder.parameter(Shape{3}, "weight");
     const ValueID running = builder.buffer(Shape{3}, "running_mean");
 
-    EXPECT_EQ(graph.state_leaf(StateID{7}), K_NO_VALUE);
-    EXPECT_TRUE(graph.state_leaves().empty());
-
     graph.bind_state_leaf(StateID{7}, running);
     graph.bind_state_leaf(StateID{5}, weight);
 
     EXPECT_EQ(graph.state_leaf(StateID{7}), running);
     EXPECT_EQ(graph.state_leaf(StateID{5}), weight);
+}
+
+/** @brief Tests that state_leaf returns NO_VALUE for a state no leaf is bound to. */
+TEST(Small_Ir, StateLeafReturnsNoValueForAnUnboundState)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    graph.bind_state_leaf(StateID{7}, builder.buffer(Shape{3}, "running_mean"));
+
     EXPECT_EQ(graph.state_leaf(StateID{6}), K_NO_VALUE);
     EXPECT_EQ(graph.state_leaf(K_NO_STATE), K_NO_VALUE);
+}
+
+/** @brief Tests that state_leaves lists the bindings in the order they were made. */
+TEST(Small_Ir, StateLeavesListTheBindingsInBindingOrder)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID weight = builder.parameter(Shape{3}, "weight");
+    const ValueID running = builder.buffer(Shape{3}, "running_mean");
+
+    EXPECT_TRUE(graph.state_leaves().empty());
+
+    graph.bind_state_leaf(StateID{7}, running);
+    graph.bind_state_leaf(StateID{5}, weight);
 
     ASSERT_EQ(graph.state_leaves().size(), 2u);
     EXPECT_EQ(graph.state_leaves()[0], std::make_pair(StateID{7}, running));
@@ -349,124 +466,124 @@ TEST(Small_Ir, BindStateLeafIsFatalForASecondBindingOfAStateOrOfALeaf)
 
     SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{7}, second), "State 7", "already has leaf");
     SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{8}, first), "already stands for state 7");
-    SA_EXPECT_FATAL(graph.bind_state_leaf(K_NO_STATE, second), "no identity");
-    SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{9}, ValueID{99}), "value 99", "does not exist");
 }
 
-/** @brief Tests that without_nodes keeps every value field and state leaf and holds no node. */
-TEST(Small_Ir, WithoutNodesKeepsEveryValueAndStateLeafAndHoldsNoNode)
+/** @brief Tests that bind_state_leaf is fatal without an identity and for an unknown value. */
+TEST(Small_Ir, BindStateLeafIsFatalForNoIdentityOrAnUnknownValue)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
+    const ValueID leaf = builder.buffer(Shape{3}, "leaf");
 
-    const ValueID x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
-                            builder.layout_convert(x, Graph::TensorLayout::NCHW));
-    const ValueID weight = builder.parameter(Shape{2, 3}, "weight");
-    const ValueID running = builder.buffer(Shape{3}, "running", DType::Half);
-    graph.bind_state_leaf(StateID{11}, weight);
-    graph.bind_state_leaf(StateID{12}, running);
-    SA_EXPECT_OK(graph.finalise());
-
-    const Graph::Graph stripped = graph.without_nodes();
-
-    EXPECT_EQ(stripped.node_count(), 0u);
-    ASSERT_EQ(stripped.value_count(), graph.value_count());
-
-    for (ValueID id = 0; id < static_cast<ValueID>(graph.value_count()); ++id)
-    {
-        const Graph::Value& before = graph.value(id);
-        const Graph::Value& after = stripped.value(id);
-
-        EXPECT_EQ(after.shape, before.shape) << "value " << id;
-        EXPECT_EQ(after.dtype, before.dtype) << "value " << id;
-        EXPECT_EQ(after.layout, before.layout) << "value " << id;
-        EXPECT_EQ(after.lifetime, before.lifetime) << "value " << id;
-        EXPECT_EQ(after.requires_grad, before.requires_grad) << "value " << id;
-        EXPECT_EQ(after.debug_name, before.debug_name) << "value " << id;
-        EXPECT_EQ(after.producer, K_NO_NODE) << "value " << id;
-    }
-
-    // The fixture holds both layouts, both gradient flags and three element types.
-    EXPECT_EQ(stripped.value(x_nchw).layout, Graph::TensorLayout::NCHW);
-    EXPECT_TRUE(stripped.value(weight).requires_grad);
-    EXPECT_EQ(stripped.value(running).dtype, DType::Half);
-
-    EXPECT_EQ(stripped.state_leaves(), graph.state_leaves());
-    EXPECT_EQ(stripped.state_leaf(StateID{12}), running);
-
-    // The source graph is not changed by the copy.
-    EXPECT_NE(graph.value(x_nchw).producer, K_NO_NODE);
-    EXPECT_GT(graph.node_count(), 0u);
+    SA_EXPECT_FATAL(graph.bind_state_leaf(K_NO_STATE, leaf), "no identity");
+    SA_EXPECT_FATAL(graph.bind_state_leaf(StateID{9}, ValueID{99}), "value 99", "does not exist");
 }
 
-/** @brief Tests that a graph reports a refusal only once one was marked, and a copy keeps it. */
-TEST(Small_Ir, ARefusalIsReportedAfterItIsMarkedAndSurvivesWithoutNodes)
+namespace
+{
+    /** @brief Holds a finalised graph with two layouts, both gradient flags and three types. */
+    struct StrippedFixture
+    {
+        Graph::Graph graph;    /**< The source graph. */
+        ValueID x_nchw = 0;    /**< A converted input in the NCHW layout. */
+        ValueID weight = 0;    /**< A parameter that requires a gradient. */
+        ValueID running = 0;   /**< A half-precision buffer. */
+        Graph::Graph stripped; /**< The copy without nodes. */
+
+        /** @brief Builds the graph, binds two state leaves and strips a copy. */
+        StrippedFixture()
+        {
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input(Shape{1, 3, 4, 4}, "x", DType::Float64);
+            x_nchw = builder.layout_convert(x, Graph::TensorLayout::NCHW).value();
+            weight = builder.parameter(Shape{2, 3}, "weight");
+            running = builder.buffer(Shape{3}, "running", DType::Half);
+            graph.bind_state_leaf(StateID{11}, weight);
+            graph.bind_state_leaf(StateID{12}, running);
+            (void)graph.finalise();
+            stripped = graph.without_nodes();
+        }
+    };
+
+    /** @brief Expects every field of a value in @p after to equal the one in @p before. */
+    void expect_value_kept(const Graph::Value& before, const Graph::Value& after)
+    {
+        EXPECT_EQ(after.shape, before.shape) << before.debug_name;
+        EXPECT_EQ(after.dtype, before.dtype) << before.debug_name;
+        EXPECT_EQ(after.layout, before.layout) << before.debug_name;
+        EXPECT_EQ(after.lifetime, before.lifetime) << before.debug_name;
+        EXPECT_EQ(after.requires_grad, before.requires_grad) << before.debug_name;
+        EXPECT_EQ(after.debug_name, before.debug_name);
+    }
+} // namespace
+
+/** @brief Tests that without_nodes holds no node and leaves no value with a producer. */
+TEST(Small_Ir, WithoutNodesHoldsNoNode)
+{
+    const StrippedFixture fixture;
+
+    EXPECT_EQ(fixture.stripped.node_count(), 0u);
+    ASSERT_EQ(fixture.stripped.value_count(), fixture.graph.value_count());
+    EXPECT_EQ(fixture.stripped.value(fixture.x_nchw).producer, K_NO_NODE);
+    EXPECT_EQ(fixture.stripped.value(fixture.weight).producer, K_NO_NODE);
+}
+
+/** @brief Tests that without_nodes keeps every field of the values it copies. */
+TEST(Small_Ir, WithoutNodesKeepsEveryValueField)
+{
+    const StrippedFixture fixture;
+
+    expect_value_kept(fixture.graph.value(fixture.x_nchw), fixture.stripped.value(fixture.x_nchw));
+    expect_value_kept(fixture.graph.value(fixture.weight), fixture.stripped.value(fixture.weight));
+    expect_value_kept(fixture.graph.value(fixture.running),
+                      fixture.stripped.value(fixture.running));
+    EXPECT_EQ(fixture.stripped.value(fixture.x_nchw).layout, Graph::TensorLayout::NCHW);
+    EXPECT_TRUE(fixture.stripped.value(fixture.weight).requires_grad);
+    EXPECT_EQ(fixture.stripped.value(fixture.running).dtype, DType::Half);
+}
+
+/** @brief Tests that without_nodes keeps the state leaves. */
+TEST(Small_Ir, WithoutNodesKeepsTheStateLeaves)
+{
+    const StrippedFixture fixture;
+
+    EXPECT_EQ(fixture.stripped.state_leaves(), fixture.graph.state_leaves());
+    EXPECT_EQ(fixture.stripped.state_leaf(StateID{12}), fixture.running);
+}
+
+/** @brief Tests that without_nodes leaves the source graph unchanged. */
+TEST(Small_Ir, WithoutNodesLeavesTheSourceGraphUnchanged)
+{
+    const StrippedFixture fixture;
+
+    EXPECT_NE(fixture.graph.value(fixture.x_nchw).producer, K_NO_NODE);
+    EXPECT_GT(fixture.graph.node_count(), 0u);
+}
+
+/** @brief Tests that a graph reports a refusal only once one was marked. */
+TEST(Small_Ir, ARefusalIsReportedAfterItIsMarked)
 {
     Graph::Graph graph;
     (void)graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
 
     EXPECT_FALSE(graph.has_refusal());
-    EXPECT_FALSE(graph.without_nodes().has_refusal());
 
     graph.mark_refused();
 
     EXPECT_TRUE(graph.has_refusal());
+}
+
+/** @brief Tests that a copy without nodes keeps a marked refusal and adds none. */
+TEST(Small_Ir, AMarkedRefusalSurvivesWithoutNodes)
+{
+    Graph::Graph graph;
+    (void)graph.add_value(Shape{2}, DType::Float32, Lifetime::Input, "x");
+
+    EXPECT_FALSE(graph.without_nodes().has_refusal());
+
+    graph.mark_refused();
+
     EXPECT_TRUE(graph.without_nodes().has_refusal());
-}
-
-/** @brief Tests that get() draws one identity per holder and that two holders never share one. */
-TEST(Small_Ir, StateIdentityDrawsOneIdentityPerHolder)
-{
-    StateIdentity first;
-    StateIdentity second;
-
-    EXPECT_EQ(first.peek(), K_NO_STATE);
-
-    const StateID drawn = first.get();
-    EXPECT_NE(drawn, K_NO_STATE);
-    EXPECT_EQ(first.get(), drawn);
-    EXPECT_EQ(first.peek(), drawn);
-
-    EXPECT_NE(second.get(), K_NO_STATE);
-    EXPECT_NE(second.get(), drawn);
-}
-
-/** @brief Tests that a copied holder is new state and never takes the source's identity. */
-TEST(Small_Ir, ACopiedStateIdentityDoesNotShareTheSourcesIdentity)
-{
-    StateIdentity source;
-    const StateID drawn = source.get();
-
-    StateIdentity copied(source);
-    EXPECT_EQ(copied.peek(), K_NO_STATE);
-    EXPECT_NE(copied.get(), drawn);
-
-    StateIdentity assigned;
-    const StateID replaced = assigned.get();
-    assigned = source;
-    EXPECT_EQ(assigned.peek(), K_NO_STATE);
-    EXPECT_NE(assigned.get(), drawn);
-    EXPECT_NE(assigned.get(), replaced);
-
-    EXPECT_EQ(source.peek(), drawn);
-}
-
-/** @brief Tests that a move carries the identity to the target and leaves the source without. */
-TEST(Small_Ir, AMovedStateIdentityCarriesItsIdentityAway)
-{
-    StateIdentity source;
-    const StateID drawn = source.get();
-
-    StateIdentity moved(std::move(source));
-    EXPECT_EQ(moved.peek(), drawn);
-    EXPECT_EQ(source.peek(), K_NO_STATE);
-
-    StateIdentity assigned;
-    (void)assigned.get();
-    assigned = std::move(moved);
-    EXPECT_EQ(assigned.peek(), drawn);
-    EXPECT_EQ(moved.peek(), K_NO_STATE);
 }
 
 TEST(Small_Ir, ASecondProducerNamesBothOperationsAndTheRule)

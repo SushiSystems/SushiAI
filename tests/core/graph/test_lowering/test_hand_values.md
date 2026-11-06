@@ -10,7 +10,7 @@ shift did not cancel. All three produce plausible numbers and no error.
 ## LinearLayerMatchesHandComputedValues
 
 `X * W^T + b` for a `[2, 2]` input and a `[3, 2]` weight gives `{-1, 1.5, 4, 1, 3.5, 8}`, and the
-ReLU after it turns the -1 into 0, both within 1e-5.
+ReLU after it turns the -1 into 0, both within `K_FLOAT_TOLERANCE` (256 unit roundoffs of float).
 
 ## SumRowsProducesColumnSums
 
@@ -25,37 +25,67 @@ A `[3, 4]` value holding 0 to 11 reshaped to `[2, 6]` still reads 0 to 11 in ord
 In NCHW the channels are outermost of the spatial block. For each c the two W positions follow
 in order: (c=0, w=0..1) = 0, 3; (c=1, w=0..1) = 1, 4; (c=2, w=0..1) = 2, 5.
 
-## ElementwiseAndScaleMatchTheirDefinitions
+## AddMatchesItsDefinition
 
-`add`, `sub`, `mul`, a `scale` by -2.5 and `exp` over two `[2, 2]` values equal the numbers worked
-out by hand, within 1e-5.
+`add` of the `[2, 2]` values `{1, 2, 3, 4}` and `{0.5, -1, 2, 0}` gives `{1.5, 1, 5, 4}`.
 
-## ActivationsMatchTheirDefinitionsAndLeaveTheInputAlone
+## SubMatchesItsDefinition
 
-Out-of-place semantics matter. The backward rules for relu and gelu read the forward input, so
-an in-place activation would hand them the output.
+`sub` of the same two values gives `{0.5, 3, 1, 4}`.
+
+## MulMatchesItsDefinition
+
+`mul` of the same two values gives `{0.5, -2, 6, 0}`.
+
+## ScaleMatchesItsDefinition
+
+`scale` of `{1, 2, 3, 4}` by -2.5 gives `{-2.5, -5, -7.5, -10}`.
+
+## ExpMatchesItsDefinition
+
+`exp` of `{0.5, -1, 2, 0}` gives e^0.5, e^-1, e^2 and 1.
+
+## ReluMatchesItsDefinition
+
+`relu` of `{-2, -0.5, 0.5, 2}` gives `{0, 0, 0.5, 2}`.
+
+## SigmoidMatchesItsDefinition
+
+`sigmoid` of `{-2, -0.5, 0.5, 2}` gives 1 / (1 + e^-x) for each.
+
+## TanhMatchesItsDefinition
+
+`tanh` of `{-2, -0.5, 0.5, 2}` gives the hyperbolic tangent of each.
+
+## LeakyReluMatchesItsDefinition
 
 The leaky_relu values are computed by hand at slope 0.1, with inputs on both sides of zero so
 that both branches run: -2 gives -0.2, -0.5 gives -0.05, 0.5 gives 0.5, 2 gives 2.
+
+## ActivationsLeaveTheirInputAlone
+
+Out-of-place semantics matter. The backward rules for relu and gelu read the forward input, so
+an in-place activation would hand them the output. After relu, sigmoid, tanh and leaky_relu run
+over the same input, the input reads back unchanged.
 
 ## LogSoftmaxRowsSumToOneAfterExponentiating
 
 The second row is the first offset by a large constant. Log-softmax must be invariant to the
 offset, and the max shift is what makes it so.
 
-## CrossEntropyOnUniformLogitsIsExactlyLogC
+## CrossEntropyOnUniformLogitsIsLogC
 
-With `[4, 5]` logits of zero and one-hot targets, the loss is ln(5) within 1e-5.
+With `[4, 5]` logits of zero and one-hot targets, the loss is ln(5) within `K_FLOAT_TOLERANCE`.
 
 ## CrossEntropyMatchesAHandComputedSingleRow
 
 For the logits `{1, 2, 3}` and the target class 2, the loss is `log(1 + exp(-1) + exp(-2))` within
-1e-5.
+`K_FLOAT_TOLERANCE`.
 
 ## AccumulateAddsInPlaceAndAliasesItsResult
 
 `accumulate` of `{1, 2, 3, 4}` and `{10, 20, 30, 40}` gives `{11, 22, 33, 44}`, and the accumulator
-read back holds the same values as the result.
+read back is equal to the result, since both are one buffer.
 
 ## ZeroFillsItsBufferExactlyOnce
 

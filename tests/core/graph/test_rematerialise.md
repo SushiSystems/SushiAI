@@ -1,7 +1,7 @@
 # tests/core/graph/test_rematerialise.cpp
 
 
-Suites: `Medium_Rematerialise`.
+Suites: `Medium_Rematerialise` and `Small_Rematerialise`.
 
 The file covers the half of the K_IM2COL rematerialisation pass that the host-lane tier cannot
 reach. `Small_Rematerialise` proves the rewrite has the right shape; this file proves the
@@ -31,6 +31,8 @@ The comparison is exact, not near. The clone recomputes the same operation from 
 operands in the same order.
 
 ## TheColumnMatrixLeavesTheActivationArena
+
+This case is in `Small_Rematerialise` and runs no engine.
 
 The pass exists to take the column matrix out of the activation arena. The test states that
 against the planner and does not infer it from the lifetime field. The planner turns the

@@ -31,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
@@ -69,51 +70,88 @@ namespace
      */
     constexpr double K_ABSOLUTE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Bounds a conversion of values that FLOAT32 holds exactly; it loses nothing. */
-    constexpr double K_EXACT = 0.0;
+    /** @brief Compares every element of @p got with @p expected to within @p absolute. */
+    void expect_elements(const std::vector<double>& got, const std::vector<double>& expected,
+                         double absolute)
+    {
+        ASSERT_EQ(got.size(), expected.size());
+
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            EXPECT_NEAR(got[i], expected[i], absolute) << "at " << i;
+    }
+
+    /** @brief Returns every element of @p values times @p factor. */
+    std::vector<double> scaled(const std::vector<double>& values, double factor)
+    {
+        std::vector<double> result(values.size());
+        for (std::size_t i = 0; i < values.size(); ++i)
+            result[i] = values[i] * factor;
+        return result;
+    }
 
     /** @brief Pairs an operation with the row the header names for it. */
     struct ExpectedRow
     {
+        std::size_t index; /**< The position of the row in the table. */
         OpID op;           /**< The operation. */
         LoweringRule rule; /**< The row that lowers it. */
     };
+
+    /** @brief Runs once per row the header names for the elementwise table. */
+    class Small_ElementwiseRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the elementwise table in the order the header writes them. */
+    const std::array<ExpectedRow, 17> K_EXPECTED_ROWS = {{
+        {0, Ops::K_ADD.id, &Graph::lower_add},
+        {1, Ops::K_SUB.id, &Graph::lower_sub},
+        {2, Ops::K_MUL.id, &Graph::lower_mul},
+        {3, Ops::K_DIV.id, &Graph::lower_div},
+        {4, Ops::K_MINIMUM.id, &Graph::lower_minimum},
+        {5, Ops::K_MAXIMUM.id, &Graph::lower_maximum},
+        {6, Ops::K_SCALE.id, &Graph::lower_scale},
+        {7, Ops::K_DYNAMIC_SCALE.id, &Graph::lower_dynamic_scale},
+        {8, Ops::K_EXP.id, &Graph::lower_exp},
+        {9, Ops::K_ABS.id, &Graph::lower_abs},
+        {10, Ops::K_ATAN.id, &Graph::lower_atan},
+        {11, Ops::K_LESS_EQUAL.id, &Graph::lower_less_equal},
+        {12, Ops::K_SELECT.id, &Graph::lower_select},
+        {13, Ops::K_ZERO.id, &Graph::lower_zero},
+        {14, Ops::K_CONSTANT.id, &Graph::lower_constant},
+        {15, Ops::K_ACCUMULATE.id, &Graph::lower_accumulate},
+        {16, Ops::K_CAST.id, &Graph::lower_cast},
+    }};
 } // namespace
 
-/** @brief Tests that each row pairs its operation with the function the header names. */
-TEST(Small_ElementwiseLowerings, EachRowPairsItsOperationWithItsLowering)
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_ElementwiseLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
 {
-    const std::array<ExpectedRow, 17> expected = {{
-        {Ops::K_ADD.id, &Graph::lower_add},
-        {Ops::K_SUB.id, &Graph::lower_sub},
-        {Ops::K_MUL.id, &Graph::lower_mul},
-        {Ops::K_DIV.id, &Graph::lower_div},
-        {Ops::K_MINIMUM.id, &Graph::lower_minimum},
-        {Ops::K_MAXIMUM.id, &Graph::lower_maximum},
-        {Ops::K_SCALE.id, &Graph::lower_scale},
-        {Ops::K_DYNAMIC_SCALE.id, &Graph::lower_dynamic_scale},
-        {Ops::K_EXP.id, &Graph::lower_exp},
-        {Ops::K_ABS.id, &Graph::lower_abs},
-        {Ops::K_ATAN.id, &Graph::lower_atan},
-        {Ops::K_LESS_EQUAL.id, &Graph::lower_less_equal},
-        {Ops::K_SELECT.id, &Graph::lower_select},
-        {Ops::K_ZERO.id, &Graph::lower_zero},
-        {Ops::K_CONSTANT.id, &Graph::lower_constant},
-        {Ops::K_ACCUMULATE.id, &Graph::lower_accumulate},
-        {Ops::K_CAST.id, &Graph::lower_cast},
-    }};
-
-    ASSERT_EQ(Graph::K_ELEMENTWISE_LOWERINGS.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        const Graph::LoweringEntry& row = Graph::K_ELEMENTWISE_LOWERINGS[i];
-        EXPECT_EQ(row.op, expected[i].op) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.rule, expected[i].rule) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.scratch, nullptr) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(Graph::find_lowering(expected[i].op), expected[i].rule)
-            << Ops::name_of(expected[i].op);
-    }
+    EXPECT_EQ(Graph::K_ELEMENTWISE_LOWERINGS.size(), K_EXPECTED_ROWS.size());
 }
+
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_ElementwiseRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    ASSERT_LT(row.index, Graph::K_ELEMENTWISE_LOWERINGS.size());
+    const Graph::LoweringEntry& entry = Graph::K_ELEMENTWISE_LOWERINGS[row.index];
+
+    EXPECT_EQ(entry.op, row.op) << name;
+    EXPECT_EQ(entry.rule, row.rule) << name;
+    EXPECT_EQ(entry.scratch, nullptr) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_ElementwiseRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return name;
+                         });
 
 /** @brief Tests that DYNAMIC_SCALE reads its factor when the step runs, not when it is recorded. */
 TEST_F(Medium_ElementwiseLowerings, DynamicScaleReadsItsFactorOnEveryRun)
@@ -135,16 +173,15 @@ TEST_F(Medium_ElementwiseLowerings, DynamicScaleReadsItsFactorOnEveryRun)
     std::unique_ptr<CompiledStep> step;
     SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
 
-    for (const double scale : {2.0, -0.5})
-    {
-        SaTest::write_tensor(pool.tensor(factor), std::vector<double>{scale});
-        SA_EXPECT_OK(step->run());
+    SaTest::write_tensor(pool.tensor(factor), std::vector<double>{2.0});
+    SA_EXPECT_OK(step->run());
+    expect_elements(SaTest::read_tensor(pool.tensor(y)), scaled(values, 2.0),
+                    K_ABSOLUTE_TOLERANCE);
 
-        const std::vector<double> got = SaTest::read_tensor(pool.tensor(y));
-        ASSERT_EQ(got.size(), values.size());
-        for (std::size_t i = 0; i < values.size(); ++i)
-            EXPECT_NEAR(got[i], values[i] * scale, K_ABSOLUTE_TOLERANCE) << scale << " at " << i;
-    }
+    SaTest::write_tensor(pool.tensor(factor), std::vector<double>{-0.5});
+    SA_EXPECT_OK(step->run());
+    expect_elements(SaTest::read_tensor(pool.tensor(y)), scaled(values, -0.5),
+                    K_ABSOLUTE_TOLERANCE);
 }
 
 /** @brief Tests that CAST writes each FLOAT32 operand element into a FLOAT64 result. */
@@ -167,8 +204,5 @@ TEST_F(Medium_ElementwiseLowerings, CastConvertsEachElementToTheResultType)
     SA_EXPECT_OK(step->run());
 
     EXPECT_EQ(pool.tensor(wide).dtype, DType::Float64);
-    const std::vector<double> got = SaTest::read_tensor(pool.tensor(wide));
-    ASSERT_EQ(got.size(), values.size());
-    for (std::size_t i = 0; i < values.size(); ++i)
-        EXPECT_NEAR(got[i], values[i], K_EXACT) << "at " << i;
+    EXPECT_EQ(SaTest::read_tensor(pool.tensor(wide)), values);
 }

@@ -18,11 +18,15 @@ half, the same node count before and after, and the policy name "fp32". Its `to_
 A product of a half [4, 3] input and a half [5, 3] weight agrees with `MixedPrecisionPolicy`:
 `find_dtype_mismatches` returns nothing.
 
-## TheDescriptionNamesTheNodeTheTypesAndTheSide
+## TheDescriptionOfAResultMismatchNamesTheNodeTheTypesAndTheSide
 
 A mismatch on result 7 of node 3, a MATMUL found float32 where half is expected, is described as
 "node 3 (", the operation's name, ") computes in half but its result value 7 is float32", the
-type names taken from `dtype_name`. With `is_result` false the text says "its operand value 7".
+type names taken from `dtype_name`.
+
+## TheDescriptionOfAnOperandMismatchNamesTheOperandSide
+
+With `is_result` false the text says "its operand value 7".
 
 ## APolicyAskingForAnIntegerConversionIsRefused
 

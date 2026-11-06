@@ -322,7 +322,7 @@ TEST_F(Medium_StepRecorderDeathTest, AddRejectsARecorderAlreadyHeld)
 }
 
 /** @brief Tests that adding a list to itself is fatal and leaves the list empty. */
-TEST_F(Medium_StepRecorderDeathTest, AddRejectsTheListItself)
+TEST(Medium_StepRecorderListDeathTest, AddRejectsTheListItself)
 {
     StepRecorderList list;
 

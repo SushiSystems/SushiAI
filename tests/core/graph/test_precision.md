@@ -3,29 +3,32 @@
 
 Suites: `Small_PrecisionPolicy`.
 
-Tests the `PrecisionPolicy` interface and the names and defaults of its two implementations. What
+Tests the `PrecisionPolicy` interface and its two shipped implementations. What
 each operation computes in under the two policies is pinned by the `Small_Precision` cases of
-`tests/core/autograd/test_backward.cpp`. The file-local `EverythingWide` answers float64 to
-every operation.
+`tests/core/autograd/test_backward.cpp`.
 
-## ThePoliciesNameThemselvesAndTheMixedOneDefaultsToHalf
+## ThePoliciesNameThemselves
 
-`UniformPrecisionPolicy` is named "fp32" and `MixedPrecisionPolicy` "mixed". A mixed policy
-built without an argument narrows to half, and one made with float32 keeps float32 as its low
-type.
+`UniformPrecisionPolicy` is named "fp32" and `MixedPrecisionPolicy` "mixed".
+
+## MakeStoresARealFloatLowType
+
+`MixedPrecisionPolicy::make(Float32)` returns a policy whose low type is float32.
+
+## TheMixedPolicyDefaultsToHalf
+
+A mixed policy built without an argument narrows to half.
 
 ## MakeRefusesALowTypeThatIsNotARealFloat
 
 `MixedPrecisionPolicy::make` returns `InvalidDescription` naming "narrows to a real floating
-type" for int32 and for complex32, and succeeds for half.
+type" for int32 and for complex32.
 
-## TheDefaultQueryAndChoiceAreFloat32
+## MakeAcceptsHalfAsTheLowType
 
-A default `PrecisionQuery` declares float32, and a default `PrecisionChoice` is float32 with no
-reason.
+`MixedPrecisionPolicy::make(Half)` succeeds.
 
-## APolicyOfItsOwnIsConsultedThroughTheInterface
+## APolicyIsConsultedThroughTheInterface
 
-`EverythingWide`, reached through a `PrecisionPolicy` reference, gives its own name and answers
-float64 for a float32 RELU. `find_dtype_mismatches` over a float32 RELU graph and that policy
-reports mismatches, so the finder decides through the interface and not through a fixed policy.
+`find_dtype_mismatches` over a float32 matmul graph reports none for the uniform policy and some
+for the mixed one, so the finder decides through the policy it is given.

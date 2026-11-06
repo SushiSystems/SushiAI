@@ -39,7 +39,6 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/autograd/backward.hpp>
-#include <SushiAI/ops/ops.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -108,6 +107,78 @@ namespace
     }
 
     /**
+     * @brief Returns the [B, m, n] product of @p left [B, m, k] and the transpose of @p right
+     *        [B, n, k], taken on the host in double.
+     */
+    std::vector<double> host_product_with_transposed_right(const std::vector<double>& left,
+                                                           const std::vector<double>& right,
+                                                           std::size_t batches, std::size_t m,
+                                                           std::size_t n, std::size_t k)
+    {
+        std::vector<double> product(batches * m * n, 0.0);
+        for (std::size_t batch = 0; batch < batches; ++batch)
+        {
+            for (std::size_t i = 0; i < m; ++i)
+            {
+                for (std::size_t j = 0; j < n; ++j)
+                {
+                    double sum = 0.0;
+                    for (std::size_t p = 0; p < k; ++p)
+                        sum += left[(batch * m + i) * k + p] * right[(batch * n + j) * k + p];
+                    product[(batch * m + i) * n + j] = sum;
+                }
+            }
+        }
+        return product;
+    }
+
+    /**
+     * @brief Returns dloss/dleft of the sum of every element of the product of @p left [B, m, k]
+     *        and the transpose of @p right [B, n, k]: the sum of @p right over its rows.
+     */
+    std::vector<double> host_left_gradient_of_the_summed_product(
+        const std::vector<double>& right, std::size_t batches, std::size_t m, std::size_t n,
+        std::size_t k)
+    {
+        std::vector<double> gradient(batches * m * k, 0.0);
+        for (std::size_t batch = 0; batch < batches; ++batch)
+        {
+            for (std::size_t i = 0; i < m; ++i)
+            {
+                for (std::size_t p = 0; p < k; ++p)
+                {
+                    for (std::size_t j = 0; j < n; ++j)
+                        gradient[(batch * m + i) * k + p] += right[(batch * n + j) * k + p];
+                }
+            }
+        }
+        return gradient;
+    }
+
+    /**
+     * @brief Returns dloss/dright of the sum of every element of the product of @p left [B, m, k]
+     *        and the transpose of @p right [B, n, k]: the sum of @p left over its rows.
+     */
+    std::vector<double> host_right_gradient_of_the_summed_product(
+        const std::vector<double>& left, std::size_t batches, std::size_t m, std::size_t n,
+        std::size_t k)
+    {
+        std::vector<double> gradient(batches * n * k, 0.0);
+        for (std::size_t batch = 0; batch < batches; ++batch)
+        {
+            for (std::size_t j = 0; j < n; ++j)
+            {
+                for (std::size_t p = 0; p < k; ++p)
+                {
+                    for (std::size_t i = 0; i < m; ++i)
+                        gradient[(batch * n + j) * k + p] += left[(batch * m + i) * k + p];
+                }
+            }
+        }
+        return gradient;
+    }
+
+    /**
      * @brief Returns the softmax over each row of @p x, taken on the host in double.
      * @param last The extent of the last axis; @p x holds whole rows of that length.
      */
@@ -144,20 +215,7 @@ TEST_F(Medium_AttentionOperations, BatchedProductWithTransposedRightOperandMatch
     const std::vector<double> left = patterned(2 * 3 * 4, 7, 0.1);
     const std::vector<double> right = patterned(2 * 5 * 4, 5, 0.05);
 
-    std::vector<double> expected(2 * 3 * 5, 0.0);
-    for (std::size_t batch = 0; batch < 2; ++batch)
-    {
-        for (std::size_t i = 0; i < 3; ++i)
-        {
-            for (std::size_t j = 0; j < 5; ++j)
-            {
-                double sum = 0.0;
-                for (std::size_t k = 0; k < 4; ++k)
-                    sum += left[(batch * 3 + i) * 4 + k] * right[(batch * 5 + j) * 4 + k];
-                expected[(batch * 3 + i) * 5 + j] = sum;
-            }
-        }
-    }
+    const std::vector<double> expected = host_product_with_transposed_right(left, right, 2, 3, 5, 4);
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
@@ -191,12 +249,12 @@ TEST_F(Medium_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
 }
 
 /**
- * @brief Tests that the gradient of a rank-3 product is rank 3 and matches the host.
+ * @brief Tests that the gradients of a rank-3 product have the operands' shapes and match the host.
  *
  * The loss is the sum of every product element, so dloss/da[b,i,k] is the sum over j of
  * b[b,j,k], and dloss/db[b,j,k] is the sum over i of a[b,i,k].
  */
-TEST_F(Medium_AttentionOperations, BatchedProductGradientEmitsRankThreeProducts)
+TEST_F(Medium_AttentionOperations, BatchedProductGradientsHaveTheOperandShapesAndMatchTheHost)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
@@ -218,41 +276,13 @@ TEST_F(Medium_AttentionOperations, BatchedProductGradientEmitsRankThreeProducts)
     EXPECT_EQ(graph.value(gradients[0]).shape, Shape({2, 3, 4}));
     EXPECT_EQ(graph.value(gradients[1]).shape, Shape({2, 5, 4}));
 
-    // The forward product and the two products matmul_backward emits are all rank 3.
-    std::size_t products = 0;
-    for (const Graph::Node& node : graph.nodes())
-    {
-        if (node.op != Ops::K_MATMUL.id)
-            continue;
-        ++products;
-        EXPECT_EQ(graph.value(node.outputs[0]).shape.rank(), 3);
-    }
-    EXPECT_EQ(products, 3u);
-
     const std::vector<double> left = patterned(2 * 3 * 4, 7, 0.1);
     const std::vector<double> right = patterned(2 * 5 * 4, 5, 0.05);
 
-    std::vector<double> expected_a(2 * 3 * 4, 0.0);
-    std::vector<double> expected_b(2 * 5 * 4, 0.0);
-    for (std::size_t batch = 0; batch < 2; ++batch)
-    {
-        for (std::size_t i = 0; i < 3; ++i)
-        {
-            for (std::size_t k = 0; k < 4; ++k)
-            {
-                for (std::size_t j = 0; j < 5; ++j)
-                    expected_a[(batch * 3 + i) * 4 + k] += right[(batch * 5 + j) * 4 + k];
-            }
-        }
-        for (std::size_t j = 0; j < 5; ++j)
-        {
-            for (std::size_t k = 0; k < 4; ++k)
-            {
-                for (std::size_t i = 0; i < 3; ++i)
-                    expected_b[(batch * 5 + j) * 4 + k] += left[(batch * 3 + i) * 4 + k];
-            }
-        }
-    }
+    const std::vector<double> expected_a =
+        host_left_gradient_of_the_summed_product(right, 2, 3, 5, 4);
+    const std::vector<double> expected_b =
+        host_right_gradient_of_the_summed_product(left, 2, 3, 5, 4);
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));

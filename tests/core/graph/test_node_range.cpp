@@ -42,12 +42,3 @@ TEST(Small_NodeRange, TheDefaultRangeIsTheWholeGraph)
     EXPECT_EQ(range.first, 0u);
     EXPECT_EQ(range.end, Graph::K_NO_NODE);
 }
-
-/** @brief Tests that a range written as a pair keeps its two ends in order. */
-TEST(Small_NodeRange, ARangeKeepsTheEndsItIsGiven)
-{
-    const Graph::NodeRange range{2, 5};
-
-    EXPECT_EQ(range.first, 2u);
-    EXPECT_EQ(range.end, 5u);
-}

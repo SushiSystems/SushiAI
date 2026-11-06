@@ -82,4 +82,4 @@ member once: 2 tasks and one journal entry.
 ## AddRejectsTheListItself
 
 `list.add(list)` stops the process with a report containing "StepRecorderList::add" and "itself".
-It is a death test in `Medium_StepRecorderDeathTest`, and the list stays empty.
+It is a death test in `Medium_StepRecorderListDeathTest`, which builds no fixture, and the list stays empty.

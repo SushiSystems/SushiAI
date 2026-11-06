@@ -30,6 +30,7 @@
 
 #include <array>
 #include <cstddef>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
@@ -53,6 +54,7 @@ namespace
     /** @brief Pairs an operation with the row and the scratch rule the header names for it. */
     struct ExpectedRow
     {
+        std::size_t index; /**< The position of the row in the table. */
         OpID op;             /**< The operation. */
         LoweringRule rule;   /**< The row that lowers it. */
         ScratchRule scratch; /**< Its scratch rule, or nullptr. */
@@ -100,35 +102,56 @@ namespace
                 << "request " << i << " has extents " << requests[i].shape.to_string();
         }
     }
+
+    /** @brief Runs once per row the header names for the norm table. */
+    class Small_NormRow : public ::testing::TestWithParam<ExpectedRow>
+    {
+
+    };
+
+    /** @brief Lists the rows of the norm table in the order the header writes them. */
+    const std::array<ExpectedRow, 6> K_EXPECTED_ROWS = {{
+        {0, Ops::K_BATCHNORM2D.id, &Graph::lower_batchnorm2d, &Graph::request_batchnorm2d_scratch},
+        {1, Ops::K_BATCHNORM2D_BACKWARD.id, &Graph::lower_batchnorm2d_backward,
+         &Graph::request_batchnorm2d_backward_scratch},
+        {2, Ops::K_CHANNEL_AFFINE.id, &Graph::lower_channel_affine, nullptr},
+        {3, Ops::K_BATCHNORM_FOLD.id, &Graph::lower_batchnorm_fold, nullptr},
+        {4, Ops::K_LAYER_NORM.id, &Graph::lower_layer_norm, nullptr},
+        {5, Ops::K_LAYER_NORM_BACKWARD.id, &Graph::lower_layer_norm_backward, nullptr},
+    }};
 } // namespace
 
-/** @brief Tests that each row pairs its operation with its function and its scratch rule. */
-TEST(Small_NormLowerings, EachRowPairsItsOperationWithItsLowering)
+/** @brief Tests that the table holds one row for each row the header names, and no other. */
+TEST(Small_NormLowerings, TheTableHoldsExactlyTheRowsTheHeaderNames)
 {
-    const std::array<ExpectedRow, 6> expected = {{
-        {Ops::K_BATCHNORM2D.id, &Graph::lower_batchnorm2d, &Graph::request_batchnorm2d_scratch},
-        {Ops::K_BATCHNORM2D_BACKWARD.id, &Graph::lower_batchnorm2d_backward,
-         &Graph::request_batchnorm2d_backward_scratch},
-        {Ops::K_CHANNEL_AFFINE.id, &Graph::lower_channel_affine, nullptr},
-        {Ops::K_BATCHNORM_FOLD.id, &Graph::lower_batchnorm_fold, nullptr},
-        {Ops::K_LAYER_NORM.id, &Graph::lower_layer_norm, nullptr},
-        {Ops::K_LAYER_NORM_BACKWARD.id, &Graph::lower_layer_norm_backward, nullptr},
-    }};
-
-    ASSERT_EQ(Graph::K_NORM_LOWERINGS.size(), expected.size());
-    for (std::size_t i = 0; i < expected.size(); ++i)
-    {
-        const Graph::LoweringEntry& row = Graph::K_NORM_LOWERINGS[i];
-        EXPECT_EQ(row.op, expected[i].op) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.rule, expected[i].rule) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(row.scratch, expected[i].scratch) << Ops::name_of(expected[i].op);
-        EXPECT_EQ(Graph::find_scratch_rule(expected[i].op), expected[i].scratch)
-            << Ops::name_of(expected[i].op);
-    }
+    EXPECT_EQ(Graph::K_NORM_LOWERINGS.size(), K_EXPECTED_ROWS.size());
 }
 
-/** @brief Tests that the forward asks for three buffers and the gradient for seven. */
-TEST(Small_NormLowerings, BatchNormAsksForThreeBuffersAndItsGradientForSeven)
+/** @brief Tests that a row pairs its operation with the function the header names. */
+TEST_P(Small_NormRow, EachRowPairsItsOperationWithItsLowering)
+{
+    const ExpectedRow row = GetParam();
+    const std::string name(Ops::name_of(row.op));
+    ASSERT_LT(row.index, Graph::K_NORM_LOWERINGS.size());
+    const Graph::LoweringEntry& entry = Graph::K_NORM_LOWERINGS[row.index];
+
+    EXPECT_EQ(entry.op, row.op) << name;
+    EXPECT_EQ(entry.rule, row.rule) << name;
+    EXPECT_EQ(entry.scratch, row.scratch) << name;
+    EXPECT_EQ(Graph::find_lowering(row.op), row.rule) << name;
+    EXPECT_EQ(Graph::find_scratch_rule(row.op), row.scratch) << name;
+}
+
+INSTANTIATE_TEST_SUITE_P(, Small_NormRow, ::testing::ValuesIn(K_EXPECTED_ROWS),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             name.replace(0, name.find('.') + 1, "");
+                             return name;
+                         });
+
+/** @brief Tests that the forward asks for three buffers, each of its own node, in slot order. */
+TEST(Small_NormLowerings, BatchNormAsksForThreeBuffers)
 {
     const BatchNormTrace trace = trace_batchnorm();
 
@@ -136,6 +159,12 @@ TEST(Small_NormLowerings, BatchNormAsksForThreeBuffersAndItsGradientForSeven)
     Graph::request_batchnorm2d_scratch(trace.graph, trace.forward, forward);
     ASSERT_EQ(forward.size(), 3u);
     expect_requests(forward, trace.forward);
+}
+
+/** @brief Tests that the gradient asks for seven buffers, each of its own node, in slot order. */
+TEST(Small_NormLowerings, BatchNormGradientAsksForSevenBuffers)
+{
+    const BatchNormTrace trace = trace_batchnorm();
 
     std::vector<ScratchRequest> backward;
     Graph::request_batchnorm2d_backward_scratch(trace.graph, trace.backward, backward);

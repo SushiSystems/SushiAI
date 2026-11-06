@@ -1,7 +1,7 @@
 # tests/core/graph/lowering/test_random.cpp
 
 
-Suites: `Small_DropoutOps`.
+Suites: `Small_DropoutOps`, `Small_DropoutSeed`, `Small_DropoutRate`.
 
 Tests `GraphBuilder::dropout`: the node it emits, the seed it stores, the operands it refuses
 and its row in the lowering table. The accepted cases pass the rate 0.25.
@@ -15,14 +15,18 @@ graph has no refusal.
 
 ## TheSiteSeedSurvivesItsAttributeSlots
 
-For the seeds 0xFEDCBA9876543210, 0 and all 64 bits set, `Graph::dropout_seed` of the emitted
+One row per seed: 0xFEDCBA9876543210, 0 and all 64 bits set. `Graph::dropout_seed` of the emitted
 node's attributes returns the seed that was passed.
 
-## DropoutRefusesOperandsThatDoNotFit
+## DropoutRefusesAnInputOfAnIntegerType
 
-An int32 input fails with `InvalidDescription` and "half, float32 or float64 input". The rates
-0, 1 and -0.5 each fail with "rate in (0, 1)". After each the node count is unchanged and
-`has_refusal()` is true.
+An int32 input fails with `InvalidDescription` and "half, float32 or float64 input". The node
+count is unchanged and `has_refusal()` is true.
+
+## DropoutRefusesARateOutsideZeroToOne
+
+One row per rate: 0, 1 and -0.5. Each fails with `InvalidDescription` and "rate in (0, 1)". The
+node count is unchanged and `has_refusal()` is true.
 
 ## DropoutHasTheRowOfTheRandomTable
 

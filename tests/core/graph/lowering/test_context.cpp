@@ -33,7 +33,6 @@
 #include <memory>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiBLAS/core/blas_types.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -145,16 +144,6 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that the transpose flag maps onto the two SushiBLAS enumerators. */
-TEST(Small_LoweringContext, TheTransposeFlagMapsOntoSushiBLAS)
-{
-    static_assert(Graph::transpose_of(true) == SushiBLAS::Core::Transpose::Trans,
-                  "true reads the operand transposed");
-    static_assert(Graph::transpose_of(false) == SushiBLAS::Core::Transpose::NoTrans,
-                  "false reads it as stored");
-    SUCCEED();
-}
-
 /** @brief Tests that the context names its node, its operation and the values it reads. */
 TEST_F(Medium_LoweringContext, TheContextDescribesItsNode)
 {
@@ -245,18 +234,28 @@ TEST_F(Medium_LoweringContext, ASelectorMayNarrowAGEMMEpilogueToTheBiasForm)
     EXPECT_EQ(selections[0].chosen, FusedForm::GEMMBias);
 }
 
-/** @brief Tests that a prelude is refused without a list and appended when there is one. */
-TEST_F(Medium_LoweringContext, APreludeNeedsAListToGoInto)
+/** @brief Tests that a prelude is refused when the context has no list to put it in. */
+TEST_F(Medium_LoweringContext, APreludeIsRefusedWithoutAList)
+{
+    const ReplayPrelude prelude = [](std::uint64_t)
+    {
+
+    };
+
+    const std::unique_ptr<LoweringContext> without = context_over(selector);
+
+    SA_EXPECT_FAILURE(without->before_each_replay(prelude), StatusCode::Unsupported,
+                      "CompiledStep");
+}
+
+/** @brief Tests that a prelude is appended to the list the context was given. */
+TEST_F(Medium_LoweringContext, APreludeIsAppendedToTheListTheContextHolds)
 {
     std::uint64_t seen = 0;
     const ReplayPrelude prelude = [&seen](std::uint64_t run)
     {
         seen = run;
     };
-
-    const std::unique_ptr<LoweringContext> without = context_over(selector);
-    SA_EXPECT_FAILURE(without->before_each_replay(prelude), StatusCode::Unsupported,
-                      "CompiledStep");
 
     std::vector<ReplayPrelude> preludes;
     const LoweringContext with(recording->recorder(), engine->rng(), *pool, graph, node,

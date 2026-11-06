@@ -30,11 +30,31 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/graph/lowering/unlowered.hpp>
 
 using namespace SushiAI;
+
+namespace
+{
+    /** @brief Names two positions of K_UNLOWERED. */
+    struct PositionPair
+    {
+        std::size_t first;  /**< The earlier position. */
+        std::size_t second; /**< The later position. */
+    };
+
+    /** @brief Lists every pair of positions of the four entries. */
+    constexpr PositionPair K_PAIRS[] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+
+    /** @brief Runs once per pair of positions of K_UNLOWERED. */
+    class Small_UnloweredPair : public ::testing::TestWithParam<PositionPair>
+    {
+
+    };
+} // namespace
 
 /** @brief Tests that the list names the two optimizer updates, the clip and the stats update. */
 TEST(Small_Unlowered, TheListNamesTheFourOperationsRecordedBesideTheGraph)
@@ -45,18 +65,24 @@ TEST(Small_Unlowered, TheListNamesTheFourOperationsRecordedBesideTheGraph)
             != Graph::K_UNLOWERED.end();
     };
 
+    EXPECT_EQ(Graph::K_UNLOWERED.size(), 4u);
     EXPECT_TRUE(holds(Ops::K_ADAMW_UPDATE.id));
     EXPECT_TRUE(holds(Ops::K_SGD_UPDATE.id));
     EXPECT_TRUE(holds(Ops::K_CLIP_SCALE.id));
     EXPECT_TRUE(holds(Ops::K_BATCHNORM_UPDATE_STATS.id));
 }
 
-/** @brief Tests that no operation appears twice, so the four entries are four operations. */
-TEST(Small_Unlowered, NoOperationIsListedTwice)
+/** @brief Tests that two positions of the list never hold the same operation. */
+TEST_P(Small_UnloweredPair, NoOperationIsListedTwice)
 {
-    for (std::size_t i = 0; i < Graph::K_UNLOWERED.size(); ++i)
-    {
-        for (std::size_t j = i + 1; j < Graph::K_UNLOWERED.size(); ++j)
-            EXPECT_NE(Graph::K_UNLOWERED[i], Graph::K_UNLOWERED[j]) << i << " and " << j;
-    }
+    const PositionPair pair = GetParam();
+
+    EXPECT_NE(Graph::K_UNLOWERED[pair.first], Graph::K_UNLOWERED[pair.second]);
 }
+
+INSTANTIATE_TEST_SUITE_P(, Small_UnloweredPair, ::testing::ValuesIn(K_PAIRS),
+                         [](const ::testing::TestParamInfo<PositionPair>& info)
+                         {
+                             return std::to_string(info.param.first) + "_"
+                                  + std::to_string(info.param.second);
+                         });

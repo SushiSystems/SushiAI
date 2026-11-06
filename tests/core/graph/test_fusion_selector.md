@@ -10,25 +10,24 @@ Tests `DeviceFusionSelector::choose` on device profiles written by hand, so no d
 
 ## AMatchIsTakenWholeWhenNothingArguesAgainstIt
 
-On a device with doubles in the automatic mode, a GEMM with bias, a GEMM with bias and GELU and
-the elementwise exp, sub and scale form are each answered with the matched form and a reason.
+A parameterised case, one row for each of a GEMM with bias, a GEMM with bias and GELU and the
+elementwise exp, sub and scale form. On a device with doubles in the automatic mode each is
+answered with the matched form and a reason.
 
 ## ADoubleMatchOnADeviceWithoutDoublesIsDeclined
 
 A float64 match on the default profile, which has no native doubles, is answered with no form
 and a reason naming double precision.
 
-## TheReferenceModeDeclinesOnlyGEMMEpilogues
+## TheReferenceModeDeclinesAGEMMEpilogue
 
-In `ForceReference` a GEMM with bias and tanh is declined, and the elementwise form is still
-taken.
+In `ForceReference` a GEMM with bias and tanh is declined.
+
+## TheReferenceModeKeepsTheElementwiseForm
+
+In `ForceReference` the elementwise exp, sub and scale form is still taken.
 
 ## AStridedEpilogueOperandIsDeclined
 
 A GEMM with bias whose bias is not contiguous is answered with no form and a reason naming
 contiguity.
-
-## TheSelectorKeepsTheDeviceItReasonsAbout
-
-`supports_fp64()` and `mode()` return what the selector was built with, and a query that matched
-nothing is answered with no form.

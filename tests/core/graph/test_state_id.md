@@ -3,19 +3,47 @@
 
 Suites: `Small_StateID`.
 
-Tests the process-wide counter behind `StateID` and the self-assignment of a `StateIdentity`.
-Drawing, copying and moving a holder are pinned by the `Small_Ir` cases of
-`tests/core/graph/test_ir.cpp`.
+Tests the process-wide counter behind `StateID` and the identity a `StateIdentity` draws,
+copies and moves.
 
-## NoStateIsZeroAndIsNeverDrawn
+## NoDrawnIdentityIsNoState
 
-`K_NO_STATE` is 0, and `draw_state_id` does not return it.
+`draw_state_id` does not return `K_NO_STATE`.
 
 ## EachDrawIsAboveTheOneBefore
 
 Three draws in a row return three increasing identities.
 
-## SelfAssignmentKeepsTheIdentity
+## CopySelfAssignmentKeepsTheIdentity
 
-A holder copy-assigned from itself, then move-assigned from itself, both through a reference,
-keeps the identity it drew.
+A holder copy-assigned from itself through a reference keeps the identity it drew.
+
+## MoveSelfAssignmentKeepsTheIdentity
+
+A holder move-assigned from itself through a reference keeps the identity it drew.
+
+## GetDrawsOneStableIdentity
+
+A fresh holder peeks `K_NO_STATE`; `get()` draws an identity other than `K_NO_STATE` and returns
+the same one on every later call.
+
+## TwoHoldersNeverShareAnIdentity
+
+The identities two holders draw differ.
+
+## ACopyConstructedHolderDoesNotShareTheSourcesIdentity
+
+A copy starts with `K_NO_STATE` and draws an identity other than the source's, which keeps its own.
+
+## ACopyAssignedHolderDoesNotShareTheSourcesIdentity
+
+A holder assigned from another drops its identity, then draws one that is neither the source's
+nor the one it held before.
+
+## AMoveConstructedHolderCarriesTheIdentityAway
+
+A holder move-constructed from a source peeks the source's identity; the source peeks `K_NO_STATE`.
+
+## AMoveAssignedHolderCarriesTheIdentityAway
+
+A holder move-assigned from a source peeks the source's identity; the source peeks `K_NO_STATE`.

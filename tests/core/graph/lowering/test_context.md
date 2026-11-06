@@ -1,17 +1,12 @@
 # tests/core/graph/lowering/test_context.cpp
 
 
-Suites: `Small_LoweringContext`, `Medium_LoweringContext`.
+Suites: `Medium_LoweringContext`.
 
 Tests what `LoweringContext` gives a lowering row. The fixture traces one RELU over a [2, 3]
 input, materialises its leaves in a `TensorPool` and binds a context to the RELU node with the
 engine's recorder and random stream. The file-local `FixedSelector` answers every query with one
 form. No case records a task.
-
-## TheTransposeFlagMapsOntoSushiBLAS
-
-`transpose_of` maps true to `Transpose::Trans` and false to `Transpose::NoTrans`, checked at
-compile time.
 
 ## TheContextDescribesItsNode
 
@@ -42,8 +37,11 @@ the count taken before sets the selection's task count to 4.
 A selector that answers the plain GEMM and bias form to a GEMM, bias and tanh match is accepted,
 and the selection records the tanh form as matched and the bias form as chosen.
 
-## APreludeNeedsAListToGoInto
+## APreludeIsRefusedWithoutAList
 
 A context bound without a list of preludes refuses `before_each_replay` with `Unsupported` and a
-message naming `CompiledStep`. A context bound with a list appends the prelude, and calling it
-with 7 reaches the callable.
+message naming `CompiledStep`.
+
+## APreludeIsAppendedToTheListTheContextHolds
+
+A context bound with a list appends the prelude, and calling it with 7 reaches the callable.

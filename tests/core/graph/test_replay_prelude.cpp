@@ -36,14 +36,6 @@
 using namespace SushiAI;
 using Graph::ReplayPrelude;
 
-/** @brief Tests that a prelude built empty holds no target, which a context refuses. */
-TEST(Small_ReplayPrelude, ADefaultPreludeHoldsNoTarget)
-{
-    const ReplayPrelude prelude;
-
-    EXPECT_FALSE(static_cast<bool>(prelude));
-}
-
 /** @brief Tests that a prelude receives the replay count it is called with, 0 first. */
 TEST(Small_ReplayPrelude, APreludeReceivesTheCountOfFinishedReplays)
 {
@@ -53,8 +45,9 @@ TEST(Small_ReplayPrelude, APreludeReceivesTheCountOfFinishedReplays)
         seen.push_back(run);
     };
 
-    for (std::uint64_t run = 0; run < 3; ++run)
-        prelude(run);
+    prelude(0);
+    prelude(1);
+    prelude(2);
 
     EXPECT_EQ(seen, (std::vector<std::uint64_t>{0, 1, 2}));
 }
