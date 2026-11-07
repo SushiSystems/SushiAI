@@ -38,8 +38,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/execution/execution_backend.hpp>
-#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/region_program.hpp>
@@ -60,14 +59,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Binds the emitter to the program it records and the pool it fills.
-                 * @param backend Names the device and the engine the tasks use.
-                 * @param runtime The runtime the late counts live on.
+                 * @param backend Names the device and the engine the tasks use, and the runtime
+                 *        the late counts live on.
                  * @param selector Picks the form of a fused node; null selects by device.
                  * @param region The region of the program; its id opens the origin of every node.
                  * @pre Every argument outlives the emitter.
                  */
-                RegionEmitter(ExecutionBackend& backend, RuntimeAccess& runtime,
-                              const RegionProgram& program, Graph::TensorPool& pool,
+                RegionEmitter(RuntimeBackend& backend, const RegionProgram& program,
+                              Graph::TensorPool& pool,
                               const Graph::FusionSelector* selector,
                               RegionID region = K_NO_REGION_ID) noexcept;
 
@@ -117,7 +116,7 @@ namespace SushiAI
 
             private:
                 /// @brief The backend whose engine supplies the scratch pool, mode and stream.
-                ExecutionBackend* backend_;
+                RuntimeBackend* backend_;
 
                 /// @brief The program emit() records.
                 const RegionProgram* program_;

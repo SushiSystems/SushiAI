@@ -181,7 +181,7 @@ namespace
         run.run_index = K_RUN;
         run.batches_per_epoch = K_BATCHES_PER_EPOCH;
         std::unique_ptr<GradientExchange> exchange =
-            GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
+            GradientExchange::make(backend, machines.binding(), section.plan(), run,
                                    publish->pack(), master_kernel->result_layout(),
                                    std::move(targets)).value();
 
@@ -434,7 +434,7 @@ namespace
         run.seed = K_SEED;
         run.run_index = K_RUN;
         std::unique_ptr<GradientExchange> exchange =
-            GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
+            GradientExchange::make(backend, machines.binding(), section.plan(), run,
                                    publish->pack(), layout, targets)
                 .value();
 
@@ -552,7 +552,7 @@ TEST(Medium_GradientExchange, MakeRefusesTargetsThatDifferFromTheResultLayout)
 
     ExchangeRun run;
     run.operation = kernel->operation();
-    SA_EXPECT_FAILURE(GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
+    SA_EXPECT_FAILURE(GradientExchange::make(backend, machines.binding(), section.plan(), run,
                                              publish->pack(), kernel->result_layout(),
                                              listed),
                       StatusCode::InvalidDescription);
@@ -580,7 +580,7 @@ TEST(Medium_GradientExchange, MakeRefusesAUInt32Result)
 
     ExchangeRun run;
     run.operation = SushiBLAS::remote_operation("sushiai.test.uint32", layout.fingerprint());
-    SA_EXPECT_FAILURE(GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
+    SA_EXPECT_FAILURE(GradientExchange::make(backend, machines.binding(), section.plan(), run,
                                              publish->pack(), layout, targets),
                       StatusCode::Unsupported, "Target 1 is uint32");
 }

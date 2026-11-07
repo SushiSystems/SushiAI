@@ -140,7 +140,7 @@ TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
     const std::vector<double> expected = expected_result(*recorded);
 
     SushiRuntime::Graph graph = backend().runtime().graph();
-    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), recorded->program, recorded->pool, nullptr);
     SA_EXPECT_OK(emitter.emit(graph.recorder()));
     SA_EXPECT_OK(recorded->pool.flush_constants(backend()));
 
@@ -159,7 +159,7 @@ TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
 TEST_F(Medium_RegionEmitter, EmitCountsItsCalls)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), recorded->program, recorded->pool, nullptr);
     EXPECT_EQ(emitter.emit_count(), 0u);
 
     SushiRuntime::Graph first = backend().runtime().graph();
@@ -174,7 +174,7 @@ TEST_F(Medium_RegionEmitter, EmitCountsItsCalls)
 TEST_F(Medium_RegionEmitter, ASecondEmitRecordsTheSameOperations)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), recorded->program, recorded->pool, nullptr);
 
     SushiRuntime::Graph first = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(first.recorder()));
@@ -193,7 +193,7 @@ TEST_F(Medium_RegionEmitter, ASecondEmitRecordsTheSameOperations)
 TEST_F(Medium_RegionEmitter, AProgramWithoutDropoutHasNoPreludes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), recorded->program, recorded->pool, nullptr);
 
     SushiRuntime::Graph graph = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(graph.recorder()));

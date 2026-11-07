@@ -342,7 +342,7 @@ namespace SushiAI::Eager::Support
     {
         /** @brief Builds the executor and the session on @p backend with a step size of @p rate. */
         Loop(RuntimeExecutionBackend& backend, float rate, SessionOptions options = {})
-            : executor(backend, backend), session(backend, executor, partitioner, options),
+            : executor(backend), session(backend, executor, partitioner, options),
               update(rate)
         {
 

@@ -46,8 +46,8 @@
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
-#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
@@ -84,14 +84,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Allocates and shares the position pack and the result packs.
-                 * @param backend Allocates the position tensor.
-                 * @param runtime Gives the packs and the placement scopes.
+                 * @param backend Allocates the position tensor and gives the runtime for the
+                 *        packs and the placement scopes.
                  * @param targets One contiguous tensor per entry of @p result_layout, on the
                  *        device of @p parameters; @p binding and @p parameters outlive it.
                  * @return The exchange; InvalidDescription for a bad argument; Unsupported for uint32.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientExchange>> make(
-                    ExecutionBackend& backend, RuntimeAccess& runtime,
+                    RuntimeBackend& backend,
                     SushiBLAS::ClusterBinding& binding, const ReplicaPlan& plan, const ExchangeRun& run,
                     const SushiBLAS::TensorPack& parameters,
                     const SushiBLAS::PackLayout& result_layout,

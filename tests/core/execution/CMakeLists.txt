@@ -8,6 +8,7 @@ sushiai_add_test_program(OWNER execution
     SOURCES
         compile_execution_backend.cpp
         compile_runtime_access.cpp
+        compile_runtime_backend.cpp
         compile_step_tasks.cpp
         test_execution.cpp
         test_host_execution_backend.cpp

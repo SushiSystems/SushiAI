@@ -32,7 +32,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/config/train_config.hpp>
-#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 
@@ -55,14 +55,15 @@ namespace SushiAI
 
         /**
          * @brief Attaches the master the cluster section of @p run describes and trains it.
-         * @param run Its backend runs on the runtime built from training_runtime_config().
+         * @param backend The backend of the run; it runs on the runtime built from
+         *        training_runtime_config(), which the master attaches its cluster to.
+         * @param run What the run trains.
          * @param parameters Each parameter with its gradient, as bind_parameters() returned.
-         * @param runtime That runtime, which the master attaches its cluster to.
          * @return What the run returns, a refusal, or Unsupported without the distributed layer.
          */
         [[nodiscard]] Result<RunSummary> run_cluster_training(
-            PreparedRun& run, SushiRuntime::span<const Optim::ParameterSlot> parameters,
-            RuntimeAccess& runtime);
+            RuntimeBackend& backend, PreparedRun& run,
+            SushiRuntime::span<const Optim::ParameterSlot> parameters);
 
     } // namespace Apps
 } // namespace SushiAI

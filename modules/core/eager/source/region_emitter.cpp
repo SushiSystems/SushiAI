@@ -41,12 +41,12 @@ namespace SushiAI
 {
     namespace Eager
     {
-        RegionEmitter::RegionEmitter(ExecutionBackend& backend, RuntimeAccess& runtime,
-                                     const RegionProgram& program, Graph::TensorPool& pool,
+        RegionEmitter::RegionEmitter(RuntimeBackend& backend, const RegionProgram& program,
+                                     Graph::TensorPool& pool,
                                      const Graph::FusionSelector* selector,
                                      RegionID region) noexcept
             : backend_(&backend), program_(&program), pool_(&pool), selector_(selector),
-              region_(region), late_counts_(runtime.runtime())
+              region_(region), late_counts_(backend.runtime())
         {
 
         }

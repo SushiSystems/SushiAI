@@ -92,7 +92,7 @@ namespace
     {
         /** @brief Builds the storage, the table and the executor on @p backend. */
         explicit Harness(RuntimeExecutionBackend& backend)
-            : bank(backend.engine()), table(ids), executor(backend, backend)
+            : bank(backend.engine()), table(ids), executor(backend)
         {
 
         }

@@ -104,21 +104,21 @@ namespace SushiAI
 
         } // namespace
 
-        RegionExecutor::LiveRegion::LiveRegion(ExecutionBackend& backend, RuntimeAccess& runtime,
+        RegionExecutor::LiveRegion::LiveRegion(RuntimeBackend& backend,
                                                RegionID region, RegionProgram compiled,
                                                SharedStorage placed,
                                                const Graph::FusionSelector* selector)
             : id(region), program(std::move(compiled)), shared(std::move(placed)), pool(backend.engine()),
-              emitter(backend, runtime, program, pool, selector, region)
+              emitter(backend, program, pool, selector, region)
         {
 
         }
 
-        RegionExecutor::RegionExecutor(ExecutionBackend& backend, RuntimeAccess& runtime,
+        RegionExecutor::RegionExecutor(RuntimeBackend& backend,
                                        const Graph::FusionSelector* selector) noexcept
-            : backend_(&backend), runtime_(&runtime), selector_(selector),
-              trailing_counts_(runtime.runtime()),
-              graph_(runtime.runtime().dynamic_graph())
+            : backend_(&backend), selector_(selector),
+              trailing_counts_(backend.runtime()),
+              graph_(backend.runtime().dynamic_graph())
         {
             graph_.set_label(std::string(K_GRAPH_LABEL));
         }
@@ -202,7 +202,7 @@ namespace SushiAI
                           ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
                                                          [&]()
             {
-                return std::make_unique<LiveRegion>(*backend_, *runtime_, order.id,
+                return std::make_unique<LiveRegion>(*backend_, order.id,
                                                     std::move(program),
                                                     std::move(shared), selector_);
             }));

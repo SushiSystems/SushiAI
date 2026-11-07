@@ -117,7 +117,7 @@ namespace
     {
         /** @brief Builds the executor and the session on @p backend around @p partitioner. */
         Rig(SushiAI::RuntimeExecutionBackend& backend, const Eager::RegionPartitioner& partitioner)
-            : executor(backend, backend), session(backend, executor, partitioner), update(K_RATE)
+            : executor(backend), session(backend, executor, partitioner), update(K_RATE)
         {
 
         }

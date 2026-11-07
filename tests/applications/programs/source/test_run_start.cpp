@@ -164,10 +164,10 @@ namespace
     }
 
     /** @brief Returns the run `sushiai train` would hand to the table for @p pieces. */
-    Apps::PreparedRun prepare(Pieces& pieces, SushiAI::ExecutionBackend& backend)
+    Apps::PreparedRun prepare(Pieces& pieces)
     {
         return Apps::PreparedRun{
-            backend,         pieces.spec,       *pieces.dataset, pieces.given,
+            pieces.spec,       *pieces.dataset, pieces.given,
             *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
             *pieces.optimizer, {},             nullptr,
         };
@@ -181,13 +181,13 @@ namespace
                                          const std::filesystem::path& file)
     {
         SA_TRY_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(backend));
-        Apps::PreparedRun prepared = prepare(*trained, backend);
+        Apps::PreparedRun prepared = prepare(*trained);
         Apps::RunRegistry registry;
         SA_TRY(Apps::register_runs(registry));
 
         testing::internal::CaptureStdout();
         const Result<Apps::RunSummary> summary =
-            Apps::run_training(registry, "cross_entropy", prepared);
+            Apps::run_training(registry, "cross_entropy", backend, prepared);
         (void)testing::internal::GetCapturedStdout();
         SA_TRY(summary.status());
         SA_TRY(IO::save_run_checkpoint(file, *trained->state, *trained->optimizer));

@@ -34,8 +34,7 @@
 #include <memory>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
-#include <SushiAI/execution/execution_backend.hpp>
-#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 
 namespace SushiAI
 {
@@ -44,7 +43,7 @@ namespace SushiAI
      * @brief Borrows a runtime and an engine built on it, and records each StepTasks on a graph
      *        of that runtime.
      */
-    class RuntimeExecutionBackend final : public ExecutionBackend, public RuntimeAccess
+    class RuntimeExecutionBackend final : public RuntimeBackend
     {
         public:
             /**

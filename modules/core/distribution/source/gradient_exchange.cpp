@@ -147,7 +147,7 @@ namespace SushiAI
         } // namespace
 
         Result<std::unique_ptr<GradientExchange>> GradientExchange::make(
-            ExecutionBackend& backend, RuntimeAccess& runtime,
+            RuntimeBackend& backend,
             SushiBLAS::ClusterBinding& binding, const ReplicaPlan& plan, const ExchangeRun& run,
             const SushiBLAS::TensorPack& parameters, const SushiBLAS::PackLayout& result_layout,
             std::vector<SushiBLAS::Tensor> targets) noexcept
@@ -172,11 +172,11 @@ namespace SushiAI
                 SA_FATAL_IF(position_layout.entries().front().offset_bytes != 0,
                             "GradientExchange: the position pack starts its words at byte {}",
                             position_layout.entries().front().offset_bytes);
-                parts.position_pack.emplace(runtime.runtime(), position_layout,
+                parts.position_pack.emplace(backend.runtime(), position_layout,
                                             parts.position.storage->device_index());
                 binding.share(*parts.position_pack);
 
-                parts.sum_pack.emplace(runtime.runtime(), result_layout,
+                parts.sum_pack.emplace(backend.runtime(), result_layout,
                                        parameters.device_index());
                 parts.segments = filled_segments(result_layout);
                 parts.result_packs.reserve(replicas);
@@ -185,7 +185,7 @@ namespace SushiAI
                 parts.weights.reserve(replicas);
                 for (std::size_t replica = 0; replica < replicas; ++replica)
                 {
-                    parts.result_packs.emplace_back(runtime.runtime(), result_layout,
+                    parts.result_packs.emplace_back(backend.runtime(), result_layout,
                                                     parameters.device_index());
                     binding.share(parts.result_packs.back());
 
@@ -205,7 +205,7 @@ namespace SushiAI
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 return std::unique_ptr<GradientExchange>(
-                    new GradientExchange(runtime, binding, parameters, std::move(parts)));
+                    new GradientExchange(backend, binding, parameters, std::move(parts)));
             });
         }
 

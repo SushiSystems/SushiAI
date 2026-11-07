@@ -818,7 +818,7 @@ namespace SushiAI::Eager
 namespace SushiAI::Eager
 {
     static_assert(
-        noexcept(RegionExecutor(std::declval<SushiBLAS::Engine&>(),
+        noexcept(RegionExecutor(std::declval<RuntimeBackend&>(),
                 std::declval<const Graph::FusionSelector*>())),
         "RegionExecutor is noexcept");
     static_assert(

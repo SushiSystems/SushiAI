@@ -34,7 +34,7 @@
 #include <string_view>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
-#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include "training_run.hpp"
 
@@ -56,16 +56,26 @@ namespace SushiAI
         };
 
         /**
-         * @brief Trains the model a parsed training file describes and saves its checkpoint.
+         * @brief Trains a parsed training file and saves its checkpoint, on a host backend.
          * @param origin What to call the file in a diagnostic and in the header.
          * @param spec The parsed file, its paths already resolved.
          * @param backend The backend of the run.
-         * @param runtime The runtime of @p backend, for a cluster section; null when it has none.
-         * @return The outcome, or the first failure; Unsupported for a cluster and no runtime.
+         * @return The outcome, or the first failure; Unsupported for a file with a cluster
+         *         section, which needs a runtime.
          */
         [[nodiscard]] Result<TrainingOutcome> run_training_file(std::string_view origin,
                                                                 const Config::TrainSpec& spec,
-                                                                ExecutionBackend& backend,
-                                                                RuntimeAccess* runtime = nullptr);
+                                                                ExecutionBackend& backend);
+
+        /**
+         * @brief Trains a parsed training file and saves its checkpoint, on a runtime backend.
+         * @param origin What to call the file in a diagnostic and in the header.
+         * @param spec The parsed file, its paths already resolved.
+         * @param backend The backend of the run, and the runtime a cluster attaches to.
+         * @return The outcome, or the first failure.
+         */
+        [[nodiscard]] Result<TrainingOutcome> run_training_file(std::string_view origin,
+                                                                const Config::TrainSpec& spec,
+                                                                RuntimeBackend& backend);
     } // namespace Apps
 } // namespace SushiAI

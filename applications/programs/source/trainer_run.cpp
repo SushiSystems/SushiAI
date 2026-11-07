@@ -73,13 +73,13 @@ namespace SushiAI
              *         for a start the data lacks; or the first failure of the trainer, of a
              *         read or of a step.
              */
-            [[nodiscard]] Result<RunSummary> run_with_trainer(PreparedRun& run)
+            [[nodiscard]] Result<RunSummary> run_with_trainer(ExecutionBackend& backend, PreparedRun& run)
             {
                 Train::TrainerOptions options;
                 options.epochs = 1;
 
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                              Train::Trainer::make(run.backend, run.built, run.pool,
+                              Train::Trainer::make(backend, run.built, run.pool,
                                                    run.objective, run.optimizer, options,
                                                    std::move(run.updates)));
 

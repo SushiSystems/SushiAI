@@ -170,17 +170,17 @@ namespace
     }
 
     /** @brief Returns the run `sushiai train` would hand to the table for @p pieces. */
-    Apps::PreparedRun prepare(Pieces& pieces, SushiAI::ExecutionBackend& backend)
+    Apps::PreparedRun prepare(Pieces& pieces)
     {
         return Apps::PreparedRun{
-            backend,         pieces.spec,       *pieces.dataset, pieces.given,
+            pieces.spec,       *pieces.dataset, pieces.given,
             *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
             *pieces.optimizer, {},             nullptr,
         };
     }
 
     /** @brief Stands for the run of a row; reports K_ROW_COUNT and trains nothing. */
-    Result<Apps::RunSummary> run_of_a_row(Apps::PreparedRun&)
+    Result<Apps::RunSummary> run_of_a_row(SushiAI::ExecutionBackend&, Apps::PreparedRun&)
     {
         Apps::RunSummary summary;
         summary.compile_count = K_ROW_COUNT;
@@ -188,7 +188,7 @@ namespace
     }
 
     /** @brief Stands for the fallback run; reports K_FALLBACK_COUNT and trains nothing. */
-    Result<Apps::RunSummary> run_of_the_fallback(Apps::PreparedRun&)
+    Result<Apps::RunSummary> run_of_the_fallback(SushiAI::ExecutionBackend&, Apps::PreparedRun&)
     {
         Apps::RunSummary summary;
         summary.compile_count = K_FALLBACK_COUNT;
@@ -227,7 +227,7 @@ namespace
     {
         std::unique_ptr<RunCase> made = std::make_unique<RunCase>();
         SA_TRY_ASSIGN(made->pieces, make_pieces(backend));
-        made->prepared.emplace(prepare(*made->pieces, backend));
+        made->prepared.emplace(prepare(*made->pieces));
         return std::move(made);
     }
 
@@ -251,13 +251,13 @@ namespace
     ClassificationRun run_classification(SushiAI::ExecutionBackend& backend)
     {
         std::unique_ptr<Pieces> pieces = make_pieces(backend).value();
-        Apps::PreparedRun prepared = prepare(*pieces, backend);
+        Apps::PreparedRun prepared = prepare(*pieces);
         Apps::RunRegistry registry;
         SA_EXPECT_OK(Apps::register_runs(registry));
 
         testing::internal::CaptureStdout();
         Result<Apps::RunSummary> summary =
-            Apps::run_training(registry, "cross_entropy", prepared);
+            Apps::run_training(registry, "cross_entropy", backend, prepared);
         std::string printed = testing::internal::GetCapturedStdout();
         return ClassificationRun{std::move(pieces), std::move(summary), std::move(printed)};
     }
@@ -283,7 +283,7 @@ TEST_F(Medium_TrainingRun, ARunRunsTheRowOfItsType)
     SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
 
     SA_ASSERT_OK_AND_ASSIGN(const Apps::RunSummary of_row,
-                            Apps::run_training(registry, "anchor", *made->prepared));
+                            Apps::run_training(registry, "anchor", backend(), *made->prepared));
 
     EXPECT_EQ(of_row.compile_count, K_ROW_COUNT);
 }
@@ -297,7 +297,7 @@ TEST_F(Medium_TrainingRun, ARunOfAnotherTypeRunsTheFallback)
     SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
 
     SA_ASSERT_OK_AND_ASSIGN(const Apps::RunSummary of_fallback,
-                            Apps::run_training(registry, "cross_entropy", *made->prepared));
+                            Apps::run_training(registry, "cross_entropy", backend(), *made->prepared));
 
     EXPECT_EQ(of_fallback.compile_count, K_FALLBACK_COUNT);
 }
@@ -309,7 +309,7 @@ TEST_F(Medium_TrainingRun, AnUnknownTypeWithoutAFallbackIsRefusedNamingTheKnownO
     Apps::RunRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
 
-    SA_EXPECT_FAILURE(Apps::run_training(registry, "cross_entropy", *made->prepared),
+    SA_EXPECT_FAILURE(Apps::run_training(registry, "cross_entropy", backend(), *made->prepared),
                       StatusCode::InvalidDescription, "'cross_entropy'", "'anchor'");
 }
 

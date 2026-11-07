@@ -41,8 +41,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
-#include <SushiAI/execution/execution_backend.hpp>
-#include <SushiAI/execution/runtime_access.hpp>
+#include <SushiAI/execution/runtime_backend.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_emitter.hpp>
 #include <SushiAI/eager/region_names.hpp>
@@ -65,12 +64,11 @@ namespace SushiAI
             public:
                 /**
                  * @brief Starts with no region, on @p runtime.
-                 * @param backend Allocates the regions' tensors and names the device; must
-                 *        outlive the executor.
-                 * @param runtime The runtime @p backend runs on; must outlive the executor.
+                 * @param backend Allocates the regions' tensors, names the device and gives the
+                 *        runtime the regions run on; must outlive the executor.
                  * @param selector Picks the form of a fused node; null selects by device.
                  */
-                RegionExecutor(ExecutionBackend& backend, RuntimeAccess& runtime,
+                RegionExecutor(RuntimeBackend& backend,
                                const Graph::FusionSelector* selector = nullptr) noexcept;
 
                 RegionExecutor(const RegionExecutor&) = delete;
@@ -139,7 +137,7 @@ namespace SushiAI
                 struct LiveRegion
                 {
                     /** @brief Takes @p compiled and binds an empty pool and an emitter to it. */
-                    LiveRegion(ExecutionBackend& backend, RuntimeAccess& runtime, RegionID region,
+                    LiveRegion(RuntimeBackend& backend, RegionID region,
                                RegionProgram compiled, SharedStorage placed,
                                const Graph::FusionSelector* selector);
 
@@ -180,10 +178,7 @@ namespace SushiAI
                 [[nodiscard]] Status run(std::uint64_t run_index);
 
                 /// @brief The backend whose engine allocates the regions and records their tasks.
-                ExecutionBackend* backend_;
-
-                /// @brief The runtime the regions and the trailing work run on.
-                RuntimeAccess* runtime_;
+                RuntimeBackend* backend_;
 
                 /// @brief The caller's selector, or null to select by device.
                 const Graph::FusionSelector* selector_;

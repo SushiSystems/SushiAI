@@ -12,7 +12,10 @@ each `StepTasks` in a `SushiBLAS::HostTaskSink`; a task that fails on replay is 
 naming its index and name. `RuntimeExecutionBackend` borrows a `SushiRuntime::Runtime` and an
 engine built on it, records each `StepTasks` on a `SushiRuntime::Graph` with a
 `SushiBLAS::LateCountHold` declared before it, and gives out its runtime through `RuntimeAccess`, the
-port the regions, the cluster packs and the placement scope ask for; a host backend has none. The two `StepTasks`
+port the regions, the cluster packs and the placement scope ask for; a host backend has none.
+`RuntimeBackend` is the port that is both an `ExecutionBackend` and a `RuntimeAccess`; a class that needs the
+engine and the runtime takes one `RuntimeBackend&`, so the two never name different objects, and
+`RuntimeExecutionBackend` implements it. The two `StepTasks`
 adapters are private to the sources of the backends. The caller that makes the engine picks the
 backend; no class asks an engine its kind.
 
@@ -35,6 +38,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/execution/step_tasks.hpp` | `StepTasks` |
 | `SushiAI/execution/execution_backend.hpp` | `ExecutionBackend` |
 | `SushiAI/execution/runtime_access.hpp` | `RuntimeAccess` |
+| `SushiAI/execution/runtime_backend.hpp` | `RuntimeBackend` |
 | `SushiAI/execution/host_execution_backend.hpp` | `HostExecutionBackend` |
 | `SushiAI/execution/runtime_execution_backend.hpp` | `RuntimeExecutionBackend` |
 | `SushiAI/execution/execution.hpp` | `Detail::create_runtime`, `Detail::record_and_run`, the alias `sr` |

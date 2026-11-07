@@ -90,7 +90,7 @@ namespace SushiAI
                 ClusterStep built;
                 SA_TRY_ASSIGN(built.publish,
                               Distribution::ParameterPublish::make(
-                                  run.runtime, run.binding, run.local.parameter_layout(),
+                                  run.backend, run.binding, run.local.parameter_layout(),
                                   tensors.parameters));
 
                 Distribution::ExchangeRun exchange_run;
@@ -101,7 +101,7 @@ namespace SushiAI
                     static_cast<std::uint64_t>(run.prepared.dataset.batch_count());
                 SA_TRY_ASSIGN(built.exchange,
                               Distribution::GradientExchange::make(
-                                  run.prepared.backend, run.runtime, run.binding,
+                                  run.backend, run.binding,
                                   run.section.plan(), exchange_run,
                                   built.publish->pack(), run.local.result_layout(),
                                   tensors.results));
@@ -113,7 +113,7 @@ namespace SushiAI
 
                 built.graph = std::make_unique<Graph::Graph>();
                 SA_TRY_ASSIGN(built.step,
-                              Train::TrainingStep::make(run.prepared.backend, *built.graph,
+                              Train::TrainingStep::make(run.backend, *built.graph,
                                                         run.prepared.pool,
                                                         run.prepared.optimizer,
                                                         std::move(run.prepared.updates),

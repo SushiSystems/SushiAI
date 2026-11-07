@@ -126,7 +126,7 @@ namespace SushiAI
              *         once; or the first failure of the objective, of the bias start, of the
              *         step, of the start or of run_anchor_training.
              */
-            [[nodiscard]] Result<RunSummary> run_anchor(PreparedRun& run)
+            [[nodiscard]] Result<RunSummary> run_anchor(ExecutionBackend& backend, PreparedRun& run)
             {
                 // The registry returns the interface; the step takes the type behind it.
                 SA_TRY_ASSIGN(const Vision::Training::AnchorObjective objective,
@@ -141,7 +141,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::AnchorTrainingStep> step,
                     Vision::Training::AnchorTrainingStep::make(
-                        run.backend, objective, run.built, run.pool, run.optimizer,
+                        backend, objective, run.built, run.pool, run.optimizer,
                         std::move(run.updates)));
 
                 SA_TRY(check_start_batch(run));
@@ -231,7 +231,7 @@ namespace SushiAI
              *         part before the ports was not compiled once; or the first failure of the
              *         objective, the bias start, the step or run_free_training.
              */
-            [[nodiscard]] Result<RunSummary> run_anchor_free(PreparedRun& run)
+            [[nodiscard]] Result<RunSummary> run_anchor_free(ExecutionBackend& backend, PreparedRun& run)
             {
                 // The registry returns the interface; the step takes the type behind it.
                 SA_TRY_ASSIGN(const Vision::Training::FreeObjective objective,
@@ -248,7 +248,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::FreeTrainingStep> step,
                     Vision::Training::FreeTrainingStep::make(
-                        run.backend, objective, run.built, run.pool, run.optimizer,
+                        backend, objective, run.built, run.pool, run.optimizer,
                         std::move(run.updates)));
 
                 SA_TRY(check_start_batch(run));

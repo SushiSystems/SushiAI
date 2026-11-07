@@ -127,11 +127,11 @@ namespace SushiAI
         }
 
         Result<RunSummary> run_training(const RunRegistry& registry, std::string_view objective,
-                                        PreparedRun& run)
+                                        ExecutionBackend& backend, PreparedRun& run)
         {
             const RunEntry* const row = registry.find(objective);
             if (row != nullptr)
-                return row->run(run);
+                return row->run(backend, run);
 
             const RunFunction fallback = registry.fallback();
             SA_FAIL_IF(fallback == nullptr, StatusCode::InvalidDescription,
@@ -139,7 +139,7 @@ namespace SushiAI
                        "trains: {}",
                        objective, list_objectives(registry.rows()));
 
-            return fallback(run);
+            return fallback(backend, run);
         }
 
     } // namespace Apps

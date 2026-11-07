@@ -269,7 +269,7 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
     const std::vector<std::vector<unsigned char>> before = bytes_of(setup->parameters());
 
     Apps::PreparedRun prepared{
-        backend, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
+        spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
         setup->state(), setup->pool(), *optimizer, setup->take_updates(), nullptr, start,
     };
     Apps::ClusterRun run{prepared, backend,

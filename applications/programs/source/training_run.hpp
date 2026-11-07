@@ -57,13 +57,12 @@ namespace SushiAI
     {
         /**
          * @struct PreparedRun
-         * @brief Holds what `sushiai train` built before the run starts; a run owns none of it.
+         * @brief Holds what `sushiai train` built before the run starts; a run owns none of it. The backend
+         *        the run executes on is not part of it: a run takes it beside the PreparedRun, so
+         *        the same object is never named twice.
          */
         struct PreparedRun
         {
-            /** @brief The backend every step is compiled and run on. */
-            ExecutionBackend& backend;
-
             /** @brief The training file: the epochs and the objective's own keys. */
             const Config::TrainSpec& spec;
 
@@ -127,9 +126,10 @@ namespace SushiAI
 
         /**
          * @brief Trains over every epoch of the run and prints its progress lines.
+         * @param backend The backend every step is compiled and run on.
          * @return The summary, or the first failure of a step, a read or a compilation.
          */
-        using RunFunction = Result<RunSummary> (*)(PreparedRun& run);
+        using RunFunction = Result<RunSummary> (*)(ExecutionBackend& backend, PreparedRun& run);
 
         /**
          * @struct RunEntry
@@ -193,6 +193,7 @@ namespace SushiAI
          */
         [[nodiscard]] Result<RunSummary> run_training(const RunRegistry& registry,
                                                       std::string_view objective,
+                                                      ExecutionBackend& backend,
                                                       PreparedRun& run);
 
     } // namespace Apps

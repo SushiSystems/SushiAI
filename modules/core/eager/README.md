@@ -59,7 +59,7 @@ Each header is named by its include path under `include/`.
 
 ## What the caller writes
 
-A loop builds one `ScopePartitioner`, one `RegionExecutor` on an `ExecutionBackend` and the `RuntimeAccess` of its runtime and one
+A loop builds one `ScopePartitioner`, one `RegionExecutor` on a `RuntimeBackend` and one
 `Session` on the backend over both, and binds each model state once with `Session::bind_state`. Per step it calls
 `Session::begin_step`, declares each batch with `Step::input`, takes the leaf of each state from
 `Step::state`, emits nodes through `Step::builder`, and opens `Scope` objects on `Step::scopes`

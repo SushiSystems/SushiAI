@@ -100,7 +100,7 @@ namespace
         }
 
         const sa::Result<sa::Apps::TrainingOutcome> trained =
-            sa::Apps::run_training_file(spec_path, spec, backend, &backend);
+            sa::Apps::run_training_file(spec_path, spec, backend);
         return sa::Apps::end_profiled_run(profile, trained.status());
     }
 } // namespace
