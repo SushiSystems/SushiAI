@@ -139,6 +139,7 @@ dispatch: J18 M5 core/autograd — sonnet medium, 1 round, partial (two records 
 dispatch: J18 M7, M9, M20 (darknet_reference, distribution, ops) — sonnet medium, 1 round, M20 passed, M7 and M9 partial (RW-160), rung 1
 dispatch: J18 M11 core/eager — sonnet medium, 1 round, partial (four seams, not built: it took the lead's seam order for an unverified sender), rung 1
 dispatch: J19 M1 RW-157 (sample source journal, AffineNearest move) — sonnet medium, 1 round, passed after the lead rewrapped one comment line, rung 1
+dispatch: J19 shared tests/support headers (imaging helpers, test-name sanitiser) — sonnet medium, 1 round, passed, rung 1
 
 ## Totals
 
