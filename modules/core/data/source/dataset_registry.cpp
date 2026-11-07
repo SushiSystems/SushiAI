@@ -97,16 +97,24 @@ namespace SushiAI
             return registry.add(DatasetEntry{"rings", &make_rings});
         }
 
+        Result<const DatasetEntry*> find_dataset_row(const DatasetRegistry& registry,
+                                                     std::string_view type) noexcept
+        {
+            const DatasetEntry* const row = registry.find(type);
+            SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
+                       "unknown dataset type '{}'; this build has: {}", type,
+                       list_types(registry.rows()));
+
+            return row;
+        }
+
         Result<std::unique_ptr<Dataset>> make_dataset(const DatasetRegistry& registry,
                                                       SushiBLAS::Engine& engine,
                                                       std::string_view type,
                                                       const Config::Value& attributes,
                                                       std::string_view context) noexcept
         {
-            const DatasetEntry* const row = registry.find(type);
-            SA_FAIL_IF(row == nullptr, StatusCode::InvalidDescription,
-                       "unknown dataset type '{}'; this build has: {}", type,
-                       list_types(registry.rows()));
+            SA_TRY_ASSIGN(const DatasetEntry* const row, find_dataset_row(registry, type));
 
             return row->make(engine, attributes, context);
         }

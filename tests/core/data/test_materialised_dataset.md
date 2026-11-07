@@ -20,3 +20,10 @@ value per sample.
 ## ShareBatchCopiesNoElement
 
 `Data::share_batch` leaves the batch with the data pointers of the held batch and its role.
+
+## ShareBatchGivesTheRolesAndTheLayoutOfTheHeldBatch
+
+Over a batch an `InMemoryBatchAllocator` described, `share_batch` gives a batch with the same
+rank, 3 samples on axis 0 and the one role `labels` as an int32 target. The case needs no device;
+`ShareBatchCopiesNoElement` keeps the claim that no element is copied, since only a tensor with
+storage can show it.

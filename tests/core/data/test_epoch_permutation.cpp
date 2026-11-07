@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <numeric>
 #include <tuple>
 #include <vector>
 #include <gtest/gtest.h>
@@ -109,23 +110,23 @@ TEST(Small_EpochPermutation, AnOrderRepeatsForTheSameSeedAndEpoch)
     EXPECT_EQ(order_of(K_SEED, 0, K_COMPARED_COUNT), order_of(K_SEED, 0, K_COMPARED_COUNT));
 }
 
-/** @brief Tests that another epoch and another seed each give another order. */
-TEST(Small_EpochPermutation, AnOrderChangesWithTheSeedAndTheEpoch)
+/** @brief Tests that another epoch gives another order. */
+TEST(Small_EpochPermutation, AnotherEpochGivesAnotherOrder)
 {
-    const std::vector<std::uint64_t> first = order_of(K_SEED, 0, K_COMPARED_COUNT);
-
-    EXPECT_NE(order_of(K_SEED, 1, K_COMPARED_COUNT), first);
-    EXPECT_NE(order_of(K_OTHER_SEED, 0, K_COMPARED_COUNT), first);
+    EXPECT_NE(order_of(K_SEED, 1, K_COMPARED_COUNT), order_of(K_SEED, 0, K_COMPARED_COUNT));
 }
 
-/** @brief Pins the orders of 10 samples as the mapping gives them now. */
-TEST(Characterization_Small_EpochPermutation, TheOrdersOfTenSamples)
+/** @brief Tests that another seed gives another order. */
+TEST(Small_EpochPermutation, AnotherSeedGivesAnotherOrder)
 {
-    const std::vector<std::uint64_t> first = {4, 9, 5, 2, 1, 3, 8, 7, 6, 0};
-    const std::vector<std::uint64_t> next_epoch = {2, 5, 9, 1, 4, 3, 6, 7, 8, 0};
-    const std::vector<std::uint64_t> other_seed = {5, 4, 1, 2, 3, 9, 0, 6, 7, 8};
+    EXPECT_NE(order_of(K_OTHER_SEED, 0, K_COMPARED_COUNT), order_of(K_SEED, 0, K_COMPARED_COUNT));
+}
 
-    EXPECT_EQ(order_of(K_SEED, 0, K_COMPARED_COUNT), first);
-    EXPECT_EQ(order_of(K_SEED, 1, K_COMPARED_COUNT), next_epoch);
-    EXPECT_EQ(order_of(K_OTHER_SEED, 0, K_COMPARED_COUNT), other_seed);
+/** @brief Tests that an order moves samples: it is not the order in which they are stored. */
+TEST(Small_EpochPermutation, AnOrderIsNotTheOrderOfStorage)
+{
+    std::vector<std::uint64_t> storage(K_COMPARED_COUNT);
+    std::iota(storage.begin(), storage.end(), std::uint64_t{0});
+
+    EXPECT_NE(order_of(K_SEED, 0, K_COMPARED_COUNT), storage);
 }

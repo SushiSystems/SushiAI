@@ -38,6 +38,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/data/batch_allocator.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/target.hpp>
@@ -107,6 +108,15 @@ namespace SushiAI
                                                    const std::vector<TargetDescription>& targets) noexcept;
 
         /**
+         * @brief Allocates a batch as the overload above does, through @p allocator.
+         * @param allocator Allocates every tensor of the batch; the overload above passes an
+         *                  EngineBatchAllocator over its engine.
+         */
+        [[nodiscard]] Result<Batch> allocate_batch(BatchAllocator& allocator, int64_t rows,
+                                                   const InputDescription& input,
+                                                   const std::vector<TargetDescription>& targets) noexcept;
+
+        /**
          * @brief Makes @p batch share the tensors of @p held; no element is copied.
          * @param batch Overwritten; its role list is reused when it is long enough.
          * @return Success, or OutOfMemory when the role list of @p batch cannot grow.
@@ -130,6 +140,17 @@ namespace SushiAI
          * @return Success with the contents unset, or the failure of allocate_batch().
          */
         [[nodiscard]] Status prepare_batch(SushiBLAS::Engine& engine, int64_t rows,
+                                           const InputDescription& input,
+                                           const std::vector<TargetDescription>& targets,
+                                           Batch& batch) noexcept;
+
+        /**
+         * @brief Prepares a batch as the overload above does, allocating through @p allocator.
+         *
+         * A batch an InMemoryBatchAllocator made holds no Storage, so it is never held alone
+         * and is replaced.
+         */
+        [[nodiscard]] Status prepare_batch(BatchAllocator& allocator, int64_t rows,
                                            const InputDescription& input,
                                            const std::vector<TargetDescription>& targets,
                                            Batch& batch) noexcept;

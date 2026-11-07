@@ -53,7 +53,7 @@ namespace SushiAI
              * @return The tensor, InvalidDescription when the shape exceeds the maximum rank,
              *         or the failure of the allocation.
              */
-            [[nodiscard]] Result<SushiBLAS::Tensor> allocate_rows(SushiBLAS::Engine& engine,
+            [[nodiscard]] Result<SushiBLAS::Tensor> allocate_rows(BatchAllocator& allocator,
                                                                   int64_t rows,
                                                                   const Shape& sample,
                                                                   DType dtype)
@@ -67,11 +67,10 @@ namespace SushiAI
                 for (int32_t d = 0; d < sample.rank(); ++d)
                     dims[static_cast<std::size_t>(d) + 1] = sample[d];
 
-                return allocate_tensor(engine,
-                                       SushiRuntime::span<const int64_t>(
-                                           dims.data(),
-                                           static_cast<std::size_t>(sample.rank()) + 1),
-                                       dtype);
+                return allocator.allocate(SushiRuntime::span<const int64_t>(
+                                              dims.data(),
+                                              static_cast<std::size_t>(sample.rank()) + 1),
+                                          dtype);
             }
 
             /** @brief Reports whether @p tensor is [rows, sample...] of @p dtype, held alone. */
@@ -136,13 +135,43 @@ namespace SushiAI
             return share_rows(batches_[index], rows, batch);
         }
 
+        Result<SushiBLAS::Tensor> EngineBatchAllocator::allocate(
+            SushiRuntime::span<const int64_t> dims, DType dtype) noexcept
+        {
+            return allocate_tensor(*engine_, dims, dtype);
+        }
+
+        Result<SushiBLAS::Tensor> InMemoryBatchAllocator::allocate(
+            SushiRuntime::span<const int64_t> dims, DType dtype) noexcept
+        {
+            for (const int64_t extent : dims)
+            {
+                SA_FAIL_IF(extent <= 0, StatusCode::InvalidDescription,
+                           "Tensor extents must be positive; got {}", extent);
+            }
+
+            return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
+            {
+                return SushiBLAS::Tensor(SushiRuntime::sushi_ptr<SushiBLAS::Storage>(), dims,
+                                         dtype, 0, SushiBLAS::Core::Layout::RowMajor);
+            });
+        }
+
         Result<Batch> allocate_batch(SushiBLAS::Engine& engine, int64_t rows,
+                                     const InputDescription& input,
+                                     const std::vector<TargetDescription>& targets) noexcept
+        {
+            EngineBatchAllocator allocator(engine);
+            return allocate_batch(allocator, rows, input, targets);
+        }
+
+        Result<Batch> allocate_batch(BatchAllocator& allocator, int64_t rows,
                                      const InputDescription& input,
                                      const std::vector<TargetDescription>& targets) noexcept
         {
             Batch batch;
             SA_TRY_ASSIGN(batch.inputs,
-                          allocate_rows(engine, rows, input.sample_shape, input.dtype));
+                          allocate_rows(allocator, rows, input.sample_shape, input.dtype));
             SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
             {
                 batch.targets.reserve(targets.size());
@@ -152,7 +181,7 @@ namespace SushiAI
             for (const TargetDescription& target : targets)
             {
                 SA_TRY_ASSIGN(SushiBLAS::Tensor values,
-                              allocate_rows(engine, rows, target.sample_shape, target.dtype));
+                              allocate_rows(allocator, rows, target.sample_shape, target.dtype));
                 SA_TRY(Detail::guard(Detail::SeamPhase::Allocate, [&]()
                 {
                     batch.targets.push_back(BatchTarget{target.role, std::move(values)});
@@ -192,10 +221,18 @@ namespace SushiAI
                              const InputDescription& input,
                              const std::vector<TargetDescription>& targets, Batch& batch) noexcept
         {
+            EngineBatchAllocator allocator(engine);
+            return prepare_batch(allocator, rows, input, targets, batch);
+        }
+
+        Status prepare_batch(BatchAllocator& allocator, int64_t rows,
+                             const InputDescription& input,
+                             const std::vector<TargetDescription>& targets, Batch& batch) noexcept
+        {
             if (holds_layout(batch, rows, input, targets))
                 return Status();
 
-            SA_TRY_ASSIGN(batch, allocate_batch(engine, rows, input, targets));
+            SA_TRY_ASSIGN(batch, allocate_batch(allocator, rows, input, targets));
             return Status();
         }
 

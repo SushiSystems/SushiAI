@@ -37,6 +37,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/data/batch_allocator.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
@@ -119,4 +120,21 @@ TEST_F(Medium_MaterialisedDataset, ShareBatchCopiesNoElement)
     ASSERT_EQ(batch.targets.size(), 1u);
     EXPECT_EQ(batch.targets[0].role, Data::K_ROLE_LABELS);
     EXPECT_EQ(batch.targets[0].values.data(), held.targets[0].values.data());
+}
+
+/** @brief Tests that share_batch gives the batch the roles and the layouts of the held one. */
+TEST(Small_MaterialisedDataset, ShareBatchGivesTheRolesAndTheLayoutOfTheHeldBatch)
+{
+    Data::InMemoryBatchAllocator allocator;
+    SA_ASSERT_OK_AND_ASSIGN(const Data::Batch held,
+                            Data::allocate_batch(allocator, K_ROWS, four_floats(), labels()));
+    Data::Batch batch;
+
+    SA_EXPECT_OK(Data::share_batch(held, batch));
+
+    EXPECT_EQ(batch.inputs.rank, held.inputs.rank);
+    EXPECT_EQ(batch.inputs.shape[0], K_ROWS);
+    ASSERT_EQ(batch.targets.size(), 1u);
+    EXPECT_EQ(batch.targets[0].role, Data::K_ROLE_LABELS);
+    EXPECT_EQ(batch.targets[0].values.dtype, DType::Int32);
 }

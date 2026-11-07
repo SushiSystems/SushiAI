@@ -35,6 +35,7 @@
 #include <string>
 #include <string_view>
 #include <vector>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -137,6 +138,28 @@ namespace SushiAI
          */
         [[nodiscard]] Status check_rows(const Dataset& dataset, std::size_t index,
                                         RowRange rows) noexcept;
+
+        /**
+         * @brief Gives each label its class, round-robin over the samples of the whole set.
+         * @param first_sample The position, over the whole set, of the first label; not negative.
+         * @param classes How many classes the labels span; positive.
+         * @param labels Receives one class index per sample: (first_sample + r) % classes.
+         * @pre Both arguments are in range; a call that breaks one stops the process.
+         */
+        void fill_round_robin_labels(int64_t first_sample, int64_t classes,
+                                     SushiRuntime::span<int32_t> labels) noexcept;
+
+        /**
+         * @brief Copies the mean row of each label into the matching row of @p rows.
+         * @param means One row of @p features values per class.
+         * @param features Values per row.
+         * @param labels The class of every row of @p rows.
+         * @param rows Receives one row of @p features values per label.
+         * @pre Every label names a row of @p means; a call that breaks it stops the process.
+         */
+        void copy_class_means(SushiRuntime::span<const float> means, int64_t features,
+                              SushiRuntime::span<const int32_t> labels,
+                              SushiRuntime::span<float> rows) noexcept;
 
         /**
          * @struct SyntheticOptions
@@ -299,6 +322,16 @@ namespace SushiAI
                 /** @brief Holds every batch of the epoch, in order. */
                 std::vector<Batch> batches_;
         };
+
+        /**
+         * @brief Reads the options of a "rings" dataset from its attributes; it takes no engine.
+         * @param attributes The dataset's own keys; an absent key keeps the RingsOptions default.
+         * @param context What to call the dataset in a diagnostic.
+         * @return The options, or InvalidDescription for an unknown key or a value of the wrong
+         *         type; Rings::make checks the ranges.
+         */
+        [[nodiscard]] Result<RingsOptions> read_rings_options(const Config::Value& attributes,
+                                                              std::string_view context) noexcept;
 
         /**
          * @brief Builds a @ref Rings dataset from configuration attributes.

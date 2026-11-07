@@ -69,8 +69,8 @@ namespace SushiAI
         struct ThreadedLoader::State
         {
             /** @brief Takes the dataset and makes one idle slot per batch read ahead. */
-            State(std::unique_ptr<Dataset> dataset, std::size_t prefetch)
-                : inner(std::move(dataset)), slots(prefetch)
+            State(std::unique_ptr<Dataset> dataset, std::size_t prefetch, bool reads_inline)
+                : inner(std::move(dataset)), slots(prefetch), is_inline(reads_inline)
             {
 
             }
@@ -153,6 +153,30 @@ namespace SushiAI
                 }
             }
 
+            /** @brief Reads every queued slot on the calling thread; mutex held, inline only. */
+            void read_queued_inline()
+            {
+                while (Slot* slot = first_queued())
+                {
+                    slot->state = SlotState::Running;
+                    const std::size_t index = slot->index;
+                    slot->status = Detail::guard(Detail::SeamPhase::Execute, [&]()
+                    {
+                        return inner->read(index, slot->batch);
+                    });
+                    slot->state = SlotState::Ready;
+                }
+            }
+
+            /** @brief Wakes a thread for the queued slot, or reads it here when inline. */
+            void dispatch()
+            {
+                if (is_inline)
+                    read_queued_inline();
+                else
+                    work.notify_all();
+            }
+
             /** @brief Drops every batch read ahead and waits for the running reads. */
             void quiesce(std::unique_lock<std::mutex>& lock)
             {
@@ -188,7 +212,7 @@ namespace SushiAI
                 }
 
                 is_started = true;
-                work.notify_all();
+                dispatch();
             }
 
             /** @brief Waits for batch @p index, exchanges it with @p batch and queues one more. */
@@ -215,7 +239,7 @@ namespace SushiAI
                 {
                     slot->index = next_queued++;
                     slot->state = SlotState::Queued;
-                    work.notify_one();
+                    dispatch();
                 }
 
                 return status;
@@ -274,6 +298,9 @@ namespace SushiAI
             /** @brief Tells the threads to return. */
             bool is_stopping = false;
 
+            /** @brief Tells whether the calling thread reads, and no thread is started. */
+            const bool is_inline;
+
             /** @brief Holds the reading threads, joined by stop(). */
             std::vector<std::thread> threads;
         };
@@ -292,12 +319,15 @@ namespace SushiAI
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
                 std::unique_ptr<State> state = std::make_unique<State>(
-                    std::move(inner), static_cast<std::size_t>(options.prefetch));
+                    std::move(inner), static_cast<std::size_t>(options.prefetch),
+                    options.executor == ReadExecutor::CallingThread);
                 State* const shared = state.get();
 
                 // A thread that fails to start leaves the State to join the ones before it.
-                state->threads.reserve(static_cast<std::size_t>(options.workers));
-                for (std::int32_t worker = 0; worker < options.workers; ++worker)
+                const std::int32_t workers =
+                    options.executor == ReadExecutor::CallingThread ? 0 : options.workers;
+                state->threads.reserve(static_cast<std::size_t>(workers));
+                for (std::int32_t worker = 0; worker < workers; ++worker)
                     state->threads.emplace_back([shared]() { shared->run_worker(); });
 
                 return std::unique_ptr<ThreadedLoader>(new ThreadedLoader(std::move(state)));

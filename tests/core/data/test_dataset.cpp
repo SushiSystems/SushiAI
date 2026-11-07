@@ -38,6 +38,7 @@
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
+#include <SushiRuntime/core/span.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -431,3 +432,56 @@ INSTANTIATE_TEST_SUITE_P(Kinds, Medium_DatasetRefusal,
                                            DatasetKind{"MaterialisedDataset", &materialised_on},
                                            DatasetKind{"ThreadedLoader", &loader_on}),
                          kind_name);
+
+namespace
+{
+    /** @brief Names a run of labels: where it starts, the classes it spans and what it holds. */
+    struct LabelRun
+    {
+        /** @brief Holds the position, over the whole set, of the first label. */
+        std::int64_t first;
+
+        /** @brief Holds how many classes the labels span. */
+        std::int64_t classes;
+
+        /** @brief Holds the label of every sample of the run. */
+        std::vector<std::int32_t> labels;
+    };
+
+    /** @brief Runs each case with a run of labels. */
+    class Small_SyntheticLabels : public ::testing::TestWithParam<LabelRun>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests that the labels go round the classes from the position the run starts at. */
+TEST_P(Small_SyntheticLabels, LabelsRunRoundRobinOverTheWholeSet)
+{
+    const LabelRun& run = GetParam();
+    std::vector<std::int32_t> labels(run.labels.size());
+
+    Data::fill_round_robin_labels(run.first, run.classes,
+                                  SushiRuntime::span<std::int32_t>(labels.data(), labels.size()));
+
+    EXPECT_EQ(labels, run.labels);
+}
+
+INSTANTIATE_TEST_SUITE_P(Runs, Small_SyntheticLabels,
+                         ::testing::Values(LabelRun{0, 3, {0, 1, 2, 0, 1, 2, 0}},
+                                           LabelRun{5, 3, {2, 0, 1, 2}},
+                                           LabelRun{0, 1, {0, 0, 0}}));
+
+/** @brief Tests that each row takes the mean row of its class. */
+TEST(Small_SyntheticMeans, EachRowTakesTheMeanOfItsClass)
+{
+    const std::vector<float> means = {1.0f, 2.0f, 10.0f, 20.0f, 100.0f, 200.0f};
+    const std::vector<std::int32_t> labels = {2, 0, 2, 1};
+    std::vector<float> rows(labels.size() * 2, -1.0f);
+
+    Data::copy_class_means(SushiRuntime::span<const float>(means.data(), means.size()), 2,
+                           SushiRuntime::span<const std::int32_t>(labels.data(), labels.size()),
+                           SushiRuntime::span<float>(rows.data(), rows.size()));
+
+    EXPECT_EQ(rows, (std::vector<float>{100.0f, 200.0f, 1.0f, 2.0f, 100.0f, 200.0f, 10.0f, 20.0f}));
+}

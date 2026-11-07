@@ -45,6 +45,13 @@ namespace SushiAI
 {
     namespace Data
     {
+        /** @brief Names where a loader reads the batches of its dataset. */
+        enum class ReadExecutor : std::uint8_t
+        {
+            OwnThreads,   /**< On threads the loader starts; the default. */
+            CallingThread /**< On the thread that asked, at the moment a batch is queued. */
+        };
+
         /**
          * @struct LoaderOptions
          * @brief Holds what the caller chooses about a threaded loader.
@@ -56,6 +63,15 @@ namespace SushiAI
 
             /** @brief Counts the batches read ahead of the caller, and held; at least 1. */
             std::int32_t prefetch = 2;
+
+            /**
+             * @brief Names where the reads run.
+             *
+             * CallingThread starts no thread: a batch is read on the thread that queues it, so
+             * the order of the reads is fixed and `workers` is only checked. `prefetch` bounds
+             * the reads ahead as before.
+             */
+            ReadExecutor executor = ReadExecutor::OwnThreads;
         };
 
         /**

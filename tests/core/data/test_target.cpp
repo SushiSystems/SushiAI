@@ -40,6 +40,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
+#include <SushiAI/data/batch_allocator.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/input.hpp>
 #include <SushiAI/data/materialised_dataset.hpp>
@@ -158,9 +159,8 @@ namespace
         };
     }
 
-    /** @brief Runs each allocate_batch row on the engine. */
-    class Medium_DataTargetAllocation : public SaTest::EngineTest,
-                                        public ::testing::WithParamInterface<AllocateCase>
+    /** @brief Runs each allocate_batch row over an allocator that holds no device. */
+    class Small_DataTargetAllocation : public ::testing::TestWithParam<AllocateCase>
     {
 
     };
@@ -255,18 +255,19 @@ TEST(Small_DataTargetLookup, ATargetOfEitherKindIsFoundByItsRole)
 }
 
 /** @brief Tests that allocate_batch gives the inputs and each target the layout the row states. */
-TEST_P(Medium_DataTargetAllocation, AllocateBatchGivesTheLayoutOfItsDescriptions)
+TEST_P(Small_DataTargetAllocation, AllocateBatchGivesTheLayoutOfItsDescriptions)
 {
     const AllocateCase& row = GetParam();
+    Data::InMemoryBatchAllocator allocator;
 
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch,
-                            Data::allocate_batch(*engine, row.rows, row.input, row.roles));
+                            Data::allocate_batch(allocator, row.rows, row.input, row.roles));
 
     EXPECT_TRUE(layout_of(batch.inputs) == row.inputs);
     EXPECT_TRUE(target_layouts_of(batch) == row.targets);
 }
 
-INSTANTIATE_TEST_SUITE_P(Rows, Medium_DataTargetAllocation,
+INSTANTIATE_TEST_SUITE_P(Rows, Small_DataTargetAllocation,
                          ::testing::ValuesIn(allocate_cases()),
                          [](const ::testing::TestParamInfo<AllocateCase>& info)
                          {

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- 2026-11-07 — graph: Added `TensorSource` and `InMemoryTensorSource`, and a `TensorPool(TensorSource&)` constructor, so a pool runs without a device (RW-155, `tensor_source.hpp`).
+- 2026-11-07 — graph: Added a `LoweringContext` constructor that takes no recorder or random stream (RW-155, `context.hpp`).
+- 2026-11-07 — graph: Added `InMemoryStepRecorder(member, journal, tasks)`, a journal shared across members (RW-155, `in_memory_step_recorder.hpp`).
+- 2026-11-07 — graph: Added `StepRecording::detached()`, the recording for a recorder that records no task (RW-155, `step_recording.hpp`).
+- 2026-11-07 — graph: Added `RunCounter`, which `CompiledStep` holds for the count of its runs (RW-155, `run_counter.hpp`).
+- 2026-11-07 — graph: Added `check_node_range` and `check_compilable`, the rules `Lowering::record` and `CompiledStep::compile` apply (RW-155, `node_range.hpp`).
+- 2026-11-07 — data: Added `fill_round_robin_labels` and `copy_class_means`, the host half of the synthetic datasets (RW-155, `dataset.hpp`).
+- 2026-11-07 — data: Added `read_rings_options`, which reads the options of a rings set without an engine (RW-155, `dataset.hpp`).
+- 2026-11-07 — data: Added `find_dataset_row`, which looks a type up in a registry without an engine (RW-155, `dataset_registry.hpp`).
+- 2026-11-07 — data: Added `BatchAllocator`, the port a batch is allocated through, with an engine adapter and an in-memory one (RW-155, `batch_allocator.hpp`).
+- 2026-11-07 — data: Added `InMemoryDataset` and `InMemoryEpochDataset`, datasets served from memory that journal their reads (RW-155, `in_memory_dataset.hpp`).
+- 2026-11-07 — data: Added `LoaderOptions::executor`; `ReadExecutor::CallingThread` reads on the thread that queues a batch (RW-155, `threaded_loader.hpp`).
+- 2026-11-07 — tests: Replaced the pinned arrays of `TheOrdersOfTenSamples` with three named order properties (RW-156, `test_epoch_permutation.cpp`).
 - 2026-11-07 — allocation: Added `check_tensor_extents`, the extent check of `allocate_tensor` as a function of the extents alone (RW-155, `allocation.hpp`).
 - 2026-11-07 — scratch_files: Gave `ScratchDirectory` and `ScratchFile` a constructor taking the base directory, and a `path_under` that touches no file; the default base stays the temporary directory (RW-155, `scratch_file.hpp`).
 - 2026-11-07 — tensor_values: Added `round_to_float32`, the host rounding the float32 write of `write_tensor` applies (RW-155, `tensor_values.hpp`).

@@ -28,16 +28,39 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/data/dataset.hpp` | `Batch`, `Dataset`, `RowRange`, `check_rows`, `describe_input`, `SyntheticOptions`, `SyntheticClassification`, `RingsOptions`, `Rings`, `make_rings` |
-| `SushiAI/data/dataset_registry.hpp` | `DatasetFactory`, `DatasetEntry`, `DatasetRegistry`, `register_datasets`, `make_dataset` |
+| `SushiAI/data/batch_allocator.hpp` | `BatchAllocator`, `EngineBatchAllocator`, `InMemoryBatchAllocator` |
+| `SushiAI/data/dataset.hpp` | `Batch`, `Dataset`, `RowRange`, `check_rows`, `describe_input`, `fill_round_robin_labels`, `copy_class_means`, `SyntheticOptions`, `SyntheticClassification`, `RingsOptions`, `Rings`, `read_rings_options`, `make_rings` |
+| `SushiAI/data/dataset_registry.hpp` | `DatasetFactory`, `DatasetEntry`, `DatasetRegistry`, `register_datasets`, `find_dataset_row`, `make_dataset` |
 | `SushiAI/data/epoch.hpp` | `EpochAware`, `begin_epoch` |
+| `SushiAI/data/in_memory_dataset.hpp` | `InMemoryDataset`, `InMemoryEpochDataset` |
 | `SushiAI/data/in_memory_epoch_aware.hpp` | `InMemoryEpochAware` |
 | `SushiAI/data/epoch_permutation.hpp` | `EpochPermutation` |
 | `SushiAI/data/input.hpp` | `InputDescription` |
 | `SushiAI/data/materialised_dataset.hpp` | `MaterialisedDataset`, `allocate_batch`, `share_batch`, `share_rows`, `prepare_batch` |
 | `SushiAI/data/roles.hpp` | `K_ROLE_LABELS` |
 | `SushiAI/data/target.hpp` | `BatchTarget`, `TargetDescription`, `find_target` |
-| `SushiAI/data/threaded_loader.hpp` | `LoaderOptions`, `ThreadedLoader` |
+| `SushiAI/data/threaded_loader.hpp` | `ReadExecutor`, `LoaderOptions`, `ThreadedLoader` |
+
+## Seams for tests without a device
+
+Each seam keeps the default behaviour; the engine paths allocate and read as before.
+
+- `fill_round_robin_labels` and `copy_class_means` are the host half of `SyntheticClassification`
+  and `Rings`: the label of each sample, and the copy of a class mean into a row. The device
+  fills the class means and the noise.
+- `read_rings_options` reads the keys of a "rings" dataset into `RingsOptions` and rejects an
+  unknown key; `make_rings` calls it. `find_dataset_row` looks a type up in a registry and
+  returns the refusal that names every type; `make_dataset` calls it. Neither takes an engine.
+- `BatchAllocator` is the port `allocate_batch` and `prepare_batch` allocate through. The
+  overloads that take an `Engine&` pass an `EngineBatchAllocator`. `InMemoryBatchAllocator`
+  describes each tensor and gives it no `Storage`, so it shows the layout of a batch and no
+  element, and a batch it made is never held alone by `prepare_batch`.
+- `InMemoryDataset` serves batches built in memory, records the indices it reads in a journal and
+  can be told to fail one index; `InMemoryEpochDataset` is also an `EpochAware` and tells its
+  batch maker the epoch last begun.
+- `LoaderOptions::executor` names where a `ThreadedLoader` reads. `OwnThreads`, the default,
+  starts `workers` threads. `CallingThread` starts none: a batch is read on the thread that
+  queues it, `workers` is only checked, and `prefetch` still bounds the reads ahead.
 
 ## The input a dataset states
 
@@ -143,6 +166,7 @@ reads the batches of `inner` ahead, on its own threads, and hands them over in i
 | --- | --- | --- |
 | `workers` | `2` | Threads that call `inner.read`; at least 1 |
 | `prefetch` | `2` | Batches read ahead of the caller and held; at least 1 |
+| `executor` | `OwnThreads` | `CallingThread` reads on the thread that queues a batch and starts no thread |
 
 The loader owns `prefetch` slots, each a `Batch` with a state: idle, queued, running or ready.
 A worker sleeps on a condition variable until a slot is queued, takes the queued slot of the

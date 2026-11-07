@@ -99,6 +99,16 @@ namespace SushiAI
         [[nodiscard]] Status register_datasets(DatasetRegistry& registry) noexcept;
 
         /**
+         * @brief Looks the row of @p type up in @p registry.
+         *
+         * It needs no engine, so the refusal of an unknown type can be read without one.
+         * @return The row, never null; InvalidDescription, naming every type the registry
+         *         holds, when @p type is no row.
+         */
+        [[nodiscard]] Result<const DatasetEntry*> find_dataset_row(const DatasetRegistry& registry,
+                                                                   std::string_view type) noexcept;
+
+        /**
          * @brief Builds the dataset named @p type from the rows of @p registry.
          * @param engine The engine that allocates and fills the tensors.
          * @param context What to call the dataset in a diagnostic.

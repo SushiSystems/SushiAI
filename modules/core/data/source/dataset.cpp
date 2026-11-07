@@ -113,6 +113,43 @@ namespace SushiAI
             }
         }
 
+        void fill_round_robin_labels(int64_t first_sample, int64_t classes,
+                                     SushiRuntime::span<int32_t> labels) noexcept
+        {
+            SA_FATAL_IF(first_sample < 0 || classes <= 0,
+                        "Round-robin labels need a sample position of 0 or more and a positive "
+                        "class count; got {} and {}", first_sample, classes);
+
+            int64_t position = first_sample;
+            for (int32_t& label : labels)
+                label = static_cast<int32_t>((position++) % classes);
+        }
+
+        void copy_class_means(SushiRuntime::span<const float> means, int64_t features,
+                              SushiRuntime::span<const int32_t> labels,
+                              SushiRuntime::span<float> rows) noexcept
+        {
+            SA_FATAL_IF(features <= 0 || means.size() % static_cast<std::size_t>(features) != 0,
+                        "The class means hold {} values, which {} features per row do not "
+                        "divide", means.size(), features);
+            const std::size_t width = static_cast<std::size_t>(features);
+            SA_FATAL_IF(rows.size() != labels.size() * width,
+                        "{} labels of {} features need {} values; the rows hold {}",
+                        labels.size(), features, labels.size() * width, rows.size());
+
+            const std::size_t classes = means.size() / width;
+            for (std::size_t r = 0; r < labels.size(); ++r)
+            {
+                const int32_t label = labels[r];
+                SA_FATAL_IF(label < 0 || static_cast<std::size_t>(label) >= classes,
+                            "Row {} has the label {}, and there are {} class means", r, label,
+                            classes);
+
+                std::copy_n(means.data() + static_cast<std::size_t>(label) * width, width,
+                            rows.data() + r * width);
+            }
+        }
+
         Status check_rows(const Dataset& dataset, std::size_t index, RowRange rows) noexcept
         {
             SA_FAIL_IF(index >= dataset.batch_count(), StatusCode::InvalidDescription,
@@ -177,22 +214,22 @@ namespace SushiAI
             {
                 batches.reserve(static_cast<std::size_t>(options.batches));
 
-                int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
                     SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, input, targets));
 
-                    int32_t* labels = batch.targets.front().values.data_as<int32_t>();
-                    const float* class_means = means.data_as<float>();
-                    float* x = batch.inputs.data_as<float>();
+                    const SushiRuntime::span<int32_t> labels(
+                        batch.targets.front().values.data_as<int32_t>(),
+                        static_cast<std::size_t>(rows));
 
-                    for (int64_t r = 0; r < rows; ++r)
-                    {
-                        // Round-robin class assignment balances every batch evenly.
-                        const int64_t label = (running++) % classes;
-                        labels[r] = static_cast<int32_t>(label);
-                        std::copy_n(class_means + label * features, features, x + r * features);
-                    }
+                    // Round-robin class assignment balances every batch evenly.
+                    fill_round_robin_labels(b * rows, classes, labels);
+                    copy_class_means(
+                        SushiRuntime::span<const float>(
+                            means.data_as<float>(), static_cast<std::size_t>(classes * features)),
+                        features, labels,
+                        SushiRuntime::span<float>(batch.inputs.data_as<float>(),
+                                                  static_cast<std::size_t>(rows * features)));
 
                     SA_TRY(Detail::record_and_run(engine,
                                                   [&](SushiBLAS::TaskRecorder& recorder)
@@ -274,7 +311,6 @@ namespace SushiAI
             {
                 batches.reserve(static_cast<std::size_t>(options.batches));
 
-                int64_t running = 0;
                 for (int64_t b = 0; b < options.batches; ++b)
                 {
                     SA_TRY_ASSIGN(Batch batch, allocate_batch(engine, rows, input, targets));
@@ -282,11 +318,14 @@ namespace SushiAI
                     int32_t* labels = batch.targets.front().values.data_as<int32_t>();
                     float* x = batch.inputs.data_as<float>();
 
+                    // Round-robin class assignment balances every batch evenly.
+                    fill_round_robin_labels(
+                        b * rows, classes,
+                        SushiRuntime::span<int32_t>(labels, static_cast<std::size_t>(rows)));
+
                     for (int64_t r = 0; r < rows; ++r)
                     {
-                        // Round-robin class assignment balances every batch evenly.
-                        const int64_t label = (running++) % classes;
-                        labels[r] = static_cast<int32_t>(label);
+                        const int64_t label = labels[r];
 
                         const double radius = static_cast<double>(label) + band_dist(rng);
                         const double theta = theta_dist(rng);
@@ -323,9 +362,8 @@ namespace SushiAI
             return share_rows(batches_[index], rows, batch);
         }
 
-        Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
-                                                    const Config::Value& attributes,
-                                                    std::string_view context) noexcept
+        Result<RingsOptions> read_rings_options(const Config::Value& attributes,
+                                                std::string_view context) noexcept
         {
             SA_TRY(attributes.reject_unknown_keys(context, as_span(K_RINGS_KEYS)));
 
@@ -348,6 +386,14 @@ namespace SushiAI
                           read_int(attributes, "seed", prefix, static_cast<int64_t>(options.seed)));
             options.seed = static_cast<std::uint64_t>(seed);
 
+            return options;
+        }
+
+        Result<std::unique_ptr<Dataset>> make_rings(SushiBLAS::Engine& engine,
+                                                    const Config::Value& attributes,
+                                                    std::string_view context) noexcept
+        {
+            SA_TRY_ASSIGN(const RingsOptions options, read_rings_options(attributes, context));
             SA_TRY_ASSIGN(std::unique_ptr<Dataset> dataset, Rings::make(engine, options));
             return std::move(dataset);
         }

@@ -107,7 +107,7 @@ TEST(Small_DatasetRegistry, ATypeAddedTwiceIsRefused)
 }
 
 /** @brief Tests that register_datasets adds the "rings" row. */
-TEST(Medium_DatasetRegistry, RegisterDatasetsAddsTheRingsRow)
+TEST(Small_DatasetRegistry, RegisterDatasetsAddsTheRingsRow)
 {
     Data::DatasetRegistry registry;
     SA_EXPECT_OK(Data::register_datasets(registry));
@@ -134,14 +134,6 @@ namespace
     };
 
     using Test::attributes_from;
-
-    /** @brief Returns the class count the labels role of @p dataset states, or -1. */
-    int64_t class_count(const Data::Dataset& dataset)
-    {
-        const Data::TargetDescription* labels =
-            Data::find_target(dataset.targets(), Data::K_ROLE_LABELS);
-        return labels != nullptr ? labels->classes : -1;
-    }
 
     /** @brief Returns the class index of every sample of @p batch, or nothing. */
     std::vector<int32_t> labels_of(const Data::Batch& batch)
@@ -296,19 +288,42 @@ TEST_P(Medium_RingsBand, RingsPlacesEachClassInItsOwnRadiusBand)
 
 INSTANTIATE_TEST_SUITE_P(Classes, Medium_RingsBand, ::testing::Values(0, 1, 2, 3));
 
-TEST_F(Medium_Registries, TheDatasetRegistryBuildsRingsFromAConfigValue)
+/** @brief Tests that the keys of a configuration value reach the options of a rings set. */
+TEST(Small_RingsOptions, TheKeysOfAConfigValueReachTheOptions)
 {
     SA_ASSERT_OK_AND_ASSIGN(
-        const std::unique_ptr<Data::Dataset> dataset,
-        Data::make_dataset(datasets, *engine, "rings",
-                           attributes_from(R"({"batch_size": 16, "batches": 2, "classes": 3,
-                            "distractors": 1, "seed": 7})"),
-                           "data"));
+        const Data::RingsOptions options,
+        Data::read_rings_options(attributes_from(R"({"batch_size": 16, "batches": 2,
+                                  "classes": 3, "distractors": 1, "ring_width": 0.5,
+                                  "position_noise": 0.25, "seed": 7})"),
+                                 "data"));
 
-    EXPECT_EQ(dataset->batch_size(), 16);
-    EXPECT_EQ(dataset->batch_count(), 2u);
-    EXPECT_EQ(class_count(*dataset), 3);
-    EXPECT_EQ(dataset->sample_shape(), Shape{3});   // x, y and one distractor
+    EXPECT_EQ(options.batch_size, 16);
+    EXPECT_EQ(options.batches, 2);
+    EXPECT_EQ(options.classes, 3);
+    EXPECT_EQ(options.distractor_features, 1);
+    EXPECT_EQ(options.ring_width, 0.5);
+    EXPECT_EQ(options.position_noise, 0.25);
+    EXPECT_EQ(options.seed, 7u);
+}
+
+/** @brief Tests that a key a configuration value leaves out keeps the default of its option. */
+TEST(Small_RingsOptions, AKeyLeftOutKeepsItsDefault)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const Data::RingsOptions options,
+                            Data::read_rings_options(attributes_from("{}"), "data"));
+    const Data::RingsOptions defaults;
+
+    EXPECT_EQ(options.batch_size, defaults.batch_size);
+    EXPECT_EQ(options.distractor_features, defaults.distractor_features);
+    EXPECT_EQ(options.seed, defaults.seed);
+}
+
+/** @brief Tests that a value of the wrong type is refused and names its key. */
+TEST(Small_RingsOptions, AValueOfTheWrongTypeIsRefused)
+{
+    SA_EXPECT_FAILURE(Data::read_rings_options(attributes_from(R"({"classes": "three"})"), "data"),
+                      StatusCode::InvalidDescription, "data", "classes");
 }
 
 /** @brief Tests that two datasets built from one seed hold the same bytes. */
@@ -333,18 +348,33 @@ TEST_F(Medium_Registries, TheSameSeedGivesTheSameData)
               SaTest::read_tensor_bytes(second_batch.inputs));
 }
 
-TEST_F(Medium_Registries, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
+/** @brief Tests that the lookup of an unknown type is refused with every type the registry has. */
+TEST(Small_DatasetRegistry, AnUnknownDatasetTypeListsEveryTypeThisBuildHas)
 {
-    SA_EXPECT_FAILURE(
-        Data::make_dataset(datasets, *engine, "coco", attributes_from("{}"), "data"),
-        StatusCode::InvalidDescription, "coco", "dataset type", "'rings'");
+    Data::DatasetRegistry registry;
+    SA_EXPECT_OK(Data::register_datasets(registry));
+
+    SA_EXPECT_FAILURE(Data::find_dataset_row(registry, "coco"), StatusCode::InvalidDescription,
+                      "coco", "dataset type", "'rings'");
 }
 
-TEST_F(Medium_Registries, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
+/** @brief Tests that the lookup of a registered type gives its row. */
+TEST(Small_DatasetRegistry, AKnownDatasetTypeIsFound)
 {
-    SA_EXPECT_FAILURE(Data::make_dataset(datasets, *engine, "rings",
-                                 attributes_from(R"({"batch_sizes": 16})"), "data"),
-        StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
+    Data::DatasetRegistry registry;
+    SA_EXPECT_OK(Data::register_datasets(registry));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Data::DatasetEntry* const row,
+                            Data::find_dataset_row(registry, "rings"));
+
+    EXPECT_EQ(row, registry.find("rings"));
+}
+
+/** @brief Tests that an unknown key is refused by the reader of the options, before any dataset. */
+TEST(Small_RingsOptions, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
+{
+    SA_EXPECT_FAILURE(Data::read_rings_options(attributes_from(R"({"batch_sizes": 16})"), "data"),
+                      StatusCode::InvalidDescription, "data", "'batch_sizes'", "'batch_size'");
 }
 
 TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
