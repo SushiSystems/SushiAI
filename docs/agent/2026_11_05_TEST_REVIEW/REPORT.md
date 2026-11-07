@@ -76,6 +76,7 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 16. RW-159 (2026-11-07, the lead): the CLI resizes M3 could not apply wait on seams: a console factory in `cli/sushiai/console.py` that takes the config directory, in place of the process-wide `_lazy` (`test_import_does_not_build_console`, `test_output_helper_falls_back_outside_project`, `test_sources_inside_project_are_this_repos_config`, `test_console_attribute_*`); `run_profiler` taking its program lookup as a parameter defaulting to `shutil.which` (`test_profile_without_sp_says_to_install_it`). `test_no_raw_rich_colour_name_is_left_in_the_source` becomes a checker under `tools/`. `test_find_project_root_raises_outside_checkout` waits on a walk bound in sushicore, outside this repository.
 17. RW-160 (2026-11-07, the lead): M7 and part of M9 wait on seams. darknet_reference: `find_darknet_file` and `find_darknet_reference` take a folder, and `load_darknet_tensor` reads from bytes (all eight records of `test_darknet_reference.cpp`). distribution: `check_exchange_targets` and the dtype check as value functions beside `GradientExchange::make` (`MakeRefusesTargetsThatDifferFromTheResultLayout`, `MakeRefusesAUInt32Result`); an input-count check beside `ReplicaKernel::serve` (`ANodeWithoutItsPositionPackIsRefused`); an in-memory `ReplicaModelFactory` and a resultless `ReplicaModel` beside `replica_model.hpp` (both rewrites of `test_replica_model.cpp`); `ReplicaStep::make` and `ReplicaKernel::make` taking an engine, so the two-machine tests take their runtimes from one program fixture. The host-visible `allocate_tensor` test that replaces `ThePoolAllocatesVisibleTensors` is added in `tests/core/allocation/test_allocation.cpp` with that work.
 18. The owner (2026-11-07): a record that says resize to small is never left medium for a missing seam. The job builds the seam (a port with an in-memory adapter, or a parameter or overload with today's default) and moves the test to `Small_`. Medium stays only for a real boundary: a kernel against its host reference, an adapter's bytes, a thread handover. RW-157 to RW-160 are worked under this rule.
+19. The orchestrator (2026-11-07): the host backend (Session, CompiledStep and the tensor paths on a SushiBLAS host engine) waits until SushiBLAS reshapes `Storage`, `Engine` and `TaskSink` into ports with two adapters; nothing in this repository is built on the form that switches on a flag. The jobs that need it (M5, M7, M9, M11) wait with it.
 
 ## Seams the M jobs wait on
 
@@ -137,6 +138,7 @@ dispatch: J18 M3 cli — sonnet medium, 1 round, partial (RW-159), rung 1
 dispatch: J18 M5 core/autograd — sonnet medium, 1 round, partial (two records not done as written), rung 1
 dispatch: J18 M7, M9, M20 (darknet_reference, distribution, ops) — sonnet medium, 1 round, M20 passed, M7 and M9 partial (RW-160), rung 1
 dispatch: J18 M11 core/eager — sonnet medium, 1 round, partial (four seams, not built: it took the lead's seam order for an unverified sender), rung 1
+dispatch: J19 M1 RW-157 (sample source journal, AffineNearest move) — sonnet medium, 1 round, passed after the lead rewrapped one comment line, rung 1
 
 ## Totals
 
@@ -287,6 +289,8 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `vision/training` | 138 | 94 | 0 | 0 |
 | `vision/umbrella` | 1 | 0 | 0 | 0 |
 | all | 3436 | 1311 | 41 | 0 |
+
+Checked again on 2026-11-07 at `f7f344fb` with the same count: every row matches. After `3d2cc353` (RW-157) `vision/imaging` holds 381 small tests, one more, the test of the load journal.
 
 The M jobs stop here (SushiSkills `docs/agent/2026_11_03_INDUSTRIAL_TESTING/SPEC.md`, "Rework"): sushiai is wave 5, and the seam its logic tests need is the host backend under the SushiBLAS engine that sushiblas builds in wave 4. M7, M11 and the open records of M1, M2, M3, M5 and M9 resume when it lands.
 

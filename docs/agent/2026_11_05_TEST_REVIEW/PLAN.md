@@ -19,7 +19,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | done; open items in RW-151, RW-152, RW-153 |
 | T7 | The CLI tests on sushicore's in-memory runner, console and CMake driver | sushicore T1 | done |
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
-| M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; records open in RW-157 (pipeline load journal, AffineNearest move) |
+| M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-157 in 3d2cc353, not yet built or run) |
 | M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; 13 resizes open in RW-158 |
 | M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; resizes open in RW-159 |
 | M4 | the tests of `core/allocation` (1 file): 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |

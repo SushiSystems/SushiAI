@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-07 — test_tree: Give InMemorySampleSource a load journal and drop test_pipeline's MemorySource (RW-157, `3d2cc353`).
+- 2026-11-07 — imaging: Added `InMemorySampleSource::loads()`, the indices `load()` was called with, in call order (RW-157, `in_memory_sample_source.hpp`).
 - 2026-11-07 — test_tree: Rule on the module seams the review's resize records ask for (RW-155, `7a34fa48`).
 - 2026-11-07 — test_tree: Replace the characterization test of EpochPermutation's orders with promise tests (RW-156, `7a34fa48`).
 - 2026-11-07 — graph: Added `TensorSource` and `InMemoryTensorSource`, and a `TensorPool(TensorSource&)` constructor, so a pool runs without a device (RW-155, `tensor_source.hpp`).
