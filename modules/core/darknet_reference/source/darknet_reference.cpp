@@ -35,6 +35,7 @@
 #include <cstring>
 #include <fstream>
 #include <ios>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -72,19 +73,19 @@ namespace SushiAI
                 return value == nullptr ? std::string() : std::string(value);
             }
 
-            /** @brief Locates @p relative under the directory the environment names. */
-            DarknetFile locate(const std::filesystem::path& relative)
+            /** @brief Returns the reason a file cannot be located with the variable unset. */
+            std::string unset_reason(const std::filesystem::path& relative)
+            {
+                return std::string(K_REFERENCE_DATA_VARIABLE) + " is not set, so " +
+                       relative.generic_string() + " cannot be located";
+            }
+
+            /** @brief Locates @p relative under @p directory. */
+            DarknetFile locate(const std::filesystem::path& directory,
+                               const std::filesystem::path& relative)
             {
                 DarknetFile file;
-                const std::string directory = read_data_directory();
-                if (directory.empty())
-                {
-                    file.reason = std::string(K_REFERENCE_DATA_VARIABLE) + " is not set, so " +
-                                  relative.generic_string() + " cannot be located";
-                    return file;
-                }
-
-                file.path = std::filesystem::path(directory) / relative;
+                file.path = directory / relative;
                 std::error_code ignored;
                 if (!std::filesystem::is_regular_file(file.path, ignored))
                 {
@@ -160,20 +161,16 @@ namespace SushiAI
             }
 
             /**
-             * @brief Reads @p count little-endian float32 values, the whole of the file @p path.
-             * @return The values; FileNotFound when the file cannot be opened; InvalidFile when
-             *         it does not hold exactly @p count values or a read fails.
+             * @brief Reads the whole of the file @p path.
+             * @return The bytes; FileNotFound when the file cannot be opened; InvalidFile when a
+             *         read fails.
              */
-            Result<std::vector<float>> read_floats(const std::filesystem::path& path,
-                                                   std::size_t count)
+            Result<std::vector<unsigned char>> read_bytes(const std::filesystem::path& path)
             {
                 std::error_code failure;
                 const std::uintmax_t bytes = std::filesystem::file_size(path, failure);
                 SA_FAIL_IF(static_cast<bool>(failure), StatusCode::FileNotFound,
                            "could not measure '{}': {}", path.string(), failure.message());
-                SA_FAIL_IF(bytes != count * K_ELEMENT_BYTES, StatusCode::InvalidFile,
-                           "'{}' holds {} bytes, but its shape names {} values of {} bytes",
-                           path.string(), bytes, count, K_ELEMENT_BYTES);
 
                 std::ifstream in(path, std::ios::binary);
                 SA_FAIL_IF(!in, StatusCode::FileNotFound, "could not open '{}' for reading",
@@ -183,6 +180,20 @@ namespace SushiAI
                         static_cast<std::streamsize>(raw.size()));
                 SA_FAIL_IF(!in && !raw.empty(), StatusCode::InvalidFile,
                            "'{}' ended before its {} bytes", path.string(), bytes);
+
+                return Result<std::vector<unsigned char>>(std::move(raw));
+            }
+
+            /**
+             * @brief Decodes @p count little-endian float32 values from all of @p raw.
+             * @return The values; InvalidFile when @p raw does not hold exactly @p count values.
+             */
+            Result<std::vector<float>> decode_floats(const std::vector<unsigned char>& raw,
+                                                     std::size_t count, std::string_view origin)
+            {
+                SA_FAIL_IF(raw.size() != count * K_ELEMENT_BYTES, StatusCode::InvalidFile,
+                           "'{}' holds {} bytes, but its shape names {} values of {} bytes",
+                           origin, raw.size(), count, K_ELEMENT_BYTES);
 
                 std::vector<float> values(count);
                 for (std::size_t i = 0; i < count; ++i)
@@ -231,15 +242,42 @@ namespace SushiAI
 
         DarknetFile find_darknet_file(std::string_view file_name) noexcept
         {
-            return locate(std::filesystem::path(file_name));
+            const std::string directory = read_data_directory();
+            if (!directory.empty())
+                return find_darknet_file(std::filesystem::path(directory), file_name);
+
+            DarknetFile file;
+            file.reason = unset_reason(std::filesystem::path(file_name));
+            return file;
+        }
+
+        DarknetFile find_darknet_file(const std::filesystem::path& folder,
+                                      std::string_view file_name) noexcept
+        {
+            return locate(folder, std::filesystem::path(file_name));
         }
 
         DarknetReference find_darknet_reference(std::string_view model, std::string_view name) noexcept
         {
+            const std::string directory = read_data_directory();
+            if (!directory.empty())
+                return find_darknet_reference(std::filesystem::path(directory), model, name);
+
+            DarknetReference reference;
+            reference.reason = unset_reason(std::filesystem::path(K_REFERENCE_FOLDER) /
+                                            std::filesystem::path(model) /
+                                            (std::string(name) + ".json"));
+            return reference;
+        }
+
+        DarknetReference find_darknet_reference(const std::filesystem::path& root,
+                                                std::string_view model,
+                                                std::string_view name) noexcept
+        {
             const std::filesystem::path folder =
                 std::filesystem::path(K_REFERENCE_FOLDER) / std::filesystem::path(model);
-            const DarknetFile description = locate(folder / (std::string(name) + ".json"));
-            const DarknetFile payload = locate(folder / (std::string(name) + ".bin"));
+            const DarknetFile description = locate(root, folder / (std::string(name) + ".json"));
+            const DarknetFile payload = locate(root, folder / (std::string(name) + ".bin"));
 
             DarknetReference reference;
             reference.description = description.path;
@@ -255,14 +293,24 @@ namespace SushiAI
         {
             SA_FAIL_IF(!reference.found, StatusCode::FileNotFound, "{}", reference.reason);
 
-            const std::string origin = reference.description.string();
+            SA_TRY_ASSIGN(const std::vector<unsigned char> text, read_bytes(reference.description));
+            SA_TRY_ASSIGN(const std::vector<unsigned char> payload, read_bytes(reference.payload));
+            return decode_darknet_tensor(std::string(text.begin(), text.end()), payload,
+                                         reference.description.string());
+        }
+
+        Result<DarknetTensor> decode_darknet_tensor(std::string_view description_text,
+                                                    const std::vector<unsigned char>& payload,
+                                                    std::string_view origin) noexcept
+        {
             DarknetTensor tensor;
-            SA_TRY_ASSIGN(tensor.description, Config::parse_json_file(reference.description));
+            SA_TRY_ASSIGN(tensor.description,
+                          Config::parse_json(std::string(description_text), std::string(origin)));
             SA_TRY(expect_text(tensor.description, "dtype", "float32", origin));
             SA_TRY(expect_text(tensor.description, "byte_order", "little", origin));
             SA_TRY(read_extents(tensor.description, origin, tensor.extents));
             SA_TRY_ASSIGN(tensor.values,
-                          read_floats(reference.payload, count_elements(tensor.extents)));
+                          decode_floats(payload, count_elements(tensor.extents), origin));
             if (tensor.description.has("order"))
                 SA_TRY(move_channels_last(tensor, origin));
 

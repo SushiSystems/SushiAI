@@ -45,6 +45,7 @@
 namespace
 {
     using SushiAI::StatusCode;
+    using SushiAI::Test::decode_darknet_tensor;
     using SushiAI::Test::DarknetFile;
     using SushiAI::Test::DarknetReference;
     using SushiAI::Test::DarknetTensor;
@@ -81,25 +82,36 @@ namespace
         return std::string(value);
     }
 
-    /** @brief Points the reference variable at a fresh folder and restores it afterwards. */
+    /** @brief Returns @p values as the little-endian float32 bytes of a `.bin` file. */
+    std::vector<unsigned char> bytes_of(const std::vector<float>& values)
+    {
+        std::vector<unsigned char> bytes;
+        for (const float value : values)
+        {
+            std::uint32_t bits = 0;
+            std::memcpy(&bits, &value, sizeof(bits));
+            for (int shift = 0; shift < 32; shift += 8)
+                bytes.push_back(static_cast<unsigned char>((bits >> shift) & 0xFFu));
+        }
+        return bytes;
+    }
+
+    /** @brief Gives each case a fresh folder to hold the reference data. */
     class Medium_DarknetReference : public ::testing::Test
     {
         protected:
-            /** @brief Creates the folder and its run folder, then points the variable at it. */
+            /** @brief Creates the folder and its run folder. */
             void SetUp() override
             {
-                saved_ = read_variable(K_REFERENCE_DATA_VARIABLE);
                 root_ = std::filesystem::temp_directory_path() / "sushiai_darknet_reference_test";
                 std::error_code ignored;
                 std::filesystem::remove_all(root_, ignored);
                 std::filesystem::create_directories(root_ / "references" / K_MODEL);
-                set_variable(K_REFERENCE_DATA_VARIABLE, root_.string());
             }
 
-            /** @brief Restores the variable and removes the folder. */
+            /** @brief Removes the folder. */
             void TearDown() override
             {
-                set_variable(K_REFERENCE_DATA_VARIABLE, saved_.value_or(std::string()));
                 std::error_code ignored;
                 std::filesystem::remove_all(root_, ignored);
             }
@@ -111,31 +123,26 @@ namespace
                 out << text;
             }
 
-            /** @brief Writes @p values as little-endian float32 to @p relative under the folder. */
-            void write_floats(const std::filesystem::path& relative,
-                              const std::vector<float>& values) const
-            {
-                std::ofstream out(root_ / relative, std::ios::binary);
-                for (const float value : values)
-                {
-                    std::uint32_t bits = 0;
-                    std::memcpy(&bits, &value, sizeof(bits));
-                    for (int shift = 0; shift < 32; shift += 8)
-                        out.put(static_cast<char>((bits >> shift) & 0xFFu));
-                }
-            }
-
-            /** @brief Writes the `.json` and `.bin` of the reference @p name of K_MODEL. */
-            void write_reference(const std::string& name, const std::string& description,
-                                 const std::vector<float>& values) const
-            {
-                const std::filesystem::path folder = std::filesystem::path("references") / K_MODEL;
-                write_text(folder / (name + ".json"), description);
-                write_floats(folder / (name + ".bin"), values);
-            }
-
-            /** @brief Holds the folder the variable names during a case. */
+            /** @brief Holds the folder a case reads from. */
             std::filesystem::path root_;
+    };
+
+    /** @brief Unsets the reference variable for a case and restores it afterwards. */
+    class Medium_DarknetReferenceEnvironment : public ::testing::Test
+    {
+        protected:
+            /** @brief Saves the variable and unsets it. */
+            void SetUp() override
+            {
+                saved_ = read_variable(K_REFERENCE_DATA_VARIABLE);
+                set_variable(K_REFERENCE_DATA_VARIABLE, std::string());
+            }
+
+            /** @brief Restores the variable. */
+            void TearDown() override
+            {
+                set_variable(K_REFERENCE_DATA_VARIABLE, saved_.value_or(std::string()));
+            }
 
             /** @brief Holds the value the variable had before the case, if it was set. */
             std::optional<std::string> saved_;
@@ -147,7 +154,7 @@ TEST_F(Medium_DarknetReference, AFileInTheDirectoryIsFound)
 {
     write_text("model.cfg", "[net]\n");
 
-    const DarknetFile file = find_darknet_file("model.cfg");
+    const DarknetFile file = find_darknet_file(root_, "model.cfg");
 
     EXPECT_TRUE(file.found);
     EXPECT_EQ(file.path, root_ / "model.cfg");
@@ -156,17 +163,15 @@ TEST_F(Medium_DarknetReference, AFileInTheDirectoryIsFound)
 /** @brief Tests that a missing file is not found and its reason names the file. */
 TEST_F(Medium_DarknetReference, AMissingFileNamesItsPath)
 {
-    const DarknetFile file = find_darknet_file("absent.cfg");
+    const DarknetFile file = find_darknet_file(root_, "absent.cfg");
 
     EXPECT_FALSE(file.found);
     EXPECT_NE(file.reason.find("absent.cfg"), std::string::npos);
 }
 
 /** @brief Tests that an unset variable is the reason a file is not found. */
-TEST_F(Medium_DarknetReference, AnUnsetVariableIsTheReason)
+TEST_F(Medium_DarknetReferenceEnvironment, AnUnsetVariableIsTheReason)
 {
-    set_variable(K_REFERENCE_DATA_VARIABLE, std::string());
-
     const DarknetFile file = find_darknet_file("model.cfg");
 
     EXPECT_FALSE(file.found);
@@ -178,7 +183,7 @@ TEST_F(Medium_DarknetReference, AReferenceNeedsBothFiles)
 {
     write_text(std::filesystem::path("references") / K_MODEL / "conv.json", "{}");
 
-    const DarknetReference reference = find_darknet_reference(K_MODEL, "conv");
+    const DarknetReference reference = find_darknet_reference(root_, K_MODEL, "conv");
 
     EXPECT_FALSE(reference.found);
     EXPECT_NE(reference.reason.find("conv.bin"), std::string::npos);
@@ -186,49 +191,44 @@ TEST_F(Medium_DarknetReference, AReferenceNeedsBothFiles)
 }
 
 /** @brief Tests that a CHW feature map is read and moved to HWC, extents included. */
-TEST_F(Medium_DarknetReference, AFeatureMapIsMovedToChannelsLast)
+TEST(Small_DarknetTensor, AFeatureMapIsMovedToChannelsLast)
 {
-    write_reference("map",
-                    R"({"dtype": "float32", "byte_order": "little", "shape": [2, 1, 3],
-                        "order": "CHW"})",
-                    {0.0f, 1.0f, 2.0f, 10.0f, 11.0f, 12.0f});
-
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor tensor,
-                            load_darknet_tensor(find_darknet_reference(K_MODEL, "map")));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetTensor tensor,
+        decode_darknet_tensor(R"({"dtype": "float32", "byte_order": "little", "shape": [2, 1, 3],
+                                  "order": "CHW"})",
+                              bytes_of({0.0f, 1.0f, 2.0f, 10.0f, 11.0f, 12.0f}), "map"));
 
     EXPECT_EQ(tensor.extents, (std::vector<std::int64_t>{1, 3, 2}));
     EXPECT_EQ(tensor.values, (std::vector<float>{0.0f, 10.0f, 1.0f, 11.0f, 2.0f, 12.0f}));
 }
 
 /** @brief Tests that a tensor without an order keeps its shape and its values as stored. */
-TEST_F(Medium_DarknetReference, ATensorWithoutAnOrderIsKeptAsStored)
+TEST(Small_DarknetTensor, ATensorWithoutAnOrderIsKeptAsStored)
 {
-    write_reference("boxes", R"({"dtype": "float32", "byte_order": "little", "shape": [2, 2]})",
-                    {0.5f, -0.5f, 1.5f, -1.5f});
-
-    SA_ASSERT_OK_AND_ASSIGN(const DarknetTensor tensor,
-                            load_darknet_tensor(find_darknet_reference(K_MODEL, "boxes")));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const DarknetTensor tensor,
+        decode_darknet_tensor(R"({"dtype": "float32", "byte_order": "little", "shape": [2, 2]})",
+                              bytes_of({0.5f, -0.5f, 1.5f, -1.5f}), "boxes"));
 
     EXPECT_EQ(tensor.extents, (std::vector<std::int64_t>{2, 2}));
     EXPECT_EQ(tensor.values, (std::vector<float>{0.5f, -0.5f, 1.5f, -1.5f}));
 }
 
 /** @brief Tests that a payload whose byte count differs from the shape is refused. */
-TEST_F(Medium_DarknetReference, AByteCountThatDiffersFromTheShapeIsRefused)
+TEST(Small_DarknetTensor, AByteCountThatDiffersFromTheShapeIsRefused)
 {
-    write_reference("short", R"({"dtype": "float32", "byte_order": "little", "shape": [3]})",
-                    {1.0f, 2.0f});
-
-    SA_EXPECT_FAILURE(load_darknet_tensor(find_darknet_reference(K_MODEL, "short")),
-                      StatusCode::InvalidFile, "bytes");
+    SA_EXPECT_FAILURE(
+        decode_darknet_tensor(R"({"dtype": "float32", "byte_order": "little", "shape": [3]})",
+                              bytes_of({1.0f, 2.0f}), "short"),
+        StatusCode::InvalidFile, "bytes");
 }
 
 /** @brief Tests that a dtype other than float32 is refused and named. */
-TEST_F(Medium_DarknetReference, ADtypeOtherThanFloat32IsRefused)
+TEST(Small_DarknetTensor, ADtypeOtherThanFloat32IsRefused)
 {
-    write_reference("half", R"({"dtype": "float16", "byte_order": "little", "shape": [1]})",
-                    {1.0f});
-
-    SA_EXPECT_FAILURE(load_darknet_tensor(find_darknet_reference(K_MODEL, "half")),
-                      StatusCode::InvalidFile, "'dtype'", "float16");
+    SA_EXPECT_FAILURE(
+        decode_darknet_tensor(R"({"dtype": "float16", "byte_order": "little", "shape": [1]})",
+                              bytes_of({1.0f}), "half"),
+        StatusCode::InvalidFile, "'dtype'", "float16");
 }

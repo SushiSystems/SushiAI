@@ -1,15 +1,16 @@
 # tests/core/darknet_reference/test_darknet_reference.cpp
 
 
-Suites: `Medium_DarknetReference`.
+Suites: `Medium_DarknetReference`, `Medium_DarknetReferenceEnvironment` and `Small_DarknetTensor`.
 
-Tests `find_darknet_file`, `find_darknet_reference` and `load_darknet_tensor` over files the
-cases write.
+Tests `find_darknet_file` and `find_darknet_reference` over a folder the cases write into, and
+`decode_darknet_tensor` over text and bytes held in memory.
 
-The fixture writes into a folder under the temporary directory, which makes the file medium. It
-points `SA_REFERENCE_DATA_DIR` at that folder for each case and restores the value the variable
-had afterwards. Every reference lives in the run folder "tiny_run". The `.bin` files are
-written as little-endian float32, byte by byte.
+The `Medium_DarknetReference` fixture writes into a folder under the temporary directory and
+passes it to the lookups, which makes those cases medium. `Medium_DarknetReferenceEnvironment`
+removes `SA_REFERENCE_DATA_DIR` and restores it afterwards, for the one case that reads the
+variable. Every reference lives in the run folder "tiny_run". The tensor cases build the
+little-endian float32 bytes in the test and are small.
 
 ## AFileInTheDirectoryIsFound
 

@@ -78,12 +78,32 @@ namespace SushiAI
         [[nodiscard]] DarknetFile find_darknet_file(std::string_view file_name) noexcept;
 
         /**
+         * @brief Locates a file directly in @p folder, such as a `.cfg`.
+         * @param folder The reference data directory.
+         * @param file_name The file's name, with its extension.
+         * @return The path, or the reason for a skip.
+         */
+        [[nodiscard]] DarknetFile find_darknet_file(const std::filesystem::path& folder,
+                                                    std::string_view file_name) noexcept;
+
+        /**
          * @brief Locates `references/<model>/<name>.json` and the `.bin` beside it.
          * @param model The directory of one run, such as "yolov3_tiny_thresh_0p01".
          * @param name The tensor's name, without an extension.
          * @return The two paths, or the reason for a skip.
          */
         [[nodiscard]] DarknetReference find_darknet_reference(std::string_view model,
+                                                              std::string_view name) noexcept;
+
+        /**
+         * @brief Locates `references/<model>/<name>.json` and the `.bin` beside it in @p folder.
+         * @param folder The reference data directory.
+         * @param model The directory of one run, such as "yolov3_tiny_thresh_0p01".
+         * @param name The tensor's name, without an extension.
+         * @return The two paths, or the reason for a skip.
+         */
+        [[nodiscard]] DarknetReference find_darknet_reference(const std::filesystem::path& folder,
+                                                              std::string_view model,
                                                               std::string_view name) noexcept;
 
         /**
@@ -94,6 +114,17 @@ namespace SushiAI
          *         shape's; Unsupported for an `order` other than `CHW` over three axes.
          */
         [[nodiscard]] Result<DarknetTensor> load_darknet_tensor(const DarknetReference& reference) noexcept;
+
+        /**
+         * @brief Decodes one reference tensor from the text of its `.json` file and the bytes of
+         *        its `.bin` file, and moves a `CHW` feature map to `HWC`.
+         * @param origin Names the tensor in a diagnostic.
+         * @return The tensor; the refusals of load_darknet_tensor() that the text and the bytes
+         *         decide.
+         */
+        [[nodiscard]] Result<DarknetTensor> decode_darknet_tensor(
+            std::string_view description_text, const std::vector<unsigned char>& payload,
+            std::string_view origin) noexcept;
 
     } // namespace Test
 } // namespace SushiAI
