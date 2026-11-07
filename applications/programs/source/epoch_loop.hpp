@@ -59,7 +59,10 @@ namespace SushiAI
             /** @brief Enters an epoch index of the data; empty for a run that reads none. */
             std::function<void(std::int64_t epoch_index)> enter_epoch;
 
-            /** @brief Runs one update over a batch index, after the scheduled rate is set. */
+            /** @brief Sets the scheduled rate before each update; empty for a run with none. */
+            std::function<void()> set_rate;
+
+            /** @brief Runs one update over a batch index, after the rate is set. */
             std::function<Status(std::size_t batch_index)> run_step;
 
             /** @brief Prints the progress line of an epoch, as epoch of epochs. */
@@ -67,9 +70,29 @@ namespace SushiAI
         };
 
         /**
+         * @struct EpochPlan
+         * @brief Holds where a run starts and how many epochs and batches it covers.
+         */
+        struct EpochPlan
+        {
+            std::int64_t epochs = 0;      /**< How many epochs to run. */
+            std::int64_t first_epoch = 0; /**< The epoch index of the data the run enters first. */
+            std::size_t first_batch = 0;  /**< The batch the first epoch starts at. */
+            std::size_t batches = 0;      /**< The batches of one epoch. */
+        };
+
+        /**
+         * @brief Runs the epochs of @p plan, calling @p steps at each point of the loop.
+         * @param steps Its run_step and report are set.
+         * @return Success, or the first failure of an update.
+         */
+        [[nodiscard]] Status run_epoch_loop(const EpochPlan& plan, const EpochSteps& steps);
+
+        /**
          * @brief Runs every epoch of @p run from the batch its start names, setting the
          *        scheduled rate before each update and reporting as is_reported_epoch() says.
-         * @param steps Its run_step and report are set.
+         * @param steps Its run_step and report are set; its set_rate is replaced by the
+         *        run's schedule.
          * @return Success, or the first failure of an update.
          */
         [[nodiscard]] Status run_epochs(const PreparedRun& run, const EpochSteps& steps);

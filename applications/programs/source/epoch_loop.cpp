@@ -38,35 +38,49 @@ namespace SushiAI
 {
     namespace Apps
     {
-        Status run_epochs(const PreparedRun& run, const EpochSteps& steps)
+        Status run_epoch_loop(const EpochPlan& plan, const EpochSteps& steps)
         {
-            const std::int64_t epochs = run.spec.epochs;
-            const std::int64_t first_epoch = static_cast<std::int64_t>(run.start.epoch);
-            const std::size_t batches = run.dataset.batch_count();
-            for (std::int64_t epoch = 1; epoch <= epochs; ++epoch)
+            for (std::int64_t epoch = 1; epoch <= plan.epochs; ++epoch)
             {
                 if (steps.enter_epoch)
-                    steps.enter_epoch(first_epoch + epoch - 1);
+                    steps.enter_epoch(plan.first_epoch + epoch - 1);
 
-                const std::size_t first =
-                    epoch == 1 ? static_cast<std::size_t>(run.start.batch) : 0;
-                for (std::size_t index = first; index < batches; ++index)
+                const std::size_t first = epoch == 1 ? plan.first_batch : 0;
+                for (std::size_t index = first; index < plan.batches; ++index)
                 {
                     Profile::mark_period(Profile::Timeline::TrainStep);
-                    if (run.schedule != nullptr)
-                    {
-                        SA_ZONE("optim", "schedule");
-                        Optim::apply_step_schedule(*run.schedule, run.optimizer);
-                    }
+                    if (steps.set_rate)
+                        steps.set_rate();
 
                     SA_TRY(steps.run_step(index));
                 }
 
-                if (is_reported_epoch(epoch, epochs))
-                    steps.report(epoch, epochs);
+                if (is_reported_epoch(epoch, plan.epochs))
+                    steps.report(epoch, plan.epochs);
             }
 
             return Status();
+        }
+
+        Status run_epochs(const PreparedRun& run, const EpochSteps& steps)
+        {
+            EpochPlan plan;
+            plan.epochs = run.spec.epochs;
+            plan.first_epoch = static_cast<std::int64_t>(run.start.epoch);
+            plan.first_batch = static_cast<std::size_t>(run.start.batch);
+            plan.batches = run.dataset.batch_count();
+
+            EpochSteps scheduled = steps;
+            if (run.schedule != nullptr)
+            {
+                scheduled.set_rate = [&run]()
+                {
+                    SA_ZONE("optim", "schedule");
+                    Optim::apply_step_schedule(*run.schedule, run.optimizer);
+                };
+            }
+
+            return run_epoch_loop(plan, scheduled);
         }
 
     } // namespace Apps

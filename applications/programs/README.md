@@ -33,7 +33,7 @@ the ones SushiRuntime's worker agent defines.
 | `registries.hpp`, `registries.cpp` | `Registries`: the node, dataset, objective, run, report and importer rows a program looks up, and `compose_registries`, which fills them |
 | `inference_run.hpp`, `inference_run.cpp` | `PreparedInference`, `InferenceRegistry`, `report_inference` and `print_inference_header`: the report table |
 | `training_run.hpp`, `training_run.cpp` | `PreparedRun`, `RunSummary`, `RunRegistry` and `run_training`: the run table; `finished_progress` and `check_start_batch`, which both runs call |
-| `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epochs`: the epoch, schedule and report loop the trainer run and the cluster run share, and `is_reported_epoch`, the cadence the vision run prints at |
+| `epoch_loop.hpp`, `epoch_loop.cpp` | `run_epoch_loop`, the epoch and report loop over an `EpochPlan` and a rate setter, and `run_epochs`, which fills the plan and the setter from a `PreparedRun`; the trainer run and the cluster run share them, and `is_reported_epoch`, the cadence the vision run prints at |
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
 | `profile_arguments.hpp`, `profile_arguments.cpp` | `read_profile_arguments`: takes the `--profile <config>` pair out of a command line, wherever it stands |

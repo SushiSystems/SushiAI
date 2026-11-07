@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-07 — programs: Added run_epoch_loop over an EpochPlan, and EpochSteps::set_rate, so the epoch loop runs without an engine (RW-158, `epoch_loop.hpp`).
 - 2026-11-07 — test_tree: Put Session, CompiledStep and record_and_run on a host and a runtime ExecutionBackend (RW-161, `7f76b593`).
 - 2026-11-07 — execution: Added `RuntimeAccess`, the port of the runtime a backend runs on; `RuntimeExecutionBackend` implements it, `HostExecutionBackend` does not (RW-161, `runtime_access.hpp`).
 - 2026-11-07 — eager: Changed Session to take an ExecutionBackend, and RegionExecutor and RegionEmitter to take a RuntimeAccess also (RW-161, `session.hpp`).
