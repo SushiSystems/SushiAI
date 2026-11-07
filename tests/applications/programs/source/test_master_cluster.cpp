@@ -47,8 +47,9 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "cluster_test_files.hpp"
+#include "cluster_fabric.hpp"
+#include "in_memory_worker_watch.hpp"
 #include "master_cluster.hpp"
-#include "scripted_worker_watch.hpp"
 
 namespace
 {
@@ -111,63 +112,6 @@ namespace
         return Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
                                                   ".").value();
     }
-
-    /** @brief Holds a master and the workers a case starts, joined over one InProcessFabric. */
-    class Fabric final
-    {
-        public:
-            /** @brief Attaches a master with no worker yet. */
-            Fabric()
-                : master_runtime_(SushiRuntime::Runtime::create().value()),
-                  cluster_(Distributed::Cluster::attach(
-                               master_runtime_, Distributed::InProcessTransport::make_master(
-                                                    fabric_)).value())
-            {
-
-            }
-
-            Fabric(const Fabric&) = delete;
-            Fabric& operator=(const Fabric&) = delete;
-            Fabric(Fabric&&) = delete;
-            Fabric& operator=(Fabric&&) = delete;
-            /** @brief Stops the workers before the master. */
-            ~Fabric() = default;
-
-            /** @brief Starts a worker whose HELLO names @p name. */
-            void start_worker(const std::string& name)
-            {
-                worker_runtimes_.push_back(std::make_unique<SushiRuntime::Runtime>(
-                    SushiRuntime::Runtime::create().value()));
-                Distributed::WorkerAgentOptions options;
-                options.name = name;
-                agents_.push_back(std::make_unique<Distributed::WorkerAgent>(
-                    *worker_runtimes_.back(), Distributed::InProcessTransport::make_worker(fabric_),
-                    SushiRuntime::make_sushi<Distributed::KernelRegistry>(), std::move(options)));
-                ASSERT_TRUE(agents_.back()->start().is_ok());
-            }
-
-            /** @brief Returns the master's cluster handle. */
-            Distributed::Cluster& cluster() noexcept
-            {
-                return cluster_;
-            }
-
-        private:
-            /// @brief The fabric every machine talks over; it dies last.
-            Distributed::InProcessFabric fabric_;
-
-            /// @brief The master's runtime, with the cluster attached.
-            SushiRuntime::Runtime master_runtime_;
-
-            /// @brief The master.
-            Distributed::Cluster cluster_;
-
-            /// @brief The runtime of each worker, in start order.
-            std::vector<std::unique_ptr<SushiRuntime::Runtime>> worker_runtimes_;
-
-            /// @brief The workers, in start order; they die first.
-            std::vector<std::unique_ptr<Distributed::WorkerAgent>> agents_;
-    };
 } // namespace
 
 /** @brief Tests that the master's runtime reports the machine replica 0 names. */
@@ -224,7 +168,7 @@ TEST(Small_MasterCluster, RegressionEveryWorkerAttachedEndsTheWait)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_LONG_ATTACH);
-    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(2000)},
+    Apps::InMemoryWorkerWatch watch({{"left", std::chrono::milliseconds(2000)},
                                {"right", std::chrono::milliseconds(5000)}});
 
     SA_EXPECT_OK(Apps::wait_for_workers(watch, section).status());
@@ -238,7 +182,7 @@ TEST(Small_MasterCluster, RegressionAMissingWorkerUnderFailFailsNamingIt)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_SHORT_ATTACH);
-    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
+    Apps::InMemoryWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
 
     SA_EXPECT_FAILURE(Apps::wait_for_workers(watch, section).status(),
                       StatusCode::DeviceFailed, "'right'");
@@ -250,7 +194,7 @@ TEST(Small_MasterCluster, AMissingWorkerUnderLocalRuns)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "local")", K_SHORT_ATTACH);
-    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
+    Apps::InMemoryWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
 
     SA_EXPECT_OK(Apps::wait_for_workers(watch, section).status());
 }
@@ -273,7 +217,7 @@ TEST(Small_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "local")", R"("if_absent": "local")", K_SHORT_ATTACH);
-    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)},
+    Apps::InMemoryWorkerWatch watch({{"left", std::chrono::milliseconds(0)},
                                {"stranger", std::chrono::milliseconds(0)}});
 
     const Result<std::vector<Apps::AwaitedWorker>> missing =

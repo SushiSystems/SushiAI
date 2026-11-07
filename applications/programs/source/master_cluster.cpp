@@ -47,6 +47,8 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
 
+#include "cluster_worker_watch.hpp"
+
 namespace SushiAI
 {
     namespace Apps
@@ -84,45 +86,6 @@ namespace SushiAI
                 }
                 return seen;
             }
-
-            /** @brief Reads a real cluster and the steady clock. */
-            class ClusterWatch final : public WorkerWatch
-            {
-                public:
-                    /** @brief Watches @p cluster, which outlives the watch. */
-                    explicit ClusterWatch(SushiRuntime::Distributed::Cluster& cluster) noexcept
-                        : cluster_(&cluster)
-                    {
-
-                    }
-
-                    /** @brief Returns the names the cluster's statistics list. */
-                    [[nodiscard]] std::vector<std::string> attached_names() override
-                    {
-                        std::vector<std::string> names;
-                        for (const SushiRuntime::Distributed::WorkerSnapshot& worker :
-                             cluster_->statistics().workers)
-                            names.push_back(worker.name);
-                        return names;
-                    }
-
-                    /** @brief Waits on the cluster. */
-                    [[nodiscard]] bool wait_for_count(std::size_t count,
-                                                      std::chrono::milliseconds bound) override
-                    {
-                        return cluster_->wait_for_workers(count, bound);
-                    }
-
-                    /** @brief Returns the steady clock's time. */
-                    [[nodiscard]] std::chrono::steady_clock::time_point now() override
-                    {
-                        return std::chrono::steady_clock::now();
-                    }
-
-                private:
-                    /// @brief The watched cluster; never null.
-                    SushiRuntime::Distributed::Cluster* cluster_;
-            };
         } // namespace
 
         SushiRuntime::RuntimeConfig master_runtime_config(
@@ -204,7 +167,7 @@ namespace SushiAI
             SushiRuntime::Distributed::Cluster& cluster,
             const Distribution::ClusterSection& section)
         {
-            ClusterWatch watch(cluster);
+            ClusterWorkerWatch watch(cluster);
             return wait_for_workers(watch, section);
         }
 

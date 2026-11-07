@@ -35,6 +35,8 @@ if(SA_ENABLE_DISTRIBUTED)
         source/test_cluster_run.cpp
         source/test_replica_fallback_warning.cpp
         source/test_cluster_training.cpp
+        source/test_cluster_worker_watch.cpp
+        source/test_in_memory_worker_watch.cpp
         source/test_master_cluster.cpp
         source/test_replica_tensors.cpp
         source/test_served_kernel.cpp
