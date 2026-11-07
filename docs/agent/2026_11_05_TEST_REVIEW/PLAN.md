@@ -39,7 +39,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M18 | the tests of `core/log` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M19 | the tests of `core/model_text` (1 file): 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M20 | the tests of `core/ops` (1 file): 12 rewrite, 2 merge | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M21 | the tests of `core/optim` (16 files): 46 rewrite, 9 resize, 10 split, 8 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M21 | the tests of `core/optim` (16 files): 46 rewrite, 9 resize, 10 split, 8 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; test_adamw, test_sgd, test_step_scalars and test_gradient_clip are applied (not yet built or run); open: test_apply_step_schedule, test_cosine_schedule_section, test_loss_scaler, test_optimizer, test_optimizer_registry, test_rate_schedule, test_rate_schedule_section, test_run_schedule, test_run_state, test_step_schedule, test_step_schedule_section, and the tolerance and loop rewrites of test_cosine_schedule |
 | M22 | the tests of `core/profile` (4 files): 5 rewrite, 1 resize, 1 split, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M23 | the tests of `core/profile_records` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M24 | the tests of `core/scratch_files` (2 files): 2 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
