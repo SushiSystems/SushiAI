@@ -46,6 +46,9 @@ this repository's `cli/` directory, and locating that directory fails outside a 
 Building at import time would make every `sa` invocation abort with "Not inside a SushiAI
 project", including `sa --help`, which Typer can serve with no project at all.
 
+`make_console_holder(config_dir_of)` makes that holder over any directory resolver. The module builds
+its own with this repository's `config_dir`; a test builds one over a temporary directory.
+
 `__getattr__` is the PEP 562 module hook. Attributes resolve on first access, so importing
 the module never touches the filesystem or the project layout.
 

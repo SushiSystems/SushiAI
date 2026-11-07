@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import os
 import shutil
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from ..config import find_project_root
 from .toolbox import Toolbox
@@ -25,19 +25,21 @@ def is_installed() -> bool:
     return shutil.which(K_PROFILER_PROGRAM) is not None
 
 
-def run_profiler(tools: Toolbox, args: Sequence[str]) -> int:
+def run_profiler(tools: Toolbox, args: Sequence[str],
+                 which: Callable[[str], str | None] = shutil.which) -> int:
     """Runs `sp` with *args* from the project root.
 
     Args:
         tools: The console and the runner the command works through.
         args: The arguments after `sa profile`, forwarded verbatim.
+        which: Finds a program on the path; defaults to `shutil.which`.
 
     Returns:
         1 when `sp` is not on the path, otherwise its own exit code.
     """
     console = tools.console
     console.header("SushiProfiler")
-    program = shutil.which(K_PROFILER_PROGRAM)
+    program = which(K_PROFILER_PROGRAM)
     if program is None:
         console.error(
             f"`{K_PROFILER_PROGRAM}` is not on the path. Install SushiProfiler's command line "

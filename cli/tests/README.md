@@ -26,6 +26,9 @@ Four of the five CLIs fixed this independently and sushiengine's copy never did,
 in `sushicore.cli_console.LazyConsole`. These tests pin that this CLI is wired to it, which
 a shared implementation cannot check on its own.
 
+The tests build a holder with `make_console_holder` over a temporary directory, so none reloads
+the module or reads the working directory.
+
 In `test_output_helper_falls_back_outside_project`, no project means there are no config
 files to layer, and the helper must still not crash.
 

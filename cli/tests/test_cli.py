@@ -23,6 +23,7 @@ from recorded_tools import doxygen_ready, recorded_tools, write_executable
 from sushiai import cli
 from sushiai import console as console_module
 from sushiai.services import build_trees
+from sushiai.services.profiler import run_profiler
 from sushiai.services.project import K_DEFAULT_TYPE
 
 #: The groups sushicore adds whole; their commands are sushicore's to list, so only the group is checked.
@@ -230,14 +231,14 @@ def test_profile_runs_sp(project_root, sp_on_path):
         ([sp_on_path, "record", "show", "run.sprec.json"], project_root)]
 
 
-@pytest.mark.medium
-def test_profile_without_sp_says_to_install_it(tmp_path, monkeypatch):
+@pytest.mark.small
+def test_profile_without_sp_says_to_install_it():
     """A machine with no `sp` on the path gets one error line that names SushiProfiler."""
-    monkeypatch.setenv("PATH", str(tmp_path))
     recorded = recorded_tools()
 
-    result = CliRunner().invoke(
-        cli.app, ["profile", "record", "show", "run.sprec.json"], obj=recorded.tools)
+    code = run_profiler(recorded.tools, ["record", "show", "run.sprec.json"],
+                        which=lambda _program: None)
 
-    assert result.exit_code == 1
+    assert code == 1
+    assert recorded.runner.commands == []
     assert "SushiProfiler" in K_ANSI_ESCAPE.sub("", " ".join(recorded.errors()))

@@ -9,11 +9,20 @@ The reasoning is in cli/README.md under "console.py".
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from pathlib import Path
+
 from sushicore.cli_console import LazyConsole
 
 from .config import config_dir
 
-_lazy = LazyConsole(config_dir)
+
+def make_console_holder(config_dir_of: Callable[[], Path]) -> LazyConsole:
+    """Return the holder that builds its console from the config files under *config_dir_of*."""
+    return LazyConsole(config_dir_of)
+
+
+_lazy = make_console_holder(config_dir)
 
 
 def current():
