@@ -40,6 +40,7 @@
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "replica_test_support.hpp"
@@ -152,8 +153,14 @@ TEST(Small_ReplicaStep, MakeRefusesAMicroBatchBelowOne)
                       StatusCode::InvalidDescription, "holds 0 rows");
 }
 
+namespace
+{
+    /** @brief Gives each case the one backend of the program. */
+    class Medium_ReplicaStep : public SushiAI::Test::EngineTest {};
+} // namespace
+
 /** @brief Tests that a step that ran no micro-batch writes zeros. */
-TEST(Medium_ReplicaStep, NoMicroBatchWritesZeros)
+TEST_F(Medium_ReplicaStep, NoMicroBatchWritesZeros)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReplicaStep> step,
                             ReplicaStep::make(linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN},
@@ -170,9 +177,9 @@ TEST(Medium_ReplicaStep, NoMicroBatchWritesZeros)
 }
 
 /** @brief Tests that one micro-batch writes the replay's results byte for byte. */
-TEST(Medium_ReplicaStep, OneMicroBatchWritesTheReplayResultsBitForBit)
+TEST_F(Medium_ReplicaStep, OneMicroBatchWritesTheReplayResultsBitForBit)
 {
-    const SingleMachineStep reference(4);
+    const SingleMachineStep reference(backend(), 4);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReplicaStep> step,
                             ReplicaStep::make(linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN},
                                               4));
@@ -191,10 +198,10 @@ TEST(Medium_ReplicaStep, OneMicroBatchWritesTheReplayResultsBitForBit)
  * @brief Tests that two micro-batches write (a + b) / 2 of the two replays, in float32 and in
  *        micro-batch order, bit for bit.
  */
-TEST(Medium_ReplicaStep, TwoMicroBatchesWriteTheirMeanInMicroBatchOrder)
+TEST_F(Medium_ReplicaStep, TwoMicroBatchesWriteTheirMeanInMicroBatchOrder)
 {
-    const SingleMachineStep first(2, 0);
-    const SingleMachineStep second(2, 2);
+    const SingleMachineStep first(backend(), 2, 0);
+    const SingleMachineStep second(backend(), 2, 2);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReplicaStep> step,
                             ReplicaStep::make(linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN},
                                               2));

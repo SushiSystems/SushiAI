@@ -74,6 +74,16 @@ TEST_F(Medium_Allocation, ATensorHasTheExtentsAndTypeItWasAskedFor)
     EXPECT_GE(tensor.storage->size_bytes(), 24u * SushiAI::dtype_size(DType::Float64));
 }
 
+/** @brief Tests that an allocated tensor lives in memory the host can address. */
+TEST_F(Medium_Allocation, AnAllocatedTensorIsAddressableByTheHost)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor tensor,
+                            SushiAI::allocate_tensor(*engine, Shape{4}, DType::Float32));
+
+    ASSERT_TRUE(tensor.storage);
+    EXPECT_NE(tensor.storage->residency(), SushiRuntime::Residency::Device);
+}
+
 /** @brief Tests that an extent that is not positive is refused as InvalidDescription. */
 TEST(Small_Allocation, AnExtentThatIsNotPositiveIsRefused)
 {

@@ -29,10 +29,9 @@
 
 #include <cstdint>
 #include <memory>
-#include <utility>
 #include <gtest/gtest.h>
-#include <SushiBLAS/engine/engine.hpp>
-#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/distribution/in_memory_replica_model.hpp>
+#include <SushiAI/distribution/in_memory_replica_model_factory.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
 #include <SushiAI/distribution/replica_step.hpp>
@@ -47,98 +46,29 @@ namespace
     using namespace SushiAI;
     using namespace SushiAI::Distribution;
     using namespace SushiAI::Distribution::Support;
-
-    /** @brief Holds what a factory was called with. */
-    struct FactoryCall
-    {
-        ReplicaDraws draws{};       /**< @brief The draws the step passed. */
-        std::int64_t rows = 0;      /**< @brief The micro-batch rows the step passed. */
-        int calls = 0;              /**< @brief How many times the factory ran. */
-    };
-
-    /** @brief Returns a factory that records its call into @p call and builds LinearModel. */
-    ReplicaModelFactory recording_factory(FactoryCall& call)
-    {
-        return [&call](ExecutionBackend& backend, const ReplicaDraws& draws, std::int64_t rows)
-        {
-            call.draws = draws;
-            call.rows = rows;
-            ++call.calls;
-            return LinearModel::make(backend.engine(), rows);
-        };
-    }
-
-    /** @brief Wraps LinearModel and hides every result, which a step refuses. */
-    class ResultlessModel final : public ReplicaModel
-    {
-        public:
-            /** @brief Takes the model it forwards to. */
-            explicit ResultlessModel(std::unique_ptr<ReplicaModel> inner)
-                : inner_(std::move(inner))
-            {
-
-            }
-
-            const Graph::Graph& graph() const noexcept override
-            {
-                return inner_->graph();
-            }
-
-            Graph::TensorPool& pool() noexcept override
-            {
-                return inner_->pool();
-            }
-
-            SushiRuntime::span<const SushiBLAS::Tensor> parameters() const noexcept override
-            {
-                return inner_->parameters();
-            }
-
-            SushiRuntime::span<const SushiBLAS::Tensor> results() const noexcept override
-            {
-                return SushiRuntime::span<const SushiBLAS::Tensor>();
-            }
-
-            std::uint64_t fingerprint() const noexcept override
-            {
-                return inner_->fingerprint();
-            }
-
-            Status feed(const ReplicaRows& rows) override
-            {
-                return inner_->feed(rows);
-            }
-
-        private:
-            /// @brief The model every call but results() reaches.
-            std::unique_ptr<ReplicaModel> inner_;
-    };
 } // namespace
 
 /** @brief Tests that the factory runs once, with the step's draws and micro-batch rows. */
 TEST(Medium_ReplicaModel, TheFactoryReceivesTheDrawsAndTheMicroBatchRows)
 {
-    FactoryCall call;
+    InMemoryReplicaModelFactory factory(linear_factory());
     const ReplicaDraws draws{K_SEED, 0, K_RUN};
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ReplicaStep> step,
-                            ReplicaStep::make(recording_factory(call), draws, 3));
+                            ReplicaStep::make(factory.as_factory(), draws, 3));
 
-    EXPECT_EQ(call.calls, 1);
-    EXPECT_EQ(call.draws, draws);
-    EXPECT_EQ(call.rows, 3);
+    ASSERT_EQ(factory.calls().size(), 1u);
+    EXPECT_EQ(factory.calls().front().draws, draws);
+    EXPECT_EQ(factory.calls().front().rows, 3);
     EXPECT_EQ(step->draws(), draws);
 }
 
 /** @brief Tests that a step refuses a model that packs no result. */
 TEST(Medium_ReplicaModel, AStepRefusesAModelWithNoResult)
 {
-    const ReplicaModelFactory factory = [](ExecutionBackend& backend, const ReplicaDraws&,
-                                           std::int64_t rows)
+    const ReplicaModelFactory factory = [](ExecutionBackend&, const ReplicaDraws&, std::int64_t)
         -> Result<std::unique_ptr<ReplicaModel>>
     {
-        SA_TRY_ASSIGN(std::unique_ptr<ReplicaModel> inner, LinearModel::make(backend.engine(), rows));
-        return Result<std::unique_ptr<ReplicaModel>>(
-            std::make_unique<ResultlessModel>(std::move(inner)));
+        return Result<std::unique_ptr<ReplicaModel>>(std::make_unique<InMemoryReplicaModel>(1, 0));
     };
 
     SA_EXPECT_FAILURE(ReplicaStep::make(factory, ReplicaDraws{K_SEED, 0, K_RUN}, 2),

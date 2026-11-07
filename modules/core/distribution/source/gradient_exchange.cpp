@@ -39,6 +39,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/distribution/exact_sum.hpp>
+#include <SushiAI/distribution/exchange_targets.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -119,17 +120,10 @@ namespace SushiAI
                            SushiBLAS::ElementwiseOps::K_MAX_ORDERED_SUM_INPUTS,
                            plan.replica_count());
 
-                const std::vector<SushiBLAS::PackEntry>& entries = layout.entries();
-                SA_FAIL_IF(targets.size() != entries.size(), StatusCode::InvalidDescription,
-                           "The result pack holds {} tensors and {} targets were given",
-                           entries.size(), targets.size());
+                SA_TRY(check_exchange_targets(layout, targets));
+                SA_TRY(check_exchange_dtypes(targets));
                 for (std::size_t index = 0; index < targets.size(); ++index)
                 {
-                    SA_FAIL_IF(!SushiBLAS::PackLayout::matches(entries[index], targets[index]),
-                               StatusCode::InvalidDescription,
-                               "Target {} differs from its result entry in type, layout or "
-                               "shape",
-                               index);
                     SA_FAIL_IF(!targets[index].storage || !targets[index].is_contiguous(),
                                StatusCode::InvalidDescription,
                                "Target {} has no storage or is not contiguous", index);
@@ -138,9 +132,6 @@ namespace SushiAI
                                "Target {} lives on device {} and the parameter pack on device {}",
                                index, targets[index].storage->device_index(),
                                parameters.device_index());
-                    SA_FAIL_IF(targets[index].dtype == SushiBLAS::Core::DataType::UInt32,
-                               StatusCode::Unsupported,
-                               "Target {} is uint32, which ordered_sum() does not sum", index);
                 }
                 return Status();
             }

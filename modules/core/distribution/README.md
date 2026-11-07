@@ -24,6 +24,7 @@ allocates. They take SushiBLAS's `SushiBLAS::cluster` and SushiRuntime's
 `SushiRuntime::distributed` as external public dependencies, since their headers name
 `PackLayout`, `BoundPack`, `KernelRegistry` and `BufferView`. The module stays in the core tier: it reads a model only through `ReplicaModel`, so
 it includes nothing of `layers/train`.
+`InMemoryReplicaModel` adds `dtype` and `shape` as public dependencies, since its header names `DType` and `Shape`.
 
 ## Public entry points
 
@@ -38,13 +39,16 @@ Each header is named by its include path under `include/`.
 | `SushiAI/distribution/exact_sum.hpp` | `sums_exactly()`: Int32, Int64 and UInt32 results add as counts with weight 1 |
 | `SushiAI/distribution/host_access.hpp` | `is_host_visible()`, `require_host_visible()`: the check before a host copy of a replica's tensors |
 | `SushiAI/distribution/gradient_exchange.hpp` | `ExchangeRun`, `GradientExchange` |
+| `SushiAI/distribution/exchange_targets.hpp` | `check_exchange_targets()`, `check_exchange_dtypes()`: the checks of a gradient exchange's targets that read shape and type alone |
 | `SushiAI/distribution/parameter_publish.hpp` | `ParameterPublish` |
 | `SushiAI/distribution/replica_task.hpp` | `K_REPLICA_TASK_WORDS`, `ReplicaTask` |
 | `SushiAI/distribution/replica_model.hpp` | `ReplicaRows`, `ReplicaModel`, `ReplicaModelFactory` |
+| `SushiAI/distribution/in_memory_replica_model.hpp` | `InMemoryReplicaModel`: shapes and no storage, an empty graph and the rows it was fed |
+| `SushiAI/distribution/in_memory_replica_model_factory.hpp` | `InMemoryReplicaModelFactory`: builds through a factory it is given and keeps every call |
 | `SushiAI/distribution/replica_serve_observer.hpp` | `ReplicaServeObserver` |
 | `SushiAI/distribution/in_memory_replica_serve_observer.hpp` | `InMemoryReplicaServeObserver` |
 | `SushiAI/distribution/replica_step.hpp` | `replica_runtime_config()`, `ReplicaStep` |
-| `SushiAI/distribution/replica_kernel.hpp` | `ReplicaKernel` |
+| `SushiAI/distribution/replica_kernel.hpp` | `ReplicaKernel`, `check_node_buffers()` |
 
 ## The cluster section
 

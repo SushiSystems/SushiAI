@@ -64,6 +64,7 @@
 #include <SushiAI/distribution/replica_position.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/builder.hpp>
@@ -396,14 +397,20 @@ namespace
     }
 } // namespace
 
+namespace
+{
+    /** @brief Gives each case the one backend of the program. */
+    class Medium_ReplicaKernel : public SushiAI::Test::EngineTest {};
+} // namespace
+
 /**
  * @brief Tests that one replica of one micro-batch, served by a worker, returns the gradients
  *        and the loss of the single-machine step over the same rows, bit for bit.
  */
-TEST(Medium_ReplicaKernel, OneMicroBatchReturnsTheSingleMachineResultsBitForBit)
+TEST_F(Medium_ReplicaKernel, OneMicroBatchReturnsTheSingleMachineResultsBitForBit)
 {
     constexpr std::int64_t K_ROWS = 4;
-    const SingleMachineStep reference(K_ROWS);
+    const SingleMachineStep reference(backend(), K_ROWS);
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(K_ROWS, K_ROWS);
 
     expect_results_equal(received, reference.results);
@@ -413,55 +420,56 @@ TEST(Medium_ReplicaKernel, OneMicroBatchReturnsTheSingleMachineResultsBitForBit)
  * @brief Tests that two micro-batches of two rows return the mean the single-machine step
  *        over four rows computes, within float32 tolerance, since the sum over rows is split.
  */
-TEST(Medium_ReplicaKernel, TwoMicroBatchesReturnTheSingleMachineMeanWithinTolerance)
+TEST_F(Medium_ReplicaKernel, TwoMicroBatchesReturnTheSingleMachineMeanWithinTolerance)
 {
-    const SingleMachineStep reference(4);
+    const SingleMachineStep reference(backend(), 4);
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(4, 2);
 
     expect_results_near(received, reference.results);
 }
 
 /** @brief Tests that the batch the position pack names picks the rows the replica runs. */
-TEST(Medium_ReplicaKernel, ThePositionPackPicksTheBatch)
+TEST_F(Medium_ReplicaKernel, ThePositionPackPicksTheBatch)
 {
     constexpr std::int64_t K_ROWS = 4;
-    const SingleMachineStep reference(K_ROWS, static_cast<std::uint64_t>(K_ROWS));
+    const SingleMachineStep reference(backend(), K_ROWS, static_cast<std::uint64_t>(K_ROWS));
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(K_ROWS, K_ROWS, 1);
 
     expect_results_equal(received, reference.results);
 }
 
-/** @brief Tests that a node without its position pack is refused before any step runs. */
-TEST(Medium_ReplicaKernel, ANodeWithoutItsPositionPackIsRefused)
+/** @brief Tests that a node with its two inputs and one output passes the buffer check. */
+TEST(Small_ReplicaNodeBuffers, ATwoInputOneOutputNodeIsAccepted)
 {
-    ReplicaPlan plan = ReplicaPlan::make({ReplicaShare{4, 4}}).value();
-    std::unique_ptr<ReplicaKernel> kernel =
-        ReplicaKernel::make(std::move(plan), linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN})
-            .value();
+    SA_EXPECT_OK(check_node_buffers(2, 1));
+}
 
-    std::vector<unsigned char> parameters(kernel->parameter_layout().size_bytes());
-    std::vector<unsigned char> results(kernel->result_layout().size_bytes());
-    const Distributed::BufferView inputs[1] = {{parameters.data(), parameters.size()}};
-    const Distributed::BufferView outputs[1] = {{results.data(), results.size()}};
+/** @brief Tests that a node without its position pack is refused, naming both counts. */
+TEST(Small_ReplicaNodeBuffers, ANodeWithoutItsPositionPackIsRefused)
+{
+    SA_EXPECT_FAILURE(check_node_buffers(1, 1), StatusCode::InvalidDescription,
+                      "1 inputs and 1 outputs");
+}
 
-    ReplicaTask task;
-    task.run_index = K_RUN;
-    task.seed = K_SEED;
-    const auto words = task.encode();
-    SushiRuntime::NodeOptions options;
-    options.parameters = SushiRuntime::span<const std::uint64_t>(words.data(), words.size());
+/** @brief Tests that a node that writes no result pack is refused, naming both counts. */
+TEST(Small_ReplicaNodeBuffers, ANodeWithNoResultPackIsRefused)
+{
+    SA_EXPECT_FAILURE(check_node_buffers(2, 0), StatusCode::InvalidDescription,
+                      "2 inputs and 0 outputs");
+}
 
-    SA_EXPECT_FAILURE(kernel->serve(SushiRuntime::span<const Distributed::BufferView>(inputs, 1),
-                                    SushiRuntime::span<const Distributed::BufferView>(outputs, 1),
-                                    options),
-                      StatusCode::InvalidDescription, "1 inputs");
+/** @brief Tests that a node that writes two result packs is refused, naming both counts. */
+TEST(Small_ReplicaNodeBuffers, ANodeWithTwoResultPacksIsRefused)
+{
+    SA_EXPECT_FAILURE(check_node_buffers(2, 2), StatusCode::InvalidDescription,
+                      "2 inputs and 2 outputs");
 }
 
 /**
  * @brief Tests that a replica started fresh at step k draws the masks an uninterrupted replica
  *        drew at step k, as after a resume or a worker restart.
  */
-TEST(Medium_ReplicaKernel, AReplicaStartedAtAStepDrawsWhatAnUninterruptedRunDrewThere)
+TEST_F(Medium_ReplicaKernel, AReplicaStartedAtAStepDrawsWhatAnUninterruptedRunDrewThere)
 {
     constexpr std::uint64_t K_STEP = 3;
     const std::unique_ptr<ReplicaKernel> uninterrupted = make_dropout_kernel();

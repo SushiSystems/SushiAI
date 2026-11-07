@@ -57,6 +57,7 @@
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -465,6 +466,12 @@ namespace
     };
 } // namespace
 
+namespace
+{
+    /** @brief Gives each case the one backend of the program. */
+    class Medium_GradientExchange : public SushiAI::Test::EngineTest {};
+} // namespace
+
 /**
  * @brief Tests that two replicas of two rows, summed with weights 1/2, give the gradients and
  *        the loss of one step over the four rows within float32 tolerance.
@@ -472,9 +479,9 @@ namespace
  * The tolerance is the one of a replica of two micro-batches: each replica's matrix product
  * sums over two rows instead of four, which moves each result by a few float32 ulps.
  */
-TEST(Medium_GradientExchange, TwoReplicasSumToOneStepOverTheWholeBatchWithinTolerance)
+TEST_F(Medium_GradientExchange, TwoReplicasSumToOneStepOverTheWholeBatchWithinTolerance)
 {
-    const SingleMachineStep reference(K_BATCH_ROWS);
+    const SingleMachineStep reference(backend(), K_BATCH_ROWS);
     const std::vector<ResultBytes> seen = exchange_replays(1);
 
     ASSERT_EQ(seen.size(), 1u);
@@ -482,9 +489,10 @@ TEST(Medium_GradientExchange, TwoReplicasSumToOneStepOverTheWholeBatchWithinTole
 }
 
 /** @brief Tests that the second replay serves the second batch of the epoch. */
-TEST(Medium_GradientExchange, TheSecondReplayServesTheNextBatch)
+TEST_F(Medium_GradientExchange, TheSecondReplayServesTheNextBatch)
 {
-    const SingleMachineStep reference(K_BATCH_ROWS, static_cast<std::uint64_t>(K_BATCH_ROWS));
+    const SingleMachineStep reference(backend(), K_BATCH_ROWS,
+                                      static_cast<std::uint64_t>(K_BATCH_ROWS));
     const std::vector<ResultBytes> seen = exchange_replays(2);
 
     ASSERT_EQ(seen.size(), 2u);
@@ -492,7 +500,7 @@ TEST(Medium_GradientExchange, TheSecondReplayServesTheNextBatch)
 }
 
 /** @brief Tests that two runs with the same rules and seed give the same bytes. */
-TEST(Medium_GradientExchange, TwoPinnedRunsEqualEachOtherBitForBit)
+TEST_F(Medium_GradientExchange, TwoPinnedRunsEqualEachOtherBitForBit)
 {
     const std::vector<ResultBytes> first = exchange_replays(2);
     const std::vector<ResultBytes> second = exchange_replays(2);
@@ -501,7 +509,7 @@ TEST(Medium_GradientExchange, TwoPinnedRunsEqualEachOtherBitForBit)
 }
 
 /** @brief Tests that a result pack holding each summed type crosses the fabric to the worker. */
-TEST(Medium_GradientExchange, ATypedPackCrossesToTheWorker)
+TEST_F(Medium_GradientExchange, ATypedPackCrossesToTheWorker)
 {
     const TypedExchange& exchanged = typed_exchange();
 
@@ -529,58 +537,3 @@ INSTANTIATE_TEST_SUITE_P(Types, Medium_GradientExchangeType,
                          {
                              return std::string(dtype_name(typed_dtypes()[info.param]));
                          });
-
-/** @brief Tests that make() refuses targets that differ from the result layout. */
-TEST(Medium_GradientExchange, MakeRefusesTargetsThatDifferFromTheResultLayout)
-{
-    const ClusterSection section = two_replica_section();
-    std::unique_ptr<ReplicaKernel> kernel =
-        ReplicaKernel::make(section.plan(), linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN})
-            .value();
-    TwoMachines machines(
-        section, [&](Distributed::KernelRegistry& kernels) { kernel->register_with(kernels); },
-        [&](Distributed::KernelRegistry& kernels) { kernel->register_with(kernels); });
-    SushiBLAS::Engine engine(machines.master_runtime());
-    SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
-
-    std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, K_BATCH_ROWS).value();
-    const SushiRuntime::span<const SushiBLAS::Tensor> parameters = built->parameters();
-    const std::vector<SushiBLAS::Tensor> listed(parameters.begin(), parameters.end());
-    std::unique_ptr<ParameterPublish> publish =
-        ParameterPublish::make(backend, machines.binding(), kernel->parameter_layout(), listed)
-            .value();
-
-    ExchangeRun run;
-    run.operation = kernel->operation();
-    SA_EXPECT_FAILURE(GradientExchange::make(backend, machines.binding(), section.plan(), run,
-                                             publish->pack(), kernel->result_layout(),
-                                             listed),
-                      StatusCode::InvalidDescription);
-}
-
-/** @brief Tests that make() refuses a uint32 result, which ordered_sum() does not sum. */
-TEST(Medium_GradientExchange, MakeRefusesAUInt32Result)
-{
-    const ClusterSection section = two_replica_section();
-    TwoMachines machines(section, [](Distributed::KernelRegistry&) {},
-                         [](Distributed::KernelRegistry&) {});
-    SushiBLAS::Engine engine(machines.master_runtime());
-    SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
-
-    const std::vector<SushiBLAS::Tensor> targets = {
-        allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, DType::Float32).value(),
-        allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, DType::UInt32).value()};
-    const SushiBLAS::PackLayout layout = SushiBLAS::PackLayout::of(
-        SushiRuntime::span<const SushiBLAS::Tensor>(targets.data(), targets.size()));
-    const SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{1}, DType::Float32).value();
-    const SushiBLAS::PackLayout parameter_layout =
-        SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
-    std::unique_ptr<ParameterPublish> publish =
-        ParameterPublish::make(backend, machines.binding(), parameter_layout, {parameter}).value();
-
-    ExchangeRun run;
-    run.operation = SushiBLAS::remote_operation("sushiai.test.uint32", layout.fingerprint());
-    SA_EXPECT_FAILURE(GradientExchange::make(backend, machines.binding(), section.plan(), run,
-                                             publish->pack(), layout, targets),
-                      StatusCode::Unsupported, "Target 1 is uint32");
-}

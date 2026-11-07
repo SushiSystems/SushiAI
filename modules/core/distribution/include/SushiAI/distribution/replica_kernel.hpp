@@ -57,6 +57,13 @@ namespace SushiAI
     namespace Distribution
     {
         /**
+         * @brief Checks the buffer counts of a replica node: a parameter pack and a position pack
+         *        in, one result pack out.
+         * @return Success, or InvalidDescription naming both counts.
+         */
+        [[nodiscard]] Status check_node_buffers(std::size_t input_count, std::size_t output_count);
+
+        /**
          * @brief Runs one replica task: unpacks the parameters, runs ReplicaStep over the rows
          *        ReplicaPlan names, and packs the mean of its results.
          *

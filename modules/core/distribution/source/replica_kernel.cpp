@@ -29,6 +29,7 @@
 
 #include <SushiAI/distribution/replica_kernel.hpp>
 
+#include <cstddef>
 #include <stdexcept>
 #include <utility>
 #include <SushiBLAS/cluster/bound_pack.hpp>
@@ -41,6 +42,15 @@ namespace SushiAI
 {
     namespace Distribution
     {
+        Status check_node_buffers(std::size_t input_count, std::size_t output_count)
+        {
+            SA_FAIL_IF(input_count != 2 || output_count != 1, StatusCode::InvalidDescription,
+                       "A replica node reads a parameter pack and a position pack and writes one "
+                       "result pack; it names {} inputs and {} outputs",
+                       input_count, output_count);
+            return Status();
+        }
+
         Result<std::unique_ptr<ReplicaKernel>> ReplicaKernel::make(
             ReplicaPlan plan, ReplicaModelFactory factory, const ReplicaDraws& draws,
             const SushiRuntime::RuntimeConfig& config) noexcept
@@ -147,11 +157,7 @@ namespace SushiAI
             SushiRuntime::span<const SushiRuntime::Distributed::BufferView> outputs,
             const ReplicaTask& task)
         {
-            SA_FAIL_IF(inputs.size() != 2 || outputs.size() != 1,
-                       StatusCode::InvalidDescription,
-                       "A replica node reads a parameter pack and a position pack and writes one "
-                       "result pack; it names {} inputs and {} outputs",
-                       inputs.size(), outputs.size());
+            SA_TRY(check_node_buffers(inputs.size(), outputs.size()));
             SA_TRY_ASSIGN(const ReplicaPosition position, ReplicaPosition::read(inputs[1]));
             SA_TRY_ASSIGN(ReplicaStep* const step, step_for(task.draws()));
             if (observer_ != nullptr)

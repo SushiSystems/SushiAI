@@ -254,14 +254,14 @@ namespace SushiAI::Distribution::Support
      */
     struct SingleMachineStep
     {
-        /** @brief Compiles and runs the step; a failure is a failed expectation. */
-        explicit SingleMachineStep(std::int64_t rows, std::uint64_t first = 0)
+        /**
+         * @brief Compiles and runs the step on the program's backend; a failure is a failed
+         *        expectation.
+         */
+        explicit SingleMachineStep(SushiAI::RuntimeExecutionBackend& backend, std::int64_t rows,
+                                   std::uint64_t first = 0)
         {
-            SushiRuntime::Runtime runtime =
-                SushiAI::Detail::create_runtime(replica_runtime_config()).value();
-            SushiBLAS::Engine engine(runtime);
-            SushiAI::RuntimeExecutionBackend backend(runtime, engine);
-            std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, rows).value();
+            std::unique_ptr<ReplicaModel> built = LinearModel::make(backend.engine(), rows).value();
             LinearModel& model = static_cast<LinearModel&>(*built);
             model.fill_parameters();
 
