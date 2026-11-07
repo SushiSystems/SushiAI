@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- 2026-11-07 — test_tree: Build the darknet_reference and distribution seams the M7 and M9 records need (RW-160, `ab74f5b8`).
+- 2026-11-07 — distribution: Added check_exchange_targets, check_exchange_dtypes, check_node_buffers, InMemoryReplicaModel and InMemoryReplicaModelFactory (RW-160, `exchange_targets.hpp`).
+- 2026-11-07 — programs: Added ClusterWorkerWatch and InMemoryWorkerWatch beside WorkerWatch (`cluster_worker_watch.hpp`, `in_memory_worker_watch.hpp`).
 - 2026-11-07 — test_tree: Build the program seams the M2 resizes need, then resize those tests to Small_ (RW-158, `2cfb768b`).
 - 2026-11-07 — execution: Added RuntimeBackend, an ExecutionBackend that is also a RuntimeAccess; RuntimeExecutionBackend implements it (`6c04a7bb`, `runtime_backend.hpp`).
 - 2026-11-07 — eager: Changed RegionExecutor and RegionEmitter to take one RuntimeBackend instead of a backend and a RuntimeAccess (`6c04a7bb`, `region_executor.hpp`).
