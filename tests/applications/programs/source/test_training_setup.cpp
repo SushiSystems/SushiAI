@@ -52,9 +52,16 @@ namespace
     {
 
     };
+
+    /** @brief Expects every parameter slot of @p setup to hold a gradient with data. */
+    void expect_every_gradient_has_data(const Apps::TrainingSetup& setup)
+    {
+        for (const Optim::ParameterSlot& slot : setup.parameters())
+            EXPECT_NE(slot.gradient.data(), nullptr) << slot.name;
+    }
 } // namespace
 
-/** @brief Tests that a setup without rows traces the data's batch and binds every parameter. */
+/** @brief Tests that a setup without rows traces the data's batch. */
 TEST_F(Medium_TrainingSetup, TracesTheDataBatchWhenNoRowsAreGiven)
 {
     const ClusterTestFiles files("sushiai_training_setup_batch.json");
@@ -65,9 +72,21 @@ TEST_F(Medium_TrainingSetup, TracesTheDataBatchWhenNoRowsAreGiven)
             .value();
 
     EXPECT_EQ(setup->given().batch, 4);
+    EXPECT_EQ(setup->dataset().batch_size(), 4);
+}
+
+/** @brief Tests that a setup binds the parameters and the state of the model. */
+TEST_F(Medium_TrainingSetup, BindsTheParametersAndTheStateOfTheModel)
+{
+    const ClusterTestFiles files("sushiai_training_setup_bound.json");
+    const Apps::Registries registries = Apps::compose_registries().value();
+
+    const std::unique_ptr<Apps::TrainingSetup> setup =
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
+            .value();
+
     EXPECT_FALSE(setup->parameters().empty());
     EXPECT_FALSE(setup->state().entries().empty());
-    EXPECT_EQ(setup->dataset().batch_size(), 4);
 }
 
 /** @brief Tests that a setup traces the rows it is given, while the data keeps its batch. */
@@ -106,8 +125,7 @@ TEST_F(Medium_TrainingSetup, HoldsOnlyTheResultsOfTheStepInTheResultsScope)
     EXPECT_TRUE(results->pool().is_bound(built.spec.loss));
     EXPECT_FALSE(results->pool().is_bound(built.spec.inputs));
     ASSERT_EQ(results->parameters().size(), whole->parameters().size());
-    for (const Optim::ParameterSlot& slot : results->parameters())
-        EXPECT_NE(slot.gradient.data(), nullptr) << slot.name;
+    expect_every_gradient_has_data(*results);
 
     EXPECT_TRUE(whole->pool().has_plan());
     EXPECT_LT(results->pool().allocated_bytes(), whole->pool().allocated_bytes());

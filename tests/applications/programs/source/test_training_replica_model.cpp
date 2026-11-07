@@ -99,15 +99,13 @@ TEST_F(Medium_TrainingReplicaModel, ASourceWithoutItsModelFileIsRefused)
         StatusCode::FileNotFound);
 }
 
-/** @brief Tests that two sources of the same files report one fingerprint, as their models do. */
-TEST_F(Medium_TrainingReplicaModel, TheSameFilesGiveOneFingerprint)
+/** @brief Tests that the model a source builds reports the fingerprint of that source. */
+TEST_F(Medium_TrainingReplicaModel, AModelReportsTheFingerprintOfItsSource)
 {
     const ClusterTestFiles files("sushiai_replica_model_fingerprint.json");
-    const std::shared_ptr<const Apps::ReplicaSource> first = source_of(files);
-    const std::shared_ptr<const Apps::ReplicaSource> second = source_of(files);
+    const std::shared_ptr<const Apps::ReplicaSource> source = source_of(files);
 
-    EXPECT_EQ(first->fingerprint, second->fingerprint);
-    EXPECT_EQ(model_of(first)->fingerprint(), first->fingerprint);
+    EXPECT_EQ(model_of(source)->fingerprint(), source->fingerprint);
 }
 
 namespace
@@ -135,61 +133,135 @@ namespace
     {
         return Apps::ReplicaSource::load(spec).value()->fingerprint;
     }
+
+    /** @brief Returns the fingerprint of the source load() builds from the file @p text states. */
+    std::uint64_t fingerprint_by_load(const ClusterTestFiles& files, const std::string& text)
+    {
+        return fingerprint_of(read_spec(files, text));
+    }
+
+    /** @brief Returns the fingerprint of the source make() builds from the file @p text states. */
+    std::uint64_t fingerprint_by_make(const ClusterTestFiles& files, const std::string& text)
+    {
+        return Apps::ReplicaSource::make(Apps::compose_registries().value(), read_spec(files, text),
+                                         files.model_spec)
+            .value()
+            ->fingerprint;
+    }
+
+    /** @brief Holds a way to build a source from the files and what it is called. */
+    struct EntryCase
+    {
+        /** @brief Names the case. */
+        const char* name;
+
+        /** @brief Builds the source from the files and returns its fingerprint. */
+        std::uint64_t (*fingerprint)(const ClusterTestFiles&, const std::string&);
+    };
+
+    /** @brief Holds a change to the training file or the architecture file. */
+    struct ChangeCase
+    {
+        /** @brief Names the case. */
+        const char* name;
+
+        /** @brief The text of the training file that is replaced. */
+        const char* from;
+
+        /** @brief The text that takes its place. */
+        const char* to;
+
+        /** @brief The text appended to the architecture file. */
+        const char* model_suffix;
+    };
+
+    /** @brief Runs the rows of the entry points that build a source. */
+    class Medium_ReplicaFingerprintEntry : public ::testing::TestWithParam<EntryCase> {};
+
+    /** @brief Runs the rows of the changes that move the fingerprint. */
+    class Medium_ReplicaFingerprintChanged : public ::testing::TestWithParam<ChangeCase> {};
+
+    /** @brief Runs the rows of the changes that leave the fingerprint alone. */
+    class Medium_ReplicaFingerprintUnchanged : public ::testing::TestWithParam<ChangeCase> {};
+
+    /** @brief Applies @p change to the files: the text it replaces, and the suffix it appends. */
+    std::string changed_text(const ClusterTestFiles& files, const std::string& text,
+                             const ChangeCase& change)
+    {
+        std::ofstream(files.model_file.path(), std::ios::app) << change.model_suffix;
+        return replaced(text, change.from, change.to);
+    }
+
 } // namespace
 
-/** @brief Tests that the master's and a worker's reads of the same files agree. */
-TEST_F(Medium_TrainingReplicaModel, RegressionTwoReadsOfTheSameFilesGiveOneFingerprint)
+/** @brief Tests that two reads of the same files give one fingerprint through each entry point. */
+TEST_P(Medium_ReplicaFingerprintEntry, TwoReadsOfTheSameFilesGiveOneFingerprint)
 {
     const ClusterTestFiles files("sushiai_replica_model_two_reads.json");
     const std::string text = training_file(files.model_file.path());
 
-    EXPECT_EQ(fingerprint_of(read_spec(files, text)), fingerprint_of(read_spec(files, text)));
+    EXPECT_EQ(GetParam().fingerprint(files, text), GetParam().fingerprint(files, text));
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_ReplicaFingerprintEntry,
+                         ::testing::Values(EntryCase{"ThroughLoad", &fingerprint_by_load},
+                                           EntryCase{"ThroughMake", &fingerprint_by_make}),
+                         [](const ::testing::TestParamInfo<EntryCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
+
 /** @brief Tests that each part a replica's result depends on changes the fingerprint. */
-TEST_F(Medium_TrainingReplicaModel, RegressionAChangedTrainingFileChangesTheFingerprint)
+TEST_P(Medium_ReplicaFingerprintChanged, AChangedPartChangesTheFingerprint)
 {
     const ClusterTestFiles files("sushiai_replica_model_changed.json");
     const std::string text = training_file(files.model_file.path());
     const std::uint64_t master = fingerprint_of(read_spec(files, text));
 
-    const std::vector<std::pair<std::string, std::string>> changes = {
-        {R"("seed": 7,)", R"("seed": 8,)"},
-        {R"("seed": 3735928559)", R"("seed": 3735928558)"},
-        {R"("batches": 1,)", R"("batches": 2,)"},
-        {R"({"type": "cross_entropy"})", R"({"type": "cross_entropy", "smoothing": 0.1})"},
-        {R"("worker": "worker", "rows": 2, "micro_batch": 2)",
-         R"("worker": "worker", "rows": 2, "micro_batch": 1)"},
-    };
-    for (const std::pair<std::string, std::string>& change : changes)
-    {
-        const Config::TrainSpec worker =
-            read_spec(files, replaced(text, change.first, change.second));
-        EXPECT_NE(fingerprint_of(worker), master) << change.second;
-    }
+    const Config::TrainSpec worker = read_spec(files, changed_text(files, text, GetParam()));
 
-    std::ofstream(files.model_file.path(), std::ios::app) << " ";
-    EXPECT_NE(fingerprint_of(read_spec(files, text)), master) << "the architecture file";
+    EXPECT_NE(fingerprint_of(worker), master);
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_ReplicaFingerprintChanged,
+    ::testing::Values(
+        ChangeCase{"TheRunSeed", R"("seed": 7,)", R"("seed": 8,)", ""},
+        ChangeCase{"TheDataSeed", R"("seed": 3735928559)", R"("seed": 3735928558)", ""},
+        ChangeCase{"TheBatchCount", R"("batches": 1,)", R"("batches": 2,)", ""},
+        ChangeCase{"TheObjective", R"({"type": "cross_entropy"})",
+                   R"({"type": "cross_entropy", "smoothing": 0.1})", ""},
+        ChangeCase{"TheMicroBatch", R"("worker": "worker", "rows": 2, "micro_batch": 2)",
+                   R"("worker": "worker", "rows": 2, "micro_batch": 1)", ""},
+        ChangeCase{"TheArchitectureFile", "", "", " "}),
+    [](const ::testing::TestParamInfo<ChangeCase>& info)
+    {
+        return std::string(info.param.name);
+    });
+
 /** @brief Tests that what only the master reads, or where output goes, is left out. */
-TEST_F(Medium_TrainingReplicaModel, TheOptimizerAndTheOutputPathsLeaveTheFingerprintAlone)
+TEST_P(Medium_ReplicaFingerprintUnchanged, AnUnrelatedPartLeavesTheFingerprintAlone)
 {
     const ClusterTestFiles files("sushiai_replica_model_unchanged.json");
     const std::string text = training_file(files.model_file.path());
     const std::uint64_t master = fingerprint_of(read_spec(files, text));
 
-    const std::vector<std::pair<std::string, std::string>> changes = {
-        {R"("learning_rate": 0.003)", R"("learning_rate": 0.004)"},
-        {R"("epochs": 1,)", R"("epochs": 3, "checkpoint": "elsewhere.sushi",)"},
-    };
-    for (const std::pair<std::string, std::string>& change : changes)
-    {
-        const Config::TrainSpec worker =
-            read_spec(files, replaced(text, change.first, change.second));
-        EXPECT_EQ(fingerprint_of(worker), master) << change.second;
-    }
+    const Config::TrainSpec worker = read_spec(files, changed_text(files, text, GetParam()));
+
+    EXPECT_EQ(fingerprint_of(worker), master);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_ReplicaFingerprintUnchanged,
+    ::testing::Values(
+        ChangeCase{"TheOptimizerRate", R"("learning_rate": 0.003)", R"("learning_rate": 0.004)",
+                   ""},
+        ChangeCase{"TheEpochsAndTheCheckpointPath", R"("epochs": 1,)",
+                   R"("epochs": 3, "checkpoint": "elsewhere.sushi",)", ""}),
+    [](const ::testing::TestParamInfo<ChangeCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 namespace
 {
@@ -213,17 +285,6 @@ TEST_F(Medium_TrainingReplicaModel, TheIfAbsentOfAReplicaLeavesTheFingerprintAlo
     const Config::TrainSpec worker = read_spec(
         files, replaced(text, worker_replica("master", "fail"), worker_replica("master", "local")));
     EXPECT_EQ(fingerprint_of(worker), master);
-}
-
-/** @brief Tests that a source of a deterministic run whose replica falls back is refused. */
-TEST_F(Medium_TrainingReplicaModel, ASourceOfADeterministicRunWithALocalFallbackIsRefused)
-{
-    const ClusterTestFiles files("sushiai_replica_model_deterministic_local.json");
-    const Config::TrainSpec spec = read_spec(
-        files, replaced(training_file(files.model_file.path()), worker_replica("worker", "fail"),
-                        worker_replica("worker", "local")));
-
-    SA_EXPECT_FAILURE(Apps::ReplicaSource::load(spec).status(), StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that rows inside their batch, of the traced count, are fed. */

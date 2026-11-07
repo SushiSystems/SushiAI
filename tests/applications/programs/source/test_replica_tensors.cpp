@@ -50,37 +50,92 @@ namespace
     {
 
     };
+
+    /**
+     * @struct Listed
+     * @brief Holds a training setup over the cluster test files and the tensors listed from it.
+     */
+    struct Listed
+    {
+        /** @brief Writes the files named @p name and builds the setup on @p engine. */
+        Listed(const char* name, SushiBLAS::Engine& engine)
+            : files(name), registries(Apps::compose_registries().value()),
+              setup(Apps::TrainingSetup::make(registries, files.spec, files.model_spec, engine,
+                                              K_SEED)
+                        .value()),
+              tensors(Apps::ReplicaTensors::list(
+                          SushiRuntime::span<const Optim::ParameterSlot>(
+                              setup->parameters().data(), setup->parameters().size()),
+                          setup->built(), setup->pool(),
+                          SushiRuntime::span<const Train::BufferUpdateSlot>(
+                              setup->updates().data(), setup->updates().size()))
+                          .value())
+        {
+
+        }
+
+        /** @brief The training file and the architecture file. */
+        ClusterTestFiles files;
+
+        /** @brief The registries the setup was made with. */
+        Apps::Registries registries;
+
+        /** @brief The setup whose parameters, loss and updates are listed. */
+        std::unique_ptr<Apps::TrainingSetup> setup;
+
+        /** @brief The listed tensors. */
+        Apps::ReplicaTensors tensors;
+    };
+
+    /** @brief Expects the parameters and the first results to be the slots, in slot order. */
+    void expect_parameters_and_gradients_in_slot_order(const Listed& listed)
+    {
+        const std::size_t parameters = listed.setup->parameters().size();
+        ASSERT_EQ(listed.tensors.parameters.size(), parameters);
+        ASSERT_GE(listed.tensors.results.size(), parameters);
+        for (std::size_t index = 0; index < parameters; ++index)
+        {
+            EXPECT_EQ(listed.tensors.parameters[index].data(),
+                      listed.setup->parameters()[index].parameter.data());
+            EXPECT_EQ(listed.tensors.results[index].data(),
+                      listed.setup->parameters()[index].gradient.data());
+        }
+    }
+
+    /** @brief Expects each statistics source to follow the loss, in update order. */
+    void expect_statistics_after_the_loss(const Listed& listed)
+    {
+        const std::size_t first = listed.setup->parameters().size() + 1;
+        ASSERT_EQ(listed.tensors.results.size(), first + listed.setup->updates().size());
+        for (std::size_t index = 0; index < listed.setup->updates().size(); ++index)
+            EXPECT_EQ(listed.tensors.results[first + index].data(),
+                      listed.setup->updates()[index].source.data());
+    }
 } // namespace
 
-/** @brief Tests that the results are the gradients in slot order, the loss, then each source. */
-TEST_F(Medium_ReplicaTensors, ListsTheGradientsThenTheLossThenTheStatistics)
+/** @brief Tests that the parameters and the first results are the slots, in slot order. */
+TEST_F(Medium_ReplicaTensors, ListsTheParametersAndTheGradientsInSlotOrder)
 {
-    const ClusterTestFiles files("sushiai_replica_tensors_model.json");
-    const Apps::Registries registries = Apps::compose_registries().value();
-    const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
-            .value();
+    const Listed listed("sushiai_replica_tensors_slots.json", *engine);
 
-    const Apps::ReplicaTensors tensors =
-        Apps::ReplicaTensors::list(
-            SushiRuntime::span<const Optim::ParameterSlot>(setup->parameters().data(),
-                                                           setup->parameters().size()),
-            setup->built(), setup->pool(),
-            SushiRuntime::span<const Train::BufferUpdateSlot>(setup->updates().data(),
-                                                              setup->updates().size()))
-            .value();
+    expect_parameters_and_gradients_in_slot_order(listed);
+}
 
-    const std::size_t parameters = setup->parameters().size();
-    ASSERT_EQ(tensors.parameters.size(), parameters);
-    ASSERT_EQ(tensors.results.size(), parameters + 1 + setup->updates().size());
-    for (std::size_t index = 0; index < parameters; ++index)
-    {
-        EXPECT_EQ(tensors.parameters[index].data(), setup->parameters()[index].parameter.data());
-        EXPECT_EQ(tensors.results[index].data(), setup->parameters()[index].gradient.data());
-    }
-    EXPECT_EQ(tensors.results[parameters].data(),
-              setup->pool().tensor(setup->built().spec.loss).data());
-    for (std::size_t index = 0; index < setup->updates().size(); ++index)
-        EXPECT_EQ(tensors.results[parameters + 1 + index].data(),
-                  setup->updates()[index].source.data());
+/** @brief Tests that the loss follows the gradients in the results. */
+TEST_F(Medium_ReplicaTensors, ListsTheLossAfterTheGradients)
+{
+    const Listed listed("sushiai_replica_tensors_loss.json", *engine);
+
+    const std::size_t parameters = listed.setup->parameters().size();
+    ASSERT_GT(listed.tensors.results.size(), parameters);
+    EXPECT_EQ(listed.tensors.results[parameters].data(),
+              listed.setup->pool().tensor(listed.setup->built().spec.loss).data());
+}
+
+/** @brief Tests that the statistics sources follow the loss in the results, in update order. */
+TEST_F(Medium_ReplicaTensors, ListsTheStatisticsAfterTheLoss)
+{
+    const Listed listed("sushiai_replica_tensors_statistics.json", *engine);
+
+    expect_statistics_after_the_loss(listed);
 }

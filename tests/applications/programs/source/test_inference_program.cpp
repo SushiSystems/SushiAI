@@ -30,6 +30,7 @@
 #include "inference_program.hpp"
 
 #include <cstddef>
+#include <filesystem>
 #include <string>
 #include <gtest/gtest.h>
 #include "tiny_yolo_files.hpp"
@@ -48,33 +49,73 @@ namespace
 {
     /** @brief Gives each case an engine on the shared test runtime. */
     class Medium_InferenceProgram : public SaTest::EngineTest {};
+
+    /** @brief Holds the status of a report and the text it printed. */
+    struct PrintedReport
+    {
+        /** @brief What run_inference_file returned. */
+        Status status;
+
+        /** @brief What the report wrote to standard output. */
+        std::string printed;
+    };
+
+    /**
+     * @brief Trains the fixture to @p checkpoint, then reports that checkpoint.
+     * @return The status of the report and the text it printed.
+     */
+    PrintedReport report_after_training(SushiBLAS::Engine& engine,
+                                        const std::filesystem::path& checkpoint)
+    {
+        testing::internal::CaptureStdout();
+        const Result<Apps::TrainingOutcome> trained =
+            TinyYolo::train_the_fixture(engine, checkpoint);
+        testing::internal::GetCapturedStdout();
+        EXPECT_TRUE(trained.has_value()) << trained.status().message();
+
+        testing::internal::CaptureStdout();
+        const Status reported = TinyYolo::report_the_fixture(engine, checkpoint);
+        return PrintedReport{reported, testing::internal::GetCapturedStdout()};
+    }
 } // namespace
 
-/** @brief Tests that the anchor report reads the checkpoint the run wrote, over every image. */
-TEST_F(Medium_InferenceProgram, TheAnchorReportReadsTheCheckpointOfTheRun)
+/** @brief Tests that the anchor report succeeds on the checkpoint the run wrote. */
+TEST_F(Medium_InferenceProgram, TheAnchorReportSucceedsOnTheCheckpointOfTheRun)
 {
     const SaTest::ScratchFile checkpoint("sushiai_inference_program_report.sushi");
 
-    testing::internal::CaptureStdout();
-    const Result<Apps::TrainingOutcome> trained =
-        TinyYolo::train_the_fixture(*engine, checkpoint.path());
-    testing::internal::GetCapturedStdout();
-    ASSERT_TRUE(trained.has_value()) << trained.status().message();
+    const PrintedReport report = report_after_training(*engine, checkpoint.path());
 
-    testing::internal::CaptureStdout();
-    const Status reported = TinyYolo::report_the_fixture(*engine, checkpoint.path());
-    const std::string printed = testing::internal::GetCapturedStdout();
+    SA_EXPECT_OK(report.status);
+}
 
-    SA_EXPECT_OK(reported);
-    EXPECT_NE(printed.find("1 heads, 2 classes"), std::string::npos) << printed;
-    EXPECT_NE(printed.find("detections over " + std::to_string(TinyYolo::K_IMAGES) + " images."),
+/** @brief Tests that the anchor report prints the heads, the classes and the figures per image. */
+TEST_F(Medium_InferenceProgram, TheAnchorReportPrintsItsFiguresOverEveryImage)
+{
+    const SaTest::ScratchFile checkpoint("sushiai_inference_program_figures.sushi");
+
+    const PrintedReport report = report_after_training(*engine, checkpoint.path());
+
+    EXPECT_NE(report.printed.find("1 heads, 2 classes"), std::string::npos) << report.printed;
+    EXPECT_NE(report.printed.find("detections over " + std::to_string(TinyYolo::K_IMAGES)
+                                  + " images."),
               std::string::npos)
-        << printed;
-    EXPECT_NE(printed.find("Mean average precision at IoU 0.5"), std::string::npos) << printed;
-    EXPECT_NE(printed.find("of " + std::to_string(TinyYolo::K_IMAGES) + " images"),
+        << report.printed;
+    EXPECT_NE(report.printed.find("Mean average precision at IoU 0.5"), std::string::npos)
+        << report.printed;
+    EXPECT_NE(report.printed.find("of " + std::to_string(TinyYolo::K_IMAGES) + " images"),
               std::string::npos)
-        << printed;
-    EXPECT_NE(printed.find("compiles: 1"), std::string::npos) << printed;
+        << report.printed;
+}
+
+/** @brief Tests that the anchor report compiles one graph. */
+TEST_F(Medium_InferenceProgram, TheAnchorReportCompilesOneGraph)
+{
+    const SaTest::ScratchFile checkpoint("sushiai_inference_program_compiles.sushi");
+
+    const PrintedReport report = report_after_training(*engine, checkpoint.path());
+
+    EXPECT_NE(report.printed.find("compiles: 1"), std::string::npos) << report.printed;
 }
 
 /** @brief Tests that a checkpoint path that names no file fails the report. */

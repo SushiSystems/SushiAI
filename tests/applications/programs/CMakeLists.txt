@@ -48,7 +48,7 @@ endif()
 sushiai_add_test_program(APPLICATION programs
     SOURCES
         source/test_domains.cpp
-        source/test_programs_log_category.cpp
+        source/compile_programs_log_category.cpp
         source/test_epoch_loop.cpp
         source/test_inference_run.cpp
         source/test_registries.cpp
@@ -68,6 +68,11 @@ sushiai_add_test_program(APPLICATION programs
     LINKS
         ${SUSHIAI_PROGRAM_TEST_LINKS}
         ${SA_PROFILER_LINKS})
+
+# The vision row of the domains test exists only in a build that links vision.
+if(SA_BUILD_VISION)
+    target_compile_definitions(sushiai_programs_tests PRIVATE SUSHIAI_PROGRAMS_VISION)
+endif()
 
 # --- The `sushiai train` / `sushiai inference` smoke tests ---
 # Two separate tests, not one chained round trip: a single test that trained

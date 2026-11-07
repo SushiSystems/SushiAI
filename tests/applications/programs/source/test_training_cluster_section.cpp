@@ -78,33 +78,41 @@ namespace
     }
 }
 
-/** @brief Tests that "local" under the default "deterministic" is refused, naming both keys. */
-TEST(Small_TrainingClusterSection, ALocalFallbackUnderTheDefaultIsRefusedNamingBothKeys)
+/** @brief Holds the version and the extra members of a training file that states "local". */
+struct RefusedCase
 {
-    const Config::TrainSpec spec = spec_of(training_text(3, "", K_LOCAL));
+    /** @brief Names the case. */
+    const char* name;
 
-    ASSERT_TRUE(spec.deterministic);
-    SA_EXPECT_FAILURE(Apps::read_training_cluster(spec), StatusCode::InvalidDescription,
-                      "replica 1", "'if_absent': 'local'", "'deterministic' is true");
-}
+    /** @brief The "sushiai_train" version of the file. */
+    int version;
 
-/** @brief Tests that "local" under an explicit "deterministic": true is refused. */
-TEST(Small_TrainingClusterSection, ALocalFallbackUnderAStatedTrueIsRefused)
+    /** @brief The members placed before the "model" key. */
+    const char* extra;
+};
+
+/** @brief Runs the rows of training files whose "local" fallback is refused. */
+class Small_TrainingClusterSectionLocalFallback : public ::testing::TestWithParam<RefusedCase> {};
+
+/** @brief Tests that "local" under a deterministic run is refused, naming both keys. */
+TEST_P(Small_TrainingClusterSectionLocalFallback, IsRefusedNamingBothKeys)
 {
-    const Config::TrainSpec spec = spec_of(training_text(3, R"("deterministic": true,)", K_LOCAL));
-
-    SA_EXPECT_FAILURE(Apps::read_training_cluster(spec), StatusCode::InvalidDescription,
-                      "'if_absent'", "'deterministic'");
-}
-
-/** @brief Tests that a version 2 file, which cannot state "deterministic", is refused too. */
-TEST(Small_TrainingClusterSection, ALocalFallbackInAVersion2FileIsRefused)
-{
-    const Config::TrainSpec spec = spec_of(training_text(2, "", K_LOCAL));
+    const Config::TrainSpec spec =
+        spec_of(training_text(GetParam().version, GetParam().extra, K_LOCAL));
 
     SA_EXPECT_FAILURE(Apps::read_training_cluster(spec), StatusCode::InvalidDescription,
-                      "'if_absent'", "'deterministic'");
+                      "replica 1", "'if_absent'", "'deterministic'");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_TrainingClusterSectionLocalFallback,
+    ::testing::Values(RefusedCase{"UnderTheDefault", 3, ""},
+                      RefusedCase{"UnderAStatedTrue", 3, R"("deterministic": true,)"},
+                      RefusedCase{"InAVersion2File", 2, ""}),
+    [](const ::testing::TestParamInfo<RefusedCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that "local" is read when the file states "deterministic": false. */
 TEST(Small_TrainingClusterSection, ALocalFallbackIsReadWhenTheRunIsNotDeterministic)

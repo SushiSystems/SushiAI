@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_programs_log_category.cpp                                         */
+/* compile_programs_log_category.cpp                                      */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -22,20 +22,13 @@
 /**************************************************************************/
 
 /**
- * @file test_programs_log_category.cpp
- * @brief Tests programs_log_category.hpp: the project and the module of the programs' records.
+ * @file compile_programs_log_category.cpp
+ * @brief Checks at compile time the project and the module of the programs' log category.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
-
 #include "programs_log_category.hpp"
 
-/** @brief Tests that the programs log under sushiai.programs. */
-TEST(Small_ProgramsLogCategory, NamesSushiAIAndThePrograms)
-{
-    static_assert(SushiAI::Apps::K_PROGRAMS_LOG_CATEGORY.project().name() == "sushiai",
-                  "project name");
-    static_assert(SushiAI::Apps::K_PROGRAMS_LOG_CATEGORY.module() == "programs", "module name");
-    SUCCEED();
-}
+static_assert(SushiAI::Apps::K_PROGRAMS_LOG_CATEGORY.project().name() == "sushiai",
+              "project name");
+static_assert(SushiAI::Apps::K_PROGRAMS_LOG_CATEGORY.module() == "programs", "module name");

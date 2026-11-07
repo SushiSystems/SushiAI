@@ -207,57 +207,129 @@ namespace
         return losses;
     }
 
+    /**
+     * @struct RunCase
+     * @brief Holds the pieces of a run and the run `sushiai train` would hand to the table.
+     */
+    struct RunCase
+    {
+        /** @brief The pieces the run is made of. */
+        std::unique_ptr<Pieces> pieces;
+
+        /** @brief The run over the pieces. */
+        std::optional<Apps::PreparedRun> prepared;
+    };
+
+    /** @brief Builds the run case on @p engine, or returns the first failure of its pieces. */
+    Result<std::unique_ptr<RunCase>> make_case(SushiBLAS::Engine& engine)
+    {
+        std::unique_ptr<RunCase> made = std::make_unique<RunCase>();
+        SA_TRY_ASSIGN(made->pieces, make_pieces(engine));
+        made->prepared.emplace(prepare(*made->pieces, engine));
+        return std::move(made);
+    }
+
+    /**
+     * @struct ClassificationRun
+     * @brief Holds the pieces, the summary and the printed text of a run through the fallback.
+     */
+    struct ClassificationRun
+    {
+        /** @brief The pieces the run trained. */
+        std::unique_ptr<Pieces> pieces;
+
+        /** @brief What the fallback run returned. */
+        Result<Apps::RunSummary> summary;
+
+        /** @brief What the run wrote to standard output. */
+        std::string printed;
+    };
+
+    /** @brief Trains a classification run through the fallback of the run table on @p engine. */
+    ClassificationRun run_classification(SushiBLAS::Engine& engine)
+    {
+        std::unique_ptr<Pieces> pieces = make_pieces(engine).value();
+        Apps::PreparedRun prepared = prepare(*pieces, engine);
+        Apps::RunRegistry registry;
+        SA_EXPECT_OK(Apps::register_runs(registry));
+
+        testing::internal::CaptureStdout();
+        Result<Apps::RunSummary> summary =
+            Apps::run_training(registry, "cross_entropy", prepared);
+        std::string printed = testing::internal::GetCapturedStdout();
+        return ClassificationRun{std::move(pieces), std::move(summary), std::move(printed)};
+    }
+
 } // namespace
 
-/** @brief Tests that a row runs for its type, the fallback for any other, and neither twice. */
-TEST_F(Medium_TrainingRun, TheRunTablePicksARowOrTheFallback)
+/** @brief Tests that a second row for one task type is refused as already registered. */
+TEST(Small_TrainingRun, ASecondRowForOneTypeIsRefused)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
-    Apps::PreparedRun prepared = prepare(*pieces, *engine);
-
     Apps::RunRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
+
     SA_EXPECT_FAILURE(registry.add(Apps::RunEntry{"anchor", &run_of_the_fallback}),
                       StatusCode::InvalidDescription, "'anchor'", "already registered");
+}
 
-    SA_EXPECT_FAILURE(Apps::run_training(registry, "cross_entropy", prepared),
-                      StatusCode::InvalidDescription, "'cross_entropy'", "'anchor'");
-
+/** @brief Tests that a run of a task type with a row runs that row. */
+TEST_F(Medium_TrainingRun, ARunRunsTheRowOfItsType)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
+    Apps::RunRegistry registry;
+    SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
     SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
-    SA_EXPECT_FAILURE(registry.set_fallback(&run_of_a_row), StatusCode::InvalidDescription,
-                      "already registered");
 
     SA_ASSERT_OK_AND_ASSIGN(const Apps::RunSummary of_row,
-                            Apps::run_training(registry, "anchor", prepared));
-    SA_ASSERT_OK_AND_ASSIGN(const Apps::RunSummary of_fallback,
-                            Apps::run_training(registry, "cross_entropy", prepared));
+                            Apps::run_training(registry, "anchor", *made->prepared));
+
     EXPECT_EQ(of_row.compile_count, K_ROW_COUNT);
+}
+
+/** @brief Tests that a run of a task type with no row runs the fallback. */
+TEST_F(Medium_TrainingRun, ARunOfAnotherTypeRunsTheFallback)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
+    Apps::RunRegistry registry;
+    SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
+    SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
+
+    SA_ASSERT_OK_AND_ASSIGN(const Apps::RunSummary of_fallback,
+                            Apps::run_training(registry, "cross_entropy", *made->prepared));
+
     EXPECT_EQ(of_fallback.compile_count, K_FALLBACK_COUNT);
 }
 
-/** @brief Tests that the fallback run trains a classifier: one compile and a falling loss. */
-TEST_F(Medium_TrainingRun, AClassificationRunTrainsThroughTheFallback)
+/** @brief Tests that an unknown type without a fallback is refused, naming the known type. */
+TEST_F(Medium_TrainingRun, AnUnknownTypeWithoutAFallbackIsRefusedNamingTheKnownOne)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
-    Apps::PreparedRun prepared = prepare(*pieces, *engine);
-
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
     Apps::RunRegistry registry;
-    SA_EXPECT_OK(Apps::register_runs(registry));
-    ASSERT_NE(registry.fallback(), nullptr);
+    SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
 
-    testing::internal::CaptureStdout();
-    const Result<Apps::RunSummary> summary =
-        Apps::run_training(registry, "cross_entropy", prepared);
-    const std::string printed = testing::internal::GetCapturedStdout();
+    SA_EXPECT_FAILURE(Apps::run_training(registry, "cross_entropy", *made->prepared),
+                      StatusCode::InvalidDescription, "'cross_entropy'", "'anchor'");
+}
 
-    SA_EXPECT_OK(summary);
-    ASSERT_TRUE(summary.has_value());
-    EXPECT_EQ(summary.value().compile_count, 1u);
-    EXPECT_EQ(pieces->optimizer->step_count(),
+/** @brief Tests that the fallback run compiles once and takes every step of its epochs. */
+TEST_F(Medium_TrainingRun, AClassificationRunCompilesOnceAndTakesEveryStep)
+{
+    const ClassificationRun run = run_classification(*engine);
+
+    SA_EXPECT_OK(run.summary);
+    ASSERT_TRUE(run.summary.has_value());
+    EXPECT_EQ(run.summary.value().compile_count, 1u);
+    EXPECT_EQ(run.pieces->optimizer->step_count(),
               static_cast<std::uint64_t>(K_EPOCHS * K_BATCHES));
+}
+
+/** @brief Tests that the fallback run prints a loss that falls from its first epoch to its last. */
+TEST_F(Medium_TrainingRun, AClassificationRunPrintsAFallingLoss)
+{
+    const ClassificationRun run = run_classification(*engine);
 
     // The run prints the loss of the last batch of the first and of the last epoch.
-    const std::vector<double> losses = losses_of(printed);
-    ASSERT_EQ(losses.size(), static_cast<std::size_t>(K_EPOCHS)) << printed;
-    EXPECT_LT(losses.back(), losses.front()) << printed;
+    const std::vector<double> losses = losses_of(run.printed);
+    ASSERT_EQ(losses.size(), static_cast<std::size_t>(K_EPOCHS)) << run.printed;
+    EXPECT_LT(losses.back(), losses.front()) << run.printed;
 }

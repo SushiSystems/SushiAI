@@ -44,7 +44,6 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/config/value.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
-#include <SushiAI/execution/execution.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
 #include "cluster_test_files.hpp"
@@ -56,25 +55,6 @@ namespace
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 } // namespace
-
-/** @brief Tests that the master's runtime reports the machine replica 0 names. */
-TEST(Medium_MasterCluster, TheRuntimeReportsTheMachineOfReplicaZero)
-{
-    const ClusterTestFiles files("sushiai_master_cluster_name.json");
-
-    EXPECT_EQ(Apps::master_runtime_config(files.section()).node_name, "master");
-}
-
-/** @brief Tests that a listen address that does not parse is refused before anything starts. */
-TEST(Medium_MasterCluster, RefusesAListenAddressThatDoesNotParse)
-{
-    const ClusterTestFiles files("sushiai_master_cluster_listen.json", "no port here");
-    SushiRuntime::Runtime runtime =
-        Detail::create_runtime(Apps::master_runtime_config(files.section())).value();
-
-    SA_EXPECT_FAILURE(Apps::attach_master_cluster(runtime, files.section()).status(),
-                      StatusCode::InvalidDescription);
-}
 
 namespace
 {
@@ -102,6 +82,33 @@ namespace
         return Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
                                                   ".")
             .value();
+    }
+
+    /** @brief Holds the names two workers announce in a case of the name rows. */
+    struct AnnouncedNames
+    {
+        /** @brief Names the case. */
+        const char* name;
+
+        /** @brief What the worker of the section's second label announces. */
+        const char* left;
+
+        /** @brief What the worker of the section's third label announces. */
+        const char* right;
+    };
+
+    /** @brief Runs the rows of the names two workers announce. */
+    class Medium_MasterClusterAnnouncedNames : public ::testing::TestWithParam<AnnouncedNames> {};
+
+    /** @brief Returns the section of the master alone, with a short attach bound. */
+    Distribution::ClusterSection master_alone()
+    {
+        const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
+        "attach_timeout_ms": 200, "replicas": [
+            {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"}
+        ]})";
+        return Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
+                                                  ".").value();
     }
 
     /** @brief Holds a master and the workers a case starts, joined over one InProcessFabric. */
@@ -162,15 +169,34 @@ namespace
     };
 } // namespace
 
+/** @brief Tests that the master's runtime reports the machine replica 0 names. */
+TEST(Small_MasterCluster, TheRuntimeReportsTheMachineOfReplicaZero)
+{
+    const ClusterTestSpec spec;
+
+    EXPECT_EQ(Apps::master_runtime_config(spec.section()).node_name, "master");
+}
+
+/** @brief Tests that a listen address that does not parse is refused before anything starts. */
+TEST(Medium_MasterCluster, RefusesAListenAddressThatDoesNotParse)
+{
+    const ClusterTestSpec spec("no port here");
+    SushiRuntime::Runtime runtime =
+        SushiRuntime::Runtime::create(Apps::master_runtime_config(spec.section())).value();
+
+    SA_EXPECT_FAILURE(Apps::attach_master_cluster(runtime, spec.section()).status(),
+                      StatusCode::InvalidDescription);
+}
+
 /** @brief Tests that an absent "attach_timeout_ms" bounds the wait by the default. */
-TEST(Medium_MasterCluster, TheAttachBoundDefaultsToSixtySeconds)
+TEST(Small_MasterCluster, TheAttachBoundDefaultsToSixtySeconds)
 {
     EXPECT_EQ(Apps::attach_bound(two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")")),
               Distribution::K_DEFAULT_ATTACH_TIMEOUT);
 }
 
 /** @brief Tests that a wait rule longer than the attach bound raises it. */
-TEST(Medium_MasterCluster, RegressionTheLargestWaitRuleRaisesTheAttachBound)
+TEST(Small_MasterCluster, RegressionTheLargestWaitRuleRaisesTheAttachBound)
 {
     const std::chrono::milliseconds bound = Apps::attach_bound(
         two_workers(R"("if_absent": "wait", "wait_ms": 250)",
@@ -180,7 +206,7 @@ TEST(Medium_MasterCluster, RegressionTheLargestWaitRuleRaisesTheAttachBound)
 }
 
 /** @brief Tests that a section whose "attach_timeout_ms" is not positive is refused. */
-TEST(Medium_MasterCluster, RefusesAnAttachTimeoutThatIsNotPositive)
+TEST(Small_MasterCluster, RefusesAnAttachTimeoutThatIsNotPositive)
 {
     const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
         "attach_timeout_ms": 0,
@@ -232,7 +258,7 @@ TEST(Medium_MasterCluster, AMissingWorkerUnderLocalRuns)
 }
 
 /** @brief Tests that the master awaits the worker of each replica above 0, in replica order. */
-TEST(Medium_MasterCluster, AwaitsTheWorkerOfEachReplicaAboveZeroInOrder)
+TEST(Small_MasterCluster, AwaitsTheWorkerOfEachReplicaAboveZeroInOrder)
 {
     const std::vector<Apps::AwaitedWorker> awaited = Apps::awaited_workers(
         two_workers(R"("if_absent": "fail")", R"("if_absent": "local")", K_SHORT_ATTACH));
@@ -262,19 +288,17 @@ TEST(Medium_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
     EXPECT_EQ(missing.value().front().replica, 2u);
 }
 
-/** @brief Tests that a section of the master alone awaits no worker and fails nothing. */
-TEST(Medium_MasterCluster, AMasterAloneAwaitsNoWorkerAndDoesNotFail)
+/** @brief Tests that a section of the master alone awaits no worker. */
+TEST(Small_MasterCluster, AMasterAloneAwaitsNoWorker)
 {
-    const std::string text = R"({"listen": "127.0.0.1:0", "secret_file": "cluster.secret",
-        "attach_timeout_ms": 200, "replicas": [
-            {"worker": "master", "rows": 2, "micro_batch": 2, "if_absent": "fail"}
-        ]})";
-    const Distribution::ClusterSection section =
-        Distribution::ClusterSection::read(require_value(Config::parse_json(text, "<test>")),
-                                           ".").value();
-    Fabric fabric;
+    EXPECT_TRUE(Apps::awaited_workers(master_alone()).empty());
+}
 
-    EXPECT_TRUE(Apps::awaited_workers(section).empty());
+/** @brief Tests that the wait of a section of the master alone returns nothing missing. */
+TEST(Medium_MasterCluster, TheWaitOfAMasterAloneReturnsNothingMissing)
+{
+    const Distribution::ClusterSection section = master_alone();
+    Fabric fabric;
 
     const Result<std::vector<Apps::AwaitedWorker>> missing =
         Apps::wait_for_workers(fabric.cluster(), section);
@@ -283,14 +307,14 @@ TEST(Medium_MasterCluster, AMasterAloneAwaitsNoWorkerAndDoesNotFail)
     EXPECT_TRUE(missing.value().empty());
 }
 
-/** @brief Tests that a worker announcing a qualified, upper-case name satisfies its first label. */
-TEST(Medium_MasterCluster, AWorkerAnnouncingAQualifiedNameSatisfiesTheSectionsFirstLabel)
+/** @brief Tests that a worker announcing a qualified or recased name satisfies its label. */
+TEST_P(Medium_MasterClusterAnnouncedNames, ANameOfAnotherFormSatisfiesTheSectionsLabel)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_SHORT_ATTACH);
     Fabric fabric;
-    fabric.start_worker("Left.lan");
-    fabric.start_worker("RIGHT.lab.example");
+    fabric.start_worker(GetParam().left);
+    fabric.start_worker(GetParam().right);
 
     const Result<std::vector<Apps::AwaitedWorker>> missing =
         Apps::wait_for_workers(fabric.cluster(), section);
@@ -298,3 +322,12 @@ TEST(Medium_MasterCluster, AWorkerAnnouncingAQualifiedNameSatisfiesTheSectionsFi
     SA_EXPECT_OK(missing.status());
     EXPECT_TRUE(missing.value().empty());
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_MasterClusterAnnouncedNames,
+    ::testing::Values(AnnouncedNames{"AQualifiedUpperCaseName", "Left.lan", "RIGHT.lab.example"},
+                      AnnouncedNames{"TheBareLabels", "left", "right"}),
+    [](const ::testing::TestParamInfo<AnnouncedNames>& info)
+    {
+        return std::string(info.param.name);
+    });

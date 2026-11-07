@@ -7,12 +7,20 @@ Runs the `anchor_detection` row of the report table through `run_inference_file`
 the assembly reaches this test. The fixture is the `tiny_yolo` fixture described in
 `test_training_program.md`, trained by `run_training_file` for the case that needs a checkpoint.
 
-## TheAnchorReportReadsTheCheckpointOfTheRun
+## TheAnchorReportSucceedsOnTheCheckpointOfTheRun
 
-A run is trained, and the report loads its checkpoint. The report names one head and two classes,
-ends the detections with "detections over 4 images.", prints the mean average precision line over
-4 images, which only a split with a `boxes` role reaches, and ends with "compiles: 1". The test
-states no detection count and no precision: two updates of an untuned model fix neither.
+A run is trained, and the report loads its checkpoint and returns success.
+
+## TheAnchorReportPrintsItsFiguresOverEveryImage
+
+After the same training, the report names one head and two classes, ends the detections with
+"detections over 4 images." and prints the mean average precision line over 4 images, which only a
+split with a `boxes` role reaches. The test states no detection count and no precision: two updates
+of an untuned model fix neither.
+
+## TheAnchorReportCompilesOneGraph
+
+After the same training, the report ends with "compiles: 1".
 
 ## ACheckpointThatDoesNotExistFailsTheReport
 

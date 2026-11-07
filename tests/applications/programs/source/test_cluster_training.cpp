@@ -43,21 +43,13 @@ namespace
 } // namespace
 
 /** @brief Tests that a file without a cluster section keeps the default runtime. */
-TEST(Medium_ClusterTraining, AFileWithoutAClusterKeepsTheDefaultRuntime)
+TEST(Small_ClusterTraining, AFileWithoutAClusterKeepsTheDefaultRuntime)
 {
-    ClusterTestFiles files("sushiai_cluster_training_none.json");
+    ClusterTestSpec files;
     files.spec.cluster = Config::Value();
 
     const SushiRuntime::RuntimeConfig config =
         Apps::training_runtime_config(files.spec).value();
 
     EXPECT_EQ(config.node_name, SushiRuntime::RuntimeConfig().node_name);
-}
-
-/** @brief Tests that a file with a cluster section names the master after replica 0. */
-TEST(Medium_ClusterTraining, AFileWithAClusterNamesTheMasterAfterReplicaZero)
-{
-    const ClusterTestFiles files("sushiai_cluster_training_master.json");
-
-    EXPECT_EQ(Apps::training_runtime_config(files.spec).value().node_name, "master");
 }

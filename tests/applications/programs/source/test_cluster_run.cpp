@@ -105,6 +105,24 @@ namespace
      */
     constexpr double K_RELATIVE_TOLERANCE = 256.0 * TestSupport::unit_roundoff<float>();
 
+    /**
+     * @brief Expects every element of @p trained to match @p expected within the absolute and the
+     *        relative tolerance.
+     */
+    void expect_within_tolerances(const std::vector<float>& trained,
+                                  const std::vector<float>& expected)
+    {
+        ASSERT_EQ(trained.size(), expected.size());
+        for (std::size_t index = 0; index < trained.size(); ++index)
+        {
+            const double difference =
+                std::fabs(static_cast<double>(trained[index]) - expected[index]);
+            EXPECT_LE(difference,
+                      K_ABSOLUTE_TOLERANCE + K_RELATIVE_TOLERANCE * std::fabs(expected[index]))
+                << "parameter element " << index;
+        }
+    }
+
     /** @brief Stops a started worker agent when the test leaves its scope, however it leaves. */
     class AgentStop final
     {
@@ -214,7 +232,7 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
                                    worker_kernels, worker_options());
 
     SushiRuntime::Runtime master_runtime =
-        Detail::create_runtime(Apps::master_runtime_config(section)).value();
+        SushiRuntime::Runtime::create(Apps::master_runtime_config(section)).value();
     ASSERT_TRUE(master_runtime.set_placement_rules(section.placement_rules().value())
                     .has_value());
     Distributed::ClusterOptions cluster_options;
@@ -266,12 +284,5 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
     // Two replicas of two rows equal one step over the four rows within the tolerances.
     const std::vector<float> expected = single_machine_step(files);
     const std::vector<float> trained = values_of(setup->parameters());
-    ASSERT_EQ(trained.size(), expected.size());
-    for (std::size_t index = 0; index < trained.size(); ++index)
-    {
-        const double difference = std::fabs(static_cast<double>(trained[index]) - expected[index]);
-        EXPECT_LE(difference,
-                  K_ABSOLUTE_TOLERANCE + K_RELATIVE_TOLERANCE * std::fabs(expected[index]))
-            << "parameter element " << index;
-    }
+    expect_within_tolerances(trained, expected);
 }

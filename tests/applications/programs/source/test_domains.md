@@ -17,8 +17,9 @@ Each domain registers into a fresh `Registries` without a failure.
 
 ## TheVisionDomainReportsAnchorFreeDetections
 
-When the vision domain registers inference rows, one of them is the task type
-`anchor_free_detection`. A build without vision registers none, and the case holds.
+Compiled in a build that links vision, where the test program defines `SUSHIAI_PROGRAMS_VISION`.
+`register_vision_domain` into a fresh `Registries` leaves a row for the task type
+`anchor_free_detection` in the inference table.
 
 ## TheDomainsOnlyAddBesideTheLibraryRows
 

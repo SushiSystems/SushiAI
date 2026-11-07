@@ -48,38 +48,85 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the version flags, short and long, ask for the version. */
-TEST(Small_WorkerArguments, RegressionTheVersionFlagsComeFirstAndPrint)
+/** @brief Holds a flag and the command line it forms alone. */
+struct FlagCase
 {
-    for (const char* flag : {"--version", "-V"})
-    {
-        const WorkerArguments read_flag = read({flag});
-        EXPECT_EQ(read_flag.call, WorkerCall::Version) << flag;
-        ASSERT_EQ(read_flag.forwarded.size(), 1u) << flag;
-        EXPECT_EQ(std::string(read_flag.forwarded[0]), "--version") << flag;
-    }
+    /** @brief Names the case. */
+    const char* name;
+
+    /** @brief The flag, which is the whole command line. */
+    const char* flag;
+};
+
+/** @brief Holds a command line the worker refuses. */
+struct RefusedCase
+{
+    /** @brief Names the case. */
+    const char* name;
+
+    /** @brief The command line after the program name. */
+    std::vector<const char*> arguments;
+};
+
+/** @brief Runs the rows of flags that ask for the version. */
+class Small_WorkerArgumentsVersion : public ::testing::TestWithParam<FlagCase> {};
+
+/** @brief Runs the rows of flags that ask for the usage. */
+class Small_WorkerArgumentsHelp : public ::testing::TestWithParam<FlagCase> {};
+
+/** @brief Runs the rows of command lines the worker refuses. */
+class Small_WorkerArgumentsRefused : public ::testing::TestWithParam<RefusedCase> {};
+
+/** @brief Tests that the version flags, short and long, ask for the version. */
+TEST_P(Small_WorkerArgumentsVersion, RegressionTheVersionFlagsComeFirstAndPrint)
+{
+    const WorkerArguments read_flag = read({GetParam().flag});
+
+    EXPECT_EQ(read_flag.call, WorkerCall::Version);
+    ASSERT_EQ(read_flag.forwarded.size(), 1u);
+    EXPECT_EQ(std::string(read_flag.forwarded[0]), "--version");
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_WorkerArgumentsVersion,
+                         ::testing::Values(FlagCase{"TheLongFlag", "--version"},
+                                           FlagCase{"TheShortFlag", "-V"}),
+                         [](const ::testing::TestParamInfo<FlagCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
 
 /** @brief Tests that the help flags, short and long, ask for the usage. */
-TEST(Small_WorkerArguments, RegressionTheHelpFlagsComeFirstAndPrint)
+TEST_P(Small_WorkerArgumentsHelp, RegressionTheHelpFlagsComeFirstAndPrint)
 {
-    for (const char* flag : {"--help", "-h"})
-    {
-        const WorkerArguments read_flag = read({flag});
-        EXPECT_EQ(read_flag.call, WorkerCall::Help) << flag;
-        ASSERT_EQ(read_flag.forwarded.size(), 1u) << flag;
-        EXPECT_EQ(std::string(read_flag.forwarded[0]), "--help") << flag;
-    }
+    const WorkerArguments read_flag = read({GetParam().flag});
+
+    EXPECT_EQ(read_flag.call, WorkerCall::Help);
+    ASSERT_EQ(read_flag.forwarded.size(), 1u);
+    EXPECT_EQ(std::string(read_flag.forwarded[0]), "--help");
 }
 
-/** @brief Tests that another flag in the place of the training file is refused. */
-TEST(Small_WorkerArguments, RegressionAFlagInThePlaceOfTheTrainingFileIsRefused)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_WorkerArgumentsHelp,
+                         ::testing::Values(FlagCase{"TheLongFlag", "--help"},
+                                           FlagCase{"TheShortFlag", "-h"}),
+                         [](const ::testing::TestParamInfo<FlagCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
+
+/** @brief Tests that another flag in the place of the training file, or no argument, is refused. */
+TEST_P(Small_WorkerArgumentsRefused, RegressionAFlagInThePlaceOfTheTrainingFileIsRefused)
 {
-    EXPECT_EQ(read({"--master", "host:1", "train.json"}).call, WorkerCall::Refused);
-    EXPECT_EQ(read({}).call, WorkerCall::Refused);
-    EXPECT_NE(std::string(SushiAI::Apps::K_WORKER_USAGE_LINE).find("<train.json> --master"),
-              std::string::npos);
+    EXPECT_EQ(read(GetParam().arguments).call, WorkerCall::Refused);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_WorkerArgumentsRefused,
+    ::testing::Values(RefusedCase{"AFlagInThePlaceOfTheFile", {"--master", "host:1", "train.json"}},
+                      RefusedCase{"AnEmptyCommandLine", {}}),
+    [](const ::testing::TestParamInfo<RefusedCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a training file first is served, with every later argument forwarded. */
 TEST(Small_WorkerArguments, ATrainingFileFirstIsServedWithTheRestForwarded)

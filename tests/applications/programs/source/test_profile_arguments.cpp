@@ -58,32 +58,71 @@ TEST(Small_ProfileArguments, ALineWithoutTheFlagIsKept)
     EXPECT_FALSE(read_back.config.has_value());
 }
 
-/** @brief Tests that the pair is taken out wherever it stands. */
-TEST(Small_ProfileArguments, ThePairIsTakenOutWhereverItStands)
+/** @brief Holds a command line with the pair somewhere in it and what is left of it. */
+struct PairCase
 {
-    SA_ASSERT_OK_AND_ASSIGN(const ProfileArguments before,
-                            read({"--profile", "p.json", "m.json", "w.sushi", "e.json"}));
-    SA_ASSERT_OK_AND_ASSIGN(const ProfileArguments between,
-                            read({"m.json", "--profile", "p.json", "w.sushi", "e.json"}));
-    SA_ASSERT_OK_AND_ASSIGN(const ProfileArguments after,
-                            read({"m.json", "w.sushi", "e.json", "--profile", "p.json"}));
+    /** @brief Names the case. */
+    const char* name;
 
-    const std::vector<std::string> rest = {"m.json", "w.sushi", "e.json"};
-    for (const ProfileArguments* line : {&before, &between, &after})
-    {
-        EXPECT_EQ(line->positional, rest);
-        ASSERT_TRUE(line->config.has_value());
-        EXPECT_EQ(line->config->string(), "p.json");
-    }
+    /** @brief The command line without its program name. */
+    std::vector<const char*> words;
+};
+
+/** @brief Holds a command line that is refused and the text its refusal carries. */
+struct RefusalCase
+{
+    /** @brief Names the case. */
+    const char* name;
+
+    /** @brief The command line without its program name. */
+    std::vector<const char*> words;
+
+    /** @brief A part of the refusal's message. */
+    const char* message;
+};
+
+/** @brief Runs the rows of command lines that carry one --profile pair. */
+class Small_ProfileArgumentsPosition : public ::testing::TestWithParam<PairCase> {};
+
+/** @brief Runs the rows of command lines that are refused. */
+class Small_ProfileArgumentsRefusal : public ::testing::TestWithParam<RefusalCase> {};
+
+/** @brief Tests that the pair is taken out wherever it stands. */
+TEST_P(Small_ProfileArgumentsPosition, ThePairIsTakenOutWhereverItStands)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ProfileArguments line, read(GetParam().words));
+
+    EXPECT_EQ(line.positional, (std::vector<std::string>{"m.json", "w.sushi", "e.json"}));
+    ASSERT_TRUE(line.config.has_value());
+    EXPECT_EQ(line.config->string(), "p.json");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ProfileArgumentsPosition,
+    ::testing::Values(
+        PairCase{"BeforeThePositionals", {"--profile", "p.json", "m.json", "w.sushi", "e.json"}},
+        PairCase{"BetweenThePositionals", {"m.json", "--profile", "p.json", "w.sushi", "e.json"}},
+        PairCase{"AfterThePositionals", {"m.json", "w.sushi", "e.json", "--profile", "p.json"}}),
+    [](const ::testing::TestParamInfo<PairCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a flag with no path, a flag in place of the path and a repeat are refused. */
-TEST(Small_ProfileArguments, AFlagWithNoPathOrGivenTwiceIsRefused)
+TEST_P(Small_ProfileArgumentsRefusal, ALineThatBreaksTheFlagIsRefused)
 {
-    SA_EXPECT_FAILURE(read({"train.json", "--profile"}), StatusCode::InvalidDescription,
-                      "--profile", "needs the path");
-    SA_EXPECT_FAILURE(read({"--profile", "--help"}), StatusCode::InvalidDescription,
-                      "needs the path");
-    SA_EXPECT_FAILURE(read({"--profile", "a.json", "--profile", "b.json"}),
-                      StatusCode::InvalidDescription, "given twice");
+    SA_EXPECT_FAILURE(read(GetParam().words), StatusCode::InvalidDescription,
+                      GetParam().message);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ProfileArgumentsRefusal,
+    ::testing::Values(
+        RefusalCase{"AFlagWithNoPath", {"train.json", "--profile"}, "needs the path"},
+        RefusalCase{"AFlagInPlaceOfThePath", {"--profile", "--help"}, "needs the path"},
+        RefusalCase{"AFlagGivenTwice", {"--profile", "a.json", "--profile", "b.json"},
+                    "given twice"}),
+    [](const ::testing::TestParamInfo<RefusalCase>& info)
+    {
+        return std::string(info.param.name);
+    });

@@ -44,8 +44,21 @@ namespace
     using namespace SushiAI;
     using namespace SushiAI::Apps::ClusterTest;
 
+    /** @brief Holds a machine name and what the served kernel of the master and the worker does. */
+    struct MachineCase
+    {
+        /** @brief Names the case. */
+        const char* name;
+
+        /** @brief The machine the kernel is made for. */
+        const char* machine;
+    };
+
+    /** @brief Runs the rows of machine names the placement matches with the section's labels. */
+    class Small_ServedKernelMachine : public ::testing::TestWithParam<MachineCase> {};
+
     /** @brief Returns the files of @p files as a replica source. */
-    std::shared_ptr<const Apps::ReplicaSource> source_of(const ClusterTestFiles& files)
+    std::shared_ptr<const Apps::ReplicaSource> source_of(const ClusterTestSpec& files)
     {
         return Apps::ReplicaSource::make(Apps::compose_registries().value(), files.spec,
                                          files.model_spec)
@@ -54,9 +67,9 @@ namespace
 } // namespace
 
 /** @brief Tests that a machine no replica names is refused, naming the machine. */
-TEST(Medium_ServedKernel, RefusesAMachineNoReplicaNames)
+TEST(Small_ServedKernel, RefusesAMachineNoReplicaNames)
 {
-    const ClusterTestFiles files("sushiai_served_kernel_unnamed.json");
+    const ClusterTestSpec files;
 
     const Result<std::unique_ptr<Distribution::ReplicaKernel>> kernel =
         Apps::make_served_kernel(source_of(files), files.section(), "nobody");
@@ -65,13 +78,21 @@ TEST(Medium_ServedKernel, RefusesAMachineNoReplicaNames)
     EXPECT_NE(std::string(kernel.status().message()).find("'nobody'"), std::string::npos);
 }
 
-/** @brief Tests that a machine is found by the name placement matches it with, not the exact text. */
-TEST(Medium_ServedKernel, Regression_FindsTheReplicaOfAMachineNamedInAnotherCase)
+/** @brief Tests that a machine is found by the name placement matches it with. */
+TEST_P(Small_ServedKernelMachine, FindsTheReplicaOfAMachineNamedInAnotherForm)
 {
-    const ClusterTestFiles files("sushiai_served_kernel_case.json");
+    const ClusterTestSpec files;
 
     const Result<std::unique_ptr<Distribution::ReplicaKernel>> kernel =
-        Apps::make_served_kernel(source_of(files), files.section(), "WORKER.lab");
+        Apps::make_served_kernel(source_of(files), files.section(), GetParam().machine);
 
     EXPECT_TRUE(kernel.has_value()) << kernel.status().message();
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ServedKernelMachine,
+                         ::testing::Values(MachineCase{"AnUpperCaseQualifiedName", "WORKER.lab"},
+                                           MachineCase{"TheExactLabel", "worker"}),
+                         [](const ::testing::TestParamInfo<MachineCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

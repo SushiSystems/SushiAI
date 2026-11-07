@@ -72,6 +72,13 @@ namespace
             Profile::mark_period(Profile::Timeline::TrainStep);
     }
 
+    /** @brief Returns the failure of a step of a run. */
+    Status failed_step()
+    {
+        return Status::from_message(StatusCode::DeviceFailed,
+                                    []() { return std::string("a step failed"); });
+    }
+
     /** @brief Expects the record under @p folder to hold two periods of `train.step`. */
     void expect_two_periods_written(const std::filesystem::path& folder)
     {
@@ -115,19 +122,30 @@ TEST_F(Medium_ProfileSession, AnUnknownKeyNamesTheFile)
                       StatusCode::InvalidDescription, "unknown_profile.json", "bogus_key");
 }
 
-/** @brief Tests that a run that fails still gets its record, and keeps its own failure. */
+/** @brief Tests that ending a run that failed returns the failure of the run. */
+TEST_F(Medium_ProfileSession, EndingAFailedRunReturnsItsOwnFailure)
+{
+    const SaTest::ScratchDirectory folder("sushiai_profile_failed_status");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
+                            ProfileSession::open(write_config(folder.path()), engine->runtime()));
+    run_three_steps();
+
+    const Status ended = Apps::end_profiled_run(session, failed_step());
+
+    SA_EXPECT_FAILURE(ended, StatusCode::DeviceFailed, "a step failed");
+}
+
+/** @brief Tests that a run that fails still gets its record written. */
 TEST_F(Medium_ProfileSession, ARunThatFailsStillWritesItsRecord)
 {
     const SaTest::ScratchDirectory folder("sushiai_profile_failed_run");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
                             ProfileSession::open(write_config(folder.path()), engine->runtime()));
     run_three_steps();
-    const Status failed = Status::from_message(StatusCode::DeviceFailed,
-                                               []() { return std::string("a step failed"); });
 
-    const Status ended = Apps::end_profiled_run(session, failed);
+    const Status ended = Apps::end_profiled_run(session, failed_step());
 
-    SA_EXPECT_FAILURE(ended, StatusCode::DeviceFailed, "a step failed");
+    EXPECT_FALSE(ended.is_ok());
     expect_two_periods_written(folder.path());
 }
 

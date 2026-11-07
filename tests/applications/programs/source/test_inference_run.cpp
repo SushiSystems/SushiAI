@@ -168,34 +168,102 @@ namespace
         return Status();
     }
 
-} // namespace
+    /** @brief Stands for a report that fails, so a run of it can be told from a refusal. */
+    Status report_failure(Apps::PreparedInference&)
+    {
+        SA_FAIL_IF(true, StatusCode::DeviceFailed, "the classification row ran");
+        return Status();
+    }
 
-/** @brief Tests that a report runs for its task type and an unknown type names the known. */
-TEST_F(Medium_InferenceRun, TheReportTableRefusesAnUnknownTask)
-{
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine));
-    SA_ASSERT_OK_AND_ASSIGN(
-        const Train::TracedStep traced,
-        Train::build_evaluation_graph(pieces->model, Shape{K_BATCH, K_FEATURES}));
-    Graph::TensorPool pool(*engine);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, *pieces->state, pool));
+    /**
+     * @struct InferenceCase
+     * @brief Holds what a report of the table runs over, on one engine.
+     */
+    struct InferenceCase
+    {
+        /** @brief Builds the pool on @p engine; make_case() fills the rest. */
+        explicit InferenceCase(SushiBLAS::Engine& engine) : pool(engine)
+        {
 
-    const std::filesystem::path model_path("model.json");
-    const std::filesystem::path weights_path("model.sushi");
-    const Config::ModelSpec model{};
-    const std::vector<NN::ModelOutputs::Entry> outputs;
-    Apps::PreparedInference prepared{
-        model_path, weights_path, model, 3, *pieces->dataset, *step, outputs, *engine,
+        }
+
+        /** @brief The pieces of a classification run. */
+        std::unique_ptr<Pieces> pieces;
+
+        /** @brief The evaluation graph the step runs. */
+        std::optional<Train::TracedStep> traced;
+
+        /** @brief The pool the evaluation step lives in. */
+        Graph::TensorPool pool;
+
+        /** @brief The evaluation step over the state of the pieces. */
+        std::unique_ptr<Train::EvaluationStep> step;
+
+        /** @brief The path of the model file the report names. */
+        std::filesystem::path model_path = "model.json";
+
+        /** @brief The path of the weights file the report names. */
+        std::filesystem::path weights_path = "model.sushi";
+
+        /** @brief The model specification the report reads. */
+        Config::ModelSpec model;
+
+        /** @brief The outputs of the model; none. */
+        std::vector<NN::ModelOutputs::Entry> outputs;
+
+        /** @brief The prepared report over the members above. */
+        std::optional<Apps::PreparedInference> prepared;
     };
 
+    /** @brief Builds the case on @p engine, or returns the first failure of its pieces. */
+    Result<std::unique_ptr<InferenceCase>> make_case(SushiBLAS::Engine& engine)
+    {
+        std::unique_ptr<InferenceCase> made = std::make_unique<InferenceCase>(engine);
+        SA_TRY_ASSIGN(made->pieces, make_pieces(engine));
+        SA_TRY_ASSIGN(Train::TracedStep traced,
+                      Train::build_evaluation_graph(made->pieces->model,
+                                                    Shape{K_BATCH, K_FEATURES}));
+        made->traced.emplace(std::move(traced));
+        SA_TRY_ASSIGN(made->step, Train::EvaluationStep::make(engine, *made->traced,
+                                                              *made->pieces->state, made->pool));
+        made->prepared.emplace(Apps::PreparedInference{
+            made->model_path, made->weights_path, made->model, 3, *made->pieces->dataset,
+            *made->step, made->outputs, engine,
+        });
+        return std::move(made);
+    }
+
+} // namespace
+
+/** @brief Tests that a second row for one task type is refused as already registered. */
+TEST(Small_InferenceRun, ASecondRowForOneTypeIsRefused)
+{
     Apps::InferenceRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_nothing}));
+
     SA_EXPECT_FAILURE(registry.add(Apps::InferenceEntry{"classification", &report_nothing}),
                       StatusCode::InvalidDescription, "'classification'", "already registered");
+}
 
-    SA_EXPECT_OK(Apps::report_inference(registry, "classification", prepared));
-    SA_EXPECT_FAILURE(Apps::report_inference(registry, "pose", prepared),
+/** @brief Tests that a report runs the row of its task type. */
+TEST_F(Medium_InferenceRun, TheReportRunsTheRowOfItsType)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(*engine));
+    Apps::InferenceRegistry registry;
+    SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_failure}));
+
+    SA_EXPECT_FAILURE(Apps::report_inference(registry, "classification", *made->prepared),
+                      StatusCode::DeviceFailed, "the classification row ran");
+}
+
+/** @brief Tests that an unknown task type is refused, naming the model file and the known type. */
+TEST_F(Medium_InferenceRun, AnUnknownTaskTypeIsRefusedNamingTheKnownOne)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(*engine));
+    Apps::InferenceRegistry registry;
+    SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_nothing}));
+
+    SA_EXPECT_FAILURE(Apps::report_inference(registry, "pose", *made->prepared),
                       StatusCode::InvalidDescription, "model.json", "'pose'",
                       "'classification'");
 }

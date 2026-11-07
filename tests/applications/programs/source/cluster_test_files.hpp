@@ -104,6 +104,38 @@ namespace SushiAI::Apps::ClusterTest
     }
 
     /**
+     * @struct ClusterTestSpec
+     * @brief Holds the training file and the architecture parsed from their text, with no file
+     *        written, so a test over them touches only memory.
+     */
+    struct ClusterTestSpec
+    {
+        /** @brief Parses the training file listening at @p listen and the architecture text. */
+        explicit ClusterTestSpec(const std::string& listen = "127.0.0.1:0")
+        {
+            spec = Test::require_value(Config::parse_train(
+                Test::require_value(Config::parse_json(
+                    training_file(std::filesystem::path("model.json"), listen), "<test>")),
+                "<test>", std::filesystem::path(".")));
+            model_spec = Test::require_value(
+                Config::parse_model(Test::require_value(Config::parse_json(K_MODEL, "<test>")),
+                                    "<test>"));
+        }
+
+        /** @brief Returns the checked cluster section of the training file. */
+        Distribution::ClusterSection section() const
+        {
+            return Distribution::ClusterSection::read(spec.cluster, spec.base).value();
+        }
+
+        /** @brief The training file. */
+        Config::TrainSpec spec;
+
+        /** @brief The architecture, parsed from K_MODEL. */
+        Config::ModelSpec model_spec;
+    };
+
+    /**
      * @struct ClusterTestFiles
      * @brief Holds the architecture file on disk and the parsed training file over it.
      */

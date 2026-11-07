@@ -171,40 +171,92 @@ namespace
         };
     }
 
+    /**
+     * @brief Trains a run for K_EPOCHS epochs and saves it with its run state to @p file.
+     * @return The optimizer's step count after the run, or the first failure.
+     */
+    Result<std::uint64_t> train_and_save(SushiBLAS::Engine& engine,
+                                         const std::filesystem::path& file)
+    {
+        SA_TRY_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(engine));
+        Apps::PreparedRun prepared = prepare(*trained, engine);
+        Apps::RunRegistry registry;
+        SA_TRY(Apps::register_runs(registry));
+
+        testing::internal::CaptureStdout();
+        const Result<Apps::RunSummary> summary =
+            Apps::run_training(registry, "cross_entropy", prepared);
+        (void)testing::internal::GetCapturedStdout();
+        SA_TRY(summary.status());
+        SA_TRY(IO::save_run_checkpoint(file, *trained->state, *trained->optimizer));
+        return trained->optimizer->step_count();
+    }
+
 } // namespace
 
-/** @brief Tests that a run starts initialised, from weights, or resumed with its run state. */
-TEST_F(Medium_RunStart, ARunStartsFromWhatItsFileStates)
+/** @brief Tests that a spec without files describes a fresh start. */
+TEST(Small_RunStart, ASpecWithoutFilesDescribesAnInitialisedStart)
+{
+    const Config::TrainSpec spec;
+
+    EXPECT_EQ(Apps::describe_start(spec), "initialised");
+}
+
+/** @brief Tests that a spec with weights describes the path of the weights. */
+TEST(Small_RunStart, ASpecWithWeightsDescribesTheirPath)
+{
+    Config::TrainSpec spec;
+    spec.weights = "weights.sushi";
+
+    EXPECT_EQ(Apps::describe_start(spec), spec.weights.string());
+}
+
+/** @brief Tests that a spec with a resume file describes the resume. */
+TEST(Small_RunStart, ASpecWithAResumeFileDescribesTheResume)
+{
+    Config::TrainSpec spec;
+    spec.resume = "run.sushi";
+
+    EXPECT_EQ(Apps::describe_start(spec), "resumed from " + spec.resume.string());
+}
+
+/** @brief Tests that a start without files leaves the optimizer at step 0. */
+TEST_F(Medium_RunStart, AStartWithoutFilesLeavesTheOptimizerAtStepZero)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
+
+    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
+
+    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
+}
+
+/** @brief Tests that a start from weights loads them and leaves the optimizer at step 0. */
+TEST_F(Medium_RunStart, AStartFromWeightsLeavesTheOptimizerAtStepZero)
+{
+    const SaTest::ScratchFile file("sushiai_program_runs_weights.sushi");
+    SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t trained_steps,
+                            train_and_save(*engine, file.path()));
+    ASSERT_GT(trained_steps, 0u);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
+    fresh->spec.weights = file.path();
+
+    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
+
+    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
+}
+
+/** @brief Tests that a resumed start restores the step count of the saved run. */
+TEST_F(Medium_RunStart, AResumedStartRestoresTheStepCountOfTheSavedRun)
 {
     const SaTest::ScratchFile file("sushiai_program_runs_resume.sushi");
-
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(*engine));
-    Apps::PreparedRun prepared = prepare(*trained, *engine);
-    Apps::RunRegistry registry;
-    SA_EXPECT_OK(Apps::register_runs(registry));
-
-    testing::internal::CaptureStdout();
-    const Result<Apps::RunSummary> summary =
-        Apps::run_training(registry, "cross_entropy", prepared);
-    (void)testing::internal::GetCapturedStdout();
-    SA_EXPECT_OK(summary);
-    SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *trained->state, *trained->optimizer));
-
+    SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t trained_steps,
+                            train_and_save(*engine, file.path()));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
-    EXPECT_EQ(Apps::describe_start(fresh->spec), "initialised");
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
-
-    fresh->spec.weights = file.path();
-    EXPECT_EQ(Apps::describe_start(fresh->spec), file.path().string());
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), 0u);
-
-    fresh->spec.weights.clear();
     fresh->spec.resume = file.path();
-    EXPECT_EQ(Apps::describe_start(fresh->spec), "resumed from " + file.path().string());
+
     SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
-    EXPECT_EQ(fresh->optimizer->step_count(), trained->optimizer->step_count());
+
+    EXPECT_EQ(fresh->optimizer->step_count(), trained_steps);
     EXPECT_EQ(fresh->optimizer->step_count(),
               static_cast<std::uint64_t>(K_EPOCHS * K_BATCHES));
 }
