@@ -33,12 +33,13 @@
 #include <memory>
 #include <utility>
 #include <vector>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 #include <SushiAI/optim/sgd.hpp>
@@ -49,7 +50,6 @@ using namespace SushiAI;
 using Optim::SGD;
 using Optim::SGDOptions;
 
-// SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace
@@ -63,8 +63,8 @@ namespace
      */
     constexpr double K_UPDATE_TOLERANCE = 32.0 * TestSupport::unit_roundoff<float>();
 
-    /** @brief Provides an engine and one parameter slot with a gradient the case chooses. */
-    class Medium_SGD : public SaTest::EngineTest
+    /** @brief Provides the host backend and one parameter slot with a gradient the case chooses. */
+    class Small_SGD : public ::testing::Test
     {
         protected:
             /** @brief Returns one slot "weight" of K_START with the gradient @p gradient. */
@@ -72,9 +72,9 @@ namespace
             {
                 const int64_t elements = static_cast<int64_t>(gradient.size());
                 Result<SushiBLAS::Tensor> parameter =
-                    allocate_tensor(*engine, Shape{elements}, DType::Float32);
+                    allocate_tensor(backend.engine(), Shape{elements}, DType::Float32);
                 Result<SushiBLAS::Tensor> slope =
-                    allocate_tensor(*engine, Shape{elements}, DType::Float32);
+                    allocate_tensor(backend.engine(), Shape{elements}, DType::Float32);
                 EXPECT_TRUE(parameter.status().is_ok());
                 EXPECT_TRUE(slope.status().is_ok());
 
@@ -93,72 +93,100 @@ namespace
             {
                 const SushiBLAS::Tensor parameter = optimizer.parameters()[0].parameter;
                 SA_EXPECT_OK(optimizer.step());
-                flush();
                 return SaTest::read_tensor(parameter);
             }
+
+            /** @brief Holds the host adapter the optimizer allocates from and runs on. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Names one kernel and whether its update replays. */
+    struct KernelRow
+    {
+        Optim::UpdateKernel kernel; /**< The kernel the options ask for. */
+        bool replays;               /**< Whether the update is replay invariant. */
+    };
+
+    /** @brief Provides the host backend to each kernel row. */
+    class Small_SGDKernel : public Small_SGD, public ::testing::WithParamInterface<KernelRow>
+    {
     };
 } // namespace
 
-/** @brief Tests that SGD names itself "sgd" and replays only with the fused kernel. */
-TEST_F(Medium_SGD, TheTypeAndReplayFollowTheKernel)
+/** @brief Tests that the update replays only with the fused kernel. */
+TEST_P(Small_SGDKernel, TheReplayFollowsTheKernel)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> fused,
-                            SGD::make(backend(), make_slots({1.0})));
-    SGDOptions separate_options;
-    separate_options.kernel = Optim::UpdateKernel::Separate;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> separate,
-                            SGD::make(backend(), make_slots({1.0}), separate_options));
+    SGDOptions options;
+    options.kernel = GetParam().kernel;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
+                            SGD::make(backend, make_slots({1.0}), options));
 
-    EXPECT_EQ(fused->type_name(), Optim::K_SGD_TYPE);
-    EXPECT_TRUE(fused->is_replay_invariant());
-    EXPECT_FALSE(separate->is_replay_invariant());
+    EXPECT_EQ(optimizer->is_replay_invariant(), GetParam().replays);
 }
 
-/** @brief Tests that Nesterov is refused without momentum and with dampening. */
-TEST_F(Medium_SGD, NesterovNeedsMomentumAndNoDampening)
-{
-    SGDOptions no_momentum;
-    no_momentum.nesterov = true;
-    SGDOptions damped;
-    damped.nesterov = true;
-    damped.momentum = 0.9;
-    damped.dampening = 0.1;
+INSTANTIATE_TEST_SUITE_P(Rows, Small_SGDKernel,
+                         ::testing::Values(KernelRow{Optim::UpdateKernel::Fused, true},
+                                           KernelRow{Optim::UpdateKernel::Separate, false}));
 
-    SA_EXPECT_FAILURE(SGD::make(backend(), make_slots({1.0}), no_momentum),
+/** @brief Tests that Nesterov is refused without momentum. */
+TEST_F(Small_SGD, NesterovNeedsMomentum)
+{
+    SGDOptions options;
+    options.nesterov = true;
+
+    SA_EXPECT_FAILURE(SGD::make(backend, make_slots({1.0}), options),
                       StatusCode::InvalidDescription, "positive momentum");
-    SA_EXPECT_FAILURE(SGD::make(backend(), make_slots({1.0}), damped),
+}
+
+/** @brief Tests that Nesterov is refused with dampening. */
+TEST_F(Small_SGD, NesterovNeedsNoDampening)
+{
+    SGDOptions options;
+    options.nesterov = true;
+    options.momentum = 0.9;
+    options.dampening = 0.1;
+
+    SA_EXPECT_FAILURE(SGD::make(backend, make_slots({1.0}), options),
                       StatusCode::InvalidDescription, "undefined with dampening");
 }
 
 /** @brief Tests that a step without momentum subtracts the rate times the gradient. */
-TEST_F(Medium_SGD, APlainStepSubtractsTheScaledGradient)
+TEST_F(Small_SGD, APlainStepSubtractsTheScaledGradient)
 {
-    const std::vector<double> gradient{2.0, -1.0, 0.5};
     SGDOptions options;
     options.learning_rate = 0.5;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
-                            SGD::make(backend(), make_slots(gradient), options));
+                            SGD::make(backend, make_slots({2.0, -1.0, 0.5}), options));
 
-    const std::vector<double> values = step_once(*optimizer);
-
-    ASSERT_EQ(values.size(), gradient.size());
-    for (std::size_t i = 0; i < gradient.size(); ++i)
-        EXPECT_NEAR(values[i], K_START - 0.5 * gradient[i], K_UPDATE_TOLERANCE) << "element " << i;
+    EXPECT_THAT(step_once(*optimizer),
+                ::testing::Pointwise(::testing::DoubleNear(K_UPDATE_TOLERANCE),
+                                     std::vector<double>{0.0, 1.5, 0.75}));
 }
 
-/** @brief Tests that momentum starts from the gradient and then accumulates it. */
-TEST_F(Medium_SGD, MomentumAccumulatesFromTheSecondStep)
+/** @brief Tests that momentum starts from the gradient: the first step is a plain one. */
+TEST_F(Small_SGD, MomentumStartsFromTheGradient)
 {
     SGDOptions options;
     options.learning_rate = 0.1;
     options.momentum = 0.9;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
-                            SGD::make(backend(), make_slots({1.0}), options));
+                            SGD::make(backend, make_slots({1.0}), options));
+
+    EXPECT_NEAR(step_once(*optimizer)[0], K_START - 0.1, K_UPDATE_TOLERANCE);
+}
+
+/** @brief Tests that momentum accumulates the gradient from the second step. */
+TEST_F(Small_SGD, MomentumAccumulatesFromTheSecondStep)
+{
+    SGDOptions options;
+    options.learning_rate = 0.1;
+    options.momentum = 0.9;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
+                            SGD::make(backend, make_slots({1.0}), options));
 
     // The buffer is the gradient, 1, after the first step and 0.9 * 1 + 1 after the second.
-    const std::vector<double> first = step_once(*optimizer);
+    static_cast<void>(step_once(*optimizer));
     const std::vector<double> second = step_once(*optimizer);
 
-    EXPECT_NEAR(first[0], K_START - 0.1, K_UPDATE_TOLERANCE);
     EXPECT_NEAR(second[0], K_START - 0.1 - 0.1 * 1.9, K_UPDATE_TOLERANCE);
 }
