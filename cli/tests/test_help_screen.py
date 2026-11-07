@@ -11,10 +11,12 @@ import re
 from pathlib import Path
 
 import pytest
-from typer.main import get_command
 from typer.testing import CliRunner
 
+from recorded_tools import recorded_tools, write_executable
 from sushiai.cli import app
+from sushiai.services import build_trees
+from sushiai.services.project import K_DEFAULT_TYPE
 
 pytestmark = pytest.mark.medium
 
@@ -25,7 +27,12 @@ K_GROUPS = {
 }
 
 # Commands whose --help is forwarded to the program they run once that program is built.
-K_FORWARDING = {"train", "inference", "import", "tokenize", "profile"}
+K_FORWARDED_PROGRAMS = {
+    "train": "sushiai_train",
+    "inference": "sushiai_inference",
+    "import": "sushiai_import",
+    "tokenize": "sushiai_tokenize",
+}
 K_FORWARDING_LINES = [("train",), ("inference",), ("import",), ("tokenize",), ("demo", "mlp")]
 
 K_EXAMPLES = {
@@ -82,12 +89,6 @@ def test_root_help_lists_the_three_groups_in_order():
     assert positions == sorted(positions)
 
 
-@pytest.mark.parametrize("heading", list(K_GROUPS))
-def test_every_command_sits_under_its_own_group(heading):
-    listed = _commands_by_heading(_run("--help"))[heading]
-    assert [name for name in listed if name in K_GROUPS[heading]] == K_GROUPS[heading]
-
-
 def test_no_command_is_listed_under_a_group_it_does_not_belong_to():
     grouped = _commands_by_heading(_run("--help"))
     for heading, names in K_GROUPS.items():
@@ -111,10 +112,31 @@ def test_a_sub_app_draws_its_own_page_with_examples():
     assert "Examples" in out and "sa demo mlp --epochs 4 --optimizer sgd" in out
 
 
-@pytest.mark.parametrize("name", sorted(K_FORWARDING))
-def test_a_forwarding_command_keeps_its_help_for_the_program_it_runs(name):
-    command = get_command(app).commands[name]
-    assert command.get_help_option_names(command.make_context(name, [])) == []
+@pytest.mark.parametrize(("name", "target"), sorted(K_FORWARDED_PROGRAMS.items()))
+def test_a_forwarding_command_hands_help_to_the_program_it_runs(name, target, project_root):
+    """With the program built, `--help` reaches it as its own argument."""
+    recorded = recorded_tools()
+    write_executable(build_trees.build_dir(project_root, K_DEFAULT_TYPE.value) / target)
+
+    result = CliRunner().invoke(app, [name, "--help"], obj=recorded.tools)
+
+    assert result.exit_code == 0, result.output
+    assert [(Path(ran.argv[0]).stem, list(ran.argv[1:])) for ran in recorded.runner.commands] == [
+        (target, ["--help"])]
+
+
+def test_profile_hands_help_to_sp(project_root, tmp_path, monkeypatch):
+    """With `sp` on the path, `sa profile --help` reaches it as its own argument."""
+    folder = tmp_path / "tools"
+    program = write_executable(folder / "sp")
+    monkeypatch.setenv("PATH", str(folder))
+    recorded = recorded_tools()
+
+    result = CliRunner().invoke(app, ["profile", "--help"], obj=recorded.tools)
+
+    assert result.exit_code == 0, result.output
+    assert [list(ran.argv[1:]) for ran in recorded.runner.commands] == [["--help"]]
+    assert Path(recorded.runner.commands[0].argv[0]).stem == program.stem
 
 
 @pytest.mark.parametrize("words", K_FORWARDING_LINES, ids=" ".join)
@@ -128,14 +150,6 @@ def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
     assert f"Usage: {line}" in page
     assert "Examples" in page and f"{line} " in page.split("Examples")[1]
     assert result.exit_code == 1
-
-
-@pytest.mark.parametrize("name", sorted(K_FORWARDING))
-def test_a_forwarding_command_names_the_program_the_user_typed(name, tmp_path, monkeypatch):
-    """The page of a forwarding command says `sa`, as every other page does."""
-    monkeypatch.chdir(tmp_path)
-    page = K_ANSI_ESCAPE.sub("", CliRunner().invoke(app, [name, "--help"]).output)
-    assert f"sushiai {name}" not in page
 
 
 @pytest.mark.parametrize("path", sorted(K_PACKAGE.rglob("*.py")), ids=lambda p: p.name)

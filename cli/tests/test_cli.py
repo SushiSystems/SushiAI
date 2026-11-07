@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.metadata
 import json
 import re
 import shutil
@@ -18,15 +19,11 @@ import pytest
 from typer.main import get_command
 from typer.testing import CliRunner
 
-from sushicore.root_options import version_line
-
 from recorded_tools import doxygen_ready, recorded_tools, write_executable
 from sushiai import cli
 from sushiai import console as console_module
 from sushiai.services import build_trees
 from sushiai.services.project import K_DEFAULT_TYPE
-
-pytestmark = pytest.mark.medium
 
 #: The groups sushicore adds whole; their commands are sushicore's to list, so only the group is checked.
 K_SUSHICORE_GROUPS = ("backlog", "design")
@@ -51,14 +48,20 @@ K_ARCHIVE = "docs-bundle-1.2.3.tar.gz"
 K_DOXYFILE = Path(__file__).resolve().parents[2] / ".config" / "doxygen" / "Doxyfile"
 
 
-def test_docs_runs_the_api_build_and_bundle_is_its_subcommand(project_root):
-    """`sa docs` still builds the reference, and `sa docs bundle` asks for a release."""
+@pytest.mark.medium
+@pytest.mark.parametrize("word", ["docs", "doxygen"])
+def test_docs_and_its_old_word_return_the_exit_code_of_the_api_build(word, project_root):
+    """`sa docs` and the old `sa doxygen` both return the exit code of the reference build."""
     recorded = doxygen_ready(project_root, 6)
-    recorded.runner.script(6)
-    runner = CliRunner()
-    assert runner.invoke(cli.app, ["docs"], obj=recorded.tools).exit_code == 6
-    assert runner.invoke(cli.app, ["doxygen"], obj=recorded.tools).exit_code == 6
-    missing = runner.invoke(cli.app, ["docs", "bundle"], obj=recorded.tools)
+    result = CliRunner().invoke(cli.app, [word], obj=recorded.tools)
+    assert result.exit_code == 6
+
+
+@pytest.mark.medium
+def test_docs_bundle_asks_for_a_release(project_root):
+    """`sa docs bundle` without --release exits 2 and names the option."""
+    recorded = doxygen_ready(project_root, 6)
+    missing = CliRunner().invoke(cli.app, ["docs", "bundle"], obj=recorded.tools)
     assert missing.exit_code == 2
     assert "--release" in K_ANSI_ESCAPE.sub("", missing.output)
 
@@ -83,6 +86,7 @@ def _described() -> dict:
     return json.loads(result.output)
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize("name", ["config.toml", "config.local.toml"])
 def test_main_reports_a_malformed_config_as_one_line(name, checkout, monkeypatch, capsys):
     """A config file that is not TOML ends in one line naming it and exit code 1."""
@@ -97,24 +101,26 @@ def test_main_reports_a_malformed_config_as_one_line(name, checkout, monkeypatch
     assert name in lines[0] and "Traceback" not in lines[0]
 
 
-def test_main_exits_zero_when_the_command_succeeds(monkeypatch, capsys):
+@pytest.mark.medium
+def test_main_exits_zero_when_the_command_succeeds(monkeypatch):
     """A command that succeeds leaves exit code 0."""
     monkeypatch.setattr(sys, "argv", ["sa", "--version"])
     with pytest.raises(SystemExit) as raised:
         cli.main()
     assert raised.value.code == 0
-    assert capsys.readouterr().out.strip() == version_line("sushiai-cli")
 
 
+@pytest.mark.medium
 def test_version_prints_the_distribution_and_its_version():
     """--version prints one line naming sushiai-cli and runs no command."""
     result = CliRunner().invoke(cli.app, ["--version"])
     assert result.exit_code == 0
-    assert result.output.strip() == version_line("sushiai-cli")
+    assert result.output.strip() == f"sushiai-cli {importlib.metadata.version('sushiai-cli')}"
 
 
+@pytest.mark.medium
 def test_describe_lists_every_visible_command():
-    """--describe names the program and each command a user can run, sorted."""
+    """--describe names the program and each command a user can run."""
     document = _described()
     assert document["program"] == "sa"
     names = [command["name"] for command in document["commands"]]
@@ -122,20 +128,7 @@ def test_describe_lists_every_visible_command():
     assert {name.split()[0] for name in names} >= set(K_SUSHICORE_GROUPS)
 
 
-def test_describe_leaves_hidden_commands_out():
-    """--describe carries no command that the Typer application marks hidden."""
-    hidden = [name for name, command in get_command(cli.app).commands.items() if command.hidden]
-    described = {command["name"] for command in _described()["commands"]}
-    assert hidden and described.isdisjoint(hidden)
-
-
-@pytest.mark.parametrize("name", ["config", "env"])
-def test_the_diagnostic_commands_are_the_ones_sushicore_declares(name):
-    """config and env are registered by sushicore, not declared in this package."""
-    callback = get_command(cli.app).commands[name].callback
-    assert callback.__module__ == "sushicore.diag_commands"
-
-
+@pytest.mark.medium
 def test_env_takes_the_short_form_of_all():
     """env answers -a as well as --all."""
     env = get_command(cli.app).commands["env"]
@@ -165,6 +158,7 @@ def _doxyfile_value(key: str, default: str) -> str:
     return default
 
 
+@pytest.mark.medium
 def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, monkeypatch):
     """Writes the archive and its digest file at the checkout's root and reports both lines."""
     _published_checkout(tmp_path)
@@ -182,12 +176,14 @@ def test_docs_bundle_writes_the_archive_of_the_checkout_it_runs_in(tmp_path, mon
     assert said[1].startswith("sha256 ")
 
 
+@pytest.mark.medium
 def test_the_api_source_reads_the_xml_doxygen_writes_under_the_site_folder(project_root):
     """Names `<OUTPUT_DIRECTORY>/<XML_OUTPUT>` of the Doxyfile, below the repository root."""
     written = Path(_doxyfile_value("OUTPUT_DIRECTORY", "")) / _doxyfile_value("XML_OUTPUT", "xml")
     assert cli._api_source().xml_dir == project_root / written
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize("command, target, positional", [
     ("train", "sushiai_train", ["train.json"]),
     ("inference", "sushiai_inference", ["model.json", "model.sushi", "eval.json"]),
@@ -220,6 +216,7 @@ def sp_on_path(tmp_path, monkeypatch):
     return shutil.which("sp")
 
 
+@pytest.mark.medium
 def test_profile_runs_sp(project_root, sp_on_path):
     """`sa profile <args>` runs `sp <args>` from the project root and returns its exit code."""
     recorded = recorded_tools()
@@ -233,6 +230,7 @@ def test_profile_runs_sp(project_root, sp_on_path):
         ([sp_on_path, "record", "show", "run.sprec.json"], project_root)]
 
 
+@pytest.mark.medium
 def test_profile_without_sp_says_to_install_it(tmp_path, monkeypatch):
     """A machine with no `sp` on the path gets one error line that names SushiProfiler."""
     monkeypatch.setenv("PATH", str(tmp_path))

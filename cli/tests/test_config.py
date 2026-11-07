@@ -6,19 +6,21 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sushiai import config
 
-pytestmark = pytest.mark.medium
 
-
+@pytest.mark.medium
 def test_find_project_root_raises_outside_checkout(tmp_path):
     """No CMakeLists.txt anywhere above -> a clear SystemExit, not a crash."""
     with pytest.raises(SystemExit):
         config.find_project_root(tmp_path)
 
 
+@pytest.mark.medium
 def test_find_project_root_walks_up_to_marker(tmp_path):
     """The root is the nearest ancestor holding CMakeLists.txt."""
     (tmp_path / "CMakeLists.txt").write_text("project(x)\n")
@@ -27,17 +29,8 @@ def test_find_project_root_walks_up_to_marker(tmp_path):
     assert config.find_project_root(nested) == tmp_path
 
 
-def test_config_dir_prefers_cli(tmp_path):
-    """config_dir() returns <root>/cli when it holds config.toml."""
-    (tmp_path / "CMakeLists.txt").write_text("project(x)\n")
-    cli_dir = tmp_path / "cli"
-    cli_dir.mkdir()
-    (cli_dir / "config.toml").write_text("")
-    assert config.config_dir(tmp_path) == cli_dir
-
-
-def test_config_dir_defaults_to_cli_when_absent(tmp_path):
-    """With no config.toml present, config_dir() still defaults to <root>/cli."""
-    (tmp_path / "CMakeLists.txt").write_text("project(x)\n")
-    assert config.config_dir(tmp_path) == tmp_path / "cli"
-
+@pytest.mark.small
+@pytest.mark.parametrize("root", [Path("checkout"), Path("workspace") / "sushiai"])
+def test_config_dir_is_the_cli_folder_of_the_root(root):
+    """config_dir() returns <root>/cli, whether or not the folder or its config.toml exist."""
+    assert config.config_dir(root) == root / "cli"

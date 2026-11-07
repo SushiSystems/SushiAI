@@ -63,20 +63,36 @@ def small_cfg(tmp_path: Path) -> Path:
     return path
 
 
-@_needs_build
-def test_import_writes_a_model_file_and_a_training_file(small_cfg: Path, tmp_path: Path):
-    """A .cfg without weights becomes model.json and train.json, and no weight file."""
+@pytest.fixture
+def imported(small_cfg: Path, tmp_path: Path) -> Path:
+    """Imports the small configuration without weights and returns the folder it wrote."""
     output = tmp_path / "imported"
     completed = _run("import", "darknet", str(small_cfg), "--output", str(output))
-
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    model = json.loads((output / "model.json").read_text(encoding="utf-8"))
-    training = json.loads((output / "train.json").read_text(encoding="utf-8"))
+    return output
+
+
+@_needs_build
+def test_import_writes_a_model_file_that_carries_the_anchor_task(imported: Path):
+    """A .cfg without weights becomes a model.json whose task is anchor detection."""
+    model = json.loads((imported / "model.json").read_text(encoding="utf-8"))
     assert model["task"]["type"] == "anchor_detection"
+
+
+@_needs_build
+def test_import_writes_a_training_file_with_the_anchor_objective_and_no_data(imported: Path):
+    """The train.json carries the anchor objective and `"data": null` for the user to fill."""
+    training = json.loads((imported / "train.json").read_text(encoding="utf-8"))
     assert training["objective"]["type"] == "anchor"
     assert training["data"] is None
+
+
+@_needs_build
+def test_import_without_weights_writes_no_weight_file(imported: Path):
+    """No weight file is written, and the training file names none."""
+    training = json.loads((imported / "train.json").read_text(encoding="utf-8"))
     assert "weights" not in training
-    assert not (output / "weights.sushi").exists()
+    assert not (imported / "weights.sushi").exists()
 
 
 @_needs_build
@@ -105,16 +121,19 @@ def test_train_refuses_the_imported_file_until_its_data_is_filled(
 
 
 @_needs_build
-def test_import_refuses_to_replace_a_file_without_force(small_cfg: Path, tmp_path: Path):
-    """A second import into the same directory stops, and --force lets it through."""
-    output = tmp_path / "twice"
-    assert _run("import", "darknet", str(small_cfg), "--output", str(output)).returncode == 0
-
-    refused = _run("import", "darknet", str(small_cfg), "--output", str(output))
-    forced = _run("import", "darknet", str(small_cfg), "--output", str(output), "--force")
+def test_import_refuses_to_replace_a_file_without_force(small_cfg: Path, imported: Path):
+    """A second import into the same directory stops and names the file that exists."""
+    refused = _run("import", "darknet", str(small_cfg), "--output", str(imported))
 
     assert refused.returncode != 0
     assert "exists already" in refused.stdout + refused.stderr
+
+
+@_needs_build
+def test_import_replaces_a_file_with_force(small_cfg: Path, imported: Path):
+    """--force lets a second import into the same directory through."""
+    forced = _run("import", "darknet", str(small_cfg), "--output", str(imported), "--force")
+
     assert forced.returncode == 0, forced.stdout + forced.stderr
 
 

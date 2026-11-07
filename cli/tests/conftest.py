@@ -54,7 +54,7 @@ def project_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-K_SIZE_TIMEOUTS = {"small": 60, "medium": 300, "large": 900}
+K_SIZE_TIMEOUTS = {"small": 1, "medium": 10, "large": 120}
 
 
 def _sizes_of(item: pytest.Item) -> list[str]:

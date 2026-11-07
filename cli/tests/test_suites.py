@@ -9,69 +9,51 @@ The reasoning is in cli/tests/README.md under "test_suites.py".
 
 from __future__ import annotations
 
-from sushiai.services.project import _SUITE_LABELS, Suite
+from pathlib import Path
+
 import pytest
 
-pytestmark = pytest.mark.small
+from recorded_tools import offline_config
+from sushiai.services.project import _SUITE_LABELS, Suite, _toolchain_args
+
+K_SPECIAL = {Suite.all, Suite.package}
 
 
-def test_every_suite_is_either_mapped_or_deliberately_special():
+@pytest.mark.small
+@pytest.mark.parametrize("suite", list(Suite), ids=lambda suite: suite.value)
+def test_every_suite_is_either_mapped_or_deliberately_special(suite):
     """No suite may be silently unmapped: it is either a label or a known exception."""
-    special = {Suite.all, Suite.package}
-    for suite in Suite:
-        assert (suite in _SUITE_LABELS) ^ (suite in special), (
-            f"{suite.value!r} is neither a CTest label nor a handled special case; "
-            "add it to _SUITE_LABELS or branch on it in test()")
+    assert (suite in _SUITE_LABELS) ^ (suite in K_SPECIAL), (
+        f"{suite.value!r} is neither a CTest label nor a handled special case; "
+        "add it to _SUITE_LABELS or branch on it in test()")
 
 
-def test_package_is_not_a_ctest_label():
-    """Indexing the mapping with `package` must not accidentally start working.
+@pytest.mark.small
+@pytest.mark.parametrize("suite", sorted(_SUITE_LABELS, key=lambda suite: suite.value),
+                         ids=lambda suite: suite.value)
+def test_no_ctest_label_group_claims_to_cover_the_package_consumer(suite):
+    """No label group of a suite names the package consumer, which is not a CTest test.
 
-    If someone gives `package` a label regex, `test()` would still branch away
-    to test_package() first and the label would be dead code that reads as live.
+    Folding it into `all` would make a full run several minutes slower and let `all` mean
+    two different things depending on whether the tree is installable.
     """
-    assert Suite.package not in _SUITE_LABELS
+    assert all(label.value != "package" for label in _SUITE_LABELS[suite])
 
 
-def test_all_does_not_select_the_package_suite():
-    """`all` runs every CTest test, and package is not one of them.
+@pytest.mark.small
+@pytest.mark.parametrize("banned", ["CMAKE_PREFIX_PATH", "SUSHIRUNTIME_DIR", "SUSHIBLAS_DIR"])
+def test_toolchain_args_exclude_what_each_configure_sets_for_itself(banned):
+    """The shared helper carries only what both configures agree on.
 
-    Pinned because the alternative - quietly folding package into `all` - would
-    make a full run several minutes slower (a full install plus a second
-    configure and build) and, worse, make `all` mean two different things
-    depending on whether the tree happened to be installable.
+    CMAKE_PREFIX_PATH differs legitimately (the consumer must also see the install prefix).
+    SUSHIRUNTIME_DIR and SUSHIBLAS_DIR must never reach the consumer at all: handing it the
+    sibling source trees is the shortcut the package suite exists to forbid.
     """
-    assert Suite.all not in _SUITE_LABELS
-    assert all(
-        label.value != "package" for labels in _SUITE_LABELS.values() for label in labels
-    ), "no CTest label group may claim to cover the package consumer"
-
-
-def test_toolchain_args_exclude_the_prefix_path_and_the_source_siblings():
-    """The shared helper must carry only what BOTH configures agree on.
-
-    CMAKE_PREFIX_PATH differs legitimately (the consumer must also see the
-    install prefix). SUSHIRUNTIME_DIR / SUSHIBLAS_DIR must never reach the
-    consumer at all: handing it the sibling source trees is precisely the
-    shortcut the package suite exists to forbid.
-    """
-    from pathlib import Path
-    from types import SimpleNamespace
-
-    from sushiai.services.project import _toolchain_args
-
-    # Every optional host tool is set, so the helper emits its largest flag list.
-    cfg = SimpleNamespace(
-        is_windows=True,
-        ninja_exe="ninja.exe", pkgconf_exe="pkgconf.exe", rc_exe="rc.exe",
-        vcpkg_triplet="x64-windows",
-        expand=lambda value: value,
-        resolved_compiler=lambda root: "clang++.exe",
-        resolved_vcpkg=lambda root: "C:/vcpkg",
-    )
+    cfg = offline_config(
+        "windows", ninja_exe="ninja.exe", pkgconf_exe="pkgconf.exe", rc_exe="rc.exe",
+        vcpkg_triplet="x64-windows")
 
     args = _toolchain_args(cfg, Path("."))
-    assert args, "the helper must emit something to be worth sharing"
-    for banned in ("CMAKE_PREFIX_PATH", "SUSHIRUNTIME_DIR", "SUSHIBLAS_DIR"):
-        assert not any(banned in arg for arg in args), (
-            f"{banned} must be set per-caller, not in the shared toolchain args")
+
+    assert args
+    assert not any(banned in arg for arg in args)

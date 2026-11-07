@@ -59,9 +59,9 @@ must report no conversions and mixed must report some, from the same command lin
 the same forwarding. The compile-once contract holds in both modes, which is why mixed
 precision lives in the graph and is not a per-step dtype switch.
 
-`test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact` is the same forwarding
-check for `--loss-scale`. It asserts the one thing about the flag worth asserting through
-the CLI: a dyadic scale is exact, so a scaled fp32 run must report the same loss as an
+`test_sa_demo_mlp_loss_scale_flag_is_forwarded_and_reported` is the same forwarding check for
+`--loss-scale`, and `test_sa_demo_mlp_loss_scale_by_a_power_of_two_changes_no_fp32_number`
+asserts the one thing about the flag worth asserting through the CLI: a dyadic scale is exact, so a scaled fp32 run must report the same loss as an
 unscaled one to the last printed digit. A rounding anywhere in the scale and unscale round
 trip would move that digit.
 
@@ -91,9 +91,9 @@ exist to prevent it.
 The file mirrors `sushiblas/cli/tests/test_suites.py`, for the same reason
 `sa test --label package` mirrors `sb test --suite package`.
 
-In `test_toolchain_args_exclude_the_prefix_path_and_the_source_siblings` the configuration
-is a stand-in for a fully populated Windows config. Every optional host tool is set, so the
-assertion sees the largest flag list the helper can emit.
+In `test_toolchain_args_exclude_what_each_configure_sets_for_itself` the configuration is an
+offline Windows config with every optional host tool set, so the assertion sees a long flag
+list.
 
 ## test_import.py
 
@@ -146,13 +146,13 @@ again removes the dependence on pytest's collection order.
 
 ## test_cli.py, profiling
 
-`test_train_forwards_profile` replaces `project.run_app` and invokes `sa train` and `sa inference`
-with `--profile profile.json` before and after the positional arguments. It asserts that the
+`test_train_forwards_profile` runs `sa train` and `sa inference` through recorded tools with
+`--profile profile.json` before and after the positional arguments. It asserts that the
 program receives the line unchanged, because both commands forward verbatim and the flag belongs
 to the program.
 
-`test_profile_runs_sp` replaces the runner and `shutil.which` of `services/profiler.py`, so it
-needs no `sp`. It asserts that `sa profile record show run.sprec.json` runs
+`test_profile_runs_sp` puts a program named `sp` on a temporary `PATH`, so it needs no real
+`sp`. It asserts that `sa profile record show run.sprec.json` runs
 `sp record show run.sprec.json` from the project root and returns the exit code of `sp`.
-`test_profile_without_sp_says_to_install_it` makes `which` find nothing and asserts an exit code of
+`test_profile_without_sp_says_to_install_it` empties `PATH` and asserts an exit code of
 1 and an error line that names SushiProfiler.

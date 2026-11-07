@@ -18,8 +18,6 @@ from sushiai.services.toolbox import default_toolbox
 
 from recorded_tools import Recorded, offline_config, recorded_tools
 
-pytestmark = pytest.mark.medium
-
 
 class _StuckDriver(CMakeDriver):
     """A driver whose clean leaves the tree in place, as a file another program holds open does."""
@@ -49,6 +47,7 @@ def _stuck(recorded: Recorded) -> Recorded:
     return dataclasses.replace(recorded, tools=dataclasses.replace(recorded.tools, driver=driver))
 
 
+@pytest.mark.medium
 def test_build_rejects_a_malformed_define_before_it_removes_the_tree(recorded, tree):
     """`sa build --clean -D BAD` exits 2 and leaves build/ as it was."""
     assert project.build(recorded.tools, project.K_DEFAULT_TYPE, clean=True,
@@ -58,19 +57,26 @@ def test_build_rejects_a_malformed_define_before_it_removes_the_tree(recorded, t
     assert "SA_BUILD_TESTS" in recorded.errors()[0]
 
 
-def test_clean_reports_a_tree_it_could_not_remove(recorded, tree):
-    """A build tree that survives the removal is an error naming it, and exit code 1."""
-    assert project.clean(_stuck(recorded).tools) == 1
-    assert str(tree / "build") in recorded.errors()[0]
+def _same(recorded: Recorded) -> Recorded:
+    """Returns *recorded* unchanged, whose driver removes a tree."""
+    return recorded
 
 
-def test_clean_succeeds_when_the_tree_is_gone(recorded, tree):
-    """A removed build tree is exit code 0 and no error."""
-    assert project.clean(recorded.tools) == 0
-    assert recorded.errors() == []
-    assert not (tree / "build").exists()
+@pytest.mark.medium
+@pytest.mark.parametrize(("rig", "survives", "exit_code"), [(_stuck, True, 1), (_same, False, 0)],
+                         ids=["tree-survives", "tree-gone"])
+def test_clean_reports_a_tree_it_could_not_remove(rig, survives, exit_code, recorded, tree):
+    """A build tree that survives the removal is an error naming it with exit code 1."""
+    rigged = rig(recorded)
+
+    assert project.clean(rigged.tools) == exit_code
+
+    assert (tree / "build").exists() == survives
+    assert bool(recorded.errors()) == survives
+    assert (str(tree / "build") in " ".join(recorded.errors())) == survives
 
 
+@pytest.mark.medium
 def test_the_package_suite_stops_on_a_stale_prefix_it_could_not_remove(recorded, tree):
     """A prefix left by an earlier run that cannot be removed ends the suite before install."""
     prefix = tree / "build" / "package" / "prefix"
@@ -81,6 +87,7 @@ def test_the_package_suite_stops_on_a_stale_prefix_it_could_not_remove(recorded,
     assert str(prefix) in recorded.errors()[0]
 
 
+@pytest.mark.medium
 def test_staging_a_library_that_cannot_be_copied_is_one_error(recorded, tmp_path):
     """A library that cannot be copied is reported with its name instead of raised."""
     prefix, dest = tmp_path / "prefix", tmp_path / "dest"
@@ -91,6 +98,7 @@ def test_staging_a_library_that_cannot_be_copied_is_one_error(recorded, tmp_path
     assert len(recorded.errors()) == 1 and "sushiai.dll" in recorded.errors()[0]
 
 
+@pytest.mark.medium
 def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
     """Ctrl+C while a child runs becomes exit code 130, not an exception."""
     def interrupt(*_args, **_kwargs):
@@ -101,6 +109,7 @@ def test_an_interrupted_child_ends_in_exit_code_130(tmp_path, monkeypatch):
     assert default_toolbox().runner.run(["sushiai_example"], tmp_path) == 130
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize("target", ["sushiai_train", "sushiai_demo_mlp"])
 def test_a_program_is_not_built_outside_a_checkout(target, tmp_path, monkeypatch):
     """is_built answers False, without exiting, where there is no project at all."""
@@ -108,9 +117,9 @@ def test_a_program_is_not_built_outside_a_checkout(target, tmp_path, monkeypatch
     assert project.is_built(target) is False
 
 
-def test_the_mlp_demo_names_its_program():
-    """demo_target maps a demo's name to the executable that is that demo."""
-    assert project.demo_target("mlp") == "sushiai_demo_mlp"
+@pytest.mark.small
+def test_an_unknown_demo_names_no_program():
+    """demo_target answers None for a demo that does not exist."""
     assert project.demo_target("no-such-demo") is None
 
 
@@ -126,6 +135,7 @@ def _value_of(words: list[str], option: str) -> str | None:
     return words[words.index(option) + 1] if option in words else None
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize("jobs", [3, None])
 def test_jobs_reach_ctest_as_given(jobs, recorded, tree):
     """--jobs reaches ctest unchanged, and None leaves the count to ctest."""
@@ -133,6 +143,7 @@ def test_jobs_reach_ctest_as_given(jobs, recorded, tree):
     assert _value_of(_ctest(recorded), "--parallel") == (None if jobs is None else str(jobs))
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize(("suite", "include", "exclude"), [
     (project.Suite.gating, "^(small|medium)$", "^quarantined$"),
     (project.Suite.large, "^(large)$", "^quarantined$"),

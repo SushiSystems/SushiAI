@@ -6,22 +6,24 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sushiai.services import build_trees
 from sushiai.services.sanitizer import Sanitizer
 
-pytestmark = pytest.mark.small
 
-
-def test_each_build_type_and_sanitizer_has_a_tree_of_its_own(tmp_path):
-    assert build_trees.build_dir(tmp_path, "release") == tmp_path / "build" / "default-release"
-    assert build_trees.build_dir(tmp_path, "debug") == tmp_path / "build" / "default-debug"
-    assert build_trees.build_dir(tmp_path, "debug", Sanitizer.address_undefined) == (
-        tmp_path / "build" / "asan-debug")
-    assert build_trees.build_dir(tmp_path, "release", Sanitizer.thread) == (
-        tmp_path / "build" / "tsan-release")
-    assert build_trees.build_dir(tmp_path, "debug", Sanitizer.none) == (
-        tmp_path / "build" / "default-debug")
-
-
+@pytest.mark.small
+@pytest.mark.parametrize(("build_type", "sanitizer", "tree"), [
+    ("release", None, "default-release"),
+    ("debug", None, "default-debug"),
+    ("debug", Sanitizer.address_undefined, "asan-debug"),
+    ("release", Sanitizer.thread, "tsan-release"),
+    ("debug", Sanitizer.none, "default-debug"),
+])
+def test_each_build_type_and_sanitizer_has_a_tree_of_its_own(build_type, sanitizer, tree):
+    """A build type and a sanitizer set name one folder under build/."""
+    root = Path("checkout")
+    arguments = () if sanitizer is None else (sanitizer,)
+    assert build_trees.build_dir(root, build_type, *arguments) == root / "build" / tree

@@ -15,9 +15,8 @@ from recorded_tools import offline_config, recorded_tools
 from sushiai import cli
 from sushiai.services import distributed
 
-pytestmark = pytest.mark.small
 
-
+@pytest.mark.small
 def test_distributed_define_switches_the_distributed_layer() -> None:
     """distributed_define gives the SA_ENABLE_DISTRIBUTED entry, or nothing for None."""
     assert distributed.distributed_define(True) == ["SA_ENABLE_DISTRIBUTED=ON"]
@@ -25,6 +24,7 @@ def test_distributed_define_switches_the_distributed_layer() -> None:
     assert distributed.distributed_define(None) == []
 
 
+@pytest.mark.medium
 @pytest.mark.parametrize(
     ("args", "expected"),
     [

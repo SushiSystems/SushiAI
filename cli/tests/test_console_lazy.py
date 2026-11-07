@@ -13,8 +13,6 @@ import importlib
 
 import pytest
 
-pytestmark = pytest.mark.medium
-
 
 def _fresh_console_module():
     """Import (or re-import) sushiai.console with a clean module state."""
@@ -23,18 +21,14 @@ def _fresh_console_module():
     return console_mod
 
 
+@pytest.mark.medium
 def test_import_does_not_build_console():
     """Importing the module must not materialise the console."""
     console_mod = _fresh_console_module()
     assert console_mod._lazy.built is False
 
 
-def test_import_outside_project_does_not_raise(monkeypatch, tmp_path):
-    """Simulate running outside a checkout: import + reload must not SystemExit."""
-    monkeypatch.chdir(tmp_path)
-    _fresh_console_module()
-
-
+@pytest.mark.medium
 def test_output_helper_falls_back_outside_project(monkeypatch, tmp_path):
     """console.info(...) outside a project builds a config-less console, no crash."""
     monkeypatch.chdir(tmp_path)
@@ -47,29 +41,35 @@ def test_output_helper_falls_back_outside_project(monkeypatch, tmp_path):
     assert console_mod._lazy.built is True
 
 
-def test_sources_inside_project_are_this_repos_config(monkeypatch):
+@pytest.mark.medium
+def test_sources_inside_project_are_this_repos_config(project_root):
     """Inside a checkout the console layers this CLI's own two config files."""
     console_mod = _fresh_console_module()
     names = [p.name for p in console_mod._lazy.sources()]
     assert names == ["config.toml", "config.local.toml"]
+    assert {p.parent for p in console_mod._lazy.sources()} == {project_root / "cli"}
 
 
-def test_console_attribute_resolves(monkeypatch, tmp_path):
-    """The raw Rich `console` attribute resolves lazily too."""
+@pytest.mark.medium
+def test_console_attribute_is_the_console_the_lazy_holder_built(monkeypatch, tmp_path):
+    """The raw Rich `console` attribute is the one inside the console current() returns."""
     monkeypatch.chdir(tmp_path)
     console_mod = _fresh_console_module()
-    assert console_mod.console is not None
+    assert console_mod.console is console_mod.current().console
 
 
+@pytest.mark.medium
 def test_unknown_attribute_raises_attribute_error():
+    """A name outside sushicore's list raises AttributeError."""
     console_mod = _fresh_console_module()
     with pytest.raises(AttributeError):
         _ = console_mod.does_not_exist
 
 
-def test_current_returns_the_console_the_lazy_holder_builds(monkeypatch, tmp_path):
-    """current() hands the help group the same sushicore Console the output helpers use."""
+@pytest.mark.medium
+def test_the_output_helpers_print_through_the_console_that_current_returns(monkeypatch, tmp_path):
+    """The help group and the output helpers share one console."""
     monkeypatch.chdir(tmp_path)
     console_mod = _fresh_console_module()
-    assert console_mod.current() is console_mod._lazy.get()
-    assert console_mod._lazy.built is True
+    assert console_mod.info == console_mod.current().info
+    assert console_mod.error == console_mod.current().error

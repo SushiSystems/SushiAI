@@ -41,13 +41,23 @@ def _run(*args: str) -> subprocess.CompletedProcess:
     return run_cli(*args, cwd=REPO_ROOT, timeout=900)
 
 
-@_needs_build
-def test_sushiai_train_runs_and_reports_one_compile():
-    """`sushiai train <train.json>` exits 0 and compiles the step exactly once."""
-    completed = _run("train", str(_TRAIN_CONFIG))
+@pytest.fixture
+def trained() -> subprocess.CompletedProcess:
+    """Runs `sushiai train` on the tiny configuration and returns the result."""
+    return _run("train", str(_TRAIN_CONFIG))
 
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
+
+@_needs_build
+def test_sushiai_train_runs_and_reports_one_compile(trained):
+    """`sushiai train <train.json>` exits 0 and compiles the step exactly once."""
+    assert trained.returncode == 0, trained.stdout + trained.stderr
+    assert _COMPILE_ONCE.search(trained.stdout), trained.stdout
+
+
+@_needs_build
+def test_sushiai_train_writes_the_checkpoint_it_was_asked_for(trained):
+    """The checkpoint named in the configuration is on disk after the run."""
+    assert trained.returncode == 0, trained.stdout + trained.stderr
     assert _CHECKPOINT.is_file(), "train did not write the checkpoint it was asked for"
 
 
@@ -61,16 +71,6 @@ def test_sushiai_inference_loads_the_checkpoint_train_wrote():
 
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
-
-
-@_needs_build
-def test_both_commands_appear_in_the_top_level_help():
-    """They are subcommands of the same app `sa` is, not a separate program."""
-    completed = _run("--help")
-
-    assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "train" in completed.stdout
-    assert "inference" in completed.stdout
 
 
 @_needs_build

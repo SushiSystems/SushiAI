@@ -10,6 +10,7 @@ The reasoning is in cli/tests/README.md under "test_demo.py".
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -36,16 +37,34 @@ _DEMO_ARGS = [
 ]
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
-def test_sa_demo_mlp_runs_and_reports_one_compile():
-    """`sa demo mlp` exits 0 and reports exactly one compile."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS,
-        cwd=REPO_ROOT, timeout=900,
-    )
+_needs_build = pytest.mark.skipif(
+    not K_DEFAULT_TREE.is_dir(), reason="no build tree — run `sa build` first")
 
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+def _demo(*extra: str) -> subprocess.CompletedProcess:
+    """Runs `sa demo mlp` with the tiny arguments and *extra* from the repository root."""
+    return run_cli("demo", "mlp", *_DEMO_ARGS, *extra, cwd=REPO_ROOT, timeout=900)
+
+
+def _output(completed: subprocess.CompletedProcess) -> str:
+    """Returns what the run printed on both streams."""
+    return completed.stdout + completed.stderr
+
+
+@_needs_build
+@pytest.mark.parametrize("flags", [
+    [],
+    ["--precision", "fp32"],
+    ["--precision", "mixed"],
+    ["--loss-scale", "65536"],
+    ["--activation", "relu"],
+    ["--activation", "gelu"],
+], ids=["default", "fp32", "mixed", "loss-scale", "relu", "gelu"])
+def test_sa_demo_mlp_runs_and_reports_one_compile(flags):
+    """`sa demo mlp` exits 0 and reports exactly one compile, in every mode it offers."""
+    completed = _demo(*flags)
+
+    assert completed.returncode == 0, _output(completed)
     assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
@@ -56,45 +75,35 @@ _PRECISION_CASES = [
 ]
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
+@_needs_build
 @pytest.mark.parametrize("mode,expected", _PRECISION_CASES, ids=[c[0] for c in _PRECISION_CASES])
 def test_sa_demo_mlp_precision_flag_reaches_the_demo(mode, expected):
     """`--precision fp32|mixed` is forwarded and changes what the banner says."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--precision", mode,
-        cwd=REPO_ROOT, timeout=900,
-    )
+    completed = _demo("--precision", mode)
 
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.returncode == 0, _output(completed)
     assert expected.search(completed.stdout), completed.stdout
 
-    # The compile-once contract holds in both precision modes.
-    assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
+@_needs_build
+def test_sa_demo_mlp_loss_scale_flag_is_forwarded_and_reported():
+    """`--loss-scale 65536` reaches the demo, which reports the scale twice."""
+    scaled = _demo("--loss-scale", "65536")
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
-def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
-    """`--loss-scale` is forwarded, reported, and changes no fp32 number."""
-    loss = re.compile(r"^loss\s+:\s+(\S+) -> (\S+)$", re.MULTILINE)
-
-    plain = run_cli(
-        "demo", "mlp", *_DEMO_ARGS,
-        cwd=REPO_ROOT, timeout=900,
-    )
-    scaled = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "65536",
-        cwd=REPO_ROOT, timeout=900,
-    )
-
-    assert plain.returncode == 0, plain.stdout + plain.stderr
-    assert scaled.returncode == 0, scaled.stdout + scaled.stderr
-
+    assert scaled.returncode == 0, _output(scaled)
     assert "Scaling  : gradients scaled by 65536" in scaled.stdout, scaled.stdout
     assert "loss scale     : 65536" in scaled.stdout, scaled.stdout
-    assert _COMPILE_ONCE.search(scaled.stdout), scaled.stdout
 
+
+@_needs_build
+def test_sa_demo_mlp_loss_scale_by_a_power_of_two_changes_no_fp32_number():
+    """A dyadic scale is exact, so the scaled loss equals the unscaled one digit for digit."""
+    loss = re.compile(r"^loss\s+:\s+(\S+) -> (\S+)$", re.MULTILINE)
+    plain = _demo()
+    scaled = _demo("--loss-scale", "65536")
+
+    assert plain.returncode == 0, _output(plain)
+    assert scaled.returncode == 0, _output(scaled)
     plain_loss = loss.search(plain.stdout)
     scaled_loss = loss.search(scaled.stdout)
     assert plain_loss and scaled_loss, plain.stdout + scaled.stdout
@@ -103,30 +112,22 @@ def test_sa_demo_mlp_loss_scale_flag_reaches_the_demo_and_is_exact():
     )
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
+@_needs_build
 def test_sa_demo_mlp_rejects_a_non_dyadic_loss_scale():
     """A scale that is not a power of two fails rather than rounding quietly."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--loss-scale", "3",
-        cwd=REPO_ROOT, timeout=900,
-    )
+    completed = _demo("--loss-scale", "3")
 
     assert completed.returncode != 0
-    assert "power of two" in (completed.stdout + completed.stderr)
+    assert "power of two" in _output(completed)
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
+@_needs_build
 def test_sa_demo_mlp_rejects_an_unknown_precision():
     """An unrecognised `--precision` value fails rather than falling back."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--precision", "bfloat16",
-        cwd=REPO_ROOT, timeout=900,
-    )
+    completed = _demo("--precision", "bfloat16")
 
     assert completed.returncode != 0
-    assert "bfloat16" in (completed.stdout + completed.stderr)
+    assert "bfloat16" in _output(completed)
 
 
 # Each activation must fuse as its own form, which shows the right model was built.
@@ -136,30 +137,21 @@ _ACTIVATION_CASES = [
 ]
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
+@_needs_build
 @pytest.mark.parametrize("activation,form", _ACTIVATION_CASES,
                          ids=[c[0] for c in _ACTIVATION_CASES])
 def test_sa_demo_mlp_activation_flag_reaches_the_demo(activation, form):
     """`--activation relu|gelu` is forwarded and changes which form is fused."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--activation", activation,
-        cwd=REPO_ROOT, timeout=900,
-    )
+    completed = _demo("--activation", activation)
 
-    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert completed.returncode == 0, _output(completed)
     assert f"fused    {form}" in completed.stdout, completed.stdout
-    assert _COMPILE_ONCE.search(completed.stdout), completed.stdout
 
 
-@pytest.mark.skipif(not K_DEFAULT_TREE.is_dir(),
-                    reason="no build tree — run `sa build` first")
+@_needs_build
 def test_sa_demo_mlp_rejects_an_unknown_activation():
     """An unrecognised `--activation` value fails rather than falling back."""
-    completed = run_cli(
-        "demo", "mlp", *_DEMO_ARGS, "--activation", "swish",
-        cwd=REPO_ROOT, timeout=900,
-    )
+    completed = _demo("--activation", "swish")
 
     assert completed.returncode != 0
-    assert "swish" in (completed.stdout + completed.stderr)
+    assert "swish" in _output(completed)
