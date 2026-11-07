@@ -29,7 +29,6 @@
  */
 
 #include <cstddef>
-#include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -44,7 +43,6 @@
 
 using SushiAI::Shape;
 using SushiAI::StatusCode;
-using SushiAI::Autograd::GradientTape;
 using SushiAI::Graph::GraphBuilder;
 using SushiAI::Graph::K_NO_VALUE;
 using SushiAI::Graph::ValueID;
@@ -66,14 +64,6 @@ namespace
         return found;
     }
 } // namespace
-
-/** @brief Tests that a tape exists only over a differentiation run and is never made empty. */
-TEST(Small_GradientTape, ATapeIsNeverDefaultConstructed)
-{
-    static_assert(!std::is_default_constructible<GradientTape>::value,
-                  "a tape is built by differentiate() over its run");
-    SUCCEED();
-}
 
 /** @brief Tests that the product rule contributes to the parameter only, not to the input. */
 TEST(Small_GradientTape, AnOperandThatNeedsNoGradientReceivesNoContribution)

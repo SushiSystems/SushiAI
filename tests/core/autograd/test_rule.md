@@ -13,11 +13,6 @@ file-local `first_rule` and `second_rule`, which do nothing; only their addresse
 `K_RIGHT`, the row K_MUL with `second_rule`. It is a `constexpr` table, so the join runs during
 compilation.
 
-## ARuleIsAFunctionOfAReadOnlyTape
-
-`BackwardRule` is a pointer to a function of a `const GradientTape&`, and a `RuleEntry` keeps
-the operation and the rule it was given.
-
 ## TheJoinedTableHoldsTheLeftRowsThenTheRight
 
 `K_JOINED` has three rows: K_ADD and K_SUB with `first_rule`, then K_MUL with `second_rule`. Two

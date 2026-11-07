@@ -15,10 +15,6 @@ tape; this file pins what those cases leave out.
 `appended_of` returns the nodes that run one operation, from a given node index on. A case
 passes the node count taken before differentiation, so only appended nodes are searched.
 
-## ATapeIsNeverDefaultConstructed
-
-`GradientTape` is not default-constructible: a tape always belongs to a run.
-
 ## AnOperandThatNeedsNoGradientReceivesNoContribution
 
 `product` is a K_MUL of the parameter `weight` and the input `input`, both of shape [1], and is

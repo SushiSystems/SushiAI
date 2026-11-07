@@ -46,12 +46,3 @@ TEST(Small_ShapeRules, TheTablePairsEachStructuralOperationWithItsRule)
     EXPECT_EQ(K_SHAPE_RULES[1].op, Ops::K_LAYOUT_CONVERT.id);
     EXPECT_EQ(K_SHAPE_RULES[1].rule, &Autograd::layout_convert_backward);
 }
-
-/** @brief Tests that both operations are declared differentiable and have a rule in the library. */
-TEST(Small_ShapeRules, BothOperationsAreDifferentiableAndHaveARule)
-{
-    EXPECT_TRUE(Ops::K_RESHAPE.differentiable);
-    EXPECT_TRUE(Ops::K_LAYOUT_CONVERT.differentiable);
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_RESHAPE.id));
-    EXPECT_TRUE(Autograd::has_backward_rule(Ops::K_LAYOUT_CONVERT.id));
-}

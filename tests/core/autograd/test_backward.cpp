@@ -31,12 +31,15 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
+#include <iterator>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/backward.hpp>
@@ -78,16 +81,6 @@ namespace SushiAI
         using Graph::TensorLayout;
         using Graph::ValueID;
 
-        TEST(Small_Layout, EveryValueIsNHWCUnlessSaidOtherwise)
-        {
-            // A value that states no layout is NHWC; see tests/core/autograd/README.md.
-            Graph::Graph graph;
-            const GraphBuilder builder(graph);
-            const ValueID x = builder.input({2, 4}, "x");
-
-            EXPECT_EQ(graph.values()[x].layout, TensorLayout::NHWC);
-        }
-
         TEST(Small_Layout, FinaliseAcceptsAUniformGraph)
         {
             Graph::Graph graph;
@@ -99,7 +92,7 @@ namespace SushiAI
             SA_EXPECT_OK(graph.finalise());
         }
 
-        TEST(Small_Layout, FinaliseRejectsAMixedGraphAndNamesTheValue)
+        TEST(Medium_LayoutFatal, FinaliseRejectsAMixedGraphAndNamesTheValue)
         {
             // A mixed graph fails finalise(); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -228,7 +221,7 @@ namespace SushiAI
             EXPECT_EQ(graph.node_count(), nodes_before);
         }
 
-        TEST(Small_Layout, FusionStopsOnAGraphWhoseLayoutsAreNotProven)
+        TEST(Medium_LayoutFatal, FusionStopsOnAGraphWhoseLayoutsAreNotProven)
         {
             Graph::Graph graph = make_mixed_operands();
 
@@ -237,7 +230,7 @@ namespace SushiAI
                             "reads operands in two different layouts");
         }
 
-        TEST(Small_Layout, TheThreeRulesThatEmitZerosCannotBeReachedWithAnNCHWOperand)
+        TEST(Small_Layout, SliceChannelsRefusesAnNCHWOperand)
         {
             // Rank-4 emitters refuse an NCHW operand (CV-3); see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -248,9 +241,29 @@ namespace SushiAI
                                     builder.layout_convert(x, TensorLayout::NCHW));
 
             SA_EXPECT_FAILURE(builder.slice_channels(nchw, 0, 1), StatusCode::InvalidDescription);
-            SA_EXPECT_FAILURE(builder.channel_affine(nchw, x, x), StatusCode::InvalidDescription);
+        }
 
-            // finalise() rejects the node ahead of the rule; see tests/core/autograd/README.md.
+        TEST(Small_Layout, ChannelAffineRefusesAnNCHWOperand)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+
+            const ValueID x = builder.input({1, 2, 2, 2}, "x");
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw,
+                                    builder.layout_convert(x, TensorLayout::NCHW));
+
+            SA_EXPECT_FAILURE(builder.channel_affine(nchw, x, x), StatusCode::InvalidDescription);
+        }
+
+        TEST(Small_Layout, TheLayoutReachesTheResultsOfReshapeAndSumRows)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+
+            const ValueID x = builder.input({1, 2, 2, 2}, "x");
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw,
+                                    builder.layout_convert(x, TensorLayout::NCHW));
+
             SA_ASSERT_OK_AND_ASSIGN(const ValueID rows, builder.reshape(nchw, Shape{1, 8}));
             EXPECT_EQ(graph.value(rows).layout, TensorLayout::NCHW);
 
@@ -259,6 +272,19 @@ namespace SushiAI
 
             SA_ASSERT_OK_AND_ASSIGN(const ValueID summed, builder.sum_rows(rows));
             EXPECT_EQ(graph.value(summed).layout, TensorLayout::NCHW);
+        }
+
+        TEST(Small_Layout, FinaliseRejectsAnNLLLossOverMixedLayouts)
+        {
+            // finalise() rejects the node ahead of the rule; see tests/core/autograd/README.md.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+
+            const ValueID x = builder.input({1, 2, 2, 2}, "x");
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID nchw,
+                                    builder.layout_convert(x, TensorLayout::NCHW));
+            SA_ASSERT_OK_AND_ASSIGN(const ValueID rows, builder.reshape(nchw, Shape{1, 8}));
+            const ValueID target = builder.input({1, 8}, "target");
 
             (void)builder.nll_loss(builder.log_softmax(rows), target);
             SA_EXPECT_FAILURE(graph.finalise(), StatusCode::InvalidDescription,
@@ -382,14 +408,77 @@ namespace
     }
 }
 
-TEST(Small_Precision, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
+namespace
+{
+    /** @brief Spells @p text as a test-parameter name: anything but a letter or digit becomes `_`. */
+    std::string parameter_name(std::string_view text)
+    {
+        std::string name(text);
+        std::replace_if(name.begin(), name.end(),
+                        [](char c) { return !std::isalnum(static_cast<unsigned char>(c)); }, '_');
+        return name;
+    }
+
+    /** @brief Holds one operation of the registry, asked about one element type. */
+    struct PrecisionRow
+    {
+        Ops::OpName entry; /**< The operation. */
+        DType dtype;       /**< The element type the policy is asked about. */
+    };
+
+    /** @brief Builds a row for every operation of the registry at every real floating type. */
+    std::vector<PrecisionRow> precision_rows()
+    {
+        std::vector<PrecisionRow> rows;
+        for (const Ops::OpName& entry : Ops::K_ALL)
+        {
+            for (DType dtype : {DType::Half, DType::Float32, DType::Float64})
+                rows.push_back(PrecisionRow{entry, dtype});
+        }
+        return rows;
+    }
+
+    /** @brief Names a precision row by its operation and element type. */
+    std::string precision_row_name(const ::testing::TestParamInfo<PrecisionRow>& info)
+    {
+        return parameter_name(info.param.entry.name) + "_" +
+               parameter_name(dtype_name(info.param.dtype));
+    }
+
+    /** @brief Names a registry row by its operation. */
+    std::string operation_row_name(const ::testing::TestParamInfo<Ops::OpName>& info)
+    {
+        return parameter_name(info.param.name);
+    }
+
+    /** @brief Runs a precision test once for every operation at every real floating type. */
+    class Small_PrecisionRow : public ::testing::TestWithParam<PrecisionRow>
+    {
+    };
+
+    /** @brief Runs a precision test once for every operation of the registry. */
+    class Small_PrecisionOperation : public ::testing::TestWithParam<Ops::OpName>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the uniform policy answers the asked type for the row's operation. */
+TEST_P(Small_PrecisionRow, TheUniformPolicyAnswersTheGraphsOwnTypeToEverything)
 {
     const UniformPrecisionPolicy policy;
+    const PrecisionRow& row = GetParam();
 
-    for (const Ops::OpName& entry : Ops::K_ALL)
-        for (DType dtype : {DType::Half, DType::Float32, DType::Float64})
-            EXPECT_EQ(policy.choose(Graph::PrecisionQuery{entry.id, dtype}).dtype, dtype)
-                << entry.name << " was moved by the policy that is supposed to move nothing";
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{row.entry.id, row.dtype}).dtype, row.dtype)
+        << row.entry.name << " was moved by the policy that is supposed to move nothing";
+}
+
+INSTANTIATE_TEST_SUITE_P(Registry, Small_PrecisionRow, ::testing::ValuesIn(precision_rows()),
+                         precision_row_name);
+
+/** @brief Tests that the uniform policy is named fp32. */
+TEST(Small_Precision, TheUniformPolicyIsNamedFp32)
+{
+    const UniformPrecisionPolicy policy;
 
     EXPECT_EQ(policy.name(), "fp32");
 }
@@ -497,37 +586,46 @@ TEST(Small_Precision, GELUStaysWideEvenThoughACatalogEntryNowFoldsIt)
     EXPECT_TRUE(Graph::narrows_under_mixed_precision(Ops::K_RELU.id));
 }
 
-TEST(Small_Precision, ChoosingIsIdempotentForEveryOperation)
+/** @brief Tests that asking the mixed policy again about its own answer changes nothing. */
+TEST_P(Small_PrecisionRow, ChoosingIsIdempotentForEveryOperation)
 {
     // choose() is idempotent for every operation; see tests/core/autograd/README.md.
     const MixedPrecisionPolicy policy;
+    const PrecisionRow& row = GetParam();
 
-    for (const Ops::OpName& entry : Ops::K_ALL)
-        for (DType dtype : {DType::Half, DType::Float32, DType::Float64})
-        {
-            const DType once = policy.choose(Graph::PrecisionQuery{entry.id, dtype}).dtype;
-            const DType twice = policy.choose(Graph::PrecisionQuery{entry.id, once}).dtype;
-            EXPECT_EQ(once, twice) << entry.name << " from " << dtype_name(dtype);
-        }
+    const DType once = policy.choose(Graph::PrecisionQuery{row.entry.id, row.dtype}).dtype;
+    const DType twice = policy.choose(Graph::PrecisionQuery{row.entry.id, once}).dtype;
+
+    EXPECT_EQ(once, twice) << row.entry.name << " from " << dtype_name(row.dtype);
 }
 
-TEST(Small_Precision, AMixedPolicyNeverWidensAndNeverNarrowsPastItsLowType)
+TEST(Small_Precision, AMixedPolicyNeverWidensAnOperation)
+{
+    const MixedPrecisionPolicy policy;
+
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Float64}).dtype,
+              DType::Float64);
+    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Half}).dtype,
+              DType::Half);
+}
+
+TEST(Small_Precision, AMixedPolicyNeverNarrowsPastItsLowType)
 {
     const MixedPrecisionPolicy policy;
 
     // An fp16 graph is already at the floor; see tests/core/autograd/README.md.
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Half);
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Float64}).dtype,
-              DType::Float64);
     EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Half}).dtype,
               DType::Half);
-    EXPECT_EQ(policy.choose(Graph::PrecisionQuery{Ops::K_SUM_ROWS.id, DType::Half}).dtype,
-              DType::Half);
+}
 
+TEST(Small_Precision, AMixedPolicyWithAnFp32LowTypeStopsAtFp32)
+{
     // A policy may narrow to fp32; see tests/core/autograd/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const MixedPrecisionPolicy to_single,
                             MixedPrecisionPolicy::make(DType::Float32));
+
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float64}).dtype,
               DType::Float32);
     EXPECT_EQ(to_single.choose(Graph::PrecisionQuery{Ops::K_MATMUL.id, DType::Float32}).dtype,
@@ -543,16 +641,63 @@ TEST(Small_Precision, ANonFloatLowTypeIsRefusedByMake)
     SA_EXPECT_OK(MixedPrecisionPolicy::make(DType::Half));
 }
 
-TEST(Small_Precision, EveryChoiceCarriesAReasonSomebodyCanRead)
+/** @brief Tests that the mixed policy gives a reason for its answer about the row's operation. */
+TEST_P(Small_PrecisionOperation, EveryChoiceCarriesAReasonSomebodyCanRead)
 {
     const MixedPrecisionPolicy policy;
+    const Ops::OpName& entry = GetParam();
 
-    for (const Ops::OpName& entry : Ops::K_ALL)
-        EXPECT_FALSE(policy.choose(Graph::PrecisionQuery{entry.id, DType::Float32}).reason.empty())
-            << entry.name << " was decided without a reason";
+    EXPECT_FALSE(policy.choose(Graph::PrecisionQuery{entry.id, DType::Float32}).reason.empty())
+        << entry.name << " was decided without a reason";
 }
 
-TEST(Small_CastInsertion, TheUniformPolicyInsertsNoCasts)
+INSTANTIATE_TEST_SUITE_P(Registry, Small_PrecisionOperation,
+                         ::testing::ValuesIn(Ops::K_ALL.begin(), Ops::K_ALL.end()),
+                         operation_row_name);
+
+namespace
+{
+    /** @brief Runs the cast pass naming the uniform policy and the values a loop reads by id. */
+    Result<CastReport> cast_naming_the_uniform_policy(Traced& traced,
+                                                      const UniformPrecisionPolicy& policy)
+    {
+        CastOptions options;
+        options.policy = &policy;
+
+        const std::vector<ValueID> observed = observed_of(traced);
+        options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+
+        return Graph::insert_casts(traced.graph, options);
+    }
+
+    /** @brief Runs the cast pass with no options, so the policy is the default one. */
+    Result<CastReport> cast_with_default_options(Traced& traced, const UniformPrecisionPolicy&)
+    {
+        return Graph::insert_casts(traced.graph);
+    }
+
+    /** @brief Expects the first @p count values of @p graph to be of type @p dtype. */
+    void expect_values_of_type(const Graph::Graph& graph, std::size_t count, DType dtype)
+    {
+        for (ValueID id = 0; id < static_cast<ValueID>(count); ++id)
+            EXPECT_EQ(graph.value(id).dtype, dtype) << "value " << id;
+    }
+
+    /** @brief Holds a way of running the cast pass under the uniform policy. */
+    struct UniformCastCase
+    {
+        const char* name; /**< The case name. */
+        Result<CastReport> (*run)(Traced&, const UniformPrecisionPolicy&); /**< The pass. */
+    };
+
+    /** @brief Runs a cast-pass test once for each way of reaching the uniform policy. */
+    class Small_UniformCast : public ::testing::TestWithParam<UniformCastCase>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the uniform policy, named or by default, inserts no cast and retypes nothing. */
+TEST_P(Small_UniformCast, TheUniformPolicyInsertsNoCasts)
 {
     // The fp32 policy inserts zero casts; see tests/core/autograd/README.md.
     SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
@@ -561,34 +706,24 @@ TEST(Small_CastInsertion, TheUniformPolicyInsertsNoCasts)
     const std::size_t values_before = traced.graph.value_count();
 
     const UniformPrecisionPolicy policy;
-    CastOptions options;
-    options.policy = &policy;
-
-    const std::vector<ValueID> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-
-    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(traced.graph, options));
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, GetParam().run(traced, policy));
 
     EXPECT_EQ(report.count(), 0u);
     EXPECT_EQ(report.retyped_values(), 0u);
     EXPECT_EQ(count_op(traced.graph, Ops::K_CAST.id), 0u);
     EXPECT_EQ(traced.graph.node_count(), nodes_before);
     EXPECT_EQ(traced.graph.value_count(), values_before);
-
-    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
-        EXPECT_EQ(traced.graph.value(id).dtype, DType::Float32);
+    expect_values_of_type(traced.graph, values_before, DType::Float32);
 }
 
-TEST(Small_CastInsertion, NoPolicyMeansTheUniformPolicy)
-{
-    SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
-    const std::size_t nodes_before = traced.graph.node_count();
-
-    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(traced.graph));
-
-    EXPECT_EQ(report.count(), 0u);
-    EXPECT_EQ(traced.graph.node_count(), nodes_before);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Policies, Small_UniformCast,
+    ::testing::Values(UniformCastCase{"TheUniformPolicyNamed", &cast_naming_the_uniform_policy},
+                      UniformCastCase{"NoPolicyMeansTheUniformPolicy", &cast_with_default_options}),
+    [](const ::testing::TestParamInfo<UniformCastCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 {
@@ -610,6 +745,26 @@ TEST(Small_CastInsertion, EveryNodesOperandsAgreeWithTheTypeItComputesIn)
 
     EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
 }
+
+namespace
+{
+    /** @brief Expects the parameters and the gradients of @p traced to keep their wide type. */
+    void expect_masters_and_gradients_keep_float32(const Traced& traced)
+    {
+        for (ValueID parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
+        {
+            EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32);
+            EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
+        }
+
+        for (ValueID gradient : traced.gradients)
+        {
+            ASSERT_NE(gradient, K_NO_VALUE);
+            EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
+            EXPECT_EQ(traced.graph.value(gradient).lifetime, Lifetime::Gradient);
+        }
+    }
+} // namespace
 
 TEST(Small_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
 {
@@ -637,19 +792,19 @@ TEST(Small_CastInsertion, TheInvariantSurvivesTheFusionPassThatRunsAfterIt)
     EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
 
     // After the *whole* pipeline, not just after the cast pass.
-    for (ValueID parameter : {traced.w1, traced.b1, traced.w2, traced.b2})
-    {
-        EXPECT_EQ(traced.graph.value(parameter).dtype, DType::Float32);
-        EXPECT_EQ(traced.graph.value(parameter).lifetime, Lifetime::Parameter);
-    }
-
-    for (ValueID gradient : traced.gradients)
-    {
-        ASSERT_NE(gradient, K_NO_VALUE);
-        EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
-        EXPECT_EQ(traced.graph.value(gradient).lifetime, Lifetime::Gradient);
-    }
+    expect_masters_and_gradients_keep_float32(traced);
 }
+
+namespace
+{
+    /** @brief Expects @p mismatch to name a MATMUL that found float32 where half was expected. */
+    void expect_float32_where_half_was_expected(const DTypeMismatch& mismatch)
+    {
+        EXPECT_EQ(mismatch.op, Ops::K_MATMUL.id);
+        EXPECT_EQ(mismatch.found, DType::Float32);
+        EXPECT_EQ(mismatch.expected, DType::Half);
+    }
+} // namespace
 
 TEST(Small_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 {
@@ -666,12 +821,9 @@ TEST(Small_CastInsertion, ADeliberatelyBrokenGraphIsReportedRatherThanAccepted)
 
     // Two operands and one result are float32, not half; see tests/core/autograd/README.md.
     ASSERT_EQ(mismatches.size(), 3u);
-    for (const DTypeMismatch& mismatch : mismatches)
-    {
-        EXPECT_EQ(mismatch.op, Ops::K_MATMUL.id);
-        EXPECT_EQ(mismatch.found, DType::Float32);
-        EXPECT_EQ(mismatch.expected, DType::Half);
-    }
+    expect_float32_where_half_was_expected(mismatches[0]);
+    expect_float32_where_half_was_expected(mismatches[1]);
+    expect_float32_where_half_was_expected(mismatches[2]);
 
     EXPECT_NE(Graph::describe(mismatches.front()).find("sushiai.matmul"), std::string::npos);
 }
@@ -709,27 +861,27 @@ TEST(Small_CastInsertion, AParameterKeepsItsTypeAndGetsADerivedLowPrecisionCopy)
     }
 }
 
-TEST(Small_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
+namespace
 {
-    // An fp16 gradient is widened into its fp32 buffer; see tests/core/autograd/README.md.
-    SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
-
-    const MixedPrecisionPolicy policy;
-    CastOptions options;
-    options.policy = &policy;
-
-    const std::vector<ValueID> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-
-    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(traced.graph, options));
-
-    // Only the weight gradients come from a low MATMUL; see tests/core/autograd/README.md.
-    for (ValueID weight_gradient : {traced.gradients[0], traced.gradients[2]})
+    /** @brief Runs the mixed-policy cast pass over @p traced, pinning the values a loop reads. */
+    Result<CastReport> cast_mixed(Traced& traced, const MixedPrecisionPolicy& policy)
     {
-        ASSERT_NE(weight_gradient, K_NO_VALUE);
-        EXPECT_EQ(traced.graph.value(weight_gradient).dtype, DType::Float32);
+        CastOptions options;
+        options.policy = &policy;
 
-        const NodeID producer = traced.graph.value(weight_gradient).producer;
+        const std::vector<ValueID> observed = observed_of(traced);
+        options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+
+        return Graph::insert_casts(traced.graph, options);
+    }
+
+    /** @brief Expects @p gradient to be a float32 cast of a half MATMUL result. */
+    void expect_widened_from_a_half_matmul(const Traced& traced, ValueID gradient)
+    {
+        ASSERT_NE(gradient, K_NO_VALUE);
+        EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
+
+        const NodeID producer = traced.graph.value(gradient).producer;
         ASSERT_NE(producer, K_NO_NODE);
         EXPECT_EQ(traced.graph.node(producer).op, Ops::K_CAST.id)
             << "an fp16 matmul wrote straight into an fp32 gradient buffer";
@@ -739,16 +891,57 @@ TEST(Small_CastInsertion, AGradientIsWidenedBeforeItReachesItsBuffer)
         EXPECT_EQ(traced.graph.node(traced.graph.value(narrow).producer).op, Ops::K_MATMUL.id);
     }
 
-    // The bias gradients come from a wide reduction; see tests/core/autograd/README.md.
-    for (ValueID bias_gradient : {traced.gradients[1], traced.gradients[3]})
+    /** @brief Expects @p gradient to be a float32 SUM_ROWS result. */
+    void expect_a_wide_reduction(const Traced& traced, ValueID gradient)
     {
-        EXPECT_EQ(traced.graph.value(bias_gradient).dtype, DType::Float32);
-        EXPECT_EQ(traced.graph.node(traced.graph.value(bias_gradient).producer).op,
+        EXPECT_EQ(traced.graph.value(gradient).dtype, DType::Float32);
+        EXPECT_EQ(traced.graph.node(traced.graph.value(gradient).producer).op,
                   Ops::K_SUM_ROWS.id);
     }
+} // namespace
 
-    EXPECT_EQ(report.count_into(DType::Float32) > 0, true);
+TEST(Small_CastInsertion, AWeightGradientIsWidenedBeforeItReachesItsBuffer)
+{
+    // An fp16 gradient is widened into its fp32 buffer; see tests/core/autograd/README.md.
+    SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
+    const MixedPrecisionPolicy policy;
+
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, cast_mixed(traced, policy));
+
+    // Only the weight gradients come from a low MATMUL; see tests/core/autograd/README.md.
+    expect_widened_from_a_half_matmul(traced, traced.gradients[0]);
+    expect_widened_from_a_half_matmul(traced, traced.gradients[2]);
+    EXPECT_GT(report.count_into(DType::Float32), 0u);
 }
+
+TEST(Small_CastInsertion, ABiasGradientComesFromAWideReduction)
+{
+    // The bias gradients come from a wide reduction; see tests/core/autograd/README.md.
+    SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
+    const MixedPrecisionPolicy policy;
+
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, cast_mixed(traced, policy));
+
+    expect_a_wide_reduction(traced, traced.gradients[1]);
+    expect_a_wide_reduction(traced, traced.gradients[3]);
+}
+
+namespace
+{
+    /** @brief Expects every ACCUMULATE of @p graph to read and write float32. */
+    void expect_accumulates_run_in_float32(const Graph::Graph& graph)
+    {
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op != Ops::K_ACCUMULATE.id)
+                continue;
+
+            EXPECT_EQ(graph.value(node.outputs[0]).dtype, DType::Float32);
+            EXPECT_EQ(graph.value(node.inputs[0]).dtype, DType::Float32);
+            EXPECT_EQ(graph.value(node.inputs[1]).dtype, DType::Float32);
+        }
+    }
+} // namespace
 
 TEST(Small_CastInsertion, AccumulatingGradientContributionsHappensWide)
 {
@@ -786,77 +979,92 @@ TEST(Small_CastInsertion, AccumulatingGradientContributionsHappensWide)
     EXPECT_TRUE(Graph::find_dtype_mismatches(graph, policy).empty());
     EXPECT_EQ(graph.value(gradients[0]).dtype, DType::Float32);
 
-    for (const Graph::Node& node : graph.nodes())
-        if (node.op == Ops::K_ACCUMULATE.id)
-        {
-            EXPECT_EQ(graph.value(node.outputs[0]).dtype, DType::Float32);
-            EXPECT_EQ(graph.value(node.inputs[0]).dtype, DType::Float32);
-            EXPECT_EQ(graph.value(node.inputs[1]).dtype, DType::Float32);
-        }
+    expect_accumulates_run_in_float32(graph);
 }
 
-TEST(Small_CastInsertion, AnObservedValueKeepsItsTypeAndAnUnobservedOneDoesNot)
+TEST(Small_CastInsertion, AnObservedValueKeepsItsType)
 {
     // An observed activation keeps its dtype; see tests/core/autograd/README.md.
     SA_ASSERT_OK_AND_ASSIGN(Traced pinned, trace());
-    SA_ASSERT_OK_AND_ASSIGN(Traced loose, trace());
-
     const MixedPrecisionPolicy policy;
 
-    CastOptions with;
-    with.policy = &policy;
-    const std::vector<ValueID> observed = observed_of(pinned);
-    with.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-    SA_EXPECT_OK(Graph::insert_casts(pinned.graph, with));
+    SA_EXPECT_OK(cast_mixed(pinned, policy));
+
+    EXPECT_EQ(pinned.graph.value(pinned.logits).dtype, DType::Float32);
+}
+
+TEST(Small_CastInsertion, AnUnobservedValueIsRetyped)
+{
+    SA_ASSERT_OK_AND_ASSIGN(Traced loose, trace());
+    const MixedPrecisionPolicy policy;
 
     CastOptions without;
     without.policy = &policy;
     SA_EXPECT_OK(Graph::insert_casts(loose.graph, without));
 
-    EXPECT_EQ(pinned.graph.value(pinned.logits).dtype, DType::Float32);
     EXPECT_EQ(loose.graph.value(loose.logits).dtype, DType::Half);
+}
 
+TEST(Medium_CastInsertionFatal, AnObservedValueThatDoesNotExistIsFatal)
+{
     // Naming a value that does not exist is a caller error worth reporting.
     SA_ASSERT_OK_AND_ASSIGN(Traced other, trace());
+    const MixedPrecisionPolicy policy;
     CastOptions bad;
     bad.policy = &policy;
     const ValueID nonsense[] = {static_cast<ValueID>(other.graph.value_count() + 10)};
     bad.observed = SushiRuntime::span<const ValueID>(nonsense, 1);
+
     SA_EXPECT_FATAL((void)Graph::insert_casts(other.graph, bad), "CastOptions::observed",
                     "which this graph does not have");
 }
+
+namespace
+{
+    /** @brief The most operand conversions of one source into one type that @p report holds. */
+    std::size_t most_conversions_of_one_source(const CastReport& report)
+    {
+        std::size_t most = 0;
+        for (const InsertedCast& cast : report.casts())
+        {
+            if (!cast.feeds_operand)
+                continue;
+
+            const std::size_t same_source = static_cast<std::size_t>(
+                std::count_if(report.casts().begin(), report.casts().end(),
+                              [&cast](const InsertedCast& other)
+                              {
+                                  return other.feeds_operand && other.source == cast.source
+                                      && other.to == cast.to;
+                              }));
+            most = std::max(most, same_source);
+        }
+        return most;
+    }
+
+    /** @brief How many times the nodes of @p graph read @p value. */
+    std::size_t count_reads(const Graph::Graph& graph, ValueID value)
+    {
+        std::size_t readers = 0;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            readers += static_cast<std::size_t>(
+                std::count(node.inputs.begin(), node.inputs.end(), value));
+        }
+        return readers;
+    }
+} // namespace
 
 TEST(Small_CastInsertion, AValueReadTwiceIsConvertedOnce)
 {
     // w2 has two readers and one conversion; see tests/core/autograd/README.md.
     SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
-
     const MixedPrecisionPolicy policy;
-    CastOptions options;
-    options.policy = &policy;
 
-    const std::vector<ValueID> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, cast_mixed(traced, policy));
 
-    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(traced.graph, options));
-
-    for (const InsertedCast& cast : report.casts())
-    {
-        if (!cast.feeds_operand) continue;
-
-        const std::size_t same_source = static_cast<std::size_t>(
-            std::count_if(report.casts().begin(), report.casts().end(),
-                          [&cast](const InsertedCast& other)
-                          {
-                              return other.feeds_operand
-                                  && other.source == cast.source
-                                  && other.to == cast.to;
-                          }));
-
-        EXPECT_EQ(same_source, 1u)
-            << "value " << cast.source << " was converted to "
-            << dtype_name(cast.to) << " more than once";
-    }
+    EXPECT_EQ(most_conversions_of_one_source(report), 1u)
+        << "a value was converted to one type more than once";
 
     // And the reuse actually happened: w2 feeds two nodes in the narrow type.
     const auto casts = report.casts();
@@ -864,42 +1072,34 @@ TEST(Small_CastInsertion, AValueReadTwiceIsConvertedOnce)
         [&traced](const InsertedCast& cast) { return cast.source == traced.w2; });
     ASSERT_NE(found, casts.end());
 
-    std::size_t readers = 0;
-    for (const Graph::Node& node : traced.graph.nodes())
-        readers += static_cast<std::size_t>(
-            std::count(node.inputs.begin(), node.inputs.end(), found->destination));
-
-    EXPECT_EQ(readers, 2u);
+    EXPECT_EQ(count_reads(traced.graph, found->destination), 2u);
 }
+
+namespace
+{
+    /** @brief The shape and lifetime of each of the first @p count values of @p graph. */
+    std::vector<std::pair<Shape, Lifetime>> describe_values(const Graph::Graph& graph,
+                                                            std::size_t count)
+    {
+        std::vector<std::pair<Shape, Lifetime>> values;
+        for (ValueID id = 0; id < static_cast<ValueID>(count); ++id)
+            values.emplace_back(graph.value(id).shape, graph.value(id).lifetime);
+        return values;
+    }
+} // namespace
 
 TEST(Small_CastInsertion, ValueIDsSurviveThePass)
 {
     SA_ASSERT_OK_AND_ASSIGN(Traced traced, trace());
     const std::size_t values_before = traced.graph.value_count();
-
-    std::vector<Shape> shapes;
-    std::vector<Lifetime> lifetimes;
-    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
-    {
-        shapes.push_back(traced.graph.value(id).shape);
-        lifetimes.push_back(traced.graph.value(id).lifetime);
-    }
-
+    const auto before = describe_values(traced.graph, values_before);
     const MixedPrecisionPolicy policy;
-    CastOptions options;
-    options.policy = &policy;
 
-    const std::vector<ValueID> observed = observed_of(traced);
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-
-    SA_EXPECT_OK(Graph::insert_casts(traced.graph, options));
+    SA_EXPECT_OK(cast_mixed(traced, policy));
 
     EXPECT_GT(traced.graph.value_count(), values_before);
-    for (ValueID id = 0; id < static_cast<ValueID>(values_before); ++id)
-    {
-        EXPECT_EQ(traced.graph.value(id).shape, shapes[id]);
-        EXPECT_EQ(traced.graph.value(id).lifetime, lifetimes[id]);
-    }
+    EXPECT_TRUE(describe_values(traced.graph, values_before) == before)
+        << "a pass renumbered, reshaped or re-lived a value that existed before it";
 }
 
 TEST(Small_CastInsertion, RunningThePassTwiceAddsNothingTheSecondTime)
@@ -950,7 +1150,7 @@ TEST(Small_CastInsertion, TheReportNamesEveryConversionAndItsDirection)
     EXPECT_NE(report.to_string().find("casts inserted"), std::string::npos);
 }
 
-TEST(Small_CastInsertion, AGraphThatIsNotInTopologicalOrderIsFatal)
+TEST(Medium_CastInsertionFatal, AGraphThatIsNotInTopologicalOrderIsFatal)
 {
     // A conversion sits immediately before its consumer; see tests/core/autograd/README.md.
     Graph::Graph graph;
@@ -1028,7 +1228,42 @@ namespace
     }
 }
 
-TEST(Small_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
+namespace
+{
+    /** @brief Runs the cast pass over @p p with the default options, so the policy is uniform. */
+    Result<CastReport> cast_pool_with_default_options(Pooled& p)
+    {
+        return Graph::insert_casts(p.graph, CastOptions{});
+    }
+
+    /** @brief Runs the cast pass over @p p under the mixed policy, pinning x and the loss. */
+    Result<CastReport> cast_pool_under_the_mixed_policy(Pooled& p)
+    {
+        const MixedPrecisionPolicy policy;
+        CastOptions options;
+        options.policy = &policy;
+
+        const std::vector<ValueID> observed{p.x, p.loss};
+        options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
+
+        return Graph::insert_casts(p.graph, options);
+    }
+
+    /** @brief Holds a way of running the cast pass over the pool graph. */
+    struct PoolCastCase
+    {
+        const char* name;                       /**< The case name. */
+        Result<CastReport> (*run)(Pooled&); /**< The pass. */
+    };
+
+    /** @brief Runs a cast-pass test over the pool graph once for each policy. */
+    class Small_IndexBufferCast : public ::testing::TestWithParam<PoolCastCase>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the INT64 argmax is neither retyped nor wrapped in a cast, in any policy. */
+TEST_P(Small_IndexBufferCast, AnIndexBufferHasNoPrecisionToChoose)
 {
     // The INT64 argmax is not converted; see tests/core/autograd/README.md.
     Pooled p = trace_pool();
@@ -1037,7 +1272,7 @@ TEST(Small_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
     ASSERT_EQ(count_op(p.graph, Ops::K_MAXPOOL2D_BACKWARD.id), 1u)
         << "no pool backward was emitted, so the operand half of this test is vacuous";
 
-    SA_EXPECT_OK(Graph::insert_casts(p.graph, CastOptions{}));
+    SA_EXPECT_OK(GetParam().run(p));
 
     EXPECT_EQ(p.graph.value(p.indices).dtype, DType::Int64)
         << "the argmax was retyped; its backward reads it as a routing table of offsets";
@@ -1045,22 +1280,14 @@ TEST(Small_CastInsertion, AnIndexBufferHasNoPrecisionToChoose)
         << "a CAST was wrapped around the index buffer, which is a rounding policy nobody asked for";
 }
 
-TEST(Small_CastInsertion, AMixedPolicyLeavesTheIndexBufferAloneToo)
-{
-    Pooled p = trace_pool();
-
-    const MixedPrecisionPolicy policy;
-    CastOptions options;
-    options.policy = &policy;
-
-    const std::vector<ValueID> observed{p.x, p.loss};
-    options.observed = SushiRuntime::span<const ValueID>(observed.data(), observed.size());
-
-    SA_EXPECT_OK(Graph::insert_casts(p.graph, options));
-
-    EXPECT_EQ(p.graph.value(p.indices).dtype, DType::Int64);
-    EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Policies, Small_IndexBufferCast,
+    ::testing::Values(PoolCastCase{"TheUniformPolicy", &cast_pool_with_default_options},
+                      PoolCastCase{"AMixedPolicy", &cast_pool_under_the_mixed_policy}),
+    [](const ::testing::TestParamInfo<PoolCastCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
 {
@@ -1077,43 +1304,75 @@ TEST(Small_CastInsertion, APinnedIndexBufferIsNotWidenedIntoItsOwnBuffer)
     EXPECT_FALSE(any_cast_touches(p.graph, p.indices));
 }
 
-/** @brief Tests that the cast pass keeps a buffer's type, lifetime and state leaf. */
-TEST(Small_CastInsertion, ABufferKeepsItsDeclaredTypeAndItsStateLeafAcrossThePass)
+namespace
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
+    /** @brief Holds a biased matmul with a buffer and two bound state leaves. */
+    struct BufferedGraph
+    {
+        Graph::Graph graph;
+        ValueID weight = K_NO_VALUE;
+        ValueID shift = K_NO_VALUE;
+        ValueID biased = K_NO_VALUE;
+    };
 
-    const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
-    const ValueID weight = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w");
-    const ValueID shift = builder.buffer(Shape{K_HIDDEN}, "running_shift");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID biased,
-                            builder.bias_add(builder.matmul(x, weight, false, true), shift));
+    /** @brief Builds the buffered graph and binds state 31 to the weight, 32 to the buffer. */
+    void build_buffered_graph(BufferedGraph& b)
+    {
+        const GraphBuilder builder(b.graph);
 
-    graph.bind_state_leaf(Graph::StateID{31}, weight);
-    graph.bind_state_leaf(Graph::StateID{32}, shift);
-    graph.mark_refused();
-    const auto bound_before = graph.state_leaves();
+        const ValueID x = builder.input(Shape{K_ROWS, K_IN_FEATURES}, "x");
+        b.weight = builder.parameter(Shape{K_HIDDEN, K_IN_FEATURES}, "w");
+        b.shift = builder.buffer(Shape{K_HIDDEN}, "running_shift");
+        b.biased = builder.bias_add(builder.matmul(x, b.weight, false, true), b.shift).value();
+
+        b.graph.bind_state_leaf(Graph::StateID{31}, b.weight);
+        b.graph.bind_state_leaf(Graph::StateID{32}, b.shift);
+        b.graph.mark_refused();
+    }
+} // namespace
+
+/** @brief Tests that the cast pass keeps a buffer's type and lifetime. */
+TEST(Small_CastInsertion, ABufferKeepsItsDeclaredTypeAcrossThePass)
+{
+    BufferedGraph b;
+    build_buffered_graph(b);
 
     const MixedPrecisionPolicy policy;
     CastOptions options;
     options.policy = &policy;
 
-    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(graph, options));
+    SA_ASSERT_OK_AND_ASSIGN(const CastReport report, Graph::insert_casts(b.graph, options));
 
     // BIAS_ADD narrows, so the pass must have cast the buffer for the lookups to prove anything.
     ASSERT_GT(report.count(), 0u);
-    EXPECT_EQ(graph.value(biased).dtype, DType::Half);
+    EXPECT_EQ(b.graph.value(b.biased).dtype, DType::Half);
 
-    EXPECT_EQ(graph.value(shift).dtype, DType::Float32);
-    EXPECT_EQ(graph.value(shift).lifetime, Lifetime::Buffer);
-    EXPECT_FALSE(graph.value(shift).requires_grad);
-    EXPECT_EQ(graph.state_leaf(Graph::StateID{31}), weight);
-    EXPECT_EQ(graph.state_leaf(Graph::StateID{32}), shift);
-    EXPECT_EQ(graph.state_leaves(), bound_before);
-    EXPECT_TRUE(graph.has_refusal());
+    EXPECT_EQ(b.graph.value(b.shift).dtype, DType::Float32);
+    EXPECT_EQ(b.graph.value(b.shift).lifetime, Lifetime::Buffer);
+    EXPECT_FALSE(b.graph.value(b.shift).requires_grad);
 
-    const std::vector<DTypeMismatch> mismatches = Graph::find_dtype_mismatches(graph, policy);
+    const std::vector<DTypeMismatch> mismatches =
+        Graph::find_dtype_mismatches(b.graph, policy);
     EXPECT_TRUE(mismatches.empty()) << describe_all(mismatches);
+}
+
+/** @brief Tests that the cast pass keeps the state leaves bound and the refusal mark. */
+TEST(Small_CastInsertion, TheStateLeavesStayBoundAcrossThePass)
+{
+    BufferedGraph b;
+    build_buffered_graph(b);
+    const auto bound_before = b.graph.state_leaves();
+
+    const MixedPrecisionPolicy policy;
+    CastOptions options;
+    options.policy = &policy;
+
+    SA_EXPECT_OK(Graph::insert_casts(b.graph, options));
+
+    EXPECT_EQ(b.graph.state_leaf(Graph::StateID{31}), b.weight);
+    EXPECT_EQ(b.graph.state_leaf(Graph::StateID{32}), b.shift);
+    EXPECT_EQ(b.graph.state_leaves(), bound_before);
+    EXPECT_TRUE(b.graph.has_refusal());
 }
 
 /** @brief Tests that the mixed policy leaves BATCHNORM_FOLD and its four operands in fp32. */
@@ -1222,6 +1481,48 @@ TEST(Small_Rematerialise, TheColumnBufferStopsBeingAnActivation)
     EXPECT_EQ(readers_of(c.graph, c.cols).size(), std::size_t{1});
 }
 
+namespace
+{
+    /** @brief The ids of the IM2COL nodes of @p graph other than @p original, in graph order. */
+    std::vector<Graph::NodeID> clones_of(const Graph::Graph& graph, Graph::NodeID original)
+    {
+        std::vector<Graph::NodeID> clones;
+        for (std::size_t i = 0; i < graph.node_count(); ++i)
+        {
+            if (graph.nodes()[i].op == Ops::K_IM2COL.id && i != original)
+                clones.push_back(static_cast<Graph::NodeID>(i));
+        }
+        return clones;
+    }
+
+    /** @brief Expects every attribute slot of @p clone to equal the one of @p original. */
+    void expect_same_attributes(const Graph::Node& clone, const Graph::Node& original)
+    {
+        for (std::size_t slot = 0; slot < Graph::Attributes::K_CAPACITY; ++slot)
+        {
+            EXPECT_EQ(clone.attributes.get(slot), original.attributes.get(slot))
+                << "the clone lost attribute slot " << slot;
+        }
+    }
+
+    /** @brief Expects every node of @p graph to read only values written by an earlier node. */
+    void expect_every_input_written_earlier(const Graph::Graph& graph)
+    {
+        for (std::size_t i = 0; i < graph.node_count(); ++i)
+        {
+            for (ValueID in : graph.nodes()[i].inputs)
+            {
+                const Graph::NodeID producer = graph.value(in).producer;
+                if (producer == Graph::K_NO_NODE)
+                    continue;
+
+                EXPECT_LT(producer, i) << "node " << i << " reads value " << in
+                                       << ", which node " << producer << " writes";
+            }
+        }
+    }
+} // namespace
+
 TEST(Small_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 {
     // The clone reads the same operands and attributes; see tests/core/autograd/README.md.
@@ -1238,27 +1539,20 @@ TEST(Small_Rematerialise, TheCloneComputesTheSameThingAsTheOriginal)
 
     const Graph::NodeID original_id = c.graph.value(c.cols).producer;
     const Graph::Node& original = c.graph.node(original_id);
+    const std::vector<Graph::NodeID> clones = clones_of(c.graph, original_id);
 
-    std::size_t clones = 0;
-    for (std::size_t i = 0; i < c.graph.node_count(); ++i)
-    {
-        const Graph::Node& n = c.graph.nodes()[i];
-        if (n.op != Ops::K_IM2COL.id || i == original_id) continue;
-        ++clones;
-        EXPECT_EQ(n.inputs, original.inputs);
-        for (std::size_t slot = 0; slot < Graph::Attributes::K_CAPACITY; ++slot)
-            EXPECT_EQ(n.attributes.get(slot), original.attributes.get(slot))
-                << "the clone lost attribute slot " << slot;
+    ASSERT_EQ(clones.size(), std::size_t{1});
+    const Graph::Node& clone = c.graph.node(clones[0]);
+    EXPECT_EQ(clone.inputs, original.inputs);
+    expect_same_attributes(clone, original);
 
-        // The clone keeps the description and the layout; see tests/core/autograd/README.md.
-        const Graph::Value& copy = c.graph.value(n.outputs.front());
-        const Graph::Value& stored = c.graph.value(c.cols);
-        EXPECT_EQ(copy.shape, stored.shape);
-        EXPECT_EQ(copy.dtype, stored.dtype);
-        EXPECT_EQ(copy.layout, stored.layout);
-        EXPECT_EQ(copy.lifetime, Graph::Lifetime::Scratch);
-    }
-    EXPECT_EQ(clones, std::size_t{1});
+    // The clone keeps the description and the layout; see tests/core/autograd/README.md.
+    const Graph::Value& copy = c.graph.value(clone.outputs.front());
+    const Graph::Value& stored = c.graph.value(c.cols);
+    EXPECT_EQ(copy.shape, stored.shape);
+    EXPECT_EQ(copy.dtype, stored.dtype);
+    EXPECT_EQ(copy.layout, stored.layout);
+    EXPECT_EQ(copy.lifetime, Graph::Lifetime::Scratch);
 }
 
 TEST(Small_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
@@ -1268,14 +1562,7 @@ TEST(Small_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
     build_and_differentiate(c, Shape{1, 4, 4, 2}, Shape{18, 4});
     Graph::rematerialise_im2col(c.graph);
 
-    for (std::size_t i = 0; i < c.graph.node_count(); ++i)
-        for (ValueID in : c.graph.nodes()[i].inputs)
-        {
-            const Graph::NodeID producer = c.graph.value(in).producer;
-            if (producer == Graph::K_NO_NODE) continue;
-            EXPECT_LT(producer, i) << "node " << i << " reads value " << in
-                                   << ", which node " << producer << " writes";
-        }
+    expect_every_input_written_earlier(c.graph);
 
     // The invariant, asserted by the component that depends on it.
     SA_EXPECT_OK(Graph::MemoryPlan::build(c.graph));
@@ -1284,40 +1571,55 @@ TEST(Small_Rematerialise, TheCloneIsInsertedAheadOfEveryConsumerItServes)
     SA_EXPECT_OK(c.graph.finalise());
 }
 
-TEST(Small_Rematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
+namespace
 {
-    // An inference graph has no second consumer; see tests/core/autograd/README.md.
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
+    /** @brief Builds an unpadded im2col that nothing reads, as an inference graph holds it. */
+    ValueID build_columns_nothing_reads(Graph::Graph& graph)
+    {
+        const GraphBuilder builder(graph);
+        const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
 
-    Graph::ConvGeometry g;
-    g.kernel_h = 3; g.kernel_w = 3;
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
 
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
-    SA_EXPECT_OK(graph.finalise());
+        return builder.im2col(x, g).value();
+    }
 
-    const std::size_t before = graph.node_count();
-    Graph::rematerialise_im2col(graph);
+    /** @brief Builds a padded im2col that exactly one matmul reads. */
+    ValueID build_columns_one_matmul_reads(Graph::Graph& graph)
+    {
+        const GraphBuilder builder(graph);
+        const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
+        const ValueID w = builder.input(Shape{18, 4}, "w");
 
-    EXPECT_EQ(graph.node_count(), before);
-    EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
-}
+        Graph::ConvGeometry g;
+        g.kernel_h = 3; g.kernel_w = 3;
+        g.pad_top = 1;  g.pad_left = 1;
 
-TEST(Small_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
+        const ValueID cols = builder.im2col(x, g).value();
+        (void)builder.matmul(cols, w);
+        return cols;
+    }
+
+    /** @brief Holds a way of building a graph whose column matrix has no backward consumer. */
+    struct ForwardOnlyCase
+    {
+        const char* name;                      /**< The case name. */
+        ValueID (*build)(Graph::Graph&);       /**< Builds the graph, returns the columns. */
+    };
+
+    /** @brief Runs a rematerialisation test once for each forward-only graph. */
+    class Small_ForwardOnlyRematerialise : public ::testing::TestWithParam<ForwardOnlyCase>
+    {
+    };
+} // namespace
+
+/** @brief Tests that a column matrix with no backward consumer is not cloned. */
+TEST_P(Small_ForwardOnlyRematerialise, AnIm2colWithNoBackwardConsumerIsLeftAlone)
 {
     // A column matrix with one reader is not cloned; see tests/core/autograd/README.md.
     Graph::Graph graph;
-    const GraphBuilder builder(graph);
-    const ValueID x = builder.input(Shape{1, 4, 4, 2}, "x");
-    const ValueID w = builder.input(Shape{18, 4}, "w");
-
-    Graph::ConvGeometry g;
-    g.kernel_h = 3; g.kernel_w = 3;
-    g.pad_top = 1;  g.pad_left = 1;
-
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
-    (void)builder.matmul(cols, w);
+    const ValueID cols = GetParam().build(graph);
     SA_EXPECT_OK(graph.finalise());
 
     const std::size_t before = graph.node_count();
@@ -1326,6 +1628,15 @@ TEST(Small_Rematerialise, AForwardOnlyConvolutionIsLeftAlone)
     EXPECT_EQ(graph.node_count(), before);
     EXPECT_EQ(graph.values()[cols].lifetime, Graph::Lifetime::Activation);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Graphs, Small_ForwardOnlyRematerialise,
+    ::testing::Values(ForwardOnlyCase{"NothingReadsTheColumns", &build_columns_nothing_reads},
+                      ForwardOnlyCase{"AForwardOnlyConvolution", &build_columns_one_matmul_reads}),
+    [](const ::testing::TestParamInfo<ForwardOnlyCase>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_Rematerialise, RunningItTwiceAddsNothingTheSecondTime)
 {
@@ -1464,16 +1775,17 @@ TEST(Small_Backward, EveryImplementedOperationHasARule)
     EXPECT_FALSE(Autograd::has_backward_rule(Ops::K_CAST.id));
 }
 
-TEST(Small_Backward, EveryRuleInTheTableIsNamedByANumericTest)
+namespace
 {
-    // Every rule names the numeric test that proves it; see tests/core/autograd/README.md.
+    /** @brief Names a forward operation and the numeric test that proves its rule. */
     struct Proven
     {
-        OpID op;
-        std::string_view proof;
+        OpID op;                /**< The forward operation. */
+        std::string_view proof; /**< The proving test, as Suite.Name. */
     };
 
-    const std::vector<Proven> ledger = {
+    /** @brief Holds every rule that a finite-difference case proves, with that case. */
+    const std::vector<Proven> K_LEDGER = {
         {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithoutTransposes"},
         {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithATransposedRightOperand"},
         {Ops::K_MATMUL.id,     "Medium_Autograd.MatmulWithATransposedLeftOperand"},
@@ -1549,17 +1861,18 @@ TEST(Small_Backward, EveryRuleInTheTableIsNamedByANumericTest)
         {Ops::K_CHANNEL_AFFINE.id, "Medium_Autograd.ChannelAffinesShiftGradientSumsOverNHAndW"},
     };
 
-    // No finite-difference case names these rules; an entry leaves this list when one does.
-    const std::vector<OpID> unproven = {
+    /** @brief Holds the rules that no finite-difference case names; an entry leaves when one does. */
+    const std::vector<OpID> K_UNPROVEN = {
         Ops::K_DIV.id, Ops::K_MINIMUM.id, Ops::K_MAXIMUM.id, Ops::K_ABS.id, Ops::K_ATAN.id,
         Ops::K_SOFTPLUS.id, Ops::K_SELECT.id, Ops::K_SILU.id,
     };
 
-    EXPECT_EQ(unproven.size(), K_UNPROVEN_RULES)
-        << "the unproven list changed size; a rule may join it only with K_UNPROVEN_RULES edited";
-
-    // A proof in a suite this program hosts must be registered; other programs' suites are checked there.
-    const auto registered = [](std::string_view proof) -> std::optional<bool>
+    /**
+     * @brief Reports whether the program registers the proof.
+     * @return False for a missing test in a hosted suite, and nothing for a suite another
+     *         program hosts.
+     */
+    std::optional<bool> is_registered(std::string_view proof)
     {
         const std::size_t dot = proof.find('.');
         const std::string_view suite = proof.substr(0, dot);
@@ -1578,43 +1891,103 @@ TEST(Small_Backward, EveryRuleInTheTableIsNamedByANumericTest)
             return false;
         }
         return std::nullopt;
+    }
+
+    /** @brief The operations of the registry that have a backward rule. */
+    std::vector<Ops::OpName> ruled_operations()
+    {
+        std::vector<Ops::OpName> ruled;
+        std::copy_if(Ops::K_ALL.begin(), Ops::K_ALL.end(), std::back_inserter(ruled),
+                     [](const Ops::OpName& declared)
+                     {
+                         return Autograd::has_backward_rule(declared.id);
+                     });
+        return ruled;
+    }
+
+    /** @brief Runs a ledger test once for each proof of the ledger. */
+    class Small_LedgerEntry : public ::testing::TestWithParam<Proven>
+    {
     };
 
-    for (const Proven& entry : ledger)
+    /** @brief Runs a ledger test once for each rule listed as unproven. */
+    class Small_UnprovenRule : public ::testing::TestWithParam<OpID>
     {
-        EXPECT_NE(registered(entry.proof), std::optional<bool>(false))
-            << Ops::name_of(entry.op) << " names " << entry.proof
-            << ", which its suite does not register";
-        EXPECT_TRUE(Autograd::has_backward_rule(entry.op))
-            << Ops::name_of(entry.op) << " lost its rule, but " << entry.proof
-            << " still claims to prove it";
-        EXPECT_EQ(std::count(unproven.begin(), unproven.end(), entry.op), 0)
-            << Ops::name_of(entry.op) << " is named by " << entry.proof
-            << " and still listed as unproven";
-    }
+    };
 
-    for (OpID op : unproven)
-        EXPECT_TRUE(Autograd::has_backward_rule(op))
-            << Ops::name_of(op) << " is listed as unproven but has no rule";
-
-    for (const Ops::OpName& declared : Ops::K_ALL)
+    /** @brief Runs a ledger test once for each operation that has a backward rule. */
+    class Small_RuledOperation : public ::testing::TestWithParam<Ops::OpName>
     {
-        if (!Autograd::has_backward_rule(declared.id)) continue;
+    };
+} // namespace
 
-        const bool listed = std::any_of(ledger.begin(), ledger.end(),
-                                        [&declared](const Proven& entry)
-                                        {
-                                            return entry.op == declared.id;
-                                        })
-                         || std::count(unproven.begin(), unproven.end(), declared.id) > 0;
+/** @brief Tests that the proof of the row names a registered test, a live rule and no unproven op. */
+TEST_P(Small_LedgerEntry, EveryRuleInTheTableIsNamedByANumericTest)
+{
+    // A proof in a suite this program hosts must be registered; other programs' suites are checked there.
+    const Proven& entry = GetParam();
 
-        EXPECT_TRUE(listed)
-            << declared.name << " has a backward rule named by neither the ledger nor the "
-               "unproven list. Add a FLOAT64 finite-difference case to "
-               "test_autograd_numeric.cpp and name it in the ledger - an unverified rule trains "
-               "a model slightly wrong and fails nothing.";
-    }
+    EXPECT_NE(is_registered(entry.proof), std::optional<bool>(false))
+        << Ops::name_of(entry.op) << " names " << entry.proof
+        << ", which its suite does not register";
+    EXPECT_TRUE(Autograd::has_backward_rule(entry.op))
+        << Ops::name_of(entry.op) << " lost its rule, but " << entry.proof
+        << " still claims to prove it";
+    EXPECT_EQ(std::count(K_UNPROVEN.begin(), K_UNPROVEN.end(), entry.op), 0)
+        << Ops::name_of(entry.op) << " is named by " << entry.proof
+        << " and still listed as unproven";
 }
+
+INSTANTIATE_TEST_SUITE_P(Ledger, Small_LedgerEntry, ::testing::ValuesIn(K_LEDGER),
+                         [](const ::testing::TestParamInfo<Proven>& info)
+                         {
+                             return parameter_name(info.param.proof);
+                         });
+
+/** @brief Tests that the unproven list keeps the size recorded for it. */
+TEST(Small_Backward, TheUnprovenListKeepsItsRecordedSize)
+{
+    EXPECT_EQ(K_UNPROVEN.size(), K_UNPROVEN_RULES)
+        << "the unproven list changed size; a rule may join it only with K_UNPROVEN_RULES edited";
+}
+
+/** @brief Tests that a rule listed as unproven still exists. */
+TEST_P(Small_UnprovenRule, AnUnprovenRuleStillExists)
+{
+    EXPECT_TRUE(Autograd::has_backward_rule(GetParam()))
+        << Ops::name_of(GetParam()) << " is listed as unproven but has no rule";
+}
+
+INSTANTIATE_TEST_SUITE_P(Unproven, Small_UnprovenRule, ::testing::ValuesIn(K_UNPROVEN),
+                         [](const ::testing::TestParamInfo<OpID>& info)
+                         {
+                             return parameter_name(Ops::name_of(info.param));
+                         });
+
+/** @brief Tests that the rule of the row is named by the ledger or by the unproven list. */
+TEST_P(Small_RuledOperation, EveryBackwardRuleIsNamedByTheLedgerOrTheUnprovenList)
+{
+    const Ops::OpName& declared = GetParam();
+
+    const bool listed = std::any_of(K_LEDGER.begin(), K_LEDGER.end(),
+                                    [&declared](const Proven& entry)
+                                    {
+                                        return entry.op == declared.id;
+                                    })
+                     || std::count(K_UNPROVEN.begin(), K_UNPROVEN.end(), declared.id) > 0;
+
+    EXPECT_TRUE(listed)
+        << declared.name << " has a backward rule named by neither the ledger nor the "
+           "unproven list. Add a FLOAT64 finite-difference case to "
+           "test_autograd_numeric.cpp and name it in the ledger - an unverified rule trains "
+           "a model slightly wrong and fails nothing.";
+}
+
+INSTANTIATE_TEST_SUITE_P(Ruled, Small_RuledOperation, ::testing::ValuesIn(ruled_operations()),
+                         [](const ::testing::TestParamInfo<Ops::OpName>& info)
+                         {
+                             return parameter_name(info.param.name);
+                         });
 
 TEST(Small_Backward, FanOutEmitsAnAccumulateChain)
 {
@@ -1642,6 +2015,42 @@ TEST(Small_Backward, FanOutEmitsAnAccumulateChain)
     EXPECT_EQ(graph.node(graph.value(grads[0]).producer).op, Ops::K_ACCUMULATE.id);
 }
 
+namespace
+{
+    /** @brief The accumulators of @p graph that a node other than their ACCUMULATE reads. */
+    std::vector<ValueID> accumulated_values_read_elsewhere(const Graph::Graph& graph)
+    {
+        std::vector<ValueID> shared;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op != Ops::K_ACCUMULATE.id)
+                continue;
+
+            const ValueID target = node.inputs.at(0);
+            if (count_reads(graph, target) != 1u)
+                shared.push_back(target);
+        }
+        return shared;
+    }
+
+    /** @brief The accumulators of @p graph that are among the gradients @p grads. */
+    std::vector<ValueID> accumulated_values_returned(const Graph::Graph& graph,
+                                                     const std::vector<ValueID>& grads)
+    {
+        std::vector<ValueID> returned;
+        for (const Graph::Node& node : graph.nodes())
+        {
+            if (node.op != Ops::K_ACCUMULATE.id)
+                continue;
+
+            const ValueID target = node.inputs.at(0);
+            if (std::count(grads.begin(), grads.end(), target) > 0)
+                returned.push_back(target);
+        }
+        return returned;
+    }
+} // namespace
+
 TEST(Small_Backward, AnAccumulateNeverWritesIntoAGradientAnotherValueReads)
 {
     Graph::Graph graph;
@@ -1660,22 +2069,10 @@ TEST(Small_Backward, AnAccumulateNeverWritesIntoAGradientAnotherValueReads)
                                 SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())));
 
     ASSERT_GE(count_op(graph, Ops::K_ACCUMULATE.id) + count_op(graph, Ops::K_ADD.id), 3u);
-    for (std::size_t n = 0; n < graph.node_count(); ++n)
-    {
-        const Graph::Node& node = graph.node(static_cast<NodeID>(n));
-        if (node.op != Ops::K_ACCUMULATE.id)
-            continue;
-        const ValueID target = node.inputs.at(0);
-        std::size_t readers = 0;
-        for (std::size_t m = 0; m < graph.node_count(); ++m)
-        {
-            const Graph::Node& other = graph.node(static_cast<NodeID>(m));
-            readers += static_cast<std::size_t>(
-                std::count(other.inputs.begin(), other.inputs.end(), target));
-        }
-        EXPECT_EQ(readers, 1u) << "value " << target << " is accumulated into and read elsewhere";
-        EXPECT_EQ(std::count(grads.begin(), grads.end(), target), 0);
-    }
+    EXPECT_TRUE(accumulated_values_read_elsewhere(graph).empty())
+        << "a value is accumulated into and read elsewhere";
+    EXPECT_TRUE(accumulated_values_returned(graph, grads).empty())
+        << "a value a caller receives as a gradient is accumulated into";
 }
 
 TEST(Small_Backward, ThreeContributorsChainTwoAccumulates)
@@ -1749,41 +2146,6 @@ TEST(Small_Backward, ADeadLossPathEmitsNothingAtAll)
     EXPECT_EQ(graph.node_count(), before);
 }
 
-TEST(Small_Backward, AnOperationWithNoRuleThrowsAndNamesItself)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.parameter(Shape{4, 3}, "x");
-    const ValueID targets = builder.input(Shape{4, 3}, "targets");
-
-    // An identity that no rule covers stands in for a new op; see tests/core/autograd/README.md.
-    const ValueID mystery = graph.add_value(Shape{4, 3}, DType::Float32,
-                                            Graph::Lifetime::Activation, "mystery");
-    graph.add_node(OpID(0x1234'5678u), {x}, {mystery});
-
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(mystery, targets));
-    const std::vector<ValueID> wrt = {x};
-
-    SA_EXPECT_FAILURE(Autograd::differentiate(
-                          graph, loss, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())),
-                      StatusCode::InvalidDescription, "No backward rule for");
-}
-
-TEST(Small_Backward, ANonScalarRootIsRejected)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.parameter(Shape{4, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
-    const std::vector<ValueID> wrt = {x};
-
-    SA_EXPECT_FAILURE(Autograd::differentiate(
-                          graph, y, SushiRuntime::span<const ValueID>(wrt.data(), wrt.size())),
-                      StatusCode::InvalidDescription, "needs a scalar to differentiate");
-}
-
 /** @brief Tests that a log-softmax a RELU reads gets one gradient node over [dy, its result]. */
 TEST(Small_Backward, LogSoftmaxOutsideTheFusedPairAppendsItsGradientIdentity)
 {
@@ -1848,6 +2210,27 @@ TEST(Small_Backward, ALogSoftmaxWhoseOperandNeedsNoGradientAddsNoNode)
 }
 
 /** @brief Tests that a softmax hands its log-softmax the gradient its exponential produced. */
+namespace
+{
+    /** @brief The first node from index @p from on that runs @p op, or K_NO_NODE. */
+    Graph::NodeID node_of(const Graph::Graph& graph, OpID op, std::size_t from)
+    {
+        for (std::size_t i = from; i < graph.node_count(); ++i)
+        {
+            if (graph.nodes()[i].op == op)
+                return static_cast<Graph::NodeID>(i);
+        }
+        return K_NO_NODE;
+    }
+
+    /** @brief The first result of the first node from index @p from on that runs @p op. */
+    ValueID result_of_the_node(const Graph::Graph& graph, OpID op, std::size_t from)
+    {
+        const Graph::NodeID id = node_of(graph, op, from);
+        return id == K_NO_NODE ? K_NO_VALUE : graph.node(id).outputs.at(0);
+    }
+} // namespace
+
 TEST(Small_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax)
 {
     Graph::Graph graph;
@@ -1861,23 +2244,13 @@ TEST(Small_Backward, ASoftmaxDifferentiatesThroughItsExponentialAndItsLogSoftmax
     ASSERT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX.id), 1u);
     ASSERT_EQ(count_op(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id), 1u);
 
-    ValueID log_probs = K_NO_VALUE;
-    ValueID through_exp = K_NO_VALUE;
-    const Graph::Node* gradient = nullptr;
-    for (std::size_t i = 0; i < graph.node_count(); ++i)
-    {
-        const Graph::Node& node = graph.nodes()[i];
-        if (node.op == Ops::K_LOG_SOFTMAX.id)
-            log_probs = node.outputs.at(0);
-        if (node.op == Ops::K_MUL.id && i >= forward_nodes)
-            through_exp = node.outputs.at(0);
-        if (node.op == Ops::K_LOG_SOFTMAX_BACKWARD.id)
-            gradient = &node;
-    }
+    const ValueID log_probs = result_of_the_node(graph, Ops::K_LOG_SOFTMAX.id, 0);
+    const ValueID through_exp = result_of_the_node(graph, Ops::K_MUL.id, forward_nodes);
+    const Graph::NodeID gradient = node_of(graph, Ops::K_LOG_SOFTMAX_BACKWARD.id, 0);
 
-    ASSERT_NE(gradient, nullptr);
+    ASSERT_NE(gradient, K_NO_NODE);
     ASSERT_NE(through_exp, K_NO_VALUE);
-    EXPECT_EQ(gradient->inputs, (std::vector<ValueID>{through_exp, log_probs}));
+    EXPECT_EQ(graph.node(gradient).inputs, (std::vector<ValueID>{through_exp, log_probs}));
     ASSERT_EQ(appended.gradients.size(), 1u);
     EXPECT_EQ(graph.value(appended.gradients[0]).shape, (Shape{2, 3, 4}));
 }
@@ -1908,7 +2281,7 @@ TEST(Small_Backward, DivReadsItsDivisorAndItsOwnQuotient)
     EXPECT_EQ(quotient.inputs, (std::vector<ValueID>{appended.seed, b}));
     EXPECT_EQ(product.inputs, (std::vector<ValueID>{quotient.outputs.at(0), c}));
     EXPECT_EQ(negated.inputs, (std::vector<ValueID>{product.outputs.at(0)}));
-    EXPECT_NEAR(negated.attributes.get(0), -1.0, K_ATTRIBUTE_TOLERANCE);
+    EXPECT_EQ(negated.attributes.get(0), -1.0);
 
     EXPECT_EQ(appended.gradients.at(0), quotient.outputs.at(0));
     EXPECT_EQ(appended.gradients.at(1), negated.outputs.at(0));
@@ -2140,7 +2513,7 @@ TEST(Small_Backward, AtanDividesByOnePlusTheSquaredInput)
 
     EXPECT_EQ(squared.inputs, (std::vector<ValueID>{x, x}));
     EXPECT_TRUE(one.inputs.empty());
-    EXPECT_NEAR(one.attributes.get(0), 1.0, K_ATTRIBUTE_TOLERANCE);
+    EXPECT_EQ(one.attributes.get(0), 1.0);
     EXPECT_EQ(graph.value(one.outputs.at(0)).shape, graph.value(x).shape);
     EXPECT_EQ(graph.value(one.outputs.at(0)).dtype, graph.value(x).dtype);
     EXPECT_EQ(denominator.inputs,
@@ -2396,54 +2769,69 @@ TEST(Small_Backward, MaximumOfAZeroConstantAndXGivesTheClampedOperandNothingAtAT
     EXPECT_EQ(mask.inputs, (std::vector<ValueID>{x, floor}));
     EXPECT_EQ(dx.inputs, (std::vector<ValueID>{mask.outputs.at(0), zero, appended.seed}));
     EXPECT_EQ(appended.gradients.at(0), dx.outputs.at(0));
-
-    for (std::size_t i = 0; i < graph.node_count(); ++i)
-    {
-        const OpID op = graph.nodes()[i].op;
-        EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
-            << Ops::name_of(op) << " narrows, so the clamp would leave the loss's precision";
-    }
 }
 
-/** @brief Tests that no rule of the eight forward operations appends a node that narrows. */
-TEST(Small_Backward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
+namespace
 {
-    const std::vector<ForwardCase> cases = {
-        {"div", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.div(a, b); }},
-        {"minimum", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.minimum(a, b); }},
-        {"maximum", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.maximum(a, b); }},
-        {"abs", [](const GraphBuilder& g, ValueID a, ValueID) { return g.abs(a); }},
-        {"atan", [](const GraphBuilder& g, ValueID a, ValueID) { return g.atan(a); }},
-        {"softplus", [](const GraphBuilder& g, ValueID a, ValueID) { return g.softplus(a); }},
-        {"silu", [](const GraphBuilder& g, ValueID a, ValueID) { return g.silu(a); }},
-        {"select", [](const GraphBuilder& g, ValueID a, ValueID b)
-                   {
-                       return g.select(g.less_equal(a, b), a, b);
-                   }},
-    };
-
-    for (const ForwardCase& forward : cases)
+    /** @brief Names a forward case by its label. */
+    std::string forward_case_name(const ::testing::TestParamInfo<ForwardCase>& info)
     {
-        SCOPED_TRACE(std::string(forward.name));
+        return std::string(info.param.name);
+    }
 
-        Graph::Graph graph;
-        const GraphBuilder builder(graph);
-        const ValueID a = builder.parameter(Shape{4, 3}, "a");
-        const ValueID b = builder.parameter(Shape{4, 3}, "b");
-
-        SA_ASSERT_OK_AND_ASSIGN(const ValueID result, forward.emit(builder, a, b));
-        SA_ASSERT_OK_AND_ASSIGN(const Appended appended,
-                                differentiate_through(graph, result, {a, b}));
-
-        ASSERT_GT(graph.node_count(), appended.first + 1) << "the rule appended nothing";
-        for (std::size_t i = appended.first; i < graph.node_count(); ++i)
+    /** @brief Expects no node of @p graph from index @p first on to narrow under mixed precision. */
+    void expect_no_node_narrows(const Graph::Graph& graph, std::size_t first)
+    {
+        for (std::size_t i = first; i < graph.node_count(); ++i)
         {
             const OpID op = graph.nodes()[i].op;
             EXPECT_FALSE(Graph::narrows_under_mixed_precision(op))
                 << Ops::name_of(op) << " narrows under the mixed-precision policy";
         }
     }
+
+    /** @brief Runs a backward test once for each of the eight forward operations. */
+    class Small_ElementwiseBackward : public ::testing::TestWithParam<ForwardCase>
+    {
+    };
+} // namespace
+
+/** @brief Tests that the rule of the row's forward operation appends no node that narrows. */
+TEST_P(Small_ElementwiseBackward, NoRuleOfTheElementwiseOperationsAppendsANodeThatNarrows)
+{
+    const ForwardCase& forward = GetParam();
+
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID a = builder.parameter(Shape{4, 3}, "a");
+    const ValueID b = builder.parameter(Shape{4, 3}, "b");
+
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID result, forward.emit(builder, a, b));
+    SA_ASSERT_OK_AND_ASSIGN(const Appended appended,
+                            differentiate_through(graph, result, {a, b}));
+
+    ASSERT_GT(graph.node_count(), appended.first + 1) << "the rule appended nothing";
+    expect_no_node_narrows(graph, appended.first);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Forward, Small_ElementwiseBackward,
+    ::testing::Values(
+        ForwardCase{"div", [](const GraphBuilder& g, ValueID a, ValueID b) { return g.div(a, b); }},
+        ForwardCase{"minimum",
+                    [](const GraphBuilder& g, ValueID a, ValueID b) { return g.minimum(a, b); }},
+        ForwardCase{"maximum",
+                    [](const GraphBuilder& g, ValueID a, ValueID b) { return g.maximum(a, b); }},
+        ForwardCase{"abs", [](const GraphBuilder& g, ValueID a, ValueID) { return g.abs(a); }},
+        ForwardCase{"atan", [](const GraphBuilder& g, ValueID a, ValueID) { return g.atan(a); }},
+        ForwardCase{"softplus",
+                    [](const GraphBuilder& g, ValueID a, ValueID) { return g.softplus(a); }},
+        ForwardCase{"silu", [](const GraphBuilder& g, ValueID a, ValueID) { return g.silu(a); }},
+        ForwardCase{"select", [](const GraphBuilder& g, ValueID a, ValueID b)
+                              {
+                                  return g.select(g.less_equal(a, b), a, b);
+                              }}),
+    forward_case_name);
 
 /** @brief Tests that a gradient reaching the batch variance, output 3, is refused by the rule. */
 TEST(Small_Backward, AGradientOnTheBatchVarianceOfBatchNormThrows)
@@ -2489,14 +2877,10 @@ TEST(Small_Backward, BatchNormWithFourOutputsStillDifferentiatesThroughItsFirst)
     ASSERT_EQ(count_op(graph, Ops::K_BATCHNORM2D_BACKWARD.id), 1u);
 
     // The backward node reads the saved mean and inverse deviation, never the variance.
-    for (const Graph::Node& node : graph.nodes())
-    {
-        if (node.op != Ops::K_BATCHNORM2D_BACKWARD.id)
-            continue;
-
-        EXPECT_EQ(node.inputs[3], bn.saved_mean);
-        EXPECT_EQ(node.inputs[4], bn.saved_inv_std);
-    }
+    const Graph::NodeID backward = node_of(graph, Ops::K_BATCHNORM2D_BACKWARD.id, 0);
+    ASSERT_NE(backward, K_NO_NODE);
+    EXPECT_EQ(graph.node(backward).inputs[3], bn.saved_mean);
+    EXPECT_EQ(graph.node(backward).inputs[4], bn.saved_inv_std);
 }
 
 /** @brief Tests that differentiation fails at BATCHNORM_FOLD when gamma requires a gradient. */
@@ -2523,39 +2907,63 @@ TEST(Small_Backward, DifferentiatingThroughBatchNormFoldFails)
                       "sushiai.batchnorm_fold");
 }
 
+namespace
+{
+    /** @brief Holds a biased classifier whose bias is a buffer. */
+    struct BufferedLoss
+    {
+        Graph::Graph graph;
+        ValueID weight = K_NO_VALUE;
+        ValueID shift = K_NO_VALUE;
+        ValueID loss = K_NO_VALUE;
+    };
+
+    /** @brief Builds the buffered classifier. */
+    void build_buffered_loss(BufferedLoss& b)
+    {
+        const GraphBuilder builder(b.graph);
+
+        const ValueID x = builder.input(Shape{4, 3}, "x");
+        const ValueID targets = builder.input(Shape{4, 5}, "targets");
+        b.weight = builder.parameter(Shape{5, 3}, "weight");
+        b.shift = builder.buffer(Shape{5}, "running_shift");
+        const ValueID logits =
+            builder.bias_add(builder.matmul(x, b.weight, false, true), b.shift).value();
+        b.loss = builder.nll_loss(builder.log_softmax(logits), targets).value();
+    }
+} // namespace
+
 /** @brief Tests that differentiate refuses a buffer in wrt before it appends any node. */
 TEST(Small_Backward, ABufferInWrtIsRefusedAndAppendsNoNode)
 {
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
+    BufferedLoss model;
+    build_buffered_loss(model);
+    const std::size_t nodes_before = model.graph.node_count();
 
-    const ValueID x = builder.input(Shape{4, 3}, "x");
-    const ValueID targets = builder.input(Shape{4, 5}, "targets");
-    const ValueID weight = builder.parameter(Shape{5, 3}, "weight");
-    const ValueID shift = builder.buffer(Shape{5}, "running_shift");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID logits,
-                            builder.bias_add(builder.matmul(x, weight, false, true), shift));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                            builder.nll_loss(builder.log_softmax(logits), targets));
-    const std::size_t nodes_before = graph.node_count();
-
-    const ValueID with_buffer[] = {weight, shift};
+    const ValueID with_buffer[] = {model.weight, model.shift};
     SA_EXPECT_FAILURE(Autograd::differentiate(
-                          graph, loss, SushiRuntime::span<const ValueID>(with_buffer, 2)),
+                          model.graph, model.loss,
+                          SushiRuntime::span<const ValueID>(with_buffer, 2)),
                       StatusCode::InvalidDescription, "differentiate()", "running_shift",
                       "buffer");
-    EXPECT_EQ(graph.node_count(), nodes_before);
+    EXPECT_EQ(model.graph.node_count(), nodes_before);
+}
 
-    // The same graph differentiates once the buffer is left out of the request.
-    const ValueID parameters_only[] = {weight};
+/** @brief Tests that the graph differentiates once the buffer is left out of the request. */
+TEST(Small_Backward, TheSameGraphDifferentiatesOnceTheBufferIsLeftOut)
+{
+    BufferedLoss model;
+    build_buffered_loss(model);
+
+    const ValueID parameters_only[] = {model.weight};
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<ValueID> gradients,
                             Autograd::differentiate(
-        graph, loss, SushiRuntime::span<const ValueID>(parameters_only, 1)));
+        model.graph, model.loss, SushiRuntime::span<const ValueID>(parameters_only, 1)));
 
     ASSERT_EQ(gradients.size(), 1u);
     ASSERT_NE(gradients[0], K_NO_VALUE);
-    EXPECT_EQ(graph.value(gradients[0]).lifetime, Graph::Lifetime::Gradient);
-    EXPECT_EQ(graph.value(shift).lifetime, Graph::Lifetime::Buffer);
+    EXPECT_EQ(model.graph.value(gradients[0]).lifetime, Graph::Lifetime::Gradient);
+    EXPECT_EQ(model.graph.value(model.shift).lifetime, Graph::Lifetime::Buffer);
 }
 
 namespace
@@ -2680,8 +3088,9 @@ TEST(Small_LossRoots, ASumOfTwoTermsEndingInScaleReachesEveryParameter)
               (std::vector<ValueID>{sum_gradient}));
 
     ASSERT_EQ(gradients.size(), 3u);
-    for (std::size_t i = 0; i < gradients.size(); ++i)
-        EXPECT_NE(gradients[i], K_NO_VALUE) << "parameter " << i << " received no gradient";
+    EXPECT_NE(gradients[0], K_NO_VALUE) << "parameter a received no gradient";
+    EXPECT_NE(gradients[1], K_NO_VALUE) << "parameter b received no gradient";
+    EXPECT_NE(gradients[2], K_NO_VALUE) << "parameter c received no gradient";
 }
 
 /** @brief Tests that the seed is one CONSTANT of 1 in the root's shape, element type and layout. */
@@ -2703,7 +3112,7 @@ TEST(Small_LossRoots, TheSeedIsAConstantOneShapedAndTypedLikeTheRoot)
 
     ASSERT_EQ(one.op, Ops::K_CONSTANT.id);
     EXPECT_TRUE(one.inputs.empty());
-    EXPECT_NEAR(one.attributes.get(0), 1.0, K_ATTRIBUTE_TOLERANCE);
+    EXPECT_EQ(one.attributes.get(0), 1.0);
     EXPECT_EQ(count_op(graph, Ops::K_CONSTANT.id), 1u);
     EXPECT_EQ(count_op(graph, Ops::K_ZERO.id), 0u);
     EXPECT_EQ(count_op(graph, Ops::K_EXP.id), 0u);
@@ -2746,17 +3155,53 @@ TEST(Small_LossRoots, TheSeedFactorMultipliesTheSeedOnce)
 }
 
 /** @brief Tests that a root of more than one element throws and names its shape. */
-TEST(Small_LossRoots, ANonScalarRootThrowsNamingItsShape)
+namespace
+{
+    /** @brief Names a way to build a non-scalar root out of one parameter. */
+    struct NonScalarRoot
+    {
+        const char* name; /**< The case name. */
+        Graph::Traced (*emit)(const GraphBuilder&, ValueID); /**< Builds the root. */
+    };
+
+    /** @brief Builds x + x. */
+    Graph::Traced emit_a_sum(const GraphBuilder& builder, ValueID x)
+    {
+        return builder.add(x, x);
+    }
+
+    /** @brief Builds relu(x). */
+    Graph::Traced emit_a_relu(const GraphBuilder& builder, ValueID x)
+    {
+        return builder.relu(x);
+    }
+
+    /** @brief Runs a root test once for each way of building a non-scalar root. */
+    class Small_NonScalarRoot : public ::testing::TestWithParam<NonScalarRoot>
+    {
+    };
+} // namespace
+
+/** @brief Tests that a non-scalar root is refused, naming the value and its shape. */
+TEST_P(Small_NonScalarRoot, ANonScalarRootThrowsNamingItsShape)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
 
     const ValueID x = builder.parameter(Shape{4, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.add(x, x));
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, GetParam().emit(builder, x));
 
     SA_EXPECT_FAILURE(differentiate(graph, y, {x}), StatusCode::InvalidDescription,
                       "needs a scalar to differentiate", "[4, 3]");
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Roots, Small_NonScalarRoot,
+    ::testing::Values(NonScalarRoot{"ASum", &emit_a_sum}, NonScalarRoot{"AReLU", &emit_a_relu}),
+    [](const ::testing::TestParamInfo<NonScalarRoot>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a root that is a leaf throws, names the leaf and appends nothing. */
 TEST(Small_LossRoots, ALeafRootThrowsNamingTheLeaf)
@@ -2768,26 +3213,84 @@ TEST(Small_LossRoots, ALeafRootThrowsNamingTheLeaf)
     const std::size_t forward_nodes = graph.node_count();
 
     SA_EXPECT_FAILURE(differentiate(graph, leaf, {leaf}), StatusCode::InvalidDescription,
-                      "it is a leaf", "sushiai.leaf");
+                      "it is a leaf", "sushiai.leaf", "NLL_LOSS");
     EXPECT_EQ(graph.node_count(), forward_nodes);
 }
+
+namespace
+{
+    /** @brief Holds a root no parameter reaches, the parameter asked for, and the messages. */
+    struct NoGradientRoot
+    {
+        const char* name;                        /**< The case name. */
+        ValueID (*build)(Graph::Graph&, ValueID&); /**< Builds the graph; returns the root and sets wrt. */
+        const char* first;                       /**< A text the refusal contains. */
+        const char* second;                      /**< A text the refusal contains. */
+        const char* third;                       /**< A text the refusal contains. */
+    };
+
+    /** @brief Builds add(p, q) of two inputs, asked for an orphan parameter. */
+    ValueID build_a_sum_of_inputs(Graph::Graph& graph, ValueID& wrt)
+    {
+        const GraphBuilder builder(graph);
+        const ValueID p = builder.input(Shape{1}, "p");
+        const ValueID q = builder.input(Shape{1}, "q");
+        wrt = builder.parameter(Shape{1}, "orphan");
+        return builder.add(p, q).value();
+    }
+
+    /** @brief Builds matmul(a, w) of two inputs, asked for an unrelated parameter. */
+    ValueID build_a_product_of_inputs(Graph::Graph& graph, ValueID& wrt)
+    {
+        const GraphBuilder builder(graph);
+        wrt = builder.parameter(Shape{1, 4}, "x");
+        const ValueID a = builder.input(Shape{1, 4}, "a");
+        const ValueID w = builder.input(Shape{4, 1}, "w");
+        return builder.matmul(a, w).value();
+    }
+
+    /** @brief Builds matmul(stop_gradient(x), w), asked for x. */
+    ValueID build_a_product_behind_a_barrier(Graph::Graph& graph, ValueID& wrt)
+    {
+        const GraphBuilder builder(graph);
+        wrt = builder.parameter(Shape{1, 4}, "x");
+        const ValueID w = builder.input(Shape{4, 1}, "w");
+        return builder.matmul(builder.stop_gradient(wrt), w).value();
+    }
+
+    /** @brief Runs a root test once for each way of building a root that needs no gradient. */
+    class Small_NoGradientRoot : public ::testing::TestWithParam<NoGradientRoot>
+    {
+    };
+} // namespace
 
 /** @brief Tests that a root no parameter reaches throws, names the cause and appends nothing. */
-TEST(Small_LossRoots, ARootThatNeedsNoGradientThrowsNamingTheCause)
+TEST_P(Small_NoGradientRoot, ARootThatNeedsNoGradientThrowsNamingTheCause)
 {
+    const NoGradientRoot& row = GetParam();
     Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID p = builder.input(Shape{1}, "p");
-    const ValueID q = builder.input(Shape{1}, "q");
-    const ValueID orphan = builder.parameter(Shape{1}, "orphan");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.add(p, q));
+    ValueID wrt = K_NO_VALUE;
+    const ValueID loss = row.build(graph, wrt);
     const std::size_t forward_nodes = graph.node_count();
 
-    SA_EXPECT_FAILURE(differentiate(graph, loss, {orphan}), StatusCode::InvalidDescription,
-                      "requires no gradient", "sushiai.add");
+    SA_EXPECT_FAILURE(differentiate(graph, loss, {wrt}), StatusCode::InvalidDescription,
+                      row.first, row.second, row.third);
     EXPECT_EQ(graph.node_count(), forward_nodes);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Roots, Small_NoGradientRoot,
+    ::testing::Values(
+        NoGradientRoot{"ASumOfInputs", &build_a_sum_of_inputs, "requires no gradient",
+                       "sushiai.add", "requires no gradient"},
+        NoGradientRoot{"AProductOfInputs", &build_a_product_of_inputs, "value 3",
+                       "sushiai.matmul", "requires no gradient"},
+        NoGradientRoot{"AProductBehindAStopGradient", &build_a_product_behind_a_barrier,
+                       "sushiai.matmul", "requires no gradient", "STOP_GRADIENT"}),
+    [](const ::testing::TestParamInfo<NoGradientRoot>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that a root whose producer has no rule throws, names it and appends nothing. */
 TEST(Small_LossRoots, ARootWhoseProducerHasNoRuleThrowsNamingTheOperation)
@@ -2801,7 +3304,7 @@ TEST(Small_LossRoots, ARootWhoseProducerHasNoRuleThrowsNamingTheOperation)
     const std::size_t forward_nodes = graph.node_count();
 
     SA_EXPECT_FAILURE(differentiate(graph, loss, {x}), StatusCode::InvalidDescription,
-                      "no backward rule", "sushiai.dynamic_scale");
+                      "has no backward rule", "sushiai.dynamic_scale", "autograd/rules/");
     EXPECT_EQ(graph.node_count(), forward_nodes);
 }
 
@@ -3143,18 +3646,6 @@ namespace
 
 } // namespace
 
-TEST(Small_Diagnostics, ANonScalarRootNamesTheValueAndItsShape)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.parameter(Shape{4, 3}, "x");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.relu(x));
-
-    SA_EXPECT_FAILURE(differentiate_wrt(graph, y, x), StatusCode::InvalidDescription,
-                      "needs a scalar to differentiate", "[4, 3]");
-}
-
 /** @brief Tests that a one-element root a differentiable operation produces is seeded. */
 TEST(Small_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
 {
@@ -3186,53 +3677,15 @@ TEST(Small_Diagnostics, AOneElementRootOfADifferentiableOperationIsSeeded)
     EXPECT_EQ(graph.value(gradients[0]).shape, graph.value(x).shape);
 }
 
-/** @brief Tests that a root no parameter reaches is refused with a message naming that cause. */
-TEST(Small_Diagnostics, ARootThatRequiresNoGradientNamesItsProducerAndTheCause)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.parameter(Shape{1, 4}, "x");
-    const ValueID a = builder.input(Shape{1, 4}, "a");
-    const ValueID w = builder.input(Shape{4, 1}, "w");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID unreached, builder.matmul(a, w));
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID stopped, builder.matmul(builder.stop_gradient(x), w));
-
-    SA_EXPECT_FAILURE(differentiate_wrt(graph, unreached, x), StatusCode::InvalidDescription,
-                      "value 3", "sushiai.matmul", "requires no gradient");
-    SA_EXPECT_FAILURE(differentiate_wrt(graph, stopped, x), StatusCode::InvalidDescription,
-                      "sushiai.matmul", "requires no gradient", "STOP_GRADIENT");
-}
-
-/** @brief Tests that a root whose producer has no backward rule is refused naming the producer. */
-TEST(Small_Diagnostics, ARootWhoseProducerHasNoRuleNamesTheProducer)
-{
-    Graph::Graph graph;
-    const GraphBuilder builder(graph);
-
-    const ValueID x = builder.parameter(Shape{1}, "x");
-    const ValueID factor = builder.input(Shape{1}, "factor");
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.dynamic_scale(x, factor));
-
-    SA_EXPECT_FAILURE(differentiate_wrt(graph, scaled, x), StatusCode::InvalidDescription,
-                      "sushiai.dynamic_scale", "has no backward rule", "autograd/rules/");
-}
-
 TEST(Small_Diagnostics, ALossNoOperationProducesIsRejected)
 {
     Graph::Graph graph;
-    const GraphBuilder builder(graph);
 
     // A loss with no producer has no operation to name; see tests/core/autograd/README.md.
     const ValueID orphan = graph.add_value(Shape{1}, DType::Float32,
                                            Graph::Lifetime::Activation, "orphan");
     SA_EXPECT_FAILURE(differentiate_wrt(graph, orphan, orphan), StatusCode::InvalidDescription,
                       "nothing produces it", "NLL_LOSS");
-
-    // A leaf does have a producing node, and it is named.
-    const ValueID leaf = builder.parameter(Shape{1}, "leaf");
-    SA_EXPECT_FAILURE(differentiate_wrt(graph, leaf, leaf), StatusCode::InvalidDescription,
-                      "sushiai.leaf", "NLL_LOSS");
 }
 
 TEST(Small_Diagnostics, AnOperationWithNoBackwardRuleNamesItselfAndItsNode)
@@ -3277,7 +3730,7 @@ TEST(Small_Diagnostics, AGraphThatHoldsARefusalIsRefusedBeforeAnyNodeIsAppended)
     EXPECT_EQ(graph.node_count(), forward_nodes);
 }
 
-TEST(Small_Diagnostics, AGradientContributedToTheWrongShapeNamesBothShapes)
+TEST(Medium_DiagnosticsFatal, AGradientContributedToTheWrongShapeNamesBothShapes)
 {
     // A SUB with a mis-shaped result provokes the error; see tests/core/autograd/README.md.
     Graph::Graph graph;

@@ -49,6 +49,21 @@ namespace SushiAI
         using Graph::GraphBuilder;
         using Graph::ValueID;
 
+        /** @brief Expects @p id to be a FLOAT64 value of the activation lifetime. */
+        void expect_float64_activation(const Graph::Graph& graph, ValueID id)
+        {
+            EXPECT_EQ(graph.value(id).dtype, DType::Float64) << "value " << id;
+            EXPECT_EQ(graph.value(id).lifetime, Graph::Lifetime::Activation) << "value " << id;
+        }
+
+        /** @brief Expects @p id to be a [channels] FLOAT64 activation. */
+        void expect_float64_channel_activation(const Graph::Graph& graph, ValueID id,
+                                               std::int64_t channels)
+        {
+            EXPECT_EQ(graph.value(id).shape, Shape({channels})) << "value " << id;
+            expect_float64_activation(graph, id);
+        }
+
         TEST(Small_SpatialShapes, Im2ColProducesTheColumnMatrixAGEMMExpects)
         {
             // A row is one window, channels innermost (CV-3); see tests/core/autograd/README.md.
@@ -65,7 +80,7 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[cols].shape, Shape({2 * 5 * 5, 3 * 3 * 3}));
         }
 
-        TEST(Small_SpatialShapes, Im2ColHonoursStrideAndDilation)
+        TEST(Small_SpatialShapes, Im2ColCoversTheDilatedExtentOfAWindow)
         {
             // A dilated 3x3 covers 5 pixels; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -78,6 +93,13 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const ValueID dilated_cols, builder.im2col(x, dilated));
             EXPECT_EQ(graph.values()[dilated_cols].shape,
                       Shape({1 * 3 * 3, 3 * 3 * 2}));
+        }
+
+        TEST(Small_SpatialShapes, Im2ColStrideSpacesTheWindows)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({1, 7, 7, 2}, "x");
 
             Graph::ConvGeometry strided;
             strided.kernel_h = 3; strided.kernel_w = 3;
@@ -215,7 +237,7 @@ namespace SushiAI
                    "compare unequal to the integer the forward wrote";
         }
 
-        TEST(Small_SpatialShapes, MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen)
+        TEST(Small_SpatialShapes, MaxPoolWithExplicitExtentsKeepsYOLOTinysThirteenToThirteen)
         {
             // The caller states what ConvGeometry cannot; see tests/core/autograd/README.md.
             Graph::Graph graph;
@@ -228,8 +250,17 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled,
                                     builder.maxpool2d_with_extents(x, g, 13, 13));
             EXPECT_EQ(graph.values()[pooled.output].shape, Shape({1, 13, 13, 256}));
+        }
 
-            // Without the explicit extents the same geometry gives 12x12.
+        TEST(Small_SpatialShapes, MaxPoolWithoutExtentsInfersTwelveByTwelve)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({1, 13, 13, 256}, "x");
+
+            Graph::ConvGeometry g;
+            g.kernel_h = 2; g.kernel_w = 2;
+
             SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult inferred, builder.maxpool2d(x, g));
             EXPECT_EQ(graph.values()[inferred.output].shape,
                       Shape({1, 12, 12, 256}));
@@ -378,7 +409,7 @@ namespace SushiAI
                 StatusCode::InvalidDescription);
         }
 
-        TEST(Small_SpatialShapes, SliceTakesAChannelRangeAndRefusesToOverrun)
+        TEST(Small_SpatialShapes, SliceTakesAChannelRange)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -387,6 +418,14 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const ValueID slice, builder.slice_channels(x, 16, 32));
             EXPECT_EQ(graph.values()[slice].shape,
                       Shape({2, 8, 8, 32}));
+        }
+
+        TEST(Small_SpatialShapes, SliceRefusesARangeThatOverrunsTheChannels)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 48}, "x");
+
             SA_EXPECT_FAILURE(builder.slice_channels(x, 32, 32), StatusCode::InvalidDescription);
         }
 
@@ -401,7 +440,7 @@ namespace SushiAI
             SA_EXPECT_FAILURE(builder.slice_channels(x_nchw, 0, 1), StatusCode::InvalidDescription);
         }
 
-        TEST(Small_SpatialShapes, ChannelAffineKeepsTheShapeAndChecksTheParameters)
+        TEST(Small_SpatialShapes, ChannelAffineKeepsTheShape)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
@@ -412,8 +451,16 @@ namespace SushiAI
             SA_ASSERT_OK_AND_ASSIGN(const ValueID affine, builder.channel_affine(x, gamma, beta));
             EXPECT_EQ(graph.values()[affine].shape,
                       Shape({2, 8, 8, 16}));
+        }
 
+        TEST(Small_SpatialShapes, ChannelAffineRefusesAScaleOfAnotherExtent)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x");
+            const ValueID beta = builder.parameter({16}, "beta");
             const ValueID wrong = builder.parameter({8}, "wrong");
+
             SA_EXPECT_FAILURE(builder.channel_affine(x, wrong, beta),
                               StatusCode::InvalidDescription);
         }
@@ -432,7 +479,7 @@ namespace SushiAI
                               StatusCode::InvalidDescription);
         }
 
-        /** @brief Tests that batchnorm2d emits four outputs, three of them per channel. */
+        /** @brief Tests that batchnorm2d keeps the input's shape and declares per-channel statistics. */
         TEST(Small_SpatialShapes, BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics)
         {
             Graph::Graph graph;
@@ -447,25 +494,66 @@ namespace SushiAI
             EXPECT_EQ(graph.values()[bn.saved_mean].shape, Shape({16}));
             EXPECT_EQ(graph.values()[bn.saved_inv_std].shape, Shape({16}));
             EXPECT_EQ(graph.values()[bn.batch_variance].shape, Shape({16}));
+        }
+
+        /** @brief Tests that the four outputs are one node's, in order, with its epsilon. */
+        TEST(Small_SpatialShapes, BatchNorm2dEmitsOneNodeOfFourOutputsWithItsEpsilon)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
+            const ValueID gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
+
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult bn,
+                                    builder.batchnorm2d(x, gamma, beta, 1e-5));
 
             const Graph::Node& node = graph.node(graph.value(bn.output).producer);
             EXPECT_EQ(node.op, Ops::K_BATCHNORM2D.id);
             EXPECT_EQ(node.outputs, (std::vector<ValueID>{bn.output, bn.saved_mean,
                                                           bn.saved_inv_std, bn.batch_variance}));
             EXPECT_EQ(node.attributes.get(0), 1e-5);
+        }
 
-            for (ValueID out : node.outputs)
-            {
-                EXPECT_EQ(graph.value(out).dtype, DType::Float64) << "value " << out;
-                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation)
-                    << "value " << out;
-            }
+        /** @brief Tests that every output of batchnorm2d takes the input's type and is an activation. */
+        TEST(Small_SpatialShapes, BatchNorm2dOutputsAreActivationsOfTheInputsType)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
+            const ValueID gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
 
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult bn,
+                                    builder.batchnorm2d(x, gamma, beta, 1e-5));
+
+            expect_float64_activation(graph, bn.output);
+            expect_float64_activation(graph, bn.saved_mean);
+            expect_float64_activation(graph, bn.saved_inv_std);
+            expect_float64_activation(graph, bn.batch_variance);
+        }
+
+        TEST(Small_SpatialShapes, BatchNorm2dRefusesAGammaOfAnotherExtent)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
+            const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
             const ValueID wrong = builder.parameter({8}, "wrong");
+
             SA_EXPECT_FAILURE(builder.batchnorm2d(x, wrong, beta, 1e-5),
                               StatusCode::InvalidDescription);
+        }
 
+        TEST(Small_SpatialShapes, BatchNorm2dRefusesANonPositiveEpsilon)
+        {
             // Epsilon must be positive; see tests/core/autograd/README.md.
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
+            const ValueID gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
+
             SA_EXPECT_FAILURE(builder.batchnorm2d(x, gamma, beta, 0.0),
                               StatusCode::InvalidDescription);
         }
@@ -506,15 +594,22 @@ namespace SushiAI
             EXPECT_EQ(node.outputs, (std::vector<ValueID>{fold.scale, fold.shift}));
             EXPECT_EQ(node.attributes.get(0), 1e-3);
 
-            for (ValueID out : {fold.scale, fold.shift})
-            {
-                EXPECT_EQ(graph.value(out).shape, Shape({16})) << "value " << out;
-                EXPECT_EQ(graph.value(out).dtype, DType::Float64) << "value " << out;
-                EXPECT_EQ(graph.value(out).lifetime, Graph::Lifetime::Activation)
-                    << "value " << out;
-            }
+            expect_float64_channel_activation(graph, fold.scale, 16);
+            expect_float64_channel_activation(graph, fold.shift, 16);
+        }
 
-            // The fold's results are what CHANNEL_AFFINE reads in an evaluation trace.
+        /** @brief Tests that channel_affine reads the results of a fold as its scale and shift. */
+        TEST(Small_SpatialShapes, ChannelAffineReadsTheResultsOfAFold)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID gamma = builder.parameter({16}, "gamma", DType::Float64);
+            const ValueID beta = builder.parameter({16}, "beta", DType::Float64);
+            const ValueID mean = builder.buffer({16}, "running_mean", DType::Float64);
+            const ValueID variance = builder.buffer({16}, "running_var", DType::Float64);
+            SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormFold fold,
+                                    builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3));
+
             const ValueID x = builder.input({2, 8, 8, 16}, "x", DType::Float64);
             SA_ASSERT_OK_AND_ASSIGN(const ValueID affine,
                                     builder.channel_affine(x, fold.scale, fold.shift));
@@ -535,8 +630,6 @@ namespace SushiAI
             const ValueID wide_variance = builder.buffer({16}, "wide_var", DType::Float64);
             const ValueID matrix = builder.parameter({4, 4}, "matrix");
             const ValueID counts = builder.buffer({16}, "counts", DType::Int64);
-            const std::size_t nodes_before = graph.node_count();
-            const std::size_t values_before = graph.value_count();
 
             SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
                               StatusCode::InvalidDescription, "batchnorm_fold", "mean", "[16]",
@@ -550,8 +643,23 @@ namespace SushiAI
                               StatusCode::InvalidDescription, "batchnorm_fold", "rank-1");
             SA_EXPECT_FAILURE(builder.batchnorm_fold(counts, counts, counts, counts, 1e-3),
                               StatusCode::InvalidDescription, "batchnorm_fold", "int64");
+        }
 
-            // A rejected fold declares no value and emits no node.
+        /** @brief Tests that a refused batchnorm_fold declares no value and emits no node. */
+        TEST(Small_SpatialShapes, ARefusedBatchNormFoldDeclaresNoValueAndEmitsNoNode)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID gamma = builder.parameter({16}, "gamma");
+            const ValueID beta = builder.parameter({16}, "beta");
+            const ValueID variance = builder.buffer({16}, "running_var");
+            const ValueID short_mean = builder.buffer({8}, "short_mean");
+            const std::size_t nodes_before = graph.node_count();
+            const std::size_t values_before = graph.value_count();
+
+            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
+                              StatusCode::InvalidDescription);
+
             EXPECT_EQ(graph.node_count(), nodes_before);
             EXPECT_EQ(graph.value_count(), values_before);
         }
@@ -583,9 +691,16 @@ namespace SushiAI
 
             SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.sum_channels(x));
             EXPECT_EQ(graph.values()[sums].shape, Shape({16}));
+        }
 
+        TEST(Small_SpatialShapes, SumChannelsRejectsAnNCHWInput)
+        {
+            Graph::Graph graph;
+            const GraphBuilder builder(graph);
+            const ValueID x = builder.input({2, 8, 8, 16}, "x");
             SA_ASSERT_OK_AND_ASSIGN(const ValueID x_nchw,
                                     builder.layout_convert(x, Graph::TensorLayout::NCHW));
+
             SA_EXPECT_FAILURE(builder.sum_channels(x_nchw), StatusCode::InvalidDescription);
         }
 

@@ -70,6 +70,6 @@ the message contains "provenance" and "producer node".
 ## PassingNoProvenanceChangesNothing
 
 Two identical graphs are differentiated, one with a `Provenance` and one with null. The returned
-gradient ids are equal, the node counts are equal, and every node has the same operation,
-inputs and outputs. Recording is therefore an observation of the transform and not a branch in
+gradient ids are equal, the node counts are equal, and the two node lists match pairwise in
+operation, inputs and outputs. Recording is therefore an observation of the transform and not a branch in
 it.

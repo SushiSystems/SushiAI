@@ -30,13 +30,11 @@
 
 #include <array>
 #include <cstddef>
-#include <type_traits>
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/rule.hpp>
 #include <SushiAI/autograd/tape.hpp>
 #include <SushiAI/ops/ops.hpp>
 
-using SushiAI::Autograd::BackwardRule;
 using SushiAI::Autograd::concat_rules;
 using SushiAI::Autograd::GradientTape;
 using SushiAI::Autograd::RuleEntry;
@@ -70,17 +68,6 @@ namespace
     /** @brief Holds the joined table, built at compile time. */
     constexpr std::array<RuleEntry, 3> K_JOINED = concat_rules(K_LEFT, K_RIGHT);
 } // namespace
-
-/** @brief Tests that a rule is a function of a read-only tape. */
-TEST(Small_AutogradRule, ARuleIsAFunctionOfAReadOnlyTape)
-{
-    static_assert(std::is_same<BackwardRule, void (*)(const GradientTape&)>::value,
-                  "a backward rule reads the tape through a const reference");
-
-    const RuleEntry entry{Ops::K_ADD.id, &first_rule};
-    EXPECT_EQ(entry.op, Ops::K_ADD.id);
-    EXPECT_EQ(entry.rule, &first_rule);
-}
 
 /** @brief Tests that the joined table holds the left rows, then the right rows, in order. */
 TEST(Small_AutogradRule, TheJoinedTableHoldsTheLeftRowsThenTheRight)

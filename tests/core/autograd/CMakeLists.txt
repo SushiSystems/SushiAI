@@ -7,6 +7,8 @@
 
 sushiai_add_test_program(OWNER autograd
     SOURCES
+        compile_rule.cpp
+        compile_tape.cpp
         rules/test_activation.cpp
         rules/test_all.cpp
         rules/test_elementwise.cpp

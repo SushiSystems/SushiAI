@@ -12,10 +12,14 @@ call returns `StatusCode::InvalidDescription` with the substrings the case names
 one window's kernel_h * kernel_w * C taps with channels innermost, so a sub-group reads a
 contiguous run (CV-3).
 
-## Im2ColHonoursStrideAndDilation
+## Im2ColCoversTheDilatedExtentOfAWindow
 
-A dilated 3x3 covers 5 pixels, so an unpadded 7 yields 3 windows, and stride 2 over the same
-input yields 2. Both numbers are wrong under the naive (H - K)/S + 1 that forgets dilation.
+A dilated 3x3 covers 5 pixels, so an unpadded 7 yields 3 windows. The count is wrong under the
+naive (H - K)/S + 1 that forgets dilation.
+
+## Im2ColStrideSpacesTheWindows
+
+Stride 2 over the same 7x7 input yields 3 windows per axis, so the column matrix is [9, 18].
 
 ## Im2ColRejectsAWindowLargerThanThePaddedInput
 
@@ -66,11 +70,16 @@ The indices are a second result of the node, not a second output tensor the call
 The backward rule needs exactly the indices this forward produced, and a pair returned together
 cannot be mismatched the way two separate calls could.
 
-## MaxPoolHandlesYOLOTinysAsymmetricThirteenToThirteen
+## MaxPoolWithExplicitExtentsKeepsYOLOTinysThirteenToThirteen
 
 YOLOv3-tiny's last pool is 2x2 stride 1 over 13x13, padded only on the bottom and right, staying
-13x13. ConvGeometry cannot express that padding, so the caller states the extents. This case
-proves the explicit overload is needed.
+13x13. ConvGeometry cannot express that padding, so the caller states the extents, and
+`maxpool2d_with_extents` gives [1, 13, 13, 256].
+
+## MaxPoolWithoutExtentsInfersTwelveByTwelve
+
+The same geometry through `maxpool2d` gives [1, 12, 12, 256], which is why the explicit overload
+is needed.
 
 ## AvgPoolProducesOnlyAValue
 
@@ -119,19 +128,25 @@ gradient test in this plan ends with this call.
 
 `concat_channels` of two values converted to NCHW is refused.
 
-## SliceTakesAChannelRangeAndRefusesToOverrun
+## SliceTakesAChannelRange
 
-Over [2, 8, 8, 48], `slice_channels(x, 16, 32)` gives [2, 8, 8, 32] and
-`slice_channels(x, 32, 32)` is refused.
+Over [2, 8, 8, 48], `slice_channels(x, 16, 32)` gives [2, 8, 8, 32].
+
+## SliceRefusesARangeThatOverrunsTheChannels
+
+Over [2, 8, 8, 48], `slice_channels(x, 32, 32)` is refused.
 
 ## SliceRejectsAnNCHWInput
 
 `slice_channels` over a value converted to NCHW is refused.
 
-## ChannelAffineKeepsTheShapeAndChecksTheParameters
+## ChannelAffineKeepsTheShape
 
 `channel_affine` of [2, 8, 8, 16] with a [16] scale and a [16] shift gives [2, 8, 8, 16].
-With an [8] scale it is refused.
+
+## ChannelAffineRefusesAScaleOfAnotherExtent
+
+With an [8] scale over the same input it is refused.
 
 ## ChannelAffineRejectsAnNCHWInput
 
@@ -140,10 +155,22 @@ With an [8] scale it is refused.
 ## BatchNorm2dKeepsItsShapeAndDeclaresThreePerChannelStatistics
 
 `GraphBuilder::batchnorm2d` over a [2, 8, 8, 16] FLOAT64 input returns four values: the output,
-of the input's shape, and `saved_mean`, `saved_inv_std` and `batch_variance`, each [16]. They
-are the four outputs of one K_BATCHNORM2D node in that order, and attribute 0 of the node is the
-epsilon 1e-5. Each of the four is FLOAT64 with the lifetime `ACTIVATION`. A gamma of [8]
-is refused.
+of the input's shape, and `saved_mean`, `saved_inv_std` and `batch_variance`, each [16].
+
+## BatchNorm2dEmitsOneNodeOfFourOutputsWithItsEpsilon
+
+The four values are the outputs of one K_BATCHNORM2D node in that order, and attribute 0 of the
+node is the epsilon 1e-5.
+
+## BatchNorm2dOutputsAreActivationsOfTheInputsType
+
+Each of the four values is FLOAT64 with the lifetime `ACTIVATION`.
+
+## BatchNorm2dRefusesAGammaOfAnotherExtent
+
+A gamma of [8] over a 16-channel input is refused.
+
+## BatchNorm2dRefusesANonPositiveEpsilon
 
 A non-positive epsilon is a division by the standard deviation itself, which is exactly zero
 for a constant channel.
@@ -158,15 +185,21 @@ message names.
 `GraphBuilder::batchnorm_fold` over a [16] gamma, beta, running mean and running variance adds
 one node. Its operation is `Ops::K_BATCHNORM_FOLD`, its inputs are those four values in that
 order, its outputs are `fold.scale` and `fold.shift`, and attribute 0 is the epsilon 1e-3.
-Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' type. A
-`channel_affine` of a [2, 8, 8, 16] input with the two results keeps that shape.
+Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' type.
+
+## ChannelAffineReadsTheResultsOfAFold
+
+A `channel_affine` of a [2, 8, 8, 16] input with the two results of a fold keeps that shape.
 
 ## BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma
 
 Five calls are refused with "batchnorm_fold" and the operand at fault: a [8] mean ("mean", "[16]",
 "[8]"), a [8] beta ("beta"), a FLOAT64 variance among FLOAT32 operands ("variance", "float32",
-"float64"), a [4, 4] gamma ("rank-1") and four INT64 operands ("int64"). The graph's node count
-and value count are unchanged after all five.
+"float64"), a [4, 4] gamma ("rank-1") and four INT64 operands ("int64").
+
+## ARefusedBatchNormFoldDeclaresNoValueAndEmitsNoNode
+
+After a refused fold the graph's node count and value count are unchanged.
 
 ## BatchNormFoldRejectsANonPositiveEpsilon
 
@@ -175,8 +208,11 @@ An epsilon of 0.0 and one of -1e-3 are each refused with a message containing "b
 
 ## SumChannelsFoldsEverythingButTheChannelAxis
 
-`sum_channels` of [2, 8, 8, 16] gives [16], and over the same value converted to NCHW it
-is refused.
+`sum_channels` of [2, 8, 8, 16] gives [16].
+
+## SumChannelsRejectsAnNCHWInput
+
+`sum_channels` over the same value converted to NCHW is refused.
 
 ## ReshapeRefusesToChangeTheElementCount
 

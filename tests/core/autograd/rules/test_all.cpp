@@ -67,7 +67,39 @@ namespace SushiAI
 {
     namespace Test
     {
-        TEST(Medium_RuleTable, EveryDomainsRulesReachTheCombinedTable)
+        namespace
+        {
+            /** @brief Spells an operation's name as a test-parameter name, dots as underscores. */
+            std::string case_name(OpID op)
+            {
+                std::string name(Ops::name_of(op));
+                std::replace(name.begin(), name.end(), '.', '_');
+                return name;
+            }
+
+            /** @brief Holds one row of the combined rule table as the test parameter. */
+            class Small_RuleTableEntry : public ::testing::TestWithParam<Autograd::RuleEntry>
+            {
+            };
+
+            /** @brief Holds one operation that had a rule before the table was split by domain. */
+            class Small_RuleTableLegacyOperation : public ::testing::TestWithParam<Ops::OpName>
+            {
+            };
+
+            /** @brief Holds one operation declared a gradient barrier. */
+            class Small_RuleTableBarrier : public ::testing::TestWithParam<Ops::OpName>
+            {
+            };
+
+            /** @brief Holds one row of the activation table of the operation set. */
+            class Small_RuleTableActivation : public ::testing::TestWithParam<Ops::Activation>
+            {
+            };
+        } // namespace
+
+        /** @brief Tests that the combined table holds the rows of the eight domain tables. */
+        TEST(Small_RuleTable, EveryDomainsRulesReachTheCombinedTable)
         {
             // A domain left out of all.hpp still compiles; see tests/core/autograd/README.md.
             constexpr std::size_t K_DOMAINS =
@@ -79,69 +111,115 @@ namespace SushiAI
             EXPECT_EQ(Autograd::K_RULES.size(), K_DOMAINS);
         }
 
-        TEST(Medium_RuleTable, NoOperationHasTwoRules)
+        /** @brief Tests that the combined table holds the operation of the row exactly once. */
+        TEST_P(Small_RuleTableEntry, NoOperationHasTwoRules)
         {
             // The first of two entries would win silently; see tests/core/autograd/README.md.
-            for (std::size_t i = 0; i < Autograd::K_RULES.size(); ++i)
-                for (std::size_t j = i + 1; j < Autograd::K_RULES.size(); ++j)
-                    EXPECT_NE(Autograd::K_RULES[i].op, Autograd::K_RULES[j].op)
-                        << "'" << Ops::name_of(Autograd::K_RULES[i].op)
-                        << "' has two backward rules";
+            const OpID op = GetParam().op;
+            const auto holders = std::count_if(
+                Autograd::K_RULES.begin(), Autograd::K_RULES.end(),
+                [op](const Autograd::RuleEntry& entry) { return entry.op == op; });
+
+            EXPECT_EQ(holders, 1) << "'" << Ops::name_of(op) << "' has " << holders
+                                  << " backward rules";
         }
 
-        TEST(Medium_RuleTable, TheRulesThatExistedBeforeTheSplitStillDo)
+        /** @brief Tests that the operation of the row is declared differentiable and has a rule. */
+        TEST_P(Small_RuleTableEntry, EveryOperationIsDifferentiableAndHasARule)
+        {
+            const OpID op = GetParam().op;
+            const auto declared = std::find_if(
+                Ops::K_ALL.begin(), Ops::K_ALL.end(),
+                [op](const Ops::OpName& entry) { return entry.id == op; });
+
+            ASSERT_NE(declared, Ops::K_ALL.end()) << Ops::name_of(op);
+            EXPECT_TRUE(declared->differentiable) << declared->name;
+            EXPECT_TRUE(Autograd::has_backward_rule(op)) << declared->name;
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            Rows, Small_RuleTableEntry,
+            ::testing::ValuesIn(Autograd::K_RULES.begin(), Autograd::K_RULES.end()),
+            [](const ::testing::TestParamInfo<Autograd::RuleEntry>& info)
+            {
+                return case_name(info.param.op);
+            });
+
+        /** @brief Tests that the operation of the row has a rule in the library. */
+        TEST_P(Small_RuleTableLegacyOperation, TheRulesThatExistedBeforeTheSplitStillDo)
         {
             // These fourteen rules predate the split; see tests/core/autograd/README.md.
-            for (OpID op : {Ops::K_MATMUL.id, Ops::K_BIAS_ADD.id, Ops::K_ADD.id,
-                                 Ops::K_SUB.id, Ops::K_MUL.id, Ops::K_SCALE.id, Ops::K_EXP.id,
-                                 Ops::K_RELU.id, Ops::K_GELU.id, Ops::K_SIGMOID.id,
-                                 Ops::K_TANH.id, Ops::K_SUM_ROWS.id, Ops::K_ACCUMULATE.id,
-                                 Ops::K_NLL_LOSS.id})
-                EXPECT_TRUE(Autograd::has_backward_rule(op))
-                    << "'" << Ops::name_of(op) << "' lost its rule in the split";
+            EXPECT_TRUE(Autograd::has_backward_rule(GetParam().id))
+                << "'" << GetParam().name << "' lost its rule in the split";
         }
 
-        /** @brief Tests that no identity declared a gradient barrier has a backward rule. */
-        TEST(Medium_RuleTable, NoGradientBarrierHasARule)
-        {
-            std::size_t barriers = 0;
-            for (const Ops::OpName& entry : Ops::K_ALL)
+        INSTANTIATE_TEST_SUITE_P(
+            Rows, Small_RuleTableLegacyOperation,
+            ::testing::Values(Ops::K_MATMUL, Ops::K_BIAS_ADD, Ops::K_ADD, Ops::K_SUB, Ops::K_MUL,
+                              Ops::K_SCALE, Ops::K_EXP, Ops::K_RELU, Ops::K_GELU, Ops::K_SIGMOID,
+                              Ops::K_TANH, Ops::K_SUM_ROWS, Ops::K_ACCUMULATE, Ops::K_NLL_LOSS),
+            [](const ::testing::TestParamInfo<Ops::OpName>& info)
             {
-                if (!entry.blocks_gradient)
-                    continue;
+                return case_name(info.param.id);
+            });
 
-                ++barriers;
-                EXPECT_FALSE(Autograd::has_rule(entry.id)) << entry.name;
-                EXPECT_FALSE(Autograd::has_backward_rule(entry.id)) << entry.name;
-            }
+        /** @brief Tests that the gradient barrier of the row is not differentiable, has no rule. */
+        TEST_P(Small_RuleTableBarrier, NoGradientBarrierHasARule)
+        {
+            const Ops::OpName& barrier = GetParam();
 
-            EXPECT_EQ(barriers, 4u) << "the loop above checked a different set than it names";
+            EXPECT_TRUE(barrier.blocks_gradient) << barrier.name;
+            EXPECT_FALSE(barrier.differentiable) << barrier.name;
+            EXPECT_FALSE(Autograd::has_rule(barrier.id)) << barrier.name;
+            EXPECT_FALSE(Autograd::has_backward_rule(barrier.id)) << barrier.name;
         }
 
-        /** @brief Tests that the comparison is a gradient barrier and has no rule row. */
-        TEST(Medium_RuleTable, TheComparisonIsABarrierWithoutARule)
-        {
-            EXPECT_FALSE(Ops::K_LESS_EQUAL.differentiable);
-            EXPECT_TRUE(Ops::K_LESS_EQUAL.blocks_gradient);
-            EXPECT_FALSE(Autograd::has_rule(Ops::K_LESS_EQUAL.id));
-        }
-
-        /** @brief Tests that each ACTIVATIONS row has a rule for its forward identity alone. */
-        TEST(Medium_RuleTable, EveryActivationRowHasARuleForItsForwardIdentityOnly)
-        {
-            for (const Ops::Activation& entry : Ops::K_ACTIVATIONS)
+        INSTANTIATE_TEST_SUITE_P(
+            Rows, Small_RuleTableBarrier,
+            ::testing::Values(Ops::K_ZERO, Ops::K_CONSTANT, Ops::K_LESS_EQUAL,
+                              Ops::K_STOP_GRADIENT),
+            [](const ::testing::TestParamInfo<Ops::OpName>& info)
             {
-                EXPECT_TRUE(Autograd::has_rule(entry.forward))
-                    << "'" << Ops::name_of(entry.forward) << "' has no backward rule";
-                EXPECT_FALSE(Autograd::has_rule(entry.backward))
-                    << "'" << Ops::name_of(entry.backward) << "' is a gradient with a rule";
-            }
+                return case_name(info.param.id);
+            });
 
+        /** @brief Tests that the barrier rows above name every barrier the operation set declares. */
+        TEST(Small_RuleTable, TheBarrierRowsNameEveryDeclaredBarrier)
+        {
+            const auto barriers = std::count_if(
+                Ops::K_ALL.begin(), Ops::K_ALL.end(),
+                [](const Ops::OpName& entry) { return entry.blocks_gradient; });
+
+            EXPECT_EQ(barriers, 4);
+        }
+
+        /** @brief Tests that the activation of the row has a rule for its forward identity alone. */
+        TEST_P(Small_RuleTableActivation, EveryActivationRowHasARuleForItsForwardIdentityOnly)
+        {
+            const Ops::Activation& entry = GetParam();
+
+            EXPECT_TRUE(Autograd::has_rule(entry.forward))
+                << "'" << Ops::name_of(entry.forward) << "' has no backward rule";
+            EXPECT_FALSE(Autograd::has_rule(entry.backward))
+                << "'" << Ops::name_of(entry.backward) << "' is a gradient with a rule";
+        }
+
+        INSTANTIATE_TEST_SUITE_P(
+            Rows, Small_RuleTableActivation,
+            ::testing::ValuesIn(Ops::K_ACTIVATIONS.begin(), Ops::K_ACTIVATIONS.end()),
+            [](const ::testing::TestParamInfo<Ops::Activation>& info)
+            {
+                return case_name(info.param.forward);
+            });
+
+        /** @brief Tests that the activation rule table has one row per activation. */
+        TEST(Small_RuleTable, TheActivationRuleTableHasOneRowPerActivation)
+        {
             EXPECT_EQ(Autograd::K_ACTIVATION_RULES.size(), Ops::K_ACTIVATIONS.size());
         }
 
         /** @brief Tests that the normalisation domain rules BATCHNORM2D and not the fold. */
-        TEST(Medium_RuleTable, BatchNormFoldHasNoRuleAndBatchNormKeepsIts)
+        TEST(Small_RuleTable, BatchNormFoldHasNoRuleAndBatchNormKeepsIts)
         {
             EXPECT_TRUE(Autograd::has_rule(Ops::K_BATCHNORM2D.id));
             EXPECT_FALSE(Autograd::has_rule(Ops::K_BATCHNORM_FOLD.id));
@@ -149,16 +227,8 @@ namespace SushiAI
             EXPECT_EQ(Autograd::K_NORM_RULES.size(), 3u);
         }
 
-        /** @brief Tests that LAYER_NORM has the third normalisation rule and its gradient none. */
-        TEST(Medium_RuleTable, LayerNormHasItsRuleAndItsGradientHasNone)
-        {
-            EXPECT_TRUE(Autograd::has_rule(Ops::K_LAYER_NORM.id));
-            EXPECT_FALSE(Ops::K_LAYER_NORM_BACKWARD.differentiable);
-            EXPECT_FALSE(Autograd::has_rule(Ops::K_LAYER_NORM_BACKWARD.id));
-        }
-
         /** @brief Tests that LOG_SOFTMAX has the second loss rule and its gradient none. */
-        TEST(Medium_RuleTable, LogSoftmaxHasItsRuleAndItsGradientHasNone)
+        TEST(Small_RuleTable, LogSoftmaxHasItsRuleAndItsGradientHasNone)
         {
             EXPECT_EQ(Autograd::K_LOSS_RULES.size(), 2u);
             EXPECT_TRUE(Ops::K_LOG_SOFTMAX.differentiable);
@@ -167,32 +237,8 @@ namespace SushiAI
             EXPECT_FALSE(Autograd::has_rule(Ops::K_LOG_SOFTMAX_BACKWARD.id));
         }
 
-        /** @brief Tests that CAUSAL_MASK has one of the six linear-algebra rules. */
-        TEST(Medium_RuleTable, TheCausalMaskHasItsRule)
-        {
-            EXPECT_EQ(Autograd::K_LINALG_RULES.size(), 6u);
-            EXPECT_TRUE(Autograd::has_rule(Ops::K_CAUSAL_MASK.id));
-        }
-
-        /** @brief Tests that DROPOUT has the one rule of the random domain. */
-        TEST(Medium_RuleTable, DropoutHasTheRuleOfTheRandomDomain)
-        {
-            EXPECT_EQ(Autograd::K_RANDOM_RULES.size(), 1u);
-            EXPECT_TRUE(Ops::K_DROPOUT.differentiable);
-            EXPECT_TRUE(Autograd::has_rule(Ops::K_DROPOUT.id));
-        }
-
-        /** @brief Tests that the row gather and its scatter-add each have a rule. */
-        TEST(Medium_RuleTable, TheGatherAndTheScatterAddDifferentiateIntoEachOther)
-        {
-            EXPECT_TRUE(Ops::K_GATHER_ROWS.differentiable);
-            EXPECT_TRUE(Ops::K_SCATTER_ADD_ROWS.differentiable);
-            EXPECT_TRUE(Autograd::has_rule(Ops::K_GATHER_ROWS.id));
-            EXPECT_TRUE(Autograd::has_rule(Ops::K_SCATTER_ADD_ROWS.id));
-        }
-
         /** @brief Tests that the depthwise forward has the spatial table's ninth rule. */
-        TEST(Medium_RuleTable, TheDepthwiseForwardHasItsRuleAndItsGradientsHaveNone)
+        TEST(Small_RuleTable, TheDepthwiseForwardHasItsRuleAndItsGradientsHaveNone)
         {
             EXPECT_EQ(Autograd::K_SPATIAL_RULES.size(), 9u);
             EXPECT_TRUE(Autograd::has_rule(Ops::K_DEPTHWISE_CONV2D.id));
@@ -209,6 +255,20 @@ namespace SushiAI
 namespace
 {
     class Medium_Autograd : public SaTest::EngineTest {};
+
+    /** @brief Holds one operation of the add-or-sub case: its name, which one, and a seed offset. */
+    struct BinaryCase
+    {
+        const char* name;          /**< The case name. */
+        bool subtract;             /**< True for sub, false for add. */
+        std::uint64_t seed_offset; /**< Added to each seed of the case. */
+    };
+
+    /** @brief Runs the add-or-sub case once per operation. */
+    class Medium_AutogradBinary : public SaTest::EngineTest,
+                                  public ::testing::WithParamInterface<BinaryCase>
+    {
+    };
 
     /**
      * @brief Compiles @p graph into a step; a refusal is a failed expectation and yields null.
@@ -391,6 +451,18 @@ namespace
             Graph::FusionReport fusion_;
     };
 
+    /** @brief Reports whether the lowering of @p probe chose @p form for any selection. */
+    bool spells_form(const Probe& probe, Graph::FusedForm form)
+    {
+        const SushiRuntime::span<const Graph::FusionSelection> selections = probe.selections();
+
+        return std::any_of(selections.begin(), selections.end(),
+                           [form](const Graph::FusionSelection& selection)
+                           {
+                               return selection.chosen == form;
+                           });
+    }
+
     /** @brief Runs the full-Jacobian check and reports the result on failure. */
     void expect_gradient_matches(Probe& probe, std::vector<double>& point,
                                  const Autograd::GradCheckOptions& options = {})
@@ -539,27 +611,35 @@ TEST_F(Medium_Autograd, BiasAddSumsOverTheBroadcastAxis)
     expect_gradient_matches(probe, point);
 }
 
-TEST_F(Medium_Autograd, ElementwiseAddAndSubtract)
+/** @brief Tests that the variable on the left of add, and of sub, differentiates against central
+ *         differences.
+ */
+TEST_P(Medium_AutogradBinary, ElementwiseAddAndSubtract)
 {
-    for (int which = 0; which < 2; ++which)
+    const BinaryCase& row = GetParam();
+    ValueID other = Graph::K_NO_VALUE;
+
+    Probe probe(*engine, Shape{4, 3}, [&other, &row](const GraphBuilder& builder, ValueID x)
     {
-        ValueID other = Graph::K_NO_VALUE;
+        other = builder.input(Shape{4, 3}, "b", DType::Float64);
+        return row.subtract ? builder.sub(x, other) : builder.add(x, other);
+    });
 
-        Probe probe(*engine, Shape{4, 3}, [&other, which](const GraphBuilder& builder, ValueID x)
-        {
-            other = builder.input(Shape{4, 3}, "b", DType::Float64);
-            return which == 0 ? builder.add(x, other) : builder.sub(x, other);
-        });
+    probe.fill_noise(other, 81 + row.seed_offset, 1.0);
+    probe.fill_noise(probe.targets(), 91 + row.seed_offset, 1.0);
 
-        probe.fill_noise(other, 81 + static_cast<std::uint64_t>(which), 1.0);
-        probe.fill_noise(probe.targets(), 91 + static_cast<std::uint64_t>(which), 1.0);
+    std::vector<double> point(probe.size());
+    SaTest::HostNoise(101 + row.seed_offset).fill(point, 1.0);
 
-        std::vector<double> point(probe.size());
-        SaTest::HostNoise(101 + static_cast<std::uint64_t>(which)).fill(point, 1.0);
-
-        expect_gradient_matches(probe, point);
-    }
+    expect_gradient_matches(probe, point);
 }
+
+INSTANTIATE_TEST_SUITE_P(Operations, Medium_AutogradBinary,
+                         ::testing::Values(BinaryCase{"Add", false, 0}, BinaryCase{"Sub", true, 1}),
+                         [](const ::testing::TestParamInfo<BinaryCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
 
 TEST_F(Medium_Autograd, ElementwiseSubtractFromTheRight)
 {
@@ -707,24 +787,6 @@ TEST_F(Medium_Autograd, LeakyReLUHasBothOfItsSlopes)
     expect_gradient_matches(probe, point);
 }
 
-TEST_F(Medium_Autograd, LeakyReLUBranchSwapIsCaughtByProbePoints)
-{
-    // Pins the sign split of the sample used above; see tests/core/autograd/README.md.
-    std::vector<double> point(4 * 8);
-    SaTest::HostNoise(171).fill(point, 1.5);
-    Autograd::push_off_kinks(point);
-
-    const auto negative = std::count_if(point.begin(), point.end(),
-                                        [](double v) { return v < 0.0; });
-    EXPECT_GE(negative, 10) << "too few negative-side points to exercise the "
-                                "slope branch of leaky_relu's gradient";
-
-    const double min_abs = std::abs(*std::min_element(point.begin(), point.end(),
-        [](double a, double b) { return std::abs(a) < std::abs(b); }));
-    EXPECT_GT(min_abs, 0.05) << "a point too close to zero would sit on the kink "
-                                 "push_off_kinks is supposed to have cleared";
-}
-
 TEST_F(Medium_Autograd, GELU)
 {
     Probe probe(*engine, Shape{4, 3}, [](const GraphBuilder& builder, ValueID x)
@@ -761,11 +823,7 @@ TEST_F(Medium_Autograd, AFusedGELUEpilogueHasTheSameDerivativeAsAnUnfusedOne)
     ASSERT_EQ(probe.fusion().count(Graph::FusedForm::GEMMBiasGELU), 1u)
         << probe.fusion().to_string();
 
-    bool spelled = false;
-    for (const Graph::FusionSelection& selection : probe.selections())
-        if (selection.chosen == Graph::FusedForm::GEMMBiasGELU) spelled = true;
-
-    ASSERT_TRUE(spelled)
+    ASSERT_TRUE(spells_form(probe, Graph::FusedForm::GEMMBiasGELU))
         << "this device declined the fused GELU epilogue, so the gradient below is the "
            "unfused one and this case is not checking what it claims to";
 

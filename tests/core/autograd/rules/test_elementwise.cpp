@@ -28,7 +28,11 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
+#include <iterator>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/elementwise.hpp>
@@ -65,33 +69,45 @@ namespace
     };
 } // namespace
 
-/** @brief Tests that every row pairs its operation with the rule declared for it. */
-TEST(Small_ElementwiseRules, EveryRowPairsItsOperationWithItsOwnRule)
+namespace
 {
-    ASSERT_EQ(K_ELEMENTWISE_RULES.size(), sizeof(K_EXPECTED) / sizeof(K_EXPECTED[0]));
-    for (std::size_t i = 0; i < K_ELEMENTWISE_RULES.size(); ++i)
+    /** @brief Holds one expected row of the elementwise rule table as the test parameter. */
+    class Small_ElementwiseRuleRow : public ::testing::TestWithParam<ExpectedRow>
     {
-        EXPECT_EQ(K_ELEMENTWISE_RULES[i].op, K_EXPECTED[i].op.id) << K_EXPECTED[i].op.name;
-        EXPECT_EQ(K_ELEMENTWISE_RULES[i].rule, K_EXPECTED[i].rule) << K_EXPECTED[i].op.name;
+    };
+
+    /** @brief Finds the rows of the table that hold @p op. */
+    std::vector<Autograd::RuleEntry> rows_holding(SushiAI::OpID op)
+    {
+        std::vector<Autograd::RuleEntry> rows;
+        std::copy_if(K_ELEMENTWISE_RULES.begin(), K_ELEMENTWISE_RULES.end(),
+                     std::back_inserter(rows),
+                     [op](const Autograd::RuleEntry& entry) { return entry.op == op; });
+        return rows;
     }
+} // namespace
+
+/** @brief Tests that the table holds the operation of the row once, with the rule declared for it. */
+TEST_P(Small_ElementwiseRuleRow, EveryRowPairsItsOperationWithItsOwnRule)
+{
+    const ExpectedRow& expected = GetParam();
+    const std::vector<Autograd::RuleEntry> rows = rows_holding(expected.op.id);
+
+    ASSERT_EQ(rows.size(), 1u) << expected.op.name;
+    EXPECT_EQ(rows[0].rule, expected.rule) << expected.op.name;
 }
 
-/** @brief Tests that every operation is declared differentiable and has a rule in the library. */
-TEST(Small_ElementwiseRules, EveryOperationIsDifferentiableAndHasARule)
-{
-    for (const ExpectedRow& row : K_EXPECTED)
-    {
-        EXPECT_TRUE(row.op.differentiable) << row.op.name;
-        EXPECT_TRUE(Autograd::has_backward_rule(row.op.id)) << row.op.name;
-    }
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ElementwiseRuleRow,
+                         ::testing::ValuesIn(std::begin(K_EXPECTED), std::end(K_EXPECTED)),
+                         [](const ::testing::TestParamInfo<ExpectedRow>& info)
+                         {
+                             std::string name(info.param.op.name);
+                             std::replace(name.begin(), name.end(), '.', '_');
+                             return name;
+                         });
 
-/** @brief Tests that no operation appears in two rows. */
-TEST(Small_ElementwiseRules, NoOperationAppearsTwice)
+/** @brief Tests that the table has a row for each expected operation and no other. */
+TEST(Small_ElementwiseRules, TheTableHoldsOneRowPerExpectedOperation)
 {
-    for (std::size_t i = 0; i < K_ELEMENTWISE_RULES.size(); ++i)
-    {
-        for (std::size_t j = i + 1; j < K_ELEMENTWISE_RULES.size(); ++j)
-            EXPECT_NE(K_ELEMENTWISE_RULES[i].op, K_ELEMENTWISE_RULES[j].op) << i << ", " << j;
-    }
+    EXPECT_EQ(K_ELEMENTWISE_RULES.size(), sizeof(K_EXPECTED) / sizeof(K_EXPECTED[0]));
 }

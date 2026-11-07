@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
@@ -258,6 +259,20 @@ TEST(Small_Provenance, ARequestedValueWithoutAProducerIsRefused)
                       "provenance", "producer node");
 }
 
+namespace
+{
+    /** @brief Reports whether two graphs hold nodes of the same operation, inputs and outputs. */
+    bool same_nodes(const Graph::Graph& left, const Graph::Graph& right)
+    {
+        return std::equal(left.nodes().begin(), left.nodes().end(), right.nodes().begin(),
+                          right.nodes().end(),
+                          [](const Graph::Node& a, const Graph::Node& b)
+                          {
+                              return a.op == b.op && a.inputs == b.inputs && a.outputs == b.outputs;
+                          });
+    }
+} // namespace
+
 /** @brief Tests that a null provenance yields the same nodes and gradients as a recorded run. */
 TEST(Small_Provenance, PassingNoProvenanceChangesNothing)
 {
@@ -274,12 +289,5 @@ TEST(Small_Provenance, PassingNoProvenanceChangesNothing)
     EXPECT_EQ(recorded_gradients, plain_gradients);
     ASSERT_EQ(recorded.graph.node_count(), plain.graph.node_count());
 
-    for (std::size_t i = 0; i < plain.graph.node_count(); ++i)
-    {
-        const Graph::Node& with = recorded.graph.nodes()[i];
-        const Graph::Node& without = plain.graph.nodes()[i];
-        EXPECT_EQ(with.op, without.op) << "node " << i;
-        EXPECT_EQ(with.inputs, without.inputs) << "node " << i;
-        EXPECT_EQ(with.outputs, without.outputs) << "node " << i;
-    }
+    EXPECT_TRUE(same_nodes(recorded.graph, plain.graph));
 }

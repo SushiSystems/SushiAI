@@ -34,22 +34,26 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/autograd/gradcheck.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/tolerance.hpp>
 
 using namespace SushiAI::Autograd;
 
 namespace
 {
     /**
-     * @brief Bounds the relative error of an exact gradient under central differences in double; the
-     * truncation of the difference, not a rounding bound.
+     * @brief Bounds the relative error of an exact gradient under central differences in double; 2^30
+     * unit roundoffs of double, the smallest power of two that covers the 1e-7 truncation of the
+     * difference.
      */
-    constexpr double K_EXACT_GRADIENT_ERROR = 1e-7;
+    constexpr double K_EXACT_GRADIENT_ERROR = 1073741824.0 * TestSupport::unit_roundoff<double>();
 
     /**
      * @brief Bounds from below the relative error a gradient wrong by a tenth of a percent must
-     * show; a detection floor above the double noise, not a rounding bound.
+     * show; 2^40 unit roundoffs of double, the smallest power of two that reaches 1e-4, a detection
+     * floor a decade under the 1e-3 error and far above the double noise.
      */
-    constexpr double K_WRONG_GRADIENT_ERROR_FLOOR = 1e-4;
+    constexpr double K_WRONG_GRADIENT_ERROR_FLOOR =
+        1099511627776.0 * TestSupport::unit_roundoff<double>();
 
     /** @brief f(x) = sum(x_i^3) - sum(x_i^2) / 2, a smooth non-quadratic. */
     double cubic(SushiRuntime::span<const double> x)
@@ -83,6 +87,12 @@ namespace
     {
         for (std::size_t i = 0; i < x.size(); ++i) g[i] = x[i] > 0.0 ? 2.0 * x[i] : 0.0;
     }
+
+    /** @brief Expects @p v to sit at least the kink margin of a minimum step away from zero. */
+    void expect_off_the_kink(double v, const GradCheckOptions& options)
+    {
+        EXPECT_GE(std::abs(v), options.kink_margin * options.min_step * 0.999);
+    }
 }
 
 TEST(Small_GradCheck, AcceptsAnExactGradient)
@@ -106,27 +116,41 @@ TEST(Small_GradCheck, RejectsAGradientThatIsWrongByATenthOfAPercent)
     EXPECT_GT(result.max_relative_error, K_WRONG_GRADIENT_ERROR_FLOOR);
 }
 
-TEST(Small_GradCheck, LeavesTheProbePointUnchanged)
+TEST(Small_GradCheck, TheFullJacobianLeavesTheProbePointUnchanged)
 {
     std::vector<double> x = {0.7, -1.3, 2.1};
     const std::vector<double> before = x;
 
     (void)check_full_jacobian(cubic, cubic_gradient, x);
-    EXPECT_EQ(x, before);
 
-    (void)check_directional(cubic, cubic_gradient, x, 4);
     EXPECT_EQ(x, before);
 }
 
-TEST(Small_GradCheck, DirectionalModeAgreesWithTheFullJacobian)
+TEST(Small_GradCheck, TheDirectionalModeLeavesTheProbePointUnchanged)
+{
+    std::vector<double> x = {0.7, -1.3, 2.1};
+    const std::vector<double> before = x;
+
+    (void)check_directional(cubic, cubic_gradient, x, 4);
+
+    EXPECT_EQ(x, before);
+}
+
+TEST(Small_GradCheck, DirectionalModePassesAnExactGradient)
 {
     std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6, 3.3, -2.7};
 
-    const GradCheckResult full = check_full_jacobian(cubic, cubic_gradient, x);
     const GradCheckResult directional = check_directional(cubic, cubic_gradient, x, 12);
 
-    EXPECT_TRUE(full.passed) << full.to_string();
     EXPECT_TRUE(directional.passed) << directional.to_string();
+}
+
+TEST(Small_GradCheck, DirectionalModeReportsTheRequestedProbeCount)
+{
+    std::vector<double> x = {0.7, -1.3, 2.1, -0.45, 1.9, 0.6, 3.3, -2.7};
+
+    const GradCheckResult directional = check_directional(cubic, cubic_gradient, x, 12);
+
     EXPECT_EQ(directional.probes, 12u);
 }
 
@@ -151,49 +175,69 @@ TEST(Small_GradCheck, DirectionalModeIsReproducibleForAGivenSeed)
     EXPECT_EQ(first.worst_index, second.worst_index);
 }
 
-TEST(Small_GradCheck, PushOffKinksMovesCoordinatesAwayFromZeroAndKeepsTheirSign)
+TEST(Small_GradCheck, PushOffKinksMovesKinkCoordinatesOffZeroKeepingTheirSign)
 {
     GradCheckOptions options;
-    std::vector<double> x = {0.0, 1e-12, -1e-12, 5.0, -5.0};
+    std::vector<double> x = {0.0, 1e-12, -1e-12};
 
     push_off_kinks(x, options);
 
     EXPECT_GT(std::abs(x[0]), 0.0);
     EXPECT_GT(x[1], 0.0);
     EXPECT_LT(x[2], 0.0);
-    EXPECT_DOUBLE_EQ(x[3], 5.0);
-    EXPECT_DOUBLE_EQ(x[4], -5.0);
-
-    for (double v : x)
-        EXPECT_GE(std::abs(v), options.kink_margin * options.min_step * 0.999);
+    expect_off_the_kink(x[0], options);
+    expect_off_the_kink(x[1], options);
+    expect_off_the_kink(x[2], options);
 }
 
-TEST(Small_GradCheck, AReLUFamilyFunctionNeedsToBeSampledOffTheKink)
+TEST(Small_GradCheck, PushOffKinksLeavesCoordinatesAwayFromZeroUnchanged)
+{
+    GradCheckOptions options;
+    std::vector<double> x = {5.0, -5.0};
+
+    push_off_kinks(x, options);
+
+    EXPECT_DOUBLE_EQ(x[0], 5.0);
+    EXPECT_DOUBLE_EQ(x[1], -5.0);
+}
+
+TEST(Small_GradCheck, AQuotientAcrossTheKinkOfAReLUFamilyFunctionIsRejected)
+{
+    // A quotient across the kink averages both derivatives; see tests/core/autograd/README.md.
+    GradCheckOptions options;
+    options.min_step = 1e-4;
+
+    std::vector<double> unshifted = {0.0, 1e-14, -1e-14, 0.8, -1.4, 2.2};
+    const GradCheckResult straddling =
+        check_full_jacobian(rectified, rectified_gradient, unshifted, options);
+
+    EXPECT_FALSE(straddling.passed) << straddling.to_string();
+}
+
+TEST(Small_GradCheck, AReLUFamilyFunctionPassesOnceSampledOffTheKink)
 {
     // The step keeps the pushed coordinates at 1e-3; see tests/core/autograd/README.md.
     GradCheckOptions options;
     options.min_step = 1e-4;
 
-    const std::vector<double> at_the_kink = {0.0, 1e-14, -1e-14, 0.8, -1.4, 2.2};
-
-    // A quotient across the kink averages both derivatives; see tests/core/autograd/README.md.
-    std::vector<double> unshifted = at_the_kink;
-    const GradCheckResult straddling =
-        check_full_jacobian(rectified, rectified_gradient, unshifted, options);
-    EXPECT_FALSE(straddling.passed) << straddling.to_string();
-
-    std::vector<double> shifted = at_the_kink;
+    std::vector<double> shifted = {0.0, 1e-14, -1e-14, 0.8, -1.4, 2.2};
     push_off_kinks(shifted, options);
     const GradCheckResult clear =
         check_full_jacobian(rectified, rectified_gradient, shifted, options);
+
     EXPECT_TRUE(clear.passed) << clear.to_string();
 }
 
-TEST(Small_GradCheck, AnEmptyProbePointIsFatal)
+TEST(Medium_GradCheckFatal, AnEmptyProbePointIsFatal)
 {
     std::vector<double> empty;
-    SA_EXPECT_FATAL((void)check_full_jacobian(cubic, cubic_gradient, empty), "at least one input");
 
+    SA_EXPECT_FATAL((void)check_full_jacobian(cubic, cubic_gradient, empty), "at least one input");
+}
+
+TEST(Medium_GradCheckFatal, ZeroDirectionsIsFatal)
+{
     std::vector<double> x = {1.0};
+
     SA_EXPECT_FATAL((void)check_directional(cubic, cubic_gradient, x, 0), "at least one direction");
 }

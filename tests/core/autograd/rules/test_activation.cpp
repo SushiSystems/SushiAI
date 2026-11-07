@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/autograd/backward.hpp>
 #include <SushiAI/autograd/rules/activation.hpp>
@@ -58,12 +59,29 @@ TEST(Small_ActivationRules, TheTableListsTheSevenActivations)
     }
 }
 
-/** @brief Tests that one rule serves every row and the library reports a rule for each. */
-TEST(Small_ActivationRules, OneRuleServesEveryActivation)
+/** @brief Holds one row of the activation rule table as the test parameter. */
+class Small_ActivationRuleRow : public ::testing::TestWithParam<Autograd::RuleEntry>
 {
-    for (const Autograd::RuleEntry& entry : K_ACTIVATION_RULES)
-    {
-        EXPECT_EQ(entry.rule, &Autograd::activation_backward) << Ops::name_of(entry.op);
-        EXPECT_TRUE(Autograd::has_backward_rule(entry.op)) << Ops::name_of(entry.op);
-    }
+};
+
+/** @brief Tests that the row's rule is activation_backward and the library reports it. */
+TEST_P(Small_ActivationRuleRow, OneRuleServesTheActivation)
+{
+    const Autograd::RuleEntry& entry = GetParam();
+
+    EXPECT_EQ(entry.rule, &Autograd::activation_backward);
+    EXPECT_TRUE(Autograd::has_backward_rule(entry.op));
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ActivationRuleRow,
+                         ::testing::ValuesIn(K_ACTIVATION_RULES.begin(), K_ACTIVATION_RULES.end()),
+                         [](const ::testing::TestParamInfo<Autograd::RuleEntry>& info)
+                         {
+                             std::string name(Ops::name_of(info.param.op));
+                             for (char& letter : name)
+                             {
+                                 if (letter == '.')
+                                     letter = '_';
+                             }
+                             return name;
+                         });
