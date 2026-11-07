@@ -617,33 +617,69 @@ namespace SushiAI
                       Shape({2, 8, 8, 16}));
         }
 
-        /** @brief Tests that batchnorm_fold names the operand whose shape or type does not fit. */
-        TEST(Small_SpatialShapes, BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma)
+        /** @brief One operand set batchnorm_fold refuses, and what its message names. */
+        struct FoldMismatchRow
+        {
+            const char* name;                     /**< The row's test name. */
+            std::array<Shape, 4> shapes;          /**< gamma, beta, mean, variance. */
+            std::array<DType, 4> dtypes;          /**< Their element types, in that order. */
+            std::array<const char*, 3> fragments; /**< Named in order; "" matches anything. */
+        };
+
+        /** @brief Holds the four channels every row's well-formed operand has. */
+        const Shape K_CHANNELS({16});
+
+        /** @brief Holds four FLOAT32 operands, the type every row changes one of. */
+        constexpr std::array<DType, 4> K_FLOAT32_OPERANDS = {DType::Float32, DType::Float32,
+                                                             DType::Float32, DType::Float32};
+
+        /** @brief Lists every operand mismatch batchnorm_fold names. */
+        const FoldMismatchRow K_FOLD_MISMATCHES[] = {
+            {"AShortMean", {K_CHANNELS, K_CHANNELS, Shape({8}), K_CHANNELS}, K_FLOAT32_OPERANDS,
+             {"mean", "[16]", "[8]"}},
+            {"AShortBeta", {K_CHANNELS, Shape({8}), K_CHANNELS, K_CHANNELS}, K_FLOAT32_OPERANDS,
+             {"beta", "", ""}},
+            {"AFloat64Variance", {K_CHANNELS, K_CHANNELS, K_CHANNELS, K_CHANNELS},
+             {DType::Float32, DType::Float32, DType::Float32, DType::Float64},
+             {"variance", "float32", "float64"}},
+            {"AMatrixGamma", {Shape({4, 4}), K_CHANNELS, K_CHANNELS, K_CHANNELS},
+             K_FLOAT32_OPERANDS, {"rank-1", "", ""}},
+            {"Int64Operands", {K_CHANNELS, K_CHANNELS, K_CHANNELS, K_CHANNELS},
+             {DType::Int64, DType::Int64, DType::Int64, DType::Int64}, {"int64", "", ""}},
+        };
+
+        /** @brief Folds the operands @p row describes, gamma and beta as parameters. */
+        [[nodiscard]] Result<Graph::BatchNormFold> fold_of(const FoldMismatchRow& row)
         {
             Graph::Graph graph;
             const GraphBuilder builder(graph);
-            const ValueID gamma = builder.parameter({16}, "gamma");
-            const ValueID beta = builder.parameter({16}, "beta");
-            const ValueID mean = builder.buffer({16}, "running_mean");
-            const ValueID variance = builder.buffer({16}, "running_var");
-            const ValueID short_mean = builder.buffer({8}, "short_mean");
-            const ValueID wide_variance = builder.buffer({16}, "wide_var", DType::Float64);
-            const ValueID matrix = builder.parameter({4, 4}, "matrix");
-            const ValueID counts = builder.buffer({16}, "counts", DType::Int64);
-
-            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, short_mean, variance, 1e-3),
-                              StatusCode::InvalidDescription, "batchnorm_fold", "mean", "[16]",
-                              "[8]");
-            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, short_mean, mean, variance, 1e-3),
-                              StatusCode::InvalidDescription, "batchnorm_fold", "beta");
-            SA_EXPECT_FAILURE(builder.batchnorm_fold(gamma, beta, mean, wide_variance, 1e-3),
-                              StatusCode::InvalidDescription, "batchnorm_fold", "variance",
-                              "float32", "float64");
-            SA_EXPECT_FAILURE(builder.batchnorm_fold(matrix, beta, mean, variance, 1e-3),
-                              StatusCode::InvalidDescription, "batchnorm_fold", "rank-1");
-            SA_EXPECT_FAILURE(builder.batchnorm_fold(counts, counts, counts, counts, 1e-3),
-                              StatusCode::InvalidDescription, "batchnorm_fold", "int64");
+            const ValueID gamma = builder.parameter(row.shapes[0], "gamma", row.dtypes[0]);
+            const ValueID beta = builder.parameter(row.shapes[1], "beta", row.dtypes[1]);
+            const ValueID mean = builder.buffer(row.shapes[2], "running_mean", row.dtypes[2]);
+            const ValueID variance = builder.buffer(row.shapes[3], "running_var", row.dtypes[3]);
+            return builder.batchnorm_fold(gamma, beta, mean, variance, 1e-3);
         }
+
+        /** @brief Runs one batchnorm_fold refusal per row. */
+        class Small_BatchNormFoldMismatch : public ::testing::TestWithParam<FoldMismatchRow>
+        {
+        };
+
+        /** @brief Tests that batchnorm_fold refuses an operand that does not fit and names it. */
+        TEST_P(Small_BatchNormFoldMismatch, IsRefusedNamingTheOperand)
+        {
+            const FoldMismatchRow& row = GetParam();
+
+            SA_EXPECT_FAILURE(fold_of(row), StatusCode::InvalidDescription, "batchnorm_fold",
+                              row.fragments[0], row.fragments[1], row.fragments[2]);
+        }
+
+        INSTANTIATE_TEST_SUITE_P(Rows, Small_BatchNormFoldMismatch,
+                                 ::testing::ValuesIn(K_FOLD_MISMATCHES),
+                                 [](const ::testing::TestParamInfo<FoldMismatchRow>& info)
+                                 {
+                                     return std::string(info.param.name);
+                                 });
 
         /** @brief Tests that a refused batchnorm_fold declares no value and emits no node. */
         TEST(Small_SpatialShapes, ARefusedBatchNormFoldDeclaresNoValueAndEmitsNoNode)

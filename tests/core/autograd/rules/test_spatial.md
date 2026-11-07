@@ -1,7 +1,7 @@
 # tests/core/autograd/rules/test_spatial.cpp
 
 
-Suites: `Small_SpatialShapes`.
+Suites: `Small_SpatialShapes`, `Small_BatchNormFoldMismatch` (one case per refused operand set).
 
 Tests the shapes the builder infers for spatial operations and the layouts it refuses. A refused
 call returns `StatusCode::InvalidDescription` with the substrings the case names.
@@ -191,11 +191,12 @@ Both results are [16] FLOAT64 values of lifetime `ACTIVATION`, the operands' typ
 
 A `channel_affine` of a [2, 8, 8, 16] input with the two results of a fold keeps that shape.
 
-## BatchNormFoldRejectsAnOperandThatDoesNotMatchGamma
+## IsRefusedNamingTheOperand
 
-Five calls are refused with "batchnorm_fold" and the operand at fault: a [8] mean ("mean", "[16]",
-"[8]"), a [8] beta ("beta"), a FLOAT64 variance among FLOAT32 operands ("variance", "float32",
-"float64"), a [4, 4] gamma ("rank-1") and four INT64 operands ("int64").
+One row per operand set, each refused with "batchnorm_fold" and the operand at fault: `AShortMean`,
+a [8] mean ("mean", "[16]", "[8]"); `AShortBeta`, a [8] beta ("beta"); `AFloat64Variance`, a FLOAT64
+variance among FLOAT32 operands ("variance", "float32", "float64"); `AMatrixGamma`, a [4, 4] gamma
+("rank-1"); `Int64Operands`, four INT64 operands ("int64").
 
 ## ARefusedBatchNormFoldDeclaresNoValueAndEmitsNoNode
 

@@ -20,5 +20,7 @@ K_ACCUMULATE with `accumulate_backward`, K_DIV with `div_backward`, K_MINIMUM wi
 
 The table has twelve rows, as many as the expected pairs, so a row with no expected pair fails.
 
+`rules/compile_elementwise.cpp` checks at build time that no two rows name the same operation.
+
 The differentiability of every operation of every rule table, and its backward rule, are checked
 by `EveryOperationIsDifferentiableAndHasARule` in `rules/test_all.cpp`.
