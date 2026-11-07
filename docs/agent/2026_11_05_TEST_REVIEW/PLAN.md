@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decisions 20 and 21) is done; M3, M7, M9, M11, M21 and M30 to M52 are left
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) is done; M7, M9, M11, M21 and M30 to M52 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -21,7 +21,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
 | M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-157 in 3d2cc353, not yet built or run) |
 | M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-158 closed in 2cfb768b, not yet built or run) |
-| M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; resizes open in RW-159 |
+| M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except `test_find_project_root_raises_outside_checkout`, which waits on a walk bound in sushicore outside this repository (RW-159 stays open for it); not yet run |
 | M4 | the tests of `core/allocation` (1 file): 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M5 | the tests of `core/autograd` (14 files): 36 rewrite, 5 resize, 19 split, 11 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (NoOperationAppearsTwice as `rules/compile_elementwise.cpp`, the fold refusals as `Small_BatchNormFoldMismatch` rows; not yet built or run) |
 | M6 | the tests of `core/config` (9 files): 2 rewrite, 43 resize, 9 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
