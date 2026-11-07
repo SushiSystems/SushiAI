@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- 2026-11-07 — test_tree: Put Session, CompiledStep and record_and_run on a host and a runtime ExecutionBackend (RW-161, `7f76b593`).
+- 2026-11-07 — execution: Added `RuntimeAccess`, the port of the runtime a backend runs on; `RuntimeExecutionBackend` implements it, `HostExecutionBackend` does not (RW-161, `runtime_access.hpp`).
+- 2026-11-07 — eager: Changed Session to take an ExecutionBackend, and RegionExecutor and RegionEmitter to take a RuntimeAccess also (RW-161, `session.hpp`).
+- 2026-11-07 — distribution: Changed GradientExchange and ParameterPublish to take a RuntimeAccess, and ReplicaModelFactory to take an ExecutionBackend (RW-161, `gradient_exchange.hpp`).
+- 2026-11-07 — programs: Changed run_training_file to take an ExecutionBackend and a RuntimeAccess pointer (RW-161, `training_program.hpp`).
 - 2026-11-07 — test_tree: Give InMemorySampleSource a load journal and drop test_pipeline's MemorySource (RW-157, `3d2cc353`).
 - 2026-11-07 — imaging: Added `InMemorySampleSource::loads()`, the indices `load()` was called with, in call order (RW-157, `in_memory_sample_source.hpp`).
 - 2026-11-07 — test_tree: Rule on the module seams the review's resize records ask for (RW-155, `7a34fa48`).
