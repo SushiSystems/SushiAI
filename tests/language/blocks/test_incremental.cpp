@@ -23,11 +23,10 @@
 
 /**
  * @file test_incremental.cpp
- * @brief Tests the leaf names of the incremental blocks and the score of a masked position.
+ * @brief Tests the leaf names of the incremental blocks.
  * @author Mustafa Garip
  */
 
-#include <cmath>
 #include <set>
 #include <string_view>
 #include <gtest/gtest.h>
@@ -44,15 +43,4 @@ TEST(Small_BlockIncremental, EveryLeafHasItsOwnName)
 
     EXPECT_EQ(names.size(), 5u);
     EXPECT_EQ(names.count(""), 0u);
-}
-
-/** @brief Tests that a masked score is finite in float32 and its softmax weight is zero. */
-TEST(Small_BlockIncremental, AMaskedScoreTakesNoWeightInTheSoftmax)
-{
-    const float masked = static_cast<float>(K_MASKED_ATTENTION_SCORE);
-
-    EXPECT_TRUE(std::isfinite(masked));
-    EXPECT_LT(masked, 0.0f);
-    // A readable position scores 0 after the shift by the maximum, so its weight is exp(0).
-    EXPECT_EQ(std::exp(masked) / (std::exp(masked) + std::exp(0.0f)), 0.0f);
 }

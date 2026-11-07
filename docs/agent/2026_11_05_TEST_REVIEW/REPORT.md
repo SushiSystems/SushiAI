@@ -90,6 +90,8 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 
 27. Orchestrator ruling on decision 25 and the negative-rate death test (2026-11-07, the worker): the three `Medium_` trailing-work cases stay, because each checks a device-side promise the ledger cannot. `Medium_SetLearningRate.ANegativeRateIsFatal` in `tests/core/optim/test_optimizer.cpp` is the death test that `set_learning_rate` stops on the refusal of `check_learning_rate`; it is `Medium_` because a death test starts a child process, and the refusal itself stays small.
 
+28. M30 started (2026-11-07, the worker): four files of `tests/language/blocks` are applied. Seam built in `language/blocks`: `check_rotary_row_spans(cosines, sines)` returns the `Status` that `write_rotary_row` stops on, so the span rules run small and the death case is `Medium_`. `test_expert_projection.cpp` splits the mix into small shape and role rows and a `Medium_` numeric case against a host sum, because no host graph evaluator exists; the port-name case of `test_expert_trace.cpp` runs through `make_moe_feed_forward_node`; `AMaskedScoreTakesNoWeightInTheSoftmax` is deleted. The other files of M30 are not touched.
+
 ## Seams the M jobs wait on
 
 RW-155 asks the owner to rule on these. Each changes a module's surface, so the test named stays as it is until then.

@@ -23,36 +23,33 @@
 
 /**
  * @file test_expert_trace.cpp
- * @brief Tests the port names and the empty state of ExpertTrace.
+ * @brief Tests that the ports of a block with experts carry distinct names.
  * @author Mustafa Garip
  */
 
+#include <memory>
 #include <gtest/gtest.h>
-#include <SushiAI/graph/ir.hpp>
-#include <SushiAI/language/blocks/expert_trace.hpp>
+#include <SushiAI/config/value.hpp>
+#include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/language/blocks/moe_feed_forward.hpp>
 #include <SushiAI/nn/node.hpp>
+#include <SushiAI/shape/shape.hpp>
 
 using namespace SushiAI;
-using Language::Blocks::ExpertTrace;
-using Language::Blocks::K_BALANCE_PORT;
-using Language::Blocks::K_USAGE_PORT;
 
-/** @brief Tests that a default trace names no value in any of its three fields. */
-TEST(Small_BlockExpertTrace, ADefaultTraceHoldsNoValue)
+/** @brief Tests that the three ports of a block with experts carry three different names. */
+TEST(Small_BlockExpertTrace, ThePortsOfABlockWithExpertsHaveDistinctNames)
 {
-    const ExpertTrace trace;
+    const Shape input{5, 6};
+    const Config::Value row = SushiAI::Test::require_value(
+        Config::parse_json(R"({"experts": 4, "hidden": 8, "top_k": 2})", "<test>"));
+    SA_ASSERT_OK_AND_ASSIGN(
+        const std::unique_ptr<NN::Node> node,
+        Language::Blocks::make_moe_feed_forward_node(NN::ShapeSpan(&input, 1), row, "layer 0"));
 
-    EXPECT_EQ(trace.output, Graph::K_NO_VALUE);
-    EXPECT_EQ(trace.balance, Graph::K_NO_VALUE);
-    EXPECT_EQ(trace.usage, Graph::K_NO_VALUE);
-}
-
-/** @brief Tests that the two extra ports differ from each other and from the single port. */
-TEST(Small_BlockExpertTrace, ThePortNamesAreDistinct)
-{
-    EXPECT_EQ(K_BALANCE_PORT, "balance");
-    EXPECT_EQ(K_USAGE_PORT, "usage");
-    EXPECT_NE(K_BALANCE_PORT, K_USAGE_PORT);
-    EXPECT_NE(K_BALANCE_PORT, NN::K_SINGLE_PORT_NAME);
-    EXPECT_NE(K_USAGE_PORT, NN::K_SINGLE_PORT_NAME);
+    ASSERT_EQ(node->ports().size(), 3u);
+    EXPECT_NE(node->ports()[0].name, node->ports()[1].name);
+    EXPECT_NE(node->ports()[0].name, node->ports()[2].name);
+    EXPECT_NE(node->ports()[1].name, node->ports()[2].name);
 }

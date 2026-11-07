@@ -29,8 +29,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -49,9 +51,19 @@ namespace SushiAI
                                           std::int64_t pairs) noexcept;
 
         /**
+         * @brief Checks the lengths of the two spans write_rotary_row() takes.
+         * @param cosines The length of the cosine span.
+         * @param sines The length of the sine span.
+         * @return InvalidDescription when @p cosines is zero or differs from @p sines, else ok.
+         */
+        [[nodiscard]] Status check_rotary_row_spans(std::size_t cosines,
+                                                    std::size_t sines) noexcept;
+
+        /**
          * @brief Writes the cosine and the sine of rotary_angle() of every pair at @p position.
          * @param cosines One element per pair; an empty span is fatal.
-         * @param sines As many elements as @p cosines; another count is fatal.
+         * @param sines As many elements as @p cosines; another count is fatal. The refusal is
+         *        that of check_rotary_row_spans().
          */
         void write_rotary_row(std::int64_t position, SushiRuntime::span<float> cosines,
                               SushiRuntime::span<float> sines) noexcept;

@@ -38,7 +38,7 @@ Consumers include each header by the path in the first column.
 | `<SushiAI/language/blocks/position_embedding.hpp>` | `PositionEmbedding`, `make_position_embedding_node` |
 | `<SushiAI/language/blocks/causal_self_attention.hpp>` | `AttentionMask`, `AttentionPositions`, `CausalSelfAttention`, `check_attention_widths`, `check_attention_positions`, `make_causal_self_attention_node` |
 | `<SushiAI/language/blocks/rotary_embedding.hpp>` | `RotaryEmbedding`, `check_rotary_widths` |
-| `<SushiAI/language/blocks/rotary_positions.hpp>` | `K_ROTARY_BASE`, `rotary_angle`, `write_rotary_row` |
+| `<SushiAI/language/blocks/rotary_positions.hpp>` | `K_ROTARY_BASE`, `rotary_angle`, `check_rotary_row_spans`, `write_rotary_row` |
 | `<SushiAI/language/blocks/feed_forward.hpp>` | `FeedForward`, `make_feed_forward_node` |
 | `<SushiAI/language/blocks/transformer_block.hpp>` | `TransformerBlock`, `make_transformer_block_node` |
 | `<SushiAI/language/blocks/language_head.hpp>` | `LanguageHead`, `make_language_head_node` |

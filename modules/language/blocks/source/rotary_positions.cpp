@@ -44,13 +44,20 @@ namespace SushiAI
             return static_cast<double>(position) * std::pow(K_ROTARY_BASE, exponent);
         }
 
+        Status check_rotary_row_spans(std::size_t cosines, std::size_t sines) noexcept
+        {
+            SA_FAIL_IF(cosines == 0 || cosines != sines, StatusCode::InvalidDescription,
+                       "a rotary row was given {} cosines and {} sines; it writes one of each "
+                       "per pair",
+                       cosines, sines);
+            return Status();
+        }
+
         void write_rotary_row(std::int64_t position, SushiRuntime::span<float> cosines,
                               SushiRuntime::span<float> sines) noexcept
         {
-            SA_FATAL_IF(cosines.empty() || cosines.size() != sines.size(),
-                        "a rotary row was given {} cosines and {} sines; it writes one of each "
-                        "per pair",
-                        cosines.size(), sines.size());
+            const Status checked = check_rotary_row_spans(cosines.size(), sines.size());
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
             const std::int64_t pairs = static_cast<std::int64_t>(cosines.size());
             for (std::int64_t pair = 0; pair < pairs; ++pair)
