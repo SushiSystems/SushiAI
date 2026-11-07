@@ -42,6 +42,15 @@ namespace SushiAI
 
         };
 
+        Status check_profile_config(std::string_view, std::string_view origin)
+        {
+            return Status::from_message(StatusCode::Unsupported, [origin]()
+            {
+                return SushiLog::format_text("This build has no profiler, so it cannot read '{}'",
+                                             origin);
+            });
+        }
+
         Result<std::unique_ptr<ProfileSession>> ProfileSession::open(
             const std::filesystem::path& config_path, const SushiRuntime::Runtime&)
         {

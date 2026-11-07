@@ -37,8 +37,8 @@ the ones SushiRuntime's worker agent defines.
 | `trainer_run.hpp`, `trainer_run.cpp` | `register_runs`, which sets the fallback run: `Train::Trainer` |
 | `run_start.hpp`, `run_start.cpp` | `start_state` and `describe_start`: a run initialised, started from `weights` or resumed, and the `IO::RunProgress` it starts at |
 | `profile_arguments.hpp`, `profile_arguments.cpp` | `read_profile_arguments`: takes the `--profile <config>` pair out of a command line, wherever it stands |
-| `profile_session.hpp`, `profile_session.cpp` | `ProfileSession` and `end_profiled_run`: reads a SushiProfiler configuration, starts a session over the runtime, binds the `train.step` and `inference.batch` timelines and, on `close()`, stops the session and hands the record to its writers; compiled when `SA_ENABLE_PROFILER` is on |
-| `profile_session_none.cpp` | `ProfileSession::open` refuses and names `SA_ENABLE_PROFILER`; compiled when it is off |
+| `profile_session.hpp`, `profile_session.cpp` | `check_profile_config`, which checks configuration text without a session, `ProfileSession` and `end_profiled_run`: reads a SushiProfiler configuration, starts a session over the runtime, binds the `train.step` and `inference.batch` timelines and, on `close()`, stops the session and hands the record to its writers; compiled when `SA_ENABLE_PROFILER` is on |
+| `profile_session_none.cpp` | `ProfileSession::open` and `check_profile_config` refuse and name `SA_ENABLE_PROFILER`; compiled when it is off |
 | `domains.hpp` | `register_vision_domain` and `register_language_domain`, one per domain a build may link |
 | `domains_vision.cpp` | The vision rows, the `anchor` and `anchor_free` runs and the `anchor_detection` and `anchor_free_detection` reports; compiled when `SA_BUILD_VISION` is on |
 | `domains_vision_none.cpp` | No row; compiled when it is off |

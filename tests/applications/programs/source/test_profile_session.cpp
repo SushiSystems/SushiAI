@@ -100,26 +100,20 @@ TEST_F(Medium_ProfileSession, AMissingConfigNamesTheFile)
                       StatusCode::FileNotFound, "no_such_profile.json");
 }
 
-/** @brief Tests that a file that is not JSON is refused naming the file. */
-TEST_F(Medium_ProfileSession, ABadJsonNamesTheFile)
+/** @brief Tests that text that is not JSON is refused naming its origin. */
+TEST(Small_ProfileSession, ABadJsonNamesTheFile)
 {
-    const SaTest::ScratchDirectory folder("sushiai_profile_bad_json");
-    const std::filesystem::path path = folder.path() / "broken_profile.json";
-    SaTest::write_text(path, "{\"sushiprofiler\": 1,");
-
-    SA_EXPECT_FAILURE(ProfileSession::open(path, backend().runtime()),
+    SA_EXPECT_FAILURE(Apps::check_profile_config("{\"sushiprofiler\": 1,", "broken_profile.json"),
                       StatusCode::InvalidDescription, "broken_profile.json");
 }
 
-/** @brief Tests that an unknown key is refused naming the file and the key. */
-TEST_F(Medium_ProfileSession, AnUnknownKeyNamesTheFile)
+/** @brief Tests that an unknown key is refused naming the origin and the key. */
+TEST(Small_ProfileSession, AnUnknownKeyNamesTheFile)
 {
-    const SaTest::ScratchDirectory folder("sushiai_profile_unknown_key");
-    const std::filesystem::path path = folder.path() / "unknown_profile.json";
-    SaTest::write_text(path, "{\"sushiprofiler\": 1, \"bogus_key\": true}");
-
-    SA_EXPECT_FAILURE(ProfileSession::open(path, backend().runtime()),
-                      StatusCode::InvalidDescription, "unknown_profile.json", "bogus_key");
+    SA_EXPECT_FAILURE(
+        Apps::check_profile_config("{\"sushiprofiler\": 1, \"bogus_key\": true}",
+                                   "unknown_profile.json"),
+        StatusCode::InvalidDescription, "unknown_profile.json", "bogus_key");
 }
 
 /** @brief Tests that ending a run that failed returns the failure of the run. */

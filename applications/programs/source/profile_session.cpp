@@ -89,6 +89,15 @@ namespace SushiAI
                 });
             }
 
+            /** @brief Returns InvalidDescription naming @p origin when @p read was refused. */
+            [[nodiscard]] Status refusal_of(const SushiProfiler::ConfigReadResult& read,
+                                            const std::string& origin)
+            {
+                SA_FAIL_IF(!read.ok(), StatusCode::InvalidDescription,
+                           "The profile configuration '{}' is refused: {}", origin, read.error);
+                return Status();
+            }
+
             /** @brief Opens the next period of every timeline, which ends the open ones. */
             void end_open_periods() noexcept
             {
@@ -104,14 +113,18 @@ namespace SushiAI
             }
         } // namespace
 
+        Status check_profile_config(std::string_view text, std::string_view origin)
+        {
+            return refusal_of(SushiProfiler::read_profiler_config(std::string(text)),
+                              std::string(origin));
+        }
+
         Result<std::unique_ptr<ProfileSession>> ProfileSession::open(
             const std::filesystem::path& config_path, const SushiRuntime::Runtime& runtime)
         {
             SA_TRY_ASSIGN(const std::string text, read_text(config_path));
             const SushiProfiler::ConfigReadResult read = SushiProfiler::read_profiler_config(text);
-            SA_FAIL_IF(!read.ok(), StatusCode::InvalidDescription,
-                       "The profile configuration '{}' is refused: {}", config_path.string(),
-                       read.error);
+            SA_TRY(refusal_of(read, config_path.string()));
 
             SA_TRY_ASSIGN(std::unique_ptr<Impl> impl,
                           ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,

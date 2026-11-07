@@ -32,6 +32,7 @@
 
 #include <filesystem>
 #include <memory>
+#include <string_view>
 #include <utility>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -41,6 +42,14 @@ namespace SushiAI
 {
     namespace Apps
     {
+        /**
+         * @brief Checks the text of a SushiProfiler configuration without starting a session.
+         * @param origin What to call the text in a diagnostic, usually its file.
+         * @return Success, InvalidDescription naming @p origin for a configuration SushiProfiler
+         *         refuses, or Unsupported when the build has no profiler.
+         */
+        [[nodiscard]] Status check_profile_config(std::string_view text, std::string_view origin);
+
         /**
          * @brief Owns the profiling session of one program run: its collector, the runtime's
          *        device source, the registry both came from and the binding of the timelines.
