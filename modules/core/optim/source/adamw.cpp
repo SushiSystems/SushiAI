@@ -129,14 +129,8 @@ namespace SushiAI
             }
         }
 
-        Result<std::unique_ptr<AdamW>> AdamW::make(ExecutionBackend& backend,
-                                                   std::vector<ParameterSlot> parameters,
-                                                   AdamWOptions options) noexcept
+        Status check_adamw_options(const AdamWOptions& options) noexcept
         {
-            SushiBLAS::Engine& engine = backend.engine();
-
-            SA_TRY(validate_slots(parameters));
-
             SA_FAIL_IF(options.beta1 < 0.0 || options.beta1 >= 1.0,
                        StatusCode::InvalidDescription,
                        "AdamW beta1 must lie in [0, 1); got {}", options.beta1);
@@ -145,6 +139,18 @@ namespace SushiAI
                        "AdamW beta2 must lie in [0, 1); got {}", options.beta2);
             SA_FAIL_IF(options.eps <= 0.0, StatusCode::InvalidDescription,
                        "AdamW eps must be positive; got {}", options.eps);
+            return Status();
+        }
+
+        Result<std::unique_ptr<AdamW>> AdamW::make(ExecutionBackend& backend,
+                                                   std::vector<ParameterSlot> parameters,
+                                                   AdamWOptions options) noexcept
+        {
+            SushiBLAS::Engine& engine = backend.engine();
+
+            SA_TRY(validate_slots(parameters));
+
+            SA_TRY(check_adamw_options(options));
 
             SA_TRY_ASSIGN(StepScalars scalars, StepScalars::make(engine, K_SCALAR_COUNT));
 

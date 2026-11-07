@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- 2026-11-07 — optim: Added check_adamw_options, the range check AdamW::make() runs before it allocates (`adamw.hpp`).
 - 2026-11-07 — test_tree: Build the eager seams the last three M11 records need (RW-162, `5c7b7921`).
 - 2026-11-07 — graph: Added InMemoryDescentRecorder and InMemoryLateIncrementRecorder, StepRecorders that record real device tasks (RW-162, `in_memory_descent_recorder.hpp`, `in_memory_late_increment_recorder.hpp`).
 - 2026-11-07 — test_tree: Build the darknet_reference and distribution seams the M7 and M9 records need (RW-160, `ab74f5b8`).

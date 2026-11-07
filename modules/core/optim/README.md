@@ -24,7 +24,7 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/optim/adamw.hpp` | `AdamWOptions`, `AdamW` |
+| `SushiAI/optim/adamw.hpp` | `AdamWOptions`, `check_adamw_options`, `AdamW` |
 | `SushiAI/optim/apply_step_schedule.hpp` | `apply_step_schedule`, over one schedule type and over a `RateSchedule` |
 | `SushiAI/optim/cosine_schedule.hpp` | `CosineSchedule`, `validate_cosine_schedule` |
 | `SushiAI/optim/cosine_schedule_section.hpp` | `K_COSINE_SCHEDULE_TYPE`, `read_cosine_schedule_section`, `write_cosine_schedule_section` |

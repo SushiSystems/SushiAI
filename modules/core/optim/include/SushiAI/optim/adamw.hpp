@@ -80,6 +80,13 @@ namespace SushiAI
         };
 
         /**
+         * @brief Checks that @p options can be applied.
+         * @return Success, or InvalidDescription naming beta1 or beta2 outside [0, 1), or an eps
+         *         that is not positive; AdamW::make() runs it before it allocates anything.
+         */
+        [[nodiscard]] Status check_adamw_options(const AdamWOptions& options) noexcept;
+
+        /**
          * @class AdamW
          * @brief The update above, applied to a fixed parameter set.
          */

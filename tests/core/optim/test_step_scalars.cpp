@@ -21,7 +21,6 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
  * @file test_step_scalars.cpp
  * @brief Tests that StepScalars holds a zeroed buffer at one address and rewrites it in place.
@@ -29,28 +28,34 @@
  */
 
 #include <cstddef>
-#include <type_traits>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/step_scalars.hpp>
 
 using namespace SushiAI;
 using Optim::StepScalars;
 
-// SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
-namespace SaTest = SushiAI::Test;
-
 namespace
 {
-    /** @brief Provides the Engine every buffer is allocated from. */
-    class Medium_StepScalars : public SaTest::EngineTest
+    /** @brief Provides the host engine every buffer is allocated from. */
+    class Small_StepScalars : public ::testing::Test
     {
+        protected:
+            /** @brief Reads the slots of @p scalars into a vector. */
+            static std::vector<float> slots_of(const StepScalars& scalars)
+            {
+                return std::vector<float>(scalars.device_pointer(),
+                                          scalars.device_pointer() + scalars.count());
+            }
+
+            /** @brief Holds the host adapter the buffers are allocated from. */
+            HostExecutionBackend backend;
     };
 
     /** @brief Holds the slot count of every buffer of this file. */
@@ -64,44 +69,49 @@ namespace
 } // namespace
 
 /** @brief Tests that a buffer of no slot is refused. */
-TEST_F(Medium_StepScalars, AZeroCountIsRefused)
+TEST_F(Small_StepScalars, AZeroCountIsRefused)
 {
-    SA_EXPECT_FAILURE(StepScalars::make(*engine, 0), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(StepScalars::make(backend.engine(), 0), StatusCode::InvalidDescription,
                       "at least one slot");
 }
 
 /** @brief Tests that a new buffer holds its count of zeros. */
-TEST_F(Medium_StepScalars, ANewBufferHoldsZeros)
+TEST_F(Small_StepScalars, ANewBufferHoldsZeros)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const StepScalars scalars, StepScalars::make(*engine, K_COUNT));
+    SA_ASSERT_OK_AND_ASSIGN(const StepScalars scalars,
+                            StepScalars::make(backend.engine(), K_COUNT));
 
-    ASSERT_EQ(scalars.count(), K_COUNT);
     ASSERT_NE(scalars.device_pointer(), nullptr);
-    for (std::size_t i = 0; i < K_COUNT; ++i)
-        EXPECT_EQ(scalars.device_pointer()[i], 0.0f) << "slot " << i;
+    EXPECT_EQ(scalars.count(), K_COUNT);
+    EXPECT_EQ(slots_of(scalars), std::vector<float>(K_COUNT, 0.0f));
 }
 
-/** @brief Tests that a write replaces every value and leaves the address where it was. */
-TEST_F(Medium_StepScalars, AWriteKeepsTheAddress)
+/** @brief Tests that a write replaces every value. */
+TEST_F(Small_StepScalars, AWriteReplacesEveryValue)
 {
-    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(*engine, K_COUNT));
-    const float* const before = scalars.device_pointer();
+    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
     const std::vector<float> values{0.5f, -2.0f, 3.25f};
 
     scalars.write(span_of(values));
 
-    EXPECT_EQ(scalars.device_pointer(), before);
-    for (std::size_t i = 0; i < K_COUNT; ++i)
-        EXPECT_EQ(scalars.device_pointer()[i], values[i]) << "slot " << i;
+    EXPECT_EQ(slots_of(scalars), values);
 }
 
-/** @brief Tests that a moved buffer keeps the address a kernel captured, and cannot be copied. */
-TEST_F(Medium_StepScalars, AMoveKeepsTheAddress)
+/** @brief Tests that a write leaves the buffer at the address a kernel captured. */
+TEST_F(Small_StepScalars, AWriteKeepsTheAddress)
 {
-    EXPECT_FALSE(std::is_copy_constructible<StepScalars>::value);
-    EXPECT_FALSE(std::is_copy_assignable<StepScalars>::value);
+    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
+    const float* const before = scalars.device_pointer();
 
-    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(*engine, K_COUNT));
+    scalars.write(span_of(std::vector<float>{0.5f, -2.0f, 3.25f}));
+
+    EXPECT_EQ(scalars.device_pointer(), before);
+}
+
+/** @brief Tests that a moved buffer keeps the address a kernel captured. */
+TEST_F(Small_StepScalars, AMoveKeepsTheAddress)
+{
+    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
     const float* const captured = scalars.device_pointer();
 
     const StepScalars moved(std::move(scalars));
@@ -111,9 +121,9 @@ TEST_F(Medium_StepScalars, AMoveKeepsTheAddress)
 }
 
 /** @brief Tests that writing a count of values other than the buffer's stops the process. */
-TEST_F(Medium_StepScalars, AWriteOfAnotherLengthIsFatal)
+TEST_F(Small_StepScalars, AWriteOfAnotherLengthIsFatal)
 {
-    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(*engine, K_COUNT));
+    SA_ASSERT_OK_AND_ASSIGN(StepScalars scalars, StepScalars::make(backend.engine(), K_COUNT));
     const std::vector<float> short_values{1.0f, 2.0f};
 
     SA_EXPECT_FATAL(scalars.write(span_of(short_values)), "holds 3 slots", "2 values");

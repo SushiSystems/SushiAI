@@ -24,7 +24,7 @@
 
 /**
  * @file test_adamw.cpp
- * @brief Tests what AdamW::make() refuses, the state it starts from and its first update.
+ * @brief Tests what the AdamW options refuse, the state AdamW starts from and its first update.
  * @author Mustafa Garip
  */
 
@@ -34,12 +34,13 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/adamw.hpp>
 #include <SushiAI/optim/optimizer.hpp>
@@ -49,8 +50,8 @@
 using namespace SushiAI;
 using Optim::AdamW;
 using Optim::AdamWOptions;
+using Optim::check_adamw_options;
 
-// SaTest stays reachable inside a TEST_F body; see tests/core/optim/README.md.
 namespace SaTest = SushiAI::Test;
 
 namespace
@@ -70,8 +71,8 @@ namespace
     /** @brief Holds the gradient of the one parameter; signs and sizes differ per element. */
     const std::vector<double> K_GRADIENT{2.0, -3.0, 0.5};
 
-    /** @brief Provides an engine and one parameter slot of K_GRADIENT. */
-    class Medium_AdamW : public SaTest::EngineTest
+    /** @brief Provides the host backend and one parameter slot of K_GRADIENT. */
+    class Small_AdamW : public ::testing::Test
     {
         protected:
             /** @brief Returns one slot "weight" of K_START with the gradient K_GRADIENT. */
@@ -79,9 +80,9 @@ namespace
             {
                 const int64_t elements = static_cast<int64_t>(K_GRADIENT.size());
                 Result<SushiBLAS::Tensor> parameter =
-                    allocate_tensor(*engine, Shape{elements}, DType::Float32);
+                    allocate_tensor(backend.engine(), Shape{elements}, DType::Float32);
                 Result<SushiBLAS::Tensor> gradient =
-                    allocate_tensor(*engine, Shape{elements}, DType::Float32);
+                    allocate_tensor(backend.engine(), Shape{elements}, DType::Float32);
                 EXPECT_TRUE(parameter.status().is_ok());
                 EXPECT_TRUE(gradient.status().is_ok());
 
@@ -94,84 +95,145 @@ namespace
                                                      std::move(gradient).value()});
                 return slots;
             }
+
+            /** @brief Holds the host adapter the optimizer allocates from and runs on. */
+            HostExecutionBackend backend;
+    };
+
+    /** @brief Names one kernel and whether its update replays. */
+    struct KernelRow
+    {
+        Optim::UpdateKernel kernel; /**< The kernel the options ask for. */
+        bool replays;               /**< Whether the update is replay invariant. */
+    };
+
+    /** @brief Provides the host backend to each kernel row. */
+    class Small_AdamWKernel : public Small_AdamW,
+                              public ::testing::WithParamInterface<KernelRow>
+    {
+    };
+
+    /** @brief Names one option set and what its refusal must say. */
+    struct OptionRow
+    {
+        AdamWOptions options;      /**< The options the check is handed. */
+        std::string first_phrase;  /**< The key the refusal names. */
+        std::string second_phrase; /**< The rest of the refusal. */
+    };
+
+    /** @brief Returns the default options with beta1 set to @p value. */
+    AdamWOptions with_beta1(double value)
+    {
+        AdamWOptions options;
+        options.beta1 = value;
+        return options;
+    }
+
+    /** @brief Returns the default options with beta2 set to @p value. */
+    AdamWOptions with_beta2(double value)
+    {
+        AdamWOptions options;
+        options.beta2 = value;
+        return options;
+    }
+
+    /** @brief Returns the default options with eps set to @p value. */
+    AdamWOptions with_eps(double value)
+    {
+        AdamWOptions options;
+        options.eps = value;
+        return options;
+    }
+
+    /** @brief Provides one row of options the check refuses. */
+    class Small_AdamWOptions : public ::testing::TestWithParam<OptionRow>
+    {
     };
 } // namespace
 
-/** @brief Tests that AdamW names itself "adamw" and replays only with the fused kernel. */
-TEST_F(Medium_AdamW, TheTypeAndReplayFollowTheKernel)
+/** @brief Tests that the update replays only with the fused kernel. */
+TEST_P(Small_AdamWKernel, TheReplayFollowsTheKernel)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> fused,
-                            AdamW::make(backend(), make_slots()));
-    AdamWOptions separate_options;
-    separate_options.kernel = Optim::UpdateKernel::Separate;
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> separate,
-                            AdamW::make(backend(), make_slots(), separate_options));
+    AdamWOptions options;
+    options.kernel = GetParam().kernel;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
+                            AdamW::make(backend, make_slots(), options));
 
-    EXPECT_EQ(fused->type_name(), Optim::K_ADAMW_TYPE);
-    EXPECT_TRUE(fused->is_replay_invariant());
-    EXPECT_FALSE(separate->is_replay_invariant());
+    EXPECT_EQ(optimizer->is_replay_invariant(), GetParam().replays);
 }
 
-/** @brief Tests that a decay outside [0, 1) and a floor that is not positive are refused. */
-TEST_F(Medium_AdamW, MakeRefusesOptionsOutsideTheirRange)
-{
-    AdamWOptions beta1;
-    beta1.beta1 = 1.0;
-    AdamWOptions beta2;
-    beta2.beta2 = -0.1;
-    AdamWOptions eps;
-    eps.eps = 0.0;
+INSTANTIATE_TEST_SUITE_P(Rows, Small_AdamWKernel,
+                         ::testing::Values(KernelRow{Optim::UpdateKernel::Fused, true},
+                                           KernelRow{Optim::UpdateKernel::Separate, false}));
 
-    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), beta1), StatusCode::InvalidDescription,
-                      "beta1", "[0, 1)");
-    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), beta2), StatusCode::InvalidDescription,
-                      "beta2", "[0, 1)");
-    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), eps), StatusCode::InvalidDescription,
-                      "eps must be positive");
+/** @brief Tests that a decay outside [0, 1) and a floor that is not positive are refused. */
+TEST_P(Small_AdamWOptions, TheCheckRefusesOptionsOutsideTheirRange)
+{
+    SA_EXPECT_FAILURE(check_adamw_options(GetParam().options), StatusCode::InvalidDescription,
+                      GetParam().first_phrase, GetParam().second_phrase);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_AdamWOptions,
+                         ::testing::Values(OptionRow{with_beta1(1.0), "beta1", "[0, 1)"},
+                                           OptionRow{with_beta2(-0.1), "beta2", "[0, 1)"},
+                                           OptionRow{with_eps(0.0), "eps", "must be positive"}));
+
+/** @brief Tests that make() refuses the options the check refuses, before it allocates. */
+TEST_F(Small_AdamW, MakeRunsTheOptionsCheck)
+{
+    SA_EXPECT_FAILURE(AdamW::make(backend, make_slots(), with_beta1(1.0)),
+                      StatusCode::InvalidDescription, "beta1", "[0, 1)");
 }
 
 /** @brief Tests that both moments of a new optimizer hold zeros. */
-TEST_F(Medium_AdamW, TheMomentsStartAtZero)
+TEST_F(Small_AdamW, TheMomentsStartAtZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(backend(), make_slots()));
+                            AdamW::make(backend, make_slots()));
+    const std::vector<double> zeros(K_GRADIENT.size(), 0.0);
 
-    for (const double value : SaTest::read_tensor(optimizer->first_moment(0)))
-        EXPECT_EQ(value, 0.0);
-    for (const double value : SaTest::read_tensor(optimizer->second_moment(0)))
-        EXPECT_EQ(value, 0.0);
+    EXPECT_EQ(SaTest::read_tensor(optimizer->first_moment(0)), zeros);
+    EXPECT_EQ(SaTest::read_tensor(optimizer->second_moment(0)), zeros);
 }
 
 /** @brief Tests that the bias-corrected first step moves each element by the rate. */
-TEST_F(Medium_AdamW, TheFirstStepMovesEachElementByTheRate)
+TEST_F(Small_AdamW, TheFirstStepMovesEachElementByTheRate)
 {
     AdamWOptions options;
     options.learning_rate = K_RATE;
     options.weight_decay = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(backend(), make_slots(), options));
+                            AdamW::make(backend, make_slots(), options));
     const SushiBLAS::Tensor parameter = optimizer->parameters()[0].parameter;
 
     SA_EXPECT_OK(optimizer->step());
-    flush();
 
-    const std::vector<double> values = SaTest::read_tensor(parameter);
-    const std::vector<double> first = SaTest::read_tensor(optimizer->first_moment(0));
-    ASSERT_EQ(values.size(), K_GRADIENT.size());
-    for (std::size_t i = 0; i < K_GRADIENT.size(); ++i)
-    {
-        const double sign = K_GRADIENT[i] > 0.0 ? 1.0 : -1.0;
-        EXPECT_NEAR(values[i], K_START - K_RATE * sign, K_UPDATE_TOLERANCE) << "element " << i;
-        EXPECT_NEAR(first[i], (1.0 - options.beta1) * K_GRADIENT[i], K_UPDATE_TOLERANCE)
-            << "element " << i;
-    }
+    EXPECT_THAT(SaTest::read_tensor(parameter),
+                ::testing::Pointwise(::testing::DoubleNear(K_UPDATE_TOLERANCE),
+                                     std::vector<double>{K_START - K_RATE, K_START + K_RATE,
+                                                         K_START - K_RATE}));
+}
+
+/** @brief Tests that the first step leaves the first moment at (1 - beta1) times the gradient. */
+TEST_F(Small_AdamW, TheFirstStepFillsTheFirstMoment)
+{
+    AdamWOptions options;
+    options.weight_decay = 0.0;
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
+                            AdamW::make(backend, make_slots(), options));
+
+    SA_EXPECT_OK(optimizer->step());
+
+    EXPECT_THAT(SaTest::read_tensor(optimizer->first_moment(0)),
+                ::testing::Pointwise(::testing::DoubleNear(K_UPDATE_TOLERANCE),
+                                     std::vector<double>{0.2, -0.3, 0.05}));
 }
 
 /** @brief Tests that the moment of a parameter the optimizer lacks stops the process. */
-TEST_F(Medium_AdamW, AMomentPastTheLastParameterIsFatal)
+TEST_F(Small_AdamW, AMomentPastTheLastParameterIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(backend(), make_slots()));
+                            AdamW::make(backend, make_slots()));
 
     SA_EXPECT_FATAL((void)optimizer->first_moment(1), "updates 1 parameters", "no moment 1");
 }

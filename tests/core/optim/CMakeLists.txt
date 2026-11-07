@@ -7,6 +7,7 @@
 
 sushiai_add_test_program(OWNER optim
     SOURCES
+        compile_step_scalars.cpp
         test_adamw.cpp
         test_apply_step_schedule.cpp
         test_cosine_schedule.cpp
