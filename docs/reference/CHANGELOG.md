@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 2026-11-07 — test_tree: Rule on the module seams the review's resize records ask for (RW-155, `7a34fa48`).
+- 2026-11-07 — test_tree: Replace the characterization test of EpochPermutation's orders with promise tests (RW-156, `7a34fa48`).
 - 2026-11-07 — graph: Added `TensorSource` and `InMemoryTensorSource`, and a `TensorPool(TensorSource&)` constructor, so a pool runs without a device (RW-155, `tensor_source.hpp`).
 - 2026-11-07 — graph: Added a `LoweringContext` constructor that takes no recorder or random stream (RW-155, `context.hpp`).
 - 2026-11-07 — graph: Added `InMemoryStepRecorder(member, journal, tasks)`, a journal shared across members (RW-155, `in_memory_step_recorder.hpp`).
