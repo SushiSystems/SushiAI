@@ -309,116 +309,131 @@ namespace
         }
         return keys;
     }
-} // namespace
 
-/** @brief Tests that a step traced with no scope is one region with the optimizer key above it. */
-TEST(Small_ScopePartitioner, AnUnscopedStepIsOneRegion)
-{
-    const Step step = unscoped_step();
-
-    ASSERT_EQ(step.segments.size(), 1u);
-    ASSERT_EQ(step.partition.region_of_node.size(), step.graph.node_count());
-    ASSERT_GT(step.graph.node_count(), step.provenance.forward_node_count);
-
-    for (std::size_t node = 0; node < step.graph.node_count(); ++node)
-        if (!is_leaf(step.graph, node))
-            EXPECT_EQ(step.partition.region_of_node[node], 1u) << "node " << node;
-
-    EXPECT_EQ(step.partition.optimizer_key, 2u);
-
-    ASSERT_EQ(step.partition.regions.size(), 1u);
-    EXPECT_EQ(step.partition.regions[0].key, 1u);
-    EXPECT_EQ(step.partition.regions[0].name, "#0");
-    EXPECT_EQ(step.partition.regions[0].direction, Direction::Forward);
-}
-
-/** @brief Tests that every forward node carries the number of its segment as its key. */
-TEST(Small_ScopePartitioner, ForwardKeysFollowTraceOrder)
-{
-    const Step step = three_segment_step();
-
-    ASSERT_EQ(step.segments.size(), 3u);
-
-    std::size_t checked = 0;
-    for (std::size_t node = 0; node < step.provenance.forward_node_count; ++node)
+    /** @brief Returns the region name ScopePartitioner gives @p segment, "name#occurrence". */
+    std::string region_name_of(const Eager::Segment& segment)
     {
-        if (is_leaf(step.graph, node))
-            continue;
-
-        EXPECT_EQ(step.partition.region_of_node[node], segment_number(step.segments, node))
-            << "node " << node;
-        ++checked;
+        return segment.name + "#" + std::to_string(segment.occurrence);
     }
 
-    // Two layers of three nodes each and the loss node.
-    EXPECT_EQ(checked, 7u);
-}
-
-/** @brief Tests that three segments give their backward nodes keys 5, 4 and 3. */
-TEST(Small_ScopePartitioner, BackwardKeysMirrorForwardKeys)
-{
-    const Step step = three_segment_step();
-
-    ASSERT_EQ(step.segments.size(), 3u);
-    EXPECT_EQ(step.partition.optimizer_key, 6u);
-
-    const RegionKey expected[] = {5u, 4u, 3u};
-    for (RegionKey segment = 1; segment <= 3; ++segment)
+    /** @brief Expects every node of @p step that is not a LEAF to hold region key @p key. */
+    void expect_every_non_leaf_node_has_key(const Step& step, RegionKey key)
     {
-        const std::vector<RegionKey> keys = backward_keys_of(step, segment);
-
-        ASSERT_FALSE(keys.empty()) << "segment " << segment << " has no backward node";
-        for (RegionKey key : keys)
-            EXPECT_EQ(key, expected[segment - 1]) << "segment " << segment;
+        for (std::size_t node = 0; node < step.graph.node_count(); ++node)
+            if (!is_leaf(step.graph, node))
+                EXPECT_EQ(step.partition.region_of_node[node], key) << "node " << node;
     }
 
-    ASSERT_EQ(step.partition.regions.size(), 5u);
-
-    const std::string names[] = {"first#0", "second#0", "loss#0", "second#0", "first#0"};
-    for (std::size_t i = 0; i < 5; ++i)
+    /**
+     * @brief Expects every forward node of @p step that is not a LEAF to hold its segment number.
+     * @return The number of nodes compared.
+     */
+    std::size_t expect_forward_keys_follow_segments(const Step& step)
     {
-        EXPECT_EQ(step.partition.regions[i].key, i + 1) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].name, names[i]) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].direction,
-                  i < 3 ? Direction::Forward : Direction::Backward)
-            << "region " << i;
+        std::size_t checked = 0;
+        for (std::size_t node = 0; node < step.provenance.forward_node_count; ++node)
+        {
+            if (is_leaf(step.graph, node))
+                continue;
+
+            EXPECT_EQ(step.partition.region_of_node[node], segment_number(step.segments, node))
+                << "node " << node;
+            ++checked;
+        }
+        return checked;
     }
-}
 
-/** @brief Tests that the last segment's forward and backward nodes share one forward region. */
-TEST(Small_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
-{
-    const Step step = three_segment_step();
-
-    ASSERT_EQ(step.segments.size(), 3u);
-
-    const NodeID loss_node = static_cast<NodeID>(step.provenance.forward_node_count - 1);
-    ASSERT_EQ(step.graph.node(loss_node).op, Ops::K_NLL_LOSS.id);
-    EXPECT_EQ(step.partition.region_of_node[loss_node], 3u);
-
-    const std::vector<RegionKey> keys = backward_keys_of(step, 3);
-    ASSERT_FALSE(keys.empty());
-    for (RegionKey key : keys)
-        EXPECT_EQ(key, 3u);
-
-    const auto shares_key = [](const Eager::RegionInfo& region)
+    /**
+     * @brief Expects the backward nodes of segment i, counted from 1, to hold key 2N - i for N
+     *        segments, so the backward keys mirror the forward keys above the last segment.
+     */
+    void expect_backward_keys_mirror_segments(const Step& step)
     {
-        return region.key == 3u;
-    };
-    const auto& regions = step.partition.regions;
-    ASSERT_EQ(std::count_if(regions.begin(), regions.end(), shares_key), 1);
-    EXPECT_EQ(std::find_if(regions.begin(), regions.end(), shares_key)->direction,
-              Direction::Forward);
-}
+        const RegionKey count = step.segments.size();
+        for (RegionKey segment = 1; segment <= count; ++segment)
+        {
+            const std::vector<RegionKey> keys = backward_keys_of(step, segment);
 
-/** @brief Tests that no node of a differentiated graph reads a value a higher key produces. */
-TEST(Small_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
-{
-    for (const Step& step : {unscoped_step(), three_segment_step(), shared_weight_step(),
-                             repeated_block_step()})
+            ASSERT_FALSE(keys.empty()) << "segment " << segment << " has no backward node";
+            for (RegionKey key : keys)
+                EXPECT_EQ(key, 2 * count - segment) << "segment " << segment;
+        }
+    }
+
+    /**
+     * @brief Expects the regions of @p step to list its segments forward, then every segment but
+     *        the last backward in reverse, the last sharing its forward region.
+     */
+    void expect_regions_mirror_segments(const Step& step)
     {
-        ASSERT_EQ(step.partition.region_of_node.size(), step.graph.node_count());
+        const std::size_t count = step.segments.size();
+        ASSERT_EQ(step.partition.regions.size(), 2 * count - 1);
+        for (std::size_t i = 0; i < step.partition.regions.size(); ++i)
+        {
+            const bool forward = i < count;
+            const Eager::Segment& segment = forward ? step.segments[i]
+                                                    : step.segments[2 * count - 2 - i];
+            EXPECT_EQ(step.partition.regions[i].key, i + 1) << "region " << i;
+            EXPECT_EQ(step.partition.regions[i].name, region_name_of(segment)) << "region " << i;
+            EXPECT_EQ(step.partition.regions[i].direction,
+                      forward ? Direction::Forward : Direction::Backward)
+                << "region " << i;
+        }
+    }
 
+    /** @brief Expects region @p index of @p partition to hold @p key, @p name and @p direction. */
+    void expect_region(const Eager::Partition& partition, std::size_t index, RegionKey key,
+                       const std::string& name, Direction direction)
+    {
+        ASSERT_LT(index, partition.regions.size());
+        EXPECT_EQ(partition.regions[index].key, key) << "region " << index;
+        EXPECT_EQ(partition.regions[index].name, name) << "region " << index;
+        EXPECT_EQ(partition.regions[index].direction, direction) << "region " << index;
+    }
+
+    /** @brief Expects every key of @p keys to equal @p key. */
+    void expect_all_keys_equal(const std::vector<RegionKey>& keys, RegionKey key)
+    {
+        for (RegionKey held : keys)
+            EXPECT_EQ(held, key);
+    }
+
+    /** @brief Returns how many regions of @p partition hold @p key. */
+    std::size_t count_regions_with_key(const Eager::Partition& partition, RegionKey key)
+    {
+        std::size_t found = 0;
+        for (const Eager::RegionInfo& region : partition.regions)
+            found += region.key == key ? 1 : 0;
+        return found;
+    }
+
+    /** @brief Returns the direction of the region of @p partition that holds @p key. */
+    Direction direction_of_region_with_key(const Eager::Partition& partition, RegionKey key)
+    {
+        for (const Eager::RegionInfo& region : partition.regions)
+            if (region.key == key)
+                return region.direction;
+        return Direction::Backward;
+    }
+
+    /** @brief Returns whether a node @p node of @p step reads a value that region @p key holds. */
+    bool reads_from_region(const Step& step, NodeID node, RegionKey key)
+    {
+        for (ValueID operand : step.graph.node(node).inputs)
+        {
+            const NodeID producer = step.graph.value(operand).producer;
+            if (producer != Graph::K_NO_NODE && step.partition.region_of_node[producer] == key)
+                return true;
+        }
+        return false;
+    }
+
+    /**
+     * @brief Expects no node of @p step to read a value that a higher region key produces.
+     * @return The number of operands that another region produces.
+     */
+    std::size_t expect_operands_come_from_lower_or_equal_keys(const Step& step)
+    {
         std::size_t checked = 0;
         for (std::size_t node = 0; node < step.graph.node_count(); ++node)
         {
@@ -435,10 +450,157 @@ TEST(Small_ScopePartitioner, EveryOperandComesFromALowerOrEqualKey)
                 ++checked;
             }
         }
-
-        EXPECT_GT(checked, 0u);
+        return checked;
     }
+
+    /** @brief Returns the sorted keys of the regions that produce the operands of @p node. */
+    std::vector<RegionKey> contributor_keys(const Step& step, NodeID node)
+    {
+        std::vector<RegionKey> keys;
+        for (ValueID operand : step.graph.node(node).inputs)
+        {
+            const NodeID producer = step.graph.value(operand).producer;
+            EXPECT_NE(producer, Graph::K_NO_NODE);
+            if (producer != Graph::K_NO_NODE)
+                keys.push_back(step.partition.region_of_node[producer]);
+        }
+        std::sort(keys.begin(), keys.end());
+        return keys;
+    }
+
+    /**
+     * @brief Expects LEAF nodes of @p step to hold no region and every other node to hold one.
+     * @return The number of LEAF nodes.
+     */
+    std::size_t expect_leaves_hold_no_region(const Step& step)
+    {
+        std::size_t leaves = 0;
+        for (std::size_t node = 0; node < step.graph.node_count(); ++node)
+        {
+            if (is_leaf(step.graph, node))
+            {
+                EXPECT_EQ(step.partition.region_of_node[node], K_NO_REGION) << "node " << node;
+                ++leaves;
+            }
+            else
+            {
+                EXPECT_NE(step.partition.region_of_node[node], K_NO_REGION) << "node " << node;
+            }
+        }
+        return leaves;
+    }
+
+    /** @brief Names the traced steps the operand-order rows run over. */
+    enum class StepKind : std::uint8_t
+    {
+        Unscoped,      /**< Two layers and a loss with no scope. */
+        ThreeSegments, /**< Scopes "first", "second" and "loss". */
+        SharedWeight,  /**< One weight shared by two scopes. */
+        RepeatedBlock, /**< A scope opened twice. */
+    };
+
+    /** @brief Traces the step @p kind names. */
+    Step make_step(StepKind kind)
+    {
+        switch (kind)
+        {
+            case StepKind::Unscoped:
+                return unscoped_step();
+            case StepKind::ThreeSegments:
+                return three_segment_step();
+            case StepKind::SharedWeight:
+                return shared_weight_step();
+            case StepKind::RepeatedBlock:
+                return repeated_block_step();
+        }
+        return unscoped_step();
+    }
+} // namespace
+
+/** @brief Tests that a step traced with no scope is one region with the optimizer key above it. */
+TEST(Small_ScopePartitioner, AnUnscopedStepIsOneRegion)
+{
+    const Step step = unscoped_step();
+
+    ASSERT_EQ(step.segments.size(), 1u);
+    ASSERT_EQ(step.partition.region_of_node.size(), step.graph.node_count());
+    ASSERT_GT(step.graph.node_count(), step.provenance.forward_node_count);
+
+    expect_every_non_leaf_node_has_key(step, 1u);
+
+    EXPECT_EQ(step.partition.optimizer_key, 2u);
+
+    ASSERT_EQ(step.partition.regions.size(), 1u);
+    EXPECT_EQ(step.partition.regions[0].key, 1u);
+    EXPECT_EQ(step.partition.regions[0].name, "#0");
+    EXPECT_EQ(step.partition.regions[0].direction, Direction::Forward);
 }
+
+/** @brief Tests that every forward node carries the number of its segment as its key. */
+TEST(Small_ScopePartitioner, ForwardKeysFollowTraceOrder)
+{
+    const Step step = three_segment_step();
+
+    ASSERT_EQ(step.segments.size(), 3u);
+
+    const std::size_t checked = expect_forward_keys_follow_segments(step);
+
+    // Two layers of three nodes each and the loss node.
+    EXPECT_EQ(checked, 7u);
+}
+
+/** @brief Tests that the backward keys of the segments mirror their forward keys. */
+TEST(Small_ScopePartitioner, BackwardKeysMirrorForwardKeys)
+{
+    const Step step = three_segment_step();
+
+    ASSERT_EQ(step.segments.size(), 3u);
+    expect_backward_keys_mirror_segments(step);
+}
+
+/** @brief Tests that the regions list the segments forward, then backward in reverse order. */
+TEST(Small_ScopePartitioner, RegionsMirrorTheSegments)
+{
+    const Step step = three_segment_step();
+
+    expect_regions_mirror_segments(step);
+}
+
+/** @brief Tests that the last segment's forward and backward nodes share one forward region. */
+TEST(Small_ScopePartitioner, TheLastSegmentSharesItsRegionWithItsBackward)
+{
+    const Step step = three_segment_step();
+
+    ASSERT_EQ(step.segments.size(), 3u);
+
+    const NodeID loss_node = static_cast<NodeID>(step.provenance.forward_node_count - 1);
+    ASSERT_EQ(step.graph.node(loss_node).op, Ops::K_NLL_LOSS.id);
+    EXPECT_EQ(step.partition.region_of_node[loss_node], 3u);
+
+    const std::vector<RegionKey> keys = backward_keys_of(step, 3);
+    ASSERT_FALSE(keys.empty());
+    expect_all_keys_equal(keys, 3u);
+
+    EXPECT_EQ(count_regions_with_key(step.partition, 3u), 1u);
+    EXPECT_EQ(direction_of_region_with_key(step.partition, 3u), Direction::Forward);
+}
+
+class Small_ScopePartitionerOperands : public ::testing::TestWithParam<StepKind>
+{
+};
+
+/** @brief Tests that no node of a differentiated graph reads a value a higher key produces. */
+TEST_P(Small_ScopePartitionerOperands, EveryOperandComesFromALowerOrEqualKey)
+{
+    const Step step = make_step(GetParam());
+
+    ASSERT_EQ(step.partition.region_of_node.size(), step.graph.node_count());
+    EXPECT_GT(expect_operands_come_from_lower_or_equal_keys(step), 0u);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ScopePartitionerOperands,
+                         ::testing::Values(StepKind::Unscoped, StepKind::ThreeSegments,
+                                           StepKind::SharedWeight, StepKind::RepeatedBlock));
 
 /** @brief Tests that a weight gradient that reads an earlier segment stays in its own layer. */
 TEST(Small_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
@@ -453,14 +615,7 @@ TEST(Small_ScopePartitioner, AWeightGradientLandsInItsOwnLayersBackwardRegion)
     ASSERT_NE(node, Graph::K_NO_NODE);
     EXPECT_EQ(step.partition.region_of_node[node], 4u);
 
-    bool reads_first_segment = false;
-    for (ValueID operand : step.graph.node(node).inputs)
-    {
-        const NodeID producer = step.graph.value(operand).producer;
-        if (producer != Graph::K_NO_NODE && step.partition.region_of_node[producer] == 1u)
-            reads_first_segment = true;
-    }
-    EXPECT_TRUE(reads_first_segment)
+    EXPECT_TRUE(reads_from_region(step, node, 1u))
         << "the gradient no longer reads the first segment's output, so this graph stopped "
            "exercising the case";
 }
@@ -478,18 +633,12 @@ TEST(Small_ScopePartitioner, ASharedParametersAccumulateSitsAboveBothContributor
     ASSERT_EQ(step.graph.node(accumulate).op, Ops::K_ACCUMULATE.id);
     ASSERT_TRUE(is_leaf(step.graph, step.provenance.origin_of(accumulate)));
 
-    std::vector<RegionKey> contributors;
-    for (ValueID operand : step.graph.node(accumulate).inputs)
-    {
-        const NodeID producer = step.graph.value(operand).producer;
-        ASSERT_NE(producer, Graph::K_NO_NODE);
-        contributors.push_back(step.partition.region_of_node[producer]);
-    }
-    std::sort(contributors.begin(), contributors.end());
+    const std::vector<RegionKey> contributors = contributor_keys(step, accumulate);
 
-    // Of four segments, "second" has backward key 5, "first" 6 and the weight's own segment 7.
-    EXPECT_EQ(contributors, (std::vector<RegionKey>{5u, 6u}));
-    EXPECT_EQ(step.partition.region_of_node[accumulate], 6u);
+    // The sum takes the key of its highest contributor, which is above the other's.
+    ASSERT_EQ(contributors.size(), 2u);
+    EXPECT_LT(contributors[0], contributors[1]);
+    EXPECT_EQ(step.partition.region_of_node[accumulate], contributors.back());
 }
 
 /** @brief Tests that a LEAF-origin node gets its highest operand key in either operand order. */
@@ -521,16 +670,12 @@ TEST(Small_ScopePartitioner, RegionsListOnlyKeysThatHoldANode)
     EXPECT_EQ(step.partition.optimizer_key, 8u);
 
     // Key 1 is the leaf-only segment "weights" and key 7 its backward mirror.
-    const std::string names[] = {"first#0", "second#0", "loss#0", "second#0", "first#0"};
     ASSERT_EQ(step.partition.regions.size(), 5u);
-    for (std::size_t i = 0; i < 5; ++i)
-    {
-        EXPECT_EQ(step.partition.regions[i].key, i + 2) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].name, names[i]) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].direction,
-                  i < 3 ? Direction::Forward : Direction::Backward)
-            << "region " << i;
-    }
+    expect_region(step.partition, 0, 2u, "first#0", Direction::Forward);
+    expect_region(step.partition, 1, 3u, "second#0", Direction::Forward);
+    expect_region(step.partition, 2, 4u, "loss#0", Direction::Forward);
+    expect_region(step.partition, 3, 5u, "second#0", Direction::Backward);
+    expect_region(step.partition, 4, 6u, "first#0", Direction::Backward);
 }
 
 /** @brief Tests that a scope opened twice names its regions by occurrence, mirrored backward. */
@@ -542,16 +687,12 @@ TEST(Small_ScopePartitioner, ARepeatedScopeIsNamedByItsOccurrence)
     ASSERT_EQ(step.segments.size(), 4u);
     EXPECT_EQ(step.partition.optimizer_key, 8u);
 
-    const std::string names[] = {"block#0", "block#1", "loss#0", "block#1", "block#0"};
     ASSERT_EQ(step.partition.regions.size(), 5u);
-    for (std::size_t i = 0; i < 5; ++i)
-    {
-        EXPECT_EQ(step.partition.regions[i].key, i + 2) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].name, names[i]) << "region " << i;
-        EXPECT_EQ(step.partition.regions[i].direction,
-                  i < 3 ? Direction::Forward : Direction::Backward)
-            << "region " << i;
-    }
+    expect_region(step.partition, 0, 2u, "block#0", Direction::Forward);
+    expect_region(step.partition, 1, 3u, "block#1", Direction::Forward);
+    expect_region(step.partition, 2, 4u, "loss#0", Direction::Forward);
+    expect_region(step.partition, 3, 5u, "block#1", Direction::Backward);
+    expect_region(step.partition, 4, 6u, "block#0", Direction::Backward);
 }
 
 /** @brief Tests that a graph with no backward node gets forward keys and forward regions only. */
@@ -581,73 +722,94 @@ TEST(Small_ScopePartitioner, LeavesBelongToNoRegion)
 {
     const Step step = three_segment_step();
 
-    std::size_t leaves = 0;
-    for (std::size_t node = 0; node < step.graph.node_count(); ++node)
-    {
-        if (is_leaf(step.graph, node))
-        {
-            EXPECT_EQ(step.partition.region_of_node[node], K_NO_REGION) << "node " << node;
-            ++leaves;
-        }
-        else
-        {
-            EXPECT_NE(step.partition.region_of_node[node], K_NO_REGION) << "node " << node;
-        }
-    }
+    const std::size_t leaves = expect_leaves_hold_no_region(step);
 
     // Two inputs and four parameters.
     EXPECT_EQ(leaves, 6u);
 }
 
 /** @brief Tests that segments which stop short of the forward graph stop the process. */
-TEST(Small_ScopePartitioner, SegmentsThatDoNotCoverTheForwardGraphAreFatal)
+TEST(Medium_ScopePartitionerFatal, SegmentsThatStopShortOfTheForwardGraphAreFatal)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
 
     std::vector<Eager::Segment> short_of_the_end = step.segments;
     short_of_the_end.pop_back();
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(short_of_the_end),
                                              step.provenance),
                     "The segments cover nodes 0 to", "forward graph has");
+}
+
+/** @brief Tests that a gap between two segments stops the process. */
+TEST(Medium_ScopePartitionerFatal, ASegmentThatLeavesAGapIsFatal)
+{
+    const Step step = three_segment_step();
+    const Eager::ScopePartitioner partitioner;
 
     std::vector<Eager::Segment> with_a_gap = step.segments;
     with_a_gap[1].begin += 1;
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(with_a_gap), step.provenance),
                     "Segment 1 ('second')", "contiguous");
+}
+
+/** @brief Tests that a segment holding no node stops the process. */
+TEST(Medium_ScopePartitionerFatal, AnEmptySegmentIsFatal)
+{
+    const Step step = three_segment_step();
+    const Eager::ScopePartitioner partitioner;
 
     std::vector<Eager::Segment> with_an_empty_segment = step.segments;
     const NodeID boundary = step.segments[1].begin;
     with_an_empty_segment.insert(with_an_empty_segment.begin() + 1,
                                  Eager::Segment{"empty", 0, boundary, boundary});
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(with_an_empty_segment),
                                              step.provenance),
                     "Segment 1 ('empty')", "holds no node");
+}
 
+/** @brief Tests that an empty list of segments stops the process. */
+TEST(Medium_ScopePartitionerFatal, NoSegmentAtAllIsFatal)
+{
+    const Step step = three_segment_step();
+    const Eager::ScopePartitioner partitioner;
     const std::vector<Eager::Segment> none;
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(none), step.provenance),
                     "at least one segment");
 }
 
-/** @brief Tests that a provenance whose node counts differ from the graph's stops the process. */
-TEST(Small_ScopePartitioner, AProvenanceOfAnotherGraphIsFatal)
+/** @brief Tests that a provenance with too few origins stops the process. */
+TEST(Medium_ScopePartitionerFatal, AProvenanceWithTooFewOriginsIsFatal)
 {
     const Step step = three_segment_step();
     const Eager::ScopePartitioner partitioner;
 
     Autograd::Provenance too_short = step.provenance;
     too_short.origin.pop_back();
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(step.segments), too_short),
                     "The provenance describes", "backward nodes");
+}
+
+/** @brief Tests that a provenance with an origin outside the forward range stops the process. */
+TEST(Medium_ScopePartitionerFatal, AnOriginOutsideTheForwardRangeIsFatal)
+{
+    const Step step = three_segment_step();
+    const Eager::ScopePartitioner partitioner;
 
     Autograd::Provenance out_of_range = step.provenance;
     out_of_range.origin.back() = static_cast<NodeID>(step.provenance.forward_node_count);
+
     SA_EXPECT_FATAL((void)partitioner.assign(step.graph, as_span(step.segments), out_of_range),
                     "has origin", "forward nodes");
 }
 
 /** @brief Tests that a backward node which reads a value of a higher key stops the process. */
-TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyIsFatal)
+TEST(Medium_ScopePartitionerFatal, ABackwardNodeThatReadsAHigherKeyIsFatal)
 {
     TwoReLUGraph two;
     build_two_relu_graph(two);
@@ -665,7 +827,7 @@ TEST(Small_ScopePartitioner, ABackwardNodeThatReadsAHigherKeyIsFatal)
 }
 
 /** @brief Tests that a LEAF-origin backward node that reads only leaves stops the process. */
-TEST(Small_ScopePartitioner, ALeafOriginNodeThatReadsOnlyLeavesIsFatal)
+TEST(Medium_ScopePartitionerFatal, ALeafOriginNodeThatReadsOnlyLeavesIsFatal)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);

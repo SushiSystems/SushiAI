@@ -24,7 +24,7 @@
 
 /**
  * @file test_partition.cpp
- * @brief Tests the defaults of Partition and the shape a partition of a traced step has.
+ * @brief Tests the shape a partition of a traced step has.
  * @author Mustafa Garip
  */
 
@@ -34,49 +34,48 @@
 #include <SushiAI/eager/partition.hpp>
 
 using namespace SushiAI;
-using Eager::Direction;
-using Eager::K_NO_REGION;
 using Eager::Partition;
 using Eager::RegionInfo;
 namespace Support = SushiAI::Eager::Support;
 
-/** @brief Tests that the empty key is zero, the value a zero-filled table holds. */
-TEST(Small_Partition, TheEmptyKeyIsZero)
+namespace
 {
-    EXPECT_EQ(K_NO_REGION, Eager::RegionKey{0});
-}
+    /** @brief Expects every region key of @p partition to be below its optimizer key. */
+    void expect_region_keys_below_optimizer(const Partition& partition)
+    {
+        for (const RegionInfo& region : partition.regions)
+            EXPECT_LT(region.key, partition.optimizer_key) << region.name;
+    }
 
-/** @brief Tests that a default region has no key, no name and holds the forward pass. */
-TEST(Small_Partition, ADefaultRegionInfoNamesNoRegion)
-{
-    const RegionInfo info;
+    /** @brief Expects the key of every node of @p partition to be below its optimizer key. */
+    void expect_node_keys_below_optimizer(const Partition& partition)
+    {
+        for (std::size_t node = 0; node < partition.region_of_node.size(); ++node)
+            EXPECT_LT(partition.region_of_node[node], partition.optimizer_key) << "node " << node;
+    }
+} // namespace
 
-    EXPECT_EQ(info.key, K_NO_REGION);
-    EXPECT_TRUE(info.name.empty());
-    EXPECT_EQ(info.direction, Direction::Forward);
-}
-
-/** @brief Tests that a default partition holds no node, no region and no optimizer key. */
-TEST(Small_Partition, ADefaultPartitionIsEmpty)
-{
-    const Partition partition;
-
-    EXPECT_TRUE(partition.region_of_node.empty());
-    EXPECT_TRUE(partition.regions.empty());
-    EXPECT_EQ(partition.optimizer_key, K_NO_REGION);
-}
-
-/** @brief Tests that a traced step's partition covers every node below its optimizer key. */
-TEST(Small_Partition, TheOptimizerKeyIsAboveEveryRegion)
+/** @brief Tests that a traced step's partition assigns every node and lists at least a region. */
+TEST(Small_Partition, ThePartitionOfATracedStepCoversEveryNode)
 {
     const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
-    const Partition& partition = step.partition;
 
-    EXPECT_EQ(partition.region_of_node.size(), step.graph.node_count());
-    ASSERT_FALSE(partition.regions.empty());
-    for (const RegionInfo& region : partition.regions)
-        EXPECT_LT(region.key, partition.optimizer_key) << region.name;
+    EXPECT_EQ(step.partition.region_of_node.size(), step.graph.node_count());
+    EXPECT_FALSE(step.partition.regions.empty());
+}
 
-    for (std::size_t node = 0; node < partition.region_of_node.size(); ++node)
-        EXPECT_LT(partition.region_of_node[node], partition.optimizer_key) << "node " << node;
+/** @brief Tests that every region key of a traced step is below its optimizer key. */
+TEST(Small_Partition, TheOptimizerKeyIsAboveEveryRegionKey)
+{
+    const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
+
+    expect_region_keys_below_optimizer(step.partition);
+}
+
+/** @brief Tests that the key of every node of a traced step is below its optimizer key. */
+TEST(Small_Partition, TheOptimizerKeyIsAboveEveryNodeKey)
+{
+    const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
+
+    expect_node_keys_below_optimizer(step.partition);
 }

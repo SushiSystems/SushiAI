@@ -53,6 +53,29 @@ namespace
     {
     };
 
+    /** @brief Names the entry points of a step that hand back the refusal of a failed trace. */
+    enum class EntryPoint : std::uint8_t
+    {
+        Backward,   /**< backward() of the refused value. */
+        ReadScalar, /**< read_scalar() of the refused value. */
+    };
+
+    /** @brief Provides the Engine every row of an entry point runs on. */
+    class Medium_EagerStepRefusal : public SaTest::EngineTest,
+                                    public ::testing::WithParamInterface<EntryPoint>
+    {
+    };
+
+    /** @brief Calls @p entry on the K_MATMUL of @p x with itself, which the builder refuses. */
+    [[nodiscard]] Status call_with_refused_trace(Eager::Step& step, ValueID x, EntryPoint entry)
+    {
+        const Graph::Traced refused = step.builder().matmul(x, x);
+        if (entry == EntryPoint::Backward)
+            return step.backward(refused);
+
+        return step.read_scalar(refused).status();
+    }
+
     /** @brief Holds the step size of the update behind every step. */
     constexpr float K_RATE = 0.05f;
 
@@ -141,23 +164,8 @@ TEST_F(Medium_EagerStep, ReadScalarRefusesAValueOfManyElements)
     EXPECT_TRUE(step.has_run());
 }
 
-/** @brief Tests that backward() hands back the refusal a failed trace of the loss holds. */
-TEST_F(Medium_EagerStep, BackwardReturnsTheRefusalOfAFailedTrace)
-{
-    Support::Loop loop(*engine, K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
-
-    Eager::Step step = loop.session.begin_step();
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
-    const Graph::Traced refused = step.builder().matmul(x, x);
-
-    SA_EXPECT_FAILURE(step.backward(refused), StatusCode::InvalidDescription, "MATMUL",
-                      "inner extents must agree");
-    EXPECT_FALSE(step.has_run());
-}
-
-/** @brief Tests that read_scalar() hands back the refusal a failed trace holds. */
-TEST_F(Medium_EagerStep, ReadScalarReturnsTheRefusalOfAFailedTrace)
+/** @brief Tests that an entry point of a step hands back the refusal a failed trace holds. */
+TEST_P(Medium_EagerStepRefusal, AnEntryPointReturnsTheRefusalOfAFailedTrace)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -165,10 +173,13 @@ TEST_F(Medium_EagerStep, ReadScalarReturnsTheRefusalOfAFailedTrace)
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
 
-    SA_EXPECT_FAILURE(step.read_scalar(step.builder().matmul(x, x)),
+    SA_EXPECT_FAILURE(call_with_refused_trace(step, x, GetParam()),
                       StatusCode::InvalidDescription, "MATMUL", "inner extents must agree");
     EXPECT_FALSE(step.has_run());
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_EagerStepRefusal,
+                         ::testing::Values(EntryPoint::Backward, EntryPoint::ReadScalar));
 
 /** @brief Tests that backward() refuses a graph holding a refusal whose result was dropped. */
 TEST_F(Medium_EagerStep, BackwardRefusesAGraphHoldingARefusal)

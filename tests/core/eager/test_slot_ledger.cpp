@@ -29,6 +29,7 @@
  */
 
 #include <algorithm>
+#include <cstdint>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -75,6 +76,29 @@ namespace
         return read != K_NO_STORAGE ? read
                                     : ledger.place(producer, position, shape, dtype,
                                                    span_of(readers));
+    }
+
+    /** @brief Names how a row claims the slot written at a position. */
+    enum class Claimer : std::uint8_t
+    {
+        Place, /**< place() takes the slot written at the position. */
+        Match, /**< match_readers() or place() takes the slot a reader names. */
+    };
+
+    /** @brief Holds one way to claim a slot and the position the second claim asks for. */
+    struct ClaimRow
+    {
+        Claimer claimer;         /**< How both claims go through the ledger. */
+        ValuePosition second_at; /**< The position the second claim asks for. */
+    };
+
+    /** @brief Claims the slot written at @p position the way @p claimer says. */
+    [[nodiscard]] StorageID claim(SlotLedger& ledger, Claimer claimer, ValuePosition position)
+    {
+        if (claimer == Claimer::Place)
+            return ledger.place(K_PRODUCER, position, K_SHAPE, DType::Float32, span_of({}));
+
+        return match(ledger, K_PRODUCER, position, K_SHAPE, DType::Float32, {{K_READER, 0}});
     }
 
     /** @brief Runs one step that creates a slot at @p position, read as @p readers say. */
@@ -158,62 +182,60 @@ TEST(Small_SlotLedger, AReaderThatIsNotTrustedNamesNoSlot)
               K_NO_STORAGE);
 }
 
-TEST(Small_SlotLedger, PlaceTakesTheSlotWrittenAtTheSamePosition)
+class Small_SlotLedgerClaim : public ::testing::TestWithParam<ClaimRow>
+{
+};
+
+/** @brief Tests that a slot is claimed once: the first claim takes it, the second does not. */
+TEST_P(Small_SlotLedgerClaim, ASlotIsClaimedOnce)
 {
     Eager::StorageIDSource ids;
     SlotLedger ledger(ids);
     const StorageID slot = first_step(ledger, ValuePosition{2, 0}, {{K_READER, 0}});
+    const ClaimRow row = GetParam();
 
     ledger.begin_step();
-    EXPECT_EQ(ledger.place(K_PRODUCER, ValuePosition{2, 0}, K_SHAPE, DType::Float32,
-                           span_of({})),
-              slot);
-    EXPECT_NE(ledger.place(K_PRODUCER, ValuePosition{2, 0}, K_SHAPE, DType::Float32,
-                           span_of({})),
-              slot);
-}
-
-TEST(Small_SlotLedger, AChangedShapeGetsANewSlotAndReleasesTheOld)
-{
-    Eager::StorageIDSource ids;
-    SlotLedger ledger(ids);
-    const StorageID slot = first_step(ledger, ValuePosition{2, 0}, {{K_READER, 0}});
-
-    ledger.begin_step();
-    const StorageID wider = match(ledger, K_PRODUCER, ValuePosition{2, 0},
-                                  Shape{8, 16}, DType::Float32, {{K_READER, 0}});
-    EXPECT_NE(wider, slot);
-    EXPECT_EQ(ledger.end_step(), std::vector<StorageID>{slot});
-}
-
-TEST(Small_SlotLedger, AChangedElementTypeGetsANewSlot)
-{
-    Eager::StorageIDSource ids;
-    SlotLedger ledger(ids);
-    const StorageID slot = first_step(ledger, ValuePosition{2, 0}, {{K_READER, 0}});
-
-    ledger.begin_step();
-    EXPECT_NE(match(ledger, K_PRODUCER, ValuePosition{2, 0},
-                    K_SHAPE, DType::Float64, {{K_READER, 0}}),
-              slot);
-}
-
-TEST(Small_SlotLedger, ASlotIsClaimedOnce)
-{
-    Eager::StorageIDSource ids;
-    SlotLedger ledger(ids);
-    const StorageID slot = first_step(ledger, ValuePosition{2, 0}, {{K_READER, 0}});
-
-    ledger.begin_step();
-    const StorageID first = match(ledger, K_PRODUCER, ValuePosition{2, 0},
-                                  K_SHAPE, DType::Float32, {{K_READER, 0}});
-    const StorageID second = match(ledger, K_PRODUCER, ValuePosition{3, 0},
-                                   K_SHAPE, DType::Float32, {{K_READER, 0}});
+    const StorageID first = claim(ledger, row.claimer, ValuePosition{2, 0});
+    const StorageID second = claim(ledger, row.claimer, row.second_at);
 
     EXPECT_EQ(first, slot);
     EXPECT_NE(second, slot);
     EXPECT_EQ(ledger.keep(K_PRODUCER, ValuePosition{2, 0}, span_of({})), K_NO_STORAGE);
 }
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_SlotLedgerClaim,
+                         ::testing::Values(ClaimRow{Claimer::Place, ValuePosition{2, 0}},
+                                           ClaimRow{Claimer::Match, ValuePosition{3, 0}}));
+
+/** @brief Holds the buffer description a changed slot is asked for. */
+struct ChangeRow
+{
+    Shape shape;  /**< The extents asked for. */
+    DType dtype;  /**< The element type asked for. */
+};
+
+class Small_SlotLedgerChange : public ::testing::TestWithParam<ChangeRow>
+{
+};
+
+/** @brief Tests that a changed shape or element type gets a new slot and releases the old. */
+TEST_P(Small_SlotLedgerChange, AChangedBufferGetsANewSlotAndReleasesTheOld)
+{
+    Eager::StorageIDSource ids;
+    SlotLedger ledger(ids);
+    const StorageID slot = first_step(ledger, ValuePosition{2, 0}, {{K_READER, 0}});
+
+    ledger.begin_step();
+    const StorageID changed = match(ledger, K_PRODUCER, ValuePosition{2, 0},
+                                    GetParam().shape, GetParam().dtype, {{K_READER, 0}});
+
+    EXPECT_NE(changed, slot);
+    EXPECT_EQ(ledger.end_step(), std::vector<StorageID>{slot});
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_SlotLedgerChange,
+                         ::testing::Values(ChangeRow{Shape{8, 16}, DType::Float32},
+                                           ChangeRow{Shape{8, 4}, DType::Float64}));
 
 TEST(Small_SlotLedger, ASlotOfAnotherProducerIsNotTaken)
 {

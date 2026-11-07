@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_boundary.cpp
 
 
-Suites: `Small_RegionBoundary`.
+Suites: `Small_RegionBoundary`, `Small_RegionBoundaryHeads`, `Medium_RegionBoundaryFatal`.
 
 Tests which values `find_boundaries` lists as the imports and exports of a region.
 
@@ -25,13 +25,20 @@ observes.
 
 ## AForwardRegionExportsWhatALaterRegionReads
 
-The encoder's result is read by the head, so the encoder's forward region exports it and the
-head's forward region imports it. The head's result is read by the loss region.
+Rows over the head variants of `encoder_head_loss`: a K_TANH head with three segments and a
+K_RELU head with a fourth scope. The encoder's result is read by the head, so the encoder's
+forward region exports it and the head's forward region imports it. The head's result is read
+by the loss region. Each import that a node produces comes from a region with a lower key, and
+that region lists it as an export; the case counts the imports it compared, so a map with no
+boundary value fails.
 
 ## AnObservedValueIsExportedWithNoReader
 
-One region holds the whole step. Its result is exported when the caller observes it and is not
-exported when nobody does.
+One region holds the whole step. Its result is exported when the caller observes it.
+
+## WithNoObservedValueNothingIsExported
+
+The same region exports nothing when nobody observes its result.
 
 ## AnExportIsNamedByItsPlaceInTheRegion
 
@@ -42,13 +49,6 @@ which is what keeps it stable when an earlier region grows.
 ## ImportsAreListedOnceInReadOrder
 
 `add(add(b, a), add(a, b))` reads `b` first and each leaf twice. The imports are `b`, `a`.
-
-## EveryImportIsALeafOrAnExportOfALowerKey
-
-The case walks every region of a four-segment differentiated step. Each import that a node
-produces comes from a region with a lower key, and that region lists it as an export. `checked`
-counts the imports the loop compared, so a map with no boundary value would fail the last
-assertion.
 
 ## AnAccumulateSharesTheBufferOfItsFirstOperand
 

@@ -1,7 +1,7 @@
 # tests/core/eager/test_scope_partitioner.cpp
 
 
-Suites: `Small_ScopePartitioner`.
+Suites: `Small_ScopePartitioner`, `Small_ScopePartitionerOperands`, `Medium_ScopePartitionerFatal`.
 
 Tests the region keys ScopePartitioner gives the nodes of a differentiated graph.
 
@@ -82,6 +82,16 @@ forward key is compared against something the partitioner did not write.
 `backward_keys_of` returns the keys of the backward nodes whose origin is a non-K_LEAF node of
 one segment. It skips K_LEAF origins because those take their key from their operands.
 
+## The expect helpers
+
+The loops of the file live in helpers named `expect_*`, each over a whole step so a case reads
+straight-line. `expect_every_non_leaf_node_has_key`, `expect_forward_keys_follow_segments`,
+`expect_backward_keys_mirror_segments`, `expect_regions_mirror_segments`, `expect_region`,
+`expect_operands_come_from_lower_or_equal_keys` and `expect_leaves_hold_no_region` compare a
+partition with what the segments and the graph say. `contributor_keys`, `reads_from_region`,
+`count_regions_with_key` and `direction_of_region_with_key` read a partition and return a value
+for the case to compare.
+
 ## AnUnscopedStepIsOneRegion
 
 With one segment, every non-K_LEAF node of the forward and backward graph has key 1 and the
@@ -91,16 +101,20 @@ scope name followed by its occurrence.
 ## ForwardKeysFollowTraceOrder
 
 Every non-K_LEAF forward node of `three_segment_step` has the number of its segment as its key.
-The closing count of seven checked nodes fails if the loop skips nodes it should compare.
+The closing count of seven checked nodes fails if the helper skips nodes it should compare.
 
 ## BackwardKeysMirrorForwardKeys
 
-With three segments the optimizer key is 6, and the backward nodes whose origins lie in segments
-1, 2 and 3 have keys 5, 4 and 3. Each segment must have at least one such node, so an empty
-result cannot satisfy the loop.
+With `m` segments, the backward nodes whose origins lie in segment `k` have key `2m - k`. Each
+segment must have at least one such node, so an empty result cannot satisfy the helper. The case
+states the relation and not the key numbers.
 
-The region list has five entries with keys 1 to 5, named "first#0", "second#0", "loss#0",
-"second#0", "first#0". The first three are forward and the last two backward.
+## RegionsMirrorTheSegments
+
+The region list holds the forward region of each segment in trace order, then the backward region
+of every segment but the last in reverse order, since the last segment shares its forward
+region. Keys run from 1, names are the segment names with their occurrences, and the directions
+are forward then backward.
 
 ## TheLastSegmentSharesItsRegionWithItsBackward
 
@@ -110,11 +124,12 @@ list with a second, backward entry under the same key would describe one region 
 
 ## EveryOperandComesFromALowerOrEqualKey
 
-For each of the four steps, every node's key is at least the key of the node that produces each
-of its operands. Operands with no producer, or whose producer has no region, are skipped. The
-check runs over every node of the graph and not over chosen ones, and each step must contribute
-at least one comparison. `modules/core/eager/README.md` gives this as the condition for a
-valid partition under `RegionKey`.
+Rows over the four steps: unscoped, three segments, shared weight and repeated block. Every
+node's key is at least the key of the node that produces each of its operands. Operands with no
+producer, or whose producer has no region, are skipped. The check runs over every node of the
+graph and not over chosen ones, and each step must contribute at least one comparison.
+`modules/core/eager/README.md` gives this as the condition for a valid partition under
+`RegionKey`.
 
 ## AWeightGradientLandsInItsOwnLayersBackwardRegion
 
@@ -125,10 +140,9 @@ graph that does not contain the case, and the message on the last assertion says
 
 ## ASharedParametersAccumulateSitsAboveBothContributors
 
-The gradient of the shared weight is produced by an K_ACCUMULATE whose origin is a K_LEAF. Its two
-operands are produced under keys 5 and 6, the backward keys of "second" and "first" among four
-segments, and the K_ACCUMULATE has key 6. Key 7, the backward key of the segment that holds the
-weight's K_LEAF, is not used for it.
+The gradient of the shared weight is produced by an K_ACCUMULATE whose origin is a K_LEAF. Its
+two operands are produced under two different keys, those of the backward regions of "second"
+and "first", and the K_ACCUMULATE takes the higher of the two.
 
 ## ALeafOriginNodeTakesItsHighestOperandKeyInEitherOrder
 
@@ -157,20 +171,34 @@ whether or not any backward node exists.
 ## LeavesBelongToNoRegion
 
 In `three_segment_step` every K_LEAF has `K_NO_REGION` and every other node has a key. The count
-of six leaves, two inputs and four parameters, shows that the loop reached the K_LEAF branch.
+of six leaves, two inputs and four parameters, shows that the helper reached the K_LEAF branch.
 
-## SegmentsThatDoNotCoverTheForwardGraphAreFatal
+## SegmentsThatStopShortOfTheForwardGraphAreFatal
 
-Four malformed segment lists stop the process, each with its own report: a list missing its last
-segment ("The segments cover nodes 0 to", "forward graph has"), a list with a gap before segment
-1 ("Segment 1 ('second')", "contiguous"), a list with an empty segment inserted ("Segment 1
-('empty')", "holds no node"), and an empty list ("at least one segment").
+A list missing its last segment stops the process ("The segments cover nodes 0 to", "forward
+graph has").
 
-## AProvenanceOfAnotherGraphIsFatal
+## ASegmentThatLeavesAGapIsFatal
+
+A list with a gap before segment 1 stops the process ("Segment 1 ('second')", "contiguous").
+
+## AnEmptySegmentIsFatal
+
+A list with an empty segment inserted stops the process ("Segment 1 ('empty')", "holds no node").
+
+## NoSegmentAtAllIsFatal
+
+An empty list stops the process ("at least one segment").
+
+## AProvenanceWithTooFewOriginsIsFatal
 
 A provenance with one origin too few stops the process with a report containing "The provenance
-describes" and "backward nodes". One whose last origin equals `forward_node_count`, the first
-id that is not a forward node, stops it with "has origin" and "forward nodes".
+describes" and "backward nodes".
+
+## AnOriginOutsideTheForwardRangeIsFatal
+
+A provenance whose last origin equals `forward_node_count`, the first id that is not a forward
+node, stops the process with "has origin" and "forward nodes".
 
 ## ABackwardNodeThatReadsAHigherKeyIsFatal
 

@@ -154,11 +154,26 @@ TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
         EXPECT_NEAR(result[i], expected[i], K_TOLERANCE) << "element " << i;
 }
 
-TEST_F(Medium_RegionEmitter, EmitCountsItsCallsAndItsTasks)
+/** @brief Tests that emit_count() counts the calls of emit(). */
+TEST_F(Medium_RegionEmitter, EmitCountsItsCalls)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
     RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
     EXPECT_EQ(emitter.emit_count(), 0u);
+
+    SushiRuntime::Graph first = engine->runtime().graph();
+    SA_EXPECT_OK(emitter.emit(first.recorder()));
+    SushiRuntime::Graph second = engine->runtime().graph();
+    SA_EXPECT_OK(emitter.emit(second.recorder()));
+
+    EXPECT_EQ(emitter.emit_count(), 2u);
+}
+
+/** @brief Tests that a second emit records the same operations as the first. */
+TEST_F(Medium_RegionEmitter, ASecondEmitRecordsTheSameOperations)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
+    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
 
     SushiRuntime::Graph first = engine->runtime().graph();
     SA_EXPECT_OK(emitter.emit(first.recorder()));
@@ -168,9 +183,19 @@ TEST_F(Medium_RegionEmitter, EmitCountsItsCallsAndItsTasks)
     SushiRuntime::Graph second = engine->runtime().graph();
     SA_EXPECT_OK(emitter.emit(second.recorder()));
 
-    EXPECT_EQ(emitter.emit_count(), 2u);
     EXPECT_GT(tasks, 0u);
     EXPECT_EQ(emitter.operation_count(), tasks);
     EXPECT_EQ(first.recorder().node_count(), second.recorder().node_count());
+}
+
+/** @brief Tests that a program without dropout asks for no replay prelude. */
+TEST_F(Medium_RegionEmitter, AProgramWithoutDropoutHasNoPreludes)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
+    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
+
+    SushiRuntime::Graph graph = engine->runtime().graph();
+    SA_EXPECT_OK(emitter.emit(graph.recorder()));
+
     EXPECT_TRUE(emitter.preludes().empty());
 }

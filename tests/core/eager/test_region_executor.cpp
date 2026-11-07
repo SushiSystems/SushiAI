@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <utility>
@@ -55,6 +56,7 @@
 #include <SushiAI/eager/storage_id.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/graph/in_memory_step_recorder.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
@@ -219,6 +221,15 @@ namespace
             SushiBLAS::Tensor count_;
     };
 
+    /** @brief Returns @p values negated. */
+    [[nodiscard]] std::vector<double> negated_of(const std::vector<double>& values)
+    {
+        std::vector<double> negated(values.size());
+        for (std::size_t i = 0; i < values.size(); ++i)
+            negated[i] = -values[i];
+        return negated;
+    }
+
     /** @brief Expects @p result to equal @p expected within K_TOLERANCE, element by element. */
     void expect_near(const std::vector<double>& result, const std::vector<double>& expected)
     {
@@ -226,8 +237,71 @@ namespace
         for (std::size_t i = 0; i < result.size(); ++i)
             EXPECT_NEAR(result[i], expected[i], K_TOLERANCE) << "element " << i;
     }
+
+    /**
+     * @brief Runs linear_then_relu() on @p harness, refills the input and runs it again.
+     * @param allocated_after_first Receives the pool bytes the executor held after the first run.
+     * @return The step of the second run.
+     */
+    [[nodiscard]] Support::TracedStep run_kept_step_again(Harness& harness,
+                                                          std::size_t& allocated_after_first)
+    {
+        SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
+        allocated_after_first = harness.executor.allocated_bytes();
+
+        // The second step reads another input through the storage the region was recorded with.
+        Support::fill_wave(harness.bank.tensor(Support::K_LEAF_STORAGE), 2.5, 1.5);
+        Support::TracedStep again = Support::linear_then_relu(false);
+        SA_EXPECT_OK(harness.run(again));
+        return again;
+    }
+
+    /** @brief Holds a region built under its table key and the node count of its program. */
+    struct BuiltRegion
+    {
+        Eager::RegionOrder order; /**< The order the table gave the region. */
+        std::size_t nodes = 0;    /**< The node count of the region's program. */
+    };
+
+    /**
+     * @brief Builds @p step on @p harness, then records its region again under a key raised by 2.
+     * @return The order the region was built with and the node count of its program.
+     */
+    [[nodiscard]] BuiltRegion run_then_rekey(Harness& harness, const Support::TracedStep& step)
+    {
+        SA_EXPECT_OK(harness.run(step));
+        BuiltRegion built;
+        built.order = harness.plan.regions[0];
+        const Eager::RegionProgram* const program = harness.executor.program_of(built.order.key);
+        EXPECT_NE(program, nullptr);
+        if (program != nullptr)
+            built.nodes = program->graph.node_count();
+
+        // The same region under another key: the table says Record when only the numbering moved.
+        StepWork work;
+        work.regions.resize(1);
+        work.regions[0].order = built.order;
+        work.regions[0].order.previous_key = built.order.key;
+        work.regions[0].order.key = built.order.key + 2;
+        work.regions[0].order.action = RegionAction::Record;
+        work.storage_of_value = Support::span_of(harness.plan.storage_of_value);
+        work.run_index = 1;
+        SA_EXPECT_OK(harness.executor.execute(work, harness.bank));
+        return built;
+    }
+
+    /** @brief Hands @p update to a fresh step of @p harness as its trailing work and runs it. */
+    void run_with_trailing(Harness& harness, Graph::StepRecorder& update)
+    {
+        const Support::TracedStep step = Support::linear_then_relu(false);
+        SA_ASSERT_OK_AND_ASSIGN(StepWork work, harness.prepare(step));
+        work.trailing = &update;
+        work.trailing_key = step.partition.optimizer_key;
+        SA_EXPECT_OK(harness.executor.execute(work, harness.bank));
+    }
 } // namespace
 
+/** @brief Tests that a built step writes the value the caller observes. */
 TEST_F(Medium_RegionExecutor, ABuiltStepWritesItsObservedValue)
 {
     Harness harness(*engine);
@@ -242,23 +316,41 @@ TEST_F(Medium_RegionExecutor, ABuiltStepWritesItsObservedValue)
     EXPECT_GT(harness.executor.operation_count(), 0u);
 }
 
-TEST_F(Medium_RegionExecutor, AKeptStepRunsAgainWithoutBeingComposedOrRecorded)
+/** @brief Tests that a kept step reads the storage its kernels were recorded with. */
+TEST_F(Medium_RegionExecutor, AKeptStepFollowsTheInputItsKernelsRead)
 {
     Harness harness(*engine);
-    SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
-    const std::size_t allocated = harness.executor.allocated_bytes();
+    std::size_t allocated = 0;
 
-    // The second step reads another input through the storage the region was recorded with.
-    Support::fill_wave(harness.bank.tensor(Support::K_LEAF_STORAGE), 2.5, 1.5);
-    const Support::TracedStep again = Support::linear_then_relu(false);
-    SA_EXPECT_OK(harness.run(again));
+    const Support::TracedStep again = run_kept_step_again(harness, allocated);
 
     expect_near(SaTest::read_tensor(harness.tensor_of(again.hidden)), harness.expected(again));
+}
+
+/** @brief Tests that a kept step is neither composed nor recorded again. */
+TEST_F(Medium_RegionExecutor, AKeptStepIsNeitherComposedNorRecordedAgain)
+{
+    Harness harness(*engine);
+    std::size_t allocated = 0;
+
+    (void)run_kept_step_again(harness, allocated);
+
     EXPECT_EQ(harness.executor.emit_count(), 1u);
     EXPECT_EQ(harness.executor.compose_count(), 1u);
+}
+
+/** @brief Tests that a kept step allocates no pool byte. */
+TEST_F(Medium_RegionExecutor, AKeptStepAllocatesNoPoolByte)
+{
+    Harness harness(*engine);
+    std::size_t allocated = 0;
+
+    (void)run_kept_step_again(harness, allocated);
+
     EXPECT_EQ(harness.executor.allocated_bytes(), allocated);
 }
 
+/** @brief Tests that two regions give the result of one, so the lower key ran first. */
 TEST_F(Medium_RegionExecutor, TwoRegionsRunInKeyOrder)
 {
     Harness harness(*engine);
@@ -272,35 +364,39 @@ TEST_F(Medium_RegionExecutor, TwoRegionsRunInKeyOrder)
     EXPECT_EQ(harness.executor.compose_count(), 1u);
 }
 
+/** @brief Tests that a region recorded under another key keeps its program under the new key. */
 TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
 {
     Harness harness(*engine);
-    const Support::TracedStep step = Support::linear_then_relu(false);
-    SA_EXPECT_OK(harness.run(step));
-    const Eager::RegionOrder built = harness.plan.regions[0];
-    const Eager::RegionProgram* const program = harness.executor.program_of(built.key);
-    ASSERT_NE(program, nullptr);
-    const std::size_t nodes = program->graph.node_count();
+    const BuiltRegion built = run_then_rekey(harness, Support::linear_then_relu(false));
 
-    // The same region under key 3: the table says Record when only the numbering moved.
-    StepWork work;
-    work.regions.resize(1);
-    work.regions[0].order = built;
-    work.regions[0].order.previous_key = built.key;
-    work.regions[0].order.key = built.key + 2;
-    work.regions[0].order.action = RegionAction::Record;
-    work.storage_of_value = Support::span_of(harness.plan.storage_of_value);
-    work.run_index = 1;
-    SA_EXPECT_OK(harness.executor.execute(work, harness.bank));
+    EXPECT_EQ(harness.executor.program_of(built.order.key), nullptr);
+    ASSERT_NE(harness.executor.program_of(built.order.key + 2), nullptr);
+    EXPECT_EQ(harness.executor.program_of(built.order.key + 2)->graph.node_count(), built.nodes);
+}
 
-    EXPECT_EQ(harness.executor.program_of(built.key), nullptr);
-    ASSERT_NE(harness.executor.program_of(built.key + 2), nullptr);
-    EXPECT_EQ(harness.executor.program_of(built.key + 2)->graph.node_count(), nodes);
-    EXPECT_EQ(harness.executor.emit_count(built.id), 2u);
+/** @brief Tests that a region recorded under another key is lowered and composed again. */
+TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyIsLoweredAndComposedAgain)
+{
+    Harness harness(*engine);
+    const BuiltRegion built = run_then_rekey(harness, Support::linear_then_relu(false));
+
+    EXPECT_EQ(harness.executor.emit_count(built.order.id), 2u);
     EXPECT_EQ(harness.executor.compose_count(), 2u);
+}
+
+/** @brief Tests that a region recorded under another key still writes the host result. */
+TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsResult)
+{
+    Harness harness(*engine);
+    const Support::TracedStep step = Support::linear_then_relu(false);
+
+    (void)run_then_rekey(harness, step);
+
     expect_near(SaTest::read_tensor(harness.tensor_of(step.hidden)), harness.expected(step));
 }
 
+/** @brief Tests that the step which joins two regions drops the one that left. */
 TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
 {
     Harness harness(*engine);
@@ -315,7 +411,26 @@ TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
     expect_near(SaTest::read_tensor(harness.tensor_of(joined.hidden)), harness.expected(joined));
 }
 
-TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegionOnEveryRun)
+/** @brief Tests that the trailing work is recorded once and replayed on every run. */
+TEST_F(Medium_RegionExecutor, TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun)
+{
+    Harness harness(*engine);
+    Graph::InMemoryStepRecorder update;
+
+    run_with_trailing(harness, update);
+    run_with_trailing(harness, update);
+
+    const std::vector<Graph::InMemoryStepRecorder::Call>& calls = update.calls();
+    EXPECT_EQ(std::count(calls.begin(), calls.end(), Graph::InMemoryStepRecorder::Call::Record),
+              1);
+    EXPECT_EQ(
+        std::count(calls.begin(), calls.end(), Graph::InMemoryStepRecorder::Call::AfterReplay),
+        2);
+    EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
+}
+
+/** @brief Tests that the trailing work runs behind every region of the step. */
+TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegion)
 {
     Harness harness(*engine);
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -333,24 +448,10 @@ TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegionOnEveryRun)
     SA_EXPECT_OK(harness.executor.execute(work, harness.bank));
 
     const std::vector<double> result = SaTest::read_tensor(harness.tensor_of(step.hidden));
-    std::vector<double> expected(result.size());
-    for (std::size_t i = 0; i < result.size(); ++i)
-        expected[i] = -result[i];
-    expect_near(SaTest::read_tensor(negated), expected);
-    EXPECT_EQ(update.record_count(), 1u);
-    EXPECT_EQ(update.replay_count(), 1u);
-
-    // The same update under the same key is replayed, not recorded again.
-    SA_ASSERT_OK_AND_ASSIGN(StepWork again, harness.prepare(Support::linear_then_relu(false)));
-    again.trailing = &update;
-    again.trailing_key = step.partition.optimizer_key;
-    SA_EXPECT_OK(harness.executor.execute(again, harness.bank));
-
-    EXPECT_EQ(update.record_count(), 1u);
-    EXPECT_EQ(update.replay_count(), 2u);
-    EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
+    expect_near(SaTest::read_tensor(negated), negated_of(result));
 }
 
+/** @brief Tests that a late trailing task replays after the recorder that made it is gone. */
 TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
 {
     Harness harness(*engine);
@@ -362,27 +463,30 @@ TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
     LateIncrement update(out, count);
 
     // The first step records the update through a recorder that dies with record_trailing().
-    for (int step = 0; step < 2; ++step)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(StepWork work,
-                                harness.prepare(Support::linear_then_relu(false)));
-        work.trailing = &update;
-        work.trailing_key = Support::linear_then_relu(false).partition.optimizer_key;
-        SA_EXPECT_OK(harness.executor.execute(work, harness.bank));
-    }
+    run_with_trailing(harness, update);
+    run_with_trailing(harness, update);
 
     EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
     expect_near(SaTest::read_tensor(out), {2.0, 2.0, 0.0, 0.0});
 }
 
-TEST_F(Medium_RegionExecutor, DiscardDropsEveryRegionAndAKeptRegionIsThenRefused)
+/** @brief Tests that discard() drops every region the executor holds. */
+TEST_F(Medium_RegionExecutor, DiscardDropsEveryRegion)
 {
     Harness harness(*engine);
-    const Support::TracedStep step = Support::linear_then_relu(false);
-    SA_EXPECT_OK(harness.run(step));
+    SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
 
     SA_EXPECT_OK(harness.executor.discard());
+
     EXPECT_EQ(harness.executor.region_count(), 0u);
+}
+
+/** @brief Tests that a Keep planned after discard() is refused with InvalidDescription. */
+TEST_F(Medium_RegionExecutor, AKeptRegionAfterDiscardIsRefused)
+{
+    Harness harness(*engine);
+    SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
+    SA_EXPECT_OK(harness.executor.discard());
 
     // The table still believes the region is recorded, so it plans a Keep.
     SA_EXPECT_FAILURE(harness.run(Support::linear_then_relu(false)),

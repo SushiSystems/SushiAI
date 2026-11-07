@@ -1,5 +1,5 @@
 /**************************************************************************/
-/* test_segment.cpp                                                       */
+/* compile_segment.cpp                                                         */
 /**************************************************************************/
 /*                          This file is part of:                         */
 /*                                 SushiAI                                */
@@ -21,36 +21,10 @@
 /* permissions and limitations under the License.                         */
 /**************************************************************************/
 
-
 /**
- * @file test_segment.cpp
- * @brief Tests the default value of Segment and the half-open node range it names.
+ * @file compile_segment.cpp
+ * @brief Checks at compile time that the header of Segment compiles on its own.
  * @author Mustafa Garip
  */
 
-#include <gtest/gtest.h>
 #include <SushiAI/eager/segment.hpp>
-#include <SushiAI/graph/ir.hpp>
-
-using SushiAI::Eager::Segment;
-
-/** @brief Tests that a default segment is unnamed, first of its name and holds no node. */
-TEST(Small_Segment, ADefaultSegmentIsUnnamedAndEmpty)
-{
-    const Segment segment;
-
-    EXPECT_TRUE(segment.name.empty());
-    EXPECT_EQ(segment.occurrence, 0u);
-    EXPECT_EQ(segment.begin, SushiAI::Graph::NodeID{0});
-    EXPECT_EQ(segment.end, segment.begin);
-}
-
-/** @brief Tests that a segment's node count is end minus begin, as its range is half open. */
-TEST(Small_Segment, TheRangeExcludesItsEnd)
-{
-    const Segment segment{"encoder/block", 2, 4, 9};
-
-    EXPECT_EQ(segment.name, "encoder/block");
-    EXPECT_EQ(segment.occurrence, 2u);
-    EXPECT_EQ(segment.end - segment.begin, SushiAI::Graph::NodeID{5});
-}

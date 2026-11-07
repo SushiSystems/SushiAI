@@ -64,11 +64,58 @@ namespace
         return producer == Graph::K_NO_NODE ? Eager::K_NO_REGION
                                             : step.partition.region_of_node[producer];
     }
+
+    /**
+     * @brief Expects every import of @p map that a region computes to be an export of a lower key.
+     * @return The number of imports that another region computes.
+     */
+    std::size_t expect_imports_come_from_lower_exports(const Support::TracedStep& step,
+                                                       const BoundaryMap& map)
+    {
+        std::size_t checked = 0;
+        for (std::size_t region = 0; region < map.regions.size(); ++region)
+        {
+            for (ValueID value : map.regions[region].imports)
+            {
+                const Eager::RegionKey producer = key_of_producer(step, value);
+                if (producer == Eager::K_NO_REGION)
+                    continue;
+
+                EXPECT_LT(producer, step.partition.regions[region].key) << "value " << value;
+
+                bool exported = false;
+                for (std::size_t other = 0; other < map.regions.size(); ++other)
+                {
+                    if (step.partition.regions[other].key == producer)
+                        exported = holds(map.regions[other].exports, value);
+                }
+                EXPECT_TRUE(exported) << "value " << value;
+                ++checked;
+            }
+        }
+        return checked;
+    }
 } // namespace
 
-TEST(Small_RegionBoundary, AForwardRegionExportsWhatALaterRegionReads)
+/** @brief Holds one traced head variant of encoder_head_loss(). */
+struct HeadVariant
 {
-    const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
+    Support::Head head;
+    bool extra;
+};
+
+class Small_RegionBoundaryHeads : public ::testing::TestWithParam<HeadVariant>
+{
+};
+
+/**
+ * @brief Tests that a forward region exports what a later region reads, and that every import
+ * is a leaf or an export of a region with a lower key.
+ */
+TEST_P(Small_RegionBoundaryHeads, AForwardRegionExportsWhatALaterRegionReads)
+{
+    const Support::TracedStep step =
+        Support::encoder_head_loss(GetParam().head, GetParam().extra);
     const BoundaryMap map = Support::boundaries_of(step);
 
     const std::size_t encoder = Support::region_at(step, "encoder#0", Direction::Forward);
@@ -79,18 +126,32 @@ TEST(Small_RegionBoundary, AForwardRegionExportsWhatALaterRegionReads)
     EXPECT_TRUE(holds(map.regions[encoder].exports, step.hidden));
     EXPECT_TRUE(holds(map.regions[head].imports, step.hidden));
     EXPECT_TRUE(holds(map.regions[head].exports, step.logits));
+    EXPECT_GT(expect_imports_come_from_lower_exports(step, map), 0u);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionBoundaryHeads,
+                         ::testing::Values(HeadVariant{Support::Head::Tanh, false},
+                                           HeadVariant{Support::Head::ReLU, true}));
+
+/** @brief Tests that an observed value is exported even when no region reads it. */
 TEST(Small_RegionBoundary, AnObservedValueIsExportedWithNoReader)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const BoundaryMap observed = Support::boundaries_of(step);
+
+    ASSERT_EQ(observed.regions.size(), 1u);
+    EXPECT_EQ(observed.regions[0].exports, std::vector<ValueID>{step.hidden});
+}
+
+/** @brief Tests that a region exports nothing when nothing is observed and no region reads it. */
+TEST(Small_RegionBoundary, WithNoObservedValueNothingIsExported)
+{
+    const Support::TracedStep step = Support::linear_then_relu(false);
     const BoundaryMap unobserved =
         Eager::find_boundaries(step.graph, step.partition, SushiRuntime::span<const ValueID>())
             .value();
 
-    ASSERT_EQ(observed.regions.size(), 1u);
-    EXPECT_EQ(observed.regions[0].exports, std::vector<ValueID>{step.hidden});
+    ASSERT_EQ(unobserved.regions.size(), 1u);
     EXPECT_TRUE(unobserved.regions[0].exports.empty());
 }
 
@@ -122,36 +183,6 @@ TEST(Small_RegionBoundary, ImportsAreListedOnceInReadOrder)
     const BoundaryMap map = Support::boundaries_of(step);
     ASSERT_EQ(map.regions.size(), 1u);
     EXPECT_EQ(map.regions[0].imports, (std::vector<ValueID>{b, a}));
-}
-
-TEST(Small_RegionBoundary, EveryImportIsALeafOrAnExportOfALowerKey)
-{
-    const Support::TracedStep step = Support::encoder_head_loss(Support::Head::ReLU, true);
-    const BoundaryMap map = Support::boundaries_of(step);
-
-    std::size_t checked = 0;
-    for (std::size_t region = 0; region < map.regions.size(); ++region)
-    {
-        for (ValueID value : map.regions[region].imports)
-        {
-            const Eager::RegionKey producer = key_of_producer(step, value);
-            if (producer == Eager::K_NO_REGION)
-                continue;
-
-            EXPECT_LT(producer, step.partition.regions[region].key) << "value " << value;
-
-            bool exported = false;
-            for (std::size_t other = 0; other < map.regions.size(); ++other)
-            {
-                if (step.partition.regions[other].key == producer)
-                    exported = holds(map.regions[other].exports, value);
-            }
-            EXPECT_TRUE(exported) << "value " << value;
-            ++checked;
-        }
-    }
-
-    EXPECT_GT(checked, 0u);
 }
 
 TEST(Small_RegionBoundary, AnAccumulateSharesTheBufferOfItsFirstOperand)
@@ -190,7 +221,8 @@ TEST(Small_RegionBoundary, AnAccumulateIntoALeafIsAnInvalidDescription)
                       "ACCUMULATE", "leaf");
 }
 
-TEST(Small_RegionBoundary, APartitionOfAnotherGraphIsFatal)
+/** @brief Tests that find_boundaries stops the process when the partition misses nodes. */
+TEST(Medium_RegionBoundaryFatal, APartitionOfAnotherGraphIsFatal)
 {
     Support::TracedStep step = Support::linear_then_relu(false);
     step.partition.region_of_node.pop_back();

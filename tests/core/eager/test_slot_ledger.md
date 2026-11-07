@@ -1,7 +1,7 @@
 # tests/core/eager/test_slot_ledger.cpp
 
 
-Suites: `Small_SlotLedger`.
+Suites: `Small_SlotLedger`, `Small_SlotLedgerClaim`, `Small_SlotLedgerChange`.
 
 Tests which slot `SlotLedger` gives a shared buffer from one step to the next.
 
@@ -35,19 +35,17 @@ position, which shows that a matched slot is filed under its new name.
 With no trusted reader `match_readers` returns `K_NO_STORAGE`, although a reader of that name
 read the slot in the step before.
 
-## PlaceTakesTheSlotWrittenAtTheSamePosition
-
-`place` reuses the slot at the position once; the second call for the same position creates one.
-
-## AChangedShapeGetsANewSlotAndReleasesTheOld, AChangedElementTypeGetsANewSlot
-
-A slot is reused only for the same extents and element type. The slot left behind is returned by
-`end_step`.
-
 ## ASlotIsClaimedOnce
 
-Two buffers that the same reader slot names get two slots, and the first is not handed out again
-through `keep`.
+Rows over `ClaimRow`. `Place`: `place` takes the slot written at its position, and a second call
+for the same position creates one. `Match`: two buffers that the same reader slot names get two
+slots, the second at another position. In both rows the second claim does not get the slot, and
+the first slot is not handed out again through `keep`.
+
+## AChangedBufferGetsANewSlotAndReleasesTheOld
+
+Rows over `ChangeRow`: other extents, and another element type. A slot is reused only for the same
+extents and element type; the slot left behind is returned by `end_step`.
 
 ## ASlotOfAnotherProducerIsNotTaken
 

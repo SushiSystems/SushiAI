@@ -24,7 +24,4 @@ An inner guard inside an outer one gives depth 2, then 1 once the inner block en
 succeeds, which it does only when every scope is closed, and the two segments are named
 "outer/inner" and "outer" in node order.
 
-## AGuardCannotBeCopiedOrMoved
-
-`Scope` is neither copy- nor move-constructible nor assignable, so no second object can close
-the scope a guard opened.
+The copy and move rules of the guard are compile-time checks in `compile_scope.cpp`.

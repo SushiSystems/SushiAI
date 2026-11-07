@@ -1,7 +1,9 @@
 # tests/core/eager/test_region_signature.cpp
 
 
-Suites: `Small_RegionSignature`.
+Suites: `Small_RegionSignature`, `Small_RegionSignatureAttribute`, `Small_RegionSignatureValue`,
+`Small_RegionSignatureIdentity`, `Small_RegionSignatureGrowth`, `Small_RegionSignatureOperand`,
+`Medium_RegionSignatureFatal`.
 
 Tests the signature that `signature_of` computes for one region of a partition.
 
@@ -116,49 +118,45 @@ list is K_RELU, K_TANH, K_ADD, K_SCALE, which is the region's nodes in order wit
 
 ## AChangedAttributeChangesTheHash
 
-A K_SCALE factor of 3.0 in place of 2.0 leaves the operation list equal and makes the hash
+Rows over `AttributeChange`. `Factor`: a K_SCALE factor of 3.0 in place of 2.0. `LastSlot`: the
+case writes 1.0 into slot `Attributes::K_CAPACITY - 1` of the K_SCALE node; it covers the last
+slot because a hash that read a fixed number of leading slots would agree with the first row and
+miss this one. Both leave the operation list equal and make the hash differ.
+
+## AChangedValueDescriptionChangesTheHash
+
+Rows over `ValueChange`. `Layout`: the K_RELU result is retagged NCHW in one of two otherwise
+equal graphs, so the layout is the only input that moved. `Shape`: [4, 5] in place of [4, 3].
+`DType`: FLOAT64 in place of FLOAT32. Each leaves the operation list equal and makes the hash
 differ.
-
-## AChangedLastAttributeSlotChangesTheHash
-
-The case writes 1.0 into slot `Attributes::K_CAPACITY - 1` of the K_SCALE node and expects another
-hash. It covers the last slot because a hash that read a fixed number of leading slots would
-agree with the other attribute case and miss this one.
-
-## AChangedLayoutChangesTheHash
-
-The K_RELU result is retagged NCHW in one of two otherwise equal graphs, and the hashes differ.
-Shape and element type are the same in both, so the layout is the only input that moved.
-
-## AChangedShapeChangesTheHash
-
-A shape of [4, 5] in place of [4, 3] leaves the operation list equal and makes the hash differ.
-
-## AChangedDTypeChangesTheHash
-
-FLOAT64 in place of FLOAT32 leaves the operation list equal and makes the hash differ.
 
 ## AChangedOpChangesTheHash
 
 K_SUB in place of K_ADD makes both the operation list and the hash differ. It is the one
 `Recipe` case in which the two lists are unequal.
 
-## ADifferentParameterChangesTheHash
+## AValueOfAnotherIdentityChangesTheHash
 
-The same structure over a parameter with identity `K_PARAMETER_IDENTITY + 1` has the same
-operation list and another hash. The parameter is external to the region, so its identity is
-the only thing the hash holds about it.
+Rows over `IdentityChange`. `Parameter`: the same structure over a parameter with identity
+`K_PARAMETER_IDENTITY + 1`; the parameter is external to the region, so its identity is the only
+thing the hash holds about it. `BoundaryValue`: the K_SCALE in `K_READER` reads the K_RELU result
+of `K_BODY`, and that value takes identity `K_EXTERNAL_IDENTITY + 1`. Each has the same
+operation list and another hash.
 
 ## AnEarlierRegionGrowingDoesNotChangeALaterRegion
 
-`ScopedPerceptron(1)` and `ScopedPerceptron(2)` differ by one linear layer in "stem". The three
-`ASSERT` lines at the top establish that the case tests what it claims: the value "body" reads
-has a different id in the two graphs, the same identity in both, and the forward and backward
-regions of "body" have different keys.
+Rows over `Direction`. `ScopedPerceptron(1)` and `ScopedPerceptron(2)` differ by one linear layer
+in "stem". The `ASSERT` lines at the top establish that the case tests what it claims: the value
+"body" reads has a different id in the two graphs and the same identity in both, and "body#0"
+has a region in the direction of the row in both graphs.
 
-For each direction, the signature of "body#0" has a non-empty operation list and is equal in
-the two graphs, by hash and by `operator==`. The forward signature of "stem#0" differs between
-them, which shows that the two graphs are not equal throughout.
+The signature of "body#0" in that direction has a non-empty operation list and is equal in the
+two graphs, by hash and by `operator==`.
+
+## AnEarlierRegionGrowingChangesItsOwnSignature
+
+The forward signature of "stem#0" differs between the two graphs, which shows that they are not
+equal throughout.
 
 ## ARewiredOperandChangesTheHash
 
@@ -170,11 +168,6 @@ position.
 
 A K_TANH that reads result 1 of a two-result node hashes apart from one that reads result 0. The
 producer's index in the region is the same in both, so the result index is what separates them.
-
-## ABoundaryValueOfAnotherIdentityChangesTheHash
-
-The K_SCALE in `K_READER` reads the K_RELU result of `K_BODY`. With identity
-`K_EXTERNAL_IDENTITY + 1` for that value, the operation list is equal and the hash differs.
 
 ## ALeafAndABoundaryValueOfOneIdentityHashAlike
 
@@ -188,17 +181,12 @@ The same graph is signed with `K_BODY` present in the region list and with it ab
 two signatures of `K_READER` are equal. An operand whose producer has a key other than the
 region's is external whether or not the partition lists that key.
 
-## AnOperandInsideTheRegionHashesApartFromOneOutside
+## AnOperandOfAnotherKindHashesApart
 
-The probe node reads one result of `K_READER` and the result of `K_BODY` twice, in the two
-orders `InsideThenOutside` and `OutsideThenInside`. The operation lists are equal and the
-hashes differ.
-
-## ALeafOperandHashesApartFromOneInsideTheRegion
-
-The same pair of orders with the leaf `x` in place of the `K_BODY` result,
-`InsideThenLeaves` and `LeavesThenInside`, also gives equal operation lists and different
-hashes.
+Rows over `OperandOrders`. The probe node reads one result of `K_READER` and the result of
+`K_BODY` twice, in the orders `InsideThenOutside` and `OutsideThenInside`; the second row puts
+the leaf `x` in place of the `K_BODY` result, `InsideThenLeaves` and `LeavesThenInside`. Each
+pair gives equal operation lists and different hashes.
 
 ## EqualHashesWithDifferentOpsCompareUnequal
 

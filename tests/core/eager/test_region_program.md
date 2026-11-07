@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_program.cpp
 
 
-Suites: `Small_RegionProgram`.
+Suites: `Small_RegionProgram`, `Medium_RegionProgramFatal`.
 
 Tests the graph, the plan and the reports `compile_region` makes for one region.
 
@@ -10,8 +10,9 @@ the program.
 
 ## TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport
 
-The region "activation#0" holds one K_RELU and reads the linear layer's result. With fusion off
-its program has two nodes: a K_LEAF that writes the import, and the K_RELU.
+The region "activation#0" reads the linear layer's result and computes the step's result. With
+fusion off, the import is produced by a K_LEAF node of the program and the export by another
+op that reads the import. The case does not fix the node order or the node count.
 
 ## ValuesKeepTheIdsOfTheStep
 
@@ -60,5 +61,5 @@ stopping the process.
 
 ## ANonFloatCastComesBackAsAStatus
 
-A precision policy that asks every operation for int32 reaches the cast pass, and
-`compile_region` returns its `InvalidDescription`, "real floating types".
+An `InMemoryPrecisionPolicy` scripted to ask int32 of the three operations of the region
+reaches the cast pass, and `compile_region` returns its `InvalidDescription`, "real floating types".

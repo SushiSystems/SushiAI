@@ -427,6 +427,95 @@ namespace
         /** @brief Holds the last result of the "stem" scope, which "body" reads. */
         ValueID stem_output = K_NO_VALUE;
     };
+
+    /** @brief Holds a signature and the signature of the same region after one change. */
+    struct SignaturePair
+    {
+        RegionSignature base;    /**< The signature before the change. */
+        RegionSignature changed; /**< The signature after the change. */
+    };
+
+    /** @brief Names a change to an attribute of the closing SCALE. */
+    enum class AttributeChange : std::uint8_t
+    {
+        Factor,   /**< The factor of the SCALE changes. */
+        LastSlot, /**< The last attribute slot of the SCALE holds a value. */
+    };
+
+    /** @brief Returns the signature of the recipe graph before and after @p change. */
+    [[nodiscard]] SignaturePair signatures_after(AttributeChange change)
+    {
+        Recipe recipe;
+        if (change == AttributeChange::Factor)
+            recipe.alpha = 3.0;
+
+        Traced altered = build(recipe);
+        if (change == AttributeChange::LastSlot)
+        {
+            altered = build(Recipe{});
+            altered.graph.node(node_of(altered.graph, Ops::K_SCALE.id))
+                .attributes.values[Graph::Attributes::K_CAPACITY - 1] = 1.0;
+        }
+
+        return {signature_of(Recipe{}), signature_of(altered, K_BODY)};
+    }
+
+    /** @brief Names a change to the description of a value of the recipe graph. */
+    enum class ValueChange : std::uint8_t
+    {
+        Layout, /**< The layout of the RELU result changes. */
+        Shape,  /**< The extents of every value change. */
+        DType,  /**< The element type of every value changes. */
+    };
+
+    /** @brief Returns the signature of the recipe graph before and after @p change. */
+    [[nodiscard]] SignaturePair signatures_after(ValueChange change)
+    {
+        Recipe recipe;
+        if (change == ValueChange::Shape)
+            recipe.shape = Shape{4, 5};
+        if (change == ValueChange::DType)
+            recipe.dtype = DType::Float64;
+
+        Traced altered = build(recipe);
+        if (change == ValueChange::Layout)
+        {
+            const ValueID rectified =
+                altered.graph.node(node_of(altered.graph, Ops::K_RELU.id)).outputs.front();
+            altered.graph.value(rectified).layout = Graph::TensorLayout::NCHW;
+        }
+
+        return {signature_of(Recipe{}), signature_of(altered, K_BODY)};
+    }
+
+    /** @brief Names the value whose identity changes. */
+    enum class IdentityChange : std::uint8_t
+    {
+        Parameter,     /**< The parameter the region reads inside its own graph. */
+        BoundaryValue, /**< The value the region reads from another region. */
+    };
+
+    /** @brief Returns the signature before and after the identity named by @p change moves. */
+    [[nodiscard]] SignaturePair signatures_after(IdentityChange change)
+    {
+        if (change == IdentityChange::Parameter)
+        {
+            Recipe recipe;
+            recipe.parameter_identity = K_PARAMETER_IDENTITY + 1;
+            return {signature_of(Recipe{}), signature_of(recipe)};
+        }
+
+        ExternalRecipe recipe;
+        recipe.identity = K_EXTERNAL_IDENTITY + 1;
+        return {signature_of(ExternalRecipe{}), signature_of(recipe)};
+    }
+
+    /** @brief Holds the two operand orders a row compares in region K_READER. */
+    struct OperandOrders
+    {
+        ProbeOperands first;  /**< The order whose signature is the base. */
+        ProbeOperands second; /**< The order whose signature is compared with it. */
+    };
 }
 
 /**
@@ -463,75 +552,38 @@ TEST(Small_RegionSignature, TheSameTraceGivesTheSameSignature)
                                             Ops::K_SCALE.id}));
 }
 
-/** @brief Tests that another SCALE factor gives another hash over the same operations. */
-TEST(Small_RegionSignature, AChangedAttributeChangesTheHash)
+class Small_RegionSignatureAttribute : public ::testing::TestWithParam<AttributeChange>
 {
-    Recipe changed;
-    changed.alpha = 3.0;
+};
 
-    const RegionSignature base = signature_of(Recipe{});
-    const RegionSignature other = signature_of(changed);
+/** @brief Tests that a changed attribute of a node changes the hash and keeps the operations. */
+TEST_P(Small_RegionSignatureAttribute, AChangedAttributeChangesTheHash)
+{
+    const SignaturePair pair = signatures_after(GetParam());
 
-    EXPECT_EQ(base.ops, other.ops);
-    EXPECT_NE(base.hash, other.hash);
+    EXPECT_EQ(pair.base.ops, pair.changed.ops);
+    EXPECT_NE(pair.base.hash, pair.changed.hash);
 }
 
-/** @brief Tests that a value in the last attribute slot gives another hash. */
-TEST(Small_RegionSignature, AChangedLastAttributeSlotChangesTheHash)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureAttribute,
+                         ::testing::Values(AttributeChange::Factor, AttributeChange::LastSlot));
+
+class Small_RegionSignatureValue : public ::testing::TestWithParam<ValueChange>
 {
-    const Traced base = build(Recipe{});
-    Traced changed = build(Recipe{});
-    changed.graph.node(node_of(changed.graph, Ops::K_SCALE.id))
-        .attributes.values[Graph::Attributes::K_CAPACITY - 1] = 1.0;
+};
 
-    const RegionSignature before = signature_of(base, K_BODY);
-    const RegionSignature after = signature_of(changed, K_BODY);
+/** @brief Tests that a changed layout, shape or element type changes the hash. */
+TEST_P(Small_RegionSignatureValue, AChangedValueDescriptionChangesTheHash)
+{
+    const SignaturePair pair = signatures_after(GetParam());
 
-    EXPECT_EQ(before.ops, after.ops);
-    EXPECT_NE(before.hash, after.hash);
+    EXPECT_EQ(pair.base.ops, pair.changed.ops);
+    EXPECT_NE(pair.base.hash, pair.changed.hash);
 }
 
-/** @brief Tests that another layout on one result gives another hash. */
-TEST(Small_RegionSignature, AChangedLayoutChangesTheHash)
-{
-    const Traced base = build(Recipe{});
-    Traced changed = build(Recipe{});
-    const ValueID rectified =
-        changed.graph.node(node_of(changed.graph, Ops::K_RELU.id)).outputs.front();
-    changed.graph.value(rectified).layout = Graph::TensorLayout::NCHW;
-
-    const RegionSignature before = signature_of(base, K_BODY);
-    const RegionSignature after = signature_of(changed, K_BODY);
-
-    EXPECT_EQ(before.ops, after.ops);
-    EXPECT_NE(before.hash, after.hash);
-}
-
-/** @brief Tests that other extents give another hash over the same operations. */
-TEST(Small_RegionSignature, AChangedShapeChangesTheHash)
-{
-    Recipe changed;
-    changed.shape = Shape{4, 5};
-
-    const RegionSignature base = signature_of(Recipe{});
-    const RegionSignature other = signature_of(changed);
-
-    EXPECT_EQ(base.ops, other.ops);
-    EXPECT_NE(base.hash, other.hash);
-}
-
-/** @brief Tests that another element type gives another hash over the same operations. */
-TEST(Small_RegionSignature, AChangedDTypeChangesTheHash)
-{
-    Recipe changed;
-    changed.dtype = DType::Float64;
-
-    const RegionSignature base = signature_of(Recipe{});
-    const RegionSignature other = signature_of(changed);
-
-    EXPECT_EQ(base.ops, other.ops);
-    EXPECT_NE(base.hash, other.hash);
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureValue,
+                         ::testing::Values(ValueChange::Layout, ValueChange::Shape,
+                                           ValueChange::DType));
 
 /** @brief Tests that SUB in place of ADD changes both the hash and the operation list. */
 TEST(Small_RegionSignature, AChangedOpChangesTheHash)
@@ -546,52 +598,67 @@ TEST(Small_RegionSignature, AChangedOpChangesTheHash)
     EXPECT_NE(base.hash, other.hash);
 }
 
-/** @brief Tests that the same structure over a parameter of another identity hashes apart. */
-TEST(Small_RegionSignature, ADifferentParameterChangesTheHash)
+class Small_RegionSignatureIdentity : public ::testing::TestWithParam<IdentityChange>
 {
-    Recipe changed;
-    changed.parameter_identity = K_PARAMETER_IDENTITY + 1;
+};
 
-    const RegionSignature base = signature_of(Recipe{});
-    const RegionSignature other = signature_of(changed);
+/** @brief Tests that a value of another identity hashes apart over the same structure. */
+TEST_P(Small_RegionSignatureIdentity, AValueOfAnotherIdentityChangesTheHash)
+{
+    const SignaturePair pair = signatures_after(GetParam());
 
-    EXPECT_EQ(base.ops, other.ops);
-    EXPECT_NE(base.hash, other.hash);
+    EXPECT_EQ(pair.base.ops, pair.changed.ops);
+    EXPECT_NE(pair.base.hash, pair.changed.hash);
 }
 
+INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureIdentity,
+                         ::testing::Values(IdentityChange::Parameter,
+                                           IdentityChange::BoundaryValue));
+
+class Small_RegionSignatureGrowth : public ::testing::TestWithParam<Eager::Direction>
+{
+};
+
 /**
- * @brief Tests that a layer added to "stem" keeps the forward and the backward signature of
- *        "body", which reads the last result of "stem" under one identity in both traces.
+ * @brief Tests that a layer added to "stem" keeps the signature of "body" in the direction of the
+ *        row, since "body" reads the last result of "stem" under one identity in both traces.
  */
-TEST(Small_RegionSignature, AnEarlierRegionGrowingDoesNotChangeALaterRegion)
+TEST_P(Small_RegionSignatureGrowth, AnEarlierRegionGrowingDoesNotChangeALaterRegion)
 {
     const ScopedPerceptron small(1);
     const ScopedPerceptron grown(2);
+    const Eager::Direction direction = GetParam();
 
     ASSERT_NE(small.stem_output, grown.stem_output);
     ASSERT_EQ(small.traced.identity.at(small.stem_output),
               grown.traced.identity.at(grown.stem_output));
-    ASSERT_NE(small.key_of("body#0", Eager::Direction::Forward),
-              small.key_of("body#0", Eager::Direction::Backward));
+    const RegionKey small_body = small.key_of("body#0", direction);
+    const RegionKey grown_body = grown.key_of("body#0", direction);
+    ASSERT_NE(small_body, Eager::K_NO_REGION);
+    ASSERT_NE(grown_body, Eager::K_NO_REGION);
 
-    for (Eager::Direction direction : {Eager::Direction::Forward, Eager::Direction::Backward})
-    {
-        const RegionKey small_body = small.key_of("body#0", direction);
-        const RegionKey grown_body = grown.key_of("body#0", direction);
-        ASSERT_NE(small_body, Eager::K_NO_REGION);
-        ASSERT_NE(grown_body, Eager::K_NO_REGION);
+    const RegionSignature before = signature_of(small.traced, small_body);
+    const RegionSignature after = signature_of(grown.traced, grown_body);
+    EXPECT_FALSE(before.ops.empty());
+    EXPECT_EQ(before.hash, after.hash);
+    EXPECT_TRUE(before == after);
+}
 
-        const RegionSignature before = signature_of(small.traced, small_body);
-        const RegionSignature after = signature_of(grown.traced, grown_body);
-        EXPECT_FALSE(before.ops.empty());
-        EXPECT_EQ(before.hash, after.hash);
-        EXPECT_TRUE(before == after);
-    }
+INSTANTIATE_TEST_SUITE_P(Rows, Small_RegionSignatureGrowth,
+                         ::testing::Values(Eager::Direction::Forward,
+                                           Eager::Direction::Backward));
+
+/** @brief Tests that a layer added to "stem" changes the signature of "stem" itself. */
+TEST(Small_RegionSignature, AnEarlierRegionGrowingChangesItsOwnSignature)
+{
+    const ScopedPerceptron small(1);
+    const ScopedPerceptron grown(2);
 
     const RegionSignature small_stem =
         signature_of(small.traced, small.key_of("stem#0", Eager::Direction::Forward));
     const RegionSignature grown_stem =
         signature_of(grown.traced, grown.key_of("stem#0", Eager::Direction::Forward));
+
     EXPECT_TRUE(small_stem != grown_stem);
 }
 
@@ -616,19 +683,6 @@ TEST(Small_RegionSignature, AReadOfAnotherResultChangesTheHash)
 
     EXPECT_EQ(first.ops, second.ops);
     EXPECT_NE(first.hash, second.hash);
-}
-
-/** @brief Tests that the same reader hashes apart when the value it reads has another identity. */
-TEST(Small_RegionSignature, ABoundaryValueOfAnotherIdentityChangesTheHash)
-{
-    ExternalRecipe changed;
-    changed.identity = K_EXTERNAL_IDENTITY + 1;
-
-    const RegionSignature base = signature_of(ExternalRecipe{});
-    const RegionSignature other = signature_of(changed);
-
-    EXPECT_EQ(base.ops, other.ops);
-    EXPECT_NE(base.hash, other.hash);
 }
 
 /** @brief Tests that a leaf and a result of another region hash alike under one identity. */
@@ -657,29 +711,25 @@ TEST(Small_RegionSignature, AnOperandFromAnUnlistedRegionHashesAsExternal)
     EXPECT_TRUE(listed == other);
 }
 
-/** @brief Tests that a result of the region hashes apart from one of another region. */
-TEST(Small_RegionSignature, AnOperandInsideTheRegionHashesApartFromOneOutside)
+class Small_RegionSignatureOperand : public ::testing::TestWithParam<OperandOrders>
 {
-    const RegionSignature inside_first =
-        signature_of(build(ProbeOperands::InsideThenOutside), K_READER);
-    const RegionSignature outside_first =
-        signature_of(build(ProbeOperands::OutsideThenInside), K_READER);
+};
 
-    EXPECT_EQ(inside_first.ops, outside_first.ops);
-    EXPECT_NE(inside_first.hash, outside_first.hash);
+/** @brief Tests that the kind of an operand, inside the region or not, changes the hash. */
+TEST_P(Small_RegionSignatureOperand, AnOperandOfAnotherKindHashesApart)
+{
+    const RegionSignature first = signature_of(build(GetParam().first), K_READER);
+    const RegionSignature second = signature_of(build(GetParam().second), K_READER);
+
+    EXPECT_EQ(first.ops, second.ops);
+    EXPECT_NE(first.hash, second.hash);
 }
 
-/** @brief Tests that a leaf operand hashes apart from an operand of the region. */
-TEST(Small_RegionSignature, ALeafOperandHashesApartFromOneInsideTheRegion)
-{
-    const RegionSignature inside_first =
-        signature_of(build(ProbeOperands::InsideThenLeaves), K_READER);
-    const RegionSignature leaves_first =
-        signature_of(build(ProbeOperands::LeavesThenInside), K_READER);
-
-    EXPECT_EQ(inside_first.ops, leaves_first.ops);
-    EXPECT_NE(inside_first.hash, leaves_first.hash);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_RegionSignatureOperand,
+    ::testing::Values(
+        OperandOrders{ProbeOperands::InsideThenOutside, ProbeOperands::OutsideThenInside},
+        OperandOrders{ProbeOperands::InsideThenLeaves, ProbeOperands::LeavesThenInside}));
 
 /** @brief Tests that two signatures with one hash and different operations compare unequal. */
 TEST(Small_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
@@ -695,7 +745,7 @@ TEST(Small_RegionSignature, EqualHashesWithDifferentOpsCompareUnequal)
 }
 
 /** @brief Tests that asking for a key the partition does not list stops the process. */
-TEST(Small_RegionSignature, ARegionThePartitionDoesNotListIsFatal)
+TEST(Medium_RegionSignatureFatal, ARegionThePartitionDoesNotListIsFatal)
 {
     const Traced traced = build(Recipe{});
 
@@ -704,7 +754,7 @@ TEST(Small_RegionSignature, ARegionThePartitionDoesNotListIsFatal)
 }
 
 /** @brief Tests that a partition sized for another graph stops the process. */
-TEST(Small_RegionSignature, APartitionOfAnotherNodeCountIsFatal)
+TEST(Medium_RegionSignatureFatal, APartitionOfAnotherNodeCountIsFatal)
 {
     Traced traced = build(Recipe{});
     traced.partition.region_of_node.pop_back();
@@ -713,7 +763,7 @@ TEST(Small_RegionSignature, APartitionOfAnotherNodeCountIsFatal)
 }
 
 /** @brief Tests that an external operand whose id lies beyond the identities stops the process. */
-TEST(Small_RegionSignature, AnExternalValueWithoutAnIdentityIsFatal)
+TEST(Medium_RegionSignatureFatal, AnExternalValueWithoutAnIdentityIsFatal)
 {
     Traced traced = build(Recipe{});
     traced.identity.clear();

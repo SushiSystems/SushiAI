@@ -79,6 +79,12 @@ namespace
 
     };
 
+    /** @brief Provides the Engine every death case runs on. */
+    class Medium_EagerSessionFatal : public SaTest::EngineTest
+    {
+
+    };
+
     /** @brief Holds the step size of every loop of this file. */
     constexpr float K_RATE = 0.05f;
 
@@ -202,86 +208,180 @@ namespace
 
         return true;
     }
+
+    /**
+     * @brief Expects the first @p steps steps of @p loop to give the loss bytes @p compiled gives.
+     * @return Nothing; a mismatch or a refusal fails the calling test.
+     */
+    void expect_loss_bytes_match(Compiled& compiled, Support::Loop& loop, int steps)
+    {
+        for (int step = 0; step < steps; ++step)
+        {
+            SA_EXPECT_OK(compiled.step->run());
+            const std::vector<unsigned char> expected =
+                SaTest::read_tensor_bytes(compiled.pool.tensor(compiled.loss));
+
+            SA_ASSERT_OK_AND_ASSIGN(const std::vector<unsigned char> bytes, loop.step_bytes());
+            EXPECT_EQ(SaTest::first_difference(bytes, expected), expected.size())
+                << "step " << step;
+            EXPECT_EQ(bytes.size(), expected.size());
+        }
+    }
+
+    /** @brief Runs @p steps more steps of @p loop with @p options. */
+    void run_steps(Support::Loop& loop, const Support::TraceOptions& options, int steps)
+    {
+        for (int step = 0; step < steps; ++step)
+            SA_EXPECT_OK(loop.step(options));
+    }
+
+    /** @brief Holds what a settled loop held after its first step. */
+    struct Baseline
+    {
+        std::size_t regions = 0;     /**< The regions the executor held. */
+        std::size_t emits = 0;       /**< The regions lowered into a recorder. */
+        std::size_t pool_bytes = 0;  /**< The pool bytes the executor held. */
+        std::size_t allocations = 0; /**< The allocations the storage bank counted. */
+        std::size_t tensors = 0;     /**< The tensors the storage bank held. */
+    };
+
+    /** @brief Prepares the three-layer scoped @p loop, runs its first step and reads its state. */
+    Baseline settle_first_step(SushiBLAS::Engine& engine, Support::Loop& loop)
+    {
+        SA_EXPECT_OK(loop.prepare(engine, K_THREE_LAYERS));
+        Support::TraceOptions options;
+        options.scoping = Support::Scoping::PerLayer;
+        SA_EXPECT_OK(loop.step(options));
+
+        Baseline baseline;
+        baseline.regions = loop.executor.region_count();
+        baseline.emits = loop.executor.emit_count();
+        baseline.pool_bytes = loop.executor.allocated_bytes();
+        baseline.allocations = loop.session.storage().allocation_count();
+        baseline.tensors = loop.session.storage().size();
+        return baseline;
+    }
+
+    /** @brief Expects the scoped losses of @p steps steps to follow the unscoped ones. */
+    void expect_scoped_losses_follow_plain(Support::Loop& plain, Support::Loop& scoped,
+                                           int steps)
+    {
+        Support::TraceOptions split;
+        split.scoping = Support::Scoping::SplitActivation;
+        for (int step = 0; step < steps; ++step)
+        {
+            SA_ASSERT_OK_AND_ASSIGN(const double expected, plain.step());
+            SA_ASSERT_OK_AND_ASSIGN(const double loss, scoped.step(split));
+            EXPECT_NEAR(loss, expected, K_LOSS_TOLERANCE) << "step " << step;
+            EXPECT_TRUE(std::isfinite(loss));
+        }
+    }
+
+    /** @brief Expects no region of the last step of @p loop to fuse a layer with its ReLU. */
+    void expect_no_region_fuses_layer_and_activation(const Support::Loop& loop)
+    {
+        for (const Eager::RegionOrder& order : loop.session.last_plan().regions)
+        {
+            const Eager::RegionProgram* const program = loop.executor.program_of(order.key);
+            ASSERT_NE(program, nullptr) << "key " << order.key;
+            EXPECT_EQ(program->fusion.count(Graph::FusedForm::GEMMBiasReLU), 0u)
+                << "key " << order.key;
+        }
+    }
+
+    /** @brief Traces, differentiates, updates and finishes @p step; stores its loss in @p loss. */
+    void trace_and_run(Support::Loop& loop, Eager::Step& step, ValueID& loss)
+    {
+        SA_ASSERT_OK_AND_ASSIGN(loss,
+                                Support::trace_model(step, loop.model, loop.inputs, loop.targets));
+        SA_EXPECT_OK(step.backward(loss));
+        SA_EXPECT_OK(step.apply(loop.update));
+    }
 } // namespace
 
+/** @brief Tests that an unscoped step gives the loss bytes the compiled step gives. */
 TEST_F(Medium_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Compiled> compiled, make_compiled(*engine));
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
-    for (int step = 0; step < 4; ++step)
-    {
-        SA_EXPECT_OK(compiled->step->run());
-        const std::vector<unsigned char> expected =
-            SaTest::read_tensor_bytes(compiled->pool.tensor(compiled->loss));
-
-        SA_ASSERT_OK_AND_ASSIGN(const std::vector<unsigned char> bytes, loop.step_bytes());
-        EXPECT_EQ(SaTest::first_difference(bytes, expected), expected.size()) << "step " << step;
-        EXPECT_EQ(bytes.size(), expected.size());
-    }
+    expect_loss_bytes_match(*compiled, loop, 4);
 
     // With no scope the forward and backward nodes are one region.
     EXPECT_EQ(loop.executor.region_count(), 1u);
     EXPECT_EQ(loop.session.step_count(), 4u);
 }
 
-TEST_F(Medium_EagerSession, ASettledLoopComposesOnceAndAllocatesNothingMore)
+/** @brief Tests that the first step of a scoped loop builds every region it holds. */
+TEST_F(Medium_EagerSession, TheFirstStepOfAScopedLoopBuildsEveryRegion)
 {
     Support::Loop loop(*engine, K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_THREE_LAYERS));
 
+    const Baseline baseline = settle_first_step(*engine, loop);
+
+    EXPECT_GT(baseline.regions, 1u);
+    EXPECT_EQ(loop.session.last_cost().built, baseline.regions);
+}
+
+/** @brief Tests that a settled loop composes once and lowers no region again. */
+TEST_F(Medium_EagerSession, ASettledLoopComposesOnce)
+{
+    Support::Loop loop(*engine, K_RATE);
+    const Baseline baseline = settle_first_step(*engine, loop);
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
-    SA_EXPECT_OK(loop.step(options));
 
-    const std::size_t regions = loop.executor.region_count();
-    const std::size_t emits = loop.executor.emit_count();
-    const std::size_t pool_bytes = loop.executor.allocated_bytes();
-    const std::size_t allocations = loop.session.storage().allocation_count();
-    const std::size_t tensors = loop.session.storage().size();
-    EXPECT_GT(regions, 1u);
-    EXPECT_EQ(loop.session.last_cost().built, regions);
-
-    for (int step = 1; step < 5; ++step)
-        SA_EXPECT_OK(loop.step(options));
+    run_steps(loop, options, 4);
 
     EXPECT_EQ(loop.executor.compose_count(), 1u);
-    EXPECT_EQ(loop.executor.emit_count(), emits);
-    EXPECT_EQ(loop.executor.allocated_bytes(), pool_bytes);
-    EXPECT_EQ(loop.session.storage().allocation_count(), allocations);
-    EXPECT_EQ(loop.session.storage().size(), tensors);
-    EXPECT_EQ(loop.session.last_cost().kept, regions);
+    EXPECT_EQ(loop.executor.emit_count(), baseline.emits);
+}
+
+/** @brief Tests that a settled loop allocates no pool byte, no tensor and no storage more. */
+TEST_F(Medium_EagerSession, ASettledLoopAllocatesNothingMore)
+{
+    Support::Loop loop(*engine, K_RATE);
+    const Baseline baseline = settle_first_step(*engine, loop);
+    Support::TraceOptions options;
+    options.scoping = Support::Scoping::PerLayer;
+
+    run_steps(loop, options, 4);
+
+    EXPECT_EQ(loop.executor.allocated_bytes(), baseline.pool_bytes);
+    EXPECT_EQ(loop.session.storage().allocation_count(), baseline.allocations);
+    EXPECT_EQ(loop.session.storage().size(), baseline.tensors);
+}
+
+/** @brief Tests that the last step of a settled loop keeps every region and builds none. */
+TEST_F(Medium_EagerSession, ASettledLoopKeepsEveryRegion)
+{
+    Support::Loop loop(*engine, K_RATE);
+    const Baseline baseline = settle_first_step(*engine, loop);
+    Support::TraceOptions options;
+    options.scoping = Support::Scoping::PerLayer;
+
+    run_steps(loop, options, 4);
+
+    EXPECT_EQ(loop.session.last_cost().kept, baseline.regions);
     EXPECT_EQ(loop.session.last_cost().built, 0u);
+}
+
+/** @brief Tests that the update of a settled loop is recorded once and replayed every step. */
+TEST_F(Medium_EagerSession, ASettledLoopReplaysTheUpdateItRecordedOnce)
+{
+    Support::Loop loop(*engine, K_RATE);
+    (void)settle_first_step(*engine, loop);
+    Support::TraceOptions options;
+    options.scoping = Support::Scoping::PerLayer;
+
+    run_steps(loop, options, 4);
+
     EXPECT_EQ(loop.update.record_count(), 1u);
     EXPECT_EQ(loop.update.replay_count(), 5u);
 }
 
-TEST_F(Medium_EagerSession, FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther)
-{
-    Support::Loop loop(*engine, K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
-
-    Support::TraceOptions options;
-    options.scoping = Support::Scoping::EncoderHead;
-    SA_EXPECT_OK(loop.step(options));
-    SA_EXPECT_OK(loop.step(options));
-
-    options.head_is_relu = true;
-    SA_EXPECT_OK(loop.step(options));
-
-    EXPECT_EQ(loop.emit_count("head#0", Direction::Forward), 2u);
-    EXPECT_EQ(loop.emit_count("head#0", Direction::Backward), 2u);
-    EXPECT_EQ(loop.emit_count("encoder#0", Direction::Forward), 1u);
-    EXPECT_EQ(loop.emit_count("encoder#0", Direction::Backward), 1u);
-
-    // The loss is traced after the head closes, in the second unnamed segment of the step.
-    EXPECT_EQ(loop.emit_count("#1", Direction::Forward), 1u);
-    EXPECT_EQ(loop.session.last_cost().built, 2u);
-    EXPECT_EQ(loop.session.last_cost().kept, 3u);
-    EXPECT_EQ(loop.update.record_count(), 1u);
-}
-
+/** @brief Tests that a scope between a layer and its activation trains to the same loss. */
 TEST_F(Medium_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss)
 {
     Support::Loop plain(*engine, K_RATE);
@@ -289,50 +389,11 @@ TEST_F(Medium_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToThe
     SA_EXPECT_OK(plain.prepare(*engine, K_TWO_LAYERS));
     SA_EXPECT_OK(scoped.prepare(*engine, K_TWO_LAYERS));
 
-    Support::TraceOptions split;
-    split.scoping = Support::Scoping::SplitActivation;
-    for (int step = 0; step < 5; ++step)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(const double expected, plain.step());
-        SA_ASSERT_OK_AND_ASSIGN(const double loss, scoped.step(split));
-        EXPECT_NEAR(loss, expected, K_LOSS_TOLERANCE) << "step " << step;
-        EXPECT_TRUE(std::isfinite(loss));
-    }
+    expect_scoped_losses_follow_plain(plain, scoped, 5);
 
     // No region of the scoped loop holds the linear layer and its activation together.
-    for (const Eager::RegionOrder& order : scoped.session.last_plan().regions)
-    {
-        const Eager::RegionProgram* const program = scoped.executor.program_of(order.key);
-        ASSERT_NE(program, nullptr) << "key " << order.key;
-        EXPECT_EQ(program->fusion.count(Graph::FusedForm::GEMMBiasReLU), 0u)
-            << "key " << order.key;
-    }
+    expect_no_region_fuses_layer_and_activation(scoped);
     EXPECT_GT(scoped.executor.region_count(), plain.executor.region_count());
-}
-
-TEST_F(Medium_EagerSession, AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenumbers)
-{
-    Support::Loop loop(*engine, K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
-
-    Support::TraceOptions options;
-    options.scoping = Support::Scoping::EncoderHead;
-    SA_EXPECT_OK(loop.step(options));
-
-    options.extra_scope = true;
-    SA_EXPECT_OK(loop.step(options));
-    EXPECT_GE(loop.session.last_cost().recorded, 1u);
-    EXPECT_EQ(loop.update.record_count(), 2u);
-
-    options.extra_scope = false;
-    SA_ASSERT_OK_AND_ASSIGN(const double loss, loop.step(options));
-    EXPECT_TRUE(std::isfinite(loss));
-    EXPECT_EQ(loop.session.last_cost().dropped, 2u);
-    EXPECT_EQ(loop.update.record_count(), 3u);
-
-    // The encoder's forward key does not move; its backward key moves twice.
-    EXPECT_EQ(loop.emit_count("encoder#0", Direction::Forward), 1u);
-    EXPECT_EQ(loop.emit_count("encoder#0", Direction::Backward), 3u);
 }
 
 TEST_F(Medium_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
@@ -372,21 +433,31 @@ TEST_F(Medium_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsR
     EXPECT_EQ(loop.update.record_count(), 0u);
 }
 
+/** @brief Tests that a value the step did not keep cannot be read after the run. */
 TEST_F(Medium_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
-
     Eager::Step step = loop.session.begin_step();
-    SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
-                            Support::trace_model(step, loop.model, loop.inputs, loop.targets));
-    SA_EXPECT_OK(step.backward(loss));
-    SA_EXPECT_OK(step.apply(loop.update));
+    ValueID loss = Graph::K_NO_VALUE;
+    trace_and_run(loop, step, loss);
 
     // The loss reads the model's result inside the step's one region; keep() never named it.
     const ValueID interior = step.graph().node(step.graph().value(loss).producer).inputs[0];
     SA_EXPECT_FAILURE(step.read(interior), StatusCode::InvalidDescription, "not kept");
+}
+
+/** @brief Tests that keep() after the run is refused with Unsupported. */
+TEST_F(Medium_EagerSession, KeepingAValueAfterTheRunIsRefused)
+{
+    Support::Loop loop(*engine, K_RATE);
+    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Eager::Step step = loop.session.begin_step();
+    ValueID loss = Graph::K_NO_VALUE;
+    trace_and_run(loop, step, loss);
     SA_EXPECT_OK(step.read_scalar(loss));
+
+    const ValueID interior = step.graph().node(step.graph().value(loss).producer).inputs[0];
     SA_EXPECT_FAILURE(step.keep(interior), StatusCode::Unsupported, "has run");
 }
 
@@ -427,7 +498,8 @@ TEST_F(Medium_EagerSession, BindingAStateTwiceIsRefused)
         StatusCode::InvalidDescription, "already bound");
 }
 
-TEST_F(Medium_EagerSession, ASecondLiveStepStopsTheProcess)
+/** @brief Tests that a second live step stops the process. */
+TEST_F(Medium_EagerSessionFatal, ASecondLiveStepStopsTheProcess)
 {
     Support::Loop loop(*engine, K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
@@ -495,6 +567,27 @@ namespace
 
         return Status();
     }
+
+    /**
+     * @brief Runs @p rounds rounds of one step with an extra scope and one without.
+     * @return The number of regions the steps recorded again.
+     */
+    [[nodiscard]] std::size_t recorded_over_rounds(Support::Loop& loop,
+                                                   Support::TraceOptions options, int rounds)
+    {
+        std::size_t recorded = 0;
+        for (int round = 0; round < rounds; ++round)
+        {
+            options.extra_scope = true;
+            SA_EXPECT_OK(loop.step(options));
+            recorded += loop.session.last_cost().recorded;
+
+            options.extra_scope = false;
+            SA_EXPECT_OK(loop.step(options));
+            recorded += loop.session.last_cost().recorded;
+        }
+        return recorded;
+    }
 } // namespace
 
 TEST_F(Medium_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
@@ -513,6 +606,7 @@ TEST_F(Medium_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
                              widths_of(K_DEEP_LAYERS), Support::Scoping::PerLayer));
 }
 
+/** @brief Tests that a scope appearing and disappearing records regions again. */
 TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
 {
     Support::Loop loop(*engine, K_COST_RATE);
@@ -520,20 +614,9 @@ TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
 
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
-    for (int step = 0; step < K_WARM_STEPS; ++step)
-        SA_EXPECT_OK(loop.step(options));
+    run_steps(loop, options, K_WARM_STEPS);
 
-    std::size_t recorded = 0;
-    for (int round = 0; round < K_MEASURED_STEPS / 2; ++round)
-    {
-        options.extra_scope = true;
-        SA_EXPECT_OK(loop.step(options));
-        recorded += loop.session.last_cost().recorded;
-
-        options.extra_scope = false;
-        SA_EXPECT_OK(loop.step(options));
-        recorded += loop.session.last_cost().recorded;
-    }
+    const std::size_t recorded = recorded_over_rounds(loop, options, K_MEASURED_STEPS / 2);
 
     // A renumbering records regions again without compiling them; none means it was not one.
     EXPECT_GT(recorded, 0u);

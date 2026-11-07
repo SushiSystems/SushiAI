@@ -1,7 +1,7 @@
 # tests/core/eager/test_session.cpp
 
 
-Suites: `Medium_EagerSession`.
+Suites: `Medium_EagerSession`, `Medium_EagerSessionFatal`.
 
 Tests the steps a `Session` runs and the points at which a `Step` runs them.
 
@@ -32,31 +32,34 @@ that holds the forward and the backward nodes, so the two paths lower the same n
 compares with `Graph::CompiledStep` and not with `Train::Trainer`, which a test of this module
 cannot name.
 
-## ASettledLoopComposesOnceAndAllocatesNothingMore
+## TheFirstStepOfAScopedLoopBuildsEveryRegion
 
-A three-layer model with one scope per layer runs five steps. After the first, the composition
-count stays 1 and the lowering count, the pool bytes, the session's allocation count and its
-tensor count do not move. The update is recorded once and replayed five times.
+A three-layer model with one scope per layer holds more than one region after its first step,
+and the step built every one of them.
 
-## FlippingABranchRebuildsThatScopesTwoRegionsAndNoOther
+## ASettledLoopComposesOnce
 
-Two steps with a K_TANH head, then one with a K_RELU head. The head's forward and backward
-regions are lowered twice and every other region once. The loss is traced after the head closes,
-in the second unnamed segment of the step, so its region is named "#1"; the first unnamed
-segment holds the input leaf and no region.
+After four more steps the composition count is 1 and the lowering count has not moved.
+
+## ASettledLoopAllocatesNothingMore
+
+After four more steps the pool bytes, the session's allocation count and its tensor count have
+not moved.
+
+## ASettledLoopKeepsEveryRegion
+
+The last step of the settled loop kept every region and built none.
+
+## ASettledLoopReplaysTheUpdateItRecordedOnce
+
+The update is recorded once and replayed five times over the five steps.
 
 ## AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss
 
 Two loops start from the same numbers, one with no scope and one with a scope between the first
-layer and its activation. Their losses are compared within `K_LOSS_TOLERANCE`, 1e-5, over five
-steps, and not byte for byte: the two loops run different kernels for the first layer.
-No region of the scoped loop reports a `GEMMBiasReLU`.
-
-## AScopeThatAppearsAndDisappearsRecordsTheRegionsItRenumbers
-
-A scope "extra" appears in the second step and is gone in the third. The trailing key is twice
-the segment count, so the update is recorded three times. The encoder's forward region keeps its
-key and is lowered once; its backward region moves twice and is lowered three times.
+layer and its activation. Their losses are compared within `K_LOSS_TOLERANCE`, 256 unit roundoffs
+of float, over five steps, and not byte for byte: the two loops run different kernels for the
+first layer. No region of the scoped loop reports a `GEMMBiasReLU`.
 
 ## AParameterNoStepTracesKeepsAZeroGradientAndItsValue
 
@@ -70,7 +73,11 @@ tensor holds zeros and its weight holds the bytes it started with.
 ## AValueTheStepDidNotKeepCannotBeReadAfterTheRun
 
 After `apply` the model's result is not readable: it sits inside the step's one region and was
-not passed to `keep`. The loss is, because `backward` keeps it. `keep` after the run is refused.
+not passed to `keep`.
+
+## KeepingAValueAfterTheRunIsRefused
+
+After the loss is read, `keep` of the model's result is refused with `Unsupported`.
 
 ## TracingAfterTheStepRanIsRefused
 
@@ -106,5 +113,5 @@ unchanged one.
 ## AScopeThatAppearsAndDisappears
 
 A fifty-layer loop with one scope per layer alternates a step with a scope "extra" and a step
-without it, ten times each. The case fails when no region was recorded again, because the
+without it, ten times each, through `recorded_over_rounds`. The case fails when no region was recorded again, because the
 steps would then not have been renumberings.

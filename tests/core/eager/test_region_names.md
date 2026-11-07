@@ -1,7 +1,7 @@
 # tests/core/eager/test_region_names.cpp
 
 
-Suites: `Small_RegionNames`.
+Suites: `Small_RegionNames`, `Medium_RegionNamesFatal`.
 
 Tests that `RegionNames` gives one id per name and direction, whatever the key.
 

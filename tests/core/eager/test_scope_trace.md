@@ -1,7 +1,8 @@
 # tests/core/eager/test_scope_trace.cpp
 
 
-Suites: `Small_ScopeTrace`.
+Suites: `Small_ScopeTrace`, `Small_ScopeTraceLegalName`, `Medium_ScopeTraceFatal`,
+`Medium_ScopeTraceRefusedName`.
 
 Tests how ScopeTrace cuts a trace into segments and which calls it rejects.
 
@@ -38,11 +39,6 @@ scope has occurrence 1, because the unnamed run before it was occurrence 0.
 Inside "outer" and "inner" the depth is 2 and the segment is named "outer/inner". The nodes of
 "outer" before and after it form two segments named "outer", with occurrences 0 and 1.
 
-## AScopeOpenedTwiceGetsRisingOccurrences
-
-A scope "cell" opened three times in a loop, with two nodes each time, gives three segments
-named "cell" with occurrences 0, 1 and 2 and consecutive ranges.
-
 ## AnEmptyScopeLeavesNoSegment
 
 A scope "cell" that closes with no node traced leaves no segment. The next "cell", which holds
@@ -60,26 +56,22 @@ Both reports contain "close()" and "no scope open".
 
 ## SegmentsCoverEveryNodeExactlyOnce
 
-The trace mixes unscoped nodes, a scope opened twice, a nested scope and an empty one. Each
-segment begins where the previous one ended and holds at least one node, the first begins at 0,
-and the last ends at the graph's node count.
+The trace mixes unscoped nodes, "outer" opened twice with an empty scope and a nested "inner" in
+each round, and one more unscoped node. The case states the eight segments straight-line, each
+with its name, occurrence and range; they join end to begin from node 0 to the graph's node
+count, and the empty scope leaves none.
 
-## OpenWithAnEmptyNameIsFatal
+## ALegalNameIsAcceptedByOpen
 
-`open("")` stops the process with a report containing "open()" and "empty scope name".
+Rows "encoder" and "block 3": `ScopeTrace::is_legal_scope_name` is true and `open()` accepts the
+name, so the depth is 1.
 
-## OpenWithANameWithASlashIsFatal
+## AnIllegalNameIsRefusedByOpen
 
-`open("outer/inner")` stops the process. The report contains the name and "may not contain".
-
-## OpenWithANameWithAHashIsFatal
-
-`open("cell#0")` stops the process. The report contains the name and "may not contain".
-
-## IsLegalScopeNameAgreesWithWhatOpenAccepts
-
-`ScopeTrace::is_legal_scope_name` is true for "encoder" and "block 3", and false for the empty
-name, "outer/inner" and "cell#0". A caller whose name comes from data tests it before `open()`.
+Rows "", "outer/inner" and "cell#0": `is_legal_scope_name` is false and `open()` stops the
+process. The report contains "open()" and then, for the empty name, "was given" and "empty scope
+name"; for the others, the name and "may not contain". A caller whose name comes from data tests
+it before `open()`.
 
 ## ASecondSealIsFatal
 

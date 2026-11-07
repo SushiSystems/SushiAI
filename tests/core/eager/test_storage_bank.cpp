@@ -53,8 +53,15 @@ namespace
     {
 
     };
+
+    /** @brief Provides the Engine every death case allocates on. */
+    class Medium_StorageBankFatal : public SaTest::EngineTest
+    {
+
+    };
 } // namespace
 
+/** @brief Tests that allocate() yields a tensor of the shape and element type asked for. */
 TEST_F(Medium_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
 {
     StorageBank bank(*engine);
@@ -65,6 +72,15 @@ TEST_F(Medium_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
     ASSERT_TRUE(bank.holds(id));
     EXPECT_EQ(bank.tensor(id).num_elements, 12);
     EXPECT_EQ(bank.tensor(id).dtype, DType::Float64);
+}
+
+/** @brief Tests that allocate() counts one tensor and one allocation. */
+TEST_F(Medium_StorageBank, AllocateCountsOneTensorAndOneAllocation)
+{
+    StorageBank bank(*engine);
+
+    SA_EXPECT_OK(bank.allocate(7, Shape{4, 3}, DType::Float64));
+
     EXPECT_EQ(bank.size(), 1u);
     EXPECT_EQ(bank.allocation_count(), 1u);
 }
@@ -83,20 +99,33 @@ TEST_F(Medium_StorageBank, AdoptSharesTheStorageOfTheCallersTensor)
     EXPECT_EQ(bank.allocation_count(), 0u);
 }
 
-TEST_F(Medium_StorageBank, ReleaseForgetsTheTensorAndIgnoresAnUnknownId)
+/** @brief Tests that release() forgets the tensor under an id and keeps the allocation count. */
+TEST_F(Medium_StorageBank, ReleaseForgetsTheTensor)
 {
     StorageBank bank(*engine);
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
 
     bank.release(1);
-    bank.release(99);
 
     EXPECT_FALSE(bank.holds(1));
     EXPECT_EQ(bank.size(), 0u);
     EXPECT_EQ(bank.allocation_count(), 1u);
 }
 
-TEST_F(Medium_StorageBank, ASecondTensorUnderOneIdStopsTheProcess)
+/** @brief Tests that release() of an id the bank does not hold does nothing. */
+TEST_F(Medium_StorageBank, ReleaseOfAnUnknownIdIsIgnored)
+{
+    StorageBank bank(*engine);
+    SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
+
+    bank.release(99);
+
+    EXPECT_TRUE(bank.holds(1));
+    EXPECT_EQ(bank.size(), 1u);
+}
+
+/** @brief Tests that a second tensor under one id stops the process. */
+TEST_F(Medium_StorageBankFatal, ASecondTensorUnderOneIdStopsTheProcess)
 {
     StorageBank bank(*engine);
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
@@ -105,7 +134,8 @@ TEST_F(Medium_StorageBank, ASecondTensorUnderOneIdStopsTheProcess)
                     "already holds");
 }
 
-TEST_F(Medium_StorageBank, AskingForAnUnknownIdStopsTheProcess)
+/** @brief Tests that asking for the tensor of an unknown id stops the process. */
+TEST_F(Medium_StorageBankFatal, AskingForAnUnknownIdStopsTheProcess)
 {
     StorageBank bank(*engine);
 

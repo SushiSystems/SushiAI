@@ -28,13 +28,13 @@
  * @author Mustafa Garip
  */
 
-#include <cstddef>
 #include <cstdint>
 #include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include "eager_run_support.hpp"
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/eager/in_memory_step_executor.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/scope_partitioner.hpp>
 #include <SushiAI/eager/session.hpp>
@@ -44,7 +44,6 @@
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/ir.hpp>
-#include <SushiAI/graph/step_recorder.hpp>
 
 using namespace SushiAI;
 using Graph::ValueID;
@@ -66,57 +65,7 @@ namespace
     /** @brief Holds the widths of the two-layer model: 6 inputs, 4 hidden, 3 results. */
     const std::vector<int64_t> K_TWO_LAYERS{6, 4, 3};
 
-    /** @brief Holds what one execute() call was given. */
-    struct SeenWork
-    {
-        std::size_t regions = 0;                         /**< How many regions the step held. */
-        Eager::RegionKey highest_key = Eager::K_NO_REGION; /**< The highest region key. */
-        const Graph::StepRecorder* trailing = nullptr;   /**< The trailing work, or null. */
-        Eager::RegionKey trailing_key = Eager::K_NO_REGION; /**< The trailing work's key. */
-        std::uint64_t run_index = 0;                     /**< The steps finished before it. */
-    };
-
-    /** @brief Runs nothing; records each work it is given and fails when told to. */
-    class RecordingExecutor final : public Eager::StepExecutor
-    {
-        public:
-            /** @brief Records @p work and returns success, or DeviceFailed when told to fail. */
-            [[nodiscard]] Status execute(Eager::StepWork& work, Eager::StorageBank&) override
-            {
-                SeenWork seen;
-                seen.regions = work.regions.size();
-                for (const Eager::RegionWork& region : work.regions)
-                {
-                    if (region.order.key > seen.highest_key)
-                        seen.highest_key = region.order.key;
-                }
-                seen.trailing = work.trailing;
-                seen.trailing_key = work.trailing_key;
-                seen.run_index = work.run_index;
-                works.push_back(seen);
-
-                if (!fail)
-                    return Status();
-
-                return Status::from_message(StatusCode::DeviceFailed, []()
-                {
-                    return std::string("the device was lost");
-                });
-            }
-
-            /** @brief Counts the call and returns success. */
-            [[nodiscard]] Status discard() override
-            {
-                ++discards;
-                return Status();
-            }
-
-            std::vector<SeenWork> works; /**< What each execute() call was given. */
-            std::size_t discards = 0;    /**< How often discard() ran. */
-            bool fail = false;           /**< Whether execute() fails. */
-    };
-
-    /** @brief Owns a session over the two-layer model on a recording executor. */
+    /** @brief Owns a session over the two-layer model on an in-memory executor. */
     struct Rig
     {
         /** @brief Builds the session on @p engine. */
@@ -147,7 +96,7 @@ namespace
             return apply ? step.apply(update) : step.finish();
         }
 
-        RecordingExecutor executor;              /**< The executor under test. */
+        Eager::InMemoryStepExecutor executor;    /**< The executor under test. */
         Eager::ScopePartitioner partitioner;     /**< Cuts each step at its scopes. */
         Eager::Session session;                  /**< Hands each step to the executor. */
         Support::PlainDescent update;            /**< The update behind each step. */
@@ -156,19 +105,6 @@ namespace
         SushiBLAS::Tensor targets;               /**< The [K_ROWS, 3] targets. */
     };
 } // namespace
-
-/** @brief Tests that a default work holds no region, no trailing work and run index 0. */
-TEST(Small_StepWork, ADefaultWorkIsEmpty)
-{
-    const Eager::StepWork work;
-
-    EXPECT_TRUE(work.regions.empty());
-    EXPECT_TRUE(work.dropped.empty());
-    EXPECT_EQ(work.storage_of_value.size(), 0u);
-    EXPECT_EQ(work.trailing, nullptr);
-    EXPECT_EQ(work.trailing_key, Eager::K_NO_REGION);
-    EXPECT_EQ(work.run_index, 0u);
-}
 
 /** @brief Tests that each step reaches the executor once, numbered by the steps before it. */
 TEST_F(Medium_StepExecutor, EachStepIsOneWorkNumberedByTheStepsBefore)
@@ -179,11 +115,11 @@ TEST_F(Medium_StepExecutor, EachStepIsOneWorkNumberedByTheStepsBefore)
     SA_EXPECT_OK(rig.step(false));
     SA_EXPECT_OK(rig.step(false));
 
-    ASSERT_EQ(rig.executor.works.size(), 2u);
-    EXPECT_EQ(rig.executor.works[0].run_index, 0u);
-    EXPECT_EQ(rig.executor.works[1].run_index, 1u);
-    EXPECT_GT(rig.executor.works[0].regions, 1u);
-    EXPECT_EQ(rig.executor.works[0].trailing, nullptr);
+    ASSERT_EQ(rig.executor.seen().size(), 2u);
+    EXPECT_EQ(rig.executor.seen()[0].run_index, 0u);
+    EXPECT_EQ(rig.executor.seen()[1].run_index, 1u);
+    EXPECT_GT(rig.executor.seen()[0].regions, 1u);
+    EXPECT_FALSE(rig.executor.seen()[0].has_trailing);
 }
 
 /** @brief Tests that an applied update arrives as the trailing work, keyed above every region. */
@@ -194,9 +130,9 @@ TEST_F(Medium_StepExecutor, TheUpdateIsTheTrailingWorkAboveEveryRegion)
 
     SA_EXPECT_OK(rig.step(true));
 
-    ASSERT_EQ(rig.executor.works.size(), 1u);
-    const SeenWork& seen = rig.executor.works[0];
-    EXPECT_EQ(seen.trailing, &rig.update);
+    ASSERT_EQ(rig.executor.seen().size(), 1u);
+    const Eager::InMemoryStepExecutor::Seen& seen = rig.executor.seen()[0];
+    EXPECT_TRUE(seen.has_trailing);
     EXPECT_GT(seen.trailing_key, seen.highest_key);
 }
 
@@ -205,10 +141,13 @@ TEST_F(Medium_StepExecutor, AFailedRunIsDiscardedAndCountsNoStep)
 {
     Rig rig(*engine);
     SA_EXPECT_OK(rig.prepare(*engine));
-    rig.executor.fail = true;
+    rig.executor.script_execute(Status::from_message(StatusCode::DeviceFailed, []()
+    {
+        return std::string("the device was lost");
+    }));
 
     SA_EXPECT_FAILURE(rig.step(true), StatusCode::DeviceFailed, "the device was lost");
 
-    EXPECT_EQ(rig.executor.discards, 1u);
+    EXPECT_EQ(rig.executor.discard_count(), 1u);
     EXPECT_EQ(rig.session.step_count(), 0u);
 }

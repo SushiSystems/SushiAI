@@ -103,6 +103,15 @@ namespace
             }
     };
 
+    /** @brief Expects @p segments to start at node 0 and each to begin where the one before ends. */
+    void expect_segments_are_contiguous(const std::vector<Eager::Segment>& segments)
+    {
+        ASSERT_FALSE(segments.empty());
+        EXPECT_EQ(segments.front().begin, Graph::NodeID{0});
+        for (std::size_t i = 1; i < segments.size(); ++i)
+            EXPECT_EQ(segments[i].begin, segments[i - 1].end) << "segment " << i;
+    }
+
     /** @brief Owns a session over the two-layer model, built on a given partitioner. */
     struct Rig
     {
@@ -166,13 +175,8 @@ TEST_F(Medium_RegionPartitioner, TheSegmentsCoverTheForwardNodes)
 
     SA_EXPECT_OK(rig.step());
 
-    const std::vector<Eager::Segment>& segments = partitioner.segments_seen;
-    ASSERT_FALSE(segments.empty());
-    EXPECT_EQ(segments.front().begin, Graph::NodeID{0});
-    EXPECT_EQ(segments.back().end, partitioner.forward_node_count);
-    for (std::size_t i = 1; i < segments.size(); ++i)
-        EXPECT_EQ(segments[i].begin, segments[i - 1].end) << "segment " << i;
-
+    expect_segments_are_contiguous(partitioner.segments_seen);
+    EXPECT_EQ(partitioner.segments_seen.back().end, partitioner.forward_node_count);
     EXPECT_LT(partitioner.forward_node_count, partitioner.node_count);
 }
 

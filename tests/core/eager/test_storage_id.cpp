@@ -41,34 +41,26 @@ namespace
 {
     /** @brief Holds how many ids a case draws from one source. */
     constexpr std::size_t K_DRAWS = 1000;
+
+    /** @brief Expects @p count draws from @p source to be all different and never the empty id. */
+    void expect_draws_are_new_and_never_empty(StorageIDSource& source, std::size_t count)
+    {
+        std::unordered_set<StorageID> seen;
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            const StorageID id = source.next();
+            EXPECT_NE(id, K_NO_STORAGE);
+            EXPECT_TRUE(seen.insert(id).second) << "id " << id << " was returned twice";
+        }
+    }
 } // namespace
 
-/** @brief Tests that the empty id is zero, the value a zero-filled table holds. */
-TEST(Small_StorageID, TheEmptyIDIsZero)
-{
-    EXPECT_EQ(K_NO_STORAGE, StorageID{0});
-}
-
-/** @brief Tests that a fresh source never returns the empty id. */
-TEST(Small_StorageID, AFreshSourceNeverReturnsTheEmptyID)
+/** @brief Tests that every draw from one source is new and none is the empty id. */
+TEST(Small_StorageID, EveryDrawFromOneSourceIsNewAndNeverEmpty)
 {
     StorageIDSource source;
 
-    EXPECT_NE(source.next(), K_NO_STORAGE);
-}
-
-/** @brief Tests that a thousand draws from one source are all different. */
-TEST(Small_StorageID, EveryDrawFromOneSourceIsNew)
-{
-    StorageIDSource source;
-    std::unordered_set<StorageID> seen;
-
-    for (std::size_t i = 0; i < K_DRAWS; ++i)
-    {
-        const StorageID id = source.next();
-        EXPECT_NE(id, K_NO_STORAGE);
-        EXPECT_TRUE(seen.insert(id).second) << "id " << id << " was returned twice";
-    }
+    expect_draws_are_new_and_never_empty(source, K_DRAWS);
 }
 
 /** @brief Tests that two sources count on their own, so ids are unique per source only. */

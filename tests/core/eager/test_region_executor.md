@@ -20,11 +20,18 @@ built region. `prepare` returns the `StepWork`, and `run` executes it. `expected
 
 One region is built, lowered once and composed once, and the observed result matches the host.
 
-## AKeptStepRunsAgainWithoutBeingComposedOrRecorded
+## AKeptStepFollowsTheInputItsKernelsRead
 
-The second step traces the same graph. The executor composes nothing, lowers nothing and
-allocates no pool byte. The input tensor was refilled between the steps, and the result follows
-it, so the kept kernels read the storage they were recorded with.
+The second step traces the same graph. The input tensor was refilled between the steps, and the
+result follows it, so the kept kernels read the storage they were recorded with.
+
+## AKeptStepIsNeitherComposedNorRecordedAgain
+
+After the second step the executor has emitted and composed once each.
+
+## AKeptStepAllocatesNoPoolByte
+
+The pool bytes the executor holds are the same after the second step as after the first.
 
 ## TwoRegionsRunInKeyOrder
 
@@ -35,18 +42,31 @@ one-region result, so the region with the lower key ran first.
 
 The case hands the executor a `RegionOrder` with the action `Record`, the key raised by 2 and
 the old key as `previous_key`, which is what the table emits when a scope appears. The old key
-holds no region afterwards, the new one holds a program of the same node count, the region was
-lowered twice and the graph composed twice.
+holds no region afterwards and the new one holds a program of the same node count.
+
+## ARegionRecordedUnderAnotherKeyIsLoweredAndComposedAgain
+
+The same order lowers the region twice and composes the graph twice.
+
+## ARegionRecordedUnderAnotherKeyKeepsItsResult
+
+The observed value still matches the host after the region moved to its new key.
 
 ## ARegionThatLeftIsDropped
 
 Two regions, then one: the step that joins them drops the activation region by its old key.
 
-## TheTrailingWorkRunsBehindEveryRegionOnEveryRun
+## TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun
+
+An `InMemoryStepRecorder` is handed over as trailing work on two steps under the same key. It
+is asked to record once and to replay after both runs, and the executor counts one trailing
+record.
+
+## TheTrailingWorkRunsBehindEveryRegion
 
 The update subtracts the region's result from a zeroed tensor, so that tensor holds the negated
-result only if the update ran after the region. The second step hands over the same recorder
-under the same key: it is replayed and not recorded again.
+result only if the update ran after the region. This case keeps `PlainDescent` because only a
+recorder that writes device tasks can show the order.
 
 ## ALateTrailingTaskReplaysAfterItsRecorderIsGone
 
@@ -55,8 +75,11 @@ a host count holds. The executor records it once, through a `TaskRecorder` that 
 `record_trailing`, and runs it on two steps. Both runs add, so the hold the executor owns kept the
 task's storages after the recorder was gone.
 
-## DiscardDropsEveryRegionAndAKeptRegionIsThenRefused
+## DiscardDropsEveryRegion
 
-After `discard()` the executor holds no region. The harness's table was not told, so it plans a
-`Keep`, and `execute` returns `InvalidDescription`. A session calls `RegionTable::forget` with
-`discard()` for this reason.
+After `discard()` the executor holds no region.
+
+## AKeptRegionAfterDiscardIsRefused
+
+The harness's table was not told, so it plans a `Keep`, and `execute` returns
+`InvalidDescription`. A session calls `RegionTable::forget` with `discard()` for this reason.

@@ -29,7 +29,6 @@
  */
 
 #include <cstddef>
-#include <string_view>
 #include <vector>
 #include <gtest/gtest.h>
 #include "eager_test_support.hpp"
@@ -39,6 +38,7 @@
 #include <SushiAI/eager/region_program.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/fusion.hpp>
+#include <SushiAI/graph/in_memory_precision_policy.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/dtype/dtype.hpp>
@@ -63,22 +63,31 @@ namespace
                                      boundaries.regions[at], options);
     }
 
-    /** @brief Asks every operation to compute in int32, a conversion the cast pass refuses. */
-    class Int32Policy final : public Graph::PrecisionPolicy
+    /** @brief Expects every parameter of @p step to keep the Parameter lifetime in @p program. */
+    void expect_parameters_keep_their_lifetime(const Support::TracedStep& step,
+                                               const RegionProgram& program)
     {
-        public:
-            [[nodiscard]] Graph::PrecisionChoice choose(
-                const Graph::PrecisionQuery& query) const override
-            {
-                (void)query;
-                return Graph::PrecisionChoice{DType::Int32, "test asks for int32"};
-            }
+        for (Graph::ValueID parameter : step.parameters)
+            EXPECT_EQ(program.graph.value(parameter).lifetime, Graph::Lifetime::Parameter);
+    }
 
-            [[nodiscard]] std::string_view name() const noexcept override
-            {
-                return "int32";
-            }
-    };
+    /** @brief Expects no import and no export of the regions of @p step to be packed. */
+    void expect_no_shared_value_is_packed(const Support::TracedStep& step)
+    {
+        const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
+        for (std::size_t at = 0; at < step.partition.regions.size(); ++at)
+        {
+            SA_ASSERT_OK_AND_ASSIGN(const RegionProgram program,
+                                    Eager::compile_region(step.graph, step.partition,
+                                                          step.partition.regions[at].key,
+                                                          boundaries.regions[at]));
+
+            for (Graph::ValueID value : program.imports)
+                EXPECT_FALSE(program.plan.is_packed(value)) << "import " << value;
+            for (Graph::ValueID value : program.exports)
+                EXPECT_FALSE(program.plan.is_packed(value)) << "export " << value;
+        }
+    }
 
     /** @brief Counts the nodes of @p graph that run @p op. */
     [[nodiscard]] std::size_t count_op(const Graph::Graph& graph, OpID op)
@@ -91,6 +100,7 @@ namespace
     }
 } // namespace
 
+/** @brief Tests that each import is a leaf of the program and the export is computed by it. */
 TEST(Small_RegionProgram, TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
@@ -100,16 +110,20 @@ TEST(Small_RegionProgram, TheGraphHoldsTheRegionsNodesBehindOneLeafPerImport)
     SA_ASSERT_OK_AND_ASSIGN(const RegionProgram program,
                             compile(step, "activation#0", Direction::Forward, options));
 
-    // The region holds one RELU and reads one value, the result of the linear layer.
+    // The region reads one value, the result of the linear layer, and computes the step's result.
     ASSERT_EQ(program.imports.size(), 1u);
-    ASSERT_EQ(program.graph.node_count(), 2u);
-    EXPECT_EQ(program.graph.node(0).op, Ops::K_LEAF.id);
-    EXPECT_EQ(program.graph.node(0).outputs, program.imports);
-    EXPECT_EQ(program.graph.node(1).op, Ops::K_RELU.id);
-    EXPECT_EQ(program.graph.node(1).inputs, program.imports);
-    EXPECT_EQ(program.graph.node(1).outputs, std::vector<Graph::ValueID>{step.hidden});
+    const Graph::NodeID import_producer = program.graph.value(program.imports.front()).producer;
+    ASSERT_NE(import_producer, Graph::K_NO_NODE);
+    EXPECT_EQ(program.graph.node(import_producer).op, Ops::K_LEAF.id);
+
+    ASSERT_EQ(program.exports, std::vector<Graph::ValueID>{step.hidden});
+    const Graph::NodeID export_producer = program.graph.value(step.hidden).producer;
+    ASSERT_NE(export_producer, Graph::K_NO_NODE);
+    EXPECT_NE(program.graph.node(export_producer).op, Ops::K_LEAF.id);
+    EXPECT_EQ(program.graph.node(export_producer).inputs, program.imports);
 }
 
+/** @brief Tests that a value keeps its id from the step to the program. */
 TEST(Small_RegionProgram, ValuesKeepTheIdsOfTheStep)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
@@ -121,6 +135,7 @@ TEST(Small_RegionProgram, ValuesKeepTheIdsOfTheStep)
     EXPECT_EQ(program.exports, std::vector<Graph::ValueID>{step.hidden});
 }
 
+/** @brief Tests that an import another region computes has the Input lifetime in the program. */
 TEST(Small_RegionProgram, AnImportAnotherRegionComputesIsAnInputOfTheProgram)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
@@ -132,35 +147,23 @@ TEST(Small_RegionProgram, AnImportAnotherRegionComputesIsAnInputOfTheProgram)
     EXPECT_EQ(program.graph.value(projected).lifetime, Graph::Lifetime::Input);
 }
 
+/** @brief Tests that a parameter import keeps the lifetime it was declared with. */
 TEST(Small_RegionProgram, AParameterImportKeepsItsLifetime)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
     SA_ASSERT_OK_AND_ASSIGN(const RegionProgram program,
                             compile(step, "linear#0", Direction::Forward));
 
-    for (Graph::ValueID parameter : step.parameters)
-        EXPECT_EQ(program.graph.value(parameter).lifetime, Graph::Lifetime::Parameter);
+    expect_parameters_keep_their_lifetime(step, program);
 }
 
+/** @brief Tests that no import and no export of any region is packed into an arena. */
 TEST(Small_RegionProgram, NoSharedValueIsPackedIntoAnArena)
 {
-    const Support::TracedStep step = Support::encoder_head_loss(Support::Head::Tanh);
-    const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
-
-    for (std::size_t at = 0; at < step.partition.regions.size(); ++at)
-    {
-        SA_ASSERT_OK_AND_ASSIGN(const RegionProgram program,
-                                Eager::compile_region(step.graph, step.partition,
-                                                      step.partition.regions[at].key,
-                                                      boundaries.regions[at]));
-
-        for (Graph::ValueID value : program.imports)
-            EXPECT_FALSE(program.plan.is_packed(value)) << "import " << value;
-        for (Graph::ValueID value : program.exports)
-            EXPECT_FALSE(program.plan.is_packed(value)) << "export " << value;
-    }
+    expect_no_shared_value_is_packed(Support::encoder_head_loss(Support::Head::Tanh));
 }
 
+/** @brief Tests that a chain inside one region folds into one fused form. */
 TEST(Small_RegionProgram, AChainInOneRegionFolds)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -171,6 +174,7 @@ TEST(Small_RegionProgram, AChainInOneRegionFolds)
     EXPECT_EQ(count_op(program.graph, Ops::K_RELU.id), 0u);
 }
 
+/** @brief Tests that a scope boundary stops a fold. */
 TEST(Small_RegionProgram, AChainCutByAScopeFoldsOnlyUpToTheBoundary)
 {
     const Support::TracedStep step = Support::linear_then_relu(true);
@@ -185,6 +189,7 @@ TEST(Small_RegionProgram, AChainCutByAScopeFoldsOnlyUpToTheBoundary)
     EXPECT_EQ(count_op(activation.graph, Ops::K_RELU.id), 1u);
 }
 
+/** @brief Tests that with fusion off the nodes stay as traced. */
 TEST(Small_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -199,7 +204,8 @@ TEST(Small_RegionProgram, SwitchingFusionOffLeavesTheNodesAsTraced)
     EXPECT_EQ(count_op(program.graph, Ops::K_RELU.id), 1u);
 }
 
-TEST(Small_RegionProgram, AKeyThatNamesNoRegionIsFatal)
+/** @brief Tests that a key naming no region stops the process. */
+TEST(Medium_RegionProgramFatal, AKeyThatNamesNoRegionIsFatal)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
     const Eager::BoundaryMap boundaries = Support::boundaries_of(step);
@@ -209,6 +215,7 @@ TEST(Small_RegionProgram, AKeyThatNamesNoRegionIsFatal)
                     "names no region");
 }
 
+/** @brief Tests that a zero alignment comes back as a status. */
 TEST(Small_RegionProgram, AZeroAlignmentComesBackAsAStatus)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
@@ -219,10 +226,15 @@ TEST(Small_RegionProgram, AZeroAlignmentComesBackAsAStatus)
                       StatusCode::InvalidDescription, "alignment must be positive");
 }
 
+/** @brief Tests that a precision policy asking for int32 comes back as a status. */
 TEST(Small_RegionProgram, ANonFloatCastComesBackAsAStatus)
 {
     const Support::TracedStep step = Support::linear_then_relu(false);
-    const Int32Policy policy;
+    Graph::InMemoryPrecisionPolicy policy;
+    const Graph::PrecisionChoice int32{DType::Int32, "test asks for int32"};
+    policy.script(Ops::K_MATMUL.id, int32);
+    policy.script(Ops::K_BIAS_ADD.id, int32);
+    policy.script(Ops::K_RELU.id, int32);
 
     Eager::ProgramOptions options;
     options.precision = &policy;

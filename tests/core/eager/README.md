@@ -8,6 +8,8 @@ Each test file has a page beside it that says what its cases pin.
 
 | Test file | Page |
 | --- | --- |
+| `compile_scope.cpp` | [`compile_scope.md`](compile_scope.md) |
+| `compile_segment.cpp` | [`compile_segment.md`](compile_segment.md) |
 | `test_region_boundary.cpp` | [`test_region_boundary.md`](test_region_boundary.md) |
 | `test_region_emitter.cpp` | [`test_region_emitter.md`](test_region_emitter.md) |
 | `test_region_executor.cpp` | [`test_region_executor.md`](test_region_executor.md) |

@@ -28,7 +28,6 @@
  * @author Mustafa Garip
  */
 
-#include <type_traits>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
@@ -91,13 +90,4 @@ TEST(Small_Scope, NestedGuardsCloseInnermostFirst)
     ASSERT_EQ(segments.size(), 2u);
     EXPECT_EQ(segments[0].name, "outer/inner");
     EXPECT_EQ(segments[1].name, "outer");
-}
-
-/** @brief Tests that a guard can be neither copied nor moved, so it closes exactly once. */
-TEST(Small_Scope, AGuardCannotBeCopiedOrMoved)
-{
-    EXPECT_FALSE(std::is_copy_constructible<Scope>::value);
-    EXPECT_FALSE(std::is_move_constructible<Scope>::value);
-    EXPECT_FALSE(std::is_copy_assignable<Scope>::value);
-    EXPECT_FALSE(std::is_move_assignable<Scope>::value);
 }

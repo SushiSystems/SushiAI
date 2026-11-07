@@ -7,6 +7,8 @@
 
 sushiai_add_test_program(OWNER eager
     SOURCES
+        compile_scope.cpp
+        compile_segment.cpp
         test_in_memory_region_partitioner.cpp
         test_in_memory_step_executor.cpp
         test_partition.cpp
@@ -21,7 +23,6 @@ sushiai_add_test_program(OWNER eager
         test_scope.cpp
         test_scope_partitioner.cpp
         test_scope_trace.cpp
-        test_segment.cpp
         test_session.cpp
         test_slot_ledger.cpp
         test_step.cpp

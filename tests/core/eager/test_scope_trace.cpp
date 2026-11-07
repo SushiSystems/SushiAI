@@ -78,6 +78,24 @@ namespace
                << segment.begin << ", " << segment.end << "), expected \"" << name << "\"#"
                << occurrence << " [" << begin << ", " << end << ")";
     }
+
+    /**
+     * @brief Traces one round of nested scopes into @p graph: a node, an empty scope, an inner
+     *        scope of three nodes and a node, all inside "outer".
+     */
+    void trace_one_round(ScopeTrace& trace, Graph::Graph& graph)
+    {
+        const Scope outer(trace, "outer");
+        trace_nodes(graph, 1);
+        {
+            const Scope empty(trace, "empty");
+        }
+        {
+            const Scope inner(trace, "inner");
+            trace_nodes(graph, 3);
+        }
+        trace_nodes(graph, 1);
+    }
 } // namespace
 
 /** @brief Tests that nodes traced with no scope open form one segment with an empty name. */
@@ -140,25 +158,6 @@ TEST(Small_ScopeTrace, ANestedScopeIsNamedByItsPath)
     EXPECT_TRUE(segment_is(segments[2], "outer", 1, 3, 4));
 }
 
-/** @brief Tests that a scope opened three times in a loop gets occurrences 0, 1 and 2. */
-TEST(Small_ScopeTrace, AScopeOpenedTwiceGetsRisingOccurrences)
-{
-    Graph::Graph graph;
-    ScopeTrace trace(graph);
-
-    for (int step = 0; step < 3; ++step)
-    {
-        const Scope cell(trace, "cell");
-        trace_nodes(graph, 2);
-    }
-    const std::vector<Segment> segments = trace.seal();
-
-    ASSERT_EQ(segments.size(), 3u);
-    EXPECT_TRUE(segment_is(segments[0], "cell", 0, 0, 2));
-    EXPECT_TRUE(segment_is(segments[1], "cell", 1, 2, 4));
-    EXPECT_TRUE(segment_is(segments[2], "cell", 2, 4, 6));
-}
-
 /** @brief Tests that a scope with no node leaves no segment and does not use up an occurrence. */
 TEST(Small_ScopeTrace, AnEmptyScopeLeavesNoSegment)
 {
@@ -181,7 +180,7 @@ TEST(Small_ScopeTrace, AnEmptyScopeLeavesNoSegment)
 }
 
 /** @brief Tests that seal() stops the process while a scope is open and names that scope. */
-TEST(Small_ScopeTrace, SealWithAScopeStillOpenIsFatal)
+TEST(Medium_ScopeTraceFatal, SealWithAScopeStillOpenIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -194,7 +193,7 @@ TEST(Small_ScopeTrace, SealWithAScopeStillOpenIsFatal)
 }
 
 /** @brief Tests that close() stops the process when no scope is open. */
-TEST(Small_ScopeTrace, CloseWithNoScopeOpenIsFatal)
+TEST(Medium_ScopeTraceFatal, CloseWithNoScopeOpenIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -206,78 +205,79 @@ TEST(Small_ScopeTrace, CloseWithNoScopeOpenIsFatal)
     SA_EXPECT_FATAL(trace.close(), "close()", "no scope open");
 }
 
-/** @brief Tests that the segments' ranges join end to begin from node 0 to the node count. */
+/** @brief Tests that the segments of a long trace join end to begin over every node once. */
 TEST(Small_ScopeTrace, SegmentsCoverEveryNodeExactlyOnce)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
     trace_nodes(graph, 2);
-    for (int step = 0; step < 2; ++step)
-    {
-        const Scope outer(trace, "outer");
-        trace_nodes(graph, 1);
-        {
-            const Scope empty(trace, "empty");
-        }
-        {
-            const Scope inner(trace, "inner");
-            trace_nodes(graph, 3);
-        }
-        trace_nodes(graph, 1);
-    }
+    trace_one_round(trace, graph);
+    trace_one_round(trace, graph);
     trace_nodes(graph, 1);
     const std::vector<Segment> segments = trace.seal();
 
-    NodeID next = 0;
-    for (const Segment& segment : segments)
-    {
-        EXPECT_EQ(segment.begin, next);
-        EXPECT_LT(segment.begin, segment.end);
-        next = segment.end;
-    }
-    EXPECT_EQ(next, graph.node_count());
+    ASSERT_EQ(segments.size(), 8u);
+    EXPECT_TRUE(segment_is(segments[0], "", 0, 0, 2));
+    EXPECT_TRUE(segment_is(segments[1], "outer", 0, 2, 3));
+    EXPECT_TRUE(segment_is(segments[2], "outer/inner", 0, 3, 6));
+    EXPECT_TRUE(segment_is(segments[3], "outer", 1, 6, 7));
+    EXPECT_TRUE(segment_is(segments[4], "outer", 2, 7, 8));
+    EXPECT_TRUE(segment_is(segments[5], "outer/inner", 1, 8, 11));
+    EXPECT_TRUE(segment_is(segments[6], "outer", 3, 11, 12));
+    EXPECT_TRUE(segment_is(segments[7], "", 1, 12, 13));
+    EXPECT_EQ(segments.back().end, graph.node_count());
 }
 
-/** @brief Tests that open() stops the process for an empty name. */
-TEST(Small_ScopeTrace, OpenWithAnEmptyNameIsFatal)
+/** @brief Holds an illegal scope name and the two words open() reports for it. */
+struct ScopeNameRow
+{
+    const char* name;   /**< The name handed to open(). */
+    const char* first;  /**< The first word the report names after "open()". */
+    const char* second; /**< The second word the report names after the first. */
+};
+
+class Small_ScopeTraceLegalName : public ::testing::TestWithParam<const char*>
+{
+};
+
+/** @brief Tests that a name is legal exactly when open() accepts it. */
+TEST_P(Small_ScopeTraceLegalName, ALegalNameIsAcceptedByOpen)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_FATAL(trace.open(""), "open()", "empty scope name");
+    EXPECT_TRUE(ScopeTrace::is_legal_scope_name(GetParam()));
+    trace.open(GetParam());
+
+    EXPECT_EQ(trace.depth(), 1u);
 }
 
-/** @brief Tests that open() stops the process for a name containing the separator '/'. */
-TEST(Small_ScopeTrace, OpenWithANameWithASlashIsFatal)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ScopeTraceLegalName,
+                         ::testing::Values("encoder", "block 3"));
+
+class Medium_ScopeTraceRefusedName : public ::testing::TestWithParam<ScopeNameRow>
+{
+};
+
+/** @brief Tests that an empty name or a name with a separator is illegal and stops open(). */
+TEST_P(Medium_ScopeTraceRefusedName, AnIllegalNameIsRefusedByOpen)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
 
-    SA_EXPECT_FATAL(trace.open("outer/inner"), "open()", "outer/inner", "may not contain");
+    EXPECT_FALSE(ScopeTrace::is_legal_scope_name(GetParam().name));
+    SA_EXPECT_FATAL(trace.open(GetParam().name), "open()", GetParam().first, GetParam().second);
 }
 
-/** @brief Tests that open() stops the process for a name containing the separator '#'. */
-TEST(Small_ScopeTrace, OpenWithANameWithAHashIsFatal)
-{
-    Graph::Graph graph;
-    ScopeTrace trace(graph);
-
-    SA_EXPECT_FATAL(trace.open("cell#0"), "open()", "cell#0", "may not contain");
-}
-
-/** @brief Tests that is_legal_scope_name accepts a plain name and refuses the three illegal. */
-TEST(Small_ScopeTrace, IsLegalScopeNameAgreesWithWhatOpenAccepts)
-{
-    EXPECT_TRUE(ScopeTrace::is_legal_scope_name("encoder"));
-    EXPECT_TRUE(ScopeTrace::is_legal_scope_name("block 3"));
-    EXPECT_FALSE(ScopeTrace::is_legal_scope_name(""));
-    EXPECT_FALSE(ScopeTrace::is_legal_scope_name("outer/inner"));
-    EXPECT_FALSE(ScopeTrace::is_legal_scope_name("cell#0"));
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_ScopeTraceRefusedName,
+                         ::testing::Values(ScopeNameRow{"", "was given", "empty scope name"},
+                                           ScopeNameRow{"outer/inner", "outer/inner",
+                                                        "may not contain"},
+                                           ScopeNameRow{"cell#0", "cell#0", "may not contain"}));
 
 /** @brief Tests that a second seal() stops the process. */
-TEST(Small_ScopeTrace, ASecondSealIsFatal)
+TEST(Medium_ScopeTraceFatal, ASecondSealIsFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);
@@ -290,7 +290,7 @@ TEST(Small_ScopeTrace, ASecondSealIsFatal)
 }
 
 /** @brief Tests that open() and close() stop the process once the trace is sealed. */
-TEST(Small_ScopeTrace, OpenAndCloseAfterSealAreFatal)
+TEST(Medium_ScopeTraceFatal, OpenAndCloseAfterSealAreFatal)
 {
     Graph::Graph graph;
     ScopeTrace trace(graph);

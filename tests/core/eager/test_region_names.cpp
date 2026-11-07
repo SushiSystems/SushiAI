@@ -86,7 +86,7 @@ TEST(Small_RegionNames, ALabelNamesTheRegionAndItsDirection)
 }
 
 /** @brief Tests that asking the label of an id never given stops the process, naming the id. */
-TEST(Small_RegionNames, TheLabelOfAnIDNeverGivenIsFatal)
+TEST(Medium_RegionNamesFatal, TheLabelOfAnIDNeverGivenIsFatal)
 {
     RegionNames names;
     (void)names.intern(RegionInfo{1, "head#0", Direction::Forward});

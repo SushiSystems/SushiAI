@@ -1,7 +1,7 @@
 # tests/core/eager/test_step.cpp
 
 
-Suites: `Medium_EagerStep`.
+Suites: `Medium_EagerStep`, `Medium_EagerStepRefusal`.
 
 Tests what a `Step` accepts while it traces and when it runs.
 
@@ -37,15 +37,11 @@ A second `backward()` on the same loss fails with `InvalidDescription` and "call
 `read_scalar()` of a K_RELU over the [8, 6] input runs the step, then fails with
 `InvalidDescription` and "holds 48 elements". `has_run()` is true afterwards.
 
-## BackwardReturnsTheRefusalOfAFailedTrace
+## AnEntryPointReturnsTheRefusalOfAFailedTrace
 
-`backward()` of a K_MATMUL of the [8, 6] input with itself, which the builder refused, fails
-with `InvalidDescription`, "MATMUL" and "inner extents must agree". The step has not run.
-
-## ReadScalarReturnsTheRefusalOfAFailedTrace
-
-`read_scalar()` of the same refused K_MATMUL fails with the same refusal and does not run the
-step.
+Rows over `EntryPoint`: `backward()` and `read_scalar()` of a K_MATMUL of the [8, 6] input with
+itself, which the builder refused. Each fails with `InvalidDescription`, "MATMUL" and "inner
+extents must agree", and the step has not run.
 
 ## BackwardRefusesAGraphHoldingARefusal
 
