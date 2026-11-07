@@ -37,28 +37,18 @@
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/ops/ops.hpp>
+#include <support/test_names.hpp>
 
 namespace Ops = SushiAI::Ops;
 
 namespace
 {
-    /** @brief Replaces every character of @p text that a test name cannot hold with `_`. */
-    std::string test_name_of(std::string_view text)
-    {
-        std::string name(text);
-        for (char& letter : name)
-        {
-            if (!((letter >= 'a' && letter <= 'z') || (letter >= 'A' && letter <= 'Z') ||
-                  (letter >= '0' && letter <= '9')))
-                letter = '_';
-        }
-        return name;
-    }
+    using SushiAI::Test::parameter_name;
 
     /** @brief Names a row after the operation it holds. */
     std::string operation_row_name(const ::testing::TestParamInfo<Ops::OpName>& info)
     {
-        return test_name_of(info.param.name);
+        return parameter_name(info.param.name);
     }
 
     /** @brief Counts the distinct identity values among the rows of Ops::K_ALL. */
@@ -353,7 +343,7 @@ TEST_P(Small_OpsDeclaredName, TheTableContainsEveryDeclaredIdentity)
 INSTANTIATE_TEST_SUITE_P(Rows, Small_OpsDeclaredName, ::testing::ValuesIn(declared_names()),
                          [](const ::testing::TestParamInfo<std::string_view>& info)
                          {
-                             return test_name_of(info.param);
+                             return parameter_name(info.param);
                          });
 
 /** @brief Tests that name_of resolves a declared identity, so Ops::K_ALL lists it. */
@@ -402,7 +392,7 @@ INSTANTIATE_TEST_SUITE_P(
                       DifferentiableCase{Ops::K_SOFTPLUS_BACKWARD, false}),
     [](const ::testing::TestParamInfo<DifferentiableCase>& info)
     {
-        return test_name_of(info.param.operation.name);
+        return parameter_name(info.param.operation.name);
     });
 
 /** @brief Tests that is_gradient_barrier is true for an identity that passes no gradient. */
@@ -455,7 +445,7 @@ INSTANTIATE_TEST_SUITE_P(
                       InputActivationCase{Ops::K_SOFTPLUS, Ops::K_SOFTPLUS_BACKWARD}),
     [](const ::testing::TestParamInfo<InputActivationCase>& info)
     {
-        return test_name_of(info.param.forward.name);
+        return parameter_name(info.param.forward.name);
     });
 
 /** @brief Tests that is_activation_backward accepts the row's gradient and rejects its forward. */
@@ -468,7 +458,7 @@ TEST_P(Small_OpsActivationRow, IsActivationBackwardAcceptsTheGradientAndNotTheFo
 INSTANTIATE_TEST_SUITE_P(Rows, Small_OpsActivationRow, ::testing::ValuesIn(Ops::K_ACTIVATIONS),
                          [](const ::testing::TestParamInfo<Ops::Activation>& info)
                          {
-                             return test_name_of(Ops::name_of(info.param.forward));
+                             return parameter_name(Ops::name_of(info.param.forward));
                          });
 
 /** @brief Tests that is_activation_backward accepts as many identities as the table has rows. */

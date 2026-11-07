@@ -25,6 +25,9 @@ The code the tests of several modules share lives in internal modules, such as
 `modules/core/engine_fixture/`, which holds `main()`. They are never installed. Each one's README
 says what it holds.
 
+The helpers that only tests use, such as image builders and the name of a test row, are headers
+under `tests/support/`, included as `<support/<name>.hpp>`; its README has one row per header.
+
 ## Fixtures and environment
 
 A program defines `SA_TEST_FIXTURE_DIR` as the `fixtures/` folder beside its `CMakeLists.txt`

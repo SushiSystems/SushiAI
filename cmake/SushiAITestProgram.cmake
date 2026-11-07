@@ -137,8 +137,11 @@ function(sushiai_add_test_program)
 
     sushiai_module_target(engine_fixture fixture_target)
     target_link_libraries(${program} PRIVATE ${library} GTest::gtest ${fixture_target})
-    # The shared test helpers copied from SushiSkills, included as <support/tolerance.hpp>.
-    target_include_directories(${program} PRIVATE "${PROJECT_SOURCE_DIR}/tools/testing")
+    # The shared test helpers copied from SushiSkills, included as <support/tolerance.hpp>, and
+    # the repository's own under tests/support/, included as <support/<name>.hpp>.
+    target_include_directories(${program} PRIVATE
+        "${PROJECT_SOURCE_DIR}/tools/testing"
+        "${PROJECT_SOURCE_DIR}/tests")
 
     foreach(dependency IN LISTS ARG_DEPENDS)
         if(ARG_OWNER)

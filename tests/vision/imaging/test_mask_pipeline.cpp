@@ -40,6 +40,7 @@
 #include <SushiAI/vision/imaging/in_memory_sample_source.hpp>
 #include <SushiAI/vision/imaging/mask_pipeline.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -47,6 +48,8 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_same_image;
+    using SushiAI::Test::make_flat_image;
 
     /** @brief Holds the byte the tests give a pixel no mask covers. */
     constexpr std::uint8_t K_VOID = 255;
@@ -67,14 +70,6 @@ namespace
         return mask;
     }
 
-    /** @brief Returns an image whose every byte is one value. */
-    Image uniform(ImageSize size, std::int32_t channels, std::uint8_t value)
-    {
-        Image image(size, channels);
-        image.fill(value);
-        return image;
-    }
-
     /** @brief Returns the image with the order of the pixels in each row reversed. */
     Image mirrored(const Image& image)
     {
@@ -86,15 +81,6 @@ namespace
                         image.row(y)[(image.width() - 1 - x) * image.channels() + c];
 
         return result;
-    }
-
-    /** @brief Checks that two images have the same size, channels and bytes. */
-    void expect_same_image(const Image& actual, const Image& expected)
-    {
-        ASSERT_EQ(actual.size(), expected.size());
-        ASSERT_EQ(actual.channels(), expected.channels());
-        for (std::size_t i = 0; i < expected.byte_count(); ++i)
-            ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
     }
 
     /**
@@ -132,7 +118,7 @@ namespace
         FileLabels labels;
         labels.add(static_cast<std::int32_t>(images.size()),
                    NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f});
-        images.add(uniform(size, K_RGB_CHANNELS, 90), labels);
+        images.add(make_flat_image(size, K_RGB_CHANNELS, 90), labels);
     }
 
     /** @brief Returns the settings of a square sample with no mosaic and an identity warp. */
@@ -203,7 +189,7 @@ TEST(Small_ImagingMaskPipeline, AMosaicMaskFollowsTheBoxesOfItsSample)
     for (std::size_t i = 0; i < 4; ++i)
     {
         add_whole_image_sample(images, sizes[i]);
-        masks.add(uniform(sizes[i], 1, static_cast<std::uint8_t>(i)));
+        masks.add(make_flat_image(sizes[i], 1, static_cast<std::uint8_t>(i)));
     }
 
     TrainingSettings settings;
@@ -243,7 +229,7 @@ TEST(Small_ImagingMaskPipeline, RefusesAMaskOfSeveralChannels)
     const TrainingSettings settings = identity_settings(K_SIDE);
     const TracedSample traced = make_traced_sample(K_SIDE, settings);
     InMemoryMaskSource colour;
-    colour.add(uniform(ImageSize{K_SIDE, K_SIDE}, K_RGB_CHANNELS, 0));
+    colour.add(make_flat_image(ImageSize{K_SIDE, K_SIDE}, K_RGB_CHANNELS, 0));
     TrainingMaskPipeline mask_pipeline(colour, settings, K_VOID);
 
     Image mask;
@@ -258,7 +244,7 @@ TEST(Small_ImagingMaskPipeline, RefusesAMaskOfAnotherSizeThanItsImage)
     const TrainingSettings settings = identity_settings(K_SIDE);
     const TracedSample traced = make_traced_sample(K_SIDE, settings);
     InMemoryMaskSource narrow;
-    narrow.add(uniform(ImageSize{K_SIDE, 4}, 1, 0));
+    narrow.add(make_flat_image(ImageSize{K_SIDE, 4}, 1, 0));
     TrainingMaskPipeline mask_pipeline(narrow, settings, K_VOID);
 
     Image mask;
@@ -273,7 +259,7 @@ TEST(Small_ImagingMaskPipeline, ReturnsTheFailureOfAMaskThatCannotBeLoaded)
     const TrainingSettings settings = identity_settings(K_SIDE);
     const TracedSample traced = make_traced_sample(K_SIDE, settings);
     InMemoryMaskSource failing;
-    failing.add(uniform(ImageSize{K_SIDE, K_SIDE}, 1, 0));
+    failing.add(make_flat_image(ImageSize{K_SIDE, K_SIDE}, 1, 0));
     failing.fail_load_of(0, Status::from_message(StatusCode::InvalidFile, []()
     {
         return std::string("mask 0 is unreadable");

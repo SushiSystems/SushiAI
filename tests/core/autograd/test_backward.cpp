@@ -31,7 +31,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -55,6 +54,7 @@
 #include <SushiAI/graph/precision.hpp>
 #include <SushiAI/graph/rematerialise.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <support/test_names.hpp>
 #include <support/tolerance.hpp>
 
 using namespace SushiAI;
@@ -410,14 +410,7 @@ namespace
 
 namespace
 {
-    /** @brief Spells @p text as a test-parameter name: anything but a letter or digit becomes `_`. */
-    std::string parameter_name(std::string_view text)
-    {
-        std::string name(text);
-        std::replace_if(name.begin(), name.end(),
-                        [](char c) { return !std::isalnum(static_cast<unsigned char>(c)); }, '_');
-        return name;
-    }
+    using SushiAI::Test::parameter_name;
 
     /** @brief Holds one operation of the registry, asked about one element type. */
     struct PrecisionRow

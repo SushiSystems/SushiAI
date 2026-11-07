@@ -38,6 +38,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/hsv.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::HSVPixel;
@@ -53,6 +54,7 @@ using Vision::Imaging::RGBPixel;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_same_image;
 
     /** @brief Counts the plans or colours a property test draws, all from one generator. */
     constexpr std::uint64_t K_SAMPLE_COUNT = 1024;
@@ -117,15 +119,6 @@ namespace
         EXPECT_EQ(actual.hue, expected.hue);
         EXPECT_EQ(actual.saturation, expected.saturation);
         EXPECT_EQ(actual.value, expected.value);
-    }
-
-    /** @brief Checks that two images have the same size, channels and bytes. */
-    void expect_same_image(const Image& actual, const Image& expected)
-    {
-        ASSERT_EQ(actual.size(), expected.size());
-        ASSERT_EQ(actual.channels(), expected.channels());
-        for (std::size_t i = 0; i < expected.byte_count(); ++i)
-            ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
     }
 
     /** @brief Checks that the tables map every level to itself, and every hue to its hue step. */

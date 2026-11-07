@@ -36,6 +36,7 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::Image;
@@ -48,6 +49,8 @@ using Vision::Imaging::PixelBox;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_same_image;
+    using SushiAI::Test::make_flat_image;
 
     /** @brief Holds the padding level of the default settings, which the cases below expect. */
     constexpr std::uint8_t K_DEFAULT_PADDING = 114;
@@ -59,14 +62,6 @@ namespace
         for (std::size_t i = 0; i < image.byte_count(); ++i)
             image.data()[i] = static_cast<std::uint8_t>(first + i);
 
-        return image;
-    }
-
-    /** @brief Returns an image with every byte at one level. */
-    Image make_flat_image(ImageSize size, std::int32_t channels, std::uint8_t level)
-    {
-        Image image(size, channels);
-        image.fill(level);
         return image;
     }
 
@@ -95,15 +90,6 @@ namespace
                 padded.row(y + plan.top)[plan.left * source.channels() + x] = source.row(y)[x];
 
         return padded;
-    }
-
-    /** @brief Checks that two images have the same size, channels and bytes. */
-    void expect_same_image(const Image& actual, const Image& expected)
-    {
-        ASSERT_EQ(actual.size(), expected.size());
-        ASSERT_EQ(actual.channels(), expected.channels());
-        for (std::size_t i = 0; i < expected.byte_count(); ++i)
-            ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
     }
 
     /** @brief Checks that every content byte is one level and every padding byte another. */

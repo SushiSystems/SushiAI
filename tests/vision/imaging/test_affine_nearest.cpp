@@ -36,6 +36,7 @@
 #include <SushiAI/vision/imaging/affine.hpp>
 #include <SushiAI/vision/imaging/affine_nearest.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -43,6 +44,7 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_bytes;
     /** @brief Returns a plan from @p size to itself that shifts by @p shift_x columns. */
     AffinePlan make_shift_plan(ImageSize size, float shift_x, std::uint8_t border)
     {
@@ -93,17 +95,6 @@ namespace
         return image;
     }
 
-    /** @brief Checks that an image holds exactly the listed bytes, in order. */
-    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
-    {
-        ASSERT_EQ(image.byte_count(), expected.size());
-        std::size_t offset = 0;
-        for (const std::uint8_t value : expected)
-        {
-            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
-            ++offset;
-        }
-    }
 } // namespace
 
 /** @brief Tests that a destination of another size and channel count takes the plan's shape. */

@@ -30,11 +30,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/gray.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -42,6 +42,7 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_bytes;
     /** @brief Returns an image whose byte at offset i is 17 * i + 3 modulo 256. */
     Image make_counted(ImageSize size, std::int32_t channels)
     {
@@ -50,18 +51,6 @@ namespace
             image.data()[i] = static_cast<std::uint8_t>(17 * i + 3);
 
         return image;
-    }
-
-    /** @brief Expects @p image to hold exactly the bytes of @p expected, in order. */
-    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
-    {
-        ASSERT_EQ(image.byte_count(), expected.size());
-        std::size_t offset = 0;
-        for (const std::uint8_t value : expected)
-        {
-            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
-            ++offset;
-        }
     }
 } // namespace
 

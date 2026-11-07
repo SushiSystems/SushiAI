@@ -44,6 +44,7 @@
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/in_memory_partner_source.hpp>
 #include <SushiAI/vision/imaging/mosaic.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -51,6 +52,7 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::make_constant;
 
     /** @brief Holds the chance that a correct run of draws still misses a statistical bound. */
     constexpr double K_FALSE_FAILURE_RATE = 1e-9;
@@ -119,24 +121,6 @@ namespace
         draw.center_x = center_x;
         draw.center_y = center_y;
         return draw;
-    }
-
-    /** @brief Returns a three-channel image with every pixel the same colour. */
-    Image make_constant(ImageSize size, std::uint8_t red, std::uint8_t green, std::uint8_t blue)
-    {
-        Image image(size, 3);
-        for (std::int32_t y = 0; y < size.height; ++y)
-        {
-            std::uint8_t* row = image.row(y);
-            for (std::int32_t x = 0; x < size.width; ++x)
-            {
-                row[3 * x] = red;
-                row[3 * x + 1] = green;
-                row[3 * x + 2] = blue;
-            }
-        }
-
-        return image;
     }
 
     /** @brief Returns a three-channel image whose every byte depends on its row and column. */

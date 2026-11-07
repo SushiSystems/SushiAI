@@ -49,6 +49,7 @@
 #include <SushiAI/vision/imaging/in_memory_sample_source.hpp>
 #include <SushiAI/vision/imaging/pipeline.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
@@ -56,6 +57,8 @@ using namespace SushiAI::Vision::Imaging;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::make_constant;
+    using SushiAI::Test::make_flat_image;
 
     /** @brief Holds the training size of the tests; a mosaic canvas is 64 by 64. */
     constexpr std::int32_t K_SIDE = 32;
@@ -79,32 +82,6 @@ namespace
             }
         }
 
-        return image;
-    }
-
-    /** @brief Returns a three-channel image with every pixel the same colour. */
-    Image make_constant(ImageSize size, std::uint8_t red, std::uint8_t green, std::uint8_t blue)
-    {
-        Image image(size, 3);
-        for (std::int32_t y = 0; y < size.height; ++y)
-        {
-            std::uint8_t* row = image.row(y);
-            for (std::int32_t x = 0; x < size.width; ++x)
-            {
-                row[3 * x] = red;
-                row[3 * x + 1] = green;
-                row[3 * x + 2] = blue;
-            }
-        }
-
-        return image;
-    }
-
-    /** @brief Returns an image of the given channel count with every byte at one level. */
-    Image make_flat(ImageSize size, std::int32_t channels, std::uint8_t level)
-    {
-        Image image(size, channels);
-        image.fill(level);
         return image;
     }
 
@@ -966,7 +943,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_ImagingPipelineRange,
 TEST(Small_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 {
     InMemorySampleSource source;
-    source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 77), FileLabels{});
+    source.add(make_flat_image(ImageSize{K_SIDE, K_SIDE}, 1, 77), FileLabels{});
     TrainingPipeline pipeline =
         require_value(TrainingPipeline::make(source, make_still_settings()));
     Sample sample;
@@ -985,9 +962,9 @@ TEST(Small_ImagingPipeline, TrainingExpandsAGreyImageToRGB)
 TEST(Small_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
 {
     InMemorySampleSource source;
-    source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 1, 40), FileLabels{});
+    source.add(make_flat_image(ImageSize{K_SIDE, K_SIDE}, 1, 40), FileLabels{});
     source.add(make_constant(ImageSize{K_SIDE, K_SIDE}, 200, 10, 90), FileLabels{});
-    source.add(make_flat(ImageSize{16, K_SIDE}, 1, 220), FileLabels{});
+    source.add(make_flat_image(ImageSize{16, K_SIDE}, 1, 220), FileLabels{});
     const TrainingSettings settings = make_settings();
     TrainingPipeline pipeline = require_value(
         TrainingPipeline::make(source, settings, fixed_partners(MosaicPartners{1, 2, 0})));
@@ -1006,7 +983,7 @@ TEST(Small_ImagingPipeline, TrainingComposesAMosaicOfGreyAndColourImages)
 TEST(Small_ImagingPipeline, TrainingRejectsAnImageOfFourChannels)
 {
     InMemorySampleSource source;
-    source.add(make_flat(ImageSize{K_SIDE, K_SIDE}, 4, 9), FileLabels{});
+    source.add(make_flat_image(ImageSize{K_SIDE, K_SIDE}, 4, 9), FileLabels{});
     TrainingPipeline pipeline =
         require_value(TrainingPipeline::make(source, make_still_settings()));
     Sample sample;
@@ -1132,7 +1109,7 @@ TEST(Small_ImagingPipeline, ValidationRepeatsItsSampleAfterAnotherIndex)
 TEST(Small_ImagingPipeline, ValidationExpandsAGreyImageToRGB)
 {
     InMemorySampleSource source;
-    source.add(make_flat(ImageSize{8, 16}, 1, 61), FileLabels{});
+    source.add(make_flat_image(ImageSize{8, 16}, 1, 61), FileLabels{});
     ValidationSettings settings;
     settings.image_size = K_SIDE;
     ValidationPipeline pipeline = require_value(ValidationPipeline::make(source, settings));

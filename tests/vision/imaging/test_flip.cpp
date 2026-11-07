@@ -37,6 +37,7 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>
+#include <support/imaging_images.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::FlipPlan;
@@ -50,6 +51,8 @@ using Vision::Imaging::Random;
 namespace
 {
     using SushiAI::Test::require_value;
+    using SushiAI::Test::expect_same_image;
+    using SushiAI::Test::expect_bytes;
 
     /** @brief Counts the plans a statistical test draws, all from one generator. */
     constexpr std::uint64_t K_SAMPLE_COUNT = 1024;
@@ -80,27 +83,6 @@ namespace
             image.data()[i] = static_cast<std::uint8_t>(i);
 
         return image;
-    }
-
-    /** @brief Checks that two images have the same size, channels and bytes. */
-    void expect_same_image(const Image& actual, const Image& expected)
-    {
-        ASSERT_EQ(actual.size(), expected.size());
-        ASSERT_EQ(actual.channels(), expected.channels());
-        for (std::size_t i = 0; i < expected.byte_count(); ++i)
-            ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
-    }
-
-    /** @brief Checks that an image holds exactly the listed bytes, in order. */
-    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
-    {
-        ASSERT_EQ(image.byte_count(), expected.size());
-        std::size_t offset = 0;
-        for (const std::uint8_t value : expected)
-        {
-            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
-            ++offset;
-        }
     }
 
     /** @brief Checks that two flips of a source with a flipped plan give the source back. */
