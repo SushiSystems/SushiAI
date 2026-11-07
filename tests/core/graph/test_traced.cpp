@@ -43,7 +43,7 @@
 
 using SushiAI::Status;
 using SushiAI::StatusCode;
-using SushiAI::Detail::live_failure_count;
+using SushiAI::live_failure_count;
 using SushiAI::Graph::Traced;
 using SushiAI::Graph::ValueID;
 

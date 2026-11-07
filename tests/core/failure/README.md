@@ -146,7 +146,7 @@ and message.
 
 ### TheHandlerRunsBeforeTheStop
 
-`Detail::report_then_stop` with an `InMemoryFatalSink` installed and a stop function that
+`report_then_stop` with an `InMemoryFatalSink` installed and a stop function that
 returns: the stop function sees one report in the sink, and the sink holds the message "stop 3".
 
 ### FatalIfPassesAndFormatsNothingWhenTheConditionIsFalse

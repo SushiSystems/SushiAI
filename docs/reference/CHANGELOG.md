@@ -23,7 +23,8 @@
 - 2026-11-07 — config: Gave `read_json_events` a `buffer_bytes` argument that defaults to `K_JSON_EVENT_BUFFER_BYTES` (RW-155, `json_events.hpp`).
 - 2026-11-07 — engine_fixture: Added `LazyShared`, which `TestEnvironment` holds its runtime in, with a constructor that takes another factory (RW-155, `lazy_shared.hpp`).
 - 2026-11-07 — failure: Added the `FailureBlockCounter` port with `set_failure_block_counter`, the process counter as default and `InMemoryFailureBlockCounter` (RW-155, `failure_block_counter.hpp`).
-- 2026-11-07 — failure: Added `Detail::report_then_stop`, which delivers a fatal report and runs a stop function the caller gives; `fail_fast` passes the one that flushes and aborts (RW-155, `check.hpp`).
+- 2026-11-07 — failure: Moved `live_failure_count` out of `Detail` so a test reads the process counter through a public call (`status.hpp`).
+- 2026-11-07 — failure: Added `report_then_stop`, which delivers a fatal report and runs a stop function the caller gives; `fail_fast` passes the one that flushes and aborts (RW-155, `check.hpp`).
 - 2026-11-07 — profile: Added `mark_period(timeline, session)`, which marks the timeline of a session the caller gives and reads no binding (RW-155, `timelines.hpp`).
 - 2026-11-07 — cli: Raised the sushicore floor to 0.10.15 (`cli/pyproject.toml`).
 - 2026-11-07 — vision: Added `read_coco_json(options, source)`, which reads the annotation file from a `ByteSource` through the new `Config::read_json_text_events` (RW-154, `coco_json.hpp`, `json_events.hpp`).

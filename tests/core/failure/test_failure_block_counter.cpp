@@ -64,12 +64,12 @@ TEST(Small_FailureBlockCounter, ANullCounterInstallsTheProcessCounter)
 {
     const InMemoryFailureBlockCounter counter;
     FailureBlockCounter& before = set_failure_block_counter(nullptr);
-    const std::size_t process_before = Detail::live_failure_count();
+    const std::size_t process_before = live_failure_count();
 
     {
         const Status held = block_holder();
 
-        EXPECT_EQ(Detail::live_failure_count(), process_before + 1);
+        EXPECT_EQ(live_failure_count(), process_before + 1);
         EXPECT_EQ(counter.live(), 0u);
     }
 

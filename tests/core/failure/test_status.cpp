@@ -375,7 +375,7 @@ TEST(Small_Status, TheHandlerRunsBeforeTheStop)
     g_sink_at_stop = &sink;
     g_reports_at_stop = 0;
 
-    SushiAI::Detail::report_then_stop("layer.cpp", 7, "stop 3", &note_stop);
+    SushiAI::report_then_stop("layer.cpp", 7, "stop 3", &note_stop);
 
     EXPECT_EQ(g_reports_at_stop, 1u);
     ASSERT_EQ(sink.reports().size(), 1u);

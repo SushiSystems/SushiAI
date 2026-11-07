@@ -59,7 +59,7 @@ namespace SushiAI
     /**
      * @brief Installs @p counter as the one that counts the blocks allocated from now on.
      * @param counter The counter, which must outlive every block it counted; a null pointer
-     *                installs the process counter that Detail::live_failure_count() reads.
+     *                installs the process counter that live_failure_count() reads.
      * @return The counter that was installed before the call; never null.
      */
     FailureBlockCounter& set_failure_block_counter(FailureBlockCounter* counter) noexcept;

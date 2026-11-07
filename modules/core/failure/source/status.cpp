@@ -156,12 +156,12 @@ namespace SushiAI
                 counter->block_released();
         }
 
-        std::size_t live_failure_count() noexcept
-        {
-            return process_counter().live();
-        }
-
     } // namespace Detail
+
+    std::size_t live_failure_count() noexcept
+    {
+        return Detail::process_counter().live();
+    }
 
     FailureBlockCounter& set_failure_block_counter(FailureBlockCounter* counter) noexcept
     {

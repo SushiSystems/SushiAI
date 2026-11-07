@@ -93,10 +93,10 @@ namespace SushiAI
         /** @brief Drops one reference from @p failure and frees the block at zero. */
         void release_failure(const Failure* failure) noexcept;
 
-        /** @brief Returns how many heap failure blocks are alive in the process. */
-        [[nodiscard]] std::size_t live_failure_count() noexcept;
-
     } // namespace Detail
+
+    /** @brief Returns how many heap failure blocks the process counter holds alive. */
+    [[nodiscard]] std::size_t live_failure_count() noexcept;
 
     /**
      * @brief Holds success, or a failure code with a message a user can act on.

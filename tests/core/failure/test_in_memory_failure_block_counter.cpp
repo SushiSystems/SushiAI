@@ -75,15 +75,15 @@ TEST(Small_InMemoryFailureBlockCounter, DoesNotCountABlockMadeBeforeIt)
 /** @brief Tests that the process counter counts again once the counter is gone. */
 TEST(Small_InMemoryFailureBlockCounter, TheProcessCounterCountsAgainOnceItIsGone)
 {
-    const std::size_t before = Detail::live_failure_count();
+    const std::size_t before = live_failure_count();
     {
         const InMemoryFailureBlockCounter counter;
         const Status hidden = block_holder();
 
-        EXPECT_EQ(Detail::live_failure_count(), before);
+        EXPECT_EQ(live_failure_count(), before);
     }
 
     const Status visible = block_holder();
 
-    EXPECT_EQ(Detail::live_failure_count(), before + 1);
+    EXPECT_EQ(live_failure_count(), before + 1);
 }

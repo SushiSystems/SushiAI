@@ -18,4 +18,5 @@ sushiai_add_test_program(OWNER config
         test_value.cpp
     DEPENDS
         failure_expectations
-        model_text)
+        model_text
+        scratch_files)

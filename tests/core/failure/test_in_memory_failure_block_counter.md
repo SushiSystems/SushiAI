@@ -15,5 +15,5 @@ A failure made before the counter leaves it at zero.
 
 ## TheProcessCounterCountsAgainOnceItIsGone
 
-A failure made under the counter leaves `Detail::live_failure_count()` where it was. Once the
+A failure made under the counter leaves `live_failure_count()` where it was. Once the
 counter is gone, a failure raises it by one.

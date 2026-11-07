@@ -65,6 +65,13 @@ namespace SushiAI
         return installed_handler().exchange(next);
     }
 
+    void report_then_stop(const char* file, int line, std::string_view message,
+                          FatalStop stop) noexcept
+    {
+        Detail::report_fatal(file, line, message);
+        stop();
+    }
+
     namespace Detail
     {
         void report_fatal(const char* file, int line, std::string_view message) noexcept
@@ -78,13 +85,6 @@ namespace SushiAI
             // A null stream flushes every open output stream, stdout included.
             std::fflush(nullptr);
             std::abort();
-        }
-
-        void report_then_stop(const char* file, int line, std::string_view message,
-                              FatalStop stop) noexcept
-        {
-            report_fatal(file, line, message);
-            stop();
         }
 
         void fail_fast(const char* file, int line, std::string_view message) noexcept

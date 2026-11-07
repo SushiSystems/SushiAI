@@ -34,50 +34,23 @@
 #include <fstream>
 #include <string>
 #include <string_view>
-#include <system_error>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/config/json_events.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/scratch_files/scratch_file.hpp>
 
 using namespace SushiAI;
 
 namespace
 {
-    /** @brief Holds one file below the temporary directory and removes it when it ends. */
-    class ScratchFile final
+    /** @brief Writes @p text to the scratch file @p file names. */
+    void write_text(const SushiAI::Test::ScratchFile& file, std::string_view text)
     {
-        public:
-            /** @brief Writes @p text to a file called @p name. */
-            ScratchFile(const char* name, std::string_view text)
-                : path_(std::filesystem::temp_directory_path() / name)
-            {
-                std::ofstream out(path_, std::ios::binary);
-                out.write(text.data(), static_cast<std::streamsize>(text.size()));
-            }
-
-            ~ScratchFile()
-            {
-                std::error_code ignored;
-                std::filesystem::remove(path_, ignored);
-            }
-
-            ScratchFile(const ScratchFile&) = delete;
-            ScratchFile& operator=(const ScratchFile&) = delete;
-            ScratchFile(ScratchFile&&) = delete;
-            ScratchFile& operator=(ScratchFile&&) = delete;
-
-            /** @brief Returns where the file is. */
-            [[nodiscard]] const std::filesystem::path& path() const noexcept
-            {
-                return path_;
-            }
-
-        private:
-            /// @brief The path of the file.
-            std::filesystem::path path_;
-    };
+        std::ofstream out(file.path(), std::ios::binary);
+        out.write(text.data(), static_cast<std::streamsize>(text.size()));
+    }
 
     /** @brief Writes every event it receives as one line of text, and may stop at one. */
     class EventLog final : public Config::JSONEvents
@@ -166,7 +139,8 @@ TEST(Medium_JsonEvents, ADocumentLongerThanTheBufferArrivesWhole)
     text += "]";
     ASSERT_GT(text.size(), 2 * buffer_bytes);
 
-    const ScratchFile file("sushiai_test_json_events_long.json", text);
+    const SushiAI::Test::ScratchFile file("sushiai_test_json_events_long.json");
+    write_text(file, text);
 
     EventLog log;
     SA_EXPECT_OK(Config::read_json_events(file.path(), log, buffer_bytes));
@@ -201,7 +175,8 @@ TEST(Small_JsonEvents, TextThatIsNoJSONIsRefusedWithItsOffset)
 /** @brief Tests that a file whose text is no JSON is refused by its path. */
 TEST(Medium_JsonEvents, AFileThatIsNoJSONIsRefusedByItsPath)
 {
-    const ScratchFile cut("sushiai_test_json_events_cut.json", R"({"a": [1, 2)");
+    const SushiAI::Test::ScratchFile cut("sushiai_test_json_events_cut.json");
+    write_text(cut, R"({"a": [1, 2)");
 
     EventLog log;
     SA_EXPECT_FAILURE(Config::read_json_events(cut.path(), log), StatusCode::InvalidFile,
