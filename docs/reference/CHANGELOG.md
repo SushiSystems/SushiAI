@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- 2026-11-07 — test_tree: Build the program seams the M2 resizes need, then resize those tests to Small_ (RW-158, `2cfb768b`).
+- 2026-11-07 — execution: Added RuntimeBackend, an ExecutionBackend that is also a RuntimeAccess; RuntimeExecutionBackend implements it (`6c04a7bb`, `runtime_backend.hpp`).
+- 2026-11-07 — eager: Changed RegionExecutor and RegionEmitter to take one RuntimeBackend instead of a backend and a RuntimeAccess (`6c04a7bb`, `region_executor.hpp`).
+- 2026-11-07 — distribution: Changed GradientExchange::make to take one RuntimeBackend instead of a backend and a RuntimeAccess (`6c04a7bb`, `gradient_exchange.hpp`).
+- 2026-11-07 — programs: Replaced the RuntimeAccess pointer of run_training_file with an overload per backend kind, and moved the backend out of PreparedRun (`6c04a7bb`, `training_program.hpp`).
+- 2026-11-07 — programs: Added WorkerWatch, the port the wait for workers reads; ReplicaSource::make takes the architecture text; added check_replica_rows, trace_batch and check_input_shape (RW-158, `master_cluster.hpp`).
 - 2026-11-07 — programs: Added check_profile_config, which checks a profiler configuration text without a runtime or a session (RW-158, `profile_session.hpp`).
 - 2026-11-07 — programs: Added run_epoch_loop over an EpochPlan, and EpochSteps::set_rate, so the epoch loop runs without an engine (RW-158, `epoch_loop.hpp`).
 - 2026-11-07 — test_tree: Put Session, CompiledStep and record_and_run on a host and a runtime ExecutionBackend (RW-161, `7f76b593`).
