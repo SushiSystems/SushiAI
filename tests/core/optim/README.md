@@ -4,11 +4,15 @@ The tests of the module `core/optim`, one file per header of `modules/core/optim
 
 ## test_apply_step_schedule.cpp
 
-Suites: `Medium_ApplyStepSchedule`.
+Suites: `Small_ApplyStepSchedule`, `Small_ApplyStepScheduleUpdates`, `Small_LearningRateCheck`,
+`Small_LearningRateAccepted`.
 
-Tests `Optim::apply_step_schedule` and `Optimizer::set_learning_rate`. The fixture needs an
-engine and gives each optimizer one float32 parameter of three zeros whose gradient is 2 in
-every element. The schedule most cases use has the base rate 0.5 and halves at updates 2 and 3.
+Tests `Optim::apply_step_schedule` and `Optim::check_learning_rate`. The fixture runs on a
+`HostExecutionBackend` and gives each optimizer one float32 parameter of three zeros whose
+gradient is 2 in every element. The schedule most cases use has the base rate 0.5 and halves at
+updates 2 and 3. Every rate and every parameter value is a power of two or a sum of them, so the
+comparisons are exact; only the midpoint of a cosine decay rounds, and it goes through a derived
+tolerance.
 
 ### TheRateSetIsTheScheduleAtTheNextUpdate
 
@@ -18,25 +22,37 @@ call, and `step_count()` ends at 4.
 
 ### AnUpdateUsesTheRateThatWasSet
 
-Over three updates, every element of the parameter equals the running sum of minus the applied
-rate times the gradient, within 1e-6.
+One row per number of updates: after one, two and three updates every element of the parameter
+is -1, -1.5 and -1.75, the running sum of minus the applied rate times the gradient.
 
 ### AdamWTakesTheRateThroughTheSameSeam
 
-An AdamW made with the rate 0.75 reports 0.75 through the `Optimizer` interface. After
-`apply_step_schedule` returns 0.5, `options().learning_rate` is 0.5.
+After `apply_step_schedule` returns 0.5 over an AdamW made with the rate 0.75,
+`options().learning_rate` is 0.5.
 
-### ANegativeRateIsFatal
+### ARateNoUpdateCanUseIsRefused, AZeroOrPositiveRateIsAccepted
 
-`set_learning_rate(-0.1)` stops the process with a report containing "learning rate" and
-"negative".
+`check_learning_rate` fails with `InvalidDescription`, "learning rate" and "negative or not
+finite" for -0.1, minus infinity, infinity and NaN, and is ok for 0 and 0.5.
+`Optimizer::set_learning_rate` stops the process on the same refusal.
 
-### ACosineScheduleTakesTheSameSeam
+### ACosineScheduleSetsTheWarmupRate
 
 A `CosineSchedule` with the base rate 0.5, two warm-up updates and four updates in total gives
-0.25 at the first update. Held in a `RateSchedule` it gives 0.5 at the second update, and
-`learning_rate()` is 0.5. At the third update a `RateSchedule` holding the halving schedule
-gives 0.125 and the held cosine gives 0.25.
+0.25 before the first update.
+
+### AHeldCosineScheduleSetsTheBaseRateAfterTheWarmup
+
+Held in a `RateSchedule`, the same schedule gives 0.5 before the second update, and
+`learning_rate()` is 0.5.
+
+### AHeldStepScheduleSetsTheRateOfTheThirdUpdate
+
+A `RateSchedule` holding the halving schedule gives 0.125 before the third update.
+
+### ACosineScheduleSetsHalfTheBaseRateAtTheMidpointOfTheDecay
+
+The cosine schedule gives 0.25 before the third update, within the derived double tolerance.
 
 ## test_cosine_schedule.cpp
 
@@ -208,17 +224,10 @@ cosine schedule is 0.125 at iterations 1 and 10. `base_rate_of` is 0.5 and 0.25.
 `write_rate_schedule_section` of the cosine schedule gives a section whose `type` is "cosine".
 It reads back as a `CosineSchedule` with `warmup_iterations` 2.
 
-### ARunReadsACosineScheduleUnderTheSameRules
+### ARunReadsACosineSection
 
-`read_rate_schedule` returns no schedule for a null section beside an optimizer that states
-`learning_rate`, and a `CosineSchedule` for the cosine section beside `{}`. The cosine section
-beside a `learning_rate` fails with `InvalidDescription` and "stated twice". A cosine section
-without a base rate fails with "'base_rate' must be stated and above zero".
-
-### ARunReadsAStepScheduleAsAStepSchedule
-
-`read_rate_schedule` of the step section beside `{}` returns a `StepSchedule` with the base
-rate 0.5.
+`read_rate_schedule` returns a `CosineSchedule` for the cosine section beside `{}`. The null
+section, the rate stated twice and the missing base rate are the cases of `test_run_schedule.cpp`.
 
 ### AHeldScheduleIsCheckedByItsOwnValidation
 
@@ -263,51 +272,69 @@ string in place of the section fails with "schedule" and "object".
 
 ## test_run_state.cpp
 
-Suites: `Medium_OptimizerRunState`, `Small_LossScaleStateRestore`.
+Suites: `Small_OptimizerRunState`, `Small_SGDStateNames`, `Small_StateOwner`, `Small_ScalarList`,
+`Small_ScalarListFit`, `Small_LossScaleStateRestore`, `Small_LossScaleStateRefusal`.
 
-Tests `Optimizer::run_state`, `restore_scalars` and `check_state_owner`, and
-`Optim::LossScaleState::restore`. The `Medium_OptimizerRunState` fixture needs an engine and
-makes the slots `weight` and `bias`, each three float32 zeros with a gradient of ones.
+Tests `Optimizer::run_state`, `restore_scalars`, `Optim::check_state_owner`,
+`Optim::check_scalar_list`, `Optim::sgd_state_names` and `Optim::LossScaleState::restore`. The
+`Small_OptimizerRunState` fixture runs on a `HostExecutionBackend` and makes the slots `weight`
+and `bias`, each three float32 zeros with a gradient of ones.
 
-### SGDListsItsMomentumBuffersAndItsStepCount
+### SGDListsOneMomentumBufferPerSlot
 
-After one step of an SGD with momentum 0.9, `type_name()` is "sgd" and the run state lists the
-tensors `weight.momentum` and `bias.momentum`, the first of three elements. Its one scalar is
-`step_count`, a `uint64_t` of 1.
+An SGD with momentum 0.9 has `type_name()` "sgd" and its run state lists the tensors
+`weight.momentum` and `bias.momentum`, the first of three elements.
 
-### SGDWithoutMomentumListsNoTensor
+### SGDListsItsStepCount
 
-The run state of an SGD with momentum 0 has no tensor and one scalar whose value is 0.
+After one step the run state's one scalar is `step_count`, a `uint64_t` of 1.
+
+### NoMomentumNamesNoTensor
+
+`sgd_state_names` of two slot names with momentum 0 lists no name.
 
 ### AdamWListsBothMomentsOfEachSlot
 
 `type_name()` is "adamw" and the run state lists `weight.first_moment`, `weight.second_moment`,
-`bias.first_moment` and `bias.second_moment`, in that order. The first listed tensor has the
-data pointer of `first_moment(0)` and the fourth that of `second_moment(1)`.
+`bias.first_moment` and `bias.second_moment`, in that order.
 
-### TheStepCountIsRestored
+### AListedTensorSharesTheOptimizersStorage
 
-After `restore_scalars` with a step count of 41, `step_count()` is 41, and it is 42 after one
-step.
+The first listed tensor has the data pointer of `first_moment(0)` and the fourth that of
+`second_moment(1)`.
 
-### AnotherOwnerIsRefusedWithBothTypes
+### TheStepCountIsRestored, TheNextUpdateCountsOnFromTheRestoredCount
 
-On an SGD, `check_state_owner("sgd")` is ok and `check_state_owner("adamw")` fails with
+After `restore_scalars` with a step count of 41, `step_count()` is 41; after one more step it is
+42.
+
+### TheOwnTypeIsAccepted, AnotherTypeIsRefusedWithBothNames
+
+`check_state_owner("sgd", "sgd")` is ok; `check_state_owner("adamw", "sgd")` fails with
 `Incompatible`, `'adamw'` and `'sgd'`.
 
-### AScalarThatDoesNotFitIsRefusedByName
+### AScalarThatDoesNotFitIsRefusedByName, TheListTheOptimizerKeepsIsAccepted
 
-`restore_scalars` on an SGD fails with `Incompatible` four times: for no scalar ("does not
-hold", "'step_count'", "'sgd'"), for an added `loss_scale` ("'loss_scale'", "'sgd'", "does not
-keep"), for `step_count` given twice ("more than once") and for a `step_count` that is a real
-("a real number where a count is kept"). The step count stays 0.
+`check_scalar_list` against the one scalar `step_count` fails with `Incompatible` for no scalar
+("does not hold", "'step_count'"), for an added `loss_scale` ("'loss_scale'", "does not keep"),
+for `step_count` given twice ("more than once") and for a `step_count` that is a real ("a real
+number where a count is kept"); it is ok for the one `step_count` as a count.
 
-### TakesASavedScaleAndRefusesOneOutOfBounds
+### ARefusedScalarListLeavesTheStepCount
+
+`restore_scalars` with a mistyped `step_count` fails with `Incompatible` and the step count stays
+0.
+
+### TakesASavedScale, TheRestoredCountContinuesTheGrowthInterval
 
 `restore(4096.0, 1999)` is ok and sets the scale to 4096 and the count of good steps to 1999.
-One `observe(false)` then gives the scale 8192 and the count 0. `restore` fails with
-`Incompatible` for the scale 3000 ("power of two"), the scale 0.5 ("bounds") and a count of
-2000 ("growth interval"), and the scale stays 8192.
+One `observe(false)` then gives the scale 8192 and the count 0.
+
+### RestoreRefusesWhatTheStateCannotHold, ARefusedRestoreLeavesTheScale
+
+`restore` fails with `Incompatible` for the scale 3000 ("power of two"), the scale 0.5
+("bounds") and a count of 2000 ("growth interval"), and a refused restore leaves the scale where
+it was.
 
 ## test_step_schedule.cpp
 
@@ -351,34 +378,21 @@ warm-up values. At 1000 the rate is a tenth of the base rate.
 With a step at 1000 of scale 0.5, the rate at 999 is the warm-up value and the rate at 1000 is
 half the base rate.
 
-### ValidateAcceptsEmptyAndAscendingSchedules
+### ValidateAcceptsAnEmptySchedule, ValidateAcceptsAscendingSteps
 
 `validate_step_schedule` is ok for a default `StepSchedule` and for a warm-up schedule with
 steps at 400 and 450 and two scales.
 
-### ValidateRefusesDescendingSteps
+### ValidateRefusesABadStepList
 
-Steps listed as 450 then 400 fail with `InvalidDescription`.
+One row per list: steps 450 then 400 and steps 400 and 400 fail with "strictly ascend"; one step
+with two scales fails with "1 steps and 2 scales"; two steps with one scale fail with "2 steps
+and 1 scales". Each is `InvalidDescription`.
 
-### ValidateRefusesRepeatedStep
+### ValidateRefusesANegativeWarmupValue
 
-Steps listed as 400 and 400 fail with `InvalidDescription`.
-
-### ValidateRefusesScalesLongerThanSteps
-
-One step with two scales fails with `InvalidDescription`.
-
-### ValidateRefusesStepsLongerThanScales
-
-Two steps with one scale fail with `InvalidDescription`.
-
-### ValidateRefusesNegativeWarmup
-
-A `warmup_iterations` of -1 fails with `InvalidDescription`.
-
-### ValidateRefusesNegativeWarmupPower
-
-A `warmup_power` of -1 fails with `InvalidDescription`.
+One row per value: a `warmup_iterations` of -1 fails with "warm-up of -1 iterations" and a
+`warmup_power` of -1 with "warm-up power of -1". Each is `InvalidDescription`.
 
 ## test_step_schedule_section.cpp
 
@@ -389,14 +403,10 @@ section states `type`, `base_rate`, `warmup_iterations`, `warmup_power`, `steps`
 A round trip writes a schedule to a section, the section to JSON text, parses the text and
 reads it, and compares every field exactly.
 
-### TheDefaultsRoundTripThroughTheirSection
+### AScheduleRoundTripsThroughItsSection
 
-A default `StepSchedule` round-trips.
-
-### AWarmupAndTwoStepsRoundTripThroughTheirSection
-
-A schedule with the base rate 0.00261, a warm-up of 1000 at the power 2.5, steps at 400000 and
-450000 and the scales 0.1 and 0.3 round-trips.
+One row per schedule: a default `StepSchedule`, and one with the base rate 0.00261, a warm-up of
+1000 at the power 2.5, steps at 400000 and 450000 and the scales 0.1 and 0.3.
 
 ### AFullSectionRoundTripsThroughItsSchedule
 
@@ -419,9 +429,10 @@ The written section has the keys `type`, `base_rate`, `warmup_iterations`, `warm
 `steps`, `scales`, in that order. `type` is `K_STEP_SCHEDULE_TYPE`, `warmup_iterations` is 1000
 and the second step is 450000.
 
-### ReadsAWholeNumberAsARateAPowerAndAScale
+### ReadsAWholeNumberAsTheBaseRate, ReadsAWholeNumberAsTheWarmupPower, ReadsAWholeNumberAsAScale
 
-A section with `base_rate` 1, `warmup_power` 2 and the scale 3 reads as 1.0, 2.0 and 3.0.
+A section with `base_rate` 1 reads as 1.0, one with `warmup_power` 2 as 2.0, and one with the
+step 10 and the scale 3 as the scale 3.0.
 
 ### RefusesASectionThatIsNotAnObject
 
@@ -463,17 +474,13 @@ steps", "1 scales") and for steps 450000 then 400000 ("strictly ascend").
 
 ## test_optimizer.cpp
 
-Suites: `Medium_ParameterDecay`.
+Suites: `Small_ParameterDecay`, `Small_ParameterDecayKernel`, `Small_ParameterDecayType`.
 
-Tests `ParameterSlot::decays` and the `decay_all` option of SGD and AdamW. The fixture needs an
-engine and makes two slots of three float32 elements, each starting at 2 with a zero gradient:
-`weight`, which decays, and `bias`, which does not. Both optimizers use the rate 0.5 and the
-weight decay 0.5, so a decayed parameter is 1.5 after one step. Values are compared within
-1e-6.
-
-### ASlotDecaysUnlessItSaysOtherwise
-
-A default `ParameterSlot` has `decays` true.
+Tests `ParameterSlot::decays` and the `decay_all` option of SGD and AdamW. The fixture runs on a
+`HostExecutionBackend` and makes two slots of three float32 elements, each starting at 2 with a
+zero gradient: `weight`, which decays, and `bias`, which does not. Both optimizers use the rate
+0.5 and the weight decay 0.5, so a decayed parameter is 1.5 after one step. Every factor is a
+power of two, so the values are compared exactly.
 
 ### SGDDecaysOnlyTheSlotsThatTakeIt
 
@@ -485,11 +492,11 @@ at 2.
 For the kernels `Fused` and `Separate`, one AdamW step leaves the weight at 1.5 and the bias
 at 2.
 
-### DecayAllDecaysEverySlot
+### SGDDecayAllDecaysEverySlot, AdamWDecayAllDecaysEverySlot
 
-With `decay_all` true, one step of SGD and one step of AdamW each leave both parameters at 1.5.
+With `decay_all` true, one step of the optimizer leaves both parameters at 1.5.
 
-### TheKeyDecayAllReachesTheOptimizer
+### WithoutTheKeyDecayAllTheBiasIsLeftAlone, TheKeyDecayAllReachesTheOptimizer
 
 For the types `sgd` and `adamw`, an optimizer from `make_optimizer` without the key `decay_all`
 leaves the weight at 1.5 and the bias at 2 after one step. With `"decay_all": true` it leaves
@@ -553,7 +560,7 @@ Every constant is a power of two so that scaling and unscaling change only the e
 A scale of 3 would work and would quietly make every gradient in the model carry a rounding
 error, so it is refused.
 
-### IncoherentBoundsAreRefused
+### AnInitialScaleOutsideTheBoundsIsRefused, AZeroGrowthIntervalIsRefused
 
 `LossScaleState::make` fails with `InvalidDescription` for an initial scale of 65536 above a
 maximum of 1024 ("outside the bounds") and for a growth interval of 0
@@ -562,33 +569,8 @@ maximum of 1024 ("outside the bounds") and for a growth interval of 0
 ### EveryReachableScaleHasAnExactReciprocal
 
 The loss-scaling design is arranged around this property, and the test asserts it on the rule
-itself. Whatever sequence of backoffs and growths the machine takes, the scale is a power of
-two, so the reciprocal is exact and the round trip is lossless.
-
-Suites: `Medium_LossScaling`.
-
-Every failure of loss scaling is silent, which is what puts this part of mixed precision in the
-regression tier.
-
-- A scale that never backs off keeps overflowing, and every overflowed step is thrown away, so the
-  loop stops learning while reporting an ordinary loss.
-- A skip spelled as "multiply the step by zero" writes NaN into AdamW's first moment, because
-  0 * inf is NaN and the gradient on a skipped step is an infinity by definition. Nothing throws;
-  the loss goes NaN a step later, three layers from the cause. That is why the assertions in
-  ASkippedStepLeavesTheParametersAndMomentsBitIdentical read the moments and not only the
-  parameters. A test that checked the parameters alone would pass on this bug.
-- An unscale that is off by a rounding is invisible against any tolerance, which is why
-  UnscalingByAPowerOfTwoIsExact uses EXPECT_EQ.
-- A device-resident scale that someone moved into Attributes would recompile the step on every
-  backoff, converge identically, and cost the compile-once guarantee the architecture is built on.
-
-The tests fall into five groups, in file order. AnFP16OverflowIsDetectedAndBacksTheScaleOff and
-TheSameScaleInFloat32OverflowsNothing cover the overflow itself.
-ASkippedStepLeavesTheParametersAndMomentsBitIdentical and
-ACleanStepUnderTheSameScalerStillMovesEverything cover what a skipped step must leave behind.
-UnscalingByAPowerOfTwoIsExact covers exactness. TheStepIsCompiledOnceThoughTheScaleChanges and
-ABackingOffScaleStillCompilesOnce cover the compile-once guarantee with a scale that moves.
-TheSeparateUpdateKernelRefusesAScaler covers what is refused.
+itself. Over 40 steps with an overflow on every fifth, the product of the scale and its inverse
+is 1 after each step, so the reciprocal is exact and the round trip is lossless.
 
 ### On constructing the overflow
 

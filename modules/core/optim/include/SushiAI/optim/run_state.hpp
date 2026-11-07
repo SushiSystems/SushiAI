@@ -35,6 +35,8 @@
 #include <variant>
 #include <vector>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiRuntime/core/span.hpp>
+#include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
 {
@@ -96,6 +98,31 @@ namespace SushiAI
             /** @brief Holds the scalars; the step count is first. */
             std::vector<StateScalar> scalars;
         };
+
+        /** @brief Returns the entry of @p scalars called @p name, or null. */
+        [[nodiscard]] const StateScalar* find_scalar(
+            SushiRuntime::span<const StateScalar> scalars, std::string_view name) noexcept;
+
+        /**
+         * @brief Refuses run state that an optimizer of another type wrote.
+         * @param owner The type name the run state carries.
+         * @param type The type name of the optimizer that restores it.
+         * @return Incompatible, naming both, unless they are equal.
+         */
+        [[nodiscard]] Status check_state_owner(std::string_view owner,
+                                               std::string_view type) noexcept;
+
+        /**
+         * @brief Checks that @p given lists the scalars of @p kept, strictly in both directions.
+         * @param kept The scalars the optimizer of type @p type lists.
+         * @param given The scalars a saved run state holds, in any order.
+         * @param type The type name of the optimizer, for the refusal.
+         * @return Incompatible, naming the scalar, for one that is surplus, repeated, of the
+         *         other kind or missing.
+         */
+        [[nodiscard]] Status check_scalar_list(SushiRuntime::span<const StateScalar> kept,
+                                               SushiRuntime::span<const StateScalar> given,
+                                               std::string_view type) noexcept;
 
     } // namespace Optim
 } // namespace SushiAI

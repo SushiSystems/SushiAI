@@ -31,6 +31,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
@@ -78,6 +79,15 @@ namespace SushiAI
              */
             UpdateKernel kernel = UpdateKernel::Fused;
         };
+
+        /**
+         * @brief Lists the names of the state tensors an SGD over @p parameter_names keeps.
+         * @param parameter_names The names of the slots, in slot order.
+         * @param options The options the SGD is made with.
+         * @return One momentum buffer name per slot, or none when the momentum is 0.
+         */
+        [[nodiscard]] std::vector<std::string> sgd_state_names(
+            const std::vector<std::string>& parameter_names, const SGDOptions& options);
 
         /**
          * @class SGD

@@ -60,30 +60,6 @@ namespace SushiAI
                     return gradients;
                 });
             }
-
-            /** @brief Returns the entry of @p scalars called @p name, or null. */
-            [[nodiscard]] const StateScalar* find_scalar(
-                SushiRuntime::span<const StateScalar> scalars, std::string_view name) noexcept
-            {
-                for (const StateScalar& scalar : scalars)
-                {
-                    if (scalar.name == name)
-                        return &scalar;
-                }
-
-                return nullptr;
-            }
-
-            /** @brief Counts the entries of @p scalars called @p name. */
-            [[nodiscard]] std::size_t count_scalars(SushiRuntime::span<const StateScalar> scalars,
-                                                    std::string_view name) noexcept
-            {
-                std::size_t count = 0;
-                for (const StateScalar& scalar : scalars)
-                    count += scalar.name == name ? 1 : 0;
-
-                return count;
-            }
         }
 
         Status validate_slots(SushiRuntime::span<const ParameterSlot> slots) noexcept
@@ -145,11 +121,18 @@ namespace SushiAI
             return Status();
         }
 
-        void Optimizer::set_learning_rate(double rate) noexcept
+        Status check_learning_rate(double rate) noexcept
         {
             // The comparison is false for a NaN, which is refused with the negative rates.
-            SA_FATAL_IF(!(rate >= 0.0) || !std::isfinite(rate),
-                        "A learning rate of {} is negative or not finite", rate);
+            SA_FAIL_IF(!(rate >= 0.0) || !std::isfinite(rate), StatusCode::InvalidDescription,
+                       "A learning rate of {} is negative or not finite", rate);
+            return Status();
+        }
+
+        void Optimizer::set_learning_rate(double rate) noexcept
+        {
+            const Status checked = check_learning_rate(rate);
+            SA_FATAL_IF(!checked.is_ok(), "{}", checked.message());
 
             store_learning_rate(rate);
         }
@@ -179,44 +162,15 @@ namespace SushiAI
 
         Status Optimizer::check_state_owner(std::string_view owner) const noexcept
         {
-            SA_FAIL_IF(owner != type_name(), StatusCode::Incompatible,
-                       "the run state was written by a '{}' optimizer, and this optimizer is "
-                       "'{}'", owner, type_name());
-            return Status();
+            return Optim::check_state_owner(owner, type_name());
         }
 
         Status Optimizer::restore_scalars(SushiRuntime::span<const StateScalar> scalars) noexcept
         {
             SA_TRY_ASSIGN(const RunState own, run_state());
-
-            for (const StateScalar& scalar : scalars)
-            {
-                const StateScalar* const expected = find_scalar(
-                    SushiRuntime::span<const StateScalar>(own.scalars.data(),
-                                                          own.scalars.size()),
-                    scalar.name);
-                SA_FAIL_IF(expected == nullptr, StatusCode::Incompatible,
-                           "the run state holds the scalar '{}', which this '{}' optimizer "
-                           "does not keep", scalar.name, type_name());
-                SA_FAIL_IF(count_scalars(scalars, scalar.name) != 1, StatusCode::Incompatible,
-                           "the run state holds the scalar '{}' of this '{}' optimizer more "
-                           "than once", scalar.name, type_name());
-                SA_FAIL_IF(expected->value.index() != scalar.value.index(),
-                           StatusCode::Incompatible,
-                           "the run state holds the scalar '{}' of this '{}' optimizer as {}",
-                           scalar.name, type_name(),
-                           std::holds_alternative<double>(scalar.value)
-                               ? "a real number where a count is kept"
-                               : "a count where a real number is kept");
-            }
-
-            for (const StateScalar& expected : own.scalars)
-            {
-                SA_FAIL_IF(find_scalar(scalars, expected.name) == nullptr,
-                           StatusCode::Incompatible,
-                           "the run state does not hold the scalar '{}' of this '{}' optimizer",
-                           expected.name, type_name());
-            }
+            SA_TRY(check_scalar_list(
+                SushiRuntime::span<const StateScalar>(own.scalars.data(), own.scalars.size()),
+                scalars, type_name()));
 
             if (scaler_ != nullptr)
             {

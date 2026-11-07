@@ -31,6 +31,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <utility>
@@ -279,19 +280,32 @@ namespace SushiAI
         {
         }
 
+        std::vector<std::string> sgd_state_names(const std::vector<std::string>& parameter_names,
+                                                 const SGDOptions& options)
+        {
+            std::vector<std::string> names;
+            if (options.momentum == 0.0)
+                return names;
+
+            names.reserve(parameter_names.size());
+            for (const std::string& name : parameter_names)
+                names.push_back(name + std::string(K_MOMENTUM_ROLE));
+
+            return names;
+        }
+
         void SGD::append_state_tensors(std::vector<StateTensor>& tensors)
         {
-            if (!has_momentum_)
-                return;
-
             const std::vector<ParameterSlot>& parameters = slots();
-            tensors.reserve(tensors.size() + parameters.size());
-            for (std::size_t i = 0; i < parameters.size(); ++i)
-            {
-                tensors.push_back(
-                    StateTensor{parameters[i].name + std::string(K_MOMENTUM_ROLE),
-                                state_[i].buffer});
-            }
+            std::vector<std::string> parameter_names;
+            parameter_names.reserve(parameters.size());
+            for (const ParameterSlot& slot : parameters)
+                parameter_names.push_back(slot.name);
+
+            std::vector<std::string> names = sgd_state_names(parameter_names, options_);
+            tensors.reserve(tensors.size() + names.size());
+            for (std::size_t i = 0; i < names.size(); ++i)
+                tensors.push_back(StateTensor{std::move(names[i]), state_[i].buffer});
         }
 
         void SGD::write_step_scalars()

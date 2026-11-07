@@ -30,8 +30,10 @@
 
 #include <cmath>
 #include <cstdint>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/step_schedule.hpp>
 #include <support/tolerance.hpp>
 
@@ -169,68 +171,79 @@ TEST(Small_StepSchedule, StepAtFirstIterationPastWarmupApplies)
     expect_rate(schedule, 1000, K_BASE_RATE * 0.5);
 }
 
-TEST(Small_StepSchedule, ValidateAcceptsEmptyAndAscendingSchedules)
+/** @brief Tests that a schedule that lists nothing is accepted. */
+TEST(Small_StepSchedule, ValidateAcceptsAnEmptySchedule)
 {
     EXPECT_TRUE(validate_step_schedule(StepSchedule{}).is_ok());
+}
 
+/** @brief Tests that a schedule whose steps ascend, under a warm-up, is accepted. */
+TEST(Small_StepSchedule, ValidateAcceptsAscendingSteps)
+{
     StepSchedule schedule = warmup_schedule();
     schedule.steps = {400, 450};
     schedule.scales = {0.1, 0.1};
+
     EXPECT_TRUE(validate_step_schedule(schedule).is_ok());
 }
 
-TEST(Small_StepSchedule, ValidateRefusesDescendingSteps)
+/** @brief Holds a step list the check refuses and the words its refusal uses. */
+struct StepListRow
+{
+    std::vector<std::int64_t> steps; /**< The iterations of the steps. */
+    std::vector<double> scales;      /**< The scale of each step. */
+    const char* message;             /**< A fragment of the refusal. */
+};
+
+/** @brief Runs the step-list refusals as rows. */
+class Small_StepScheduleStepList : public ::testing::TestWithParam<StepListRow>
+{
+
+};
+
+/** @brief Tests that the check refuses a step list that does not ascend or does not match. */
+TEST_P(Small_StepScheduleStepList, ValidateRefusesABadStepList)
 {
     StepSchedule schedule;
     schedule.base_rate = K_BASE_RATE;
-    schedule.steps = {450, 400};
-    schedule.scales = {0.1, 0.1};
+    schedule.steps = GetParam().steps;
+    schedule.scales = GetParam().scales;
 
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(validate_step_schedule(schedule), StatusCode::InvalidDescription,
+                      GetParam().message);
 }
 
-TEST(Small_StepSchedule, ValidateRefusesRepeatedStep)
+INSTANTIATE_TEST_SUITE_P(Rows, Small_StepScheduleStepList,
+                         ::testing::Values(StepListRow{{450, 400}, {0.1, 0.1}, "strictly ascend"},
+                                           StepListRow{{400, 400}, {0.1, 0.1}, "strictly ascend"},
+                                           StepListRow{{400}, {0.1, 0.1}, "1 steps and 2 scales"},
+                                           StepListRow{{400, 450}, {0.1}, "2 steps and 1 scales"}));
+
+/** @brief Holds a warm-up the check refuses and the words its refusal uses. */
+struct WarmupRow
 {
-    StepSchedule schedule;
-    schedule.base_rate = K_BASE_RATE;
-    schedule.steps = {400, 400};
-    schedule.scales = {0.1, 0.1};
+    std::int64_t iterations; /**< The warm-up length. */
+    double power;            /**< The warm-up exponent. */
+    const char* message;     /**< A fragment of the refusal. */
+};
 
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
-}
-
-TEST(Small_StepSchedule, ValidateRefusesScalesLongerThanSteps)
+/** @brief Runs the warm-up refusals as rows. */
+class Small_StepScheduleWarmup : public ::testing::TestWithParam<WarmupRow>
 {
-    StepSchedule schedule;
-    schedule.base_rate = K_BASE_RATE;
-    schedule.steps = {400};
-    schedule.scales = {0.1, 0.1};
 
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
-}
+};
 
-TEST(Small_StepSchedule, ValidateRefusesStepsLongerThanScales)
-{
-    StepSchedule schedule;
-    schedule.base_rate = K_BASE_RATE;
-    schedule.steps = {400, 450};
-    schedule.scales = {0.1};
-
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
-}
-
-TEST(Small_StepSchedule, ValidateRefusesNegativeWarmup)
+/** @brief Tests that the check refuses a negative warm-up length or exponent. */
+TEST_P(Small_StepScheduleWarmup, ValidateRefusesANegativeWarmupValue)
 {
     StepSchedule schedule = warmup_schedule();
-    schedule.warmup_iterations = -1;
+    schedule.warmup_iterations = GetParam().iterations;
+    schedule.warmup_power = GetParam().power;
 
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(validate_step_schedule(schedule), StatusCode::InvalidDescription,
+                      GetParam().message);
 }
 
-TEST(Small_StepSchedule, ValidateRefusesNegativeWarmupPower)
-{
-    StepSchedule schedule = warmup_schedule();
-    schedule.warmup_power = -1.0;
-
-    EXPECT_EQ(validate_step_schedule(schedule).code(), StatusCode::InvalidDescription);
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_StepScheduleWarmup,
+                         ::testing::Values(WarmupRow{-1, 4.0, "warm-up of -1 iterations"},
+                                           WarmupRow{K_WARMUP, -1.0, "warm-up power of -1"}));

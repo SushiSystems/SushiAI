@@ -28,7 +28,9 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/optim/loss_scaler.hpp>
@@ -54,6 +56,22 @@ namespace
     void run_clean(LossScaleState& state, std::uint64_t steps)
     {
         for (std::uint64_t i = 0; i < steps; ++i) state.observe(false);
+    }
+
+    /**
+     * @brief Observes @p steps steps, an overflow on every fifth, and lists the product of the
+     *        scale and its inverse after each.
+     */
+    std::vector<double> products_over(LossScaleState& state, std::size_t steps)
+    {
+        std::vector<double> products;
+        for (std::size_t i = 0; i < steps; ++i)
+        {
+            state.observe(i % 5 == 0);
+            products.push_back(state.scale() * state.inverse_scale());
+        }
+
+        return products;
     }
 }
 
@@ -171,16 +189,23 @@ TEST_F(Small_LossScaling, ANonDyadicConstantIsRefusedByName)
                       "power of two");
 }
 
-TEST_F(Small_LossScaling, IncoherentBoundsAreRefused)
+/** @brief Tests that an initial scale outside the bounds is refused. */
+TEST_F(Small_LossScaling, AnInitialScaleOutsideTheBoundsIsRefused)
 {
     LossScaleOptions options;
     options.initial = 65536.0;
     options.maximum = 1024.0;
+
     SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
                       "outside the bounds");
+}
 
-    options = LossScaleOptions{};
+/** @brief Tests that a growth interval of zero is refused. */
+TEST_F(Small_LossScaling, AZeroGrowthIntervalIsRefused)
+{
+    LossScaleOptions options;
     options.growth_interval = 0;
+
     SA_EXPECT_FAILURE(LossScaleState::make(options), StatusCode::InvalidDescription,
                       "growth interval must be positive");
 }
@@ -190,10 +215,5 @@ TEST_F(Small_LossScaling, EveryReachableScaleHasAnExactReciprocal)
 {
     SA_ASSERT_OK_AND_ASSIGN(LossScaleState state, LossScaleState::make(with_interval(2, 1024.0)));
 
-    for (int i = 0; i < 40; ++i)
-    {
-        state.observe(i % 5 == 0);
-        EXPECT_EQ(state.scale() * state.inverse_scale(), 1.0)
-            << "scale " << state.scale() << " does not invert exactly";
-    }
+    EXPECT_EQ(products_over(state, 40), std::vector<double>(40, 1.0));
 }

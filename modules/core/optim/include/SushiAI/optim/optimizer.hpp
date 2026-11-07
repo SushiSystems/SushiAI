@@ -109,6 +109,12 @@ namespace SushiAI
         [[nodiscard]] Status validate_slots(SushiRuntime::span<const ParameterSlot> slots) noexcept;
 
         /**
+         * @brief Checks that @p rate is a step size an update can use.
+         * @return Success, or InvalidDescription for a rate that is negative or not finite.
+         */
+        [[nodiscard]] Status check_learning_rate(double rate) noexcept;
+
+        /**
          * @class Optimizer
          * @brief Common base class providing parameter update recording and lifecycle hooks.
          */

@@ -30,13 +30,13 @@ Each header is named by its include path under `include/`.
 | `SushiAI/optim/cosine_schedule_section.hpp` | `K_COSINE_SCHEDULE_TYPE`, `read_cosine_schedule_section`, `write_cosine_schedule_section` |
 | `SushiAI/optim/gradient_clip.hpp` | `check_clip_norm`, `check_clip_kernel`, `GradientClip` |
 | `SushiAI/optim/loss_scaler.hpp` | `LossScaleOptions`, `LossScaleState`, `LossScaler` |
-| `SushiAI/optim/optimizer.hpp` | `UpdateKernel`, `ParameterSlot`, `validate_slots`, `Optimizer` |
+| `SushiAI/optim/optimizer.hpp` | `UpdateKernel`, `ParameterSlot`, `validate_slots`, `check_learning_rate`, `Optimizer` |
 | `SushiAI/optim/optimizer_registry.hpp` | `OptimizerFactory`, `OptimizerEntry`, `K_OPTIMIZER_REGISTRY`, `make_adamw`, `make_sgd`, `make_optimizer` |
 | `SushiAI/optim/rate_schedule.hpp` | `RateSchedule`, `rate_at`, `base_rate_of`, `validate_rate_schedule` |
 | `SushiAI/optim/rate_schedule_section.hpp` | `read_rate_schedule_section`, `write_rate_schedule_section` |
 | `SushiAI/optim/run_schedule.hpp` | `K_LEARNING_RATE_KEY`, `read_rate_schedule` |
-| `SushiAI/optim/run_state.hpp` | `K_STEP_COUNT_STATE`, `K_LOSS_SCALE_STATE`, `K_LOSS_SCALE_GOOD_STEPS_STATE`, `K_MOMENTUM_ROLE`, `K_FIRST_MOMENT_ROLE`, `K_SECOND_MOMENT_ROLE`, `StateTensor`, `StateScalar`, `RunState` |
-| `SushiAI/optim/sgd.hpp` | `SGDOptions`, `SGD` |
+| `SushiAI/optim/run_state.hpp` | `K_STEP_COUNT_STATE`, `K_LOSS_SCALE_STATE`, `K_LOSS_SCALE_GOOD_STEPS_STATE`, `K_MOMENTUM_ROLE`, `K_FIRST_MOMENT_ROLE`, `K_SECOND_MOMENT_ROLE`, `StateTensor`, `StateScalar`, `RunState`, `find_scalar`, `check_state_owner`, `check_scalar_list` |
+| `SushiAI/optim/sgd.hpp` | `SGDOptions`, `sgd_state_names`, `SGD` |
 | `SushiAI/optim/step_scalars.hpp` | `StepScalars` |
 | `SushiAI/optim/step_schedule.hpp` | `StepSchedule`, `validate_step_schedule` |
 | `SushiAI/optim/step_schedule_section.hpp` | `K_STEP_SCHEDULE_TYPE`, `read_step_schedule_section`, `write_step_schedule_section` |
@@ -64,7 +64,10 @@ scalars from the options and the step count before every update.
 returns `Incompatible`, naming the scalar and the optimizer type, for one that is missing,
 surplus, stated twice or of the other kind, and `LossScaleState::restore` refuses a scale that
 is no power of two within its bounds and a clean-step count at or above the growth interval.
-`check_state_owner(owner)` refuses state another type wrote, with both type names.
+`check_state_owner(owner)` refuses state another type wrote, with both type names. Both checks are
+value functions of `run_state.hpp` (`check_state_owner(owner, type)` and
+`check_scalar_list(kept, given, type)`) that the member functions call. `sgd_state_names` lists the
+momentum buffer names of an SGD as a function of its options.
 `IO::save_run_checkpoint` and `IO::load_run_checkpoint` write and read the listing.
 `tests/core/optim/test_run_state.cpp` covers the names, the restore and each refusal.
 
@@ -167,8 +170,8 @@ options and write it into a `StepScalars` buffer in `write_step_scalars`, which
 `Optimizer::before_replay` calls before every replay, in the plan or not. A rate set between two
 updates is therefore the rate of the next one, and the step is compiled once.
 
-`Optimizer::set_learning_rate(rate)` sets it for any optimizer; a rate that is negative or not
-finite stops the process. `apply_step_schedule(schedule, optimizer)` sets
+`Optimizer::set_learning_rate(rate)` sets it for any optimizer; a rate that `check_learning_rate`
+refuses, one that is negative or not finite, stops the process. `apply_step_schedule(schedule, optimizer)` sets
 `schedule.rate_at(optimizer.step_count() + 1)` and returns it. The iteration comes from the
 optimizer's own count of applied updates, so the caller keeps no counter and an update the loss
 scaler skipped does not use up an iteration. `tests/core/optim/test_apply_step_schedule.cpp` covers both

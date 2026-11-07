@@ -71,10 +71,10 @@ TEST(Small_CosineScheduleSection, TheWriterStatesTheTypeAndEveryKey)
     };
 
     EXPECT_EQ(require_value(read("type").as_string("type")), K_COSINE_SCHEDULE_TYPE);
-    EXPECT_DOUBLE_EQ(require_value(read("base_rate").as_real("base_rate")), 0.5);
+    EXPECT_EQ(require_value(read("base_rate").as_real("base_rate")), 0.5);
     EXPECT_EQ(require_value(read("warmup_iterations").as_int("warmup_iterations")), 2);
     EXPECT_EQ(require_value(read("total_iterations").as_int("total_iterations")), 10);
-    EXPECT_DOUBLE_EQ(require_value(read("final_rate").as_real("final_rate")), 0.25);
+    EXPECT_EQ(require_value(read("final_rate").as_real("final_rate")), 0.25);
 }
 
 /** @brief Tests that a section whose type the caller took out is read like a full one. */
@@ -85,9 +85,9 @@ TEST(Small_CosineScheduleSection, ASectionWithoutItsTypeIsRead)
         read_cosine_schedule_section(
             section_from(R"({"base_rate": 0.5, "total_iterations": 10, "final_rate": 0.25})")));
 
-    EXPECT_DOUBLE_EQ(read.base_rate, 0.5);
+    EXPECT_EQ(read.base_rate, 0.5);
     EXPECT_EQ(read.total_iterations, 10);
-    EXPECT_DOUBLE_EQ(read.final_rate, 0.25);
+    EXPECT_EQ(read.final_rate, 0.25);
 }
 
 /** @brief Tests that the writer refuses a schedule the schedule check refuses. */

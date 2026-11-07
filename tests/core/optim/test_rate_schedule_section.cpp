@@ -68,7 +68,7 @@ TEST(Small_RateScheduleSection, AStepScheduleIsWrittenAsStep)
     EXPECT_EQ(require_value(require_value(written.at("type", "section")).as_string("type")),
               "step");
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(read));
-    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(read).base_rate, 0.5);
+    EXPECT_EQ(std::get<StepSchedule>(read).base_rate, 0.5);
     EXPECT_EQ(std::get<StepSchedule>(read).steps.size(), 1u);
 }
 

@@ -113,17 +113,20 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the default schedule reads back from its section unchanged. */
-TEST(Small_StepScheduleSection, TheDefaultsRoundTripThroughTheirSection)
+/** @brief Runs the round trip over the schedules of its rows. */
+class Small_StepScheduleSectionRoundTrip : public ::testing::TestWithParam<StepSchedule>
 {
-    expect_schedule_round_trip(StepSchedule{});
+
+};
+
+/** @brief Tests that a schedule reads back from its section unchanged. */
+TEST_P(Small_StepScheduleSectionRoundTrip, AScheduleRoundTripsThroughItsSection)
+{
+    expect_schedule_round_trip(GetParam());
 }
 
-/** @brief Tests that a warm-up and two steps read back from their section unchanged. */
-TEST(Small_StepScheduleSection, AWarmupAndTwoStepsRoundTripThroughTheirSection)
-{
-    expect_schedule_round_trip(make_two_step_schedule());
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_StepScheduleSectionRoundTrip,
+                         ::testing::Values(StepSchedule{}, make_two_step_schedule()));
 
 /** @brief Tests that a section stating every key is written back as it was read. */
 TEST(Small_StepScheduleSection, AFullSectionRoundTripsThroughItsSchedule)
@@ -191,16 +194,31 @@ TEST(Small_StepScheduleSection, WritesTheTypeAndEveryKeyInOrder)
     EXPECT_EQ(require_value(steps[1].as_int("step")), 450000);
 }
 
-/** @brief Tests that a whole number is read where the section holds a real. */
-TEST(Small_StepScheduleSection, ReadsAWholeNumberAsARateAPowerAndAScale)
+/** @brief Tests that a whole number is read as the base rate. */
+TEST(Small_StepScheduleSection, ReadsAWholeNumberAsTheBaseRate)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const StepSchedule schedule,
+                            read_step_schedule_section(section_from(R"({"base_rate": 1})")));
+
+    EXPECT_EQ(schedule.base_rate, 1.0);
+}
+
+/** @brief Tests that a whole number is read as the warm-up power. */
+TEST(Small_StepScheduleSection, ReadsAWholeNumberAsTheWarmupPower)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const StepSchedule schedule,
+                            read_step_schedule_section(section_from(R"({"warmup_power": 2})")));
+
+    EXPECT_EQ(schedule.warmup_power, 2.0);
+}
+
+/** @brief Tests that a whole number is read as a scale. */
+TEST(Small_StepScheduleSection, ReadsAWholeNumberAsAScale)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const StepSchedule schedule,
-        read_step_schedule_section(section_from(
-            R"({"base_rate": 1, "warmup_power": 2, "steps": [10], "scales": [3]})")));
+        read_step_schedule_section(section_from(R"({"steps": [10], "scales": [3]})")));
 
-    EXPECT_EQ(schedule.base_rate, 1.0);
-    EXPECT_EQ(schedule.warmup_power, 2.0);
     EXPECT_EQ(schedule.scales, (std::vector<double>{3.0}));
 }
 

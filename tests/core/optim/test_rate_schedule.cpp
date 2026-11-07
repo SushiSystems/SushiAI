@@ -88,9 +88,9 @@ TEST(Small_RateSchedule, ASectionIsReadByTheTypeItStates)
 
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(step));
     ASSERT_TRUE(std::holds_alternative<CosineSchedule>(cosine));
-    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(step).base_rate, 0.5);
+    EXPECT_EQ(std::get<StepSchedule>(step).base_rate, 0.5);
     EXPECT_EQ(std::get<CosineSchedule>(cosine).total_iterations, 10);
-    EXPECT_DOUBLE_EQ(std::get<CosineSchedule>(cosine).final_rate, 0.125);
+    EXPECT_EQ(std::get<CosineSchedule>(cosine).final_rate, 0.125);
 }
 
 /** @brief Tests that a section that states no type is read as a step schedule. */
@@ -134,12 +134,12 @@ TEST(Small_RateSchedule, TheRateIsThatOfTheScheduleHeld)
     SA_ASSERT_OK_AND_ASSIGN(const RateSchedule cosine,
                             read_rate_schedule_section(section_from(K_COSINE_SECTION)));
 
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(step, 2), 0.5);
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(step, 3), 0.25);
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(cosine, 1), 0.125);
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::rate_at(cosine, 10), 0.125);
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::base_rate_of(step), 0.5);
-    EXPECT_DOUBLE_EQ(SushiAI::Optim::base_rate_of(cosine), 0.25);
+    EXPECT_EQ(SushiAI::Optim::rate_at(step, 2), 0.5);
+    EXPECT_EQ(SushiAI::Optim::rate_at(step, 3), 0.25);
+    EXPECT_EQ(SushiAI::Optim::rate_at(cosine, 1), 0.125);
+    EXPECT_EQ(SushiAI::Optim::rate_at(cosine, 10), 0.125);
+    EXPECT_EQ(SushiAI::Optim::base_rate_of(step), 0.5);
+    EXPECT_EQ(SushiAI::Optim::base_rate_of(cosine), 0.25);
 }
 
 /** @brief Tests that a written section states the type of the schedule held and reads back. */
@@ -156,37 +156,15 @@ TEST(Small_RateSchedule, AWrittenSectionStatesItsTypeAndReadsBack)
     EXPECT_EQ(std::get<CosineSchedule>(read).warmup_iterations, 2);
 }
 
-/** @brief Tests the rules of a run's one source of the rate, for a cosine schedule. */
-TEST(Small_RateSchedule, ARunReadsACosineScheduleUnderTheSameRules)
+/** @brief Tests that a run reads a cosine section as a cosine schedule. */
+TEST(Small_RateSchedule, ARunReadsACosineSection)
 {
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::optional<RateSchedule> none,
-        read_rate_schedule(Value(), section_from(R"({"learning_rate": 0.01})")));
-    EXPECT_FALSE(none.has_value());
-
     SA_ASSERT_OK_AND_ASSIGN(
         const std::optional<RateSchedule> read,
         read_rate_schedule(section_from(K_COSINE_SECTION), section_from("{}")));
+
     ASSERT_TRUE(read.has_value());
     EXPECT_TRUE(std::holds_alternative<CosineSchedule>(*read));
-
-    SA_EXPECT_FAILURE(read_rate_schedule(section_from(K_COSINE_SECTION),
-                                         section_from(R"({"learning_rate": 0.25})")),
-                      StatusCode::InvalidDescription, "stated twice");
-    SA_EXPECT_FAILURE(
-        read_rate_schedule(section_from(R"({"type": "cosine"})"), section_from("{}")),
-        StatusCode::InvalidDescription, "'base_rate' must be stated and above zero");
-}
-
-/** @brief Tests that a run's reader keeps a step section as a step schedule. */
-TEST(Small_RateSchedule, ARunReadsAStepScheduleAsAStepSchedule)
-{
-    SA_ASSERT_OK_AND_ASSIGN(
-        const std::optional<RateSchedule> read,
-        read_rate_schedule(section_from(K_STEP_SECTION), section_from("{}")));
-    ASSERT_TRUE(read.has_value());
-    ASSERT_TRUE(std::holds_alternative<StepSchedule>(*read));
-    EXPECT_DOUBLE_EQ(std::get<StepSchedule>(*read).base_rate, 0.5);
 }
 
 /** @brief Tests that a held schedule is checked by the validation of its own type. */

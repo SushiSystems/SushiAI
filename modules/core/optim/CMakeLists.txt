@@ -18,6 +18,7 @@ sushiai_add_module(NAME optim TIER core
         source/rate_schedule.cpp
         source/rate_schedule_section.cpp
         source/run_schedule.cpp
+        source/run_state.cpp
         source/sgd.cpp
         source/step_scalars.cpp
         source/step_schedule.cpp

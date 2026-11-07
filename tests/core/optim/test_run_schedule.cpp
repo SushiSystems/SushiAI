@@ -85,7 +85,7 @@ TEST(Small_RunSchedule, AScheduleIsReadWhenTheOptimizerStatesNoRate)
     ASSERT_TRUE(schedule.has_value());
     ASSERT_TRUE(std::holds_alternative<StepSchedule>(*schedule));
     const StepSchedule& step = std::get<StepSchedule>(*schedule);
-    EXPECT_DOUBLE_EQ(step.base_rate, 0.00261);
+    EXPECT_EQ(step.base_rate, 0.00261);
     EXPECT_EQ(step.warmup_iterations, 1000);
     ASSERT_EQ(step.steps.size(), 1u);
     EXPECT_EQ(step.steps[0], 400000);
