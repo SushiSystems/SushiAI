@@ -116,8 +116,7 @@ namespace SushiAI
                        StatusCode::InvalidDescription,
                        "A gradient clip folds float32 or float64 norms; the gradients are {}",
                        dtype_name(dtype));
-            SA_FAIL_IF(!is_usable_norm(max_norm), StatusCode::InvalidDescription,
-                       "A clip norm must be positive and finite; got {}", max_norm);
+            SA_TRY(check_clip_norm(max_norm));
 
             const std::size_t element = dtype_size(dtype);
             SA_TRY_ASSIGN(auto arena, allocate_arena(engine, (gradient_count + 1) * element));
@@ -210,6 +209,22 @@ namespace SushiAI
             values[K_INVERSE_LOSS_SCALE] = inverse_loss_scale;
 
             scalars_.write(SushiRuntime::span<const float>(values.data(), values.size()));
+        }
+
+        Status check_clip_norm(double max_norm) noexcept
+        {
+            SA_FAIL_IF(!is_usable_norm(max_norm), StatusCode::InvalidDescription,
+                       "A clip norm must be positive and finite; got {}", max_norm);
+            return Status();
+        }
+
+        Status check_clip_kernel(bool replay_invariant) noexcept
+        {
+            SA_FAIL_IF(!replay_invariant, StatusCode::InvalidDescription,
+                       "This optimizer records its update as separate operations, which bake "
+                       "their scalars in when recorded and cannot read a factor the device "
+                       "computes. Use Optim::UpdateKernel::Fused with a clip norm.");
+            return Status();
         }
 
         void GradientClip::set_max_norm(double max_norm) noexcept

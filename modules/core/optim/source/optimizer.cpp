@@ -235,10 +235,7 @@ namespace SushiAI
             SA_FATAL_IF(in_compiled_step_,
                         "This optimizer's update is already recorded into a compiled step; a "
                         "gradient clip adds tasks to that recording, so it is enabled first");
-            SA_FAIL_IF(!is_replay_invariant(), StatusCode::InvalidDescription,
-                       "This optimizer records its update as separate operations, which bake "
-                       "their scalars in when recorded and cannot read a factor the device "
-                       "computes. Use Optim::UpdateKernel::Fused with a clip norm.");
+            SA_TRY(check_clip_kernel(is_replay_invariant()));
             SA_FAIL_IF(parameters_.empty(), StatusCode::InvalidDescription,
                        "A clip norm needs at least one parameter to take a gradient norm over");
 

@@ -28,7 +28,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/optim/apply_step_schedule.hpp` | `apply_step_schedule`, over one schedule type and over a `RateSchedule` |
 | `SushiAI/optim/cosine_schedule.hpp` | `CosineSchedule`, `validate_cosine_schedule` |
 | `SushiAI/optim/cosine_schedule_section.hpp` | `K_COSINE_SCHEDULE_TYPE`, `read_cosine_schedule_section`, `write_cosine_schedule_section` |
-| `SushiAI/optim/gradient_clip.hpp` | `GradientClip` |
+| `SushiAI/optim/gradient_clip.hpp` | `check_clip_norm`, `check_clip_kernel`, `GradientClip` |
 | `SushiAI/optim/loss_scaler.hpp` | `LossScaleOptions`, `LossScaleState`, `LossScaler` |
 | `SushiAI/optim/optimizer.hpp` | `UpdateKernel`, `ParameterSlot`, `validate_slots`, `Optimizer` |
 | `SushiAI/optim/optimizer_registry.hpp` | `OptimizerFactory`, `OptimizerEntry`, `K_OPTIMIZER_REGISTRY`, `make_adamw`, `make_sgd`, `make_optimizer` |
@@ -215,7 +215,7 @@ separate-kernel optimizer refuses a clip, and so do gradients of more than one e
 A training file states the norm as `optimizer.clip_norm`; the key left out means no clip.
 `GradientClip::applied_scale()` reads the factor of the last update. The folding task squares
 each gradient's norm, so a norm above the square root of the largest float gives a factor of 0.
-`tests/core/optim/test_gradient_clip.cpp` covers both optimizers, the task count and the key.
+`tests/core/optim/test_gradient_clip.cpp` covers both optimizers, the checks of the norm and the kernel, and the key.
 
 The folding task is recorded as `sushiai.optim.clip_scale`. Its identity is
 `Ops::K_CLIP_SCALE`, a row of `Ops::K_ALL` listed in `Graph::K_UNLOWERED` beside the two

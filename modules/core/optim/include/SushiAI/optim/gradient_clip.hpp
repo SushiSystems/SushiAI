@@ -43,6 +43,21 @@ namespace SushiAI
     namespace Optim
     {
         /**
+         * @brief Checks that @p max_norm is a norm a gradient can be clipped to.
+         * @return Success, or InvalidDescription for a norm that is not positive and finite.
+         */
+        [[nodiscard]] Status check_clip_norm(double max_norm) noexcept;
+
+        /**
+         * @brief Checks that an update recorded as @p replay_invariant can carry a clip.
+         * @param replay_invariant Whether the optimizer's update reads its scalars from the
+         *        device on every replay, as the fused kernel does.
+         * @return Success, or InvalidDescription for a separate kernel, which bakes its
+         *         scalars in when recorded and cannot read the factor the device computes.
+         */
+        [[nodiscard]] Status check_clip_kernel(bool replay_invariant) noexcept;
+
+        /**
          * @brief Computes, on the device, the factor that brings a step's gradients to a
          *        global norm of at most max_norm().
          *
