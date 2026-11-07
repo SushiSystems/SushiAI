@@ -104,19 +104,21 @@ namespace SushiAI
 
         } // namespace
 
-        RegionExecutor::LiveRegion::LiveRegion(SushiBLAS::Engine& engine, RegionID region,
-                                               RegionProgram compiled, SharedStorage placed,
+        RegionExecutor::LiveRegion::LiveRegion(ExecutionBackend& backend, RuntimeAccess& runtime,
+                                               RegionID region, RegionProgram compiled,
+                                               SharedStorage placed,
                                                const Graph::FusionSelector* selector)
-            : id(region), program(std::move(compiled)), shared(std::move(placed)), pool(engine),
-              emitter(engine, program, pool, selector, region)
+            : id(region), program(std::move(compiled)), shared(std::move(placed)), pool(backend.engine()),
+              emitter(backend, runtime, program, pool, selector, region)
         {
 
         }
 
-        RegionExecutor::RegionExecutor(SushiBLAS::Engine& engine,
+        RegionExecutor::RegionExecutor(ExecutionBackend& backend, RuntimeAccess& runtime,
                                        const Graph::FusionSelector* selector) noexcept
-            : engine_(&engine), selector_(selector), trailing_counts_(engine.runtime()),
-              graph_(engine.runtime().dynamic_graph())
+            : backend_(&backend), runtime_(&runtime), selector_(selector),
+              trailing_counts_(runtime.runtime()),
+              graph_(runtime.runtime().dynamic_graph())
         {
             graph_.set_label(std::string(K_GRAPH_LABEL));
         }
@@ -200,7 +202,8 @@ namespace SushiAI
                           ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
                                                          [&]()
             {
-                return std::make_unique<LiveRegion>(*engine_, order.id, std::move(program),
+                return std::make_unique<LiveRegion>(*backend_, *runtime_, order.id,
+                                                    std::move(program),
                                                     std::move(shared), selector_);
             }));
 
@@ -221,7 +224,7 @@ namespace SushiAI
             }));
 
             SA_TRY(listed->emitter.emit(target->recorder()));
-            return listed->pool.flush_constants();
+            return listed->pool.flush_constants(*backend_);
         }
 
         Status RegionExecutor::record_trailing(const StepWork& work)
@@ -245,8 +248,8 @@ namespace SushiAI
 
             // A recording reached here replaces the trailing one retire() dropped, or the first.
             trailing_counts_.release();
-            SushiBLAS::TaskRecorder tasks(target->recorder(), engine_->scratch_pool(),
-                                          trailing_counts_, engine_->mode());
+            SushiBLAS::TaskRecorder tasks(target->recorder(), backend_->engine().scratch_pool(),
+                                          trailing_counts_, backend_->engine().mode());
             const Graph::StepRecording recording(tasks, target->recorder());
             const SushiBLAS::TaskRecorder::OriginScope origin = tasks.origin(K_TRAILING_ORIGIN);
             SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(recording));

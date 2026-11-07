@@ -123,9 +123,13 @@ namespace SushiAI
 
         Result<TrainingOutcome> run_training_file(std::string_view origin,
                                                   const Config::TrainSpec& spec,
-                                                  RuntimeExecutionBackend& backend)
+                                                  ExecutionBackend& backend,
+                                                  RuntimeAccess* runtime)
         {
             SA_TRY(Config::check_start(spec, origin));
+            SA_FAIL_IF(!spec.cluster.is_null() && runtime == nullptr, StatusCode::Unsupported,
+                       "the training file has a 'cluster' section, and the backend of this run "
+                       "has no runtime to attach the cluster to");
             SA_TRY(prepare_checkpoint_folder(spec));
             SA_TRY_ASSIGN(const Config::ModelSpec model_spec,
                           Config::load_model(spec.model_path));
@@ -190,7 +194,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const RunSummary summary,
                           spec.cluster.is_null()
                               ? run_training(registries.runs, spec.objective_type, prepared)
-                              : run_cluster_training(prepared, slots, backend.runtime()));
+                              : run_cluster_training(prepared, slots, *runtime));
 
             // CTest pins this line's shape, as in `sa demo mlp`; see the programs README.
             std::cout << SushiLog::format_text("\ncompiles: {}\n", summary.compile_count);

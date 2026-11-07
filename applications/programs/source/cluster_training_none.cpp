@@ -45,7 +45,7 @@ namespace SushiAI
 
         Result<RunSummary> run_cluster_training(PreparedRun&,
                                                 SushiRuntime::span<const Optim::ParameterSlot>,
-                                                SushiRuntime::Runtime&)
+                                                RuntimeAccess&)
         {
             SA_FAIL_IF(true, StatusCode::Unsupported,
                        "this build has no distributed layer; build it with "

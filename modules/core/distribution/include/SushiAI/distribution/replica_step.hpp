@@ -38,6 +38,7 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_model.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
@@ -131,11 +132,12 @@ namespace SushiAI
 
             private:
                 /**
-                 * @brief Takes the runtime, the engine built on it and the model built on the
-                 *        engine; make() adds the step.
+                 * @brief Takes the runtime, the engine built on it, the backend over both and the
+                 *        model built on the backend; make() adds the step.
                  */
                 ReplicaStep(std::unique_ptr<SushiRuntime::Runtime> runtime,
                             std::unique_ptr<SushiBLAS::Engine> engine,
+                            std::unique_ptr<RuntimeExecutionBackend> backend,
                             std::unique_ptr<ReplicaModel> model,
                             SushiBLAS::PackLayout parameter_layout,
                             SushiBLAS::PackLayout result_layout, const ReplicaDraws& draws);
@@ -145,6 +147,9 @@ namespace SushiAI
 
                 /// @brief The engine over runtime_ the model and the step record on.
                 std::unique_ptr<SushiBLAS::Engine> engine_;
+
+                /// @brief The backend over runtime_ and engine_ the model and the step record on.
+                std::unique_ptr<RuntimeExecutionBackend> backend_;
 
                 /// @brief The model, its pool and its feed; dies after step_.
                 std::unique_ptr<ReplicaModel> model_;

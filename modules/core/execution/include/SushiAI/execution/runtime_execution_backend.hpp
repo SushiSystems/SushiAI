@@ -35,6 +35,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 
 namespace SushiAI
 {
@@ -43,7 +44,7 @@ namespace SushiAI
      * @brief Borrows a runtime and an engine built on it, and records each StepTasks on a graph
      *        of that runtime.
      */
-    class RuntimeExecutionBackend final : public ExecutionBackend
+    class RuntimeExecutionBackend final : public ExecutionBackend, public RuntimeAccess
     {
         public:
             /**
@@ -77,7 +78,7 @@ namespace SushiAI
             }
 
             /** @brief Returns the borrowed runtime, for the adapters that exist only on one. */
-            [[nodiscard]] SushiRuntime::Runtime& runtime() noexcept
+            [[nodiscard]] SushiRuntime::Runtime& runtime() noexcept override
             {
                 return *runtime_;
             }

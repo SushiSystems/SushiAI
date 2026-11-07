@@ -52,6 +52,7 @@
 #include <SushiAI/distribution/gradient_exchange.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
@@ -161,6 +162,7 @@ namespace
             [&](Distributed::KernelRegistry& kernels) { worker_kernel->register_with(kernels); });
 
         SushiBLAS::Engine engine(machines.master_runtime());
+        SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
         std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, K_BATCH_ROWS).value();
         LinearModel& model = static_cast<LinearModel&>(*built);
         model.fill_parameters();
@@ -170,7 +172,7 @@ namespace
         std::vector<SushiBLAS::Tensor> published(parameters.begin(), parameters.end());
         std::vector<SushiBLAS::Tensor> targets(results.begin(), results.end());
         std::unique_ptr<ParameterPublish> publish =
-            ParameterPublish::make(engine, machines.binding(), master_kernel->parameter_layout(),
+            ParameterPublish::make(backend, machines.binding(), master_kernel->parameter_layout(),
                                    std::move(published)).value();
 
         ExchangeRun run;
@@ -179,7 +181,7 @@ namespace
         run.run_index = K_RUN;
         run.batches_per_epoch = K_BATCHES_PER_EPOCH;
         std::unique_ptr<GradientExchange> exchange =
-            GradientExchange::make(engine, machines.binding(), section.plan(), run,
+            GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
                                    publish->pack(), master_kernel->result_layout(),
                                    std::move(targets)).value();
 
@@ -188,7 +190,7 @@ namespace
         SA_EXPECT_OK(trailing.add(*publish));
         const Graph::Graph empty;
         std::unique_ptr<Graph::CompiledStep> step =
-            Graph::CompiledStep::compile(engine, empty, model.pool(), &trailing).value();
+            Graph::CompiledStep::compile(backend, empty, model.pool(), &trailing).value();
         // The position gather, two replicas, one float32 segment, the scatter, the publish.
         EXPECT_EQ(step->operation_count(), 6u);
 
@@ -414,6 +416,7 @@ namespace
         };
         TwoMachines machines(section, setup, setup);
         SushiBLAS::Engine engine(machines.master_runtime());
+        SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
 
         std::vector<SushiBLAS::Tensor> targets;
         for (const DType dtype : types)
@@ -423,7 +426,7 @@ namespace
         const SushiBLAS::PackLayout parameter_layout =
             SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
         std::unique_ptr<ParameterPublish> publish =
-            ParameterPublish::make(engine, machines.binding(), parameter_layout, {parameter})
+            ParameterPublish::make(backend, machines.binding(), parameter_layout, {parameter})
                 .value();
 
         ExchangeRun run;
@@ -431,14 +434,14 @@ namespace
         run.seed = K_SEED;
         run.run_index = K_RUN;
         std::unique_ptr<GradientExchange> exchange =
-            GradientExchange::make(engine, machines.binding(), section.plan(), run,
+            GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
                                    publish->pack(), layout, targets)
                 .value();
 
         const Graph::Graph empty;
         Graph::TensorPool pool(engine);
         std::unique_ptr<Graph::CompiledStep> step =
-            Graph::CompiledStep::compile(engine, empty, pool, exchange.get()).value();
+            Graph::CompiledStep::compile(backend, empty, pool, exchange.get()).value();
 
         TypedExchange exchanged;
         exchanged.ran = step->run().is_ok();
@@ -538,17 +541,18 @@ TEST(Medium_GradientExchange, MakeRefusesTargetsThatDifferFromTheResultLayout)
         section, [&](Distributed::KernelRegistry& kernels) { kernel->register_with(kernels); },
         [&](Distributed::KernelRegistry& kernels) { kernel->register_with(kernels); });
     SushiBLAS::Engine engine(machines.master_runtime());
+    SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
 
     std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, K_BATCH_ROWS).value();
     const SushiRuntime::span<const SushiBLAS::Tensor> parameters = built->parameters();
     const std::vector<SushiBLAS::Tensor> listed(parameters.begin(), parameters.end());
     std::unique_ptr<ParameterPublish> publish =
-        ParameterPublish::make(engine, machines.binding(), kernel->parameter_layout(), listed)
+        ParameterPublish::make(backend, machines.binding(), kernel->parameter_layout(), listed)
             .value();
 
     ExchangeRun run;
     run.operation = kernel->operation();
-    SA_EXPECT_FAILURE(GradientExchange::make(engine, machines.binding(), section.plan(), run,
+    SA_EXPECT_FAILURE(GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
                                              publish->pack(), kernel->result_layout(),
                                              listed),
                       StatusCode::InvalidDescription);
@@ -561,6 +565,7 @@ TEST(Medium_GradientExchange, MakeRefusesAUInt32Result)
     TwoMachines machines(section, [](Distributed::KernelRegistry&) {},
                          [](Distributed::KernelRegistry&) {});
     SushiBLAS::Engine engine(machines.master_runtime());
+    SushiAI::RuntimeExecutionBackend backend(machines.master_runtime(), engine);
 
     const std::vector<SushiBLAS::Tensor> targets = {
         allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, DType::Float32).value(),
@@ -571,11 +576,11 @@ TEST(Medium_GradientExchange, MakeRefusesAUInt32Result)
     const SushiBLAS::PackLayout parameter_layout =
         SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
     std::unique_ptr<ParameterPublish> publish =
-        ParameterPublish::make(engine, machines.binding(), parameter_layout, {parameter}).value();
+        ParameterPublish::make(backend, machines.binding(), parameter_layout, {parameter}).value();
 
     ExchangeRun run;
     run.operation = SushiBLAS::remote_operation("sushiai.test.uint32", layout.fingerprint());
-    SA_EXPECT_FAILURE(GradientExchange::make(engine, machines.binding(), section.plan(), run,
+    SA_EXPECT_FAILURE(GradientExchange::make(backend, backend, machines.binding(), section.plan(), run,
                                              publish->pack(), layout, targets),
                       StatusCode::Unsupported, "Target 1 is uint32");
 }

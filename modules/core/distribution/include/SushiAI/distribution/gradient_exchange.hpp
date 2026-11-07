@@ -46,6 +46,8 @@
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
@@ -82,15 +84,15 @@ namespace SushiAI
             public:
                 /**
                  * @brief Allocates and shares the position pack and the result packs.
-                 * @param targets One contiguous tensor per entry of @p result_layout, in order, on
-                 *        the device of @p parameters; @p binding and @p parameters outlive it.
-                 * @return The exchange; InvalidDescription for an unshared parameter pack, no
-                 *         batch, too many replicas, a target unlike its entry or on another
-                 *         device; Unsupported for a uint32 target, as no gradient is unsigned.
+                 * @param backend Allocates the position tensor.
+                 * @param runtime Gives the packs and the placement scopes.
+                 * @param targets One contiguous tensor per entry of @p result_layout, on the
+                 *        device of @p parameters; @p binding and @p parameters outlive it.
+                 * @return The exchange; InvalidDescription for a bad argument; Unsupported for uint32.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<GradientExchange>> make(
-                    SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
-                    const ReplicaPlan& plan, const ExchangeRun& run,
+                    ExecutionBackend& backend, RuntimeAccess& runtime,
+                    SushiBLAS::ClusterBinding& binding, const ReplicaPlan& plan, const ExchangeRun& run,
                     const SushiBLAS::TensorPack& parameters,
                     const SushiBLAS::PackLayout& result_layout,
                     std::vector<SushiBLAS::Tensor> targets) noexcept;
@@ -136,7 +138,7 @@ namespace SushiAI
                 struct Parts;
 
                 /** @brief Takes what make() built. */
-                GradientExchange(SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
+                GradientExchange(RuntimeAccess& runtime, SushiBLAS::ClusterBinding& binding,
                                  const SushiBLAS::TensorPack& parameters, Parts parts) noexcept;
 
                 /** @brief Records the replica tasks, each inside its placement scope. */
@@ -145,8 +147,8 @@ namespace SushiAI
                 /** @brief Records one ordered sum per filled segment over the result packs. */
                 void record_sums(SushiBLAS::TaskRecorder& tasks);
 
-                /// @brief The engine whose runtime gives the placement scopes.
-                SushiBLAS::Engine* engine_;
+                /// @brief The runtime that gives the placement scopes.
+                RuntimeAccess* runtime_;
 
                 /// @brief The binding the packs are shared through.
                 SushiBLAS::ClusterBinding* binding_;

@@ -90,9 +90,9 @@ namespace
     /** @brief Plans host-traced steps and hands them to an executor, as a session does. */
     struct Harness
     {
-        /** @brief Builds the storage, the table and the executor on @p engine. */
-        explicit Harness(SushiBLAS::Engine& engine)
-            : bank(engine), table(ids), executor(engine)
+        /** @brief Builds the storage, the table and the executor on @p backend. */
+        explicit Harness(RuntimeExecutionBackend& backend)
+            : bank(backend.engine()), table(ids), executor(backend, backend)
         {
 
         }
@@ -304,7 +304,7 @@ namespace
 /** @brief Tests that a built step writes the value the caller observes. */
 TEST_F(Medium_RegionExecutor, ABuiltStepWritesItsObservedValue)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const Support::TracedStep step = Support::linear_then_relu(false);
 
     SA_EXPECT_OK(harness.run(step));
@@ -319,7 +319,7 @@ TEST_F(Medium_RegionExecutor, ABuiltStepWritesItsObservedValue)
 /** @brief Tests that a kept step reads the storage its kernels were recorded with. */
 TEST_F(Medium_RegionExecutor, AKeptStepFollowsTheInputItsKernelsRead)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     std::size_t allocated = 0;
 
     const Support::TracedStep again = run_kept_step_again(harness, allocated);
@@ -330,7 +330,7 @@ TEST_F(Medium_RegionExecutor, AKeptStepFollowsTheInputItsKernelsRead)
 /** @brief Tests that a kept step is neither composed nor recorded again. */
 TEST_F(Medium_RegionExecutor, AKeptStepIsNeitherComposedNorRecordedAgain)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     std::size_t allocated = 0;
 
     (void)run_kept_step_again(harness, allocated);
@@ -342,7 +342,7 @@ TEST_F(Medium_RegionExecutor, AKeptStepIsNeitherComposedNorRecordedAgain)
 /** @brief Tests that a kept step allocates no pool byte. */
 TEST_F(Medium_RegionExecutor, AKeptStepAllocatesNoPoolByte)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     std::size_t allocated = 0;
 
     (void)run_kept_step_again(harness, allocated);
@@ -353,7 +353,7 @@ TEST_F(Medium_RegionExecutor, AKeptStepAllocatesNoPoolByte)
 /** @brief Tests that two regions give the result of one, so the lower key ran first. */
 TEST_F(Medium_RegionExecutor, TwoRegionsRunInKeyOrder)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const Support::TracedStep step = Support::linear_then_relu(true);
 
     SA_EXPECT_OK(harness.run(step));
@@ -367,7 +367,7 @@ TEST_F(Medium_RegionExecutor, TwoRegionsRunInKeyOrder)
 /** @brief Tests that a region recorded under another key keeps its program under the new key. */
 TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const BuiltRegion built = run_then_rekey(harness, Support::linear_then_relu(false));
 
     EXPECT_EQ(harness.executor.program_of(built.order.key), nullptr);
@@ -378,7 +378,7 @@ TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsProgram)
 /** @brief Tests that a region recorded under another key is lowered and composed again. */
 TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyIsLoweredAndComposedAgain)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const BuiltRegion built = run_then_rekey(harness, Support::linear_then_relu(false));
 
     EXPECT_EQ(harness.executor.emit_count(built.order.id), 2u);
@@ -388,7 +388,7 @@ TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyIsLoweredAndComposed
 /** @brief Tests that a region recorded under another key still writes the host result. */
 TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsResult)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const Support::TracedStep step = Support::linear_then_relu(false);
 
     (void)run_then_rekey(harness, step);
@@ -399,7 +399,7 @@ TEST_F(Medium_RegionExecutor, ARegionRecordedUnderAnotherKeyKeepsItsResult)
 /** @brief Tests that the step which joins two regions drops the one that left. */
 TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     SA_EXPECT_OK(harness.run(Support::linear_then_relu(true)));
     ASSERT_EQ(harness.executor.region_count(), 2u);
 
@@ -414,7 +414,7 @@ TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
 /** @brief Tests that the trailing work is recorded once and replayed on every run. */
 TEST_F(Medium_RegionExecutor, TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     Graph::InMemoryStepRecorder update;
 
     run_with_trailing(harness, update);
@@ -432,7 +432,7 @@ TEST_F(Medium_RegionExecutor, TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun
 /** @brief Tests that the trailing work runs behind every region of the step. */
 TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegion)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     const Support::TracedStep step = Support::linear_then_relu(false);
     SA_ASSERT_OK_AND_ASSIGN(StepWork work, harness.prepare(step));
 
@@ -454,7 +454,7 @@ TEST_F(Medium_RegionExecutor, TheTrailingWorkRunsBehindEveryRegion)
 /** @brief Tests that a late trailing task replays after the recorder that made it is gone. */
 TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     SushiBLAS::Tensor out = engine->create_tensor({4}, SushiBLAS::Core::DataType::Float32);
     SaTest::write_tensor(out, std::vector<double>(4, 0.0));
     SushiBLAS::Tensor count = engine->create_tensor({1}, SushiBLAS::Core::DataType::Int32,
@@ -473,7 +473,7 @@ TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
 /** @brief Tests that discard() drops every region the executor holds. */
 TEST_F(Medium_RegionExecutor, DiscardDropsEveryRegion)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
 
     SA_EXPECT_OK(harness.executor.discard());
@@ -484,7 +484,7 @@ TEST_F(Medium_RegionExecutor, DiscardDropsEveryRegion)
 /** @brief Tests that a Keep planned after discard() is refused with InvalidDescription. */
 TEST_F(Medium_RegionExecutor, AKeptRegionAfterDiscardIsRefused)
 {
-    Harness harness(*engine);
+    Harness harness(backend());
     SA_EXPECT_OK(harness.run(Support::linear_then_relu(false)));
     SA_EXPECT_OK(harness.executor.discard());
 

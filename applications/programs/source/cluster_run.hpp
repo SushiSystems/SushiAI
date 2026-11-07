@@ -34,6 +34,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/distribution/cluster_section.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/optim/optimizer.hpp>
 
@@ -51,6 +52,9 @@ namespace SushiAI
         {
             /** @brief What every run of `sushiai train` takes; the step moves its updates. */
             PreparedRun& prepared;
+
+            /** @brief The runtime the prepared run's backend runs on; the packs live on it. */
+            RuntimeAccess& runtime;
 
             /** @brief Each parameter with its gradient, as bind_parameters() returned them. */
             SushiRuntime::span<const Optim::ParameterSlot> parameters;

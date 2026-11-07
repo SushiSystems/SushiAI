@@ -147,8 +147,8 @@ namespace SushiAI
         } // namespace
 
         Result<std::unique_ptr<GradientExchange>> GradientExchange::make(
-            SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
-            const ReplicaPlan& plan, const ExchangeRun& run,
+            ExecutionBackend& backend, RuntimeAccess& runtime,
+            SushiBLAS::ClusterBinding& binding, const ReplicaPlan& plan, const ExchangeRun& run,
             const SushiBLAS::TensorPack& parameters, const SushiBLAS::PackLayout& result_layout,
             std::vector<SushiBLAS::Tensor> targets) noexcept
         {
@@ -159,7 +159,7 @@ namespace SushiAI
             parts.run = run;
             const std::int64_t position_extent[1] = {3};
             SA_TRY_ASSIGN(parts.position,
-                          allocate_tensor(engine,
+                          allocate_tensor(backend.engine(),
                                           SushiRuntime::span<const std::int64_t>(position_extent,
                                                                                  1),
                                           SushiBLAS::Core::DataType::Int64));
@@ -172,11 +172,11 @@ namespace SushiAI
                 SA_FATAL_IF(position_layout.entries().front().offset_bytes != 0,
                             "GradientExchange: the position pack starts its words at byte {}",
                             position_layout.entries().front().offset_bytes);
-                parts.position_pack.emplace(engine.runtime(), position_layout,
+                parts.position_pack.emplace(runtime.runtime(), position_layout,
                                             parts.position.storage->device_index());
                 binding.share(*parts.position_pack);
 
-                parts.sum_pack.emplace(engine.runtime(), result_layout,
+                parts.sum_pack.emplace(runtime.runtime(), result_layout,
                                        parameters.device_index());
                 parts.segments = filled_segments(result_layout);
                 parts.result_packs.reserve(replicas);
@@ -185,7 +185,7 @@ namespace SushiAI
                 parts.weights.reserve(replicas);
                 for (std::size_t replica = 0; replica < replicas; ++replica)
                 {
-                    parts.result_packs.emplace_back(engine.runtime(), result_layout,
+                    parts.result_packs.emplace_back(runtime.runtime(), result_layout,
                                                     parameters.device_index());
                     binding.share(parts.result_packs.back());
 
@@ -205,15 +205,15 @@ namespace SushiAI
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
                 return std::unique_ptr<GradientExchange>(
-                    new GradientExchange(engine, binding, parameters, std::move(parts)));
+                    new GradientExchange(runtime, binding, parameters, std::move(parts)));
             });
         }
 
-        GradientExchange::GradientExchange(SushiBLAS::Engine& engine,
+        GradientExchange::GradientExchange(RuntimeAccess& runtime,
                                            SushiBLAS::ClusterBinding& binding,
                                            const SushiBLAS::TensorPack& parameters,
                                            Parts parts) noexcept
-            : engine_(&engine), binding_(&binding), parameters_(&parameters), run_(parts.run),
+            : runtime_(&runtime), binding_(&binding), parameters_(&parameters), run_(parts.run),
               position_(std::move(parts.position)),
               position_pack_(std::move(*parts.position_pack)),
               sum_pack_(std::move(*parts.sum_pack)), result_packs_(std::move(parts.result_packs)),
@@ -267,8 +267,8 @@ namespace SushiAI
 
                 const SushiBLAS::TensorPack* const outputs[1] = {&result_packs_[replica]};
                 const SushiRuntime::PlacementScope scope =
-                    engine_->runtime().placement_scope(K_REPLICA_PLACEMENT_CLASS,
-                                                       static_cast<std::uint64_t>(replica));
+                    runtime_->runtime().placement_scope(K_REPLICA_PLACEMENT_CLASS,
+                                                        static_cast<std::uint64_t>(replica));
                 graph.within(scope, [&](SushiRuntime::Recorder& in_scope)
                 {
                     SushiBLAS::record_remote(

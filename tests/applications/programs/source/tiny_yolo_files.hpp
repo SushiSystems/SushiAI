@@ -101,7 +101,7 @@ namespace SushiAI::Apps::TinyYoloTest
      * @brief Runs `sushiai train` over the fixture through the assembly the program runs.
      * @return The outcome of the run, or the first failure of the setup, the run or the save.
      */
-    inline Result<TrainingOutcome> train_the_fixture(RuntimeExecutionBackend& backend,
+    inline Result<TrainingOutcome> train_the_fixture(ExecutionBackend& backend,
                                                      const std::filesystem::path& checkpoint)
     {
         return run_training_file("<test>", training_spec(checkpoint), backend);

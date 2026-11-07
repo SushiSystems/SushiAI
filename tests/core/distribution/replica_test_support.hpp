@@ -242,9 +242,9 @@ namespace SushiAI::Distribution::Support
     /** @brief Returns a factory that builds LinearModel over a micro-batch of rows. */
     inline ReplicaModelFactory linear_factory()
     {
-        return [](SushiBLAS::Engine& engine, const ReplicaDraws&, std::int64_t rows)
+        return [](ExecutionBackend& backend, const ReplicaDraws&, std::int64_t rows)
         {
-            return LinearModel::make(engine, rows);
+            return LinearModel::make(backend.engine(), rows);
         };
     }
 
@@ -260,12 +260,13 @@ namespace SushiAI::Distribution::Support
             SushiRuntime::Runtime runtime =
                 SushiAI::Detail::create_runtime(replica_runtime_config()).value();
             SushiBLAS::Engine engine(runtime);
+            SushiAI::RuntimeExecutionBackend backend(runtime, engine);
             std::unique_ptr<ReplicaModel> built = LinearModel::make(engine, rows).value();
             LinearModel& model = static_cast<LinearModel&>(*built);
             model.fill_parameters();
 
             std::unique_ptr<Graph::CompiledStep> step =
-                Graph::CompiledStep::compile(engine, model.graph(), model.pool()).value();
+                Graph::CompiledStep::compile(backend, model.graph(), model.pool()).value();
             ReplicaRows fed;
             fed.rows = RowPositions{first, static_cast<std::uint64_t>(rows)};
             SA_EXPECT_OK(model.feed(fed));

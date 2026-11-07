@@ -348,10 +348,10 @@ namespace
     std::unique_ptr<ReplicaKernel> make_dropout_kernel()
     {
         ReplicaPlan plan = ReplicaPlan::make({ReplicaShare{4, 2}}).value();
-        ReplicaModelFactory factory = [](SushiBLAS::Engine& engine, const ReplicaDraws&,
+        ReplicaModelFactory factory = [](ExecutionBackend& backend, const ReplicaDraws&,
                                          std::int64_t)
         {
-            return DropoutModel::make(engine);
+            return DropoutModel::make(backend.engine());
         };
         return ReplicaKernel::make(std::move(plan), std::move(factory),
                                    ReplicaDraws{K_SEED, 0, K_RUN}).value();

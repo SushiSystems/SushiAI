@@ -68,9 +68,9 @@ namespace
     /** @brief Owns a session over the two-layer model on an in-memory executor. */
     struct Rig
     {
-        /** @brief Builds the session on @p engine. */
-        explicit Rig(SushiBLAS::Engine& engine)
-            : session(engine, executor, partitioner), update(K_RATE)
+        /** @brief Builds the session on @p backend. */
+        explicit Rig(SushiAI::RuntimeExecutionBackend& backend)
+            : session(backend, executor, partitioner), update(K_RATE)
         {
 
         }
@@ -109,7 +109,7 @@ namespace
 /** @brief Tests that each step reaches the executor once, numbered by the steps before it. */
 TEST_F(Medium_StepExecutor, EachStepIsOneWorkNumberedByTheStepsBefore)
 {
-    Rig rig(*engine);
+    Rig rig(backend());
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step(false));
@@ -125,7 +125,7 @@ TEST_F(Medium_StepExecutor, EachStepIsOneWorkNumberedByTheStepsBefore)
 /** @brief Tests that an applied update arrives as the trailing work, keyed above every region. */
 TEST_F(Medium_StepExecutor, TheUpdateIsTheTrailingWorkAboveEveryRegion)
 {
-    Rig rig(*engine);
+    Rig rig(backend());
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step(true));
@@ -139,7 +139,7 @@ TEST_F(Medium_StepExecutor, TheUpdateIsTheTrailingWorkAboveEveryRegion)
 /** @brief Tests that a failed run reaches the caller, is discarded and counts no step. */
 TEST_F(Medium_StepExecutor, AFailedRunIsDiscardedAndCountsNoStep)
 {
-    Rig rig(*engine);
+    Rig rig(backend());
     SA_EXPECT_OK(rig.prepare(*engine));
     rig.executor.script_execute(Status::from_message(StatusCode::DeviceFailed, []()
     {

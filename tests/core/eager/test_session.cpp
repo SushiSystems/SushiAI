@@ -123,8 +123,9 @@ namespace
      * @brief Traces the model of K_TWO_LAYERS as trace_model() does and compiles it once.
      * @return The compiled step with the same initial numbers a Support::Loop starts from.
      */
-    [[nodiscard]] Result<std::unique_ptr<Compiled>> make_compiled(SushiBLAS::Engine& engine)
+    [[nodiscard]] Result<std::unique_ptr<Compiled>> make_compiled(RuntimeExecutionBackend& backend)
     {
+        SushiBLAS::Engine& engine = backend.engine();
         std::unique_ptr<Compiled> made = std::make_unique<Compiled>(engine);
         SA_TRY_ASSIGN(made->model, Support::make_model(engine, K_TWO_LAYERS));
         SA_TRY_ASSIGN(made->inputs, Support::make_batch(engine, K_TWO_LAYERS.front(), 0.25));
@@ -192,7 +193,7 @@ namespace
             made->update.add(layer.bias, bias_gradient);
         }
 
-        SA_TRY_ASSIGN(made->step, Graph::CompiledStep::compile(engine, made->graph, made->pool,
+        SA_TRY_ASSIGN(made->step, Graph::CompiledStep::compile(backend, made->graph, made->pool,
                                                               &made->update));
         return std::move(made);
     }
@@ -302,8 +303,8 @@ namespace
 /** @brief Tests that an unscoped step gives the loss bytes the compiled step gives. */
 TEST_F(Medium_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Compiled> compiled, make_compiled(*engine));
-    Support::Loop loop(*engine, K_RATE);
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Compiled> compiled, make_compiled(backend()));
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     expect_loss_bytes_match(*compiled, loop, 4);
@@ -316,7 +317,7 @@ TEST_F(Medium_EagerSession, AnUnscopedStepGivesTheLossBytesOfTheCompiledStep)
 /** @brief Tests that the first step of a scoped loop builds every region it holds. */
 TEST_F(Medium_EagerSession, TheFirstStepOfAScopedLoopBuildsEveryRegion)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
 
     const Baseline baseline = settle_first_step(*engine, loop);
 
@@ -327,7 +328,7 @@ TEST_F(Medium_EagerSession, TheFirstStepOfAScopedLoopBuildsEveryRegion)
 /** @brief Tests that a settled loop composes once and lowers no region again. */
 TEST_F(Medium_EagerSession, ASettledLoopComposesOnce)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     const Baseline baseline = settle_first_step(*engine, loop);
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
@@ -341,7 +342,7 @@ TEST_F(Medium_EagerSession, ASettledLoopComposesOnce)
 /** @brief Tests that a settled loop allocates no pool byte, no tensor and no storage more. */
 TEST_F(Medium_EagerSession, ASettledLoopAllocatesNothingMore)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     const Baseline baseline = settle_first_step(*engine, loop);
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
@@ -356,7 +357,7 @@ TEST_F(Medium_EagerSession, ASettledLoopAllocatesNothingMore)
 /** @brief Tests that the last step of a settled loop keeps every region and builds none. */
 TEST_F(Medium_EagerSession, ASettledLoopKeepsEveryRegion)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     const Baseline baseline = settle_first_step(*engine, loop);
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
@@ -370,7 +371,7 @@ TEST_F(Medium_EagerSession, ASettledLoopKeepsEveryRegion)
 /** @brief Tests that the update of a settled loop is recorded once and replayed every step. */
 TEST_F(Medium_EagerSession, ASettledLoopReplaysTheUpdateItRecordedOnce)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     (void)settle_first_step(*engine, loop);
     Support::TraceOptions options;
     options.scoping = Support::Scoping::PerLayer;
@@ -384,8 +385,8 @@ TEST_F(Medium_EagerSession, ASettledLoopReplaysTheUpdateItRecordedOnce)
 /** @brief Tests that a scope between a layer and its activation trains to the same loss. */
 TEST_F(Medium_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToTheSameLoss)
 {
-    Support::Loop plain(*engine, K_RATE);
-    Support::Loop scoped(*engine, K_RATE);
+    Support::Loop plain(backend(), K_RATE);
+    Support::Loop scoped(backend(), K_RATE);
     SA_EXPECT_OK(plain.prepare(*engine, K_TWO_LAYERS));
     SA_EXPECT_OK(scoped.prepare(*engine, K_TWO_LAYERS));
 
@@ -398,7 +399,7 @@ TEST_F(Medium_EagerSession, AScopeBetweenALinearLayerAndItsActivationTrainsToThe
 
 TEST_F(Medium_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Support::LinearState> unused,
@@ -417,7 +418,7 @@ TEST_F(Medium_EagerSession, AParameterNoStepTracesKeepsAZeroGradientAndItsValue)
 
 TEST_F(Medium_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsRead)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
@@ -436,7 +437,7 @@ TEST_F(Medium_EagerSession, AStepWithoutBackwardRunsItsForwardNodesWhenAValueIsR
 /** @brief Tests that a value the step did not keep cannot be read after the run. */
 TEST_F(Medium_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
     Eager::Step step = loop.session.begin_step();
     ValueID loss = Graph::K_NO_VALUE;
@@ -450,7 +451,7 @@ TEST_F(Medium_EagerSession, AValueTheStepDidNotKeepCannotBeReadAfterTheRun)
 /** @brief Tests that keep() after the run is refused with Unsupported. */
 TEST_F(Medium_EagerSession, KeepingAValueAfterTheRunIsRefused)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
     Eager::Step step = loop.session.begin_step();
     ValueID loss = Graph::K_NO_VALUE;
@@ -463,7 +464,7 @@ TEST_F(Medium_EagerSession, KeepingAValueAfterTheRunIsRefused)
 
 TEST_F(Medium_EagerSession, TracingAfterTheStepRanIsRefused)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
@@ -477,7 +478,7 @@ TEST_F(Medium_EagerSession, TracingAfterTheStepRanIsRefused)
 
 TEST_F(Medium_EagerSession, AStateTheSessionDoesNotHoldIsRefused)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     Graph::StateIdentity stranger;
@@ -490,7 +491,7 @@ TEST_F(Medium_EagerSession, AStateTheSessionDoesNotHoldIsRefused)
 
 TEST_F(Medium_EagerSession, BindingAStateTwiceIsRefused)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     SA_EXPECT_FAILURE(
@@ -501,7 +502,7 @@ TEST_F(Medium_EagerSession, BindingAStateTwiceIsRefused)
 /** @brief Tests that a second live step stops the process. */
 TEST_F(Medium_EagerSessionFatal, ASecondLiveStepStopsTheProcess)
 {
-    Support::Loop loop(*engine, K_RATE);
+    Support::Loop loop(backend(), K_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
@@ -541,12 +542,12 @@ namespace
      * @brief Runs a settled loop and checks that its unchanged steps neither build nor record.
      * @return The failure of a step, or success once every measured step kept every region.
      */
-    [[nodiscard]] Status run_settled(SushiBLAS::Engine& engine, const std::string& label,
+    [[nodiscard]] Status run_settled(RuntimeExecutionBackend& backend, const std::string& label,
                                      const std::vector<int64_t>& widths,
                                      Support::Scoping scoping)
     {
-        Support::Loop loop(engine, K_COST_RATE);
-        SA_TRY(loop.prepare(engine, widths));
+        Support::Loop loop(backend, K_COST_RATE);
+        SA_TRY(loop.prepare(backend.engine(), widths));
 
         Support::TraceOptions options;
         options.scoping = scoping;
@@ -592,24 +593,24 @@ namespace
 
 TEST_F(Medium_EagerStepCost, AnUnchangedStepOfTheTwoLayerModel)
 {
-    SA_EXPECT_OK(run_settled(*engine, "two layers, no scope", {6, 4, 3},
+    SA_EXPECT_OK(run_settled(backend(), "two layers, no scope", {6, 4, 3},
                              Support::Scoping::None));
-    SA_EXPECT_OK(run_settled(*engine, "two layers, one scope per layer", {6, 4, 3},
+    SA_EXPECT_OK(run_settled(backend(), "two layers, one scope per layer", {6, 4, 3},
                              Support::Scoping::PerLayer));
 }
 
 TEST_F(Medium_EagerStepCost, AnUnchangedStepOfAFiftyLayerModel)
 {
-    SA_EXPECT_OK(run_settled(*engine, "fifty layers, no scope", widths_of(K_DEEP_LAYERS),
+    SA_EXPECT_OK(run_settled(backend(), "fifty layers, no scope", widths_of(K_DEEP_LAYERS),
                              Support::Scoping::None));
-    SA_EXPECT_OK(run_settled(*engine, "fifty layers, one scope per layer",
+    SA_EXPECT_OK(run_settled(backend(), "fifty layers, one scope per layer",
                              widths_of(K_DEEP_LAYERS), Support::Scoping::PerLayer));
 }
 
 /** @brief Tests that a scope appearing and disappearing records regions again. */
 TEST_F(Medium_EagerStepCost, AScopeThatAppearsAndDisappears)
 {
-    Support::Loop loop(*engine, K_COST_RATE);
+    Support::Loop loop(backend(), K_COST_RATE);
     SA_EXPECT_OK(loop.prepare(*engine, widths_of(K_DEEP_LAYERS)));
 
     Support::TraceOptions options;

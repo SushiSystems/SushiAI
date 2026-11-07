@@ -139,13 +139,14 @@ TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
     const std::vector<double> expected = expected_result(*recorded);
 
-    SushiRuntime::Graph graph = engine->runtime().graph();
-    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
+    SushiRuntime::Graph graph = backend().runtime().graph();
+    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
     SA_EXPECT_OK(emitter.emit(graph.recorder()));
-    SA_EXPECT_OK(recorded->pool.flush_constants());
+    SA_EXPECT_OK(recorded->pool.flush_constants(backend()));
 
     SushiRuntime::RunReport report;
-    SA_EXPECT_OK(Detail::run_step(graph, report));
+    ASSERT_TRUE(static_cast<bool>(graph.compile())) << "the graph did not compile";
+    ASSERT_TRUE(static_cast<bool>(graph.run(report))) << "the graph did not run";
 
     const std::vector<double> result =
         SaTest::read_tensor(recorded->pool.tensor(recorded->step.hidden));
@@ -158,12 +159,12 @@ TEST_F(Medium_RegionEmitter, EmitRecordsTheProgramOnTheGraphItIsHanded)
 TEST_F(Medium_RegionEmitter, EmitCountsItsCalls)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
     EXPECT_EQ(emitter.emit_count(), 0u);
 
-    SushiRuntime::Graph first = engine->runtime().graph();
+    SushiRuntime::Graph first = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(first.recorder()));
-    SushiRuntime::Graph second = engine->runtime().graph();
+    SushiRuntime::Graph second = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(second.recorder()));
 
     EXPECT_EQ(emitter.emit_count(), 2u);
@@ -173,14 +174,14 @@ TEST_F(Medium_RegionEmitter, EmitCountsItsCalls)
 TEST_F(Medium_RegionEmitter, ASecondEmitRecordsTheSameOperations)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
 
-    SushiRuntime::Graph first = engine->runtime().graph();
+    SushiRuntime::Graph first = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(first.recorder()));
     const std::size_t tasks = emitter.operation_count();
 
     // A second emit replays the same program, as a region recorded under a new key does.
-    SushiRuntime::Graph second = engine->runtime().graph();
+    SushiRuntime::Graph second = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(second.recorder()));
 
     EXPECT_GT(tasks, 0u);
@@ -192,9 +193,9 @@ TEST_F(Medium_RegionEmitter, ASecondEmitRecordsTheSameOperations)
 TEST_F(Medium_RegionEmitter, AProgramWithoutDropoutHasNoPreludes)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Recorded> recorded, make_recorded(*engine));
-    RegionEmitter emitter(*engine, recorded->program, recorded->pool, nullptr);
+    RegionEmitter emitter(backend(), backend(), recorded->program, recorded->pool, nullptr);
 
-    SushiRuntime::Graph graph = engine->runtime().graph();
+    SushiRuntime::Graph graph = backend().runtime().graph();
     SA_EXPECT_OK(emitter.emit(graph.recorder()));
 
     EXPECT_TRUE(emitter.preludes().empty());

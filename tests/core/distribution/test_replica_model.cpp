@@ -59,12 +59,12 @@ namespace
     /** @brief Returns a factory that records its call into @p call and builds LinearModel. */
     ReplicaModelFactory recording_factory(FactoryCall& call)
     {
-        return [&call](SushiBLAS::Engine& engine, const ReplicaDraws& draws, std::int64_t rows)
+        return [&call](ExecutionBackend& backend, const ReplicaDraws& draws, std::int64_t rows)
         {
             call.draws = draws;
             call.rows = rows;
             ++call.calls;
-            return LinearModel::make(engine, rows);
+            return LinearModel::make(backend.engine(), rows);
         };
     }
 
@@ -132,11 +132,11 @@ TEST(Medium_ReplicaModel, TheFactoryReceivesTheDrawsAndTheMicroBatchRows)
 /** @brief Tests that a step refuses a model that packs no result. */
 TEST(Medium_ReplicaModel, AStepRefusesAModelWithNoResult)
 {
-    const ReplicaModelFactory factory = [](SushiBLAS::Engine& engine, const ReplicaDraws&,
+    const ReplicaModelFactory factory = [](ExecutionBackend& backend, const ReplicaDraws&,
                                            std::int64_t rows)
         -> Result<std::unique_ptr<ReplicaModel>>
     {
-        SA_TRY_ASSIGN(std::unique_ptr<ReplicaModel> inner, LinearModel::make(engine, rows));
+        SA_TRY_ASSIGN(std::unique_ptr<ReplicaModel> inner, LinearModel::make(backend.engine(), rows));
         return Result<std::unique_ptr<ReplicaModel>>(
             std::make_unique<ResultlessModel>(std::move(inner)));
     };

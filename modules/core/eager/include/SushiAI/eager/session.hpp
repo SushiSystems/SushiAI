@@ -39,6 +39,7 @@
 
 #include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -112,12 +113,12 @@ namespace SushiAI
             public:
                 /**
                  * @brief Starts a session with no state and no region.
-                 * @param engine Allocates the session's storage and copies its feeds.
+                 * @param backend Allocates the session's storage and runs the copies of its feeds.
                  * @param executor Runs each step.
                  * @param partitioner Cuts each step into regions.
                  * @pre The three references outlive the session.
                  */
-                Session(SushiBLAS::Engine& engine, StepExecutor& executor,
+                Session(ExecutionBackend& backend, StepExecutor& executor,
                         const RegionPartitioner& partitioner, SessionOptions options = {}) noexcept;
 
                 Session(const Session&) = delete;
@@ -243,7 +244,7 @@ namespace SushiAI
                 [[nodiscard]] Status recover(const Status& failure);
 
                 /// @brief Allocates storage and runs the copies and fills.
-                SushiBLAS::Engine* engine_;
+                ExecutionBackend* backend_;
 
                 /// @brief Runs each step.
                 StepExecutor* executor_;

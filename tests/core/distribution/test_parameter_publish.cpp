@@ -45,6 +45,7 @@
 #include <SushiRuntime/distributed/kernel_registry.hpp>
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/distribution/parameter_publish.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/compiled_step.hpp>
@@ -67,7 +68,7 @@ namespace
         protected:
             /** @brief Attaches the master and allocates the parameters. */
             Medium_ParameterPublish()
-                : runtime_(SushiRuntime::Runtime::create().value()), engine_(runtime_),
+                : runtime_(SushiRuntime::Runtime::create().value()), engine_(runtime_), backend_(runtime_, engine_),
                   cluster_(Distributed::Cluster::attach(
                                runtime_, Distributed::InProcessTransport::make_master(fabric_))
                                .value()),
@@ -133,6 +134,9 @@ namespace
             /// @brief The engine over runtime_.
             SushiBLAS::Engine engine_;
 
+            /// @brief The backend over runtime_ and engine_.
+            SushiAI::RuntimeExecutionBackend backend_;
+
             /// @brief The master.
             Distributed::Cluster cluster_;
 
@@ -177,7 +181,7 @@ namespace
 TEST_F(Medium_ParameterPublish, MakeSharesThePack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(engine_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
 
     EXPECT_TRUE(binding_.is_shared(publish->pack()));
 }
@@ -186,7 +190,7 @@ TEST_F(Medium_ParameterPublish, MakeSharesThePack)
 TEST_F(Medium_ParameterPublish, MakeCopiesTheParametersIntoThePack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(engine_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
 
     expect_pack_holds_parameters(*publish);
 }
@@ -195,12 +199,12 @@ TEST_F(Medium_ParameterPublish, MakeCopiesTheParametersIntoThePack)
 TEST_F(Medium_ParameterPublish, AReplayGathersTheNewParameters)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
-                            ParameterPublish::make(engine_, binding_, layout(), parameters_));
+                            ParameterPublish::make(backend_, binding_, layout(), parameters_));
     const Graph::Graph empty;
     Graph::TensorPool pool(engine_);
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Graph::CompiledStep> step,
-        Graph::CompiledStep::compile(engine_, empty, pool, publish.get()));
+        Graph::CompiledStep::compile(backend_, empty, pool, publish.get()));
     EXPECT_EQ(step->operation_count(), 1u);
 
     fill(-4.0f);
@@ -214,7 +218,7 @@ TEST_P(Medium_ParameterPublishRefusal, MakeRefusesParametersThatDifferFromTheLay
     const RefusalRow& row = GetParam();
     const std::vector<SushiBLAS::Tensor> listed = parameters_at(row.indices);
 
-    SA_EXPECT_FAILURE(ParameterPublish::make(engine_, binding_, layout(), listed),
+    SA_EXPECT_FAILURE(ParameterPublish::make(backend_, binding_, layout(), listed),
                       StatusCode::InvalidDescription, row.needle);
 }
 

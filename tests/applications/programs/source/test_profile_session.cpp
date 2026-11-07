@@ -96,7 +96,7 @@ TEST_F(Medium_ProfileSession, AMissingConfigNamesTheFile)
     const SaTest::ScratchDirectory folder("sushiai_profile_missing");
 
     SA_EXPECT_FAILURE(ProfileSession::open(folder.path() / "no_such_profile.json",
-                                           engine->runtime()),
+                                           backend().runtime()),
                       StatusCode::FileNotFound, "no_such_profile.json");
 }
 
@@ -107,7 +107,7 @@ TEST_F(Medium_ProfileSession, ABadJsonNamesTheFile)
     const std::filesystem::path path = folder.path() / "broken_profile.json";
     SaTest::write_text(path, "{\"sushiprofiler\": 1,");
 
-    SA_EXPECT_FAILURE(ProfileSession::open(path, engine->runtime()),
+    SA_EXPECT_FAILURE(ProfileSession::open(path, backend().runtime()),
                       StatusCode::InvalidDescription, "broken_profile.json");
 }
 
@@ -118,7 +118,7 @@ TEST_F(Medium_ProfileSession, AnUnknownKeyNamesTheFile)
     const std::filesystem::path path = folder.path() / "unknown_profile.json";
     SaTest::write_text(path, "{\"sushiprofiler\": 1, \"bogus_key\": true}");
 
-    SA_EXPECT_FAILURE(ProfileSession::open(path, engine->runtime()),
+    SA_EXPECT_FAILURE(ProfileSession::open(path, backend().runtime()),
                       StatusCode::InvalidDescription, "unknown_profile.json", "bogus_key");
 }
 
@@ -127,7 +127,7 @@ TEST_F(Medium_ProfileSession, EndingAFailedRunReturnsItsOwnFailure)
 {
     const SaTest::ScratchDirectory folder("sushiai_profile_failed_status");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
-                            ProfileSession::open(write_config(folder.path()), engine->runtime()));
+                            ProfileSession::open(write_config(folder.path()), backend().runtime()));
     run_three_steps();
 
     const Status ended = Apps::end_profiled_run(session, failed_step());
@@ -140,7 +140,7 @@ TEST_F(Medium_ProfileSession, ARunThatFailsStillWritesItsRecord)
 {
     const SaTest::ScratchDirectory folder("sushiai_profile_failed_run");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
-                            ProfileSession::open(write_config(folder.path()), engine->runtime()));
+                            ProfileSession::open(write_config(folder.path()), backend().runtime()));
     run_three_steps();
 
     const Status ended = Apps::end_profiled_run(session, failed_step());
@@ -156,7 +156,7 @@ TEST_F(Medium_ProfileSession, ADroppedSessionStillWritesItsRecord)
     {
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
                                 ProfileSession::open(write_config(folder.path()),
-                                                     engine->runtime()));
+                                                     backend().runtime()));
         run_three_steps();
     }
 
@@ -168,7 +168,7 @@ TEST_F(Medium_ProfileSession, ASecondCloseSucceeds)
 {
     const SaTest::ScratchDirectory folder("sushiai_profile_second_close");
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
-                            ProfileSession::open(write_config(folder.path()), engine->runtime()));
+                            ProfileSession::open(write_config(folder.path()), backend().runtime()));
     run_three_steps();
 
     SA_EXPECT_OK(session->close());

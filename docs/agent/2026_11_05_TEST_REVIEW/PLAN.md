@@ -1,6 +1,6 @@
 # Test review: plan
 
-**Status:** Open — the host backend (RW-161, decision 20) is built in core/execution, compiled_step and every caller outside eager and distribution; slice C (eager, distribution, cluster_run, test_profile_session) is left, then M2, M3, M7, M9, M11, M21 and M30 to M52
+**Status:** Open — the host backend (RW-161, decisions 20 and 21) is done; M2, M3, M7, M9, M11, M21 and M30 to M52 are left
 
 Applies the verdicts of `REPORT.md`, in hierarchy order: the shared helpers, adapters and seams the
 rewrites need come first, then the defects the review found, then each module's tests. A module job
@@ -27,9 +27,9 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M6 | the tests of `core/config` (9 files): 2 rewrite, 43 resize, 9 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M7 | the tests of `core/darknet_reference` (1 file): 4 rewrite, 4 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo; waits on RW-160 seams |
 | M8 | the tests of `core/data` (9 files): 25 rewrite, 9 resize, 1 split, 22 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built in 7a34fa48, not yet built or run) |
-| M9 | the tests of `core/distribution` (13 files): 27 rewrite, 3 resize, 11 split, 25 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; records open in RW-160; waits on RW-161 slice C (gradient_exchange, parameter_publish, replica_step, ReplicaModelFactory still on Engine) |
+| M9 | the tests of `core/distribution` (13 files): 27 rewrite, 3 resize, 11 split, 25 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; records open in RW-160; RW-161 is closed, so it is ready |
 | M10 | the tests of `core/dtype` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; waits on RW-161 slice C (Session, RegionExecutor, RegionEmitter on the backend); not done: 9 test_step resizes (Session over the host engine), 3 test_region_partitioner and 2 test_region_executor rewrites (partitioner and recorder adapters), the Small_ half of the storage_bank split |
+| M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo; RW-161 is closed, so it is ready; not done: 9 test_step resizes (Session over the host engine), 3 test_region_partitioner and 2 test_region_executor rewrites (partitioner and recorder adapters), the Small_ half of the storage_bank split |
 | M12 | the tests of `core/engine_fixture` (3 files): 1 rewrite, 1 resize, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M13 | the tests of `core/execution` (1 file): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M14 | the tests of `core/failure` (3 files): 14 rewrite, 4 resize, 6 split, 1 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built, not yet built or run) |

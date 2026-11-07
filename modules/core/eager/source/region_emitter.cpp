@@ -41,12 +41,12 @@ namespace SushiAI
 {
     namespace Eager
     {
-        RegionEmitter::RegionEmitter(SushiBLAS::Engine& engine, const RegionProgram& program,
-                                     Graph::TensorPool& pool,
+        RegionEmitter::RegionEmitter(ExecutionBackend& backend, RuntimeAccess& runtime,
+                                     const RegionProgram& program, Graph::TensorPool& pool,
                                      const Graph::FusionSelector* selector,
                                      RegionID region) noexcept
-            : engine_(&engine), program_(&program), pool_(&pool), selector_(selector),
-              region_(region), late_counts_(engine.runtime())
+            : backend_(&backend), program_(&program), pool_(&pool), selector_(selector),
+              region_(region), late_counts_(runtime.runtime())
         {
 
         }
@@ -56,11 +56,11 @@ namespace SushiAI
             ++emits_;
             late_counts_.release();
 
-            SushiBLAS::TaskRecorder tasks(recorder, engine_->scratch_pool(), late_counts_,
-                                          engine_->mode());
+            SushiBLAS::TaskRecorder tasks(recorder, backend_->engine().scratch_pool(),
+                                          late_counts_, backend_->engine().mode());
             const Graph::DeviceFusionSelector device =
-                Graph::DeviceFusionSelector::for_engine(*engine_);
-            Graph::Lowering lowering(tasks, engine_->rng(), *pool_,
+                Graph::DeviceFusionSelector::for_backend(*backend_);
+            Graph::Lowering lowering(tasks, backend_->engine().rng(), *pool_,
                                      selector_ != nullptr ? *selector_ : device);
             if (region_ != K_NO_REGION_ID)
                 lowering.set_origin_prefix("r" + std::to_string(region_) + "/");

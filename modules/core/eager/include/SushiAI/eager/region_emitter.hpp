@@ -38,6 +38,8 @@
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 
+#include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/region_program.hpp>
@@ -58,13 +60,15 @@ namespace SushiAI
             public:
                 /**
                  * @brief Binds the emitter to the program it records and the pool it fills.
+                 * @param backend Names the device and the engine the tasks use.
+                 * @param runtime The runtime the late counts live on.
                  * @param selector Picks the form of a fused node; null selects by device.
-                 * @param region The region the program belongs to; its id opens the origin of
-                 *        every node, so regions of one graph keep their nodes apart.
+                 * @param region The region of the program; its id opens the origin of every node.
                  * @pre Every argument outlives the emitter.
                  */
-                RegionEmitter(SushiBLAS::Engine& engine, const RegionProgram& program,
-                              Graph::TensorPool& pool, const Graph::FusionSelector* selector,
+                RegionEmitter(ExecutionBackend& backend, RuntimeAccess& runtime,
+                              const RegionProgram& program, Graph::TensorPool& pool,
+                              const Graph::FusionSelector* selector,
                               RegionID region = K_NO_REGION_ID) noexcept;
 
                 RegionEmitter(const RegionEmitter&) = delete;
@@ -112,8 +116,8 @@ namespace SushiAI
                 }
 
             private:
-                /// @brief The engine whose scratch pool, mode and random stream the tasks use.
-                SushiBLAS::Engine* engine_;
+                /// @brief The backend whose engine supplies the scratch pool, mode and stream.
+                ExecutionBackend* backend_;
 
                 /// @brief The program emit() records.
                 const RegionProgram* program_;

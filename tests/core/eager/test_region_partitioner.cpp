@@ -115,9 +115,9 @@ namespace
     /** @brief Owns a session over the two-layer model, built on a given partitioner. */
     struct Rig
     {
-        /** @brief Builds the executor and the session on @p engine around @p partitioner. */
-        Rig(SushiBLAS::Engine& engine, const Eager::RegionPartitioner& partitioner)
-            : executor(engine), session(engine, executor, partitioner), update(K_RATE)
+        /** @brief Builds the executor and the session on @p backend around @p partitioner. */
+        Rig(SushiAI::RuntimeExecutionBackend& backend, const Eager::RegionPartitioner& partitioner)
+            : executor(backend, backend), session(backend, executor, partitioner), update(K_RATE)
         {
 
         }
@@ -156,7 +156,7 @@ namespace
 TEST_F(Medium_RegionPartitioner, TheSessionAsksOncePerStep)
 {
     RecordingPartitioner partitioner;
-    Rig rig(*engine, partitioner);
+    Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step());
@@ -170,7 +170,7 @@ TEST_F(Medium_RegionPartitioner, TheSessionAsksOncePerStep)
 TEST_F(Medium_RegionPartitioner, TheSegmentsCoverTheForwardNodes)
 {
     RecordingPartitioner partitioner;
-    Rig rig(*engine, partitioner);
+    Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step());
@@ -184,7 +184,7 @@ TEST_F(Medium_RegionPartitioner, TheSegmentsCoverTheForwardNodes)
 TEST_F(Medium_RegionPartitioner, AThrownRefusalFailsTheStep)
 {
     const RefusingPartitioner partitioner;
-    Rig rig(*engine, partitioner);
+    Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_FAILURE(rig.step(), StatusCode::InvalidDescription, "this graph has no cut");

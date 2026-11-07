@@ -20,7 +20,7 @@ sushiai_add_module(NAME eager TIER core
         source/slot_ledger.cpp
         source/step.cpp
         source/storage_bank.cpp
-    PUBLIC_DEPENDS autograd dtype failure graph ops shape
-    PRIVATE_DEPENDS allocation execution hash seam profile
+    PUBLIC_DEPENDS autograd dtype execution failure graph ops shape
+    PRIVATE_DEPENDS allocation hash seam profile
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core
     EXTERNAL_PRIVATE_LINKS ${SA_PROFILER_LINKS})

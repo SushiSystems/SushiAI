@@ -76,7 +76,7 @@ namespace SushiAI
 
         Result<RunSummary> run_cluster_training(
             PreparedRun& run, SushiRuntime::span<const Optim::ParameterSlot> parameters,
-            SushiRuntime::Runtime& runtime)
+            RuntimeAccess& runtime)
         {
             SA_TRY_ASSIGN(const Distribution::ClusterSection section, read_section(run.spec));
             SA_TRY_ASSIGN(const std::shared_ptr<const ReplicaSource> source,
@@ -92,7 +92,7 @@ namespace SushiAI
             local->register_with(*kernels);
 
             SA_TRY_ASSIGN(SushiRuntime::Distributed::Cluster cluster,
-                          attach_master_cluster(runtime, section));
+                          attach_master_cluster(runtime.runtime(), section));
             SushiBLAS::ClusterBinding binding(cluster, kernels);
 
             const std::size_t workers = awaited_workers(section).size();
@@ -108,7 +108,7 @@ namespace SushiAI
             for (const AwaitedWorker& missing : waited.value())
                 fallbacks.warn_absent_at_attach(missing);
 
-            ClusterRun cluster_run{run, parameters, section, binding, *local,
+            ClusterRun cluster_run{run, runtime, parameters, section, binding, *local,
                                    source->run_index};
             Result<RunSummary> summary = run_on_cluster(cluster_run);
             cluster.detach();

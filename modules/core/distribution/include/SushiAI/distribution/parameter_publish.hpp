@@ -38,6 +38,7 @@
 #include <SushiBLAS/cluster/tensor_pack.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
@@ -59,13 +60,12 @@ namespace SushiAI
                 /**
                  * @brief Allocates the pack of @p layout, shares it through @p binding, which
                  *        outlives the publish, and copies @p parameters into it on the host.
-                 * @param parameters One contiguous, host-addressable tensor per entry, in order,
-                 *        all on the device the pack is allocated on.
-                 * @return The publish; InvalidDescription for a tensor count, or a tensor unlike
-                 *         the layout or off the first's device; or a failed allocation or share.
+                 * @param runtime The runtime the pack is allocated on.
+                 * @param parameters One host-addressable tensor per entry, on the pack's device.
+                 * @return The publish; InvalidDescription for a tensor unlike the layout; or a failure.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<ParameterPublish>> make(
-                    SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
+                    RuntimeAccess& runtime, SushiBLAS::ClusterBinding& binding,
                     const SushiBLAS::PackLayout& layout,
                     std::vector<SushiBLAS::Tensor> parameters) noexcept;
 

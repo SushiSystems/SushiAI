@@ -71,10 +71,10 @@ namespace SushiAI
 
         } // namespace
 
-        Session::Session(SushiBLAS::Engine& engine, StepExecutor& executor,
+        Session::Session(ExecutionBackend& backend, StepExecutor& executor,
                          const RegionPartitioner& partitioner, SessionOptions options) noexcept
-            : engine_(&engine), executor_(&executor), partitioner_(&partitioner),
-              options_(options), bank_(engine), table_(ids_)
+            : backend_(&backend), executor_(&executor), partitioner_(&partitioner),
+              options_(options), bank_(backend.engine()), table_(ids_)
         {
 
         }
@@ -101,16 +101,16 @@ namespace SushiAI
 
             if (trainable)
             {
-                SA_TRY_ASSIGN(SushiBLAS::Tensor gradient, allocate_like(*engine_, tensor));
+                SA_TRY_ASSIGN(SushiBLAS::Tensor gradient, allocate_like(backend_->engine(), tensor));
                 bound.gradient = ids_.next();
                 SA_TRY(bank_.adopt(bound.gradient, std::move(gradient)));
 
                 // An update may read the gradient of a parameter no step has traced yet.
                 SushiBLAS::Tensor& zeroed = bank_.tensor(bound.gradient);
                 SA_TRY(::SushiAI::Detail::record_and_run(
-                    *engine_, [&](SushiBLAS::TaskRecorder& recorder)
+                    *backend_, [&](SushiBLAS::TaskRecorder& recorder)
                 {
-                    SushiBLAS::RandomOps filler(recorder, engine_->rng());
+                    SushiBLAS::RandomOps filler(recorder, backend_->engine().rng());
                     filler.constant(zeroed, 0.0);
                     return Status();
                 }));
@@ -281,13 +281,13 @@ namespace SushiAI
 
             // The copies and the fills run on a graph of their own, before any region does.
             return ::SushiAI::Detail::record_and_run(
-                *engine_, [&](SushiBLAS::TaskRecorder& recorder)
+                *backend_, [&](SushiBLAS::TaskRecorder& recorder)
             {
                 SushiBLAS::BLASOps blas(recorder);
                 for (const Feed& feed : trace.feeds)
                     blas.copy(feed.source, bank_.tensor(preset[feed.leaf]));
 
-                SushiBLAS::RandomOps filler(recorder, engine_->rng());
+                SushiBLAS::RandomOps filler(recorder, backend_->engine().rng());
                 for (SushiBLAS::Tensor* gradient : stale)
                     filler.constant(*gradient, 0.0);
 

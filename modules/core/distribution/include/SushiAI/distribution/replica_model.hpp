@@ -38,6 +38,7 @@
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -123,14 +124,14 @@ namespace SushiAI
         };
 
         /**
-         * @brief Builds the model of one replica on an engine.
+         * @brief Builds the model of one replica on a backend.
          *
-         * Called as factory(engine, draws, micro_batch_rows): the graph's input leaves hold
+         * Called as factory(backend, draws, micro_batch_rows): the graph's input leaves hold
          * micro_batch_rows rows, and its random sites are seeded with replica_seed(draws). The
-         * model's tensors are allocated through @c engine, which outlives the model.
+         * model's tensors are allocated through @c backend, which outlives the model.
          */
         using ReplicaModelFactory = std::function<Result<std::unique_ptr<ReplicaModel>>(
-            SushiBLAS::Engine& engine, const ReplicaDraws& draws, std::int64_t micro_batch_rows)>;
+            ExecutionBackend& backend, const ReplicaDraws& draws, std::int64_t micro_batch_rows)>;
 
     } // namespace Distribution
 } // namespace SushiAI

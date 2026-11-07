@@ -42,6 +42,7 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
@@ -339,9 +340,10 @@ namespace SushiAI::Eager::Support
     /** @brief Owns a session over one model, its update and one batch, for a training loop. */
     struct Loop
     {
-        /** @brief Builds the executor and the session on @p engine with a step size of @p rate. */
-        Loop(SushiBLAS::Engine& engine, float rate, SessionOptions options = {})
-            : executor(engine), session(engine, executor, partitioner, options), update(rate)
+        /** @brief Builds the executor and the session on @p backend with a step size of @p rate. */
+        Loop(RuntimeExecutionBackend& backend, float rate, SessionOptions options = {})
+            : executor(backend, backend), session(backend, executor, partitioner, options),
+              update(rate)
         {
 
         }

@@ -95,14 +95,14 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<ParameterPublish>> ParameterPublish::make(
-            SushiBLAS::Engine& engine, SushiBLAS::ClusterBinding& binding,
+            RuntimeAccess& runtime, SushiBLAS::ClusterBinding& binding,
             const SushiBLAS::PackLayout& layout, std::vector<SushiBLAS::Tensor> parameters) noexcept
         {
             SA_TRY(require_layout(layout, parameters));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                SushiBLAS::TensorPack pack(engine.runtime(), layout, device_of(parameters));
+                SushiBLAS::TensorPack pack(runtime.runtime(), layout, device_of(parameters));
                 binding.share(pack);
 
                 // A replay reads the pack before a gather; its Shared storage takes the host copy.

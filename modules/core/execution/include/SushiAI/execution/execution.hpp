@@ -35,6 +35,7 @@
 #include <utility>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/runtime_access.hpp>
 #include <SushiAI/execution/step_tasks.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>

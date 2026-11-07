@@ -105,8 +105,15 @@ namespace SushiAI
                 return std::make_unique<SushiBLAS::Engine>(*runtime);
             }));
 
+            SA_TRY_ASSIGN(std::unique_ptr<RuntimeExecutionBackend> backend,
+                          SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate,
+                                                       [&]()
+            {
+                return std::make_unique<RuntimeExecutionBackend>(*runtime, *engine);
+            }));
+
             SA_TRY_ASSIGN(std::unique_ptr<ReplicaModel> model,
-                          factory(*engine, draws, micro_batch_rows));
+                          factory(*backend, draws, micro_batch_rows));
             SA_FAIL_IF(model == nullptr, StatusCode::InvalidDescription,
                        "The replica model factory returned no model for replica {}",
                        draws.replica_index);
@@ -123,12 +130,13 @@ namespace SushiAI
                                                        [&]()
             {
                 return std::unique_ptr<ReplicaStep>(
-                    new ReplicaStep(std::move(runtime), std::move(engine), std::move(model),
+                    new ReplicaStep(std::move(runtime), std::move(engine), std::move(backend),
+                                    std::move(model),
                                     std::move(parameter_layout), std::move(result_layout),
                                     draws));
             }));
 
-            SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(*step->engine_,
+            SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(*step->backend_,
                                                                     step->model_->graph(),
                                                                     step->model_->pool(),
                                                                     nullptr, nullptr, {},
@@ -138,10 +146,12 @@ namespace SushiAI
 
         ReplicaStep::ReplicaStep(std::unique_ptr<SushiRuntime::Runtime> runtime,
                                  std::unique_ptr<SushiBLAS::Engine> engine,
+                                 std::unique_ptr<RuntimeExecutionBackend> backend,
                                  std::unique_ptr<ReplicaModel> model,
                                  SushiBLAS::PackLayout parameter_layout,
                                  SushiBLAS::PackLayout result_layout, const ReplicaDraws& draws)
-            : runtime_(std::move(runtime)), engine_(std::move(engine)), model_(std::move(model)),
+            : runtime_(std::move(runtime)), engine_(std::move(engine)),
+              backend_(std::move(backend)), model_(std::move(model)),
               parameter_layout_(std::move(parameter_layout)),
               result_layout_(std::move(result_layout)),
               accumulator_(std::make_unique<ReplicaAccumulator>(result_layout_)), draws_(draws),

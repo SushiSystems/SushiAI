@@ -272,7 +272,7 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
         backend, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
         setup->state(), setup->pool(), *optimizer, setup->take_updates(), nullptr, start,
     };
-    Apps::ClusterRun run{prepared,
+    Apps::ClusterRun run{prepared, backend,
                          SushiRuntime::span<const Optim::ParameterSlot>(
                              setup->parameters().data(), setup->parameters().size()),
                          section, binding, *master_kernel, source->run_index};
