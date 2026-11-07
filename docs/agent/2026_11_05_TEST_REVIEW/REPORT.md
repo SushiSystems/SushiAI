@@ -252,7 +252,7 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `core/data` | 51 | 26 | 0 | 0 |
 | `core/distribution` | 65 | 23 | 0 | 0 |
 | `core/dtype` | 4 | 0 | 0 | 0 |
-| `core/eager` | 104 | 66 | 0 | 0 |
+| `core/eager` | 120 | 66 | 0 | 0 |
 | `core/engine_fixture` | 5 | 5 | 0 | 0 |
 | `core/execution` | 10 | 5 | 0 | 0 |
 | `core/failure` | 47 | 6 | 0 | 0 |
@@ -262,7 +262,7 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `core/log` | 2 | 0 | 0 | 0 |
 | `core/model_text` | 4 | 2 | 0 | 0 |
 | `core/ops` | 20 | 0 | 0 | 0 |
-| `core/optim` | 102 | 25 | 0 | 0 |
+| `core/optim` | 131 | 7 | 0 | 0 |
 | `core/profile` | 6 | 4 | 0 | 0 |
 | `core/profile_records` | 5 | 1 | 0 | 0 |
 | `core/scratch_files` | 2 | 7 | 0 | 0 |
@@ -301,7 +301,7 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `vision/segment` | 25 | 0 | 0 | 0 |
 | `vision/training` | 138 | 94 | 0 | 0 |
 | `vision/umbrella` | 1 | 0 | 0 | 0 |
-| all | 3545 | 1271 | 41 | 0 |
+| all | 3590 | 1253 | 41 | 0 |
 
 Checked again on 2026-11-07 at `f7f344fb` with the same count: every row matches. After `3d2cc353` (RW-157) `vision/imaging` holds 381 small tests, one more, the test of the load journal.
 
