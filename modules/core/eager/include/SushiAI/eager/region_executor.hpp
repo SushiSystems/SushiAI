@@ -47,6 +47,7 @@
 #include <SushiAI/eager/region_names.hpp>
 #include <SushiAI/eager/region_program.hpp>
 #include <SushiAI/eager/step_executor.hpp>
+#include <SushiAI/eager/trailing_ledger.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -107,7 +108,7 @@ namespace SushiAI
                 /** @brief Returns how many times the trailing work has been recorded. */
                 [[nodiscard]] std::size_t trailing_record_count() const noexcept
                 {
-                    return trailing_records_;
+                    return trailing_.record_count();
                 }
 
                 /** @brief Returns the program of the live region under @p key, or null. */
@@ -159,9 +160,10 @@ namespace SushiAI
 
                 /**
                  * @brief Drops what @p work replaces or removes from the dynamic graph.
+                 * @param trailing What the step does with the trailing work.
                  * @param retired Receives each replaced region, by the key it held.
                  */
-                void retire(const StepWork& work, Retired& retired);
+                void retire(const StepWork& work, const TrailingPlan& trailing, Retired& retired);
 
                 /**
                  * @brief Records @p program under the key of @p order, in a pool of its own.
@@ -171,8 +173,9 @@ namespace SushiAI
                 [[nodiscard]] Status install(const RegionOrder& order, RegionProgram program,
                                              SharedStorage shared, StorageBank& storage);
 
-                /** @brief Records the trailing work of @p work unless it is recorded already. */
-                [[nodiscard]] Status record_trailing(const StepWork& work);
+                /** @brief Records the trailing work of @p work when @p trailing says so. */
+                [[nodiscard]] Status record_trailing(const StepWork& work,
+                                                     const TrailingPlan& trailing);
 
                 /** @brief Calls the preludes and the trailing hooks around one run. */
                 [[nodiscard]] Status run(std::uint64_t run_index);
@@ -189,20 +192,11 @@ namespace SushiAI
                 /// @brief How many times each region was lowered, by region id.
                 std::unordered_map<RegionID, std::size_t> emits_;
 
-                /// @brief The recorder of the trailing work, or null; not owned.
-                Graph::StepRecorder* trailing_ = nullptr;
-
-                /// @brief The key the trailing work is recorded under, or K_NO_REGION.
-                RegionKey trailing_key_ = K_NO_REGION;
+                /// @brief Plans the trailing work and remembers what was recorded.
+                TrailingLedger trailing_;
 
                 /// @brief Keeps the late-count tasks of the trailing work while it is recorded.
                 SushiBLAS::LateCountHold trailing_counts_;
-
-                /// @brief The tasks the trailing work recorded.
-                std::size_t trailing_operations_ = 0;
-
-                /// @brief How many times the trailing work was recorded.
-                std::size_t trailing_records_ = 0;
 
                 /// @brief How many times any region was lowered.
                 std::size_t emits_total_ = 0;

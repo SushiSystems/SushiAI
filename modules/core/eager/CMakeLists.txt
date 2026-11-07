@@ -20,6 +20,7 @@ sushiai_add_module(NAME eager TIER core
         source/slot_ledger.cpp
         source/step.cpp
         source/storage_bank.cpp
+        source/trailing_ledger.cpp
     PUBLIC_DEPENDS autograd dtype execution failure graph ops shape
     PRIVATE_DEPENDS allocation hash seam profile
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core

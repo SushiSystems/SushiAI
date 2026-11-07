@@ -361,8 +361,8 @@ TEST_F(Medium_RegionExecutor, ARegionThatLeftIsDropped)
     expect_near(SaTest::read_tensor(harness.tensor_of(joined.hidden)), harness.expected(joined));
 }
 
-/** @brief Tests that the trailing work is recorded once and replayed on every run. */
-TEST_F(Medium_RegionExecutor, TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun)
+/** @brief Tests that the executor tells the trailing recorder each run has finished. */
+TEST_F(Medium_RegionExecutor, TheTrailingRecorderIsToldAfterEveryRun)
 {
     Harness harness(backend());
     Graph::InMemoryStepRecorder update;
@@ -371,12 +371,9 @@ TEST_F(Medium_RegionExecutor, TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun
     run_with_trailing(harness, update);
 
     const std::vector<Graph::InMemoryStepRecorder::Call>& calls = update.calls();
-    EXPECT_EQ(std::count(calls.begin(), calls.end(), Graph::InMemoryStepRecorder::Call::Record),
-              1);
     EXPECT_EQ(
         std::count(calls.begin(), calls.end(), Graph::InMemoryStepRecorder::Call::AfterReplay),
         2);
-    EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
 }
 
 /** @brief Tests that the trailing work runs behind every region of the step. */
@@ -416,7 +413,6 @@ TEST_F(Medium_RegionExecutor, ALateTrailingTaskReplaysAfterItsRecorderIsGone)
     run_with_trailing(harness, update);
     run_with_trailing(harness, update);
 
-    EXPECT_EQ(harness.executor.trailing_record_count(), 1u);
     expect_near(SaTest::read_tensor(out), {2.0, 2.0, 0.0, 0.0});
 }
 

@@ -21,3 +21,4 @@ Each test file has a page beside it that says what its cases pin.
 | `test_slot_ledger.cpp` | [`test_slot_ledger.md`](test_slot_ledger.md) |
 | `test_storage_bank.cpp` | [`test_storage_bank.md`](test_storage_bank.md) |
 | `test_session.cpp` | [`test_session.md`](test_session.md) |
+| `test_trailing_ledger.cpp` | [`test_trailing_ledger.md`](test_trailing_ledger.md) |

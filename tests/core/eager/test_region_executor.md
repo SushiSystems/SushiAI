@@ -56,11 +56,11 @@ The observed value still matches the host after the region moved to its new key.
 
 Two regions, then one: the step that joins them drops the activation region by its old key.
 
-## TheTrailingWorkIsRecordedOnceAndReplayedOnEveryRun
+## TheTrailingRecorderIsToldAfterEveryRun
 
-An `InMemoryStepRecorder` is handed over as trailing work on two steps under the same key. It
-is asked to record once and to replay after both runs, and the executor counts one trailing
-record.
+An `InMemoryStepRecorder` is handed over as trailing work on two steps under the same key. It is
+told twice that a run finished, which shows the executor calls the hook after each run. Which
+trailing work is recorded, and when, is `test_trailing_ledger.cpp`.
 
 ## TheTrailingWorkRunsBehindEveryRegion
 

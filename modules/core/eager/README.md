@@ -56,6 +56,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/eager/in_memory_step_executor.hpp` | `InMemoryStepExecutor` |
 | `SushiAI/eager/storage_bank.hpp` | `StorageBank` |
 | `SushiAI/eager/storage_id.hpp` | `StorageID`, `K_NO_STORAGE`, `StorageIDSource` |
+| `SushiAI/eager/trailing_ledger.hpp` | `TrailingPlan`, `TrailingLedger` |
 
 ## What the caller writes
 
@@ -403,6 +404,19 @@ run, the order `Graph::CompiledStep` gives them. The trailing work is recorded t
 `SushiBLAS::TaskRecorder` that lives for the call, and the executor's own `LateCountHold` keeps
 its late-count tasks. The hold is released when the trailing region is dropped, by a step or by
 `discard`, and before the trailing work is recorded again; never between two runs.
+
+### trailing_ledger.hpp
+
+#### TrailingLedger
+
+The executor asks the ledger what a step does with the trailing work before it touches the graph.
+`plan` answers with a `TrailingPlan`: `retire` when the ledger holds trailing work under another
+key or from another recorder, and `record` when the step's recorder is not the one held. It
+refuses trailing work with no key, and a key that does not lie above every region key of the step,
+because the key is what puts the trailing work behind the regions in the run. A refusal leaves the
+graph as it was. The ledger also holds the recorder, its key, its task count and the number of
+recordings begun, and forwards `before_replay` and `after_replay` to the recorder it holds. It
+touches no runtime, so `RegionExecutor` only carries the plan out.
 
 ### session.hpp
 

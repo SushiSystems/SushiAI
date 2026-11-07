@@ -153,14 +153,15 @@ namespace SushiAI
 
         std::size_t RegionExecutor::operation_count() const noexcept
         {
-            std::size_t operations = trailing_ != nullptr ? trailing_operations_ : 0;
+            std::size_t operations = trailing_.operation_count();
             for (const auto& entry : live_)
                 operations += entry.second->emitter.operation_count();
 
             return operations;
         }
 
-        void RegionExecutor::retire(const StepWork& work, Retired& retired)
+        void RegionExecutor::retire(const StepWork& work, const TrailingPlan& trailing,
+                                    Retired& retired)
         {
             for (RegionKey key : work.dropped)
             {
@@ -183,15 +184,11 @@ namespace SushiAI
                 graph_.drop(previous);
             }
 
-            const bool trailing_moved =
-                work.trailing != trailing_ || work.trailing_key != trailing_key_;
-            if (trailing_key_ != K_NO_REGION && trailing_moved)
+            if (trailing.retire)
             {
-                graph_.drop(trailing_key_);
+                graph_.drop(trailing_.key());
                 trailing_counts_.release();
-                trailing_ = nullptr;
-                trailing_key_ = K_NO_REGION;
-                trailing_operations_ = 0;
+                trailing_.clear();
             }
         }
 
@@ -227,13 +224,10 @@ namespace SushiAI
             return listed->pool.flush_constants(*backend_);
         }
 
-        Status RegionExecutor::record_trailing(const StepWork& work)
+        Status RegionExecutor::record_trailing(const StepWork& work, const TrailingPlan& trailing)
         {
-            if (work.trailing == nullptr || work.trailing == trailing_)
+            if (!trailing.record)
                 return Status();
-
-            SA_FAIL_IF(work.trailing_key == K_NO_REGION, StatusCode::InvalidDescription,
-                       "The trailing work of a step needs a key above every region; got none");
 
             SA_TRY_ASSIGN(SushiRuntime::Region* const target,
                           ::SushiAI::Detail::guard_value(::SushiAI::Detail::SeamPhase::Allocate,
@@ -243,8 +237,7 @@ namespace SushiAI
             }));
 
             // The key is kept before the recording, so discard() drops a failed one.
-            trailing_key_ = work.trailing_key;
-            ++trailing_records_;
+            trailing_.begin_recording(work.trailing_key);
 
             // A recording reached here replaces the trailing one retire() dropped, or the first.
             trailing_counts_.release();
@@ -255,8 +248,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const std::size_t recorded, work.trailing->record_into_step(recording));
             SA_TRY(refusal_of(target->recorder()));
 
-            trailing_ = work.trailing;
-            trailing_operations_ = recorded;
+            trailing_.finish_recording(*work.trailing, recorded);
             return Status();
         }
 
@@ -272,8 +264,7 @@ namespace SushiAI
                     prelude(run_index);
             }
 
-            if (trailing_ != nullptr)
-                trailing_->before_replay();
+            trailing_.before_replay();
 
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Execute, [&]()
             {
@@ -285,18 +276,19 @@ namespace SushiAI
                 return Status();
             }));
 
-            if (trailing_ != nullptr)
-                trailing_->after_replay();
+            trailing_.after_replay();
 
             return Status();
         }
 
         Status RegionExecutor::execute(StepWork& work, StorageBank& storage)
         {
+            SA_TRY_ASSIGN(const TrailingPlan trailing, trailing_.plan(work));
+
             Retired retired;
             SA_TRY(::SushiAI::Detail::guard(::SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
-                retire(work, retired);
+                retire(work, trailing, retired);
                 return Status();
             }));
 
@@ -337,7 +329,7 @@ namespace SushiAI
                 SA_TRY(install(order, std::move(region.program), std::move(shared), storage));
             }
 
-            SA_TRY(record_trailing(work));
+            SA_TRY(record_trailing(work, trailing));
             return run(work.run_index);
         }
 
@@ -349,12 +341,10 @@ namespace SushiAI
                     graph_.drop(entry.first);
                 live_.clear();
 
-                if (trailing_key_ != K_NO_REGION)
-                    graph_.drop(trailing_key_);
+                if (trailing_.key() != K_NO_REGION)
+                    graph_.drop(trailing_.key());
                 trailing_counts_.release();
-                trailing_ = nullptr;
-                trailing_key_ = K_NO_REGION;
-                trailing_operations_ = 0;
+                trailing_.clear();
                 return Status();
             });
         }
