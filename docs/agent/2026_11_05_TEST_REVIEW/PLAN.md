@@ -26,7 +26,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M5 | the tests of `core/autograd` (14 files): 36 rewrite, 5 resize, 19 split, 11 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M6 | the tests of `core/config` (9 files): 2 rewrite, 43 resize, 9 split, 2 merge, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M7 | the tests of `core/darknet_reference` (1 file): 4 rewrite, 4 resize | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M8 | the tests of `core/data` (9 files): 25 rewrite, 9 resize, 1 split, 22 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except the records that wait on RW-155 |
+| M8 | the tests of `core/data` (9 files): 25 rewrite, 9 resize, 1 split, 22 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built in 7a34fa48, not yet built or run) |
 | M9 | the tests of `core/distribution` (13 files): 27 rewrite, 3 resize, 11 split, 25 merge, 3 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M10 | the tests of `core/dtype` (1 file): 1 rewrite, 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M11 | the tests of `core/eager` (19 files): 38 rewrite, 8 resize, 12 split, 21 merge, 10 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
@@ -34,7 +34,7 @@ writes each add. Nothing in a module job changes production code except a seam a
 | M13 | the tests of `core/execution` (1 file): 2 rewrite, 1 split, 2 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M14 | the tests of `core/failure` (3 files): 14 rewrite, 4 resize, 6 split, 1 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built, not yet built or run) |
 | M15 | the tests of `core/failure_expectations` (1 file): 1 resize, 2 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
-| M16 | the tests of `core/graph` (33 files): 147 rewrite, 22 resize, 37 split, 2 merge, 12 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done except the records that wait on RW-155; test_step_recording kept for the mirror rule |
+| M16 | the tests of `core/graph` (33 files): 147 rewrite, 22 resize, 37 split, 2 merge, 12 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seams built in 101edc81, not yet built or run) |
 | M17 | the tests of `core/hash` (1 file): 2 rewrite | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M18 | the tests of `core/log` (2 files): 2 rewrite, 1 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done |
 | M19 | the tests of `core/model_text` (1 file): 1 split | T1, T2, T3, T4, T5, T6, T7, T8 | done |
