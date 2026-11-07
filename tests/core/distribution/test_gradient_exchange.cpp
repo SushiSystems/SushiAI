@@ -33,6 +33,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 #include <gtest/gtest.h>
@@ -356,6 +357,109 @@ namespace
             return sycl::event{};
         });
     }
+    /** @brief Expects each replay of @p first to equal the same replay of @p second byte for byte. */
+    void expect_same_replays(const std::vector<ResultBytes>& first,
+                             const std::vector<ResultBytes>& second)
+    {
+        ASSERT_EQ(first.size(), second.size());
+        for (std::size_t replay = 0; replay < first.size(); ++replay)
+            EXPECT_EQ(first[replay], second[replay]) << "replay " << replay;
+    }
+
+    /** @brief Lists the types ordered_sum() sums; UInt32, the eighth, is refused by make(). */
+    const std::vector<DType>& typed_dtypes()
+    {
+        static const std::vector<DType> types = {DType::Half,      DType::Float32, DType::Float64,
+                                                 DType::Complex32, DType::Complex64, DType::Int32,
+                                                 DType::Int64};
+        return types;
+    }
+
+    /** @brief Holds what one exchange of a pack of every summed type left behind. */
+    struct TypedExchange
+    {
+        /** @brief Holds whether the step ran. */
+        bool ran = false;
+
+        /** @brief Holds how many tasks the master offloaded to the worker. */
+        std::size_t offloaded = 0;
+
+        /** @brief Holds the bytes of each target after the exchange. */
+        ResultBytes targets;
+    };
+
+    /**
+     * @brief Runs one exchange of a result pack holding each type ordered_sum() sums, and returns
+     *        what it left behind.
+     */
+    TypedExchange run_typed_exchange()
+    {
+        const ClusterSection section = two_replica_section();
+        const std::vector<DType>& types = typed_dtypes();
+
+        SushiRuntime::Runtime layout_runtime = named_runtime(K_MASTER_NAME);
+        SushiBLAS::Engine layout_engine(layout_runtime);
+        std::vector<SushiBLAS::Tensor> shapes;
+        for (const DType dtype : types)
+            shapes.push_back(
+                allocate_tensor(layout_engine, Shape{K_TYPED_ELEMENTS}, dtype).value());
+        const SushiBLAS::PackLayout layout = SushiBLAS::PackLayout::of(
+            SushiRuntime::span<const SushiBLAS::Tensor>(shapes.data(), shapes.size()));
+        const SushiRuntime::OperationID operation =
+            SushiBLAS::remote_operation("sushiai.test.typed", layout.fingerprint());
+
+        const auto setup = [&](Distributed::KernelRegistry& kernels)
+        {
+            register_typed_kernel(kernels, operation, layout);
+        };
+        TwoMachines machines(section, setup, setup);
+        SushiBLAS::Engine engine(machines.master_runtime());
+
+        std::vector<SushiBLAS::Tensor> targets;
+        for (const DType dtype : types)
+            targets.push_back(allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, dtype).value());
+        const SushiBLAS::Tensor parameter =
+            allocate_tensor(engine, Shape{1}, DType::Float32).value();
+        const SushiBLAS::PackLayout parameter_layout =
+            SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
+        std::unique_ptr<ParameterPublish> publish =
+            ParameterPublish::make(engine, machines.binding(), parameter_layout, {parameter})
+                .value();
+
+        ExchangeRun run;
+        run.operation = operation;
+        run.seed = K_SEED;
+        run.run_index = K_RUN;
+        std::unique_ptr<GradientExchange> exchange =
+            GradientExchange::make(engine, machines.binding(), section.plan(), run,
+                                   publish->pack(), layout, targets)
+                .value();
+
+        const Graph::Graph empty;
+        Graph::TensorPool pool(engine);
+        std::unique_ptr<Graph::CompiledStep> step =
+            Graph::CompiledStep::compile(engine, empty, pool, exchange.get()).value();
+
+        TypedExchange exchanged;
+        exchanged.ran = step->run().is_ok();
+        exchanged.offloaded = machines.cluster().offloaded();
+        exchanged.targets = bytes_of(
+            SushiRuntime::span<const SushiBLAS::Tensor>(targets.data(), targets.size()));
+        return exchanged;
+    }
+
+    /** @brief Returns the exchange of the typed pack, run once for every case that reads it. */
+    const TypedExchange& typed_exchange()
+    {
+        static const TypedExchange exchanged = run_typed_exchange();
+        return exchanged;
+    }
+
+    /** @brief Runs each type the exchange sums. */
+    class Medium_GradientExchangeType : public ::testing::TestWithParam<std::size_t>
+    {
+
+    };
 } // namespace
 
 /**
@@ -390,68 +494,38 @@ TEST(Medium_GradientExchange, TwoPinnedRunsEqualEachOtherBitForBit)
     const std::vector<ResultBytes> first = exchange_replays(2);
     const std::vector<ResultBytes> second = exchange_replays(2);
 
-    ASSERT_EQ(first.size(), second.size());
-    for (std::size_t replay = 0; replay < first.size(); ++replay)
-        EXPECT_EQ(first[replay], second[replay]) << "replay " << replay;
+    expect_same_replays(first, second);
+}
+
+/** @brief Tests that a result pack holding each summed type crosses the fabric to the worker. */
+TEST(Medium_GradientExchange, ATypedPackCrossesToTheWorker)
+{
+    const TypedExchange& exchanged = typed_exchange();
+
+    EXPECT_TRUE(exchanged.ran);
+    EXPECT_EQ(exchanged.offloaded, 1u);
 }
 
 /**
- * @brief Tests that a result pack holding each type ordered_sum() sums crosses the fabric and
- *        sums in replica order: weighted for the floating and complex types, exactly for Int32
- *        and Int64. UInt32, the eighth, is refused by make(); the next case pins it.
+ * @brief Tests that a type sums in replica order: weighted for the floating and complex types,
+ *        exactly for Int32 and Int64. UInt32, the eighth, is refused by make(); the case
+ *        MakeRefusesAUInt32Result pins it.
  */
-TEST(Medium_GradientExchange, EveryTypeCrossesAndSumsInReplicaOrder)
+TEST_P(Medium_GradientExchangeType, ATypeSumsInReplicaOrder)
 {
-    const ClusterSection section = two_replica_section();
-    const DType types[] = {DType::Half,      DType::Float32, DType::Float64, DType::Complex32,
-                           DType::Complex64, DType::Int32,   DType::Int64};
+    const DType dtype = typed_dtypes()[GetParam()];
+    const TypedExchange& exchanged = typed_exchange();
+    ASSERT_EQ(exchanged.targets.size(), typed_dtypes().size());
 
-    SushiRuntime::Runtime layout_runtime = named_runtime(K_MASTER_NAME);
-    SushiBLAS::Engine layout_engine(layout_runtime);
-    std::vector<SushiBLAS::Tensor> shapes;
-    for (const DType dtype : types)
-        shapes.push_back(allocate_tensor(layout_engine, Shape{K_TYPED_ELEMENTS}, dtype).value());
-    const SushiBLAS::PackLayout layout = SushiBLAS::PackLayout::of(
-        SushiRuntime::span<const SushiBLAS::Tensor>(shapes.data(), shapes.size()));
-    const SushiRuntime::OperationID operation =
-        SushiBLAS::remote_operation("sushiai.test.typed", layout.fingerprint());
-
-    const auto setup = [&](Distributed::KernelRegistry& kernels)
-    {
-        register_typed_kernel(kernels, operation, layout);
-    };
-    TwoMachines machines(section, setup, setup);
-    SushiBLAS::Engine engine(machines.master_runtime());
-
-    std::vector<SushiBLAS::Tensor> targets;
-    for (const DType dtype : types)
-        targets.push_back(allocate_tensor(engine, Shape{K_TYPED_ELEMENTS}, dtype).value());
-    const SushiBLAS::Tensor parameter = allocate_tensor(engine, Shape{1}, DType::Float32).value();
-    const SushiBLAS::PackLayout parameter_layout =
-        SushiBLAS::PackLayout::of(SushiRuntime::span<const SushiBLAS::Tensor>(&parameter, 1));
-    std::unique_ptr<ParameterPublish> publish =
-        ParameterPublish::make(engine, machines.binding(), parameter_layout, {parameter}).value();
-
-    ExchangeRun run;
-    run.operation = operation;
-    run.seed = K_SEED;
-    run.run_index = K_RUN;
-    std::unique_ptr<GradientExchange> exchange =
-        GradientExchange::make(engine, machines.binding(), section.plan(), run, publish->pack(),
-                               layout, targets).value();
-
-    const Graph::Graph empty;
-    Graph::TensorPool pool(engine);
-    std::unique_ptr<Graph::CompiledStep> step =
-        Graph::CompiledStep::compile(engine, empty, pool, exchange.get()).value();
-    SA_EXPECT_OK(step->run());
-    EXPECT_EQ(machines.cluster().offloaded(), 1u);
-
-    const ResultBytes got = bytes_of(
-        SushiRuntime::span<const SushiBLAS::Tensor>(targets.data(), targets.size()));
-    for (std::size_t index = 0; index < targets.size(); ++index)
-        EXPECT_EQ(got[index], expected_sum(types[index])) << dtype_name(types[index]);
+    EXPECT_EQ(exchanged.targets[GetParam()], expected_sum(dtype));
 }
+
+INSTANTIATE_TEST_SUITE_P(Types, Medium_GradientExchangeType,
+                         ::testing::Range<std::size_t>(0, 7),
+                         [](const ::testing::TestParamInfo<std::size_t>& info)
+                         {
+                             return std::string(dtype_name(typed_dtypes()[info.param]));
+                         });
 
 /** @brief Tests that make() refuses targets that differ from the result layout. */
 TEST(Medium_GradientExchange, MakeRefusesTargetsThatDifferFromTheResultLayout)

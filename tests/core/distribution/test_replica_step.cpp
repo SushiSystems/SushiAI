@@ -103,6 +103,46 @@ namespace
         std::memcpy(values.data(), bytes.data(), values.size() * sizeof(float));
         return values;
     }
+
+    /** @brief Expects every byte of every result entry of @p results to be zero. */
+    void expect_results_zero(const HostPack& results, const SushiBLAS::PackLayout& layout)
+    {
+        for (std::size_t index = 0; index < layout.entries().size(); ++index)
+        {
+            const std::vector<unsigned char> bytes = results.entry(index);
+            EXPECT_EQ(bytes, std::vector<unsigned char>(bytes.size(), 0)) << "result " << index;
+        }
+    }
+
+    /** @brief Expects each entry of @p results to equal the same entry of @p expected bit for bit. */
+    void expect_results_equal(const HostPack& results,
+                              const std::vector<std::vector<unsigned char>>& expected)
+    {
+        ASSERT_EQ(results.layout->entries().size(), expected.size());
+        for (std::size_t index = 0; index < expected.size(); ++index)
+            EXPECT_EQ(results.entry(index), expected[index]) << "result " << index;
+    }
+
+    /** @brief Expects each entry of @p results to hold (a + b) / 2 in float32, bit for bit. */
+    void expect_results_mean_of(const HostPack& results,
+                                const std::vector<std::vector<unsigned char>>& first,
+                                const std::vector<std::vector<unsigned char>>& second)
+    {
+        ASSERT_EQ(first.size(), second.size());
+        for (std::size_t index = 0; index < first.size(); ++index)
+        {
+            const std::vector<float> got = as_floats(results.entry(index));
+            const std::vector<float> a = as_floats(first[index]);
+            const std::vector<float> b = as_floats(second[index]);
+            ASSERT_EQ(got.size(), a.size()) << "result " << index;
+            for (std::size_t element = 0; element < got.size(); ++element)
+            {
+                const float expected = (a[element] + b[element]) / 2.0f;
+                EXPECT_EQ(std::memcmp(&got[element], &expected, sizeof(float)), 0)
+                    << "result " << index << ", element " << element;
+            }
+        }
+    }
 } // namespace
 
 /** @brief Tests that make() refuses a micro-batch of no row before it creates a runtime. */
@@ -126,11 +166,7 @@ TEST(Medium_ReplicaStep, NoMicroBatchWritesZeros)
     SA_EXPECT_OK(step->begin(parameters.bound));
     SA_EXPECT_OK(step->finish(results.bound));
 
-    for (std::size_t index = 0; index < step->result_layout().entries().size(); ++index)
-    {
-        const std::vector<unsigned char> bytes = results.entry(index);
-        EXPECT_EQ(bytes, std::vector<unsigned char>(bytes.size(), 0)) << "result " << index;
-    }
+    expect_results_zero(results, step->result_layout());
 }
 
 /** @brief Tests that one micro-batch writes the replay's results byte for byte. */
@@ -148,9 +184,7 @@ TEST(Medium_ReplicaStep, OneMicroBatchWritesTheReplayResultsBitForBit)
     SA_EXPECT_OK(step->run_micro_batch(rows_from(0, 4, 0)));
     SA_EXPECT_OK(step->finish(results.bound));
 
-    ASSERT_EQ(step->result_layout().entries().size(), reference.results.size());
-    for (std::size_t index = 0; index < reference.results.size(); ++index)
-        EXPECT_EQ(results.entry(index), reference.results[index]) << "result " << index;
+    expect_results_equal(results, reference.results);
 }
 
 /**
@@ -173,17 +207,5 @@ TEST(Medium_ReplicaStep, TwoMicroBatchesWriteTheirMeanInMicroBatchOrder)
     SA_EXPECT_OK(step->run_micro_batch(rows_from(2, 2, 1)));
     SA_EXPECT_OK(step->finish(results.bound));
 
-    for (std::size_t index = 0; index < first.results.size(); ++index)
-    {
-        const std::vector<float> got = as_floats(results.entry(index));
-        const std::vector<float> a = as_floats(first.results[index]);
-        const std::vector<float> b = as_floats(second.results[index]);
-        ASSERT_EQ(got.size(), a.size()) << "result " << index;
-        for (std::size_t element = 0; element < got.size(); ++element)
-        {
-            const float expected = (a[element] + b[element]) / 2.0f;
-            EXPECT_EQ(std::memcmp(&got[element], &expected, sizeof(float)), 0)
-                << "result " << index << ", element " << element;
-        }
-    }
+    expect_results_mean_of(results, first.results, second.results);
 }

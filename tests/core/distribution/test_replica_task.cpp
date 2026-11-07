@@ -29,6 +29,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -47,45 +48,91 @@ namespace
     {
         return SushiRuntime::span<const std::uint64_t>(words.data(), words.size());
     }
+
+    /** @brief Returns the task of replica 3 of 5, run 4, seed 0xFEED. */
+    ReplicaTask example_task()
+    {
+        ReplicaTask task;
+        task.replica_index = 3;
+        task.replica_count = 5;
+        task.run_index = 4;
+        task.seed = 0xFEEDull;
+        return task;
+    }
+
+    /** @brief Holds words decode() refuses and the substring the refusal must name. */
+    struct DecodeRefusalRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the words handed to decode(). */
+        std::vector<std::uint64_t> words;
+
+        /** @brief Holds the substring the refusal must name. */
+        const char* needle;
+    };
+
+    /** @brief Lists the word lists decode() refuses. */
+    std::vector<DecodeRefusalRow> decode_refusal_rows()
+    {
+        return {
+            {"RegressionAnotherWordCountNamingIt", {0, 0, 0, 1, 0, 0},
+             "carries 6 parameters, not 4"},
+            {"AReplicaOutsideItsStep", {2, 2, 0, 0}, "replica 2 of a step of 2"},
+            {"AStepOfNoReplica", {0, 0, 0, 0}, "0 replicas"},
+        };
+    }
+
+    /** @brief Runs each word list decode() refuses. */
+    class Small_ReplicaTaskDecodeRefusal : public ::testing::TestWithParam<DecodeRefusalRow>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that the words follow the design's order and decode back to the same task. */
-TEST(Small_ReplicaTask, EncodesInTheDesignOrderAndDecodesBack)
+/** @brief Tests that the words follow the design's order: replica, count, run, seed. */
+TEST(Small_ReplicaTask, EncodesInTheDesignOrder)
 {
-    ReplicaTask task;
-    task.replica_index = 3;
-    task.replica_count = 5;
-    task.run_index = 4;
-    task.seed = 0xFEEDull;
+    const std::array<std::uint64_t, K_REPLICA_TASK_WORDS> words = example_task().encode();
 
-    const std::array<std::uint64_t, K_REPLICA_TASK_WORDS> words = task.encode();
     EXPECT_EQ(words, (std::array<std::uint64_t, K_REPLICA_TASK_WORDS>{3, 5, 4, 0xFEED}));
+}
+
+/** @brief Tests that the encoded words decode back to the same task. */
+TEST(Small_ReplicaTask, EncodedWordsDecodeBackToTheSameTask)
+{
+    const std::array<std::uint64_t, K_REPLICA_TASK_WORDS> words = example_task().encode();
 
     SA_ASSERT_OK_AND_ASSIGN(const ReplicaTask decoded,
                             ReplicaTask::decode(SushiRuntime::span<const std::uint64_t>(
                                 words.data(), words.size())));
+
     EXPECT_EQ(decoded.encode(), words);
-    EXPECT_EQ(decoded.draws().seed, 0xFEEDull);
-    EXPECT_EQ(decoded.draws().replica_index, 3u);
-    EXPECT_EQ(decoded.draws().run_index, 4u);
 }
 
-/** @brief Tests that decode() refuses a count of words other than four, naming the count given. */
-TEST(Small_ReplicaTask, RegressionDecodeRefusesAnotherWordCountNamingIt)
+/** @brief Tests that a task maps to the draws of its seed, replica and run. */
+TEST(Small_ReplicaTask, ATaskMapsToTheDrawsOfItsSeedReplicaAndRun)
 {
-    const std::vector<std::uint64_t> six = {0, 0, 0, 1, 0, 0};
-    SA_EXPECT_FAILURE(ReplicaTask::decode(view(six)), StatusCode::InvalidDescription,
-                      "carries 6 parameters, not 4");
+    const ReplicaTask task = example_task();
+
+    EXPECT_EQ(task.draws().seed, 0xFEEDull);
+    EXPECT_EQ(task.draws().replica_index, 3u);
+    EXPECT_EQ(task.draws().run_index, 4u);
 }
 
-/** @brief Tests that decode() refuses a replica outside its step and a step of no replica. */
-TEST(Small_ReplicaTask, DecodeRefusesAReplicaOutsideItsStep)
+/** @brief Tests that decode() refuses a word list that breaks a rule of the task, naming it. */
+TEST_P(Small_ReplicaTaskDecodeRefusal, DecodeRefusesWordsThatBreakARuleNamingIt)
 {
-    const std::vector<std::uint64_t> outside = {2, 2, 0, 0};
-    SA_EXPECT_FAILURE(ReplicaTask::decode(view(outside)), StatusCode::InvalidDescription,
-                      "replica 2 of a step of 2");
+    const DecodeRefusalRow& row = GetParam();
 
-    const std::vector<std::uint64_t> empty = {0, 0, 0, 0};
-    SA_EXPECT_FAILURE(ReplicaTask::decode(view(empty)), StatusCode::InvalidDescription,
-                      "0 replicas");
+    SA_EXPECT_FAILURE(ReplicaTask::decode(view(row.words)), StatusCode::InvalidDescription,
+                      row.needle);
 }
+
+INSTANTIATE_TEST_SUITE_P(Words, Small_ReplicaTaskDecodeRefusal,
+                         ::testing::ValuesIn(decode_refusal_rows()),
+                         [](const ::testing::TestParamInfo<DecodeRefusalRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

@@ -27,15 +27,14 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
 #include <SushiRuntime/api/data/buffer.hpp>
-#include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/distribution/host_access.hpp>
-#include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
-#include <SushiAI/shape/shape.hpp>
 
 namespace
 {
@@ -43,28 +42,75 @@ namespace
     using SushiBLAS::Core::DataType;
     using SushiRuntime::Residency;
 
-    /** @brief Gives each case an engine on the shared runtime. */
-    class Medium_HostAccess : public SushiAI::Test::EngineTest
+    /** @brief Makes a tensor of four float32 elements in shared memory. */
+    SushiBLAS::Tensor make_shared_tensor(SushiBLAS::Engine& engine)
+    {
+        return engine.create_tensor({4}, DataType::Float32, Residency::Shared);
+    }
+
+    /** @brief Makes a tensor of four float32 elements in host memory. */
+    SushiBLAS::Tensor make_host_tensor(SushiBLAS::Engine& engine)
+    {
+        return engine.create_tensor({4}, DataType::Float32, Residency::Host);
+    }
+
+    /** @brief Makes a tensor of four float32 elements in device memory. */
+    SushiBLAS::Tensor make_device_tensor(SushiBLAS::Engine& engine)
+    {
+        return engine.create_tensor({4}, DataType::Float32, Residency::Device);
+    }
+
+    /** @brief Makes a tensor with no storage. */
+    SushiBLAS::Tensor make_empty_tensor(SushiBLAS::Engine& engine)
+    {
+        static_cast<void>(engine);
+        return SushiBLAS::Tensor();
+    }
+
+    /** @brief Holds a tensor to make and whether the host can address its storage. */
+    struct ResidencyRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Makes the tensor on the engine. */
+        SushiBLAS::Tensor (*make)(SushiBLAS::Engine&);
+
+        /** @brief Holds whether the host can address the tensor's storage. */
+        bool visible;
+    };
+
+    /** @brief Lists the residencies of a tensor, an empty tensor included. */
+    std::vector<ResidencyRow> residency_rows()
+    {
+        return {
+            {"SharedMemory", &make_shared_tensor, true},
+            {"HostMemory", &make_host_tensor, true},
+            {"DeviceMemory", &make_device_tensor, false},
+            {"NoStorage", &make_empty_tensor, false},
+        };
+    }
+
+    /** @brief Gives each case an engine on the shared runtime and a residency to check. */
+    class Medium_HostAccess : public SushiAI::Test::EngineTest,
+                              public ::testing::WithParamInterface<ResidencyRow>
     {
 
     };
 } // namespace
 
-TEST_F(Medium_HostAccess, SharedAndHostMemoryAreVisible)
+/** @brief Tests that a tensor is host-visible exactly when its storage is shared or host memory. */
+TEST_P(Medium_HostAccess, ATensorIsHostVisibleWhenItsStorageIsSharedOrHostMemory)
 {
-    EXPECT_TRUE(is_host_visible(engine->create_tensor({4}, DataType::Float32, Residency::Shared)));
-    EXPECT_TRUE(is_host_visible(engine->create_tensor({4}, DataType::Float32, Residency::Host)));
+    const ResidencyRow& row = GetParam();
+
+    const SushiBLAS::Tensor tensor = row.make(*engine);
+
+    EXPECT_EQ(is_host_visible(tensor), row.visible);
 }
 
-TEST_F(Medium_HostAccess, DeviceMemoryAndNoStorageAreNot)
-{
-    EXPECT_FALSE(is_host_visible(engine->create_tensor({4}, DataType::Float32, Residency::Device)));
-    EXPECT_FALSE(is_host_visible(SushiBLAS::Tensor()));
-}
-
-TEST_F(Medium_HostAccess, ThePoolAllocatesVisibleTensors)
-{
-    const SushiBLAS::Tensor tensor =
-        SushiAI::allocate_tensor(*engine, SushiAI::Shape{4}, SushiAI::DType::Float32).value();
-    EXPECT_TRUE(is_host_visible(tensor));
-}
+INSTANTIATE_TEST_SUITE_P(Residencies, Medium_HostAccess, ::testing::ValuesIn(residency_rows()),
+                         [](const ::testing::TestParamInfo<ResidencyRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

@@ -30,6 +30,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/cluster/cluster_binding.hpp>
@@ -89,6 +90,16 @@ namespace
                 }
             }
 
+            /** @brief Returns the parameters at @p indices, in that order. */
+            std::vector<SushiBLAS::Tensor> parameters_at(
+                const std::vector<std::size_t>& indices) const
+            {
+                std::vector<SushiBLAS::Tensor> chosen;
+                for (const std::size_t index : indices)
+                    chosen.push_back(parameters_[index]);
+                return chosen;
+            }
+
             /** @brief Returns the layout of the parameters. */
             SushiBLAS::PackLayout layout() const
             {
@@ -131,15 +142,52 @@ namespace
             /// @brief The parameters, in pack order.
             std::vector<SushiBLAS::Tensor> parameters_;
     };
+
+    /** @brief Holds a parameter list the pack refuses and the words the refusal must name. */
+    struct RefusalRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the indices of the parameters handed to make(), in order. */
+        std::vector<std::size_t> indices;
+
+        /** @brief Holds the substring the refusal must name. */
+        const char* needle;
+    };
+
+    /** @brief Lists the parameter lists that differ from the layout. */
+    std::vector<RefusalRow> refusal_rows()
+    {
+        return {
+            {"ReversedOrder", {1, 0}, "Parameter 0"},
+            {"OneTensor", {0}, "2 tensors"},
+        };
+    }
+
+    /** @brief Runs each parameter list make() refuses. */
+    class Medium_ParameterPublishRefusal : public Medium_ParameterPublish,
+                                           public ::testing::WithParamInterface<RefusalRow>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that make() shares the pack and copies the parameters into it. */
-TEST_F(Medium_ParameterPublish, MakeSharesThePackAndCopiesTheParameters)
+/** @brief Tests that make() shares the pack through the binding. */
+TEST_F(Medium_ParameterPublish, MakeSharesThePack)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
                             ParameterPublish::make(engine_, binding_, layout(), parameters_));
 
     EXPECT_TRUE(binding_.is_shared(publish->pack()));
+}
+
+/** @brief Tests that make() copies the parameters into the pack. */
+TEST_F(Medium_ParameterPublish, MakeCopiesTheParametersIntoThePack)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ParameterPublish> publish,
+                            ParameterPublish::make(engine_, binding_, layout(), parameters_));
+
     expect_pack_holds_parameters(*publish);
 }
 
@@ -160,14 +208,18 @@ TEST_F(Medium_ParameterPublish, AReplayGathersTheNewParameters)
     expect_pack_holds_parameters(*publish);
 }
 
-/** @brief Tests that make() refuses a parameter list that differs from the layout. */
-TEST_F(Medium_ParameterPublish, MakeRefusesParametersThatDifferFromTheLayout)
+/** @brief Tests that make() refuses a parameter list that differs from the layout, naming it. */
+TEST_P(Medium_ParameterPublishRefusal, MakeRefusesParametersThatDifferFromTheLayout)
 {
-    const std::vector<SushiBLAS::Tensor> reversed = {parameters_[1], parameters_[0]};
-    SA_EXPECT_FAILURE(ParameterPublish::make(engine_, binding_, layout(), reversed),
-                      StatusCode::InvalidDescription, "Parameter 0");
+    const RefusalRow& row = GetParam();
+    const std::vector<SushiBLAS::Tensor> listed = parameters_at(row.indices);
 
-    const std::vector<SushiBLAS::Tensor> one = {parameters_[0]};
-    SA_EXPECT_FAILURE(ParameterPublish::make(engine_, binding_, layout(), one),
-                      StatusCode::InvalidDescription, "2 tensors");
+    SA_EXPECT_FAILURE(ParameterPublish::make(engine_, binding_, layout(), listed),
+                      StatusCode::InvalidDescription, row.needle);
 }
+
+INSTANTIATE_TEST_SUITE_P(Lists, Medium_ParameterPublishRefusal, ::testing::ValuesIn(refusal_rows()),
+                         [](const ::testing::TestParamInfo<RefusalRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

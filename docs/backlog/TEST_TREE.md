@@ -13,6 +13,7 @@
 | RW-157 | P2 | open | Give InMemorySampleSource a load journal and drop test_pipeline's MemorySource | test_pipeline.cpp defines no SampleSource of its own and the AffineNearest tests live in test_affine_nearest.cpp |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-158 | P2 | open | Build the program seams the M2 resizes need, then resize those tests to Small_ | the thirteen Medium_ program tests listed in REPORT.md decision 15 run as Small_ through value functions or in-memory ports |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 | RW-159 | P2 | open | Build the CLI seams the M3 resizes need and move the colour-name test to a checker | the CLI tests named in REPORT.md decision 16 run small and the raw rich colour rule is a checker under tools/ |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
+| RW-160 | P2 | open | Build the darknet_reference and distribution seams the M7 and M9 records need | the tests named in REPORT.md decision 17 are applied as their records say, with no runtime made by a test |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 

@@ -234,6 +234,35 @@ namespace
         return values;
     }
 
+    /** @brief Expects each entry of @p received to equal the same entry of @p expected bit for bit. */
+    void expect_results_equal(const std::vector<std::vector<unsigned char>>& received,
+                              const std::vector<std::vector<unsigned char>>& expected)
+    {
+        ASSERT_EQ(received.size(), expected.size());
+        for (std::size_t index = 0; index < received.size(); ++index)
+            EXPECT_EQ(received[index], expected[index]) << "result " << index;
+    }
+
+    /** @brief Expects each float32 entry of @p received within the tolerances of @p expected. */
+    void expect_results_near(const std::vector<std::vector<unsigned char>>& received,
+                             const std::vector<std::vector<unsigned char>>& expected)
+    {
+        ASSERT_EQ(received.size(), expected.size());
+        for (std::size_t index = 0; index < received.size(); ++index)
+        {
+            const std::vector<float> got = as_floats(received[index]);
+            const std::vector<float> reference = as_floats(expected[index]);
+            ASSERT_EQ(got.size(), reference.size()) << "result " << index;
+            for (std::size_t element = 0; element < got.size(); ++element)
+            {
+                const double bound = K_ABSOLUTE_TOLERANCE
+                                     + K_RELATIVE_TOLERANCE * std::fabs(reference[element]);
+                EXPECT_NEAR(got[element], reference[element], bound)
+                    << "result " << index << ", element " << element;
+            }
+        }
+    }
+
     /** @brief Holds the elements of the masked parameter of DropoutModel. */
     constexpr std::int64_t K_MASKED_ELEMENTS = 64;
 
@@ -355,6 +384,16 @@ namespace
                                   options));
         return results;
     }
+
+    /** @brief Serves @p kernel steps 0 to @p last of epoch 0 and returns the results of each. */
+    std::vector<std::vector<unsigned char>> serve_steps_up_to(ReplicaKernel& kernel,
+                                                              std::uint64_t last)
+    {
+        std::vector<std::vector<unsigned char>> drawn;
+        for (std::uint64_t step = 0; step <= last; ++step)
+            drawn.push_back(serve_step(kernel, step));
+        return drawn;
+    }
 } // namespace
 
 /**
@@ -367,9 +406,7 @@ TEST(Medium_ReplicaKernel, OneMicroBatchReturnsTheSingleMachineResultsBitForBit)
     const SingleMachineStep reference(K_ROWS);
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(K_ROWS, K_ROWS);
 
-    ASSERT_EQ(received.size(), reference.results.size());
-    for (std::size_t index = 0; index < received.size(); ++index)
-        EXPECT_EQ(received[index], reference.results[index]) << "result " << index;
+    expect_results_equal(received, reference.results);
 }
 
 /**
@@ -381,20 +418,7 @@ TEST(Medium_ReplicaKernel, TwoMicroBatchesReturnTheSingleMachineMeanWithinTolera
     const SingleMachineStep reference(4);
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(4, 2);
 
-    ASSERT_EQ(received.size(), reference.results.size());
-    for (std::size_t index = 0; index < received.size(); ++index)
-    {
-        const std::vector<float> got = as_floats(received[index]);
-        const std::vector<float> expected = as_floats(reference.results[index]);
-        ASSERT_EQ(got.size(), expected.size()) << "result " << index;
-        for (std::size_t element = 0; element < got.size(); ++element)
-        {
-            const double bound = K_ABSOLUTE_TOLERANCE
-                                 + K_RELATIVE_TOLERANCE * std::fabs(expected[element]);
-            EXPECT_NEAR(got[element], expected[element], bound)
-                << "result " << index << ", element " << element;
-        }
-    }
+    expect_results_near(received, reference.results);
 }
 
 /** @brief Tests that the batch the position pack names picks the rows the replica runs. */
@@ -404,9 +428,7 @@ TEST(Medium_ReplicaKernel, ThePositionPackPicksTheBatch)
     const SingleMachineStep reference(K_ROWS, static_cast<std::uint64_t>(K_ROWS));
     const std::vector<std::vector<unsigned char>> received = serve_one_replica(K_ROWS, K_ROWS, 1);
 
-    ASSERT_EQ(received.size(), reference.results.size());
-    for (std::size_t index = 0; index < received.size(); ++index)
-        EXPECT_EQ(received[index], reference.results[index]) << "result " << index;
+    expect_results_equal(received, reference.results);
 }
 
 /** @brief Tests that a node without its position pack is refused before any step runs. */
@@ -443,9 +465,8 @@ TEST(Medium_ReplicaKernel, AReplicaStartedAtAStepDrawsWhatAnUninterruptedRunDrew
 {
     constexpr std::uint64_t K_STEP = 3;
     const std::unique_ptr<ReplicaKernel> uninterrupted = make_dropout_kernel();
-    std::vector<std::vector<unsigned char>> drawn;
-    for (std::uint64_t step = 0; step <= K_STEP; ++step)
-        drawn.push_back(serve_step(*uninterrupted, step));
+    const std::vector<std::vector<unsigned char>> drawn =
+        serve_steps_up_to(*uninterrupted, K_STEP);
 
     const std::unique_ptr<ReplicaKernel> restarted = make_dropout_kernel();
     EXPECT_EQ(serve_step(*restarted, K_STEP), drawn[K_STEP]);

@@ -34,6 +34,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/operation_id.hpp>
 #include <SushiRuntime/core/placement_class.hpp>
@@ -71,6 +72,56 @@ namespace
         {"worker": "ember", "rows": 6, "micro_batch": 2, "if_absent": "fail"}
     ])";
 
+    /** @brief Holds one replica of the main case and everything the section makes of it. */
+    struct ReplicaRow
+    {
+        /** @brief Names the replica in the test report; also its worker. */
+        const char* worker;
+
+        /** @brief Holds the replica's index in the section. */
+        std::size_t replica;
+
+        /** @brief Holds the rows the replica takes of each batch. */
+        std::int64_t rows;
+
+        /** @brief Holds the rows of one micro-batch. */
+        std::int64_t micro_batch;
+
+        /** @brief Holds the first row position of the replica in batch 2. */
+        std::uint64_t first_in_batch_two;
+
+        /** @brief Holds the replica's rows over the 40 rows of the batch. */
+        double weight;
+
+        /** @brief Holds the priority of the rule. */
+        int priority;
+
+        /** @brief Holds what the rule does when the worker is absent. */
+        SushiRuntime::AbsentAction action;
+
+        /** @brief Holds the bound of the absent action, in milliseconds. */
+        std::int64_t bound_ms;
+    };
+
+    /** @brief Lists the five replicas of K_FIVE_REPLICAS with their expected results. */
+    std::vector<ReplicaRow> replica_rows()
+    {
+        using SushiRuntime::AbsentAction;
+        return {
+            {"atlas", 0, 12, 4, 80, 0.3, 0, AbsentAction::Local, 0},
+            {"bravo", 1, 8, 4, 92, 0.2, 5, AbsentAction::Wait, 30000},
+            {"cobalt", 2, 8, 2, 100, 0.2, 0, AbsentAction::Fail, 0},
+            {"delta", 3, 6, 3, 108, 0.15, 0, AbsentAction::Local, 0},
+            {"ember", 4, 6, 2, 114, 0.15, 0, AbsentAction::Fail, 0},
+        };
+    }
+
+    /** @brief Names a replica row after its worker. */
+    std::string replica_row_name(const ::testing::TestParamInfo<ReplicaRow>& info)
+    {
+        return info.param.worker;
+    }
+
     /** @brief Returns the text of a section that states a listen address and a secret file. */
     std::string section_text(std::string_view replicas)
     {
@@ -91,90 +142,283 @@ namespace
     {
         return read_text(section_text(replicas));
     }
+
+    /** @brief Holds a section the reader refuses and the words its message must name. */
+    struct RefusalCase
+    {
+        /** @brief Names the case in the test report. */
+        const char* name;
+
+        /** @brief Holds the text of the section. */
+        std::string text;
+
+        /** @brief Holds the substrings the message must contain. */
+        std::vector<std::string_view> needles;
+    };
+
+    /** @brief Builds the text of a section whose only replica is @p replica. */
+    std::string one_replica_text(std::string_view replica)
+    {
+        return section_text("[" + std::string(replica) + "]");
+    }
+
+    /** @brief Lists every section the reader refuses, with what the message names. */
+    std::vector<RefusalCase> refusal_cases()
+    {
+        return {
+            {"AWorkerNamedTwice",
+             section_text(R"([
+        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local"},
+        {"worker": "b", "rows": 4, "micro_batch": 2, "if_absent": "local"},
+        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
+             {"entry 2", "'worker'", "'a'", "entry 0"}},
+            {"RegressionTwoNamesOfOneMachine",
+             section_text(R"([
+        {"worker": "Rack-7", "rows": 4, "micro_batch": 2, "if_absent": "local"},
+        {"worker": "rack-7.lab", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
+             {"entry 1", "'worker'", "entry 0"}},
+            {"AMissingListenAddress",
+             R"({"secret_file": "s", "replicas": [{"worker": "a", "rows": 4,
+                      "micro_batch": 2, "if_absent": "local"}]})",
+             {"cluster", "has no 'listen'"}},
+            {"AMissingSecretFile",
+             R"({"listen": "a:1", "replicas": [{"worker": "a", "rows": 4,
+                      "micro_batch": 2, "if_absent": "local"}]})",
+             {"cluster", "has no 'secret_file'"}},
+            {"AnEmptyListenAddress",
+             R"({"listen": "", "secret_file": "s", "replicas": []})",
+             {"cluster 'listen'", "empty"}},
+            {"AnEmptySecretFile",
+             R"({"listen": "a:1", "secret_file": "", "replicas": []})",
+             {"cluster 'secret_file'", "empty"}},
+            {"ASectionWithoutReplicas",
+             R"({"listen": "a:1", "secret_file": "s"})",
+             {"cluster", "has no 'replicas'"}},
+            {"AnIfAbsentOutsideTheThree",
+             one_replica_text(
+                 R"({"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "retry"})"),
+             {"entry 0 'if_absent'", "'retry'", "'local'", "'wait'", "'fail'"}},
+            {"AMissingIfAbsent",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2})"),
+             {"entry 0", "has no 'if_absent'"}},
+            {"AWaitWithoutABound",
+             one_replica_text(
+                 R"({"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "wait"})"),
+             {"entry 0 'if_absent'", "'wait'", "'wait_ms'"}},
+            {"AWaitBoundOfZero",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "wait", "wait_ms": 0})"),
+             {"entry 0 'wait_ms'", "is 0", "positive"}},
+            {"AWaitBoundBelowZero",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "wait", "wait_ms": -5})"),
+             {"entry 0 'wait_ms'", "is -5", "positive"}},
+            {"ABoundBesideLocal",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "local", "wait_ms": 10})"),
+             {"entry 0 'wait_ms'", "'local'", "only 'wait'"}},
+            {"ABoundBesideFail",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "fail", "wait_ms": 10})"),
+             {"entry 0 'wait_ms'", "'fail'", "only 'wait'"}},
+            {"AReplicaWithoutAWorker",
+             one_replica_text(R"({"rows": 4, "micro_batch": 2, "if_absent": "local"})"),
+             {"entry 0", "has no 'worker'"}},
+            {"AReplicaWithoutRows",
+             one_replica_text(R"({"worker": "a", "micro_batch": 2, "if_absent": "local"})"),
+             {"entry 0", "has no 'rows'"}},
+            {"AReplicaWithoutAMicroBatch",
+             one_replica_text(R"({"worker": "a", "rows": 4, "if_absent": "local"})"),
+             {"entry 0", "has no 'micro_batch'"}},
+            {"RowsOfTheWrongKind",
+             one_replica_text(
+                 R"({"worker": "a", "rows": "4", "micro_batch": 2, "if_absent": "local"})"),
+             {"entry 0 'rows'", "whole number"}},
+            {"AWorkerOfTheWrongKind",
+             one_replica_text(
+                 R"({"worker": 7, "rows": 4, "micro_batch": 2, "if_absent": "local"})"),
+             {"entry 0 'worker'", "string"}},
+            {"AnEmptyWorker",
+             one_replica_text(
+                 R"({"worker": "", "rows": 4, "micro_batch": 2, "if_absent": "local"})"),
+             {"entry 0 'worker'", "empty"}},
+            {"AnUnknownReplicaKey",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "local", "speed": 3})"),
+             {"entry 0", "'speed'", "does not have"}},
+            {"AnUnknownSectionKey",
+             R"({"listen": "a:1", "secret_file": "s", "replicas": [], "port": 7})",
+             {"cluster", "'port'", "does not have"}},
+            {"APriorityOutsideTheRangeOfAnInt",
+             one_replica_text(R"({"worker": "a", "rows": 4, "micro_batch": 2,
+                 "if_absent": "local", "priority": 3000000000})"),
+             {"entry 0 'priority'", "3000000000"}},
+            {"ASectionThatIsNoObject", "[]", {"cluster", "must be an object"}},
+        };
+    }
+
+    /** @brief Expects the reading of a section to be refused with InvalidDescription naming. */
+    void expect_refusal(const SushiAI::Result<ClusterSection>& outcome,
+                        const std::vector<std::string_view>& needles)
+    {
+        ASSERT_FALSE(outcome.has_value());
+        EXPECT_EQ(outcome.status().code(), StatusCode::InvalidDescription);
+        for (std::string_view needle : needles)
+        {
+            EXPECT_NE(outcome.status().message().find(needle), std::string_view::npos)
+                << "the diagnostic does not name \"" << needle << "\": "
+                << outcome.status().message();
+        }
+    }
+
+    /** @brief Returns an absolute path that exists on no machine, spelt for the platform. */
+    std::filesystem::path fixed_absolute_secret_file()
+    {
+#if defined(_WIN32)
+        return std::filesystem::path("C:/elsewhere/cluster.secret");
+#else
+        return std::filesystem::path("/elsewhere/cluster.secret");
+#endif
+    }
+
+    /** @brief Runs each replica of the main case. */
+    class Small_ClusterSectionReplica : public ::testing::TestWithParam<ReplicaRow>
+    {
+
+    };
+
+    /** @brief Runs each section the reader refuses. */
+    class Small_ClusterSectionRefusal : public ::testing::TestWithParam<RefusalCase>
+    {
+
+    };
 } // namespace
 
-/** @brief Tests that a five-replica section turns into rows, micro-batches and weights. */
-TEST(Small_ClusterSection, FiveReplicasBecomeRowsMicroBatchesAndWeights)
+/** @brief Tests that a section keeps its listen address. */
+TEST(Small_ClusterSection, TheSectionKeepsItsListenAddress)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
 
     EXPECT_EQ(section.listen_address(), "0.0.0.0:7700");
+}
+
+/** @brief Tests that a relative secret file is read from under the base directory. */
+TEST(Small_ClusterSection, ARelativeSecretFileSitsUnderTheBaseDirectory)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+
     EXPECT_EQ(section.secret_file(), std::filesystem::path("conf") / "cluster.secret");
-
-    const ReplicaPlan& plan = section.plan();
-    ASSERT_EQ(plan.replica_count(), 5u);
-    EXPECT_EQ(plan.batch_rows(), 40);
-
-    const std::int64_t rows[] = {12, 8, 8, 6, 6};
-    const std::int64_t micro_batches[] = {4, 4, 2, 3, 2};
-    const std::uint64_t firsts[] = {80, 92, 100, 108, 114};
-    const double weights[] = {0.3, 0.2, 0.2, 0.15, 0.15};
-    for (std::size_t replica = 0; replica < 5; ++replica)
-    {
-        EXPECT_EQ(plan.rows_of(replica), rows[replica]) << "replica " << replica;
-        EXPECT_EQ(plan.micro_batch_of(replica), micro_batches[replica]) << "replica " << replica;
-        EXPECT_NEAR(plan.weight_of(replica), weights[replica], K_DOUBLE_TIGHT_TOLERANCE)
-            << "replica " << replica;
-
-        const RowPositions range = plan.rows(replica, 2);
-        EXPECT_EQ(range.first, firsts[replica]) << "replica " << replica;
-        EXPECT_EQ(range.count, static_cast<std::uint64_t>(rows[replica]))
-            << "replica " << replica;
-    }
 }
 
-/** @brief Tests that a five-replica section turns into one rule per replica, in order. */
-TEST(Small_ClusterSection, FiveReplicasBecomeOneRuleEach)
+/** @brief Tests that a five-replica section makes a plan of five replicas. */
+TEST(Small_ClusterSection, FiveReplicasMakeAPlanOfFiveReplicas)
 {
     SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
-    SA_ASSERT_OK_AND_ASSIGN(const SushiRuntime::PlacementRules rules, section.placement_rules());
 
+    EXPECT_EQ(section.plan().replica_count(), 5u);
+}
+
+/** @brief Tests that the batch of the plan holds the sum of the replicas' rows. */
+TEST(Small_ClusterSection, TheBatchHoldsTheSumOfTheReplicaRows)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+
+    EXPECT_EQ(section.plan().batch_rows(), 40);
+}
+
+/** @brief Tests that a replica takes the rows and the micro-batch its entry states. */
+TEST_P(Small_ClusterSectionReplica, AReplicaTakesTheRowsAndTheMicroBatchItStates)
+{
+    const ReplicaRow& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+
+    EXPECT_EQ(section.plan().rows_of(row.replica), row.rows);
+    EXPECT_EQ(section.plan().micro_batch_of(row.replica), row.micro_batch);
+}
+
+/** @brief Tests that a replica's weight is its rows over the rows of the batch. */
+TEST_P(Small_ClusterSectionReplica, AReplicaWeighsItsRowsOverTheBatch)
+{
+    const ReplicaRow& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+
+    EXPECT_NEAR(section.plan().weight_of(row.replica), row.weight, K_DOUBLE_TIGHT_TOLERANCE);
+}
+
+/** @brief Tests that a replica's range in batch 2 starts where the earlier replicas end. */
+TEST_P(Small_ClusterSectionReplica, AReplicaStartsItsRangeAfterTheEarlierReplicas)
+{
+    const ReplicaRow& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+
+    const RowPositions range = section.plan().rows(row.replica, 2);
+
+    EXPECT_EQ(range.first, row.first_in_batch_two);
+    EXPECT_EQ(range.count, static_cast<std::uint64_t>(row.rows));
+}
+
+/** @brief Tests that a replica becomes one rule named, keyed, placed and bounded as stated. */
+TEST_P(Small_ClusterSectionReplica, AReplicaBecomesOneRule)
+{
+    const ReplicaRow& row = GetParam();
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiRuntime::PlacementRules rules, section.placement_rules());
     ASSERT_EQ(rules.size(), 5u);
-    const char* workers[] = {"atlas", "bravo", "cobalt", "delta", "ember"};
-    const int priorities[] = {0, 5, 0, 0, 0};
-    const SushiRuntime::AbsentAction actions[] = {
-        SushiRuntime::AbsentAction::Local, SushiRuntime::AbsentAction::Wait,
-        SushiRuntime::AbsentAction::Fail, SushiRuntime::AbsentAction::Local,
-        SushiRuntime::AbsentAction::Fail};
-    for (std::size_t replica = 0; replica < 5; ++replica)
-    {
-        const SushiRuntime::PlacementRule& rule = rules.rule(replica);
-        EXPECT_EQ(rule.name, "replica " + std::to_string(replica));
-        EXPECT_EQ(rule.match.placement_class, K_REPLICA_PLACEMENT_CLASS);
-        ASSERT_TRUE(rule.match.key.has_value()) << "replica " << replica;
-        EXPECT_EQ(*rule.match.key, replica);
-        EXPECT_TRUE(rule.match.operation.empty()) << "replica " << replica;
-        EXPECT_EQ(rule.target.machine_name, workers[replica]) << "replica " << replica;
-        EXPECT_FALSE(rule.target.machine_label.has_value()) << "replica " << replica;
-        EXPECT_FALSE(rule.target.device_index.has_value()) << "replica " << replica;
-        EXPECT_FALSE(rule.target.device_kind.has_value()) << "replica " << replica;
-        EXPECT_FALSE(rule.target.device_min_memory.has_value()) << "replica " << replica;
-        EXPECT_EQ(rule.priority, priorities[replica]) << "replica " << replica;
-        EXPECT_EQ(rule.if_absent.action, actions[replica]) << "replica " << replica;
-        EXPECT_FALSE(rule.deadline.has_value()) << "replica " << replica;
-    }
 
-    EXPECT_EQ(rules.rule(1).if_absent.bound, std::chrono::milliseconds(30000));
-    EXPECT_EQ(rules.rule(0).if_absent.bound, std::chrono::milliseconds(0));
+    const SushiRuntime::PlacementRule& rule = rules.rule(row.replica);
+
+    EXPECT_EQ(rule.name, "replica " + std::to_string(row.replica));
+    EXPECT_EQ(rule.match.placement_class, K_REPLICA_PLACEMENT_CLASS);
+    ASSERT_TRUE(rule.match.key.has_value());
+    EXPECT_EQ(*rule.match.key, row.replica);
+    EXPECT_TRUE(rule.match.operation.empty());
+    EXPECT_EQ(rule.target.machine_name, row.worker);
+    EXPECT_FALSE(rule.target.machine_label.has_value());
+    EXPECT_FALSE(rule.target.device_index.has_value());
+    EXPECT_FALSE(rule.target.device_kind.has_value());
+    EXPECT_FALSE(rule.target.device_min_memory.has_value());
+    EXPECT_EQ(rule.priority, row.priority);
+    EXPECT_EQ(rule.if_absent.action, row.action);
+    EXPECT_EQ(rule.if_absent.bound, std::chrono::milliseconds(row.bound_ms));
+    EXPECT_FALSE(rule.deadline.has_value());
 }
 
-/** @brief Tests that the rules the section makes resolve each replica's node to its own rule. */
-TEST(Small_ClusterSection, TheRulesResolveEachReplicaNodeToItsOwnRule)
+/** @brief Tests that the rules resolve the node of a replica to the rule of that replica. */
+TEST_P(Small_ClusterSectionReplica, TheRulesResolveAReplicaNodeToItsOwnRule)
 {
+    const ReplicaRow& row = GetParam();
     SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
     SA_ASSERT_OK_AND_ASSIGN(const SushiRuntime::PlacementRules rules, section.placement_rules());
-
     const SushiRuntime::PlacementClass replica_class(K_REPLICA_PLACEMENT_CLASS.data(),
                                                      K_REPLICA_PLACEMENT_CLASS.size());
-    for (std::uint64_t replica = 0; replica < 5; ++replica)
-    {
-        const std::optional<std::size_t> winner =
-            rules.resolve(replica_class, replica, SushiRuntime::OperationID());
-        ASSERT_TRUE(winner.has_value()) << "replica " << replica;
-        EXPECT_EQ(*winner, replica);
-    }
+
+    const std::optional<std::size_t> winner =
+        rules.resolve(replica_class, row.replica, SushiRuntime::OperationID());
+
+    ASSERT_TRUE(winner.has_value());
+    EXPECT_EQ(*winner, row.replica);
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ClusterSectionReplica, ::testing::ValuesIn(replica_rows()),
+                         replica_row_name);
+
+/** @brief Tests that the rules resolve a replica past the last to no rule. */
+TEST(Small_ClusterSection, TheRulesResolveAReplicaPastTheLastToNoRule)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiRuntime::PlacementRules rules, section.placement_rules());
+    const SushiRuntime::PlacementClass replica_class(K_REPLICA_PLACEMENT_CLASS.data(),
+                                                     K_REPLICA_PLACEMENT_CLASS.size());
 
     EXPECT_FALSE(rules.resolve(replica_class, 5, SushiRuntime::OperationID()).has_value());
+}
+
+/** @brief Tests that the rules resolve a node of no placement class to no rule. */
+TEST(Small_ClusterSection, TheRulesResolveANodeOfNoClassToNoRule)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const ClusterSection section, read_replicas(K_FIVE_REPLICAS));
+    SA_ASSERT_OK_AND_ASSIGN(const SushiRuntime::PlacementRules rules, section.placement_rules());
+
     EXPECT_FALSE(
         rules.resolve(SushiRuntime::PlacementClass(), 0, SushiRuntime::OperationID()).has_value());
 }
@@ -182,7 +426,7 @@ TEST(Small_ClusterSection, TheRulesResolveEachReplicaNodeToItsOwnRule)
 /** @brief Tests that an absolute secret file keeps its path. */
 TEST(Small_ClusterSection, AnAbsoluteSecretFileIsKept)
 {
-    const std::filesystem::path absolute = std::filesystem::absolute("elsewhere.secret");
+    const std::filesystem::path absolute = fixed_absolute_secret_file();
     const std::string text = R"({"listen": "a:1", "secret_file": ")" +
                              absolute.generic_string() +
                              R"(", "replicas": [{"worker": "w", "rows": 4, "micro_batch": 2,
@@ -192,178 +436,16 @@ TEST(Small_ClusterSection, AnAbsoluteSecretFileIsKept)
     EXPECT_EQ(section.secret_file().generic_string(), absolute.generic_string());
 }
 
-/** @brief Tests that a micro-batch that does not divide its rows is refused. */
-TEST(Small_ClusterSection, AMicroBatchThatDoesNotDivideItsRowsIsRefused)
+/** @brief Tests that a section that breaks a rule of the reader is refused naming the rule. */
+TEST_P(Small_ClusterSectionRefusal, ASectionThatBreaksARuleIsRefusedNamingIt)
 {
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 8, "micro_batch": 4, "if_absent": "local"},
-        {"worker": "b", "rows": 10, "micro_batch": 4, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "cluster 'replicas'", "replica 1",
-                      "'micro_batch' 4", "does not divide", "'rows' 10");
+    const RefusalCase& row = GetParam();
+
+    expect_refusal(read_text(row.text), row.needles);
 }
 
-/** @brief Tests that a section with no replica is refused. */
-TEST(Small_ClusterSection, NoReplicaIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas("[]"), StatusCode::InvalidDescription,
-                      "cluster 'replicas'", "at least one replica");
-    SA_EXPECT_FAILURE(read_text(R"({"listen": "a:1", "secret_file": "s"})"),
-                      StatusCode::InvalidDescription, "cluster", "has no 'replicas'");
-}
-
-/** @brief Tests that a worker named by two replicas is refused with both entries. */
-TEST(Small_ClusterSection, AWorkerNamedTwiceIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local"},
-        {"worker": "b", "rows": 4, "micro_batch": 2, "if_absent": "local"},
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 2", "'worker'", "'a'", "entry 0");
-}
-
-/** @brief Tests that two names placement takes for one machine are refused as one worker. */
-TEST(Small_ClusterSection, Regression_TwoNamesOfOneMachineAreRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "Rack-7", "rows": 4, "micro_batch": 2, "if_absent": "local"},
-        {"worker": "rack-7.lab", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 1", "'worker'", "entry 0");
-}
-
-/** @brief Tests that a section without a listen address is refused. */
-TEST(Small_ClusterSection, AMissingListenAddressIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        read_text(R"({"secret_file": "s", "replicas": [{"worker": "a", "rows": 4,
-                      "micro_batch": 2, "if_absent": "local"}]})"),
-        StatusCode::InvalidDescription, "cluster", "has no 'listen'");
-}
-
-/** @brief Tests that a section without a secret file is refused. */
-TEST(Small_ClusterSection, AMissingSecretFileIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        read_text(R"({"listen": "a:1", "replicas": [{"worker": "a", "rows": 4,
-                      "micro_batch": 2, "if_absent": "local"}]})"),
-        StatusCode::InvalidDescription, "cluster", "has no 'secret_file'");
-}
-
-/** @brief Tests that an empty listen address and an empty secret file are refused. */
-TEST(Small_ClusterSection, AnEmptyListenAddressOrSecretFileIsRefused)
-{
-    SA_EXPECT_FAILURE(
-        read_text(R"({"listen": "", "secret_file": "s", "replicas": []})"),
-        StatusCode::InvalidDescription, "cluster 'listen'", "empty");
-    SA_EXPECT_FAILURE(
-        read_text(R"({"listen": "a:1", "secret_file": "", "replicas": []})"),
-        StatusCode::InvalidDescription, "cluster 'secret_file'", "empty");
-}
-
-/** @brief Tests that rows summing to zero are refused, since no weight can be formed. */
-TEST(Small_ClusterSection, RowsThatSumToZeroAreRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 0, "micro_batch": 1, "if_absent": "local"},
-        {"worker": "b", "rows": 0, "micro_batch": 3, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "cluster 'replicas'", "'rows'", "sum to 0");
-}
-
-/** @brief Tests that an "if_absent" outside local, wait and fail is refused. */
-TEST(Small_ClusterSection, AnIfAbsentOutsideTheThreeIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "retry"}])"),
-                      StatusCode::InvalidDescription, "entry 0 'if_absent'", "'retry'",
-                      "'local'", "'wait'", "'fail'");
-}
-
-/** @brief Tests that a replica without an "if_absent" is refused. */
-TEST(Small_ClusterSection, AMissingIfAbsentIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2}])"),
-                      StatusCode::InvalidDescription, "entry 0", "has no 'if_absent'");
-}
-
-/** @brief Tests that a wait without a bound is refused. */
-TEST(Small_ClusterSection, AWaitWithoutABoundIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "wait"}])"),
-                      StatusCode::InvalidDescription, "entry 0 'if_absent'", "'wait'",
-                      "'wait_ms'");
-}
-
-/** @brief Tests that a wait with a bound of zero or below is refused. */
-TEST(Small_ClusterSection, AWaitWithoutAPositiveBoundIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "wait", "wait_ms": 0}])"),
-                      StatusCode::InvalidDescription, "entry 0 'wait_ms'", "is 0", "positive");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "wait", "wait_ms": -5}])"),
-                      StatusCode::InvalidDescription, "entry 0 'wait_ms'", "is -5", "positive");
-}
-
-/** @brief Tests that a bound beside local or fail is refused. */
-TEST(Small_ClusterSection, ABoundBesideLocalOrFailIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local", "wait_ms": 10}])"),
-                      StatusCode::InvalidDescription, "entry 0 'wait_ms'", "'local'",
-                      "only 'wait'");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "fail", "wait_ms": 10}])"),
-                      StatusCode::InvalidDescription, "entry 0 'wait_ms'", "'fail'",
-                      "only 'wait'");
-}
-
-/** @brief Tests that a replica missing a key, or stating one of the wrong kind, is refused. */
-TEST(Small_ClusterSection, AReplicaWithAMissingOrMistypedKeyIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0", "has no 'worker'");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0", "has no 'rows'");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0", "has no 'micro_batch'");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": "4", "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0 'rows'", "whole number");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": 7, "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0 'worker'", "string");
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "", "rows": 4, "micro_batch": 2, "if_absent": "local"}])"),
-                      StatusCode::InvalidDescription, "entry 0 'worker'", "empty");
-}
-
-/** @brief Tests that a key the section or a replica does not have is refused. */
-TEST(Small_ClusterSection, AnUnknownKeyIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local", "speed": 3}])"),
-                      StatusCode::InvalidDescription, "entry 0", "'speed'", "does not have");
-    SA_EXPECT_FAILURE(read_text(R"({"listen": "a:1", "secret_file": "s", "replicas": [],
-                                    "port": 7})"),
-                      StatusCode::InvalidDescription, "cluster", "'port'", "does not have");
-}
-
-/** @brief Tests that a priority outside the range of an int is refused. */
-TEST(Small_ClusterSection, APriorityOutsideTheRangeOfAnIntIsRefused)
-{
-    SA_EXPECT_FAILURE(read_replicas(R"([
-        {"worker": "a", "rows": 4, "micro_batch": 2, "if_absent": "local",
-         "priority": 3000000000}])"),
-                      StatusCode::InvalidDescription, "entry 0 'priority'", "3000000000");
-}
-
-/** @brief Tests that a section that is no object is refused. */
-TEST(Small_ClusterSection, ASectionThatIsNoObjectIsRefused)
-{
-    SA_EXPECT_FAILURE(read_text("[]"), StatusCode::InvalidDescription, "cluster",
-                      "must be an object");
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ClusterSectionRefusal, ::testing::ValuesIn(refusal_cases()),
+                         [](const ::testing::TestParamInfo<RefusalCase>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

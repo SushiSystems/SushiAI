@@ -35,11 +35,11 @@
 #include <SushiRuntime/api/graph/node_options.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiRuntime/distributed/buffer_view.hpp>
+#include <SushiAI/distribution/in_memory_replica_serve_observer.hpp>
 #include <SushiAI/distribution/replica_draws.hpp>
 #include <SushiAI/distribution/replica_kernel.hpp>
 #include <SushiAI/distribution/replica_plan.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
-#include <SushiAI/distribution/replica_serve_observer.hpp>
 #include <SushiAI/distribution/replica_task.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 
@@ -52,22 +52,31 @@ namespace
     using namespace SushiAI::Distribution::Support;
     namespace Distributed = SushiRuntime::Distributed;
 
-    /** @brief Records the replica and the step of each task it hears of. */
-    class RecordingObserver final : public ReplicaServeObserver
+    /** @brief Returns the replica of each task @p observer heard of, in order. */
+    std::vector<std::uint64_t> replicas_heard_by(const InMemoryReplicaServeObserver& observer)
     {
-        public:
-            void on_served(std::uint64_t replica, const ReplicaPosition& position) override
-            {
-                replicas.push_back(replica);
-                steps.push_back(position.step);
-            }
+        std::vector<std::uint64_t> replicas;
+        for (const InMemoryReplicaServeObserver::Served& task : observer.served())
+            replicas.push_back(task.replica);
+        return replicas;
+    }
 
-            /// @brief The replica of each task, in order.
-            std::vector<std::uint64_t> replicas;
+    /** @brief Returns the step of each task @p observer heard of, in order. */
+    std::vector<std::uint64_t> steps_heard_by(const InMemoryReplicaServeObserver& observer)
+    {
+        std::vector<std::uint64_t> steps;
+        for (const InMemoryReplicaServeObserver::Served& task : observer.served())
+            steps.push_back(task.position.step);
+        return steps;
+    }
 
-            /// @brief The step of each task, in order.
-            std::vector<std::uint64_t> steps;
-    };
+    /** @brief Returns a kernel of one replica of four rows in one micro-batch. */
+    std::unique_ptr<ReplicaKernel> make_kernel()
+    {
+        ReplicaPlan plan = ReplicaPlan::make({ReplicaShare{4, 4}}).value();
+        return ReplicaKernel::make(std::move(plan), linear_factory(),
+                                   ReplicaDraws{K_SEED, 0, K_RUN}).value();
+    }
 
     /** @brief Serves replica 0 of @p kernel the step @p step of a one-batch epoch. */
     Status serve_step(ReplicaKernel& kernel, std::uint64_t step)
@@ -94,21 +103,42 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that the observer hears of each task in order, and nothing once removed. */
-TEST(Medium_ReplicaServeObserver, TheKernelTellsTheObserverEachTaskAndItsStep)
+/** @brief Tests that the observer hears of the replica of each task, in order. */
+TEST(Medium_ReplicaServeObserver, TheKernelTellsTheObserverTheReplicaOfEachTask)
 {
-    ReplicaPlan plan = ReplicaPlan::make({ReplicaShare{4, 4}}).value();
-    const std::unique_ptr<ReplicaKernel> kernel =
-        ReplicaKernel::make(std::move(plan), linear_factory(), ReplicaDraws{K_SEED, 0, K_RUN})
-            .value();
-    RecordingObserver observer;
+    const std::unique_ptr<ReplicaKernel> kernel = make_kernel();
+    InMemoryReplicaServeObserver observer;
     kernel->observe(&observer);
 
     SA_EXPECT_OK(serve_step(*kernel, 2));
     SA_EXPECT_OK(serve_step(*kernel, 5));
+
+    EXPECT_EQ(replicas_heard_by(observer), (std::vector<std::uint64_t>{0, 0}));
+}
+
+/** @brief Tests that the observer hears of the step of each task, in order. */
+TEST(Medium_ReplicaServeObserver, TheKernelTellsTheObserverTheStepOfEachTask)
+{
+    const std::unique_ptr<ReplicaKernel> kernel = make_kernel();
+    InMemoryReplicaServeObserver observer;
+    kernel->observe(&observer);
+
+    SA_EXPECT_OK(serve_step(*kernel, 2));
+    SA_EXPECT_OK(serve_step(*kernel, 5));
+
+    EXPECT_EQ(steps_heard_by(observer), (std::vector<std::uint64_t>{2, 5}));
+}
+
+/** @brief Tests that an observer removed from the kernel hears of no further task. */
+TEST(Medium_ReplicaServeObserver, ARemovedObserverHearsOfNoFurtherTask)
+{
+    const std::unique_ptr<ReplicaKernel> kernel = make_kernel();
+    InMemoryReplicaServeObserver observer;
+    kernel->observe(&observer);
+    SA_EXPECT_OK(serve_step(*kernel, 2));
+
     kernel->observe(nullptr);
     SA_EXPECT_OK(serve_step(*kernel, 6));
 
-    EXPECT_EQ(observer.replicas, (std::vector<std::uint64_t>{0, 0}));
-    EXPECT_EQ(observer.steps, (std::vector<std::uint64_t>{2, 5}));
+    EXPECT_EQ(observer.served_count(), 1u);
 }

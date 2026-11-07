@@ -27,6 +27,8 @@
  * @author Mustafa Garip
  */
 
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiBLAS/core/common.hpp>
 #include <SushiAI/distribution/exact_sum.hpp>
@@ -35,24 +37,50 @@ namespace
 {
     using SushiBLAS::Core::DataType;
     using SushiAI::Distribution::sums_exactly;
+
+    /** @brief Holds an element type and whether results of it add as exact counts. */
+    struct TypeRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the element type. */
+        DataType dtype;
+
+        /** @brief Holds whether results of the type add as exact counts. */
+        bool exact;
+    };
+
+    /** @brief Lists every element type with whether its results add as exact counts. */
+    std::vector<TypeRow> type_rows()
+    {
+        return {
+            {"Int32", DataType::Int32, true},
+            {"Int64", DataType::Int64, true},
+            {"RegressionUInt32IsACount", DataType::UInt32, true},
+            {"Half", DataType::Half, false},
+            {"Float32", DataType::Float32, false},
+            {"Float64", DataType::Float64, false},
+            {"Complex32", DataType::Complex32, false},
+            {"Complex64", DataType::Complex64, false},
+        };
+    }
+
+    /** @brief Runs each element type. */
+    class Small_ExactSum : public ::testing::TestWithParam<TypeRow>
+    {
+
+    };
 } // namespace
 
-TEST(Small_ExactSum, CountsAddWithWeightOne)
+/** @brief Tests that results add with weight one exactly for the integer types, UInt32 included. */
+TEST_P(Small_ExactSum, ATypeAddsAsACountExactlyWhenItIsAnInteger)
 {
-    EXPECT_TRUE(sums_exactly(DataType::Int32));
-    EXPECT_TRUE(sums_exactly(DataType::Int64));
+    EXPECT_EQ(sums_exactly(GetParam().dtype), GetParam().exact);
 }
 
-TEST(Small_ExactSum, RegressionUInt32IsACount)
-{
-    EXPECT_TRUE(sums_exactly(DataType::UInt32));
-}
-
-TEST(Small_ExactSum, FloatingAndComplexTypesAreWeighed)
-{
-    EXPECT_FALSE(sums_exactly(DataType::Half));
-    EXPECT_FALSE(sums_exactly(DataType::Float32));
-    EXPECT_FALSE(sums_exactly(DataType::Float64));
-    EXPECT_FALSE(sums_exactly(DataType::Complex32));
-    EXPECT_FALSE(sums_exactly(DataType::Complex64));
-}
+INSTANTIATE_TEST_SUITE_P(Types, Small_ExactSum, ::testing::ValuesIn(type_rows()),
+                         [](const ::testing::TestParamInfo<TypeRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });

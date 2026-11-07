@@ -27,8 +27,11 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/distributed/buffer_view.hpp>
 #include <SushiAI/distribution/replica_position.hpp>
@@ -37,6 +40,47 @@
 using SushiAI::StatusCode;
 using SushiAI::Distribution::K_REPLICA_POSITION_BYTES;
 using SushiAI::Distribution::ReplicaPosition;
+
+namespace
+{
+    /** @brief Holds a view too small to read and the word the refusal must name. */
+    struct SmallViewRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the base address of the view; null for a view with no memory. */
+        void* memory;
+
+        /** @brief Holds the number of bytes the view claims. */
+        std::size_t bytes;
+
+        /** @brief Holds the substring the refusal must name. */
+        const char* needle;
+    };
+
+    /** @brief Returns the one word a view too short to read points at. */
+    std::uint64_t* one_word()
+    {
+        static std::uint64_t word = 3;
+        return &word;
+    }
+
+    /** @brief Lists the views read() refuses: no memory, and eight bytes too few. */
+    std::vector<SmallViewRow> small_view_rows()
+    {
+        return {
+            {"NoMemory", nullptr, K_REPLICA_POSITION_BYTES, "no memory"},
+            {"EightBytes", one_word(), sizeof(std::uint64_t), "8 bytes"},
+        };
+    }
+
+    /** @brief Runs each view read() refuses. */
+    class Small_ReplicaPositionView : public ::testing::TestWithParam<SmallViewRow>
+    {
+
+    };
+} // namespace
 
 /** @brief Tests that a step count splits into an epoch and a batch of that epoch. */
 TEST(Small_ReplicaPosition, AStepSplitsIntoEpochAndBatch)
@@ -73,14 +117,17 @@ TEST(Small_ReplicaPosition, ReadTakesTheFirstThreeWords)
     EXPECT_EQ(position.step, 123u);
 }
 
-/** @brief Tests that read() refuses a view with no memory or too few bytes. */
-TEST(Small_ReplicaPosition, ReadRefusesAViewTooSmall)
+/** @brief Tests that read() refuses a view with no memory or too few bytes, naming the fault. */
+TEST_P(Small_ReplicaPositionView, ReadRefusesAViewTooSmall)
 {
-    std::uint64_t word = 3;
-    const SushiRuntime::Distributed::BufferView empty{nullptr, K_REPLICA_POSITION_BYTES};
-    const SushiRuntime::Distributed::BufferView short_view{&word, sizeof(word)};
+    const SmallViewRow& row = GetParam();
+    const SushiRuntime::Distributed::BufferView view{row.memory, row.bytes};
 
-    SA_EXPECT_FAILURE(ReplicaPosition::read(empty), StatusCode::InvalidDescription, "no memory");
-    SA_EXPECT_FAILURE(ReplicaPosition::read(short_view), StatusCode::InvalidDescription,
-                      "8 bytes");
+    SA_EXPECT_FAILURE(ReplicaPosition::read(view), StatusCode::InvalidDescription, row.needle);
 }
+
+INSTANTIATE_TEST_SUITE_P(Views, Small_ReplicaPositionView, ::testing::ValuesIn(small_view_rows()),
+                         [](const ::testing::TestParamInfo<SmallViewRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
