@@ -72,8 +72,21 @@ TEST(Small_ImagingAffineNearest, ADestinationOfAnotherShapeTakesThePlanOutput)
 
     SA_EXPECT_OK(apply_affine_nearest(source.view(), make_shift_plan(size, 0.0f, 0), warped));
 
-    ASSERT_EQ(warped.size(), size);
-    ASSERT_EQ(warped.channels(), 1);
+    EXPECT_EQ(warped.size(), size);
+    EXPECT_EQ(warped.channels(), 1);
+}
+
+/** @brief Tests that the identity warp into a used destination copies the source bytes. */
+TEST(Small_ImagingAffineNearest, TheIdentityWarpIntoAUsedDestinationCopiesTheSourceBytes)
+{
+    const ImageSize size{2, 3};
+    const Image source = counting_image(size);
+    Image warped(ImageSize{5, 5}, 3);
+    warped.fill(9);
+
+    SA_EXPECT_OK(apply_affine_nearest(source.view(), make_shift_plan(size, 0.0f, 0), warped));
+
+    ASSERT_EQ(warped.byte_count(), source.byte_count());
     for (std::size_t i = 0; i < source.byte_count(); ++i)
         EXPECT_EQ(warped.data()[i], source.data()[i]) << "byte " << i;
 }

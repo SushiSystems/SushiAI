@@ -21,7 +21,11 @@ byte equals a border value of 0 or 17.
 ## ADestinationOfAnotherShapeTakesThePlanOutput
 
 A destination of 5 by 5 pixels and three channels, filled with 9, receives the identity warp of a
-2 by 3 one-channel image. It ends 2 by 3 with one channel and holds the source bytes.
+2 by 3 one-channel image. It ends 2 by 3 with one channel.
+
+## TheIdentityWarpIntoAUsedDestinationCopiesTheSourceBytes
+
+The same used destination, after the identity warp, holds the bytes of the source.
 
 ## ThePlansBorderValueFillsWhatTheSourceDoesNotCover
 

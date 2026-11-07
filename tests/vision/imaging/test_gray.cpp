@@ -30,6 +30,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <initializer_list>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -50,27 +51,31 @@ namespace
 
         return image;
     }
+
+    /** @brief Expects @p image to hold exactly the bytes of @p expected, in order. */
+    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
+    {
+        ASSERT_EQ(image.byte_count(), expected.size());
+        std::size_t offset = 0;
+        for (const std::uint8_t value : expected)
+        {
+            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
+            ++offset;
+        }
+    }
 } // namespace
 
 /** @brief Tests that every pixel's three channels take its grey level, at the same size. */
 TEST(Small_ImagingGray, ExpandCopiesEachLevelIntoThreeChannels)
 {
-    const Image gray = make_counted(ImageSize{3, 5}, 1);
+    const Image gray = make_counted(ImageSize{2, 3}, 1);
     Image color;
 
     SA_EXPECT_OK(expand_gray(gray.view(), color));
 
-    ASSERT_EQ(color.size(), (ImageSize{3, 5}));
+    ASSERT_EQ(color.size(), (ImageSize{2, 3}));
     ASSERT_EQ(color.channels(), K_RGB_CHANNELS);
-    for (std::int32_t y = 0; y < 3; ++y)
-    {
-        for (std::int32_t x = 0; x < 5; ++x)
-        {
-            for (std::int32_t c = 0; c < 3; ++c)
-                EXPECT_EQ(color.row(y)[3 * x + c], gray.row(y)[x])
-                    << "row " << y << ", column " << x << ", channel " << c;
-        }
-    }
+    expect_bytes(color, {3, 3, 3, 20, 20, 20, 37, 37, 37, 54, 54, 54, 71, 71, 71, 88, 88, 88});
 }
 
 /** @brief Tests that a reused destination is reset and wholly rewritten. */
@@ -84,8 +89,7 @@ TEST(Small_ImagingGray, ExpandRewritesAReusedDestination)
 
     ASSERT_EQ(color.size(), (ImageSize{2, 2}));
     ASSERT_EQ(color.channels(), 3);
-    for (std::size_t i = 0; i < color.byte_count(); ++i)
-        EXPECT_EQ(color.data()[i], gray.data()[i / 3]) << "byte " << i;
+    expect_bytes(color, {3, 3, 3, 20, 20, 20, 37, 37, 37, 54, 54, 54});
 }
 
 /** @brief Tests that a source with a channel count other than one is refused. */
@@ -99,24 +103,24 @@ TEST(Small_ImagingGray, ExpandRejectsASourceThatIsNotGrey)
                       "expand_gray", "3 channels");
     SA_EXPECT_FAILURE(expand_gray(four.view(), destination), StatusCode::InvalidDescription,
                       "expand_gray", "4 channels");
-    EXPECT_EQ(K_GRAY_CHANNELS, 1);
 }
 
-/** @brief Tests that an empty source and a source inside the destination are refused. */
-TEST(Small_ImagingGray, ExpandRejectsASourceWithoutPixelsAndOneInTheDestination)
+/** @brief Tests that a source without pixels stops the process. */
+TEST(Medium_ImagingGray, ExpandStopsOnASourceWithoutPixels)
 {
     Image image = make_counted(ImageSize{4, 2}, 1);
-    const Image untouched = make_counted(ImageSize{4, 2}, 1);
-    const ImageView lower_rows(image.row(1), ImageSize{2, 2}, 1);
 
     SA_EXPECT_FATAL(static_cast<void>(expand_gray(ImageView(), image)), "expand_gray", "no pixels");
+}
+
+/** @brief Tests that a source held by the destination, whole or as rows, stops the process. */
+TEST(Medium_ImagingGray, ExpandStopsOnASourceInTheDestination)
+{
+    Image image = make_counted(ImageSize{4, 2}, 1);
+    const ImageView lower_rows(image.row(1), ImageSize{2, 2}, 1);
+
     SA_EXPECT_FATAL(static_cast<void>(expand_gray(image.view(), image)), "expand_gray",
                     "destination holds the source's pixels");
     SA_EXPECT_FATAL(static_cast<void>(expand_gray(lower_rows, image)), "expand_gray",
                     "destination holds the source's pixels");
-
-    ASSERT_EQ(image.size(), (ImageSize{4, 2}));
-    ASSERT_EQ(image.channels(), 1);
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        EXPECT_EQ(image.data()[i], untouched.data()[i]) << "byte " << i;
 }

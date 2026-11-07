@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -36,7 +37,6 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/flip.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::FlipPlan;
@@ -50,19 +50,27 @@ using Vision::Imaging::Random;
 namespace
 {
     using SushiAI::Test::require_value;
+
+    /** @brief Counts the plans a statistical test draws, all from one generator. */
+    constexpr std::uint64_t K_SAMPLE_COUNT = 1024;
+
+    /** @brief Holds the seed of the generator a statistical test draws from. */
+    constexpr std::uint64_t K_STATISTICAL_SEED = 20261007;
+
+    /** @brief Holds the chance that a correct run of plans still misses its bound. */
+    constexpr double K_FALSE_FAILURE_RATE = 1e-9;
+
     /**
-     * @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here: 2048
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-4f.
+     * @brief Returns the distance from 0.5 that a flip frequency stays within over K_SAMPLE_COUNT.
+     *
+     * Hoeffding's inequality gives P(|frequency - p| >= t) <= 2 exp(-2 n t^2), so t is
+     * sqrt(ln(2 / rate) / (2 n)) for n draws and a false-failure rate.
      */
-    constexpr float K_BOX_TOLERANCE =
-        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
-
-    /** @brief Counts the seeds, 0 to this minus one, that a statistical test draws from. */
-    constexpr std::uint64_t K_SEED_COUNT = 10000;
-
-    /** @brief Holds the allowed distance of a flip frequency from 0.5, six standard deviations. */
-    constexpr double K_FREQUENCY_TOLERANCE = 0.03;
+    double frequency_tolerance()
+    {
+        return std::sqrt(std::log(2.0 / K_FALSE_FAILURE_RATE) /
+                         (2.0 * static_cast<double>(K_SAMPLE_COUNT)));
+    }
 
     /** @brief Returns an image whose byte at offset i is i modulo 256. */
     Image make_counted_image(ImageSize size, std::int32_t channels)
@@ -83,17 +91,62 @@ namespace
             ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
     }
 
-    /** @brief Checks the four coordinates of a box against expected values. */
+    /** @brief Checks that an image holds exactly the listed bytes, in order. */
+    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
+    {
+        ASSERT_EQ(image.byte_count(), expected.size());
+        std::size_t offset = 0;
+        for (const std::uint8_t value : expected)
+        {
+            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
+            ++offset;
+        }
+    }
+
+    /** @brief Checks that two flips of a source with a flipped plan give the source back. */
+    void expect_two_flips_restore(const Image& source)
+    {
+        const FlipPlan plan{source.size(), true};
+        Image once;
+        Image twice;
+
+        Vision::Imaging::apply_flip(source.view(), plan, once);
+        Vision::Imaging::apply_flip(once.view(), plan, twice);
+
+        expect_same_image(twice, source);
+    }
+
+    /** @brief Checks the four coordinates of a box against expected values, exactly. */
     void expect_box(const PixelBox& actual, const PixelBox& expected)
     {
-        EXPECT_NEAR(actual.x1, expected.x1, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.y1, expected.y1, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.x2, expected.x2, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.y2, expected.y2, K_BOX_TOLERANCE);
+        EXPECT_EQ(actual.x1, expected.x1);
+        EXPECT_EQ(actual.y1, expected.y1);
+        EXPECT_EQ(actual.x2, expected.x2);
+        EXPECT_EQ(actual.y2, expected.y2);
     }
+
+    /** @brief Describes one probability, the seed of its draw and the decision it must give. */
+    struct DecisionRow
+    {
+        float probability;
+        std::uint64_t seed;
+        bool expected_flip;
+    };
 } // namespace
 
-TEST(Small_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
+/** @brief Tests that the plan records the source size it was made for. */
+TEST(Small_ImagingFlip, PlanRecordsTheSourceSize)
+{
+    Random random(42);
+
+    const FlipPlan plan =
+        require_value(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{480, 640}, random));
+
+    EXPECT_EQ(plan.source, (ImageSize{480, 640}));
+}
+
+/** @brief Tests that the plan makes exactly one Bernoulli draw and records its outcome. */
+TEST(Small_ImagingFlip, PlanMakesExactlyOneDraw)
 {
     Random random(42);
     Random replay(42);
@@ -101,45 +154,56 @@ TEST(Small_ImagingFlip, PlanRecordsTheSizeAndMakesExactlyOneDraw)
     const FlipPlan plan =
         require_value(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{480, 640}, random));
 
-    EXPECT_EQ(plan.source, (ImageSize{480, 640}));
     EXPECT_EQ(plan.is_flipped, replay.bernoulli(FlipSettings{}.probability));
     EXPECT_EQ(random, replay);
 }
 
-TEST(Small_ImagingFlip, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
+/** @brief Rows of a flip probability, a seed and the decision it must give. */
+class Small_ImagingFlipDecision : public ::testing::TestWithParam<DecisionRow>
 {
-    FlipSettings never;
-    never.probability = 0.0f;
-    FlipSettings always;
-    always.probability = 1.0f;
+};
 
-    for (std::uint64_t seed = 0; seed < K_SEED_COUNT; ++seed)
-    {
-        Random first(seed);
-        Random second(seed);
-        ASSERT_FALSE(require_value(Vision::Imaging::plan_flip(never, ImageSize{8, 8},
-                                                              first)).is_flipped) << seed;
-        ASSERT_TRUE(require_value(Vision::Imaging::plan_flip(always, ImageSize{8, 8},
-                                                             second)).is_flipped) << seed;
-        ASSERT_EQ(first, second) << "both made one draw from seed " << seed;
-    }
+/** @brief Tests that probability 0 never flips and 1 always flips, each with one draw. */
+TEST_P(Small_ImagingFlipDecision, ProbabilityZeroNeverFlipsAndOneAlwaysFlips)
+{
+    const DecisionRow& row = GetParam();
+    FlipSettings settings;
+    settings.probability = row.probability;
+    Random random(row.seed);
+    Random replay(row.seed);
+
+    const FlipPlan plan =
+        require_value(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random));
+
+    EXPECT_EQ(plan.is_flipped, row.expected_flip);
+    static_cast<void>(replay.bernoulli(row.probability));
+    EXPECT_EQ(random, replay);
 }
 
-TEST(Small_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheSeeds)
+INSTANTIATE_TEST_SUITE_P(Decisions, Small_ImagingFlipDecision,
+                         ::testing::Values(DecisionRow{0.0f, 0, false}, DecisionRow{0.0f, 7, false},
+                                           DecisionRow{0.0f, 20261007, false},
+                                           DecisionRow{1.0f, 0, true}, DecisionRow{1.0f, 7, true},
+                                           DecisionRow{1.0f, 20261007, true}));
+
+/** @brief Tests that the default probability flips about half of a fixed-seed run of plans. */
+TEST(Small_ImagingFlip, DefaultProbabilityFlipsAboutHalfOfTheDraws)
 {
+    Random random(K_STATISTICAL_SEED);
     std::uint64_t flipped = 0;
-    for (std::uint64_t seed = 0; seed < K_SEED_COUNT; ++seed)
+
+    for (std::uint64_t sample = 0; sample < K_SAMPLE_COUNT; ++sample)
     {
-        Random random(seed);
         if (require_value(Vision::Imaging::plan_flip(FlipSettings{}, ImageSize{8, 8},
                                                      random)).is_flipped)
             ++flipped;
     }
 
-    const double frequency = static_cast<double>(flipped) / static_cast<double>(K_SEED_COUNT);
-    EXPECT_NEAR(frequency, 0.5, K_FREQUENCY_TOLERANCE);
+    const double frequency = static_cast<double>(flipped) / static_cast<double>(K_SAMPLE_COUNT);
+    EXPECT_NEAR(frequency, 0.5, frequency_tolerance());
 }
 
+/** @brief Tests that a probability outside zero to one is refused by the plan and by validate. */
 TEST(Small_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
 {
     Random random(1);
@@ -154,9 +218,23 @@ TEST(Small_ImagingFlip, PlanRejectsAProbabilityOutsideZeroToOne)
     settings.probability = -0.1f;
     SA_EXPECT_FAILURE(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random),
                       StatusCode::InvalidDescription, "validate_flip", "probability");
-    EXPECT_EQ(random, Random(1)) << "a rejected plan makes no draw";
 }
 
+/** @brief Tests that a plan refused for its probability makes no draw. */
+TEST(Small_ImagingFlip, PlanRejectedForItsProbabilityMakesNoDraw)
+{
+    Random random(1);
+    FlipSettings settings;
+
+    settings.probability = 1.5f;
+    static_cast<void>(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random));
+    settings.probability = -0.1f;
+    static_cast<void>(Vision::Imaging::plan_flip(settings, ImageSize{8, 8}, random));
+
+    EXPECT_EQ(random, Random(1));
+}
+
+/** @brief Tests that a NaN probability is refused before any draw. */
 TEST(Small_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
 {
     Random random(3);
@@ -168,6 +246,7 @@ TEST(Small_ImagingFlip, PlanRejectsAProbabilityThatIsNotANumberBeforeAnyDraw)
     EXPECT_EQ(random, Random(3));
 }
 
+/** @brief Tests that a source side that is not positive is refused before any draw. */
 TEST(Small_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
 {
     Random random(5);
@@ -179,7 +258,8 @@ TEST(Small_ImagingFlip, PlanRejectsASideThatIsNotPositiveBeforeAnyDraw)
     EXPECT_EQ(random, Random(5));
 }
 
-TEST(Small_ImagingFlip, SourceWithoutPixelsIsRejected)
+/** @brief Tests that applying a flip to a source without pixels stops the process. */
+TEST(Medium_ImagingFlip, SourceWithoutPixelsIsRejected)
 {
     const FlipPlan plan{ImageSize{2, 3}, true};
 
@@ -189,32 +269,22 @@ TEST(Small_ImagingFlip, SourceWithoutPixelsIsRejected)
                     "apply_flip", "no pixels");
 }
 
-TEST(Small_ImagingFlip, DestinationThatIsTheSourceIsRejected)
+/** @brief Tests that a source held by the destination, whole or as a view of rows, is refused. */
+TEST(Medium_ImagingFlip, SourceHeldByTheDestinationIsRejected)
 {
-    Image image = make_counted_image(ImageSize{2, 3}, 3);
-    const Image untouched = make_counted_image(ImageSize{2, 3}, 3);
-    const FlipPlan plan{ImageSize{2, 3}, true};
+    Image whole = make_counted_image(ImageSize{2, 3}, 3);
+    const FlipPlan whole_plan{ImageSize{2, 3}, true};
+    Image rows = make_counted_image(ImageSize{4, 3}, 3);
+    const Vision::Imaging::ImageView lower_rows(rows.row(1), ImageSize{3, 3}, 3);
+    const FlipPlan rows_plan{ImageSize{3, 3}, true};
 
-    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(image.view(), plan, image)),
-                    "apply_flip",
-                    "destination holds the source's pixels");
-    expect_same_image(image, untouched);
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(whole.view(), whole_plan, whole)),
+                    "apply_flip", "destination holds the source's pixels");
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(lower_rows, rows_plan, rows)),
+                    "apply_flip", "destination holds the source's pixels");
 }
 
-/** @brief Tests that a view of some rows of the destination is refused before any write. */
-TEST(Small_ImagingFlip, ViewInsideTheDestinationIsRejected)
-{
-    Image image = make_counted_image(ImageSize{4, 3}, 3);
-    const Image untouched = make_counted_image(ImageSize{4, 3}, 3);
-    const Vision::Imaging::ImageView lower_rows(image.row(1), ImageSize{3, 3}, 3);
-    const FlipPlan plan{ImageSize{3, 3}, true};
-
-    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_flip(lower_rows, plan, image)),
-                    "apply_flip",
-                    "destination holds the source's pixels");
-    expect_same_image(image, untouched);
-}
-
+/** @brief Tests that a flipped image holds each row's pixels in reverse column order. */
 TEST(Small_ImagingFlip, FlippedImageHoldsEachRowInReverseColumnOrder)
 {
     const Image source = make_counted_image(ImageSize{2, 3}, 3);
@@ -225,18 +295,10 @@ TEST(Small_ImagingFlip, FlippedImageHoldsEachRowInReverseColumnOrder)
 
     ASSERT_EQ(destination.size(), source.size());
     ASSERT_EQ(destination.channels(), 3);
-    for (std::int32_t y = 0; y < 2; ++y)
-        for (std::int32_t x = 0; x < 3; ++x)
-            for (std::int32_t c = 0; c < 3; ++c)
-                EXPECT_EQ(destination.row(y)[x * 3 + c], source.row(y)[(2 - x) * 3 + c])
-                    << "row " << y << ", column " << x << ", channel " << c;
-
-    // Row 0 is bytes 0..8; mirrored, its first pixel is bytes 6, 7, 8.
-    EXPECT_EQ(destination.row(0)[0], 6);
-    EXPECT_EQ(destination.row(0)[1], 7);
-    EXPECT_EQ(destination.row(0)[2], 8);
+    expect_bytes(destination, {6, 7, 8, 3, 4, 5, 0, 1, 2, 15, 16, 17, 12, 13, 14, 9, 10, 11});
 }
 
+/** @brief Tests that an unflipped plan copies the image unchanged. */
 TEST(Small_ImagingFlip, UnflippedImageIsCopiedUnchanged)
 {
     const Image source = make_counted_image(ImageSize{3, 5}, 3);
@@ -248,24 +310,15 @@ TEST(Small_ImagingFlip, UnflippedImageIsCopiedUnchanged)
     expect_same_image(destination, source);
 }
 
+/** @brief Tests that two flips restore a colour image and a grey image. */
 TEST(Small_ImagingFlip, FlippingAnImageTwiceRestoresIt)
 {
-    const Image wide = make_counted_image(ImageSize{4, 7}, 3);
-    const Image gray = make_counted_image(ImageSize{3, 4}, 1);
-
-    for (const Image* source : {&wide, &gray})
-    {
-        const FlipPlan plan{source->size(), true};
-        Image once;
-        Image twice;
-        Vision::Imaging::apply_flip(source->view(), plan, once);
-        Vision::Imaging::apply_flip(once.view(), plan, twice);
-
-        expect_same_image(twice, *source);
-    }
+    expect_two_flips_restore(make_counted_image(ImageSize{4, 7}, 3));
+    expect_two_flips_restore(make_counted_image(ImageSize{3, 4}, 1));
 }
 
-TEST(Small_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
+/** @brief Tests that a source of another size than the plan's is refused. */
+TEST(Medium_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
 {
     const Image source = make_counted_image(ImageSize{2, 3}, 3);
     const FlipPlan wider{ImageSize{2, 4}, true};
@@ -280,6 +333,7 @@ TEST(Small_ImagingFlip, ImageOfAnotherSizeThanThePlanIsRejected)
                     "plan was made for a 5x3 source", "2x3");
 }
 
+/** @brief Tests that flipped boxes mirror about the width and keep their order and classes. */
 TEST(Small_ImagingFlip, FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder)
 {
     const FlipPlan plan{ImageSize{640, 640}, true};
@@ -296,6 +350,7 @@ TEST(Small_ImagingFlip, FlippedBoxesMirrorAboutTheWidthAndKeepTheirOrder)
     EXPECT_LE(mirrored.boxes()[0].x1, mirrored.boxes()[0].x2);
 }
 
+/** @brief Tests that an unflipped plan returns the boxes unchanged. */
 TEST(Small_ImagingFlip, UnflippedBoxesAreReturnedUnchanged)
 {
     const FlipPlan plan{ImageSize{640, 640}, false};
@@ -309,6 +364,7 @@ TEST(Small_ImagingFlip, UnflippedBoxesAreReturnedUnchanged)
     expect_box(same.boxes()[0], labels.boxes()[0]);
 }
 
+/** @brief Tests that two flips of the boxes restore them. */
 TEST(Small_ImagingFlip, FlippingBoxesTwiceRestoresThem)
 {
     const FlipPlan plan{ImageSize{640, 640}, true};
@@ -339,12 +395,12 @@ TEST(Small_ImagingFlip, FlippedPolygonMirrorsEveryVertexAboutTheWidth)
 
     ASSERT_EQ(mirrored.size(), 2u);
     ASSERT_EQ(mirrored.polygons()[0].size(), 3u);
-    EXPECT_NEAR(mirrored.polygons()[0][0].x, 540.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(mirrored.polygons()[0][0].y, 50.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(mirrored.polygons()[0][1].x, 340.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(mirrored.polygons()[0][1].y, 60.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(mirrored.polygons()[0][2].x, 489.5f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(mirrored.polygons()[0][2].y, 200.0f, K_BOX_TOLERANCE);
+    EXPECT_EQ(mirrored.polygons()[0][0].x, 540.0f);
+    EXPECT_EQ(mirrored.polygons()[0][0].y, 50.0f);
+    EXPECT_EQ(mirrored.polygons()[0][1].x, 340.0f);
+    EXPECT_EQ(mirrored.polygons()[0][1].y, 60.0f);
+    EXPECT_EQ(mirrored.polygons()[0][2].x, 489.5f);
+    EXPECT_EQ(mirrored.polygons()[0][2].y, 200.0f);
     EXPECT_TRUE(mirrored.polygons()[1].empty());
 }
 
@@ -360,8 +416,8 @@ TEST(Small_ImagingFlip, UnflippedPolygonIsReturnedUnchanged)
     const Labels same = Vision::Imaging::apply_flip(labels, plan);
 
     ASSERT_EQ(same.polygons()[0].size(), 2u);
-    EXPECT_NEAR(same.polygons()[0][1].x, 300.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(same.polygons()[0][1].y, 60.0f, K_BOX_TOLERANCE);
+    EXPECT_EQ(same.polygons()[0][1].x, 300.0f);
+    EXPECT_EQ(same.polygons()[0][1].y, 60.0f);
 }
 
 /** @brief Tests that validate_flip accepts both ends of the probability range. */

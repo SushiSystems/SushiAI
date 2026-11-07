@@ -3,7 +3,7 @@
 
 The two sources of a mosaic's three partner images.
 
-Suites: `Small_ImagingPartners`.
+Suites: `Small_ImagingPartners`, `Medium_ImagingPartners`.
 
 Tests the two sources of a mosaic's three partner images.
 
@@ -24,18 +24,26 @@ of the generator, in draw order, and the two generators are equal afterwards.
 
 ## DatasetSourceCoversTheDatasetAndNeverLeavesIt
 
-Over 300 seeds and a dataset of 7, every partner is below 7 and every index is a partner at
-least once.
+Over 64 samples drawn from one generator seeded 20261007 and a dataset of 7, every partner is
+below 7 and every index is a partner at least once.
 
 ## DatasetSourceKeepsNoStateBetweenSamples
 
 A source that already answered two calls and a new source return the same partners for the
 same index and seed.
 
-## DatasetSourceRejectsSizesAndIndicesOutOfRange
+## DatasetSourceRejectsSizesOutsideItsRange
 
-A dataset size of 0 and one above the largest `uint32` throw, and the largest `uint32` is
-accepted. `choose(4)` on a dataset of 4 fails with "index 4" and makes no draw.
+A dataset size of 0 and one above the largest `uint32` fail with `InvalidDescription`.
+
+## DatasetSourceAcceptsTheLargestSize
+
+The largest `uint32` is accepted as a dataset size.
+
+## DatasetSourceStopsOnASampleIndexOutOfRange
+
+`choose(4)` on a dataset of 4 stops the process with "index 4". The test is in `Medium_ImagingPartners`
+because a death test starts a child process.
 
 ## RecentCapacityIsTheSmallestOfItsThreeBounds
 

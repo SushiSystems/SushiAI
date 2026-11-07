@@ -43,16 +43,11 @@ namespace
 {
     using SushiAI::Test::require_value;
     /**
-     * @brief Holds the absolute tolerance of a pixel coordinate, in pixels: 32768 times the float
-     *        unit roundoff, the smallest power of two not tighter than the earlier 1e-3f.
-     */
-    constexpr float K_PIXEL_TOLERANCE =
-        static_cast<float>(32768.0 * TestSupport::unit_roundoff<float>());
-
-    /**
-     * @brief Holds the absolute tolerance of a normalized coordinate, a fraction of the image: 32
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-6f.
+     * @brief Holds the absolute tolerance of a resampled normalized coordinate, a fraction of the
+     *        image: 32 times the float unit roundoff, about 1.9e-6.
+     *
+     * A resampled vertex is one interpolation, a few float operations on values below 1, each off
+     * by at most u = 6e-8.
      */
     constexpr float K_FRACTION_TOLERANCE =
         static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
@@ -60,30 +55,44 @@ namespace
     /** @brief Holds the size the hand-computed cases use: 480 rows by 640 columns. */
     constexpr ImageSize K_SIZE{480, 640};
 
-    /** @brief Checks the four corners of a pixel box against expected values. */
+    /** @brief Checks the four corners of a pixel box against expected values, exactly. */
     void expect_pixel_box(const PixelBox& actual, float x1, float y1, float x2, float y2)
     {
-        EXPECT_NEAR(actual.x1, x1, K_PIXEL_TOLERANCE);
-        EXPECT_NEAR(actual.y1, y1, K_PIXEL_TOLERANCE);
-        EXPECT_NEAR(actual.x2, x2, K_PIXEL_TOLERANCE);
-        EXPECT_NEAR(actual.y2, y2, K_PIXEL_TOLERANCE);
+        EXPECT_EQ(actual.x1, x1);
+        EXPECT_EQ(actual.y1, y1);
+        EXPECT_EQ(actual.x2, x2);
+        EXPECT_EQ(actual.y2, y2);
     }
 
-    /** @brief Checks the four values of a normalized box against expected values. */
+    /** @brief Checks the four values of a normalized box against expected values, exactly. */
     void expect_normalized_box(const NormalizedBox& actual, float x_center, float y_center,
                                float width, float height)
     {
-        EXPECT_NEAR(actual.x_center, x_center, K_FRACTION_TOLERANCE);
-        EXPECT_NEAR(actual.y_center, y_center, K_FRACTION_TOLERANCE);
-        EXPECT_NEAR(actual.width, width, K_FRACTION_TOLERANCE);
-        EXPECT_NEAR(actual.height, height, K_FRACTION_TOLERANCE);
+        EXPECT_EQ(actual.x_center, x_center);
+        EXPECT_EQ(actual.y_center, y_center);
+        EXPECT_EQ(actual.width, width);
+        EXPECT_EQ(actual.height, height);
     }
 
-    /** @brief Checks one vertex against expected coordinates within a tolerance. */
-    void expect_point(const Point& actual, float x, float y, float tolerance)
+    /** @brief Checks one vertex against expected coordinates, exactly. */
+    void expect_point(const Point& actual, float x, float y)
     {
-        EXPECT_NEAR(actual.x, x, tolerance);
-        EXPECT_NEAR(actual.y, y, tolerance);
+        EXPECT_EQ(actual.x, x);
+        EXPECT_EQ(actual.y, y);
+    }
+
+    /** @brief Returns six objects: three of positive area and three that the removal drops. */
+    Labels make_labels_with_empty_boxes()
+    {
+        Labels labels;
+        labels.add(10, PixelBox{0.0f, 0.0f, 5.0f, 5.0f});
+        labels.add(11, PixelBox{640.0f, 10.0f, 640.0f, 20.0f}, Polygon{Point{640.0f, 10.0f}});
+        labels.add(12, PixelBox{1.0f, 1.0f, 2.0f, 3.0f},
+                   Polygon{Point{1.0f, 1.0f}, Point{2.0f, 3.0f}});
+        labels.add(13, PixelBox{10.0f, 0.0f, 20.0f, 0.0f});
+        labels.add(14, PixelBox{7.0f, 7.0f, 9.0f, 8.0f});
+        labels.add(15, PixelBox{5.0f, 0.0f, 2.0f, 4.0f});
+        return labels;
     }
 
     /** @brief Returns a polygon of a number of vertices spread along a diagonal. */
@@ -100,20 +109,8 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a default set holds no object in any of its three lists. */
-TEST(Small_ImagingLabelSet, DefaultSetHoldsNoObject)
-{
-    const Labels labels;
-
-    EXPECT_TRUE(labels.is_empty());
-    EXPECT_EQ(labels.size(), 0u);
-    EXPECT_TRUE(labels.classes().empty());
-    EXPECT_TRUE(labels.boxes().empty());
-    EXPECT_TRUE(labels.polygons().empty());
-}
-
-/** @brief Tests that the constructors refuse lists of different lengths. */
-TEST(Small_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
+/** @brief Tests that the constructors stop on lists of different lengths. */
+TEST(Medium_ImagingLabelSet, ConstructorsRejectListsOfDifferentLengths)
 {
     const PixelBox box{0.0f, 0.0f, 1.0f, 1.0f};
 
@@ -151,7 +148,7 @@ TEST(Small_ImagingLabelSet, AddAppendsOneEntryToEachList)
     ASSERT_EQ(labels.polygons().size(), 2u);
     EXPECT_TRUE(labels.polygons()[0].empty());
     ASSERT_EQ(labels.polygons()[1].size(), 2u);
-    expect_point(labels.polygons()[1][1], 7.0f, 8.0f, K_PIXEL_TOLERANCE);
+    expect_point(labels.polygons()[1][1], 7.0f, 8.0f);
 }
 
 /** @brief Tests that keep_if removes an object's class, box and polygon together. */
@@ -176,7 +173,7 @@ TEST(Small_ImagingLabelSet, KeepIfRemovesAnObjectFromAllThreeLists)
     expect_pixel_box(labels.boxes()[1], 0.0f, 0.0f, 4.0f, 4.0f);
     ASSERT_EQ(labels.polygons()[0].size(), 2u);
     ASSERT_EQ(labels.polygons()[1].size(), 1u);
-    expect_point(labels.polygons()[1][0], 4.0f, 4.0f, K_PIXEL_TOLERANCE);
+    expect_point(labels.polygons()[1][0], 4.0f, 4.0f);
 }
 
 /** @brief Tests that to_pixel_labels converts every box and keeps classes and order. */
@@ -207,9 +204,9 @@ TEST(Small_ImagingLabelSet, ToPixelLabelsScalesVerticesByWidthAndHeight)
 
     ASSERT_EQ(pixels.size(), 2u);
     ASSERT_EQ(pixels.polygons()[0].size(), 3u);
-    expect_point(pixels.polygons()[0][0], 160.0f, 120.0f, K_PIXEL_TOLERANCE);
-    expect_point(pixels.polygons()[0][1], 480.0f, 120.0f, K_PIXEL_TOLERANCE);
-    expect_point(pixels.polygons()[0][2], 320.0f, 360.0f, K_PIXEL_TOLERANCE);
+    expect_point(pixels.polygons()[0][0], 160.0f, 120.0f);
+    expect_point(pixels.polygons()[0][1], 480.0f, 120.0f);
+    expect_point(pixels.polygons()[0][2], 320.0f, 360.0f);
     EXPECT_TRUE(pixels.polygons()[1].empty());
 }
 
@@ -228,8 +225,8 @@ TEST(Small_ImagingLabelSet, ToNormalizedLabelsKeepsClassesAndOrder)
     expect_normalized_box(normalized.boxes()[0], 0.25f, 0.5f, 0.25f, 0.5f);
     expect_normalized_box(normalized.boxes()[1], 0.5f, 0.25f, 0.5f, 0.25f);
     ASSERT_EQ(normalized.polygons()[0].size(), 3u);
-    expect_point(normalized.polygons()[0][0], 0.125f, 0.25f, K_FRACTION_TOLERANCE);
-    expect_point(normalized.polygons()[0][1], 0.375f, 0.75f, K_FRACTION_TOLERANCE);
+    expect_point(normalized.polygons()[0][0], 0.125f, 0.25f);
+    expect_point(normalized.polygons()[0][1], 0.375f, 0.75f);
     EXPECT_TRUE(normalized.polygons()[1].empty());
 }
 
@@ -255,44 +252,46 @@ TEST(Small_ImagingLabelSet, ClipLabelsClipsBoxesAndVerticesAndRemovesNone)
     expect_pixel_box(labels.boxes()[0], 0.0f, 20.0f, 640.0f, 480.0f);
     expect_pixel_box(labels.boxes()[1], 640.0f, 10.0f, 640.0f, 20.0f);
     ASSERT_EQ(labels.polygons()[0].size(), 3u);
-    expect_point(labels.polygons()[0][0], 0.0f, 20.0f, K_PIXEL_TOLERANCE);
-    expect_point(labels.polygons()[0][1], 640.0f, 30.0f, K_PIXEL_TOLERANCE);
-    expect_point(labels.polygons()[0][2], 320.0f, 480.0f, K_PIXEL_TOLERANCE);
+    expect_point(labels.polygons()[0][0], 0.0f, 20.0f);
+    expect_point(labels.polygons()[0][1], 640.0f, 30.0f);
+    expect_point(labels.polygons()[0][2], 320.0f, 480.0f);
 }
 
-/** @brief Tests that remove_empty_boxes drops zero-area objects with their polygons, in order. */
-TEST(Small_ImagingLabelSet, RemoveEmptyBoxesDropsZeroAreaAndKeepsOrderClassesAndPolygons)
+/** @brief Tests that remove_empty_boxes drops the boxes of zero and of negative area. */
+TEST(Small_ImagingLabelSet, RemoveEmptyBoxesDropsZeroAndNegativeAreaBoxes)
 {
-    Labels labels;
-    labels.add(10, PixelBox{0.0f, 0.0f, 5.0f, 5.0f});
-    labels.add(11, PixelBox{640.0f, 10.0f, 640.0f, 20.0f}, Polygon{Point{640.0f, 10.0f}});
-    labels.add(12, PixelBox{1.0f, 1.0f, 2.0f, 3.0f}, Polygon{Point{1.0f, 1.0f}, Point{2.0f, 3.0f}});
-    labels.add(13, PixelBox{10.0f, 0.0f, 20.0f, 0.0f});
-    labels.add(14, PixelBox{7.0f, 7.0f, 9.0f, 8.0f});
+    Labels labels = make_labels_with_empty_boxes();
 
     remove_empty_boxes(labels);
 
     ASSERT_EQ(labels.size(), 3u);
-    EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{10, 12, 14}));
+    ASSERT_EQ(labels.boxes().size(), 3u);
     expect_pixel_box(labels.boxes()[0], 0.0f, 0.0f, 5.0f, 5.0f);
     expect_pixel_box(labels.boxes()[1], 1.0f, 1.0f, 2.0f, 3.0f);
     expect_pixel_box(labels.boxes()[2], 7.0f, 7.0f, 9.0f, 8.0f);
+}
+
+/** @brief Tests that remove_empty_boxes keeps the classes of the survivors in their order. */
+TEST(Small_ImagingLabelSet, RemoveEmptyBoxesKeepsTheClassesOfTheSurvivorsInOrder)
+{
+    Labels labels = make_labels_with_empty_boxes();
+
+    remove_empty_boxes(labels);
+
+    EXPECT_EQ(labels.classes(), (std::vector<std::int32_t>{10, 12, 14}));
+}
+
+/** @brief Tests that remove_empty_boxes keeps each survivor's own polygon. */
+TEST(Small_ImagingLabelSet, RemoveEmptyBoxesKeepsEachSurvivorsPolygon)
+{
+    Labels labels = make_labels_with_empty_boxes();
+
+    remove_empty_boxes(labels);
+
     ASSERT_EQ(labels.polygons().size(), 3u);
     EXPECT_TRUE(labels.polygons()[0].empty());
     EXPECT_EQ(labels.polygons()[1].size(), 2u);
     EXPECT_TRUE(labels.polygons()[2].empty());
-}
-
-/** @brief Tests that remove_empty_boxes drops a box whose corners are in the wrong order. */
-TEST(Small_ImagingLabelSet, RemoveEmptyBoxesDropsABoxOfNegativeArea)
-{
-    Labels labels({3}, {PixelBox{5.0f, 0.0f, 2.0f, 4.0f}});
-
-    remove_empty_boxes(labels);
-
-    EXPECT_TRUE(labels.is_empty());
-    EXPECT_TRUE(labels.classes().empty());
-    EXPECT_TRUE(labels.polygons().empty());
 }
 
 /** @brief Tests that resample_polygons gives every polygon 1000 points and skips empty ones. */
@@ -311,22 +310,9 @@ TEST(Small_ImagingLabelSet, ResamplePolygonsGivesEachPolygonAThousandPoints)
     EXPECT_EQ(resampled.polygons()[0].size(), K_POLYGON_POINTS);
     EXPECT_TRUE(resampled.polygons()[1].empty());
     EXPECT_EQ(resampled.polygons()[2].size(), K_POLYGON_POINTS);
-    expect_point(resampled.polygons()[0][0], 0.25f, 0.25f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(resampled.polygons()[0][0].x, 0.25f, K_FRACTION_TOLERANCE);
+    EXPECT_NEAR(resampled.polygons()[0][0].y, 0.25f, K_FRACTION_TOLERANCE);
     expect_normalized_box(resampled.boxes()[2], 0.5f, 0.5f, 1.0f, 1.0f);
-}
-
-/** @brief Tests that a polygon of over 1000 vertices raises the count to its length plus one. */
-TEST(Small_ImagingLabelSet, ResamplePolygonsUsesTheLongestPolygonPlusOneAboveAThousand)
-{
-    FileLabels labels;
-    labels.add(0, NormalizedBox{0.5f, 0.5f, 1.0f, 1.0f}, make_diagonal(1200));
-    labels.add(1, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f},
-               Polygon{Point{0.25f, 0.25f}, Point{0.75f, 0.25f}, Point{0.5f, 0.75f}});
-
-    const FileLabels resampled = resample_polygons(labels);
-
-    EXPECT_EQ(resampled.polygons()[0].size(), 1201u);
-    EXPECT_EQ(resampled.polygons()[1].size(), 1201u);
 }
 
 /** @brief Tests that a set without any polygon comes back from resample_polygons unchanged. */

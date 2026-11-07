@@ -31,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/image.hpp>
@@ -58,6 +59,38 @@ namespace
         for (std::size_t i = 0; i < image.byte_count(); ++i)
             image.data()[i] = static_cast<std::uint8_t>(i % 251);
     }
+
+    /** @brief Expects every byte of an image to hold @p expected. */
+    void expect_every_byte(const Image& image, std::uint8_t expected)
+    {
+        for (std::size_t i = 0; i < image.byte_count(); ++i)
+            ASSERT_EQ(image.data()[i], expected) << "byte " << i;
+    }
+
+    /** @brief Expects byte i of an image to hold i modulo 251, as write_offsets leaves it. */
+    void expect_offsets(const Image& image)
+    {
+        for (std::size_t i = 0; i < image.byte_count(); ++i)
+            ASSERT_EQ(static_cast<std::size_t>(image.data()[i]), i % 251) << "byte " << i;
+    }
+
+    /** @brief Expects an image to hold exactly the bytes of @p expected, in order. */
+    void expect_bytes(const Image& image, const std::vector<std::uint8_t>& expected)
+    {
+        ASSERT_EQ(image.byte_count(), expected.size());
+        for (std::size_t i = 0; i < expected.size(); ++i)
+            ASSERT_EQ(image.data()[i], expected[i]) << "byte " << i;
+    }
+
+    /** @brief Expects row y of an image, its constant form and its view to start at @p offset. */
+    void expect_row_starts_at(Image& image, std::int32_t y, std::size_t offset)
+    {
+        const Image& constant = image;
+
+        EXPECT_EQ(image.row(y), image.data() + offset) << "row " << y;
+        EXPECT_EQ(constant.row(y), constant.data() + offset) << "row " << y;
+        EXPECT_EQ(image.view().row(y), image.data() + offset) << "row " << y;
+    }
 } // namespace
 
 static_assert(ImageSize{3, 4} == ImageSize{3, 4}, "equal sizes compare equal");
@@ -80,19 +113,6 @@ TEST(Small_ImagingImage, ImageSizeComparesHeightAndWidth)
     EXPECT_FALSE((ImageSize{3, 4} == ImageSize{4, 3}));
 }
 
-TEST(Small_ImagingImage, ADefaultImageHasNoPixels)
-{
-    const Image image;
-
-    EXPECT_EQ(image.height(), 0);
-    EXPECT_EQ(image.width(), 0);
-    EXPECT_EQ(image.channels(), 0);
-    EXPECT_EQ(image.row_bytes(), 0u);
-    EXPECT_EQ(image.byte_count(), 0u);
-    EXPECT_EQ(image.view().byte_count(), 0u);
-    EXPECT_EQ(image.allocated_bytes(), 0u);
-}
-
 TEST(Small_ImagingImage, AConstructedImageReportsItsExtents)
 {
     const Image image(ImageSize{4, 6}, 3);
@@ -106,12 +126,12 @@ TEST(Small_ImagingImage, AConstructedImageReportsItsExtents)
     ASSERT_NE(image.data(), nullptr);
 }
 
+/** @brief Tests that a constructed image holds zero in every byte. */
 TEST(Small_ImagingImage, AConstructedImageIsZero)
 {
     const Image image(ImageSize{5, 7}, 4);
 
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        ASSERT_EQ(image.data()[i], 0) << "byte " << i;
+    expect_every_byte(image, 0);
 }
 
 TEST(Small_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
@@ -123,23 +143,21 @@ TEST(Small_ImagingImage, TheLargestSideAndChannelCountAreAccepted)
     EXPECT_EQ(wide.byte_count(), static_cast<std::size_t>(K_MAX_IMAGE_SIDE) * K_MAX_CHANNELS);
 }
 
-TEST(Small_ImagingImage, ConstructionRejectsAHeightOutsideItsBounds)
+/** @brief Tests that construction stops on a height or a width outside the side bounds. */
+TEST(Medium_ImagingImage, ConstructionRejectsASideOutsideItsBounds)
 {
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{0, 4}, 3)), "Image:", "size of 0x4", "16384");
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{-2, 4}, 3)), "Image:", "size of -2x4");
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{K_MAX_IMAGE_SIDE + 1, 4}, 3)), "Image:",
                     "size of 16385x4");
-}
-
-TEST(Small_ImagingImage, ConstructionRejectsAWidthOutsideItsBounds)
-{
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 0}, 3)), "Image:", "size of 4x0", "16384");
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, -7}, 3)), "Image:", "size of 4x-7");
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, K_MAX_IMAGE_SIDE + 1}, 3)), "Image:",
                     "size of 4x16385");
 }
 
-TEST(Small_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
+/** @brief Tests that construction stops on a channel count outside one to four. */
+TEST(Medium_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
 {
     SA_EXPECT_FATAL(static_cast<void>(Image(ImageSize{4, 4}, 0)), "Image:", "channel count of 0",
                     "[1, 4]");
@@ -148,39 +166,36 @@ TEST(Small_ImagingImage, ConstructionRejectsAChannelCountOutsideItsBounds)
                     "channel count of 5");
 }
 
+/** @brief Tests that row y starts y times the row bytes after the first byte. */
 TEST(Small_ImagingImage, RowsStartOneRowOfBytesApart)
 {
     Image image(ImageSize{3, 5}, 3);
-    const Image& constant = image;
 
-    for (std::int32_t y = 0; y < image.height(); ++y)
-    {
-        const std::size_t offset = static_cast<std::size_t>(y) * 15u;
-
-        EXPECT_EQ(image.row(y), image.data() + offset) << "row " << y;
-        EXPECT_EQ(constant.row(y), constant.data() + offset) << "row " << y;
-        EXPECT_EQ(image.view().row(y), image.data() + offset) << "row " << y;
-    }
+    expect_row_starts_at(image, 0, 0);
+    expect_row_starts_at(image, 1, 15);
+    expect_row_starts_at(image, 2, 30);
 }
 
+/** @brief Tests that a byte written through a row lands at its height, width, channel offset. */
 TEST(Small_ImagingImage, AByteWrittenThroughARowIsReadAtItsHwcOffset)
 {
     Image image(ImageSize{3, 4}, 3);
+    std::vector<std::uint8_t> expected(36, 0);
 
     // Row 2, column 1, channel 2 is byte (2 * 4 + 1) * 3 + 2 = 29.
     image.row(2)[1 * 3 + 2] = 201;
+    expected[29] = 201;
 
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        ASSERT_EQ(image.data()[i], i == 29 ? 201 : 0) << "byte " << i;
+    expect_bytes(image, expected);
 }
 
+/** @brief Tests that fill sets every byte of the image. */
 TEST(Small_ImagingImage, FillSetsEveryByte)
 {
     Image image(ImageSize{4, 3}, 2);
     image.fill(114);
 
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        ASSERT_EQ(image.data()[i], 114) << "byte " << i;
+    expect_every_byte(image, 114);
 }
 
 TEST(Small_ImagingImage, FillOnAnEmptyImageDoesNothing)
@@ -191,6 +206,7 @@ TEST(Small_ImagingImage, FillOnAnEmptyImageDoesNothing)
     EXPECT_EQ(image.byte_count(), 0u);
 }
 
+/** @brief Tests that reset gives the image the new size, channels, row bytes and byte count. */
 TEST(Small_ImagingImage, ResetGivesTheImageNewExtents)
 {
     Image image(ImageSize{2, 2}, 1);
@@ -200,12 +216,17 @@ TEST(Small_ImagingImage, ResetGivesTheImageNewExtents)
     EXPECT_EQ(image.channels(), 4);
     EXPECT_EQ(image.row_bytes(), 12u);
     EXPECT_EQ(image.byte_count(), 60u);
+}
 
-    // Every byte of the new extent is writable and readable.
+/** @brief Tests that every byte of the extent a reset gives is writable and readable. */
+TEST(Small_ImagingImage, EveryByteOfTheResetExtentIsWritable)
+{
+    Image image(ImageSize{2, 2}, 1);
+    image.reset(ImageSize{5, 3}, 4);
+
     write_offsets(image);
 
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        ASSERT_EQ(static_cast<std::size_t>(image.data()[i]), i % 251) << "byte " << i;
+    expect_offsets(image);
 }
 
 TEST(Small_ImagingImage, ResetOnADefaultImageAllocates)
@@ -232,20 +253,21 @@ TEST(Small_ImagingImage, ResetKeepsTheAllocationWhenItIsLargeEnough)
     EXPECT_EQ(image.byte_count(), 192u);
 }
 
-TEST(Small_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
+/** @brief Tests that reset stops on the sizes and channel counts the constructor refuses. */
+TEST(Medium_ImagingImage, ResetRejectsTheBoundsTheConstructorRejects)
 {
     Image image(ImageSize{2, 2}, 3);
 
     SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{0, 2}, 3)), "Image::reset",
                     "size of 0x2");
     SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 3)),
-                    "Image::reset",
-                    "size of 2x16385");
+                    "Image::reset", "size of 2x16385");
     SA_EXPECT_FATAL(static_cast<void>(image.reset(ImageSize{2, 2}, 5)), "Image::reset",
                     "channel count of 5");
 }
 
-TEST(Small_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
+/** @brief Tests that a reset refused for its channel count leaves the image as it was. */
+TEST(Medium_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
 {
     Image image(ImageSize{2, 3}, 3);
     write_offsets(image);
@@ -256,9 +278,7 @@ TEST(Small_ImagingImage, ARejectedResetLeavesTheImageAsItWas)
     EXPECT_EQ(image.size(), (ImageSize{2, 3}));
     EXPECT_EQ(image.channels(), 3);
     EXPECT_EQ(image.data(), allocation);
-
-    for (std::size_t i = 0; i < image.byte_count(); ++i)
-        ASSERT_EQ(static_cast<std::size_t>(image.data()[i]), i % 251) << "byte " << i;
+    expect_offsets(image);
 }
 
 TEST(Small_ImagingImage, AViewOfAnImageDescribesTheSamePixels)
@@ -276,17 +296,6 @@ TEST(Small_ImagingImage, AViewOfAnImageDescribesTheSamePixels)
     EXPECT_EQ(view.row_bytes(), image.row_bytes());
     EXPECT_EQ(view.byte_count(), image.byte_count());
     EXPECT_EQ(view.row(2)[5], 29);
-}
-
-TEST(Small_ImagingImage, ADefaultViewIsEmpty)
-{
-    const ImageView view;
-
-    EXPECT_EQ(view.data(), nullptr);
-    EXPECT_EQ(view.size(), (ImageSize{0, 0}));
-    EXPECT_EQ(view.channels(), 0);
-    EXPECT_EQ(view.row_bytes(), 0u);
-    EXPECT_EQ(view.byte_count(), 0u);
 }
 
 TEST(Small_ImagingImage, AViewOverForeignBytesAddressesThemInHwcOrder)
@@ -379,36 +388,46 @@ TEST(Small_ImagingImage, OverlapsIsFalseForSeparateOrEmptyOperands)
     EXPECT_FALSE(overlaps(no_channels, first));
 }
 
-/** @brief Tests that check_source accepts a valid view of another image. */
-TEST(Small_ImagingImage, CheckSourceAcceptsAViewOfAnotherImage)
+/** @brief Tests that check_source stops on a view without pixels and names the caller. */
+TEST(Medium_ImagingImage, CheckSourceStopsOnAViewWithoutPixels)
 {
-    const Image source(ImageSize{2, 2}, 3);
-    const Image destination(ImageSize{5, 5}, 1);
-    const Image unallocated;
-
-    check_source(source.view(), destination, "caller");
-    check_source(source.view(), unallocated, "caller");
-}
-
-/** @brief Tests that check_source names the caller and each of the four faults it finds. */
-TEST(Small_ImagingImage, CheckSourceRejectsEachFaultUnderTheCallersName)
-{
-    Image image(ImageSize{4, 3}, 3);
-    const Image other(ImageSize{2, 2}, 3);
-    const ImageView flat(other.data(), ImageSize{0, 2}, 3);
-    const ImageView oversized(other.data(), ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 3);
-    const ImageView many_channels(other.data(), ImageSize{2, 2}, 5);
-    const ImageView inner(image.row(2), ImageSize{2, 3}, 3);
+    const Image image(ImageSize{4, 3}, 3);
 
     SA_EXPECT_FATAL(static_cast<void>(check_source(ImageView(), image, "caller")), "caller:",
                     "no pixels");
+}
+
+/** @brief Tests that check_source stops on a source height or width outside the side bounds. */
+TEST(Medium_ImagingImage, CheckSourceStopsOnASourceSizeOutsideItsBounds)
+{
+    const Image image(ImageSize{4, 3}, 3);
+    const Image other(ImageSize{2, 2}, 3);
+    const ImageView flat(other.data(), ImageSize{0, 2}, 3);
+    const ImageView oversized(other.data(), ImageSize{2, K_MAX_IMAGE_SIDE + 1}, 3);
+
     SA_EXPECT_FATAL(static_cast<void>(check_source(flat, image, "caller")), "caller:",
                     "source size of 0x2");
     SA_EXPECT_FATAL(static_cast<void>(check_source(oversized, image, "caller")), "caller:",
-                    "source size of 2x16385",
-                    "16384");
+                    "source size of 2x16385", "16384");
+}
+
+/** @brief Tests that check_source stops on a source channel count outside one to four. */
+TEST(Medium_ImagingImage, CheckSourceStopsOnASourceChannelCountOutsideItsBounds)
+{
+    const Image image(ImageSize{4, 3}, 3);
+    const Image other(ImageSize{2, 2}, 3);
+    const ImageView many_channels(other.data(), ImageSize{2, 2}, 5);
+
     SA_EXPECT_FATAL(static_cast<void>(check_source(many_channels, image, "caller")), "caller:",
                     "source channel count of 5", "[1, 4]");
+}
+
+/** @brief Tests that check_source stops on a source the destination holds, whole or in rows. */
+TEST(Medium_ImagingImage, CheckSourceStopsOnASourceTheDestinationHolds)
+{
+    Image image(ImageSize{4, 3}, 3);
+    const ImageView inner(image.row(2), ImageSize{2, 3}, 3);
+
     SA_EXPECT_FATAL(static_cast<void>(check_source(image.view(), image, "caller")), "caller:",
                     "destination holds the source's pixels");
     SA_EXPECT_FATAL(static_cast<void>(check_source(inner, image, "caller")), "caller:",

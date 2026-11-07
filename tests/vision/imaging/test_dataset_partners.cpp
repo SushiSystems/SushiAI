@@ -64,18 +64,19 @@ TEST(Small_ImagingPartners, DatasetSourceReturnsThreeIndexDrawsInOrder)
 /** @brief Tests that the dataset source reaches every image and none outside the dataset. */
 TEST(Small_ImagingPartners, DatasetSourceCoversTheDatasetAndNeverLeavesIt)
 {
-    const std::size_t dataset_size = 7;
+    constexpr std::size_t dataset_size = 7;
+    constexpr std::size_t sample_count = 64;
     const std::unique_ptr<DatasetPartners> partners_owner =
         require_value(DatasetPartners::make(dataset_size));
     DatasetPartners& partners = *partners_owner;
-    std::array<bool, 7> seen{};
+    std::array<bool, dataset_size> seen{};
+    Random random(20261007u);
 
-    for (std::uint64_t seed = 0; seed < 300; ++seed)
+    for (std::size_t sample = 0; sample < sample_count; ++sample)
     {
-        Random random(seed);
         for (const std::size_t partner : partners.choose(0, random))
         {
-            ASSERT_LT(partner, dataset_size) << "seed " << seed;
+            ASSERT_LT(partner, dataset_size) << "sample " << sample;
             seen[partner] = true;
         }
     }
@@ -101,20 +102,32 @@ TEST(Small_ImagingPartners, DatasetSourceKeepsNoStateBetweenSamples)
     EXPECT_EQ(used.choose(5, first), fresh.choose(5, second));
 }
 
-/** @brief Tests that the dataset source refuses a size or an index outside its range. */
-TEST(Small_ImagingPartners, DatasetSourceRejectsSizesAndIndicesOutOfRange)
+/** @brief Tests that the dataset source refuses a size of zero and one above the uint32 range. */
+TEST(Small_ImagingPartners, DatasetSourceRejectsSizesOutsideItsRange)
 {
     const std::size_t largest = std::numeric_limits<std::uint32_t>::max();
-    const std::unique_ptr<DatasetPartners> partners_owner = require_value(DatasetPartners::make(4));
-    DatasetPartners& partners = *partners_owner;
-    Random random(1u);
 
     SA_EXPECT_FAILURE(DatasetPartners::make(0), StatusCode::InvalidDescription, "DatasetPartners",
                       "dataset size of 0");
     SA_EXPECT_FAILURE(DatasetPartners::make(largest + 1), StatusCode::InvalidDescription,
                       "DatasetPartners", "dataset size");
+}
+
+/** @brief Tests that the dataset source accepts the largest size the uint32 range holds. */
+TEST(Small_ImagingPartners, DatasetSourceAcceptsTheLargestSize)
+{
+    const std::size_t largest = std::numeric_limits<std::uint32_t>::max();
+
     SA_EXPECT_OK(DatasetPartners::make(largest));
+}
+
+/** @brief Tests that the dataset source stops on a sample index outside the dataset. */
+TEST(Medium_ImagingPartners, DatasetSourceStopsOnASampleIndexOutOfRange)
+{
+    const std::unique_ptr<DatasetPartners> partners_owner = require_value(DatasetPartners::make(4));
+    DatasetPartners& partners = *partners_owner;
+    Random random(1u);
+
     SA_EXPECT_FATAL(static_cast<void>(partners.choose(4, random)), "DatasetPartners::choose",
                     "index 4");
-    EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
 }
