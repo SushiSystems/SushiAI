@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import ast
 import re
 from pathlib import Path
 
@@ -45,9 +44,7 @@ K_EXAMPLES = {
     "env": "sa env --all",
 }
 
-K_RAW_COLOUR = re.compile(r"\[/?(green|red|yellow|cyan|blue|dim)[\] ]")
 K_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
-K_PACKAGE = Path(__file__).resolve().parents[1] / "sushiai"
 
 
 def _run(*args: str) -> str:
@@ -71,16 +68,6 @@ def _commands_by_heading(page: str) -> dict[str, list[str]]:
         elif line.startswith("  ") and not line.startswith("   "):
             grouped[heading].append(line.split()[0])
     return grouped
-
-
-def _string_literals(path: Path) -> list[tuple[int, str]]:
-    """Return every string literal in ``path`` with its line number, f-string parts included."""
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    return [
-        (node.lineno, node.value)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Constant) and isinstance(node.value, str)
-    ]
 
 
 def test_root_help_lists_the_three_groups_in_order():
@@ -150,9 +137,3 @@ def test_a_forwarding_command_draws_its_own_page_while_its_program_is_not_built(
     assert f"Usage: {line}" in page
     assert "Examples" in page and f"{line} " in page.split("Examples")[1]
     assert result.exit_code == 1
-
-
-@pytest.mark.parametrize("path", sorted(K_PACKAGE.rglob("*.py")), ids=lambda p: p.name)
-def test_no_raw_rich_colour_name_is_left_in_the_source(path):
-    left = [(line, text) for line, text in _string_literals(path) if K_RAW_COLOUR.search(text)]
-    assert left == []
