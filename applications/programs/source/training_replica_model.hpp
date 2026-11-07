@@ -30,7 +30,9 @@
 #pragma once
 
 #include <cstdint>
+#include <cstddef>
 #include <memory>
+#include <string>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/tensor/tensor.hpp>
@@ -54,6 +56,18 @@ namespace SushiAI
     {
         /** @brief Holds the run index of every run of a training file, master and workers. */
         inline constexpr std::uint64_t K_RUN_INDEX = 0;
+
+        /**
+         * @brief Checks that @p rows are as many as the step was traced over and lie inside
+         *        their batch.
+         * @param traced_rows The rows the training graph was traced over.
+         * @param batch_size The rows of one batch of the data.
+         * @param batch_count The batches of one epoch of the data.
+         * @return InvalidDescription for rows of another count or outside their batch.
+         */
+        [[nodiscard]] Status check_replica_rows(const Distribution::ReplicaRows& rows,
+                                                std::int64_t traced_rows, std::int64_t batch_size,
+                                                std::size_t batch_count);
 
         /**
          * @struct ReplicaSource
@@ -81,19 +95,22 @@ namespace SushiAI
             /**
              * @brief Reads the architecture file @p spec names, composes the registries and
              *        makes the source.
-             * @return The source, InvalidDescription for a file that does not read, or what
-             *         make() refuses.
+             * @return The source, FileNotFound naming the architecture file it cannot open,
+             *         InvalidDescription for a file that does not read, or what make() refuses.
              */
             [[nodiscard]] static Result<std::shared_ptr<const ReplicaSource>> load(
                 const Config::TrainSpec& spec);
 
             /**
-             * @brief Hashes the files of @p spec, whose cluster section must read.
-             * @return The source, FileNotFound naming the architecture file it cannot open,
-             *         or the refusal of the cluster section, of the seed or of a key's text.
+             * @brief Hashes @p architecture_text and the keys of @p spec, whose cluster section
+             *        must read.
+             * @param architecture_text The bytes of the architecture file @p spec names.
+             * @return The source, or the refusal of the cluster section, of the seed or of a
+             *         key's text.
              */
             [[nodiscard]] static Result<std::shared_ptr<const ReplicaSource>> make(
-                Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec);
+                Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec,
+                const std::string& architecture_text);
         };
 
         /**

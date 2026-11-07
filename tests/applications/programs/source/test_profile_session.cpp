@@ -129,6 +129,17 @@ TEST_F(Medium_ProfileSession, EndingAFailedRunReturnsItsOwnFailure)
     SA_EXPECT_FAILURE(ended, StatusCode::DeviceFailed, "a step failed");
 }
 
+/** @brief Tests that ending a profiled run that failed returns the failure of the run. */
+TEST_F(Medium_ProfileSession, EndingAFailedRunReturnsItsFailure)
+{
+    const SaTest::ScratchDirectory folder("sushiai_profile_failure_returned");
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<ProfileSession> session,
+                            ProfileSession::open(write_config(folder.path()), backend().runtime()));
+    run_three_steps();
+
+    EXPECT_FALSE(Apps::end_profiled_run(session, failed_step()).is_ok());
+}
+
 /** @brief Tests that a run that fails still gets its record written. */
 TEST_F(Medium_ProfileSession, ARunThatFailsStillWritesItsRecord)
 {
@@ -137,9 +148,8 @@ TEST_F(Medium_ProfileSession, ARunThatFailsStillWritesItsRecord)
                             ProfileSession::open(write_config(folder.path()), backend().runtime()));
     run_three_steps();
 
-    const Status ended = Apps::end_profiled_run(session, failed_step());
+    (void)Apps::end_profiled_run(session, failed_step());
 
-    EXPECT_FALSE(ended.is_ok());
     expect_two_periods_written(folder.path());
 }
 

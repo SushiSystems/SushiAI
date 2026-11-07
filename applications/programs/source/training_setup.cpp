@@ -70,6 +70,21 @@ namespace SushiAI
 
         } // namespace
 
+        std::int64_t trace_batch(std::optional<std::int64_t> rows,
+                                 std::int64_t data_batch) noexcept
+        {
+            return rows ? *rows : data_batch;
+        }
+
+        Status check_input_shape(std::string_view model_file, const Shape& declared,
+                                 std::string_view dataset, const Shape& supplied)
+        {
+            SA_FAIL_IF(supplied != declared, StatusCode::InvalidDescription,
+                       "'{}' declares the input shape {}, but the '{}' data supplies {}",
+                       model_file, declared.to_string(), dataset, supplied.to_string());
+            return Status();
+        }
+
         TrainingSetup::TrainingSetup(std::unique_ptr<Data::Dataset> read_dataset,
                                      NN::ModelGraph built_model, Train::ObjectiveContext context,
                                      SushiBLAS::Engine& engine) noexcept
@@ -94,14 +109,12 @@ namespace SushiAI
                                              data_block, "the data block"));
 
             const Shape sample_shape = dataset->sample_shape();
-            SA_FAIL_IF(sample_shape != model_spec.input_shape, StatusCode::InvalidDescription,
-                       "'{}' declares the input shape {}, but the '{}' data supplies {}",
-                       spec.model_path.string(), model_spec.input_shape.to_string(),
-                       dataset->name(), sample_shape.to_string());
+            SA_TRY(check_input_shape(spec.model_path.string(), model_spec.input_shape,
+                                     dataset->name(), sample_shape));
 
             SA_TRY_ASSIGN(NN::ModelGraph model, NN::build_model(registries.nodes, model_spec));
 
-            const std::int64_t batch_rows = rows ? *rows : dataset->batch_size();
+            const std::int64_t batch_rows = trace_batch(rows, dataset->batch_size());
             SA_TRY_ASSIGN(const Shape batch_shape, Train::batch_shape(batch_rows, sample_shape));
 
             // The probe trace states the published shapes an objective factory may read.

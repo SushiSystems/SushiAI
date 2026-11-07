@@ -109,14 +109,6 @@ namespace SushiAI
         Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::load(
             const Config::TrainSpec& spec)
         {
-            SA_TRY_ASSIGN(Config::ModelSpec model_spec, Config::load_model(spec.model_path));
-            SA_TRY_ASSIGN(Registries registries, compose_registries());
-            return make(std::move(registries), spec, std::move(model_spec));
-        }
-
-        Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::make(
-            Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec)
-        {
             std::ifstream file(spec.model_path, std::ios::binary);
             SA_FAIL_IF(!file, StatusCode::FileNotFound,
                        "the architecture file '{}' could not be opened to fingerprint it",
@@ -129,8 +121,17 @@ namespace SushiAI
                 return std::string((std::istreambuf_iterator<char>(file)),
                                    std::istreambuf_iterator<char>());
             }));
+            SA_TRY_ASSIGN(Config::ModelSpec model_spec, Config::load_model(spec.model_path));
+            SA_TRY_ASSIGN(Registries registries, compose_registries());
+            return make(std::move(registries), spec, std::move(model_spec), bytes);
+        }
+
+        Result<std::shared_ptr<const ReplicaSource>> ReplicaSource::make(
+            Registries registries, Config::TrainSpec spec, Config::ModelSpec model_spec,
+            const std::string& architecture_text)
+        {
             SA_TRY_ASSIGN(const std::uint64_t fingerprint,
-                          fingerprint_of(bytes, spec, K_RUN_INDEX));
+                          fingerprint_of(architecture_text, spec, K_RUN_INDEX));
 
             return SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
             {
@@ -227,22 +228,33 @@ namespace SushiAI
             entered_epoch_ = epoch;
         }
 
-        Status TrainingReplicaModel::feed(const Distribution::ReplicaRows& rows)
+        Status check_replica_rows(const Distribution::ReplicaRows& rows,
+                                  std::int64_t traced_rows, std::int64_t batch_size,
+                                  std::size_t batch_count)
         {
-            const Data::Dataset& dataset = setup_->dataset();
-            const std::uint64_t batch_rows = static_cast<std::uint64_t>(dataset.batch_size());
+            const std::uint64_t batch_rows = static_cast<std::uint64_t>(batch_size);
             const std::uint64_t first = rows.batch_index * batch_rows;
-            SA_FAIL_IF(static_cast<std::int64_t>(rows.rows.count) != setup_->given().batch,
+            SA_FAIL_IF(static_cast<std::int64_t>(rows.rows.count) != traced_rows,
                        StatusCode::InvalidDescription,
                        "{} rows were fed to a replica traced over {}", rows.rows.count,
-                       setup_->given().batch);
-            SA_FAIL_IF(rows.batch_index >= dataset.batch_count() || rows.rows.first < first
+                       traced_rows);
+            SA_FAIL_IF(rows.batch_index >= batch_count || rows.rows.first < first
                            || rows.rows.first + rows.rows.count > first + batch_rows,
                        StatusCode::InvalidDescription,
                        "rows {} to {} lie outside batch {}, which holds positions {} to {}; the "
                        "cluster's rows must sum to the data's batch size",
                        rows.rows.first, rows.rows.first + rows.rows.count, rows.batch_index,
                        first, first + batch_rows);
+            return Status();
+        }
+
+        Status TrainingReplicaModel::feed(const Distribution::ReplicaRows& rows)
+        {
+            const Data::Dataset& dataset = setup_->dataset();
+            SA_TRY(check_replica_rows(rows, setup_->given().batch, dataset.batch_size(),
+                                      dataset.batch_count()));
+            const std::uint64_t first =
+                rows.batch_index * static_cast<std::uint64_t>(dataset.batch_size());
 
             enter_epoch(rows.epoch);
             const Data::RowRange range{static_cast<std::int64_t>(rows.rows.first - first),

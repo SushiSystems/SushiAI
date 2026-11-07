@@ -32,12 +32,14 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/failure/result.hpp>
+#include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/nn/model_graph.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -63,6 +65,24 @@ namespace SushiAI
             Step,    /**< Every value of the graph, planned, so the setup can run its step. */
             Results, /**< The state, a gradient per parameter, the loss and the update sources. */
         };
+
+        /**
+         * @brief Returns the batch the training graph is traced over.
+         * @param rows The rows a replica is given, if any.
+         * @param data_batch The batch size the data reads.
+         * @return @p rows when given, otherwise @p data_batch.
+         */
+        [[nodiscard]] std::int64_t trace_batch(std::optional<std::int64_t> rows,
+                                               std::int64_t data_batch) noexcept;
+
+        /**
+         * @brief Checks that the data supplies the sample shape the architecture declares.
+         * @param model_file Names the architecture file in the refusal.
+         * @param dataset Names the data in the refusal.
+         * @return InvalidDescription naming both shapes when they differ.
+         */
+        [[nodiscard]] Status check_input_shape(std::string_view model_file, const Shape& declared,
+                                               std::string_view dataset, const Shape& supplied);
 
         /**
          * @class TrainingSetup

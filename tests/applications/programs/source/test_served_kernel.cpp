@@ -61,7 +61,7 @@ namespace
     std::shared_ptr<const Apps::ReplicaSource> source_of(const ClusterTestSpec& files)
     {
         return Apps::ReplicaSource::make(Apps::compose_registries().value(), files.spec,
-                                         files.model_spec)
+                                         files.model_spec, "architecture")
             .value();
     }
 } // namespace

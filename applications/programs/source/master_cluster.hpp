@@ -90,8 +90,44 @@ namespace SushiAI
             const Distribution::ClusterSection& section);
 
         /**
+         * @class WorkerWatch
+         * @brief Gives the wait for workers what it reads of the cluster and of the clock.
+         *
+         * The cluster adapter reads a real cluster and the steady clock; a test hands the wait
+         * a scripted list of names and a clock it moves itself.
+         */
+        class WorkerWatch
+        {
+            public:
+                virtual ~WorkerWatch() = default;
+
+                /** @brief Returns the names of the workers attached now. */
+                [[nodiscard]] virtual std::vector<std::string> attached_names() = 0;
+
+                /**
+                 * @brief Waits until @p count workers are attached or @p bound passes.
+                 * @return Whether the count was reached.
+                 */
+                [[nodiscard]] virtual bool wait_for_count(std::size_t count,
+                                                          std::chrono::milliseconds bound) = 0;
+
+                /** @brief Returns the time now. */
+                [[nodiscard]] virtual std::chrono::steady_clock::time_point now() = 0;
+        };
+
+        /**
          * @brief Waits until every worker awaited_workers() lists has attached, or until
-         *        attach_bound() passes, whichever comes first.
+         *        attach_bound() passes on the clock of @p watch, whichever comes first.
+         * @return The awaited workers that did not attach, empty when all did, also when the
+         *         rule of a missing one is "local" or "wait"; or DeviceFailed naming every
+         *         missing worker when a replica on one has the rule "fail".
+         */
+        [[nodiscard]] Result<std::vector<AwaitedWorker>> wait_for_workers(
+            WorkerWatch& watch, const Distribution::ClusterSection& section);
+
+        /**
+         * @brief Waits for the workers of @p cluster on the steady clock; see the overload over
+         *        a WorkerWatch.
          * @return The awaited workers that did not attach, empty when all did, also when the
          *         rule of a missing one is "local" or "wait"; or DeviceFailed naming every
          *         missing worker when a replica on one has the rule "fail".

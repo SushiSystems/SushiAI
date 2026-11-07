@@ -63,28 +63,66 @@ namespace SushiAI
                 std::vector<AwaitedWorker> absent;
             };
 
-            /** @brief Compares the workers @p cluster lists by name with the awaited ones. */
-            [[nodiscard]] Attendance attendance(const SushiRuntime::Distributed::Cluster& cluster,
+            /** @brief Compares the attached names of @p watch with the awaited ones. */
+            [[nodiscard]] Attendance attendance(WorkerWatch& watch,
                                                 const std::vector<AwaitedWorker>& awaited)
             {
-                const std::vector<SushiRuntime::Distributed::WorkerSnapshot> workers =
-                    cluster.statistics().workers;
+                const std::vector<std::string> names = watch.attached_names();
 
                 Attendance seen;
-                seen.alive = workers.size();
+                seen.alive = names.size();
                 for (const AwaitedWorker& expected : awaited)
                 {
                     const bool attached = std::any_of(
-                        workers.begin(), workers.end(),
-                        [&](const SushiRuntime::Distributed::WorkerSnapshot& worker)
+                        names.begin(), names.end(),
+                        [&](const std::string& name)
                         {
-                            return SushiRuntime::machine_names_match(worker.name, expected.name);
+                            return SushiRuntime::machine_names_match(name, expected.name);
                         });
                     if (!attached)
                         seen.absent.push_back(expected);
                 }
                 return seen;
             }
+
+            /** @brief Reads a real cluster and the steady clock. */
+            class ClusterWatch final : public WorkerWatch
+            {
+                public:
+                    /** @brief Watches @p cluster, which outlives the watch. */
+                    explicit ClusterWatch(SushiRuntime::Distributed::Cluster& cluster) noexcept
+                        : cluster_(&cluster)
+                    {
+
+                    }
+
+                    /** @brief Returns the names the cluster's statistics list. */
+                    [[nodiscard]] std::vector<std::string> attached_names() override
+                    {
+                        std::vector<std::string> names;
+                        for (const SushiRuntime::Distributed::WorkerSnapshot& worker :
+                             cluster_->statistics().workers)
+                            names.push_back(worker.name);
+                        return names;
+                    }
+
+                    /** @brief Waits on the cluster. */
+                    [[nodiscard]] bool wait_for_count(std::size_t count,
+                                                      std::chrono::milliseconds bound) override
+                    {
+                        return cluster_->wait_for_workers(count, bound);
+                    }
+
+                    /** @brief Returns the steady clock's time. */
+                    [[nodiscard]] std::chrono::steady_clock::time_point now() override
+                    {
+                        return std::chrono::steady_clock::now();
+                    }
+
+                private:
+                    /// @brief The watched cluster; never null.
+                    SushiRuntime::Distributed::Cluster* cluster_;
+            };
         } // namespace
 
         SushiRuntime::RuntimeConfig master_runtime_config(
@@ -166,23 +204,30 @@ namespace SushiAI
             SushiRuntime::Distributed::Cluster& cluster,
             const Distribution::ClusterSection& section)
         {
+            ClusterWatch watch(cluster);
+            return wait_for_workers(watch, section);
+        }
+
+        Result<std::vector<AwaitedWorker>> wait_for_workers(
+            WorkerWatch& watch, const Distribution::ClusterSection& section)
+        {
             using Clock = std::chrono::steady_clock;
             const std::chrono::milliseconds bound = attach_bound(section);
-            const Clock::time_point deadline = Clock::now() + bound;
+            const Clock::time_point deadline = watch.now() + bound;
 
             const std::vector<AwaitedWorker> awaited = awaited_workers(section);
-            Attendance seen = attendance(cluster, awaited);
+            Attendance seen = attendance(watch, awaited);
             while (!seen.absent.empty())
             {
-                const Clock::time_point now = Clock::now();
+                const Clock::time_point now = watch.now();
                 if (now >= deadline)
                     break;
 
                 // One worker more than the snapshot held returns at the next attach.
-                const bool attached = cluster.wait_for_workers(
+                const bool attached = watch.wait_for_count(
                     seen.alive + 1,
                     std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now));
-                seen = attendance(cluster, awaited);
+                seen = attendance(watch, awaited);
                 if (!attached)
                     break;
             }

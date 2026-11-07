@@ -48,6 +48,7 @@
 
 #include "cluster_test_files.hpp"
 #include "master_cluster.hpp"
+#include "scripted_worker_watch.hpp"
 
 namespace
 {
@@ -219,42 +220,39 @@ TEST(Small_MasterCluster, RefusesAnAttachTimeoutThatIsNotPositive)
 }
 
 /** @brief Tests that the master goes on at the last attach, long before its bound. */
-TEST(Medium_MasterCluster, RegressionEveryWorkerAttachedEndsTheWait)
+TEST(Small_MasterCluster, RegressionEveryWorkerAttachedEndsTheWait)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_LONG_ATTACH);
-    Fabric fabric;
-    fabric.start_worker("left");
-    fabric.start_worker("right");
+    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(2000)},
+                               {"right", std::chrono::milliseconds(5000)}});
 
-    const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section).status());
+    SA_EXPECT_OK(Apps::wait_for_workers(watch, section).status());
 
-    // Far below the 600 s bound: the wait ended at the attach, not at the bound.
-    EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(60));
+    // The wait ended at the last attach, 5 s in, not at the 600 s bound.
+    EXPECT_EQ(watch.elapsed(), std::chrono::milliseconds(5000));
 }
 
 /** @brief Tests that a missing worker whose rule is "fail" fails the run, by name. */
-TEST(Medium_MasterCluster, RegressionAMissingWorkerUnderFailFailsNamingIt)
+TEST(Small_MasterCluster, RegressionAMissingWorkerUnderFailFailsNamingIt)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "fail")", K_SHORT_ATTACH);
-    Fabric fabric;
-    fabric.start_worker("left");
+    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
 
-    SA_EXPECT_FAILURE(Apps::wait_for_workers(fabric.cluster(), section).status(),
+    SA_EXPECT_FAILURE(Apps::wait_for_workers(watch, section).status(),
                       StatusCode::DeviceFailed, "'right'");
+    EXPECT_EQ(watch.elapsed(), std::chrono::milliseconds(200));
 }
 
 /** @brief Tests that a missing worker whose rule is "local" lets the run go on. */
-TEST(Medium_MasterCluster, AMissingWorkerUnderLocalRuns)
+TEST(Small_MasterCluster, AMissingWorkerUnderLocalRuns)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "fail")", R"("if_absent": "local")", K_SHORT_ATTACH);
-    Fabric fabric;
-    fabric.start_worker("left");
+    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)}});
 
-    SA_EXPECT_OK(Apps::wait_for_workers(fabric.cluster(), section).status());
+    SA_EXPECT_OK(Apps::wait_for_workers(watch, section).status());
 }
 
 /** @brief Tests that the master awaits the worker of each replica above 0, in replica order. */
@@ -271,16 +269,15 @@ TEST(Small_MasterCluster, AwaitsTheWorkerOfEachReplicaAboveZeroInOrder)
 }
 
 /** @brief Tests that a worker with an unexpected name does not hide the missing one. */
-TEST(Medium_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
+TEST(Small_MasterCluster, AMissingWorkerIsNamedInWhatTheWaitReturns)
 {
     const Distribution::ClusterSection section =
         two_workers(R"("if_absent": "local")", R"("if_absent": "local")", K_SHORT_ATTACH);
-    Fabric fabric;
-    fabric.start_worker("left");
-    fabric.start_worker("stranger");
+    ScriptedWorkerWatch watch({{"left", std::chrono::milliseconds(0)},
+                               {"stranger", std::chrono::milliseconds(0)}});
 
     const Result<std::vector<Apps::AwaitedWorker>> missing =
-        Apps::wait_for_workers(fabric.cluster(), section);
+        Apps::wait_for_workers(watch, section);
 
     SA_EXPECT_OK(missing.status());
     ASSERT_EQ(missing.value().size(), 1u);

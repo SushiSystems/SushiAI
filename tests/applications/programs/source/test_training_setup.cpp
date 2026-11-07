@@ -89,18 +89,16 @@ TEST_F(Medium_TrainingSetup, BindsTheParametersAndTheStateOfTheModel)
     EXPECT_FALSE(setup->state().entries().empty());
 }
 
-/** @brief Tests that a setup traces the rows it is given, while the data keeps its batch. */
-TEST_F(Medium_TrainingSetup, TracesTheRowsItIsGiven)
+/** @brief Tests that the rows a replica is given are the batch the graph is traced over. */
+TEST(Small_TrainingSetup, TracesTheRowsItIsGiven)
 {
-    const ClusterTestFiles files("sushiai_training_setup_rows.json");
-    const Apps::Registries registries = Apps::compose_registries().value();
+    EXPECT_EQ(Apps::trace_batch(2, 4), 2);
+}
 
-    const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED, 2)
-            .value();
-
-    EXPECT_EQ(setup->given().batch, 2);
-    EXPECT_EQ(setup->dataset().batch_size(), 4);
+/** @brief Tests that, with no rows given, the graph is traced over the data's batch. */
+TEST(Small_TrainingSetup, TracesTheDataBatchWhenNoRowsAreGiven)
+{
+    EXPECT_EQ(Apps::trace_batch(std::nullopt, 4), 4);
 }
 
 /**
@@ -132,14 +130,14 @@ TEST_F(Medium_TrainingSetup, HoldsOnlyTheResultsOfTheStepInTheResultsScope)
 }
 
 /** @brief Tests that an architecture of another input shape than the data's is refused. */
-TEST_F(Medium_TrainingSetup, RefusesAModelOfAnotherInputShape)
+TEST(Small_TrainingSetup, RefusesAModelOfAnotherInputShape)
 {
-    const ClusterTestFiles files("sushiai_training_setup_shape.json");
-    const Apps::Registries registries = Apps::compose_registries().value();
-    Config::ModelSpec other = files.model_spec;
-    other.input_shape = Shape{5};
+    SA_EXPECT_FAILURE(Apps::check_input_shape("model.json", Shape{5}, "rings", Shape{2}),
+                      StatusCode::InvalidDescription, "model.json", "rings");
+}
 
-    SA_EXPECT_FAILURE(
-        Apps::TrainingSetup::make(registries, files.spec, other, backend(), K_SEED).status(),
-        StatusCode::InvalidDescription);
+/** @brief Tests that an architecture of the data's input shape is accepted. */
+TEST(Small_TrainingSetup, AcceptsAModelOfTheDataInputShape)
+{
+    SA_EXPECT_OK(Apps::check_input_shape("model.json", Shape{2}, "rings", Shape{2}));
 }

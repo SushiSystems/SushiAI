@@ -62,9 +62,7 @@ namespace
             static std::shared_ptr<const Apps::ReplicaSource> source_of(
                 const ClusterTestFiles& files)
             {
-                return Apps::ReplicaSource::make(Apps::compose_registries().value(), files.spec,
-                                                 files.model_spec)
-                    .value();
+                return Apps::ReplicaSource::load(files.spec).value();
             }
 
             /** @brief Returns the model of replica 1 over two rows, built from @p source. */
@@ -93,10 +91,7 @@ TEST_F(Medium_TrainingReplicaModel, ASourceWithoutItsModelFileIsRefused)
     Config::TrainSpec spec = files.spec;
     spec.model_path = spec.model_path.parent_path() / "sushiai_replica_model_absent.json";
 
-    SA_EXPECT_FAILURE(
-        Apps::ReplicaSource::make(Apps::compose_registries().value(), spec, files.model_spec)
-            .status(),
-        StatusCode::FileNotFound);
+    SA_EXPECT_FAILURE(Apps::ReplicaSource::load(spec).status(), StatusCode::FileNotFound);
 }
 
 /** @brief Tests that the model a source builds reports the fingerprint of that source. */
@@ -143,8 +138,11 @@ namespace
     /** @brief Returns the fingerprint of the source make() builds from the file @p text states. */
     std::uint64_t fingerprint_by_make(const ClusterTestFiles& files, const std::string& text)
     {
+        std::ifstream architecture(files.model_file.path(), std::ios::binary);
+        const std::string bytes((std::istreambuf_iterator<char>(architecture)),
+                                std::istreambuf_iterator<char>());
         return Apps::ReplicaSource::make(Apps::compose_registries().value(), read_spec(files, text),
-                                         files.model_spec)
+                                         files.model_spec, bytes)
             .value()
             ->fingerprint;
     }
@@ -273,18 +271,30 @@ namespace
     }
 } // namespace
 
-/** @brief Tests that a replica's "if_absent" leaves the fingerprint alone. */
-TEST_F(Medium_TrainingReplicaModel, TheIfAbsentOfAReplicaLeavesTheFingerprintAlone)
+namespace
 {
-    const ClusterTestFiles files("sushiai_replica_model_if_absent.json");
-    const std::string text = replaced(training_file(files.model_file.path()),
-                                      R"("sushiai_train": 2,)",
-                                      R"("sushiai_train": 3, "deterministic": false,)");
-    const std::uint64_t master = fingerprint_of(read_spec(files, text));
+    /** @brief Returns the fingerprint make() gives the training file @p text, in memory. */
+    std::uint64_t fingerprint_in_memory(const std::string& text)
+    {
+        const Config::TrainSpec spec = require_value(Config::parse_train(
+            require_value(Config::parse_json(text, "<test>")), "<test>",
+            std::filesystem::path(".")));
+        return Apps::ReplicaSource::make(Apps::compose_registries().value(), spec,
+                                         ClusterTestSpec().model_spec, "architecture")
+            .value()
+            ->fingerprint;
+    }
+} // namespace
 
-    const Config::TrainSpec worker = read_spec(
-        files, replaced(text, worker_replica("master", "fail"), worker_replica("master", "local")));
-    EXPECT_EQ(fingerprint_of(worker), master);
+/** @brief Tests that a replica's "if_absent" leaves the fingerprint alone. */
+TEST(Small_ReplicaSource, TheIfAbsentOfAReplicaLeavesTheFingerprintAlone)
+{
+    const std::string text = replaced(training_file("model.json"), R"("sushiai_train": 2,)",
+                                      R"("sushiai_train": 3, "deterministic": false,)");
+
+    EXPECT_EQ(fingerprint_in_memory(replaced(text, worker_replica("master", "fail"),
+                                             worker_replica("master", "local"))),
+              fingerprint_in_memory(text));
 }
 
 /** @brief Tests that rows inside their batch, of the traced count, are fed. */
@@ -296,20 +306,22 @@ TEST_F(Medium_TrainingReplicaModel, FeedsRowsOfItsBatch)
     SA_EXPECT_OK(model->feed(rows_at(2, 2)));
 }
 
-/** @brief Tests that a feed of another row count than the traced one is refused. */
-TEST_F(Medium_TrainingReplicaModel, RefusesRowsOfAnotherCount)
+/** @brief Tests that rows of another count than the traced one are refused. */
+TEST(Small_ReplicaRows, RefusesRowsOfAnotherCount)
 {
-    const ClusterTestFiles files("sushiai_replica_model_count.json");
-    const std::unique_ptr<Distribution::ReplicaModel> model = model_of(source_of(files));
-
-    SA_EXPECT_FAILURE(model->feed(rows_at(0, 3)), StatusCode::InvalidDescription);
+    SA_EXPECT_FAILURE(Apps::check_replica_rows(rows_at(0, 3), 2, 4, 1),
+                      StatusCode::InvalidDescription);
 }
 
 /** @brief Tests that rows that run past the end of their batch are refused. */
-TEST_F(Medium_TrainingReplicaModel, RefusesRowsOutsideTheirBatch)
+TEST(Small_ReplicaRows, RefusesRowsOutsideTheirBatch)
 {
-    const ClusterTestFiles files("sushiai_replica_model_outside.json");
-    const std::unique_ptr<Distribution::ReplicaModel> model = model_of(source_of(files));
+    SA_EXPECT_FAILURE(Apps::check_replica_rows(rows_at(3, 2), 2, 4, 1),
+                      StatusCode::InvalidDescription);
+}
 
-    SA_EXPECT_FAILURE(model->feed(rows_at(3, 2)), StatusCode::InvalidDescription);
+/** @brief Tests that rows of the traced count inside their batch are accepted. */
+TEST(Small_ReplicaRows, AcceptsRowsOfTheTracedCountInsideTheirBatch)
+{
+    SA_EXPECT_OK(Apps::check_replica_rows(rows_at(2, 2), 2, 4, 1));
 }
