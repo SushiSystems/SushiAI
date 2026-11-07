@@ -474,13 +474,20 @@ steps", "1 scales") and for steps 450000 then 400000 ("strictly ascend").
 
 ## test_optimizer.cpp
 
-Suites: `Small_ParameterDecay`, `Small_ParameterDecayKernel`, `Small_ParameterDecayType`.
+Suites: `Small_ParameterDecay`, `Small_ParameterDecayKernel`, `Small_ParameterDecayType`,
+`Medium_SetLearningRate`.
 
 Tests `ParameterSlot::decays` and the `decay_all` option of SGD and AdamW. The fixture runs on a
 `HostExecutionBackend` and makes two slots of three float32 elements, each starting at 2 with a
 zero gradient: `weight`, which decays, and `bias`, which does not. Both optimizers use the rate
 0.5 and the weight decay 0.5, so a decayed parameter is 1.5 after one step. Every factor is a
 power of two, so the values are compared exactly.
+
+### ANegativeRateIsFatal
+
+`Medium_SetLearningRate`, a death test: `set_learning_rate(-0.5)` on an SGD stops the process, and
+the report names the rate and says it is negative or not finite. The refusal itself is tested
+small on `check_learning_rate`; this case checks only that `set_learning_rate` stops on it.
 
 ### SGDDecaysOnlyTheSlotsThatTakeIt
 

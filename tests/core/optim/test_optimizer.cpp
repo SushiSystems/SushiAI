@@ -157,6 +157,11 @@ namespace
             }
     };
 
+    /** @brief Runs the death case on the slots of Small_ParameterDecay; it starts a child. */
+    class Medium_SetLearningRate : public Small_ParameterDecay
+    {
+    };
+
     /** @brief Runs a case once per update kernel. */
     class Small_ParameterDecayKernel : public Small_ParameterDecay,
                                        public ::testing::WithParamInterface<Optim::UpdateKernel>
@@ -269,3 +274,13 @@ TEST_P(Small_ParameterDecayType, TheKeyDecayAllReachesTheOptimizer)
 
 INSTANTIATE_TEST_SUITE_P(Rows, Small_ParameterDecayType,
                          ::testing::Values(std::string_view("sgd"), std::string_view("adamw")));
+
+/** @brief Tests that set_learning_rate stops the process on the refusal of check_learning_rate. */
+TEST_F(Medium_SetLearningRate, ANegativeRateIsFatal)
+{
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
+                            Optim::SGD::make(backend, make_slots(), Optim::SGDOptions{}));
+
+    EXPECT_DEATH(optimizer->set_learning_rate(-0.5),
+                 SaTest::death_pattern({"-0.5", "negative or not finite"}));
+}
