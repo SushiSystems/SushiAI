@@ -242,7 +242,7 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `core/allocation` | 3 | 3 | 0 | 0 |
 | `core/autograd` | 254 | 56 | 0 | 0 |
 | `core/config` | 145 | 8 | 0 | 0 |
-| `core/darknet_reference` | 0 | 8 | 0 | 0 |
+| `core/darknet_reference` | 4 | 4 | 0 | 0 |
 | `core/data` | 51 | 26 | 0 | 0 |
 | `core/distribution` | 47 | 26 | 0 | 0 |
 | `core/dtype` | 4 | 0 | 0 | 0 |
@@ -295,11 +295,11 @@ The C++ test definitions under `tests/` at the commit that stops the M jobs, cou
 | `vision/segment` | 25 | 0 | 0 | 0 |
 | `vision/training` | 138 | 94 | 0 | 0 |
 | `vision/umbrella` | 1 | 0 | 0 | 0 |
-| all | 3464 | 1301 | 41 | 0 |
+| all | 3468 | 1297 | 41 | 0 |
 
 Checked again on 2026-11-07 at `f7f344fb` with the same count: every row matches. After `3d2cc353` (RW-157) `vision/imaging` holds 381 small tests, one more, the test of the load journal.
 
-Recounted statically on 2026-11-07 after RW-161 and RW-158 (no test ran): `applications/programs` 53 small and 44 medium, `core/execution` 10 small and 5 medium, `core/engine_fixture` 5 small and 5 medium, `vision/imaging` 381 small; every other row is unchanged. The total is 3464 small, 1301 medium and 41 large.
+Recounted statically on 2026-11-07 after RW-161, RW-158 and M7 (no test ran), where `core/darknet_reference` holds 4 small and 4 medium (it held 8 medium): `applications/programs` 53 small and 44 medium, `core/execution` 10 small and 5 medium, `core/engine_fixture` 5 small and 5 medium, `vision/imaging` 381 small; every other row is unchanged. The total is 3468 small, 1297 medium and 41 large.
 
 The M jobs stop here (SushiSkills `docs/agent/2026_11_03_INDUSTRIAL_TESTING/SPEC.md`, "Rework"): sushiai is wave 5, and the seam its logic tests need is the host backend under the SushiBLAS engine that sushiblas builds in wave 4. M7, M11 and the open records of M1, M2, M3, M5 and M9 resume when it lands.
 
