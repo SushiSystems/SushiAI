@@ -94,7 +94,7 @@ namespace
 TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
 {
     TwoLevelCase first;
-    first.prepare(*engine);
+    first.prepare(backend());
     ASSERT_TRUE(first.ready);
     const std::vector<std::vector<double>> start = first.weights();
     std::vector<FreeLossTerms> first_terms;
@@ -102,7 +102,7 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
     ASSERT_EQ(first_terms.size(), 2u);
 
     TwoLevelCase second;
-    second.prepare(*engine);
+    second.prepare(backend());
     ASSERT_TRUE(second.ready);
     std::vector<FreeLossTerms> second_terms;
     run_two_steps(second, *engine, second_terms);
@@ -139,7 +139,7 @@ TEST_F(Medium_FreeTrainingStep, TwoRunsOfOneSeedEndWithEqualWeights)
 TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
 {
     TwoLevelCase model;
-    model.prepare(*engine);
+    model.prepare(backend());
     ASSERT_TRUE(model.ready);
     std::vector<FreeLossTerms> terms;
     run_two_steps(model, *engine, terms);
@@ -161,7 +161,7 @@ TEST_F(Medium_FreeTrainingStep, TheLeavesHoldTheStageAndTheProjection)
 TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeightAndReadsBothBranchWeights)
 {
     TwoLevelCase model;
-    model.prepare(*engine, true);
+    model.prepare(backend(), true);
     ASSERT_TRUE(model.ready);
     EXPECT_FLOAT_EQ(model.step->one_to_many_weight(), 0.8f);
     model.step->set_one_to_many_weight(0.25f);
@@ -197,7 +197,7 @@ TEST_F(Medium_FreeTrainingStep, AOneToOneCopyMovesEveryWeightAndReadsBothBranchW
 TEST_F(Medium_FreeTrainingStep, ATruthOfAnotherBatchIsRefused)
 {
     TwoLevelCase model;
-    model.prepare(*engine);
+    model.prepare(backend());
     ASSERT_TRUE(model.ready);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
 
@@ -212,7 +212,7 @@ TEST_F(Medium_FreeTrainingStep, ATruthOfAnotherBatchIsRefused)
 TEST_F(Medium_FreeTrainingStep, ALabelOutsideTheClassesIsRefused)
 {
     TwoLevelCase model;
-    model.prepare(*engine);
+    model.prepare(backend());
     ASSERT_TRUE(model.ready);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
 
@@ -229,7 +229,7 @@ TEST_F(Medium_FreeTrainingZones, AStepPutsReadbackAssignAndLossInItsPeriod)
     if (SA_PROFILE_LEVEL < 1)
         GTEST_SKIP() << "the build compiles every zone away";
     TwoLevelCase model;
-    model.prepare(*engine);
+    model.prepare(backend());
     ASSERT_TRUE(model.ready);
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
     const GroundTruthBatch truth = make_truth();

@@ -151,7 +151,7 @@ namespace
                 state = std::make_unique<NN::ModelState>(std::move(created));
                 pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::EvaluationStep> compiled,
-                                        Train::EvaluationStep::make(*engine, traced, *state,
+                                        Train::EvaluationStep::make(backend(), traced, *state,
                                                                     *pool));
                 step = std::move(compiled);
 
@@ -320,7 +320,7 @@ TEST_F(Medium_PlainEvaluationStep, AnOrdinaryStepFeedsOneLeafAndCarriesNothing)
     SA_ASSERT_OK_AND_ASSIGN(const NN::ModelState state, NN::ModelState::create(*engine, model));
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, state, pool));
+                            Train::EvaluationStep::make(backend(), traced, state, pool));
 
     ASSERT_EQ(step->input_names().size(), 1u);
     EXPECT_EQ(step->input_names()[0], Train::K_MODEL_INPUT_NAME);
@@ -415,11 +415,11 @@ TEST_F(Medium_EvaluationStep, TheStepCompilesOnce)
         const Train::TracedStep traced,
         Train::build_evaluation_graph(model, Shape{K_BATCH, K_FEATURES}));
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, state, pool));
+                            Train::EvaluationStep::make(backend(), traced, state, pool));
     EXPECT_EQ(step->step().compile_count(), 1u);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs,
@@ -446,24 +446,24 @@ TEST_F(Medium_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJustMove
 
     Graph::TensorPool training_pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, training_pool));
+                            Train::bind_parameters(backend(), built, state, training_pool));
 
     // The default policy zeroes the classifier, so the first evaluation gives zero logits.
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, training_pool,
+                            Train::Trainer::make(backend(), built, training_pool,
                                                  objective, *optimizer, options));
 
     Graph::TensorPool evaluation_pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::EvaluationStep> step,
-        Train::EvaluationStep::make(*engine, traced, state, evaluation_pool));
+        Train::EvaluationStep::make(backend(), traced, state, evaluation_pool));
 
     Data::SyntheticOptions data_options;
     data_options.batch_size = K_BATCH;
@@ -472,7 +472,7 @@ TEST_F(Medium_EvaluationStep, AnEvaluationStepSeesAWeightTheTrainingStepJustMove
     data_options.classes = K_CLASSES;
     data_options.seed = K_INPUT_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs,
                             noise_of(*engine, Shape{K_BATCH, K_FEATURES}));
@@ -506,11 +506,11 @@ TEST_F(Medium_EvaluationStep, AProbeRunLeavesBothRunningVectorsUnchanged)
     static_cast<void>(evaluation);
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, probe, state, pool));
+                            Train::EvaluationStep::make(backend(), probe, state, pool));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::vector<unsigned char>> before,
                             buffer_bytes(state));
@@ -535,7 +535,7 @@ TEST_F(Medium_EvaluationStep, AnInputOfAnotherShapeIsRefusedWithBothShapes)
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, state, pool));
+                            Train::EvaluationStep::make(backend(), traced, state, pool));
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor half_batch,
                             noise_of(*engine, Shape{K_BATCH / 2, K_FEATURES}));
@@ -555,7 +555,7 @@ TEST_F(Medium_EvaluationStep, AnUnknownOutputNameListsTheNames)
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, state, pool));
+                            Train::EvaluationStep::make(backend(), traced, state, pool));
 
     SA_EXPECT_FAILURE(step->output("boxes"), StatusCode::InvalidDescription, "boxes",
                       NN::K_SINGLE_PORT_NAME);

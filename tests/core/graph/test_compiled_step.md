@@ -6,7 +6,7 @@ Suites: `Small_CompiledStepChecks`, `Medium_CompiledStep`,
 
 Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node range of `CompiledStep::compile` in
 `modules/core/graph/include/SushiAI/graph/compiled_step.hpp`, and `Graph::check_compilable`. The `Small_` cases need no device. The
-`Medium_` fixture is an `EngineTest`.
+`Medium_` fixture is an `EngineTest`, and each case passes its `backend()` to `CompiledStep::compile`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
 the step's output is the mask: 4/3 where the published rule keeps an element and 0 elsewhere. The
 test derives the rule itself, from SplitMix64 and the top 53 bits of a draw, and compares within

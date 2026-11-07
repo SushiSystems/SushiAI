@@ -231,7 +231,7 @@ TEST_F(Medium_Yolov5nBiases, AnInitialisedModelGainsTheStrideBiases)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     NN::InitPolicy policy;
     policy.seed = 20261025;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
     SA_ASSERT_OK_AND_ASSIGN(
         const std::vector<Vision::Training::AnchorBiasHead> heads,
         Vision::Training::derive_anchor_bias_heads(spec, spec.input_shape, task, outputs));

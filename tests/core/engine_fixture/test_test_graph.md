@@ -2,14 +2,14 @@
 
 Suites: `Medium_TestGraph`.
 
-Tests that `TestGraph` gives a case a graph of its own and a recorder over it, and that `run`
+Tests that `TestGraph` gives a case a recording of its own from the backend and a recorder over it, and that `run`
 executes what the recorder recorded.
 
-The graph needs the runtime, which makes the file medium.
+The recording needs the runtime, which makes the file medium.
 
 ## RunSucceedsWithNothingRecorded
 
-`run` on a graph that holds no task returns success.
+`run` on a recording that holds no task returns success.
 
 ## RunExecutesWhatTheRecorderRecorded
 

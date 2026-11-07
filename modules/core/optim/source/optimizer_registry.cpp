@@ -118,7 +118,7 @@ namespace SushiAI
             }
         }
 
-        Result<std::unique_ptr<Optimizer>> make_adamw(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<Optimizer>> make_adamw(ExecutionBackend& backend,
                                                       std::vector<ParameterSlot> parameters,
                                                       const Config::Value& attributes,
                                                       std::string_view context) noexcept
@@ -142,13 +142,13 @@ namespace SushiAI
                        prefix, options.learning_rate);
 
             SA_TRY_ASSIGN(std::unique_ptr<AdamW> made,
-                          AdamW::make(engine, std::move(parameters), options));
+                          AdamW::make(backend, std::move(parameters), options));
             SA_TRY(apply_clip_norm(*made, attributes, prefix));
             std::unique_ptr<Optimizer> base = std::move(made);
             return std::move(base);
         }
 
-        Result<std::unique_ptr<Optimizer>> make_sgd(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<Optimizer>> make_sgd(ExecutionBackend& backend,
                                                     std::vector<ParameterSlot> parameters,
                                                     const Config::Value& attributes,
                                                     std::string_view context) noexcept
@@ -175,13 +175,13 @@ namespace SushiAI
                        prefix, options.learning_rate);
 
             SA_TRY_ASSIGN(std::unique_ptr<SGD> made,
-                          SGD::make(engine, std::move(parameters), options));
+                          SGD::make(backend, std::move(parameters), options));
             SA_TRY(apply_clip_norm(*made, attributes, prefix));
             std::unique_ptr<Optimizer> base = std::move(made);
             return std::move(base);
         }
 
-        Result<std::unique_ptr<Optimizer>> make_optimizer(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<Optimizer>> make_optimizer(ExecutionBackend& backend,
                                                           std::string_view type,
                                                           std::vector<ParameterSlot> parameters,
                                                           const Config::Value& attributes,
@@ -189,7 +189,7 @@ namespace SushiAI
         {
             SA_TRY_ASSIGN(const OptimizerEntry& entry,
                           Config::find_entry(K_OPTIMIZER_REGISTRY, type, "optimizer type"));
-            return entry.make(engine, std::move(parameters), attributes, context);
+            return entry.make(backend, std::move(parameters), attributes, context);
         }
 
     } // namespace Optim

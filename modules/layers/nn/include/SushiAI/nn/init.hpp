@@ -38,6 +38,8 @@
 
 namespace SushiAI
 {
+    class ExecutionBackend;
+
     namespace NN
     {
         /**
@@ -180,13 +182,14 @@ namespace SushiAI
         }
 
         /**
-         * @brief Records the initial fill of every entry of @p state on a graph of its own and
-         *        runs it.
+         * @brief Records the initial fill of every entry of @p state on tasks of @p backend and
+         *        runs them.
+         * @param backend Records and runs the fill; its engine draws the random stream.
          * @param state The state whose entries were listed by ModelState::create().
          * @param policy How the fills are drawn and which entry is zeroed.
          * @return Success, or the failure of a fill or of the run.
          */
-        [[nodiscard]] Status initialize(SushiBLAS::Engine& engine, ModelState& state,
+        [[nodiscard]] Status initialize(ExecutionBackend& backend, ModelState& state,
                                         const InitPolicy& policy = {}) noexcept;
 
     } // namespace NN

@@ -67,25 +67,27 @@ namespace SushiAI
     {
         /**
          * @brief Plans memory and binds the state, the loss, the update sources and gradients.
+         * @param backend Runs the fill of the zeroed gradients.
          * @param built The traced graph; its pinned values follow those of @p options.
          * @param state The state of the model @p built was traced from; it owns the parameters.
          * @param pool Holds no leaf of the graph yet; a plan it holds must leave them unpacked.
-         * @return Slots over the state's tensors, decaying by takes_weight_decay() of their
-         *         role; InvalidDescription for a parameter no gradient reaches; or the failure.
+         * @return Slots over the state's tensors; InvalidDescription for a parameter no gradient.
          */
         [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_parameters(
-            const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool,
-            Graph::PlanOptions options = {}) noexcept;
+            ExecutionBackend& backend, const TrainingGraph& built, const NN::ModelState& state,
+            Graph::TensorPool& pool, Graph::PlanOptions options = {}) noexcept;
 
         /**
          * @brief Binds the state's storage, a zeroed gradient per parameter, the loss and the
          *        sources of the buffer updates, and allocates no other value of the graph.
+         * @param backend Runs the fill of the zeroed gradients.
          * @param pool Holds no plan and no leaf of the graph; each value gets its own tensor.
          * @return Slots as bind_parameters() returns them, or the same failures.
          * @see modules/layers/train/README.md
          */
         [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> bind_step_results(
-            const TrainingGraph& built, const NN::ModelState& state, Graph::TensorPool& pool) noexcept;
+            ExecutionBackend& backend, const TrainingGraph& built, const NN::ModelState& state,
+            Graph::TensorPool& pool) noexcept;
 
         /**
          * @struct TrainerOptions
@@ -166,14 +168,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Lowers the graph of @p built, compiles the step and builds a trainer.
-                 * @param engine Must outlive the trainer, as must @p pool and @p optimizer.
+                 * @param backend Must outlive the trainer, as must @p pool and @p optimizer.
                  * @param built Its loss holds one float32 or float64 element.
                  * @param objective What @p built was built with; outlives the trainer.
                  * @param updates The running-statistic updates every step applies.
                  * @return The trainer, or InvalidDescription, or the failure of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<Trainer>> make(
-                    SushiBLAS::Engine& engine, const TrainingGraph& built,
+                    ExecutionBackend& backend, const TrainingGraph& built,
                     Graph::TensorPool& pool, const Objective& objective,
                     Optim::Optimizer& optimizer, TrainerOptions options = {},
                     std::vector<BufferUpdateSlot> updates = {}) noexcept;
@@ -262,7 +264,7 @@ namespace SushiAI
                  * @return The trainer, or InvalidDescription, or the failure of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<Trainer>> assemble(
-                    SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
+                    ExecutionBackend& backend, const Graph::Graph& graph, Graph::TensorPool& pool,
                     Binding binding, const Objective& objective, Optim::Optimizer& optimizer,
                     TrainerOptions options, std::vector<BufferUpdateSlot> updates);
 
@@ -273,14 +275,14 @@ namespace SushiAI
                  * @param input What the input leaf reads from a batch.
                  * @param outputs The tensor of every output the model published.
                  */
-                Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, Binding binding,
+                Trainer(ExecutionBackend& backend, Graph::TensorPool& pool, Binding binding,
                         const Objective& objective, TrainerOptions options,
                         std::unique_ptr<TrainingStep> step, int64_t rows,
                         const Data::InputDescription& input,
                         std::vector<StepOutput> outputs) noexcept;
 
-                /// @brief The engine the batch copies are recorded on; not owned.
-                SushiBLAS::Engine* engine_;
+                /// @brief The backend the batch copies are recorded and run on; not owned.
+                ExecutionBackend* backend_;
 
                 /// @brief The pool that holds the step's tensors; not owned.
                 Graph::TensorPool* pool_;

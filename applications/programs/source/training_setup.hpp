@@ -76,8 +76,8 @@ namespace SushiAI
         {
             public:
                 /**
-                 * @brief Builds the setup the files describe on @p engine.
-                 * @param engine Outlives the setup.
+                 * @brief Builds the setup the files describe on @p backend.
+                 * @param backend Outlives the setup; its engine allocates the tensors.
                  * @param seed Seeds the random sites of the training trace.
                  * @param rows The rows of the traced batch; nothing takes the data's batch.
                  * @param scope What the pool holds memory for.
@@ -85,7 +85,7 @@ namespace SushiAI
                  */
                 [[nodiscard]] static Result<std::unique_ptr<TrainingSetup>> make(
                     const Registries& registries, const Config::TrainSpec& spec,
-                    const Config::ModelSpec& model_spec, SushiBLAS::Engine& engine,
+                    const Config::ModelSpec& model_spec, ExecutionBackend& backend,
                     std::uint64_t seed, std::optional<std::int64_t> rows = std::nullopt,
                     SetupScope scope = SetupScope::Step);
 

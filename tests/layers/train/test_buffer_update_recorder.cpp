@@ -121,7 +121,7 @@ TEST_F(Medium_BufferUpdateRecorder, RecordsTwoTasksPerSlot)
     slots.push_back(Train::BufferUpdateSlot{source, target, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
     const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
     SA_EXPECT_OK(recording.run());
@@ -146,7 +146,7 @@ TEST_F(Medium_BufferUpdateRecorder, OneReplayBlendsTheSourceIntoTheTarget)
     slots.push_back(Train::BufferUpdateSlot{target, source, K_MOMENTUM, K_SOURCE_SCALE});
     Train::BufferUpdateRecorder recorder(std::move(slots));
 
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
     const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
     SA_EXPECT_OK(recorder.record_into_step(step));
     SA_EXPECT_OK(recording.run());
@@ -166,7 +166,7 @@ TEST_F(Medium_BufferUpdateRecorder, NoSlotRecordsNothing)
 {
     Train::BufferUpdateRecorder recorder(std::vector<Train::BufferUpdateSlot>{});
 
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
     const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, recorder.record_into_step(step));
     SA_EXPECT_OK(recording.run());

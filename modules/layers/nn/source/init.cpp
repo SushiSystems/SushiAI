@@ -176,8 +176,10 @@ namespace SushiAI
             }
         }
 
-        Status initialize(SushiBLAS::Engine& engine, ModelState& state, const InitPolicy& policy) noexcept
+        Status initialize(ExecutionBackend& backend, ModelState& state,
+                          const InitPolicy& policy) noexcept
         {
+            SushiBLAS::Engine& engine = backend.engine();
             const SushiRuntime::span<const StateEntry> entries = state.entries();
 
             // The final weight is the last entry drawn from its fans; a buffer never is.
@@ -185,8 +187,8 @@ namespace SushiAI
             for (std::size_t i = 0; i < entries.size(); ++i)
                 if (entries[i].init.kind == ParameterInit::Kind::FanScaled) final_weight = i;
 
-            return SushiAI::Detail::record_and_run(engine,
-                                                    [&](SushiBLAS::TaskRecorder& recorder) -> Status
+            return SushiAI::Detail::record_and_run(backend,
+                                                   [&](SushiBLAS::TaskRecorder& recorder) -> Status
             {
                 SushiBLAS::RandomOps random(recorder, engine.rng());
                 random.set_seed(policy.seed);

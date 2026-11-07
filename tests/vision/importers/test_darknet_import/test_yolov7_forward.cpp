@@ -82,7 +82,7 @@ namespace
  */
 TEST_F(Large_DarknetYolov7Forward, TheFoldedHeadsMatchTheDumpedHeads)
 {
-    SaTest::check_folded_heads(*engine, parity);
+    SaTest::check_folded_heads(backend(), parity);
 }
 
 /**
@@ -93,7 +93,7 @@ TEST_F(Large_DarknetYolov7Forward, TheFoldedHeadsMatchTheDumpedHeads)
  */
 TEST_F(Large_DarknetYolov7Forward, TheHostYOLOOutputsMatchTheDumpedLayers)
 {
-    SaTest::check_yolo_outputs(*engine, parity);
+    SaTest::check_yolo_outputs(backend(), parity);
 }
 
 /**
@@ -106,7 +106,7 @@ TEST_F(Large_DarknetYolov7Forward, TheHostYOLOOutputsMatchTheDumpedLayers)
  */
 TEST_F(Large_DarknetYolov7Forward, TheDetectionsMatchTheDumpedRows)
 {
-    SaTest::check_detections(*engine, parity);
+    SaTest::check_detections(backend(), parity);
 }
 
 /**
@@ -117,5 +117,5 @@ TEST_F(Large_DarknetYolov7Forward, TheDetectionsMatchTheDumpedRows)
  */
 TEST_F(Large_DarknetYolov7Forward, TheSeparateFormComputesTheFoldedHeads)
 {
-    SaTest::check_separate_form(*engine, parity);
+    SaTest::check_separate_form(backend(), parity);
 }

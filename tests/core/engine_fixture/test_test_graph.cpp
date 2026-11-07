@@ -54,7 +54,7 @@ namespace
 /** @brief Tests that run succeeds on a graph with nothing recorded. */
 TEST_F(Medium_TestGraph, RunSucceedsWithNothingRecorded)
 {
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
 
     SA_EXPECT_OK(recording.run());
 }
@@ -64,7 +64,7 @@ TEST_F(Medium_TestGraph, RunExecutesWhatTheRecorderRecorded)
 {
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor,
                             SushiAI::allocate_tensor(*engine, SushiAI::Shape{4}));
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
 
     SushiBLAS::RandomOps random(recording.recorder(), engine->rng());
     random.constant(tensor, K_FILL_VALUE);

@@ -91,7 +91,7 @@ namespace SushiAI
                  * @return The optimizer, or the first failure of validation or allocation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SGD>> make(
-                    SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                    ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                     SGDOptions options = {}) noexcept;
 
                 /** @brief True when the update is fused, and therefore replayable. */
@@ -156,7 +156,7 @@ namespace SushiAI
                  * @brief Takes ownership of state that make() has already allocated.
                  * @pre validate_slots(parameters) has returned success.
                  */
-                SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                SGD(ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                     SGDOptions options, std::vector<State> state, StepScalars scalars,
                     bool has_momentum) noexcept;
 

@@ -40,13 +40,16 @@ namespace SushiAI
         {
         }
 
-        DeviceFusionSelector DeviceFusionSelector::for_engine(SushiBLAS::Engine& engine) noexcept
+        DeviceFusionSelector::DeviceFusionSelector(bool supports_fp64,
+                                                   SushiBLAS::ExecutionMode mode) noexcept
+            : supports_fp64_(supports_fp64), mode_(mode)
         {
-            // Device profile queries are cached statically across engine bindings.
-            return DeviceFusionSelector(
-                SushiBLAS::Device::profile_for(
-                    engine.runtime().advanced().queue(SushiRuntime::DeviceIndex{0})),
-                engine.mode());
+        }
+
+        DeviceFusionSelector DeviceFusionSelector::for_backend(
+            const ExecutionBackend& backend) noexcept
+        {
+            return DeviceFusionSelector(backend.supports_fp64(), backend.engine().mode());
         }
 
         FusionChoice DeviceFusionSelector::choose(const FusionQuery& query) const

@@ -454,7 +454,7 @@ TEST_F(Medium_GatherRows, GatherCopiesTheRowsItsIndexNames)
     write_indices(pool.tensor(index_id), indices);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_exact(read_tensor(pool.tensor(gathered.value())), gathered_on_host(table, 3, indices));
@@ -477,7 +477,7 @@ TEST_F(Medium_GatherRows, AReplayReadsTheIndexOfItsOwnRun)
     write_tensor(pool.tensor(table_id), table);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
 
     for (const std::vector<std::int32_t>& indices :
          {std::vector<std::int32_t>{0, 1, 2, 3}, std::vector<std::int32_t>{5, 5, 0, 4}})
@@ -509,7 +509,7 @@ TEST_F(Medium_GatherRows, ScatterAddSumsTheRowsOfARepeatedIndex)
     write_indices(pool.tensor(index_id), indices);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
 
     // The second run proves the result starts from zero and not from the first run's sums.
     SA_EXPECT_OK(step->run());
@@ -562,7 +562,7 @@ TEST_F(Medium_GatherRows, TheTableGradientIsBitIdenticalAcrossReplays)
     write_indices(pool.tensor(index_id), indices);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
     const std::vector<unsigned char> first = read_tensor_bytes(pool.tensor(gradients[0]));
 
@@ -600,7 +600,7 @@ TEST_F(Medium_GatherRows, AnEmbeddingYieldsTheRowsOfItsTable)
     write_indices(pool.tensor(id_leaf), ids);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_exact(read_tensor(pool.tensor(embedded)), gathered_on_host(table, 4, ids));

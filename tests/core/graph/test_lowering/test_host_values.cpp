@@ -100,8 +100,8 @@ namespace
              * @param engine Must outlive this object.
              * @param graph Must outlive this object.
              */
-            OneShot(SushiBLAS::Engine& engine, const Graph::Graph& graph)
-                : pool(engine), graph_(&graph), engine_(&engine)
+            OneShot(SushiAI::ExecutionBackend& backend, const Graph::Graph& graph)
+                : pool(backend.engine()), graph_(&graph), backend_(&backend)
             {
                 SA_EXPECT_OK(pool.materialise_leaves(graph));
             }
@@ -109,7 +109,7 @@ namespace
             /** @brief Compiles the graph; call after every leaf has been written. */
             void compile()
             {
-                SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine_, *graph_, pool));
+                SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*backend_, *graph_, pool));
             }
 
             /** @brief Compiles the graph and runs the step once. */
@@ -127,7 +127,7 @@ namespace
             const Graph::Graph* graph_;
 
             /** @brief Holds the engine that compile() records on. */
-            SushiBLAS::Engine* engine_;
+            SushiAI::ExecutionBackend* backend_;
     };
 
     /** @brief Compares every element of @p got with @p expected under @p tolerance. */
@@ -148,7 +148,8 @@ namespace
      * @param input The operand's elements; the row is as long as this vector.
      * @param result Receives the result's elements.
      */
-    void run_unary(SushiBLAS::Engine& engine, UnaryEmitter emit, const std::vector<double>& input,
+    void run_unary(SushiAI::ExecutionBackend& backend, UnaryEmitter emit,
+                   const std::vector<double>& input,
                    std::vector<double>& result)
     {
         Graph::Graph graph;
@@ -158,7 +159,7 @@ namespace
         const ValueID x = builder.input(Shape{1, columns}, "x");
         SA_ASSERT_OK_AND_ASSIGN(const ValueID y, (builder.*emit)(x));
 
-        OneShot run(engine, graph);
+        OneShot run(backend, graph);
         write_tensor(run.pool.tensor(x), input);
 
         ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
@@ -174,7 +175,7 @@ namespace
      * @param left The first operand's elements; @p right must be as long.
      * @param result Receives the result's elements.
      */
-    void run_binary(SushiBLAS::Engine& engine, BinaryEmitter emit,
+    void run_binary(SushiAI::ExecutionBackend& backend, BinaryEmitter emit,
                     const std::vector<double>& left, const std::vector<double>& right,
                     std::vector<double>& result)
     {
@@ -186,7 +187,7 @@ namespace
         const ValueID b = builder.input(Shape{1, columns}, "b");
         SA_ASSERT_OK_AND_ASSIGN(const ValueID y, (builder.*emit)(a, b));
 
-        OneShot run(engine, graph);
+        OneShot run(backend, graph);
         write_tensor(run.pool.tensor(a), left);
         write_tensor(run.pool.tensor(b), right);
 
@@ -201,7 +202,7 @@ namespace
      * @param point Six elements of x; @p targets holds the six weights of the loss.
      * @param gradient Receives dloss/dx, which is -targets[i] / 2 * f'(point[i]).
      */
-    void run_activation_gradient(SushiBLAS::Engine& engine, UnaryEmitter activation,
+    void run_activation_gradient(SushiAI::ExecutionBackend& backend, UnaryEmitter activation,
                                  const std::vector<double>& point,
                                  const std::vector<double>& targets,
                                  std::vector<double>& gradient)
@@ -221,7 +222,7 @@ namespace
         ASSERT_EQ(gradients.size(), 1u);
         ASSERT_NE(gradients[0], Graph::K_NO_VALUE);
 
-        OneShot run(engine, graph);
+        OneShot run(backend, graph);
         write_tensor(run.pool.tensor(x), point);
         write_tensor(run.pool.tensor(weights), targets);
 
@@ -328,7 +329,7 @@ TEST_F(Medium_LoweredOperations, DivDividesElementwise)
     const std::vector<double> divisor = {2.0, -4.0, -1.5, 8.0, -2.5, 3.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::div, dividend, divisor, result));
+    ASSERT_NO_FATAL_FAILURE(run_binary(backend(), &GraphBuilder::div, dividend, divisor, result));
 
     expect_elements(result, zipped(dividend, divisor, [](double a, double b) { return a / b; }),
                     K_FLOAT32_TOLERANCE);
@@ -341,7 +342,7 @@ TEST_F(Medium_LoweredOperations, MinimumTakesTheSmallerOperand)
     const std::vector<double> right = {1.0, 0.0, -3.0, 1.5, -4.0, 5.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::minimum, left, right, result));
+    ASSERT_NO_FATAL_FAILURE(run_binary(backend(), &GraphBuilder::minimum, left, right, result));
 
     expect_elements(result, zipped(left, right, [](double a, double b) { return std::min(a, b); }),
                     K_FLOAT32_TOLERANCE);
@@ -354,7 +355,7 @@ TEST_F(Medium_LoweredOperations, MaximumTakesTheLargerOperand)
     const std::vector<double> right = {1.0, 0.0, -3.0, 1.5, -4.0, 5.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_binary(*engine, &GraphBuilder::maximum, left, right, result));
+    ASSERT_NO_FATAL_FAILURE(run_binary(backend(), &GraphBuilder::maximum, left, right, result));
 
     expect_elements(result, zipped(left, right, [](double a, double b) { return std::max(a, b); }),
                     K_FLOAT32_TOLERANCE);
@@ -366,7 +367,7 @@ TEST_F(Medium_LoweredOperations, AbsReturnsTheMagnitude)
     const std::vector<double> input = {-2.5, -0.125, 0.0, 0.125, 3.0, 1024.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::abs, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::abs, input, result));
 
     expect_elements(result, mapped(input, [](double v) { return std::abs(v); }),
                     K_FLOAT32_TOLERANCE);
@@ -378,7 +379,7 @@ TEST_F(Medium_LoweredOperations, AtanReturnsTheArctangent)
     const std::vector<double> input = {-64.0, -1.0, -0.25, 0.0, 0.25, 1.0, 64.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::atan, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::atan, input, result));
 
     expect_elements(result, mapped(input, [](double v) { return std::atan(v); }),
                     K_FLOAT32_TOLERANCE);
@@ -392,7 +393,7 @@ TEST_F(Medium_LoweredOperations, LessEqualWritesOneForLessAndForEqual)
 
     std::vector<double> result;
     ASSERT_NO_FATAL_FAILURE(
-        run_binary(*engine, &GraphBuilder::less_equal, left, right, result));
+        run_binary(backend(), &GraphBuilder::less_equal, left, right, result));
 
     expect_elements(result,
                     zipped(left, right, [](double a, double b) { return a <= b ? 1.0 : 0.0; }),
@@ -414,7 +415,7 @@ TEST_F(Medium_LoweredOperations, SelectTakesEachBranchWhereTheMaskSaysSo)
     const std::vector<double> taken = {-1.0, 2.0, 0.0, 4.0, -5.0, 6.0};
     const std::vector<double> other = {10.0, -20.0, 30.0, 0.0, 50.0, -60.0};
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(condition), mask);
     write_tensor(run.pool.tensor(a), taken);
     write_tensor(run.pool.tensor(b), other);
@@ -442,7 +443,7 @@ TEST_F(Medium_LoweredOperations, ConstantFillsEveryElementWithItsValue)
 
     const std::vector<double> input = {-2.0, -0.5, 0.0, 0.5, 2.0, 8.0};
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), input);
 
     ASSERT_NO_FATAL_FAILURE(run.compile_and_run());
@@ -463,7 +464,7 @@ TEST_F(Medium_LoweredOperations, SiLUMatchesItsDefinition)
     const std::vector<double> input = {-8.0, -2.0, -0.5, 0.0, 0.5, 2.0, 8.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::silu, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::silu, input, result));
 
     expect_elements(result, mapped(input, [](double v) { return v * host_sigmoid(v); }),
                     K_FLOAT32_TOLERANCE);
@@ -475,7 +476,7 @@ TEST_F(Medium_LoweredOperations, SoftplusMatchesItsDefinition)
     const std::vector<double> input = {-20.0, -2.0, -0.5, 0.0, 0.5, 2.0, 20.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::softplus, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::softplus, input, result));
 
     expect_elements(result, mapped(input, [](double v) { return std::log1p(std::exp(v)); }),
                     K_FLOAT32_TOLERANCE);
@@ -489,7 +490,7 @@ TEST_F(Medium_LoweredOperations, SiLUBackwardMatchesTheClosedFormDerivative)
 
     std::vector<double> gradient;
     ASSERT_NO_FATAL_FAILURE(
-        run_activation_gradient(*engine, &GraphBuilder::silu, point, targets, gradient));
+        run_activation_gradient(backend(), &GraphBuilder::silu, point, targets, gradient));
 
     const std::vector<double> derivative = mapped(point, [](double v)
     {
@@ -509,7 +510,7 @@ TEST_F(Medium_LoweredOperations, SoftplusBackwardMatchesTheClosedFormDerivative)
 
     std::vector<double> gradient;
     ASSERT_NO_FATAL_FAILURE(
-        run_activation_gradient(*engine, &GraphBuilder::softplus, point, targets, gradient));
+        run_activation_gradient(backend(), &GraphBuilder::softplus, point, targets, gradient));
 
     expect_elements(gradient,
                     zipped(targets, mapped(point, host_sigmoid),
@@ -523,7 +524,7 @@ TEST_F(Medium_LoweredOperations, StopGradientCopiesItsOperand)
     const std::vector<double> input = {-3.5, -0.25, 0.0, 0.25, 7.0, 4096.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_unary(*engine, &GraphBuilder::stop_gradient, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_unary(backend(), &GraphBuilder::stop_gradient, input, result));
 
     EXPECT_EQ(result, input);
 }
@@ -549,7 +550,7 @@ TEST_F(Medium_LoweredOperations, BatchNormFoldWritesTheScaleAndTheShift)
     const std::vector<double> means = {-1.0, 0.0, 4.0, 2.5};
     const std::vector<double> variances = {0.0, 0.25, 9.0, 1.0};
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(gamma), gammas);
     write_tensor(run.pool.tensor(beta), betas);
     write_tensor(run.pool.tensor(mean), means);
@@ -597,7 +598,7 @@ TEST_F(Medium_LoweredOperations, DepthwiseConv2dMatchesTheWindowSums)
     g.pad_left = K_PAD;
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.depthwise_conv2d(x, weights, g));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), image);
     write_tensor(run.pool.tensor(weights), taps);
 

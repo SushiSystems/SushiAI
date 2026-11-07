@@ -39,6 +39,7 @@
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/data/dataset.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/nn/model_state.hpp>
@@ -60,8 +61,8 @@ namespace SushiAI
          */
         struct PreparedRun
         {
-            /** @brief The engine every step is compiled and run on. */
-            SushiBLAS::Engine& engine;
+            /** @brief The backend every step is compiled and run on. */
+            ExecutionBackend& backend;
 
             /** @brief The training file: the epochs and the objective's own keys. */
             const Config::TrainSpec& spec;

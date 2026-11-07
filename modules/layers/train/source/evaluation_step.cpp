@@ -150,7 +150,7 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<EvaluationStep>> EvaluationStep::make(
-            SushiBLAS::Engine& engine, const TracedStep& traced, const NN::ModelState& state,
+            ExecutionBackend& backend, const TracedStep& traced, const NN::ModelState& state,
             Graph::TensorPool& pool, const Graph::FusionSelector* selector,
             const Graph::TensorPool* lender) noexcept
         {
@@ -183,13 +183,13 @@ namespace SushiAI
                                                          [&]()
             {
                 return std::unique_ptr<EvaluationStep>(
-                    new EvaluationStep(engine, pool, std::move(parts)));
+                    new EvaluationStep(backend, pool, std::move(parts)));
             }));
 
             // A step that carries nothing has no trailing work and compiles as a plain graph.
             Graph::StepRecorder* const trailing =
                 step->carries_state() ? &step->carries_ : nullptr;
-            SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(engine, traced.graph, pool,
+            SA_TRY_ASSIGN(step->step_, Graph::CompiledStep::compile(backend, traced.graph, pool,
                                                                     trailing, selector, {},
                                                                     K_STEP_LABEL));
             SA_TRY(step->reset());
@@ -197,9 +197,9 @@ namespace SushiAI
             return std::move(step);
         }
 
-        EvaluationStep::EvaluationStep(SushiBLAS::Engine& engine, Graph::TensorPool& pool,
+        EvaluationStep::EvaluationStep(ExecutionBackend& backend, Graph::TensorPool& pool,
                                        Parts parts)
-            : engine_(&engine),
+            : backend_(&backend),
               pool_(&pool),
               input_names_(std::move(parts.input_names)),
               input_leaves_(std::move(parts.input_leaves)),
@@ -236,7 +236,7 @@ namespace SushiAI
             {
                 SA_ZONE("copy", "input");
                 SA_TRY(::SushiAI::Detail::record_and_run(
-                    *engine_, [&](SushiBLAS::TaskRecorder& recorder) -> Status
+                    *backend_, [&](SushiBLAS::TaskRecorder& recorder) -> Status
                 {
                     SushiBLAS::BLASOps blas(recorder);
                     for (std::size_t at = 0; at < feeds.size(); ++at)
@@ -290,7 +290,7 @@ namespace SushiAI
             for (const CarriedLeaf& leaf : carried_)
                 SA_TRY(pool_->request_constant(*leaf.tensor, leaf.initial_value));
 
-            return pool_->flush_constants();
+            return pool_->flush_constants(*backend_);
         }
 
         bool EvaluationStep::carries_state() const noexcept

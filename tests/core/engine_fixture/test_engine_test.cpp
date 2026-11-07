@@ -24,7 +24,7 @@
 
 /**
  * @file test_engine_test.cpp
- * @brief Tests that EngineTest gives each test an engine.
+ * @brief Tests that EngineTest gives each test an engine and the backend over it.
  * @author Mustafa Garip
  */
 
@@ -46,4 +46,10 @@ namespace
 TEST_F(Medium_EngineTest, SetUpGivesTheCaseAnEngine)
 {
     EXPECT_NE(engine, nullptr);
+}
+
+/** @brief Tests that backend hands out the engine of the case. */
+TEST_F(Medium_EngineTest, BackendRunsOnTheEngineOfTheCase)
+{
+    EXPECT_EQ(&backend().engine(), engine);
 }

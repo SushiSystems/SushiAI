@@ -189,7 +189,7 @@ namespace SushiAI::FreeTwoLevelTest
     struct TwoLevelCase
     {
         /** @brief Builds everything the step is made from and sets @c ready on success. */
-        void prepare(SushiBLAS::Engine& engine, bool one_to_one = false)
+        void prepare(SushiAI::ExecutionBackend& backend, bool one_to_one = false)
         {
             const Shape batch_shape{K_BATCH, K_NETWORK_SIDE, K_NETWORK_SIDE, 3};
 
@@ -210,26 +210,26 @@ namespace SushiAI::FreeTwoLevelTest
 
             SA_ASSERT_OK_AND_ASSIGN(built,
                                     Train::build_training_graph(*model, *objective, batch_shape));
-            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(engine, *model));
+            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(backend.engine(), *model));
 
-            training_pool = std::make_unique<Graph::TensorPool>(engine);
+            training_pool = std::make_unique<Graph::TensorPool>(backend.engine());
             SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                    Train::bind_parameters(built, *state, *training_pool));
+                                    Train::bind_parameters(backend, built, *state, *training_pool));
 
             // The last weight stays drawn, so every port starts away from zero.
             NN::InitPolicy policy;
             policy.zero_final_layer = false;
-            SA_EXPECT_OK(NN::initialize(engine, *state, policy));
+            SA_EXPECT_OK(NN::initialize(backend, *state, policy));
 
             SA_ASSERT_OK_AND_ASSIGN(
                 updates, Train::bind_buffer_updates(built.updates, *state, *training_pool));
 
             Optim::SGDOptions options;
             options.learning_rate = K_LEARNING_RATE;
-            SA_ASSERT_OK_AND_ASSIGN(optimizer, Optim::SGD::make(engine, slots, options));
+            SA_ASSERT_OK_AND_ASSIGN(optimizer, Optim::SGD::make(backend, slots, options));
 
             SA_ASSERT_OK_AND_ASSIGN(
-                step, Vision::Training::FreeTrainingStep::make(engine, *objective, built,
+                step, Vision::Training::FreeTrainingStep::make(backend, *objective, built,
                                                                *training_pool, *optimizer,
                                                                std::move(updates)));
             ready = true;

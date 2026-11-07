@@ -193,7 +193,7 @@ such as the master of a cluster run, holds no leaf and no intermediate value.
 
 ## The objective owns its feed and its metrics
 
-`Trainer` names no role and no task. `Trainer::make(engine, built, pool, objective, optimizer)`
+`Trainer` names no role and no task. `Trainer::make(backend, built, pool, objective, optimizer)`
 keeps the leaves and the outputs of the `TrainingGraph` and a reference to the objective.
 `run_step` then does five things: `check_feed` on the inputs, `objective.feed(batch, leaves,
 pool)`, a copy of the inputs, the step, and `objective.measure(view, metrics)` unless

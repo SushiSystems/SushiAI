@@ -89,14 +89,15 @@ namespace
     }
 
     /** @brief Writes @p values into @p leaf, runs @p graph once and returns @p out. */
-    std::vector<double> run_one(SushiBLAS::Engine& engine, const Graph::Graph& graph, ValueID leaf,
+    std::vector<double> run_one(SushiAI::ExecutionBackend& backend, const Graph::Graph& graph,
+                                ValueID leaf,
                                 const std::vector<double>& values, ValueID out)
     {
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         EXPECT_TRUE(pool.materialise_leaves(graph).is_ok());
         SaTest::write_tensor(pool.tensor(leaf), values);
 
-        Result<std::unique_ptr<CompiledStep>> step = CompiledStep::compile(engine, graph, pool);
+        Result<std::unique_ptr<CompiledStep>> step = CompiledStep::compile(backend, graph, pool);
         EXPECT_TRUE(step.has_value());
         if (!step.has_value())
             return {};
@@ -175,7 +176,7 @@ TEST_F(Medium_SpatialLowerings, UpsampleGradientSumsEachBlockOntoItsPixel)
                                           8.0,  9.0,  10.0, 11.0, 12.0, 13.0, 14.0, 15.0};
     const std::vector<double> expected = {10.0, 18.0, 42.0, 50.0};
 
-    expect_elements(run_one(*engine, graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
+    expect_elements(run_one(backend(), graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
 }
 
 /** @brief Tests that the spatial mean gradient writes dy[n, c] / (H * W) at every pixel. */
@@ -192,5 +193,5 @@ TEST_F(Medium_SpatialLowerings, SpatialMeanGradientSpreadsEvenlyOverThePlane)
     // Each of the four pixels holds (4 / 4, -2 / 4), channels interleaved.
     const std::vector<double> expected = {1.0, -0.5, 1.0, -0.5, 1.0, -0.5, 1.0, -0.5};
 
-    expect_elements(run_one(*engine, graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
+    expect_elements(run_one(backend(), graph, dy, upstream, dx), expected, K_ABSOLUTE_TOLERANCE);
 }

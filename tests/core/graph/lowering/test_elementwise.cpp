@@ -171,7 +171,7 @@ TEST_F(Medium_ElementwiseLowerings, DynamicScaleReadsItsFactorOnEveryRun)
     SaTest::write_tensor(pool.tensor(factor), std::vector<double>{2.0});
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
 
     SaTest::write_tensor(pool.tensor(factor), std::vector<double>{2.0});
     SA_EXPECT_OK(step->run());
@@ -200,7 +200,7 @@ TEST_F(Medium_ElementwiseLowerings, CastConvertsEachElementToTheResultType)
     SaTest::write_tensor(pool.tensor(x), values);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     EXPECT_EQ(pool.tensor(wide).dtype, DType::Float64);

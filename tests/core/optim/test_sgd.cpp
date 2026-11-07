@@ -103,11 +103,11 @@ namespace
 TEST_F(Medium_SGD, TheTypeAndReplayFollowTheKernel)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> fused,
-                            SGD::make(*engine, make_slots({1.0})));
+                            SGD::make(backend(), make_slots({1.0})));
     SGDOptions separate_options;
     separate_options.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> separate,
-                            SGD::make(*engine, make_slots({1.0}), separate_options));
+                            SGD::make(backend(), make_slots({1.0}), separate_options));
 
     EXPECT_EQ(fused->type_name(), Optim::K_SGD_TYPE);
     EXPECT_TRUE(fused->is_replay_invariant());
@@ -124,9 +124,9 @@ TEST_F(Medium_SGD, NesterovNeedsMomentumAndNoDampening)
     damped.momentum = 0.9;
     damped.dampening = 0.1;
 
-    SA_EXPECT_FAILURE(SGD::make(*engine, make_slots({1.0}), no_momentum),
+    SA_EXPECT_FAILURE(SGD::make(backend(), make_slots({1.0}), no_momentum),
                       StatusCode::InvalidDescription, "positive momentum");
-    SA_EXPECT_FAILURE(SGD::make(*engine, make_slots({1.0}), damped),
+    SA_EXPECT_FAILURE(SGD::make(backend(), make_slots({1.0}), damped),
                       StatusCode::InvalidDescription, "undefined with dampening");
 }
 
@@ -137,7 +137,7 @@ TEST_F(Medium_SGD, APlainStepSubtractsTheScaledGradient)
     SGDOptions options;
     options.learning_rate = 0.5;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
-                            SGD::make(*engine, make_slots(gradient), options));
+                            SGD::make(backend(), make_slots(gradient), options));
 
     const std::vector<double> values = step_once(*optimizer);
 
@@ -153,7 +153,7 @@ TEST_F(Medium_SGD, MomentumAccumulatesFromTheSecondStep)
     options.learning_rate = 0.1;
     options.momentum = 0.9;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<SGD> optimizer,
-                            SGD::make(*engine, make_slots({1.0}), options));
+                            SGD::make(backend(), make_slots({1.0}), options));
 
     // The buffer is the gradient, 1, after the first step and 0.9 * 1 + 1 after the second.
     const std::vector<double> first = step_once(*optimizer);

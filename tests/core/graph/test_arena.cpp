@@ -207,7 +207,7 @@ TEST_F(Medium_Arena, OpsRecordedOnTwoPackedTensorsDoNotTreadOnEachOther)
     SaTest::write_tensor(first, ones);
     SaTest::write_tensor(second, twos);
 
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
     SushiBLAS::BLASOps blas(recording.recorder());
     blas.scal(3.0f, first);
     blas.scal(5.0f, second);

@@ -128,8 +128,9 @@ namespace
      * @brief Builds the pieces of a classification run with initialised parameters.
      * @return The pieces, or the first failure of a trace, a bind, the optimizer or the data.
      */
-    Result<std::unique_ptr<Pieces>> make_pieces(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<Pieces>> make_pieces(SushiAI::ExecutionBackend& backend)
     {
+        SushiBLAS::Engine& engine = backend.engine();
         std::unique_ptr<Pieces> pieces = std::make_unique<Pieces>(engine);
 
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -140,13 +141,14 @@ namespace
         pieces->state.emplace(std::move(state));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*pieces->built, *pieces->state, pieces->pool));
-        SA_TRY(NN::initialize(engine, *pieces->state));
+                      Train::bind_parameters(backend, *pieces->built, *pieces->state,
+                                             pieces->pool));
+        SA_TRY(NN::initialize(backend, *pieces->state));
 
         Optim::SGDOptions options;
         options.learning_rate = 0.1;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, std::move(slots), options));
+                      Optim::SGD::make(backend, std::move(slots), options));
         pieces->optimizer = std::move(optimizer);
         pieces->objective.emplace(SaTest::classifier_objective(*pieces->built));
 
@@ -155,17 +157,17 @@ namespace
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
-        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(engine, data));
+        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(backend, data));
 
         pieces->spec.epochs = K_EPOCHS;
         return std::move(pieces);
     }
 
     /** @brief Returns the run `sushiai train` would hand to the table for @p pieces. */
-    Apps::PreparedRun prepare(Pieces& pieces, SushiBLAS::Engine& engine)
+    Apps::PreparedRun prepare(Pieces& pieces, SushiAI::ExecutionBackend& backend)
     {
         return Apps::PreparedRun{
-            engine,         pieces.spec,       *pieces.dataset, pieces.given,
+            backend,         pieces.spec,       *pieces.dataset, pieces.given,
             *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
             *pieces.optimizer, {},             nullptr,
         };
@@ -175,11 +177,11 @@ namespace
      * @brief Trains a run for K_EPOCHS epochs and saves it with its run state to @p file.
      * @return The optimizer's step count after the run, or the first failure.
      */
-    Result<std::uint64_t> train_and_save(SushiBLAS::Engine& engine,
+    Result<std::uint64_t> train_and_save(SushiAI::ExecutionBackend& backend,
                                          const std::filesystem::path& file)
     {
-        SA_TRY_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(engine));
-        Apps::PreparedRun prepared = prepare(*trained, engine);
+        SA_TRY_ASSIGN(const std::unique_ptr<Pieces> trained, make_pieces(backend));
+        Apps::PreparedRun prepared = prepare(*trained, backend);
         Apps::RunRegistry registry;
         SA_TRY(Apps::register_runs(registry));
 
@@ -223,9 +225,9 @@ TEST(Small_RunStart, ASpecWithAResumeFileDescribesTheResume)
 /** @brief Tests that a start without files leaves the optimizer at step 0. */
 TEST_F(Medium_RunStart, AStartWithoutFilesLeavesTheOptimizerAtStepZero)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(backend()));
 
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
+    SA_EXPECT_OK(Apps::start_state(fresh->spec, backend(), *fresh->state, *fresh->optimizer));
 
     EXPECT_EQ(fresh->optimizer->step_count(), 0u);
 }
@@ -235,12 +237,12 @@ TEST_F(Medium_RunStart, AStartFromWeightsLeavesTheOptimizerAtStepZero)
 {
     const SaTest::ScratchFile file("sushiai_program_runs_weights.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t trained_steps,
-                            train_and_save(*engine, file.path()));
+                            train_and_save(backend(), file.path()));
     ASSERT_GT(trained_steps, 0u);
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(backend()));
     fresh->spec.weights = file.path();
 
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
+    SA_EXPECT_OK(Apps::start_state(fresh->spec, backend(), *fresh->state, *fresh->optimizer));
 
     EXPECT_EQ(fresh->optimizer->step_count(), 0u);
 }
@@ -250,11 +252,11 @@ TEST_F(Medium_RunStart, AResumedStartRestoresTheStepCountOfTheSavedRun)
 {
     const SaTest::ScratchFile file("sushiai_program_runs_resume.sushi");
     SA_ASSERT_OK_AND_ASSIGN(const std::uint64_t trained_steps,
-                            train_and_save(*engine, file.path()));
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(*engine));
+                            train_and_save(backend(), file.path()));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> fresh, make_pieces(backend()));
     fresh->spec.resume = file.path();
 
-    SA_EXPECT_OK(Apps::start_state(fresh->spec, *engine, *fresh->state, *fresh->optimizer));
+    SA_EXPECT_OK(Apps::start_state(fresh->spec, backend(), *fresh->state, *fresh->optimizer));
 
     EXPECT_EQ(fresh->optimizer->step_count(), trained_steps);
     EXPECT_EQ(fresh->optimizer->step_count(),

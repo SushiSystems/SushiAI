@@ -24,18 +24,18 @@
 
 /**
  * @file execution.hpp
- * @brief Declares the calls that create a runtime and a graph, record on a graph the caller owns
- *        and run it, each returning a Status.
+ * @brief Declares the calls that create a runtime and that record on a backend's tasks and run
+ *        them, each returning a Status.
  * @author Mustafa Garip
  */
 
 #pragma once
 
+#include <memory>
 #include <utility>
-#include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/engine/late_count_hold.hpp>
-#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/step_tasks.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/seam/seam.hpp>
@@ -52,54 +52,35 @@ namespace SushiAI
             const SushiRuntime::RuntimeConfig& config = {}) noexcept;
 
         /**
-         * @brief Creates an empty graph on the runtime of @p engine.
-         * @return The graph, or the Status of the failure that kept it from being created.
-         */
-        [[nodiscard]] Result<SushiRuntime::Graph> create_graph(SushiBLAS::Engine& engine) noexcept;
-
-        /**
-         * @brief Runs one step of @p graph and returns when it has finished.
-         * @param report Refilled by the run; its previous contents are lost.
-         */
-        [[nodiscard]] Status run_step(SushiRuntime::Graph& graph,
-                                      SushiRuntime::RunReport& report) noexcept;
-
-        /**
-         * @brief Runs every task recorded on @p graph once and returns when they have finished.
-         * @return Success also when nothing was recorded, or the Status of the failure.
-         */
-        [[nodiscard]] Status run_once(SushiRuntime::Graph& graph) noexcept;
-
-        /**
-         * @brief Records on a graph of its own with @p record, runs that graph and waits.
-         * @param record Called once with a SushiBLAS::TaskRecorder over the graph, the scratch
-         *               pool and the mode of @p engine; it returns Status.
-         * @return Success, the failure of @p record with the graph and every task recorded on it
-         *         destroyed, or the failure of the run.
+         * @brief Records on tasks of its own with @p record, seals them and replays them once.
+         * @param backend Makes the tasks.
+         * @param record Called once with the recorder of the tasks; it returns Status.
+         * @return Success, the failure of @p record with its tasks dropped, the refusal the
+         *         recording kept, or the failure of the seal or the replay. A recording of no
+         *         task runs nothing and succeeds.
          */
         template<typename Record>
-        [[nodiscard]] Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept;
+        [[nodiscard]] Status record_and_run(ExecutionBackend& backend, Record&& record) noexcept;
 
         template<typename Record>
-        Status record_and_run(SushiBLAS::Engine& engine, Record&& record) noexcept
+        Status record_and_run(ExecutionBackend& backend, Record&& record) noexcept
         {
-            // Declared before the graph, so the late counts outlive every task that reads them.
-            SushiBLAS::LateCountHold late_counts(engine.runtime());
-            Result<SushiRuntime::Graph> created = create_graph(engine);
-            if (!created.has_value())
-                return created.status();
+            SA_TRY_ASSIGN(std::unique_ptr<StepTasks> tasks, backend.make_tasks());
 
-            SushiRuntime::Graph& graph = created.value();
             const Status recorded = guard(SeamPhase::Record, [&]() -> Status
             {
-                SushiBLAS::TaskRecorder recorder(graph.recorder(), engine.scratch_pool(),
-                                                 late_counts, engine.mode());
-                return std::forward<Record>(record)(recorder);
+                return std::forward<Record>(record)(tasks->recorder());
             });
             if (!recorded.is_ok())
                 return recorded;
 
-            return run_once(graph);
+            SA_TRY(tasks->refusal());
+            if (tasks->task_count() == 0)
+                return Status();
+
+            SA_TRY(tasks->seal());
+            SushiRuntime::RunReport report;
+            return tasks->replay(report);
         }
 
     } // namespace Detail

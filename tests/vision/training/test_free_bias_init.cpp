@@ -114,7 +114,7 @@ namespace
     };
 
     /** @brief Builds, traces and initialises a head over a 64 by 64 input. */
-    Status trace_head(SushiBLAS::Engine& engine, TracedHead& traced)
+    Status trace_head(SushiAI::ExecutionBackend& backend, TracedHead& traced)
     {
         std::vector<Shape> levels;
         for (std::size_t level = 0; level < K_LEVELS; ++level)
@@ -134,10 +134,10 @@ namespace
         SA_TRY(traced.head->forward(NN::Trace::evaluation(builder),
                                     NN::ValueSpan(features.data(), features.size()), outputs));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, *traced.head,
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), *traced.head,
                                                                    K_PREFIX));
         traced.state = std::make_unique<NN::ModelState>(std::move(state));
-        SA_TRY(NN::initialize(engine, *traced.state));
+        SA_TRY(NN::initialize(backend, *traced.state));
 
         std::vector<Train::OutputShape> published;
         for (const NN::Port& port : traced.head->ports())
@@ -170,7 +170,7 @@ TEST(Small_TrainingFreeClassBias, MatchesTheClosedForm)
 TEST_F(Medium_TrainingFreeBiasInit, SetsTheLastBiasesOfBothCopies)
 {
     TracedHead traced;
-    ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(*engine, traced)));
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(backend(), traced)));
     flush();
     SA_EXPECT_OK(initialize_free_biases(traced.facts, K_PREFIX, *traced.state));
 
@@ -191,7 +191,7 @@ TEST_F(Medium_TrainingFreeBiasInit, SetsTheLastBiasesOfBothCopies)
 TEST_F(Medium_TrainingFreeBiasInit, RefusesAPrefixTheStateLacks)
 {
     TracedHead traced;
-    ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(*engine, traced)));
+    ASSERT_TRUE(SushiAI::Test::status_is_ok(trace_head(backend(), traced)));
     flush();
     SA_EXPECT_FAILURE(initialize_free_biases(traced.facts, "22", *traced.state),
                       StatusCode::InvalidDescription, "'22.cv2.0.2.bias'");

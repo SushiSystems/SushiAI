@@ -113,7 +113,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltaOfATwoImageHeadMatchesDarknet)
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheHeadsUnderBatchStatisticsMatchDarknet)
 {
-    SaTest::check_step_heads(*engine, training);
+    SaTest::check_step_heads(backend(), training);
 }
 
 /**
@@ -124,7 +124,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheHeadsUnderBatchStatisticsMatchDarkne
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
 {
-    SaTest::check_step_deltas(*engine, training);
+    SaTest::check_step_deltas(backend(), training);
 }
 
 /**
@@ -134,7 +134,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheDeltasOfTheStepMatchDarknet)
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
 {
-    SaTest::check_head_updates(*engine, training);
+    SaTest::check_head_updates(backend(), training);
 }
 
 /**
@@ -146,7 +146,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheUpdatesOfTheHeadConvolutionsMatchDar
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
 {
-    SaTest::check_first_gradients(*engine, training);
+    SaTest::check_first_gradients(backend(), training);
 }
 
 /**
@@ -155,7 +155,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheFirstConvolutionReceivesAGradient)
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDarknet)
 {
-    SaTest::check_rolling_statistics(*engine, training);
+    SaTest::check_rolling_statistics(backend(), training);
 }
 
 /**
@@ -167,7 +167,7 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheRollingStatisticsAfterOneStepMatchDa
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAQuarter)
 {
-    SaTest::check_one_batch_overfit(*engine, training);
+    SaTest::check_one_batch_overfit(backend(), training);
 }
 
 /**
@@ -175,5 +175,5 @@ TEST_F(Medium_DarknetYolov7TinyTraining, TheCostOfOneBatchFallsUnderAQuarter)
  */
 TEST_F(Medium_DarknetYolov7TinyTraining, ThePlanOfTheStepChangesNoValue)
 {
-    SaTest::check_plan_changes_no_value(*engine, training);
+    SaTest::check_plan_changes_no_value(backend(), training);
 }

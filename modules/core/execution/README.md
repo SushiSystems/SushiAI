@@ -2,14 +2,24 @@
 
 ## Owns
 
-The calls that run work and return a `Status`: `create_runtime` creates the runtime an engine is
-built on, `create_graph` creates an empty graph on the engine's runtime, `run_step` runs one step
-of a graph, `run_once` runs every task recorded on a graph, and `record_and_run` creates a graph
-of its own, calls the caller's recording with a `SushiBLAS::TaskRecorder` over it, and runs it.
-The recorder keeps late-count tasks in a `SushiBLAS::LateCountHold` that the call declares before
-the graph, so it outlives every task that reads it. A failed recording leaves nothing behind,
-because the graph dies with its tasks. The module never
-touches the graph of an engine. Each call maps what SushiRuntime reports through `seam`.
+Two ports and their adapters, and the calls that run work and return a `Status`.
+
+`StepTasks` is one recording of tasks that replays: its recorder, its task count, the refusal kept
+while recording, the hooks that run before each replay, a label, `seal()` and `replay()`.
+`ExecutionBackend` gives a caller the engine, a new `StepTasks` from `make_tasks()` and
+`supports_fp64()`. `HostExecutionBackend` owns a host `SushiBLAS::Engine` and keeps the tasks of
+each `StepTasks` in a `SushiBLAS::HostTaskSink`; a task that fails on replay is a `DeviceFailed`
+naming its index and name. `RuntimeExecutionBackend` borrows a `SushiRuntime::Runtime` and an
+engine built on it, records each `StepTasks` on a `SushiRuntime::Graph` with a
+`SushiBLAS::LateCountHold` declared before it, and exposes `runtime()`. The two `StepTasks`
+adapters are private to the sources of the backends. The caller that makes the engine picks the
+backend; no class asks an engine its kind.
+
+`create_runtime` creates the runtime an engine is built on. `record_and_run(backend, record)` makes
+tasks on the backend, calls the caller's recording with their `SushiBLAS::TaskRecorder` under the
+Record guard, returns the refusal the recording kept, seals the tasks and replays them once. A
+recording of no task runs nothing and succeeds. A failed recording leaves nothing behind, because
+the tasks die with the call. Each call maps what SushiRuntime reports through `seam`.
 
 ## Depends on
 
@@ -21,7 +31,11 @@ Each header is named by its include path under `include/`.
 
 | Header | Declares |
 | --- | --- |
-| `SushiAI/execution/execution.hpp` | `Detail::create_runtime`, `Detail::create_graph`, `Detail::run_step`, `Detail::run_once`, `Detail::record_and_run`, the alias `sr` |
+| `SushiAI/execution/step_tasks.hpp` | `StepTasks` |
+| `SushiAI/execution/execution_backend.hpp` | `ExecutionBackend` |
+| `SushiAI/execution/host_execution_backend.hpp` | `HostExecutionBackend` |
+| `SushiAI/execution/runtime_execution_backend.hpp` | `RuntimeExecutionBackend` |
+| `SushiAI/execution/execution.hpp` | `Detail::create_runtime`, `Detail::record_and_run`, the alias `sr` |
 
 ## Designs
 

@@ -36,6 +36,7 @@
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
@@ -52,6 +53,7 @@ namespace
     {
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
+        sa::RuntimeExecutionBackend backend(runtime, engine);
 
         const int64_t batch = 32;
 
@@ -80,7 +82,7 @@ namespace
             synthetic.features = 32;
             synthetic.classes = 6;
             SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> generated,
-                          sa::Data::SyntheticClassification::make(engine, synthetic));
+                          sa::Data::SyntheticClassification::make(backend, synthetic));
             dataset = std::move(generated);
         }
         else
@@ -111,13 +113,13 @@ namespace
         SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
         sa::Graph::TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, state, pool));
-        SA_TRY(sa::NN::initialize(engine, state));
+                      sa::Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(sa::NN::initialize(backend, state));
 
         sa::Optim::AdamWOptions adam;
         adam.learning_rate = 3e-3;
         SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
-                      sa::Optim::AdamW::make(engine, std::move(parameters), adam));
+                      sa::Optim::AdamW::make(backend, std::move(parameters), adam));
 
         // Trainer::make performs the only compile of the run.
         sa::Train::TrainerOptions options;
@@ -126,7 +128,7 @@ namespace
         // The objective build_classifier traced; it feeds and measures every step.
         const sa::Train::CrossEntropyObjective objective(batch, classes);
         SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-                      sa::Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      sa::Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                                options));
 
         std::cout << "SushiAI  : " << SushiAI::version_string()

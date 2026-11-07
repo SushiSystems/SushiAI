@@ -99,10 +99,11 @@ namespace
      *
      * The leaves of @p graph must already be materialised in @p pool and written.
      */
-    void compile_and_run(SushiBLAS::Engine& engine, const Graph::Graph& graph, TensorPool& pool)
+    void compile_and_run(SushiAI::ExecutionBackend& backend, const Graph::Graph& graph,
+                         TensorPool& pool)
     {
         std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
     }
 
@@ -222,7 +223,7 @@ TEST_F(Medium_AttentionOperations, BatchedProductWithTransposedRightOperandMatch
     write_tensor(pool.tensor(a), left);
     write_tensor(pool.tensor(b), right);
 
-    ASSERT_NO_FATAL_FAILURE(compile_and_run(*engine, graph, pool));
+    ASSERT_NO_FATAL_FAILURE(compile_and_run(backend(), graph, pool));
 
     expect_elements(read_tensor(pool.tensor(y)), expected, K_ABSOLUTE_TOLERANCE);
 }
@@ -243,7 +244,7 @@ TEST_F(Medium_AttentionOperations, SoftmaxOverTheLastAxisMatchesHost)
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     write_tensor(pool.tensor(x), logits);
 
-    ASSERT_NO_FATAL_FAILURE(compile_and_run(*engine, graph, pool));
+    ASSERT_NO_FATAL_FAILURE(compile_and_run(backend(), graph, pool));
 
     expect_elements(read_tensor(pool.tensor(y)), expected, K_ABSOLUTE_TOLERANCE);
 }
@@ -289,7 +290,7 @@ TEST_F(Medium_AttentionOperations, BatchedProductGradientsHaveTheOperandShapesAn
     write_tensor(pool.tensor(a), left);
     write_tensor(pool.tensor(b), right);
 
-    ASSERT_NO_FATAL_FAILURE(compile_and_run(*engine, graph, pool));
+    ASSERT_NO_FATAL_FAILURE(compile_and_run(backend(), graph, pool));
 
     expect_elements(read_tensor(pool.tensor(gradients[0])), expected_a, K_ABSOLUTE_TOLERANCE);
     expect_elements(read_tensor(pool.tensor(gradients[1])), expected_b, K_ABSOLUTE_TOLERANCE);

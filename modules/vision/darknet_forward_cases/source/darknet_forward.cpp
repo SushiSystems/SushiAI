@@ -198,10 +198,11 @@ namespace SushiAI
              * @brief Builds @p spec, stores @p weights in its state, runs one evaluation step
              *        over @p input and copies every published tensor into @p run.
              */
-            Status evaluate(SushiBLAS::Engine& engine, const Config::ModelSpec& spec,
+            Status evaluate(ExecutionBackend& backend, const Config::ModelSpec& spec,
                             const DarknetWeights& weights, const DarknetTensor& input,
                             DarknetForwardRun& run)
             {
+                SushiBLAS::Engine& engine = backend.engine();
                 SA_TRY_ASSIGN(const Shape batch_shape, shape_batch(spec, input));
 
                 NN::NodeRegistry registry;
@@ -215,7 +216,7 @@ namespace SushiAI
 
                 Graph::TensorPool pool(engine);
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                              Train::EvaluationStep::make(engine, traced, state, pool));
+                              Train::EvaluationStep::make(backend, traced, state, pool));
                 SA_TRY_ASSIGN(SushiBLAS::Tensor image, allocate_tensor(engine, batch_shape));
                 std::memcpy(image.data_as<float>(), input.values.data(),
                             input.values.size() * sizeof(float));
@@ -288,7 +289,7 @@ namespace SushiAI
             }
 
             /** @brief Runs the model of @p parity over the input of its first run. */
-            Result<DarknetForwardRun> run_first_input(SushiBLAS::Engine& engine,
+            Result<DarknetForwardRun> run_first_input(ExecutionBackend& backend,
                                                       const DarknetParityCase& parity,
                                                       DarknetNormalisation normalisation)
             {
@@ -297,7 +298,7 @@ namespace SushiAI
                 request.stem = parity.stem;
                 request.run = model.runs.front().directory;
                 request.normalisation = normalisation;
-                return run_darknet_forward(engine, request);
+                return run_darknet_forward(backend, request);
             }
 
             /**
@@ -614,7 +615,7 @@ namespace SushiAI
             return sources;
         }
 
-        Result<DarknetForwardRun> run_darknet_forward(SushiBLAS::Engine& engine,
+        Result<DarknetForwardRun> run_darknet_forward(ExecutionBackend& backend,
                                                       const DarknetForwardRequest& request) noexcept
         {
             SA_TRY_ASSIGN(const DarknetTensor input,
@@ -626,7 +627,7 @@ namespace SushiAI
                           read_weights(request.stem, run.model, request.normalisation));
             SA_TRY_ASSIGN(const Config::ModelSpec spec,
                           observe_layers(run.model, request.observed_layers));
-            SA_TRY(evaluate(engine, spec, weights, input, run));
+            SA_TRY(evaluate(backend, spec, weights, input, run));
 
             return Result<DarknetForwardRun>(std::move(run));
         }
@@ -749,12 +750,12 @@ namespace SushiAI
                 GTEST_SKIP() << missing;
         }
 
-        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
+        void check_folded_heads(ExecutionBackend& backend, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
             SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun run,
-                                    run_first_input(engine, parity, DarknetNormalisation::Folded));
+                                    run_first_input(backend, parity, DarknetNormalisation::Folded));
 
             ASSERT_EQ(run.model.heads.size(), heads.size());
             for (const DarknetParityRun& reference_run : model.runs)
@@ -784,12 +785,12 @@ namespace SushiAI
             }
         }
 
-        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
+        void check_yolo_outputs(ExecutionBackend& backend, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
             SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun run,
-                                    run_first_input(engine, parity, DarknetNormalisation::Folded));
+                                    run_first_input(backend, parity, DarknetNormalisation::Folded));
 
             ASSERT_EQ(run.model.heads.size(), heads.size());
             for (const DarknetParityRun& reference_run : model.runs)
@@ -817,13 +818,13 @@ namespace SushiAI
             }
         }
 
-        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
+        void check_detections(ExecutionBackend& backend, const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             const DarknetParityModel model = find_darknet_parity_model(parity.stem);
             ASSERT_EQ(model.runs.size(), parity.run_rows.size());
             SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun run,
-                                    run_first_input(engine, parity, DarknetNormalisation::Folded));
+                                    run_first_input(backend, parity, DarknetNormalisation::Folded));
             ASSERT_EQ(run.model.heads.size(), heads.size());
             ASSERT_EQ(run.model.network.height, model.side);
             ASSERT_EQ(run.model.network.width, model.side);
@@ -882,14 +883,15 @@ namespace SushiAI
             }
         }
 
-        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept
+        void check_separate_form(ExecutionBackend& backend,
+                                 const DarknetParityCase& parity) noexcept
         {
             const std::vector<HeadReference> heads = list_heads(parity);
             SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun folded,
-                                    run_first_input(engine, parity, DarknetNormalisation::Folded));
+                                    run_first_input(backend, parity, DarknetNormalisation::Folded));
             SA_ASSERT_OK_AND_ASSIGN(
                 const DarknetForwardRun separate,
-                run_first_input(engine, parity, DarknetNormalisation::Separate));
+                run_first_input(backend, parity, DarknetNormalisation::Separate));
 
             for (const HeadReference& head : heads)
             {

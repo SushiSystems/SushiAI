@@ -48,6 +48,8 @@
 
 namespace SushiAI
 {
+    class ExecutionBackend;
+
     namespace Optim
     {
         /**
@@ -234,10 +236,11 @@ namespace SushiAI
 
             protected:
                 /**
-                 * @brief Stores the engine and the slots; checks nothing.
+                 * @brief Stores the backend and the slots; checks nothing.
+                 * @param backend Runs the update of step(); must outlive the optimizer.
                  * @pre validate_slots(parameters) has returned success.
                  */
-                Optimizer(SushiBLAS::Engine& engine,
+                Optimizer(ExecutionBackend& backend,
                           std::vector<ParameterSlot> parameters) noexcept;
 
                 /**
@@ -296,8 +299,8 @@ namespace SushiAI
                 [[nodiscard]] Result<SushiBLAS::Tensor> allocate_state(
                     const SushiBLAS::Tensor& like) const;
 
-                /** @brief The engine the update is recorded on. */
-                SushiBLAS::Engine& engine() const noexcept { return *engine_; }
+                /** @brief The engine of the backend the update is recorded on. */
+                SushiBLAS::Engine& engine() const noexcept;
 
                 /** @brief The parameters being updated. */
                 std::vector<ParameterSlot>& slots() noexcept { return parameters_; }
@@ -306,7 +309,7 @@ namespace SushiAI
                 void advance() noexcept { ++step_; }
 
             private:
-                SushiBLAS::Engine* engine_;
+                ExecutionBackend* backend_;
                 std::vector<ParameterSlot> parameters_;
                 std::uint64_t step_ = 0;
                 bool in_compiled_step_ = false;

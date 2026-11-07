@@ -118,7 +118,7 @@ namespace SushiAI
                  * @return The model, or the first refusal of the setup.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<Distribution::ReplicaModel>> make(
-                    std::shared_ptr<const ReplicaSource> source, SushiBLAS::Engine& engine,
+                    std::shared_ptr<const ReplicaSource> source, ExecutionBackend& backend,
                     const Distribution::ReplicaDraws& draws, std::int64_t micro_batch_rows);
 
                 TrainingReplicaModel(const TrainingReplicaModel&) = delete;
@@ -154,7 +154,7 @@ namespace SushiAI
             private:
                 /** @brief Holds the parts make() built. */
                 TrainingReplicaModel(std::shared_ptr<const ReplicaSource> source,
-                                     SushiBLAS::Engine& engine,
+                                     ExecutionBackend& backend,
                                      std::unique_ptr<TrainingSetup> setup,
                                      ReplicaTensors tensors) noexcept;
 
@@ -164,8 +164,8 @@ namespace SushiAI
                 /// @brief The files the model was built from; shared by every replica.
                 std::shared_ptr<const ReplicaSource> source_;
 
-                /// @brief The replica's engine, which the inputs are copied on; not owned.
-                SushiBLAS::Engine* engine_;
+                /// @brief The replica's backend, which the inputs are copied on; not owned.
+                ExecutionBackend* backend_;
 
                 /// @brief The data, the training graph, the state and the pool.
                 std::unique_ptr<TrainingSetup> setup_;

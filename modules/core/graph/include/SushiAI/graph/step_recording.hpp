@@ -49,8 +49,9 @@ namespace SushiAI
          * @brief Hands a step recorder the task recorder of a graph and the graph's own
          *        runtime recorder, which the task recorder records on.
          *
-         * Holds both by address and owns neither; both outlive the recording. A detached
-         * recording holds neither, for a recorder that records no task.
+         * Holds both by address and owns neither; both outlive the recording. A host recording
+         * holds the task recorder alone, and a detached one holds neither, for a recorder that
+         * records no task.
          */
         class StepRecording final
         {
@@ -59,6 +60,19 @@ namespace SushiAI
                 StepRecording(SushiBLAS::TaskRecorder& tasks,
                               SushiRuntime::Recorder& graph) noexcept
                     : tasks_(&tasks), graph_(&graph)
+                {
+
+                }
+
+                /**
+                 * @brief Takes @p tasks and @p graph, the runtime recorder of the step or null.
+                 *
+                 * A null @p graph is a recording with no SushiRuntime graph, as on the host kind:
+                 * graph() stops the process on it, as it does on a detached recording.
+                 */
+                StepRecording(SushiBLAS::TaskRecorder& tasks,
+                              SushiRuntime::Recorder* graph) noexcept
+                    : tasks_(&tasks), graph_(graph)
                 {
 
                 }
@@ -93,12 +107,13 @@ namespace SushiAI
 
                 /**
                  * @brief Returns the runtime recorder of the graph, for scopes and remote nodes.
-                 * @pre The recording is not detached; asking a detached one stops the process.
+                 * @pre The recording holds a runtime recorder; asking a detached or a host one
+                 *      stops the process.
                  */
                 [[nodiscard]] SushiRuntime::Recorder& graph() const noexcept
                 {
                     SA_FATAL_IF(graph_ == nullptr,
-                                "A detached StepRecording holds no runtime recorder");
+                                "This StepRecording holds no runtime recorder");
                     return *graph_;
                 }
 
@@ -112,7 +127,7 @@ namespace SushiAI
                 /// @brief The task recorder; null only for a detached recording.
                 SushiBLAS::TaskRecorder* tasks_;
 
-                /// @brief The runtime recorder tasks_ records on; null only when detached.
+                /// @brief The runtime recorder tasks_ records on; null when detached or host.
                 SushiRuntime::Recorder* graph_;
         };
 

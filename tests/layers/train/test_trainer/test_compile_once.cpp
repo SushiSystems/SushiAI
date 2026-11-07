@@ -105,22 +105,22 @@ TEST_F(Medium_CompileOnce, ManyFitCallsCompileTheStepExactlyOnce)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
-    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(*engine, slots, sgd));
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(backend(), slots, sgd));
 
     Train::TrainerOptions options;
     options.epochs = 1;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
-                            Data::SyntheticClassification::make(*engine, make_data_options()));
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
 
     ASSERT_EQ(trainer->compile_count(), 1u);
 
@@ -151,19 +151,19 @@ TEST_F(Medium_CompileOnce, EveryReplayDispatchesRatherThanReportingCompleteImmed
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
-    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(*engine, slots, sgd));
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::SGD::make(backend(), slots, sgd));
 
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
     SA_ASSERT_OK_AND_ASSIGN(auto dataset,
-                            Data::SyntheticClassification::make(*engine, make_data_options()));
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
 
     const std::vector<double> initial = SaTest::read_tensor(slots[0].parameter);
 
@@ -215,7 +215,7 @@ TEST_F(Medium_CompileOnce,
     const std::vector<double> inputs = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
     SaTest::write_tensor(pool.tensor(x), inputs);
 
-    SA_ASSERT_OK_AND_ASSIGN(auto step, Graph::CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(auto step, Graph::CompiledStep::compile(backend(), graph, pool));
     ASSERT_FALSE(step->empty()) << "this graph has real work in it";
     ASSERT_EQ(step->compile_count(), 1u);
     ASSERT_EQ(step->run_count(), 0u);
@@ -269,18 +269,18 @@ TEST_F(Medium_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;
-    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::AdamW::make(*engine, slots, adam));
+    SA_ASSERT_OK_AND_ASSIGN(auto optimizer, Optim::AdamW::make(backend(), slots, adam));
 
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(auto trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     // The plan reads its inputs by address; see tests/layers/train/README.md.
@@ -288,8 +288,8 @@ TEST_F(Medium_CompileOnce, CompileCountSurvivesEverythingTheLoopDoesBetweenSteps
     other.seed = 0xFEED'BEEFull;
 
     SA_ASSERT_OK_AND_ASSIGN(auto first,
-                            Data::SyntheticClassification::make(*engine, make_data_options()));
-    SA_ASSERT_OK_AND_ASSIGN(auto second, Data::SyntheticClassification::make(*engine, other));
+                            Data::SyntheticClassification::make(backend(), make_data_options()));
+    SA_ASSERT_OK_AND_ASSIGN(auto second, Data::SyntheticClassification::make(backend(), other));
 
     ASSERT_EQ(trainer->compile_count(), 1u);
 

@@ -160,7 +160,7 @@ TEST_F(Medium_ParameterDecay, SGDDecaysOnlyTheSlotsThatTakeIt)
                                              Optim::UpdateKernel::Separate})
     {
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                                Optim::SGD::make(*engine, make_slots(), sgd_options(kernel)));
+                                Optim::SGD::make(backend(), make_slots(), sgd_options(kernel)));
         expect_after_one_step(*optimizer, K_DECAYED, K_START);
     }
 }
@@ -173,7 +173,7 @@ TEST_F(Medium_ParameterDecay, AdamWDecaysOnlyTheSlotsThatTakeIt)
     {
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Optim::AdamW> optimizer,
-            Optim::AdamW::make(*engine, make_slots(), adamw_options(kernel)));
+            Optim::AdamW::make(backend(), make_slots(), adamw_options(kernel)));
         expect_after_one_step(*optimizer, K_DECAYED, K_START);
     }
 }
@@ -184,13 +184,13 @@ TEST_F(Medium_ParameterDecay, DecayAllDecaysEverySlot)
     Optim::SGDOptions sgd = sgd_options(Optim::UpdateKernel::Fused);
     sgd.decay_all = true;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> first,
-                            Optim::SGD::make(*engine, make_slots(), sgd));
+                            Optim::SGD::make(backend(), make_slots(), sgd));
     expect_after_one_step(*first, K_DECAYED, K_DECAYED);
 
     Optim::AdamWOptions adamw = adamw_options(Optim::UpdateKernel::Fused);
     adamw.decay_all = true;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> second,
-                            Optim::AdamW::make(*engine, make_slots(), adamw));
+                            Optim::AdamW::make(backend(), make_slots(), adamw));
     expect_after_one_step(*second, K_DECAYED, K_DECAYED);
 }
 
@@ -209,12 +209,12 @@ TEST_F(Medium_ParameterDecay, TheKeyDecayAllReachesTheOptimizer)
     for (const std::string_view type : {std::string_view("sgd"), std::string_view("adamw")})
     {
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> grouped,
-                                Optim::make_optimizer(*engine, type, make_slots(),
+                                Optim::make_optimizer(backend(), type, make_slots(),
                                                       attributes(K_GROUPED), "optimizer"));
         expect_after_one_step(*grouped, K_DECAYED, K_START);
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> all,
-                                Optim::make_optimizer(*engine, type, make_slots(),
+                                Optim::make_optimizer(backend(), type, make_slots(),
                                                       attributes(K_ALL), "optimizer"));
         expect_after_one_step(*all, K_DECAYED, K_DECAYED);
     }

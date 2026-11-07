@@ -121,9 +121,9 @@ namespace
     };
 
     /** @brief Compiles a dropout over K_ELEMENTS ones with the site seed K_SEED. */
-    Result<std::unique_ptr<MaskedOnes>> make_masked_ones(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<MaskedOnes>> make_masked_ones(SushiAI::ExecutionBackend& backend)
     {
-        std::unique_ptr<MaskedOnes> made = std::make_unique<MaskedOnes>(engine);
+        std::unique_ptr<MaskedOnes> made = std::make_unique<MaskedOnes>(backend.engine());
         const GraphBuilder builder(made->graph);
 
         const ValueID ones =
@@ -132,7 +132,7 @@ namespace
         made->masked = dropped.output;
 
         SA_TRY(made->pool.materialise_leaves(made->graph));
-        SA_TRY_ASSIGN(made->step, CompiledStep::compile(engine, made->graph, made->pool));
+        SA_TRY_ASSIGN(made->step, CompiledStep::compile(backend, made->graph, made->pool));
         SaTest::write_tensor(made->pool.tensor(ones), std::vector<double>(K_ELEMENTS, 1.0));
         return std::move(made);
     }
@@ -176,9 +176,9 @@ namespace
 /** @brief Tests that a step restored to a count draws the mask of that run next. */
 TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> whole, make_masked_ones(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> whole, make_masked_ones(backend()));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> resumed,
-                            make_masked_ones(*engine));
+                            make_masked_ones(backend()));
     ASSERT_EQ(whole->step->replay_prelude_count(), 1u);
 
     SA_EXPECT_OK(whole->step->run());
@@ -199,7 +199,7 @@ TEST_F(Medium_CompiledStep, ARestoredRunCountIsTheIndexOfTheNextRun)
 /** @brief Tests that run() draws the mask of its run count, so single-machine draws stay put. */
 TEST_F(Medium_CompiledStep, RunDrawsTheMaskOfItsRunCount)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
 
     run_and_expect_mask_of_run(*made, 0);
     run_and_expect_mask_of_run(*made, 1);
@@ -209,7 +209,7 @@ TEST_F(Medium_CompiledStep, RunDrawsTheMaskOfItsRunCount)
 /** @brief Tests that run_at() draws the mask of the index it is given and counts the run. */
 TEST_F(Medium_CompiledStep, RunAtDrawsTheMaskOfItsIndexAndCountsTheRun)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
 
     SA_EXPECT_OK(made->step->run_at(7));
     expect_mask_of_run(SaTest::read_tensor(made->pool.tensor(made->masked)), 7);
@@ -222,7 +222,7 @@ TEST_F(Medium_CompiledStep, RunAtDrawsTheMaskOfItsIndexAndCountsTheRun)
 /** @brief Tests that a step that has run refuses a restore and keeps its count. */
 TEST_F(Medium_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(backend()));
 
     SA_EXPECT_OK(made->step->run());
     SA_EXPECT_FAILURE(made->step->restore_run_count(4), StatusCode::InvalidDescription,
@@ -260,11 +260,11 @@ TEST_F(Medium_CompiledStep, TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst)
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<CompiledStep> first,
-        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+        CompiledStep::compile(backend(), graph, pool, nullptr, nullptr,
                               Graph::NodeRange{0, cut}));
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<CompiledStep> second,
-        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+        CompiledStep::compile(backend(), graph, pool, nullptr, nullptr,
                               Graph::NodeRange{cut, Graph::K_NO_NODE}));
     EXPECT_GE(first->operation_count(), 1u);
     EXPECT_GE(second->operation_count(), 1u);
@@ -292,11 +292,11 @@ TEST_F(Medium_CompiledStep, ARangeOutsideTheGraphIsRefused)
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     const Graph::NodeID count = static_cast<Graph::NodeID>(graph.node_count());
-    SA_EXPECT_FAILURE(CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+    SA_EXPECT_FAILURE(CompiledStep::compile(backend(), graph, pool, nullptr, nullptr,
                                             Graph::NodeRange{0, count + 1}),
                       StatusCode::InvalidDescription, "does not lie in a graph");
     SA_EXPECT_FAILURE(
-        CompiledStep::compile(*engine, graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
+        CompiledStep::compile(backend(), graph, pool, nullptr, nullptr, Graph::NodeRange{1, 0}),
         StatusCode::InvalidDescription, "[1, 0)");
 }
 
@@ -312,7 +312,7 @@ TEST_F(Medium_CompiledStep, AGraphWithADroppedRefusalIsNotCompiled)
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
-    SA_EXPECT_FAILURE(CompiledStep::compile(*engine, graph, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(CompiledStep::compile(backend(), graph, pool), StatusCode::InvalidDescription,
                       "refused operation");
 }
 
@@ -436,10 +436,11 @@ namespace
     };
 
     /** @brief Compiles the chain as the step @p label, with trailing work behind it on request. */
-    Result<std::unique_ptr<Chain>> make_chain(SushiBLAS::Engine& engine, std::string_view label,
+    Result<std::unique_ptr<Chain>> make_chain(SushiAI::ExecutionBackend& backend,
+                                              std::string_view label,
                                               bool with_trailing)
     {
-        std::unique_ptr<Chain> made = std::make_unique<Chain>(engine);
+        std::unique_ptr<Chain> made = std::make_unique<Chain>(backend.engine());
         const GraphBuilder builder(made->graph);
         made->input = builder.parameter(Shape{K_CHAIN_ELEMENTS}, "input");
         SA_TRY_ASSIGN(made->first, builder.relu(made->input));
@@ -459,7 +460,7 @@ namespace
             made->trailing = std::make_unique<CopyBack>(first, made->pool.tensor(made->input));
         }
         SA_TRY_ASSIGN(made->step,
-                      CompiledStep::compile(engine, made->graph, made->pool, made->trailing.get(),
+                      CompiledStep::compile(backend, made->graph, made->pool, made->trailing.get(),
                                             nullptr, {}, label));
         SaTest::write_tensor(made->pool.tensor(made->input),
                              std::vector<double>(static_cast<std::size_t>(K_CHAIN_ELEMENTS), 1.0));
@@ -516,9 +517,9 @@ namespace
             {
                 const auto collector = std::make_shared<RunCollector>();
                 const SushiRuntime::RunObserverHandle handle =
-                    engine->runtime().add_run_observer(collector);
-                Result<std::unique_ptr<Chain>> first = make_chain(*engine, "first.step", false);
-                Result<std::unique_ptr<Chain>> second = make_chain(*engine, "second.step", false);
+                    SaTest::TestEnvironment::runtime().add_run_observer(collector);
+                Result<std::unique_ptr<Chain>> first = make_chain(backend(), "first.step", false);
+                Result<std::unique_ptr<Chain>> second = make_chain(backend(), "second.step", false);
                 if (!first.has_value() || !second.has_value())
                     return {};
 
@@ -539,9 +540,9 @@ TEST_F(Medium_CompiledStepAttribution, EveryTaskOfANodeCarriesItsOrigin)
 {
     const auto collector = std::make_shared<RunCollector>();
     const SushiRuntime::RunObserverHandle handle =
-        engine->runtime().add_run_observer(collector);
+        SaTest::TestEnvironment::runtime().add_run_observer(collector);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> chain,
-                            make_chain(*engine, "chain.step", false));
+                            make_chain(backend(), "chain.step", false));
 
     SA_EXPECT_OK(chain->step->run());
     flush();
@@ -596,9 +597,9 @@ TEST_F(Medium_CompiledStepAttribution, TheOptimizerCarriesTheTrailingOrigin)
 {
     const auto collector = std::make_shared<RunCollector>();
     const SushiRuntime::RunObserverHandle handle =
-        engine->runtime().add_run_observer(collector);
+        SaTest::TestEnvironment::runtime().add_run_observer(collector);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> chain,
-                            make_chain(*engine, "chain.step", true));
+                            make_chain(backend(), "chain.step", true));
 
     SA_EXPECT_OK(chain->step->run());
     flush();
@@ -617,9 +618,9 @@ TEST_F(Medium_CompiledStepAttribution, AViewLeavesNoOriginOpen)
 {
     const auto collector = std::make_shared<RunCollector>();
     const SushiRuntime::RunObserverHandle handle =
-        engine->runtime().add_run_observer(collector);
+        SaTest::TestEnvironment::runtime().add_run_observer(collector);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Chain> chain,
-                            make_chain(*engine, "chain.step", false));
+                            make_chain(backend(), "chain.step", false));
 
     SA_EXPECT_OK(chain->step->run());
     flush();

@@ -129,8 +129,9 @@ namespace
      * @brief Builds the pieces of a classification run with initialised parameters.
      * @return The pieces, or the first failure of a trace, a bind, the optimizer or the data.
      */
-    Result<std::unique_ptr<Pieces>> make_pieces(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<Pieces>> make_pieces(SushiAI::ExecutionBackend& backend)
     {
+        SushiBLAS::Engine& engine = backend.engine();
         std::unique_ptr<Pieces> pieces = std::make_unique<Pieces>(engine);
 
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -141,13 +142,14 @@ namespace
         pieces->state.emplace(std::move(state));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*pieces->built, *pieces->state, pieces->pool));
-        SA_TRY(NN::initialize(engine, *pieces->state));
+                      Train::bind_parameters(backend, *pieces->built, *pieces->state,
+                                             pieces->pool));
+        SA_TRY(NN::initialize(backend, *pieces->state));
 
         Optim::SGDOptions options;
         options.learning_rate = 0.1;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, std::move(slots), options));
+                      Optim::SGD::make(backend, std::move(slots), options));
         pieces->optimizer = std::move(optimizer);
         pieces->objective.emplace(SaTest::classifier_objective(*pieces->built));
 
@@ -156,7 +158,7 @@ namespace
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
-        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(engine, data));
+        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(backend, data));
 
         pieces->spec.epochs = K_EPOCHS;
         return std::move(pieces);
@@ -216,19 +218,19 @@ namespace
     };
 
     /** @brief Builds the case on @p engine, or returns the first failure of its pieces. */
-    Result<std::unique_ptr<InferenceCase>> make_case(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<InferenceCase>> make_case(SushiAI::ExecutionBackend& backend)
     {
-        std::unique_ptr<InferenceCase> made = std::make_unique<InferenceCase>(engine);
-        SA_TRY_ASSIGN(made->pieces, make_pieces(engine));
+        std::unique_ptr<InferenceCase> made = std::make_unique<InferenceCase>(backend.engine());
+        SA_TRY_ASSIGN(made->pieces, make_pieces(backend));
         SA_TRY_ASSIGN(Train::TracedStep traced,
                       Train::build_evaluation_graph(made->pieces->model,
                                                     Shape{K_BATCH, K_FEATURES}));
         made->traced.emplace(std::move(traced));
-        SA_TRY_ASSIGN(made->step, Train::EvaluationStep::make(engine, *made->traced,
+        SA_TRY_ASSIGN(made->step, Train::EvaluationStep::make(backend, *made->traced,
                                                               *made->pieces->state, made->pool));
         made->prepared.emplace(Apps::PreparedInference{
             made->model_path, made->weights_path, made->model, 3, *made->pieces->dataset,
-            *made->step, made->outputs, engine,
+            *made->step, made->outputs, backend,
         });
         return std::move(made);
     }
@@ -248,7 +250,7 @@ TEST(Small_InferenceRun, ASecondRowForOneTypeIsRefused)
 /** @brief Tests that a report runs the row of its task type. */
 TEST_F(Medium_InferenceRun, TheReportRunsTheRowOfItsType)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(backend()));
     Apps::InferenceRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_failure}));
 
@@ -259,7 +261,7 @@ TEST_F(Medium_InferenceRun, TheReportRunsTheRowOfItsType)
 /** @brief Tests that an unknown task type is refused, naming the model file and the known type. */
 TEST_F(Medium_InferenceRun, AnUnknownTaskTypeIsRefusedNamingTheKnownOne)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<InferenceCase> made, make_case(backend()));
     Apps::InferenceRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::InferenceEntry{"classification", &report_nothing}));
 

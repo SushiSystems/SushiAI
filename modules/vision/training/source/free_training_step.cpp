@@ -99,7 +99,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<std::unique_ptr<FreeTrainingStep>> FreeTrainingStep::make(
-        SushiBLAS::Engine& engine, const FreeObjective& objective,
+        ExecutionBackend& backend, const FreeObjective& objective,
         const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
         Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
         Train::TrainingStepOptions options) noexcept
@@ -129,22 +129,22 @@ namespace SushiAI::Vision::Training
                                                      [&]()
         {
             return std::unique_ptr<FreeTrainingStep>(new FreeTrainingStep(
-                engine, objective, std::move(branches), training_pool, input));
+                backend, objective, std::move(branches), training_pool, input));
         }));
 
         SA_TRY_ASSIGN(options.host_stage, step->describe_host_stage(built));
         SA_TRY_ASSIGN(step->training_,
-                      Train::TrainingStep::make(engine, built.graph, training_pool, optimizer,
+                      Train::TrainingStep::make(backend, built.graph, training_pool, optimizer,
                                                 std::move(updates), std::move(options)));
         SA_TRY(step->resolve_tensors(built));
 
         return std::move(step);
     }
 
-    FreeTrainingStep::FreeTrainingStep(SushiBLAS::Engine& engine, FreeObjective objective,
+    FreeTrainingStep::FreeTrainingStep(ExecutionBackend& backend, FreeObjective objective,
                                        std::vector<Branch> branches, Graph::TensorPool& pool,
                                        SushiBLAS::Tensor& input) noexcept
-        : engine_(&engine),
+        : backend_(&backend),
           objective_(std::move(objective)),
           branches_(std::move(branches)),
           pool_(&pool),
@@ -470,7 +470,7 @@ namespace SushiAI::Vision::Training
         {
             SA_ZONE("copy", "input");
             SA_TRY(::SushiAI::Detail::record_and_run(
-                *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
+                *backend_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
             {
                 SushiBLAS::BLASOps blas(recorder);
                 blas.copy(inputs, *input_);

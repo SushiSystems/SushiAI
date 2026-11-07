@@ -145,7 +145,7 @@ namespace
 
     /** @brief Makes the optimizer of @p kind over @p slots. */
     Result<std::unique_ptr<Optim::Optimizer>> make_optimizer(
-        SushiBLAS::Engine& engine, std::vector<Optim::ParameterSlot> slots, Kind kind,
+        SushiAI::ExecutionBackend& backend, std::vector<Optim::ParameterSlot> slots, Kind kind,
         double momentum)
     {
         if (kind == Kind::SGD)
@@ -154,7 +154,7 @@ namespace
             options.learning_rate = 0.1;
             options.momentum = momentum;
             SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> made,
-                          Optim::SGD::make(engine, std::move(slots), options));
+                          Optim::SGD::make(backend, std::move(slots), options));
             return std::unique_ptr<Optim::Optimizer>(std::move(made));
         }
 
@@ -162,7 +162,7 @@ namespace
         options.learning_rate = 0.01;
         options.weight_decay = 0.01;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> made,
-                      Optim::AdamW::make(engine, std::move(slots), options));
+                      Optim::AdamW::make(backend, std::move(slots), options));
         return std::unique_ptr<Optim::Optimizer>(std::move(made));
     }
 
@@ -170,29 +170,29 @@ namespace
      * @brief Builds a run whose parameters are initialised from @p seed.
      * @return The run, or the first failure of a trace, a bind, an optimizer or the step.
      */
-    Result<std::unique_ptr<TrainedRun>> make_run(SushiBLAS::Engine& engine, Kind kind,
+    Result<std::unique_ptr<TrainedRun>> make_run(SushiAI::ExecutionBackend& backend, Kind kind,
                                           std::uint64_t seed, double momentum = K_MOMENTUM)
     {
-        std::unique_ptr<TrainedRun> run = std::make_unique<TrainedRun>(engine);
+        std::unique_ptr<TrainedRun> run = std::make_unique<TrainedRun>(backend.engine());
 
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_classifier(run->model, K_BATCH, K_FEATURES, K_CLASSES));
         run->built.emplace(std::move(built));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, run->model));
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), run->model));
         run->state.emplace(std::move(state));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*run->built, *run->state, run->pool));
+                      Train::bind_parameters(backend, *run->built, *run->state, run->pool));
 
         NN::InitPolicy policy;
         policy.seed = seed;
-        SA_TRY(NN::initialize(engine, *run->state, policy));
+        SA_TRY(NN::initialize(backend, *run->state, policy));
 
-        SA_TRY_ASSIGN(run->optimizer, make_optimizer(engine, std::move(slots), kind, momentum));
+        SA_TRY_ASSIGN(run->optimizer, make_optimizer(backend, std::move(slots), kind, momentum));
         run->objective.emplace(SaTest::classifier_objective(*run->built));
         SA_TRY_ASSIGN(run->trainer,
-                      Train::Trainer::make(engine, *run->built, run->pool, *run->objective,
+                      Train::Trainer::make(backend, *run->built, run->pool, *run->objective,
                                            *run->optimizer));
         return std::move(run);
     }
@@ -253,35 +253,37 @@ namespace
     }
 
     /** @brief Returns the batches every run of a test reads. */
-    Result<std::unique_ptr<Data::SyntheticClassification>> make_dataset(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<Data::SyntheticClassification>> make_dataset(
+        SushiAI::ExecutionBackend& backend)
     {
         Data::SyntheticOptions options;
         options.batch_size = K_BATCH;
         options.batches = K_BATCHES;
         options.features = K_FEATURES;
         options.classes = K_CLASSES;
-        return Data::SyntheticClassification::make(engine, options);
+        return Data::SyntheticClassification::make(backend, options);
     }
 
     /**
      * @brief Checks that a save after half the updates and a restore into a new run give
      *        the parameters of the run that was never interrupted, bit for bit.
      */
-    void expect_resume_is_bit_identical(SushiBLAS::Engine& engine, Kind kind, const char* name)
+    void expect_resume_is_bit_identical(SushiAI::ExecutionBackend& backend, Kind kind,
+                                        const char* name)
     {
         const SaTest::ScratchFile file(name);
-        SA_ASSERT_OK_AND_ASSIGN(const auto dataset, make_dataset(engine));
+        SA_ASSERT_OK_AND_ASSIGN(const auto dataset, make_dataset(backend));
 
-        SA_ASSERT_OK_AND_ASSIGN(const RunPointer whole, make_run(engine, kind, 11));
+        SA_ASSERT_OK_AND_ASSIGN(const RunPointer whole, make_run(backend, kind, 11));
         SA_EXPECT_OK(advance(*whole, *dataset, 1, 2 * K_HALF_UPDATES));
         const std::vector<std::uint32_t> expected = bits_of(*whole);
 
-        SA_ASSERT_OK_AND_ASSIGN(const RunPointer first, make_run(engine, kind, 11));
+        SA_ASSERT_OK_AND_ASSIGN(const RunPointer first, make_run(backend, kind, 11));
         SA_EXPECT_OK(advance(*first, *dataset, 1, K_HALF_UPDATES));
         SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *first->state, *first->optimizer));
 
         // Another seed, so a restore that did nothing would be visible.
-        SA_ASSERT_OK_AND_ASSIGN(const RunPointer resumed, make_run(engine, kind, 22));
+        SA_ASSERT_OK_AND_ASSIGN(const RunPointer resumed, make_run(backend, kind, 22));
         ASSERT_NE(bits_of(*resumed), bits_of(*first));
         SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *resumed->state, *resumed->optimizer));
         EXPECT_EQ(resumed->optimizer->step_count(), K_HALF_UPDATES);
@@ -292,7 +294,7 @@ namespace
         EXPECT_EQ(bits_of(*resumed), expected);
 
         // The same file as weights alone restarts the schedule and the moments.
-        SA_ASSERT_OK_AND_ASSIGN(const RunPointer restarted, make_run(engine, kind, 22));
+        SA_ASSERT_OK_AND_ASSIGN(const RunPointer restarted, make_run(backend, kind, 22));
         SA_EXPECT_OK(IO::load_checkpoint(file.path(), *restarted->state));
         EXPECT_EQ(restarted->optimizer->step_count(), 0u);
         EXPECT_EQ(bits_of(*restarted), bits_of(*first));
@@ -423,9 +425,10 @@ namespace
      * @param seed Seeds the initial parameters.
      * @return The run, or the first failure of a trace, a bind, the optimizer or the step.
      */
-    Result<DropoutRunPointer> make_dropout_run(SushiBLAS::Engine& engine, std::uint64_t seed)
+    Result<DropoutRunPointer> make_dropout_run(SushiAI::ExecutionBackend& backend,
+                                               std::uint64_t seed)
     {
-        DropoutRunPointer run = std::make_unique<DropoutRun>(engine);
+        DropoutRunPointer run = std::make_unique<DropoutRun>(backend.engine());
 
         Train::GraphOptions options;
         options.seed = K_GRAPH_SEED;
@@ -434,20 +437,20 @@ namespace
                                                   Shape{K_BATCH, K_FEATURES}, options));
         run->built.emplace(std::move(built));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, run->model));
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), run->model));
         run->state.emplace(std::move(state));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*run->built, *run->state, run->pool));
+                      Train::bind_parameters(backend, *run->built, *run->state, run->pool));
 
         NN::InitPolicy policy;
         policy.seed = seed;
-        SA_TRY(NN::initialize(engine, *run->state, policy));
+        SA_TRY(NN::initialize(backend, *run->state, policy));
 
         SA_TRY_ASSIGN(run->optimizer,
-                      make_optimizer(engine, std::move(slots), Kind::SGD, K_MOMENTUM));
+                      make_optimizer(backend, std::move(slots), Kind::SGD, K_MOMENTUM));
         SA_TRY_ASSIGN(run->trainer,
-                      Train::Trainer::make(engine, *run->built, run->pool, run->objective,
+                      Train::Trainer::make(backend, *run->built, run->pool, run->objective,
                                            *run->optimizer));
         return std::move(run);
     }
@@ -489,14 +492,14 @@ namespace
      * @return The parameters of the run that was never interrupted, as bit patterns.
      */
     Result<std::vector<std::uint32_t>> train_whole_and_save_half(
-        SushiBLAS::Engine& engine, const Data::Dataset& dataset,
+        SushiAI::ExecutionBackend& backend, const Data::Dataset& dataset,
         const std::filesystem::path& path)
     {
-        SA_TRY_ASSIGN(const DropoutRunPointer whole, make_dropout_run(engine, K_INIT_SEED));
+        SA_TRY_ASSIGN(const DropoutRunPointer whole, make_dropout_run(backend, K_INIT_SEED));
         IO::RunProgress whole_progress = start_of_run();
         SA_TRY(advance_from(*whole, dataset, whole_progress, 2 * K_HALF_UPDATES));
 
-        SA_TRY_ASSIGN(const DropoutRunPointer first, make_dropout_run(engine, K_INIT_SEED));
+        SA_TRY_ASSIGN(const DropoutRunPointer first, make_dropout_run(backend, K_INIT_SEED));
         IO::RunProgress first_progress = start_of_run();
         SA_TRY(advance_from(*first, dataset, first_progress, K_HALF_UPDATES));
         SA_TRY(IO::save_run_checkpoint(path, *first->state, *first->optimizer,
@@ -517,13 +520,13 @@ namespace
 /** @brief Tests the resume of SGD with momentum across a change of the scheduled rate. */
 TEST_F(Medium_RunCheckpoint, AResumedSGDRunMatchesTheUninterruptedOneBitForBit)
 {
-    expect_resume_is_bit_identical(*engine, Kind::SGD, "sushiai_run_checkpoint_sgd.sushi");
+    expect_resume_is_bit_identical(backend(), Kind::SGD, "sushiai_run_checkpoint_sgd.sushi");
 }
 
 /** @brief Tests the resume of AdamW across a change of the scheduled rate. */
 TEST_F(Medium_RunCheckpoint, AResumedAdamWRunMatchesTheUninterruptedOneBitForBit)
 {
-    expect_resume_is_bit_identical(*engine, Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi");
+    expect_resume_is_bit_identical(backend(), Kind::AdamW, "sushiai_run_checkpoint_adamw.sushi");
 }
 
 /** @brief Tests that both savers, called right after a step, write that step's weights. */
@@ -531,26 +534,26 @@ TEST_F(Medium_RunCheckpoint, RegressionASaveRightAfterAStepWritesThatStepsWeight
 {
     const SaTest::ScratchFile weights_file("sushiai_save_after_step.sushi");
     const SaTest::ScratchFile run_file("sushiai_run_save_after_step.sushi");
-    SA_ASSERT_OK_AND_ASSIGN(const auto dataset, make_dataset(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const auto dataset, make_dataset(backend()));
 
     // A twin run settled on the host before it is read gives the step's weights.
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer twin, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer twin, make_run(backend(), Kind::SGD, 11));
     const std::vector<std::uint32_t> before = bits_of(*twin);
     SA_EXPECT_OK(advance(*twin, *dataset, 1, 1));
     flush();
     const std::vector<std::uint32_t> stepped = bits_of(*twin);
     ASSERT_NE(stepped, before);
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(advance(*saved, *dataset, 1, 1));
     SA_EXPECT_OK(IO::save_checkpoint(weights_file.path(), *saved->state));
     SA_EXPECT_OK(IO::save_run_checkpoint(run_file.path(), *saved->state, *saved->optimizer));
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_weights, make_run(*engine, Kind::SGD, 22));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_weights, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_OK(IO::load_checkpoint(weights_file.path(), *from_weights->state));
     EXPECT_EQ(bits_of(*from_weights), stepped);
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_run, make_run(*engine, Kind::SGD, 22));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer from_run, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_OK(IO::load_run_checkpoint(run_file.path(), *from_run->state,
                                          *from_run->optimizer));
     EXPECT_EQ(bits_of(*from_run), stepped);
@@ -561,10 +564,10 @@ TEST_F(Medium_RunCheckpoint, AFileWithoutRunStateIsWeightsAndNoResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_weights.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state));
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(*engine, Kind::SGD, 22));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
                       StatusCode::Incompatible, "sushiai_run_checkpoint_weights.sushi",
                       "version 2", "no run state", "'weights'");
@@ -577,7 +580,7 @@ TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_version_one.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), *saved->state));
 
     // Version 1 had no run-state count: the header was magic, version and tensor count.
@@ -587,7 +590,7 @@ TEST_F(Medium_RunCheckpoint, AVersionOneFileStillLoadsAsWeights)
     bytes[4] = 1;
     write_bytes(file.path(), bytes);
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(*engine, Kind::SGD, 22));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_OK(IO::load_checkpoint(file.path(), *fresh->state));
     EXPECT_EQ(bits_of(*fresh), bits_of(*saved));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
@@ -599,7 +602,7 @@ TEST_F(Medium_RunCheckpoint, AFutureVersionIsRefusedByBothLoaders)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_future.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
 
     std::string bytes = read_bytes(file.path());
@@ -618,11 +621,11 @@ TEST_F(Medium_RunCheckpoint, RunStateOfAnotherOptimizerTypeIsRefused)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_other_type.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer other,
-                            make_run(*engine, Kind::AdamW, 11));
+                            make_run(backend(), Kind::AdamW, 11));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *other->state, *other->optimizer),
                       StatusCode::Incompatible, "sushiai_run_checkpoint_other_type.sushi",
                       "'sgd'", "'adamw'");
@@ -635,9 +638,9 @@ TEST_F(Medium_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
     const SaTest::ScratchFile momentum_file("sushiai_run_checkpoint_momentum.sushi");
 
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer plain,
-                            make_run(*engine, Kind::SGD, 11, 0.0));
+                            make_run(backend(), Kind::SGD, 11, 0.0));
     SA_ASSERT_OK_AND_ASSIGN(const RunPointer with_momentum,
-                            make_run(*engine, Kind::SGD, 11));
+                            make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(plain_file.path(), *plain->state, *plain->optimizer));
     SA_EXPECT_OK(IO::save_run_checkpoint(momentum_file.path(), *with_momentum->state,
                                          *with_momentum->optimizer));
@@ -655,7 +658,7 @@ TEST_F(Medium_RunCheckpoint, AMissingOrSurplusRunStateRecordIsRefusedByName)
 TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_progress.sushi");
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
 
     IO::RunProgress saved;
     saved.seed = 9;
@@ -690,14 +693,14 @@ TEST_F(Medium_RunCheckpoint, ARunCheckpointHoldsTheSeedAndThePositionOfItsRun)
 TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitForBit)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_dropout.sushi");
-    SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(backend()));
     const ShuffledBatches dataset(*batches);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::uint32_t> expected,
-                            train_whole_and_save_half(*engine, dataset, file.path()));
+                            train_whole_and_save_half(backend(), dataset, file.path()));
 
     SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer resumed,
-                            make_dropout_run(*engine, K_OTHER_INIT_SEED));
+                            make_dropout_run(backend(), K_OTHER_INIT_SEED));
     IO::RunProgress progress;
     SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *resumed->state, *resumed->optimizer,
                                          &progress));
@@ -724,15 +727,15 @@ TEST_F(Medium_RunCheckpoint, AResumedRunWithDropoutAndAShuffledOrderMatchesBitFo
 TEST_F(Medium_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverges)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_dropped.sushi");
-    SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const auto batches, make_dataset(backend()));
     const ShuffledBatches dataset(*batches);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<std::uint32_t> expected,
-                            train_whole_and_save_half(*engine, dataset, file.path()));
+                            train_whole_and_save_half(backend(), dataset, file.path()));
 
     // The masks of runs 0 to 5 are drawn again where the saved run would draw 6 to 11.
     SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer no_count,
-                            make_dropout_run(*engine, K_OTHER_INIT_SEED));
+                            make_dropout_run(backend(), K_OTHER_INIT_SEED));
     IO::RunProgress kept;
     SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *no_count->state, *no_count->optimizer,
                                          &kept));
@@ -741,7 +744,7 @@ TEST_F(Medium_RunCheckpoint, AResumeThatDropsTheRunCountOrThePositionDiverges)
 
     // The order of epoch 0 is read again from its first batch.
     SA_ASSERT_OK_AND_ASSIGN(const DropoutRunPointer no_position,
-                            make_dropout_run(*engine, K_OTHER_INIT_SEED));
+                            make_dropout_run(backend(), K_OTHER_INIT_SEED));
     IO::RunProgress moved;
     SA_EXPECT_OK(IO::load_run_checkpoint(file.path(), *no_position->state,
                                          *no_position->optimizer, &moved));
@@ -758,7 +761,7 @@ TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_no_progress.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer saved, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *saved->state, *saved->optimizer));
 
     // The progress records close the file, so a file without them is a prefix and a count.
@@ -769,7 +772,7 @@ TEST_F(Medium_RunCheckpoint, RunStateWithoutTheProgressRecordsIsRefusedOnResume)
     bytes[K_OFFSET_RUN_STATE_COUNT] = static_cast<char>(bytes[K_OFFSET_RUN_STATE_COUNT] - 4);
     write_bytes(file.path(), bytes);
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(*engine, Kind::SGD, 22));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer fresh, make_run(backend(), Kind::SGD, 22));
     SA_EXPECT_FAILURE(IO::load_run_checkpoint(file.path(), *fresh->state, *fresh->optimizer),
                       StatusCode::Incompatible, "sushiai_run_checkpoint_no_progress.sushi",
                       "does not supply", "'run.seed'", "'weights'");
@@ -782,7 +785,7 @@ TEST_F(Medium_RunCheckpoint, AProgressRecordOfAnotherTypeOrRangeIsRefused)
 {
     const SaTest::ScratchFile file("sushiai_run_checkpoint_bad_progress.sushi");
 
-    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(*engine, Kind::SGD, 11));
+    SA_ASSERT_OK_AND_ASSIGN(const RunPointer run, make_run(backend(), Kind::SGD, 11));
     SA_EXPECT_OK(IO::save_run_checkpoint(file.path(), *run->state, *run->optimizer));
     const std::string written = read_bytes(file.path());
     ASSERT_GT(written.size(), progress_bytes());

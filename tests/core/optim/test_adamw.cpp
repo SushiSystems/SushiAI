@@ -101,11 +101,11 @@ namespace
 TEST_F(Medium_AdamW, TheTypeAndReplayFollowTheKernel)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> fused,
-                            AdamW::make(*engine, make_slots()));
+                            AdamW::make(backend(), make_slots()));
     AdamWOptions separate_options;
     separate_options.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> separate,
-                            AdamW::make(*engine, make_slots(), separate_options));
+                            AdamW::make(backend(), make_slots(), separate_options));
 
     EXPECT_EQ(fused->type_name(), Optim::K_ADAMW_TYPE);
     EXPECT_TRUE(fused->is_replay_invariant());
@@ -122,11 +122,11 @@ TEST_F(Medium_AdamW, MakeRefusesOptionsOutsideTheirRange)
     AdamWOptions eps;
     eps.eps = 0.0;
 
-    SA_EXPECT_FAILURE(AdamW::make(*engine, make_slots(), beta1), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), beta1), StatusCode::InvalidDescription,
                       "beta1", "[0, 1)");
-    SA_EXPECT_FAILURE(AdamW::make(*engine, make_slots(), beta2), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), beta2), StatusCode::InvalidDescription,
                       "beta2", "[0, 1)");
-    SA_EXPECT_FAILURE(AdamW::make(*engine, make_slots(), eps), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(AdamW::make(backend(), make_slots(), eps), StatusCode::InvalidDescription,
                       "eps must be positive");
 }
 
@@ -134,7 +134,7 @@ TEST_F(Medium_AdamW, MakeRefusesOptionsOutsideTheirRange)
 TEST_F(Medium_AdamW, TheMomentsStartAtZero)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(*engine, make_slots()));
+                            AdamW::make(backend(), make_slots()));
 
     for (const double value : SaTest::read_tensor(optimizer->first_moment(0)))
         EXPECT_EQ(value, 0.0);
@@ -149,7 +149,7 @@ TEST_F(Medium_AdamW, TheFirstStepMovesEachElementByTheRate)
     options.learning_rate = K_RATE;
     options.weight_decay = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(*engine, make_slots(), options));
+                            AdamW::make(backend(), make_slots(), options));
     const SushiBLAS::Tensor parameter = optimizer->parameters()[0].parameter;
 
     SA_EXPECT_OK(optimizer->step());
@@ -171,7 +171,7 @@ TEST_F(Medium_AdamW, TheFirstStepMovesEachElementByTheRate)
 TEST_F(Medium_AdamW, AMomentPastTheLastParameterIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<AdamW> optimizer,
-                            AdamW::make(*engine, make_slots()));
+                            AdamW::make(backend(), make_slots()));
 
     SA_EXPECT_FATAL((void)optimizer->first_moment(1), "updates 1 parameters", "no moment 1");
 }

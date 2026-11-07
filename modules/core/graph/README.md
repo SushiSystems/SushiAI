@@ -8,15 +8,18 @@ shape-checked nodes into one. The module also owns the passes over a graph (cast
 static subtree fusion, the dynamic fusion selector, precision policies and im2col
 rematerialisation), the memory plan with its `ArenaSet`, and the `TensorPool` that holds the
 tensors behind the values. Lowering turns a graph into SushiBLAS tasks through the tables under
-`lowering/`, and `CompiledStep` records one step on a `SushiRuntime::Graph`, compiles it in `compile()` and replays it, so `compile_count()` is 1 before the first run. A `StepRecorder` adds work to a compiled step and follows its replays. It records through one
-`StepRecording`, which hands out the SushiBLAS task recorder and the SushiRuntime recorder of the
-graph. `StateID` names model state
+`lowering/`, and `CompiledStep` takes an `ExecutionBackend` in `compile()`, records one step on the `StepTasks` the
+backend makes, seals them there and replays them, so `compile_count()` is 1 before the first run. A
+`StepRecorder` adds work to a compiled step and follows its replays. It records through one
+`StepRecording`, which hands out the SushiBLAS task recorder and, on a backend that has one, the
+SushiRuntime recorder of the graph; `StepRecording(tasks, nullptr)` holds the task recorder
+alone, for a host backend, and its `graph()` stops the process. `StateID` names model state
 across graphs, and `Traced` carries a traced value or the failure that stopped the trace.
 
 ## Depends on
 
 The module declares `failure`, `dtype`, `shape`, `ops`, `seam`, `execution`, `allocation` as a
-public dependency. It names `profile` privately, for the `compile` zones of `compiled_step.cpp`,
+public dependency; `compiled_step.hpp` and `fusion_selector.hpp` include `execution_backend.hpp`. It names `profile` privately, for the `compile` zones of `compiled_step.cpp`,
 and SushiProfiler with it; no header of the module includes either.
 
 ## Public entry points
@@ -31,7 +34,7 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/compiled_step.hpp` | `CompiledStep`, with its `compile` and `run`, and `check_compilable` |
 | `SushiAI/graph/dropout_mask.hpp` | `splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps`, `fill_keep_mask` |
 | `SushiAI/graph/fusion.hpp` | `FusedForm`, `fused_form_name`, `fused_form_from_name`, `fused_form_op`, `fused_form_of`, `FusionDecline`, `FusionOptions`, `FusedSubtree`, `DeclinedFusion`, `FusionReport`, `fuse` |
-| `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, `FusionSelection` |
+| `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, with `for_backend(const ExecutionBackend&)`, `FusionSelection` |
 | `SushiAI/graph/ir.hpp` | `ValueID`, `NodeID`, `Lifetime`, `lifetime_name`, `is_persistent`, `Attributes`, `TensorLayout`, `Value`, `Node`, `Graph` |
 | `SushiAI/graph/lowering.hpp` | `Lowering`, with its `record` |
 | `SushiAI/graph/node_range.hpp` | `NodeRange`, `check_node_range` |
@@ -69,8 +72,8 @@ Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` all
 - `TensorSource` is the port a `TensorPool` draws its standalone tensors from, for a value, for
   ones and for scratch. `TensorPool(TensorSource&)` builds a pool over one. `InMemoryTensorSource`
   describes each tensor and gives it no `Storage`, and keeps the requests it received. Such a pool
-  holds no engine: `adopt()` and `flush_constants()` with a queued fill return `Unsupported`, and
-  `engine()` stops the process.
+  holds no engine: `adopt()` and `flush_constants(backend)` with a queued fill return
+  `Unsupported`, and `engine()` stops the process.
 - `LoweringContext` has a constructor that takes no recorder and no random stream. It answers
   every query about the node, the pool, the fusion selection and the preludes; `recorder()` and
   `stream()` stop the process.
@@ -197,8 +200,8 @@ uses this to stop a step for work on the host.
 
 ## Labels and origins
 
-`CompiledStep::compile` takes a last parameter, `label`, which it gives to its runtime graph
-before the graph compiles, so the first plan carries it. The steps name themselves: `train.lead`
+`CompiledStep::compile` takes a last parameter, `label`, which it gives to its tasks
+before they are sealed, so the first plan carries it. The steps name themselves: `train.lead`
 and `train.step` in `TrainingStep`, `eval.step` in `EvaluationStep`, `replica.step` in
 `ReplicaStep`. A caller that passes none leaves the graph unnamed.
 

@@ -247,7 +247,7 @@ namespace
      * @param input The row's elements; the row is as long as this vector.
      * @param result Receives the row's elements after the layer.
      */
-    void run_mish(SushiBLAS::Engine& engine, const std::vector<double>& input,
+    void run_mish(SushiAI::ExecutionBackend& backend, const std::vector<double>& input,
                   std::vector<double>& result)
     {
         Graph::Graph graph;
@@ -257,11 +257,11 @@ namespace
         const NN::Mish layer{};
         SA_ASSERT_OK_AND_ASSIGN(const Graph::ValueID y, layer.forward(builder, x));
 
-        Graph::TensorPool pool(engine);
+        Graph::TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), input);
         std::unique_ptr<Graph::CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
         result = read_tensor(pool.tensor(y));
     }
@@ -273,7 +273,7 @@ TEST_F(Medium_MishValues, MatchesTheExactFormAtTheAcceptancePoints)
     const std::vector<double> input = {-20.0, -1.0, 0.0, 1.0, 20.0};
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_mish(*engine, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_mish(backend(), input, result));
 
     std::vector<double> expected(input.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
@@ -295,7 +295,7 @@ TEST_F(Medium_MishValues, SweepMatchesTheExactFormAndStatesTheDarknetDifference)
         input[i] = -K_SWEEP_HALF_RANGE + static_cast<double>(i) * K_SWEEP_STEP;
 
     std::vector<double> result;
-    ASSERT_NO_FATAL_FAILURE(run_mish(*engine, input, result));
+    ASSERT_NO_FATAL_FAILURE(run_mish(backend(), input, result));
 
     std::vector<double> expected(count);
     double largest_difference = 0.0;

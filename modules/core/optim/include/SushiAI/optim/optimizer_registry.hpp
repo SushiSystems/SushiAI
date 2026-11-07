@@ -46,14 +46,14 @@ namespace SushiAI
     {
         /**
          * @brief Builds one optimizer over @p parameters from its configuration.
-         * @param engine The engine its state buffers are allocated from.
+         * @param backend Allocates its state buffers and runs its update; must outlive it.
          * @param parameters The parameter/gradient pairs to update; moved in.
          * @param attributes The optimizer's own keys; the factory rejects any it does not know.
          * @param context What to call this optimizer in a diagnostic.
          * @return The optimizer, or the failure that refused its configuration.
          */
         using OptimizerFactory = Result<std::unique_ptr<Optimizer>> (*)(
-            SushiBLAS::Engine& engine,
+            ExecutionBackend& backend,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
             std::string_view context);
@@ -73,28 +73,28 @@ namespace SushiAI
 
         /**
          * @brief Builds an AdamW optimizer from configuration attributes.
-         * @param engine Engine used to allocate optimizer moment buffers.
+         * @param backend Backend that allocates and runs the optimizer.
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optional hyperparameters (learning_rate, beta1, beta2, etc.).
          * @param context Descriptive string for diagnostic error messages.
          * @return Constructed AdamW optimizer instance, or a failure when an option is refused.
          */
         [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_adamw(
-            SushiBLAS::Engine& engine,
+            ExecutionBackend& backend,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
             std::string_view context) noexcept;
 
         /**
          * @brief Builds an SGD optimizer from configuration attributes.
-         * @param engine Engine used to allocate optimizer momentum buffers.
+         * @param backend Backend that allocates and runs the optimizer.
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optional hyperparameters (learning_rate, momentum, etc.).
          * @param context Descriptive string for diagnostic error messages.
          * @return Constructed SGD optimizer instance, or a failure when an option is refused.
          */
         [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_sgd(
-            SushiBLAS::Engine& engine,
+            ExecutionBackend& backend,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,
             std::string_view context) noexcept;
@@ -107,14 +107,14 @@ namespace SushiAI
 
         /**
          * @brief Builds the optimizer corresponding to the specified type key.
-         * @param engine Engine used to allocate optimizer state.
+         * @param backend Backend that allocates and runs the optimizer.
          * @param type Registry key identifying optimizer type.
          * @param parameters Parameter and gradient slots moved into optimizer.
          * @param attributes Optimizer configuration attributes.
          * @return Constructed optimizer instance, or a failure when its configuration is refused.
          */
         [[nodiscard]] Result<std::unique_ptr<Optimizer>> make_optimizer(
-            SushiBLAS::Engine& engine,
+            ExecutionBackend& backend,
             std::string_view type,
             std::vector<ParameterSlot> parameters,
             const Config::Value& attributes,

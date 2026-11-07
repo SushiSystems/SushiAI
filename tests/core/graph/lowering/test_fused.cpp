@@ -211,7 +211,7 @@ TEST_F(Medium_FusedLowerings, TheGEMMWithBiasAndReLUMatchesTheHost)
     const TakeTheMatch selector;
     std::unique_ptr<CompiledStep> step;
     SA_ASSERT_OK_AND_ASSIGN(step,
-                            CompiledStep::compile(*engine, graph, pool, nullptr, &selector));
+                            CompiledStep::compile(backend(), graph, pool, nullptr, &selector));
     SA_EXPECT_OK(step->run());
 
     ASSERT_EQ(step->selections().size(), 1u);

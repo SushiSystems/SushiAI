@@ -68,7 +68,7 @@ TEST_F(Medium_TrainingSetup, TracesTheDataBatchWhenNoRowsAreGiven)
     const Apps::Registries registries = Apps::compose_registries().value();
 
     const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED)
             .value();
 
     EXPECT_EQ(setup->given().batch, 4);
@@ -82,7 +82,7 @@ TEST_F(Medium_TrainingSetup, BindsTheParametersAndTheStateOfTheModel)
     const Apps::Registries registries = Apps::compose_registries().value();
 
     const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED)
             .value();
 
     EXPECT_FALSE(setup->parameters().empty());
@@ -96,7 +96,7 @@ TEST_F(Medium_TrainingSetup, TracesTheRowsItIsGiven)
     const Apps::Registries registries = Apps::compose_registries().value();
 
     const std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED, 2)
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED, 2)
             .value();
 
     EXPECT_EQ(setup->given().batch, 2);
@@ -113,10 +113,10 @@ TEST_F(Medium_TrainingSetup, HoldsOnlyTheResultsOfTheStepInTheResultsScope)
     const Apps::Registries registries = Apps::compose_registries().value();
 
     const std::unique_ptr<Apps::TrainingSetup> whole =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED)
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED)
             .value();
     const std::unique_ptr<Apps::TrainingSetup> results =
-        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, *engine, K_SEED,
+        Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend(), K_SEED,
                                   std::nullopt, Apps::SetupScope::Results)
             .value();
 
@@ -140,6 +140,6 @@ TEST_F(Medium_TrainingSetup, RefusesAModelOfAnotherInputShape)
     other.input_shape = Shape{5};
 
     SA_EXPECT_FAILURE(
-        Apps::TrainingSetup::make(registries, files.spec, other, *engine, K_SEED).status(),
+        Apps::TrainingSetup::make(registries, files.spec, other, backend(), K_SEED).status(),
         StatusCode::InvalidDescription);
 }

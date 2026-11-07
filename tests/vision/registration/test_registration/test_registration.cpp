@@ -1170,20 +1170,20 @@ namespace
      * @param values The float32 elements of a @p batch_shape tensor.
      * @return Every published tensor by name, or the first failure of the trace or the run.
      */
-    Result<ForwardOutputs> run_model(SushiBLAS::Engine& engine, NN::ModelGraph& model,
+    Result<ForwardOutputs> run_model(SushiAI::ExecutionBackend& backend, NN::ModelGraph& model,
                                      const Shape& batch_shape, const std::vector<float>& values,
                                      WeightLoad load)
     {
         SA_TRY_ASSIGN(const Train::TracedStep traced,
                       Train::build_evaluation_graph(model, batch_shape));
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
         SA_TRY(load(state));
 
-        Graph::TensorPool pool(engine);
+        Graph::TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                      Train::EvaluationStep::make(engine, traced, state, pool));
+                      Train::EvaluationStep::make(backend, traced, state, pool));
 
-        SA_TRY_ASSIGN(SushiBLAS::Tensor input, allocate_tensor(engine, batch_shape));
+        SA_TRY_ASSIGN(SushiBLAS::Tensor input, allocate_tensor(backend.engine(), batch_shape));
         SA_FAIL_IF(static_cast<std::size_t>(input.num_elements) != values.size(),
                    StatusCode::Incompatible, "the input holds {} values, but {} needs {}",
                    values.size(), batch_shape.to_string(), input.num_elements);
@@ -1346,26 +1346,27 @@ namespace
      * @param image The float32 elements of a K_INPUT_SHAPE tensor.
      * @return Every published tensor by name, or the first failure of the build or the run.
      */
-    Result<ForwardOutputs> run_forward(SushiBLAS::Engine& engine, const std::vector<float>& image)
+    Result<ForwardOutputs> run_forward(SushiAI::ExecutionBackend& backend,
+                                       const std::vector<float>& image)
     {
         SA_TRY_ASSIGN(const NN::NodeRegistry registry, compose_registry());
         SA_TRY_ASSIGN(NN::ModelGraph model,
                       NN::build_model(registry, load_spec_with_features()));
 
-        return run_model(engine, model, K_INPUT_SHAPE, image, &import_every_weight);
+        return run_model(backend, model, K_INPUT_SHAPE, image, &import_every_weight);
     }
 
     /**
      * @brief Returns the outputs of the one forward pass the cases of this file share.
      * @return The outputs of the first successful run_forward(), or the failure of this call.
      */
-    Result<const ForwardOutputs*> shared_forward(SushiBLAS::Engine& engine,
+    Result<const ForwardOutputs*> shared_forward(SushiAI::ExecutionBackend& backend,
                                                  const std::vector<float>& image)
     {
         static ForwardOutputs outputs;
         if (outputs.empty())
         {
-            SA_TRY_ASSIGN(outputs, run_forward(engine, image));
+            SA_TRY_ASSIGN(outputs, run_forward(backend, image));
         }
 
         return Result<const ForwardOutputs*>(&outputs);
@@ -1384,7 +1385,7 @@ namespace
     SA_OPEN_REFERENCE_OR_SKIP(reference##_input, "yolo26/input.sacp");                 \
     SA_READ_REFERENCE_OR_FAIL(reference##_image, reference##_input, "image");          \
     SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs* const ours,                          \
-                            shared_forward(*engine, reference##_image.floats()))
+                            shared_forward(backend(), reference##_image.floats()))
 
 /** @brief Tests that rows 16, 19 and 22 compute the reference's three feature maps. */
 TEST_F(Medium_Yolo26Forward, TheFeatureRowsMatchTheReferenceLevels)
@@ -1420,7 +1421,7 @@ TEST_F(Medium_Yolo26Forward, C2PSAAloneMapsTheReferenceRow9ToRow10)
     const Shape sample{input.shape[1], input.shape[2], input.shape[3]};
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelGraph block, build_row_alone(K_C2PSA_ROW, sample, produced));
     SA_ASSERT_OK_AND_ASSIGN(const ForwardOutputs ours,
-                            run_model(*engine, block, input.shape, input.floats(),
+                            run_model(backend(), block, input.shape, input.floats(),
                                       &import_matching_weights));
 
     EXPECT_TRUE(matches_reference(ours, forward, produced, K_ACTIVATION_TOLERANCE));

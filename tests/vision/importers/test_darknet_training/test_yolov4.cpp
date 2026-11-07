@@ -113,7 +113,7 @@ TEST_F(Large_DarknetYolov4Training, TheDeltaOfATwoImageHeadMatchesDarknet)
  */
 TEST_F(Large_DarknetYolov4Training, TheHeadsUnderBatchStatisticsMatchDarknet)
 {
-    SaTest::check_step_heads(*engine, training);
+    SaTest::check_step_heads(backend(), training);
 }
 
 /**
@@ -124,7 +124,7 @@ TEST_F(Large_DarknetYolov4Training, TheHeadsUnderBatchStatisticsMatchDarknet)
  */
 TEST_F(Large_DarknetYolov4Training, TheDeltasOfTheStepMatchDarknet)
 {
-    SaTest::check_step_deltas(*engine, training);
+    SaTest::check_step_deltas(backend(), training);
 }
 
 /**
@@ -134,7 +134,7 @@ TEST_F(Large_DarknetYolov4Training, TheDeltasOfTheStepMatchDarknet)
  */
 TEST_F(Large_DarknetYolov4Training, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
 {
-    SaTest::check_head_updates(*engine, training);
+    SaTest::check_head_updates(backend(), training);
 }
 
 /**
@@ -146,7 +146,7 @@ TEST_F(Large_DarknetYolov4Training, TheUpdatesOfTheHeadConvolutionsMatchDarknet)
  */
 TEST_F(Large_DarknetYolov4Training, TheFirstConvolutionReceivesAGradient)
 {
-    SaTest::check_first_gradients(*engine, training);
+    SaTest::check_first_gradients(backend(), training);
 }
 
 /**
@@ -155,7 +155,7 @@ TEST_F(Large_DarknetYolov4Training, TheFirstConvolutionReceivesAGradient)
  */
 TEST_F(Large_DarknetYolov4Training, TheRollingStatisticsAfterOneStepMatchDarknet)
 {
-    SaTest::check_rolling_statistics(*engine, training);
+    SaTest::check_rolling_statistics(backend(), training);
 }
 
 /**
@@ -164,7 +164,7 @@ TEST_F(Large_DarknetYolov4Training, TheRollingStatisticsAfterOneStepMatchDarknet
  */
 TEST_F(Large_DarknetYolov4Training, TheCostOfOneBatchFallsUnderATenth)
 {
-    SaTest::check_one_batch_overfit(*engine, training);
+    SaTest::check_one_batch_overfit(backend(), training);
 }
 
 /**

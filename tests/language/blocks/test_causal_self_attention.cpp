@@ -753,8 +753,8 @@ namespace
         public:
             /** @brief Builds the graph, differentiates it at its variable and compiles it. */
             template<typename BuildFn>
-            Probe(SushiBLAS::Engine& engine, std::uint64_t seed, BuildFn&& build)
-                : pool_(engine)
+            Probe(SushiAI::ExecutionBackend& backend, std::uint64_t seed, BuildFn&& build)
+                : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 const Subject subject = build(builder);
@@ -776,7 +776,7 @@ namespace
                 fill_other_leaves(seed, logit_shape);
 
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (compiled.has_value())
                     step_ = std::move(compiled).value();
@@ -905,11 +905,11 @@ namespace
     }
 
     /** @brief Checks the gradient of a block with @p mask at @p variable. */
-    void expect_attention_gradient_matches(SushiBLAS::Engine& engine, AttentionMask mask,
+    void expect_attention_gradient_matches(SushiAI::ExecutionBackend& backend, AttentionMask mask,
                                            AttentionVariable variable, std::uint64_t seed)
     {
         CausalSelfAttention block(K_GRADIENT_DIM, K_HEADS, mask);
-        Probe probe(engine, seed, [&block, variable](const GraphBuilder& builder)
+        Probe probe(backend, seed, [&block, variable](const GraphBuilder& builder)
         {
             return attention_subject(builder, block, variable);
         });
@@ -959,7 +959,7 @@ TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
     write_tensor(pool.tensor(targets), weights);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
     SA_EXPECT_OK(step->run());
 
@@ -989,7 +989,7 @@ TEST_F(Medium_AttentionGradient, AnUnfusedLogSoftmaxMatchesItsClosedForm)
 /** @brief Tests the gradient of a [3, 4] softmax that a matrix product reads. */
 TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
 {
-    Probe probe(*engine, 7200, [](const GraphBuilder& builder)
+    Probe probe(backend(), 7200, [](const GraphBuilder& builder)
     {
         const ValueID x = builder.parameter(Shape{3, 4}, "x", DType::Float64);
         const ValueID mix = builder.input(Shape{4, 3}, "mix", DType::Float64);
@@ -1004,7 +1004,7 @@ TEST_F(Medium_AttentionGradient, ASoftmaxGradientMatchesCentralDifferences)
 /** @brief Tests the gradient of a softmax over the last axis of a [2, 3, 4] value. */
 TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsReshapes)
 {
-    Probe probe(*engine, 7300, [](const GraphBuilder& builder)
+    Probe probe(backend(), 7300, [](const GraphBuilder& builder)
     {
         const ValueID x = builder.parameter(Shape{2, 3, 4}, "x", DType::Float64);
         // A lambda cannot ASSERT; the [2, 3, 4] softmax holds the 24 elements of [6, 4].
@@ -1019,21 +1019,21 @@ TEST_F(Medium_AttentionGradient, ASoftmaxOverRankThreeDifferentiatesThroughItsRe
 TEST_F(Medium_AttentionGradient, ACausalAttentionDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
-        *engine, AttentionMask::Causal, AttentionVariable::Input, 7400));
+        backend(), AttentionMask::Causal, AttentionVariable::Input, 7400));
 }
 
 /** @brief Tests the gradient of a causal attention block at the weight of its qkv. */
 TEST_F(Medium_AttentionGradient, ACausalAttentionDifferentiatesAtItsProjectionWeight)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
-        *engine, AttentionMask::Causal, AttentionVariable::ProjectionWeight, 7500));
+        backend(), AttentionMask::Causal, AttentionVariable::ProjectionWeight, 7500));
 }
 
 /** @brief Tests the gradient of an attention block without the mask at the sequence it reads. */
 TEST_F(Medium_AttentionGradient, AnUnmaskedAttentionDifferentiatesAtItsInput)
 {
     ASSERT_NO_FATAL_FAILURE(expect_attention_gradient_matches(
-        *engine, AttentionMask::None, AttentionVariable::Input, 7600));
+        backend(), AttentionMask::None, AttentionVariable::Input, 7600));
 }
 
 namespace
@@ -1075,7 +1075,7 @@ namespace
     }
 
     /** @brief Runs the mask over a [2, 4, 4] value of @p dtype and compares with the host. */
-    void expect_mask_matches_host(SushiBLAS::Engine& engine, DType dtype)
+    void expect_mask_matches_host(SushiAI::ExecutionBackend& backend, DType dtype)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -1089,12 +1089,12 @@ namespace
         for (std::size_t i = 0; i < values.size(); ++i)
             values[i] = 0.25 * static_cast<double>(i) - 3.0;
 
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(scores), values);
 
         std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
         SA_EXPECT_OK(step->run());
 
@@ -1117,7 +1117,7 @@ namespace
      *        the host stream, and runs it on an input and on one changed from position 3 on.
      */
     template<typename Block>
-    void run_twice(SushiBLAS::Engine& engine, Block& block, TwoRuns& runs)
+    void run_twice(SushiAI::ExecutionBackend& backend, Block& block, TwoRuns& runs)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -1128,7 +1128,7 @@ namespace
         SA_EXPECT_OK(trace.status());
         ASSERT_FALSE(graph.has_refusal());
 
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         for (ValueID id = 0; id < graph.value_count(); ++id)
         {
@@ -1141,7 +1141,7 @@ namespace
         }
 
         std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
 
         std::vector<double> input = noise(K_MASK_LENGTH * K_MASK_DIM, 6001);
         write_tensor(pool.tensor(x), input);
@@ -1183,13 +1183,13 @@ namespace
 /** @brief Tests that the mask keeps the lower triangle and writes the fill above, in FLOAT32. */
 TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonal)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(*engine, DType::Float32));
+    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(backend(), DType::Float32));
 }
 
 /** @brief Tests the same in FLOAT64, where the mask vectors are converted from FLOAT32. */
 TEST_F(Medium_CausalAttention, TheMaskReplacesTheEntriesAboveTheDiagonalInFloat64)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(*engine, DType::Float64));
+    ASSERT_NO_FATAL_FAILURE(expect_mask_matches_host(backend(), DType::Float64));
 }
 
 /**
@@ -1228,7 +1228,7 @@ TEST_F(Medium_CausalAttention, TheMaskPassesItsGradientThroughTheKeptEntriesAlon
     write_tensor(pool.tensor(targets), one_hot);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     const std::vector<double> got = read_tensor(pool.tensor(gradients[0]));
@@ -1255,7 +1255,7 @@ TEST_F(Medium_CausalAttention, AnEarlierPositionIgnoresALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::Causal);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(*engine, block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_EQ(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);
@@ -1268,7 +1268,7 @@ TEST_F(Medium_CausalAttention, WithoutTheMaskAnEarlierPositionReadsALaterInput)
 {
     CausalSelfAttention block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, AttentionMask::None);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(*engine, block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_GT(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);
@@ -1280,7 +1280,7 @@ TEST_F(Medium_CausalAttention, ATransformerBlockKeepsEarlierPositions)
     TransformerBlock block(static_cast<int64_t>(K_MASK_DIM), K_HEADS, 4 * static_cast<int64_t>(K_MASK_DIM),
                            AttentionMask::Causal, NN::K_LAYER_NORM_EPSILON);
     TwoRuns runs;
-    ASSERT_NO_FATAL_FAILURE(run_twice(*engine, block, runs));
+    ASSERT_NO_FATAL_FAILURE(run_twice(backend(), block, runs));
     ASSERT_NO_FATAL_FAILURE(expect_whole_and_finite(runs));
 
     EXPECT_EQ(changed_elements(runs, 0, K_CHANGED_POSITION), 0u);

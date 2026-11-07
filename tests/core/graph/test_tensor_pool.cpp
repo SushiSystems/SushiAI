@@ -35,6 +35,7 @@
 #include <SushiAI/dtype/dtype.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
@@ -124,7 +125,7 @@ TEST_F(Medium_TensorPool, TheFlushFillsTheOnesTensorsWithOnes)
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & narrow, pool.ones(Shape{3}, DType::Float32));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & wider, pool.ones(Shape{3}, DType::Float64));
 
-    SA_EXPECT_OK(pool.flush_constants());
+    SA_EXPECT_OK(pool.flush_constants(backend()));
 
     const std::vector<double> ones = {1.0, 1.0, 1.0};
     EXPECT_EQ(SaTest::read_tensor(narrow), ones);
@@ -200,7 +201,7 @@ TEST_F(Medium_TensorPool, AQueuedConstantIsWrittenByTheFlush)
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor tensor, pool.create(Shape{4}, DType::Float32));
     SA_EXPECT_OK(pool.request_constant(tensor, 2.5));
 
-    SA_EXPECT_OK(pool.flush_constants());
+    SA_EXPECT_OK(pool.flush_constants(backend()));
 
     EXPECT_EQ(SaTest::read_tensor(tensor), (std::vector<double>{2.5, 2.5, 2.5, 2.5}));
 }
@@ -210,8 +211,9 @@ TEST(Small_TensorPool, AnEmptyFlushSucceeds)
 {
     Graph::InMemoryTensorSource source;
     TensorPool pool(source);
+    SushiAI::HostExecutionBackend backend;
 
-    SA_EXPECT_OK(pool.flush_constants());
+    SA_EXPECT_OK(pool.flush_constants(backend));
 }
 
 /** @brief Tests that a pool over a source refuses a memory plan, since it has no engine. */
@@ -235,8 +237,10 @@ TEST(Small_TensorPool, APoolOverASourceRefusesAFlushOfQueuedConstants)
     TensorPool pool(source);
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & ones, pool.ones(Shape{3}, DType::Float32));
     static_cast<void>(ones);
+    SushiAI::HostExecutionBackend backend;
 
-    SA_EXPECT_FAILURE(pool.flush_constants(), StatusCode::Unsupported, "TensorSource", "1 queued");
+    SA_EXPECT_FAILURE(pool.flush_constants(backend), StatusCode::Unsupported, "TensorSource",
+                      "1 queued");
 }
 
 /** @brief Tests that asking a pool over a source for its engine stops the process. */

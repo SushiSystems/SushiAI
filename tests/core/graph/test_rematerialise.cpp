@@ -114,7 +114,7 @@ namespace
      * under test. FLOAT64 throughout, as every numeric autograd test here is,
      * so a difference cannot be hidden under rounding. The results go to @p outcome.
      */
-    void run_convolution(SushiBLAS::Engine& engine, bool rematerialise, Outcome& outcome)
+    void run_convolution(SushiAI::ExecutionBackend& backend, bool rematerialise, Outcome& outcome)
     {
         Graph::Graph graph;
         const GraphBuilder builder(graph);
@@ -148,7 +148,7 @@ namespace
         const Graph::MemoryPlan plan = Graph::MemoryPlan::build(graph).value();
         outcome.planned_bytes = plan.arena_bytes();
 
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.adopt(plan));
         SA_EXPECT_OK(pool.materialise_leaves(graph));
 
@@ -157,7 +157,7 @@ namespace
         write_tensor(pool.tensor(target), target_values());
 
         SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                                CompiledStep::compile(engine, graph, pool));
+                                CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
 
         outcome.loss = read_tensor(pool.tensor(loss));
@@ -168,9 +168,9 @@ namespace
 TEST_F(Medium_Rematerialise, TheRewrittenGraphComputesTheSameGradient)
 {
     Outcome stored;
-    ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, false, stored));
+    ASSERT_NO_FATAL_FAILURE(run_convolution(backend(), false, stored));
     Outcome recomputed;
-    ASSERT_NO_FATAL_FAILURE(run_convolution(*engine, true, recomputed));
+    ASSERT_NO_FATAL_FAILURE(run_convolution(backend(), true, recomputed));
 
     // The pass must have inserted a recomputation; see tests/core/graph/README.md.
     ASSERT_EQ(stored.im2col_nodes, std::size_t{1});

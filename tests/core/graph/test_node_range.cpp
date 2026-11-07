@@ -68,10 +68,10 @@ TEST_F(Medium_NodeRange, TheDefaultRangeIsTheWholeGraph)
     const Graph::NodeID count = static_cast<Graph::NodeID>(graph.node_count());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Graph::CompiledStep> by_default,
-                            Graph::CompiledStep::compile(*engine, graph, pool));
+                            Graph::CompiledStep::compile(backend(), graph, pool));
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Graph::CompiledStep> whole,
-        Graph::CompiledStep::compile(*engine, graph, pool, nullptr, nullptr,
+        Graph::CompiledStep::compile(backend(), graph, pool, nullptr, nullptr,
                                      Graph::NodeRange{0, count}));
 
     EXPECT_GE(by_default->operation_count(), 1u);

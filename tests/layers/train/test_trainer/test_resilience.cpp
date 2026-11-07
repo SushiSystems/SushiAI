@@ -130,14 +130,14 @@ namespace
         public:
             /**
              * @brief Builds a runner over @p graph and materialises its leaves.
-             * @param engine Must outlive the runner.
+             * @param backend Must outlive the runner.
              * @param graph Must outlive the runner.
              * @return The runner, or the failure of a leaf's allocation.
              */
-            [[nodiscard]] static Result<std::unique_ptr<Runner>> make(SushiBLAS::Engine& engine,
-                                                                      const Graph::Graph& graph)
+            [[nodiscard]] static Result<std::unique_ptr<Runner>> make(
+                SushiAI::ExecutionBackend& backend, const Graph::Graph& graph)
             {
-                std::unique_ptr<Runner> runner(new Runner(engine, graph));
+                std::unique_ptr<Runner> runner(new Runner(backend, graph));
                 SA_TRY(runner->pool.materialise_leaves(graph));
                 return runner;
             }
@@ -148,7 +148,7 @@ namespace
              */
             [[nodiscard]] Status compile()
             {
-                SA_TRY_ASSIGN(step_, CompiledStep::compile(*engine_, *graph_, pool));
+                SA_TRY_ASSIGN(step_, CompiledStep::compile(*backend_, *graph_, pool));
                 return Status();
             }
 
@@ -161,12 +161,12 @@ namespace
             TensorPool pool;
 
         private:
-            /** @brief Stores the graph and the engine and builds an empty pool. */
-            Runner(SushiBLAS::Engine& engine, const Graph::Graph& graph)
-                : pool(engine), graph_(&graph), engine_(&engine) {}
+            /** @brief Stores the graph and the backend and builds an empty pool. */
+            Runner(SushiAI::ExecutionBackend& backend, const Graph::Graph& graph)
+                : pool(backend.engine()), graph_(&graph), backend_(&backend) {}
 
             const Graph::Graph* graph_;
-            SushiBLAS::Engine* engine_;
+            SushiAI::ExecutionBackend* backend_;
             std::unique_ptr<CompiledStep> step_;
     };
 
@@ -239,7 +239,7 @@ namespace
     };
 
     /** @brief Traces and binds an MLP of the given extents. */
-    [[nodiscard]] Result<Fixture> make_fixture(SushiBLAS::Engine& engine, int64_t batch,
+    [[nodiscard]] Result<Fixture> make_fixture(SushiAI::ExecutionBackend& backend, int64_t batch,
                                                int64_t features, int64_t hidden, int64_t classes)
     {
         Fixture fixture{MLP(NN::Linear{features, hidden}, NN::ReLU{},
@@ -247,12 +247,14 @@ namespace
 
         SA_TRY_ASSIGN(fixture.built,
                       Train::build_classifier(fixture.model, batch, features, classes));
-        SA_TRY_ASSIGN(NN::ModelState created, NN::ModelState::create(engine, fixture.model));
+        SA_TRY_ASSIGN(NN::ModelState created, NN::ModelState::create(backend.engine(),
+                                                                     fixture.model));
         fixture.state = std::make_unique<NN::ModelState>(std::move(created));
-        fixture.pool = std::make_unique<TensorPool>(engine);
+        fixture.pool = std::make_unique<TensorPool>(backend.engine());
         SA_TRY_ASSIGN(fixture.slots,
-                      Train::bind_parameters(fixture.built, *fixture.state, *fixture.pool));
-        SA_TRY(NN::initialize(engine, *fixture.state));
+                      Train::bind_parameters(backend, fixture.built, *fixture.state,
+                                             *fixture.pool));
+        SA_TRY(NN::initialize(backend, *fixture.state));
         return fixture;
     }
 
@@ -277,7 +279,7 @@ TEST_F(Medium_Resilience, AnOptimizerNamesTheParameterWhoseGradientDoesNotMatch)
     std::vector<Optim::ParameterSlot> slots;
     slots.push_back(Optim::ParameterSlot{"0.weight", parameter, gradient});
 
-    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, slots, Optim::SGDOptions{}),
+    SA_EXPECT_FAILURE(Optim::SGD::make(backend(), slots, Optim::SGDOptions{}),
                       StatusCode::InvalidDescription,
                       "0.weight", "12 elements", "gradient has 8");
 }
@@ -292,7 +294,7 @@ TEST_F(Medium_Resilience, AnOptimizerNamesBothDtypesWhenAGradientIsTheWrongType)
     std::vector<Optim::ParameterSlot> slots;
     slots.push_back(Optim::ParameterSlot{"0.bias", parameter, gradient});
 
-    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, slots, Optim::SGDOptions{}),
+    SA_EXPECT_FAILURE(Optim::SGD::make(backend(), slots, Optim::SGDOptions{}),
                       StatusCode::InvalidDescription, "0.bias", "float32", "float64");
 }
 
@@ -307,7 +309,7 @@ TEST_F(Medium_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsWhy)
     std::vector<Optim::ParameterSlot> complex_slot;
     complex_slot.push_back(Optim::ParameterSlot{"0.weight", complex_parameter, complex_gradient});
 
-    SA_EXPECT_FAILURE(Optim::SGD::make(*engine, complex_slot, Optim::SGDOptions{}),
+    SA_EXPECT_FAILURE(Optim::SGD::make(backend(), complex_slot, Optim::SGDOptions{}),
                       StatusCode::InvalidDescription,
                       "0.weight", "complex32", "real floating tensors only");
 
@@ -319,7 +321,7 @@ TEST_F(Medium_Resilience, AnOptimizerRefusesADTypeItCannotServeAndExplainsWhy)
     std::vector<Optim::ParameterSlot> half_slot;
     half_slot.push_back(Optim::ParameterSlot{"0.weight", half_parameter, half_gradient});
 
-    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, half_slot, Optim::AdamWOptions{}),
+    SA_EXPECT_FAILURE(Optim::AdamW::make(backend(), half_slot, Optim::AdamWOptions{}),
                       StatusCode::InvalidDescription,
                       "0.weight", "half precision", "float32");
 }
@@ -334,17 +336,17 @@ TEST_F(Medium_Resilience, AdamWNamesTheHyperparameterThatIsOutOfRange)
 
     Optim::AdamWOptions bad_beta1;
     bad_beta1.beta1 = 1.0;
-    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_beta1),
+    SA_EXPECT_FAILURE(Optim::AdamW::make(backend(), slots, bad_beta1),
                       StatusCode::InvalidDescription, "beta1", "[0, 1)");
 
     Optim::AdamWOptions bad_beta2;
     bad_beta2.beta2 = -0.5;
-    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_beta2),
+    SA_EXPECT_FAILURE(Optim::AdamW::make(backend(), slots, bad_beta2),
                       StatusCode::InvalidDescription, "beta2", "[0, 1)");
 
     Optim::AdamWOptions bad_eps;
     bad_eps.eps = 0.0;
-    SA_EXPECT_FAILURE(Optim::AdamW::make(*engine, slots, bad_eps),
+    SA_EXPECT_FAILURE(Optim::AdamW::make(backend(), slots, bad_eps),
                       StatusCode::InvalidDescription, "eps must be positive");
 }
 
@@ -357,14 +359,15 @@ TEST_F(Medium_Resilience, ADisconnectedParameterNamesItselfAndSaysWhatToDo)
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
-    SA_EXPECT_FAILURE(Train::bind_parameters(built, state, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(Train::bind_parameters(backend(), built, state, pool),
+                      StatusCode::InvalidDescription,
                       "'ghost'", "receives no gradient", "no optimizer could ever move it");
 }
 
 TEST_F(Medium_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarbage)
 {
     // An unwritten gradient must read as zero; see tests/layers/train/README.md.
-    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(backend(), 8, 6, 12, 4));
 
     for (const Optim::ParameterSlot& slot : fixture.slots)
     {
@@ -388,7 +391,7 @@ TEST_F(Medium_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarba
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, fixture.slots, sgd));
+                            Optim::SGD::make(backend(), fixture.slots, sgd));
     SA_EXPECT_OK(optimizer->step());
 
     for (std::size_t p = 0; p < fixture.slots.size(); ++p)
@@ -404,17 +407,17 @@ TEST_F(Medium_Resilience, AnOptimizerStepBeforeAnyBackwardIsANoOpRatherThanGarba
 
 TEST_F(Medium_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep)
 {
-    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(backend(), 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), fixture.slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(fixture.built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                            Train::Trainer::make(backend(), fixture.built, *fixture.pool,
                                                  objective, *optimizer));
 
     // A wrong-sized batch can only be reported; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
-                            Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
+                            Data::SyntheticClassification::make(backend(), data_for(4, 1, 6, 4)));
 
     Data::Batch wrong_batch;
     ASSERT_TRUE(SaTest::status_is_ok(wrong->read(0, wrong_batch)));
@@ -424,12 +427,12 @@ TEST_F(Medium_Resilience, TheTrainerNamesTheBatchThatDoesNotFitTheCompiledStep)
 
 TEST_F(Medium_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
 {
-    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 10, 4));
+    SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(backend(), 8, 6, 10, 4));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, fixture.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), fixture.slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(fixture.built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                            Train::Trainer::make(backend(), fixture.built, *fixture.pool,
                                                  objective, *optimizer));
 
     const NoBatches empty(8, 6, 4);
@@ -437,23 +440,23 @@ TEST_F(Medium_Resilience, FitNamesTheDatasetDimensionThatDisagrees)
                       "The dataset holds no batches");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> narrow,
-                            Data::SyntheticClassification::make(*engine, data_for(4, 1, 6, 4)));
+                            Data::SyntheticClassification::make(backend(), data_for(4, 1, 6, 4)));
     SA_EXPECT_FAILURE(trainer->fit(*narrow), StatusCode::Incompatible,
                       "batch size is 4", "compiled for 8");
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong_classes,
-                            Data::SyntheticClassification::make(*engine, data_for(8, 1, 6, 5)));
+                            Data::SyntheticClassification::make(backend(), data_for(8, 1, 6, 5)));
     SA_EXPECT_FAILURE(trainer->fit(*wrong_classes), StatusCode::Incompatible,
                       "5 classes", "compiled for 4");
 }
 
 TEST_F(Medium_Resilience, TheSyntheticDatasetNamesEveryExtentWhenOneIsNotPositive)
 {
-    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(8, 0, 6, 4)),
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(backend(), data_for(8, 0, 6, 4)),
                       StatusCode::InvalidDescription, "positive extents", "batches=0");
-    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(0, 2, 6, 4)),
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(backend(), data_for(0, 2, 6, 4)),
                       StatusCode::InvalidDescription, "positive extents", "batch=0");
-    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(*engine, data_for(8, 2, 6, 0)),
+    SA_EXPECT_FAILURE(Data::SyntheticClassification::make(backend(), data_for(8, 2, 6, 0)),
                       StatusCode::InvalidDescription, "positive extents", "classes=0");
 }
 
@@ -493,24 +496,24 @@ TEST_F(Medium_Resilience, ASingleSampleWithASingleFeatureTrains)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.5;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, sgd));
+                            Optim::SGD::make(backend(), slots, sgd));
 
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(
-                                *engine, data_for(batch, 2, features, classes)));
+                                backend(), data_for(batch, 2, features, classes)));
 
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
@@ -545,22 +548,22 @@ TEST_F(Medium_Resilience, ASingleClassIsDegenerateButNotUndefined)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
+                            Optim::AdamW::make(backend(), slots, Optim::AdamWOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
                             Data::SyntheticClassification::make(
-                                *engine, data_for(batch, 1, features, classes)));
+                                backend(), data_for(batch, 1, features, classes)));
 
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
@@ -589,7 +592,7 @@ TEST_F(Medium_Resilience, MatmulIsExactAtTheRegisterBlockEdgeAndOnePastIt)
         const ValueID w = builder.input(Shape{n, n}, "w");
         SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.matmul(x, w, false, true));
 
-        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
+        SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(backend(), graph));
 
         std::vector<double> x_values(static_cast<std::size_t>(n * n));
         std::vector<double> w_values(static_cast<std::size_t>(n * n));
@@ -630,23 +633,23 @@ TEST_F(Medium_Resilience, TrainingIsFiniteAtTheRegisterBlockEdgeAndOnePastIt)
 {
     for (int64_t n : {int64_t{64}, int64_t{65}})
     {
-        SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, n, n, n, 4));
+        SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(backend(), n, n, n, 4));
         Optim::SGDOptions sgd;
         sgd.learning_rate = 0.1;
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                                Optim::SGD::make(*engine, fixture.slots, sgd));
+                                Optim::SGD::make(backend(), fixture.slots, sgd));
 
         Train::TrainerOptions options;
         options.track_metrics = false;
         const auto objective = SaTest::classifier_objective(fixture.built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+            Train::Trainer::make(backend(), fixture.built, *fixture.pool,
                                  objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Data::SyntheticClassification> dataset,
-            Data::SyntheticClassification::make(*engine, data_for(n, 2, n, 4)));
+            Data::SyntheticClassification::make(backend(), data_for(n, 2, n, 4)));
 
         for (std::size_t step = 0; step < 4; ++step)
         {
@@ -677,7 +680,7 @@ namespace
      * @param logits The values to feed, row-major.
      * @return The [rows, columns] log-probabilities, or the failure of the compilation or the run.
      */
-    [[nodiscard]] Result<std::vector<double>> log_softmax_of(SushiBLAS::Engine& engine,
+    [[nodiscard]] Result<std::vector<double>> log_softmax_of(SushiAI::ExecutionBackend& backend,
                                                              int64_t rows, int64_t columns,
                                                              const std::vector<double>& logits)
     {
@@ -687,7 +690,7 @@ namespace
         const ValueID x = builder.input(Shape{rows, columns}, "logits");
         SA_TRY_ASSIGN(const ValueID y, builder.log_softmax(x));
 
-        SA_TRY_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(engine, graph));
+        SA_TRY_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(backend, graph));
         SaTest::write_tensor(run->pool.tensor(x), logits);
         SA_TRY(run->compile());
         SA_TRY(run->run());
@@ -707,7 +710,7 @@ TEST_F(Medium_Resilience, LogSoftmaxOfUniformLogitsIsMinusLogCAtAnyMagnitude)
     {
         const std::vector<double> logits(static_cast<std::size_t>(rows * columns), magnitude);
         SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
-                                log_softmax_of(*engine, rows, columns, logits));
+                                log_softmax_of(backend(), rows, columns, logits));
 
         ASSERT_TRUE(all_finite(got, "log_softmax")) << "at magnitude " << magnitude;
         for (std::size_t i = 0; i < got.size(); ++i)
@@ -728,7 +731,7 @@ TEST_F(Medium_Resilience, LogSoftmaxSurvivesBothExtremesInsideOneRow)
     };
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
-                            log_softmax_of(*engine, rows, columns, logits));
+                            log_softmax_of(backend(), rows, columns, logits));
 
     ASSERT_TRUE(all_finite(got, "log_softmax"));
     EXPECT_NEAR(got[0], 0.0, K_FLOAT_TIGHT_TOLERANCE);
@@ -748,7 +751,7 @@ TEST_F(Medium_Resilience, LogSoftmaxIsExactAcrossRowsThatSpanTheExponentRange)
     };
 
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<double> got,
-                            log_softmax_of(*engine, 2, columns, logits));
+                            log_softmax_of(backend(), 2, columns, logits));
     ASSERT_TRUE(all_finite(got, "log_softmax"));
 
     // Equal spread gives equal log-probabilities; see tests/layers/train/README.md.
@@ -772,7 +775,7 @@ TEST_F(Medium_Resilience, CrossEntropyIsFiniteOnPerfectlyConfidentPredictions)
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
                             NN::CrossEntropyLoss{}.forward(builder, logits, targets));
 
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(*engine, graph));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Runner> run, Runner::make(backend(), graph));
 
     // exp(80) overflows without the shift; see tests/layers/train/README.md.
     const std::vector<double> confident = {
@@ -818,7 +821,7 @@ TEST_F(Medium_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
     options.learning_rate = 0.1;
     options.weight_decay = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, options));
+                            Optim::AdamW::make(backend(), slots, options));
 
     SA_EXPECT_OK(optimizer->step());
 
@@ -837,9 +840,9 @@ TEST_F(Medium_Resilience, AdamWsFirstStepWithAZeroGradientStaysFinite)
 TEST_F(Medium_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
 {
     // The runtime counts its live USM allocations; see tests/layers/train/README.md.
-    const auto live_allocations = [this]()
+    const auto live_allocations = []()
     {
-        return engine->runtime().advanced().live_allocation_count();
+        return SaTest::TestEnvironment::runtime().advanced().live_allocation_count();
     };
 
     std::size_t baseline = 0;
@@ -848,22 +851,22 @@ TEST_F(Medium_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
     for (int iteration = 0; iteration < 5; ++iteration)
     {
         {
-            SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(*engine, 8, 6, 12, 4));
+            SA_ASSERT_OK_AND_ASSIGN(Fixture fixture, make_fixture(backend(), 8, 6, 12, 4));
             SA_ASSERT_OK_AND_ASSIGN(
                 const std::unique_ptr<Optim::AdamW> optimizer,
-                Optim::AdamW::make(*engine, fixture.slots, Optim::AdamWOptions{}));
+                Optim::AdamW::make(backend(), fixture.slots, Optim::AdamWOptions{}));
 
             Train::TrainerOptions options;
             options.track_metrics = false;
             const auto objective = SaTest::classifier_objective(fixture.built);
             SA_ASSERT_OK_AND_ASSIGN(
                 const std::unique_ptr<Train::Trainer> trainer,
-                Train::Trainer::make(*engine, fixture.built, *fixture.pool,
+                Train::Trainer::make(backend(), fixture.built, *fixture.pool,
                                      objective, *optimizer, options));
 
             SA_ASSERT_OK_AND_ASSIGN(
                 const std::unique_ptr<Data::SyntheticClassification> dataset,
-                Data::SyntheticClassification::make(*engine, data_for(8, 2, 6, 4)));
+                Data::SyntheticClassification::make(backend(), data_for(8, 2, 6, 4)));
             SA_EXPECT_OK(trainer->fit(*dataset));
 
             if (iteration == 0) baseline_bytes = fixture.pool->allocated_bytes();
@@ -871,7 +874,7 @@ TEST_F(Medium_Resilience, BuildingAndDestroyingTrainersReachesASteadyState)
                 << "the same model allocated a different amount on iteration " << iteration;
         }
 
-        engine->runtime().wait().value();
+        SaTest::TestEnvironment::runtime().wait().value();
 
         if (iteration == 0)
             baseline = live_allocations();
@@ -898,6 +901,6 @@ TEST_F(Medium_ResilienceDeathTest, BatchNormUpdateStatsIsNotAnIROperationAndSays
     SA_EXPECT_OK(pool.adopt(Graph::MemoryPlan::build(graph).value()));
     SA_EXPECT_OK(pool.materialise_leaves(graph));
 
-    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
+    SA_EXPECT_FATAL((void)CompiledStep::compile(backend(), graph, pool),
                     "No lowering for operation", "sushiai.batchnorm_update_stats");
 }

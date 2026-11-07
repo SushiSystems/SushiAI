@@ -53,15 +53,16 @@ namespace SushiAI
             const Config::TrainSpec& spec);
 
         /**
-         * @brief Attaches the master the cluster section of @p run describes and trains
-         *        over its replicas.
-         * @param run Its engine's runtime was built from training_runtime_config().
+         * @brief Attaches the master the cluster section of @p run describes and trains it.
+         * @param run Its backend's runtime was built from training_runtime_config().
          * @param parameters Each parameter with its gradient, as bind_parameters() returned.
+         * @param runtime That runtime, which the master attaches its cluster to.
          * @return What the run returns, the refusal of the section, of the files or of the
          *         attach, or Unsupported in a build without the distributed layer.
          */
         [[nodiscard]] Result<RunSummary> run_cluster_training(
-            PreparedRun& run, SushiRuntime::span<const Optim::ParameterSlot> parameters);
+            PreparedRun& run, SushiRuntime::span<const Optim::ParameterSlot> parameters,
+            SushiRuntime::Runtime& runtime);
 
     } // namespace Apps
 } // namespace SushiAI

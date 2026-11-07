@@ -64,17 +64,17 @@ namespace
      * @brief Trains the fixture to @p checkpoint, then reports that checkpoint.
      * @return The status of the report and the text it printed.
      */
-    PrintedReport report_after_training(SushiBLAS::Engine& engine,
+    PrintedReport report_after_training(SushiAI::RuntimeExecutionBackend& backend,
                                         const std::filesystem::path& checkpoint)
     {
         testing::internal::CaptureStdout();
         const Result<Apps::TrainingOutcome> trained =
-            TinyYolo::train_the_fixture(engine, checkpoint);
+            TinyYolo::train_the_fixture(backend, checkpoint);
         testing::internal::GetCapturedStdout();
         EXPECT_TRUE(trained.has_value()) << trained.status().message();
 
         testing::internal::CaptureStdout();
-        const Status reported = TinyYolo::report_the_fixture(engine, checkpoint);
+        const Status reported = TinyYolo::report_the_fixture(backend, checkpoint);
         return PrintedReport{reported, testing::internal::GetCapturedStdout()};
     }
 } // namespace
@@ -84,7 +84,7 @@ TEST_F(Medium_InferenceProgram, TheAnchorReportSucceedsOnTheCheckpointOfTheRun)
 {
     const SaTest::ScratchFile checkpoint("sushiai_inference_program_report.sushi");
 
-    const PrintedReport report = report_after_training(*engine, checkpoint.path());
+    const PrintedReport report = report_after_training(backend(), checkpoint.path());
 
     SA_EXPECT_OK(report.status);
 }
@@ -94,7 +94,7 @@ TEST_F(Medium_InferenceProgram, TheAnchorReportPrintsItsFiguresOverEveryImage)
 {
     const SaTest::ScratchFile checkpoint("sushiai_inference_program_figures.sushi");
 
-    const PrintedReport report = report_after_training(*engine, checkpoint.path());
+    const PrintedReport report = report_after_training(backend(), checkpoint.path());
 
     EXPECT_NE(report.printed.find("1 heads, 2 classes"), std::string::npos) << report.printed;
     EXPECT_NE(report.printed.find("detections over " + std::to_string(TinyYolo::K_IMAGES)
@@ -113,7 +113,7 @@ TEST_F(Medium_InferenceProgram, TheAnchorReportCompilesOneGraph)
 {
     const SaTest::ScratchFile checkpoint("sushiai_inference_program_compiles.sushi");
 
-    const PrintedReport report = report_after_training(*engine, checkpoint.path());
+    const PrintedReport report = report_after_training(backend(), checkpoint.path());
 
     EXPECT_NE(report.printed.find("compiles: 1"), std::string::npos) << report.printed;
 }
@@ -124,7 +124,7 @@ TEST_F(Medium_InferenceProgram, ACheckpointThatDoesNotExistFailsTheReport)
     const SaTest::ScratchFile checkpoint("sushiai_inference_program_absent.sushi");
 
     testing::internal::CaptureStdout();
-    const Status reported = TinyYolo::report_the_fixture(*engine, checkpoint.path());
+    const Status reported = TinyYolo::report_the_fixture(backend(), checkpoint.path());
     testing::internal::GetCapturedStdout();
 
     EXPECT_FALSE(reported.is_ok());

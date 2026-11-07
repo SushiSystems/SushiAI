@@ -229,7 +229,7 @@ namespace
          * @brief Builds, differentiates and compiles the loss, then writes the seeded leaves.
          * @param engine Must outlive this object.
          */
-        explicit DeltaLossCase(SushiBLAS::Engine& engine) : pool(engine)
+        explicit DeltaLossCase(SushiAI::ExecutionBackend& backend) : pool(backend.engine())
         {
             const GraphBuilder builder(graph);
             const Shape shape{2, 3, 3, 7};
@@ -248,7 +248,7 @@ namespace
 
             SA_EXPECT_OK(pool.materialise_leaves(graph));
             Result<std::unique_ptr<CompiledStep>> compiled =
-                CompiledStep::compile(engine, graph, pool);
+                CompiledStep::compile(backend, graph, pool);
             SA_EXPECT_OK(compiled);
             if (compiled.has_value())
                 step = std::move(compiled).value();
@@ -289,7 +289,7 @@ namespace
 /** @brief Tests that the gradient at the head is -scale * delta, element by element, to 1e-6. */
 TEST_F(Medium_HeadDeltaLossEndToEnd, TheGradientAtTheHeadIsMinusScaleTimesDelta)
 {
-    DeltaLossCase model(*engine);
+    DeltaLossCase model(backend());
     ASSERT_NE(model.step, nullptr);
     ASSERT_NE(model.gradient, Graph::K_NO_VALUE);
 
@@ -306,7 +306,7 @@ TEST_F(Medium_HeadDeltaLossEndToEnd, TheGradientAtTheHeadIsMinusScaleTimesDelta)
 /** @brief Tests that the root's value is -scale * sum(delta * head), summed in double, to 1e-4. */
 TEST_F(Medium_HeadDeltaLossEndToEnd, TheValueIsMinusScaleTimesTheSumOfProducts)
 {
-    DeltaLossCase model(*engine);
+    DeltaLossCase model(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_EXPECT_OK(model.step->run());

@@ -130,7 +130,7 @@ TEST_F(Medium_InitState, AScaleIsOneAShiftIsZeroAndABufferHoldsItsInitialValue)
     trace_training(model, Shape{2, 4, 4, 3});
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     expect_every_element_near(state, "bn.weight", 1.0);
     expect_every_element_near(state, "bn.bias", 0.0);
@@ -148,7 +148,7 @@ TEST_F(Medium_InitState, ZeroFinalLayerZeroesOnlyTheLastFanScaledEntry)
     trace_training(model, Shape{2, 4, 4, 3});
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     expect_every_element_near(state, "conv.weight", 0.0);
     expect_every_element_near(state, "bn.weight", 1.0);
@@ -166,7 +166,7 @@ TEST_F(Medium_InitState, WithoutZeroFinalLayerTheLastWeightIsNotZero)
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* last, state.tensor("2.weight"));
     bool any_nonzero = false;
@@ -191,8 +191,8 @@ TEST_F(Medium_InitState, TheSameSeedGivesTheSameBits)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState second,
                             NN::ModelState::create(*engine, second_model));
 
-    SA_EXPECT_OK(NN::initialize(*engine, first));
-    SA_EXPECT_OK(NN::initialize(*engine, second));
+    SA_EXPECT_OK(NN::initialize(backend(), first));
+    SA_EXPECT_OK(NN::initialize(backend(), second));
 
     for (const NN::StateEntry& entry : first.entries())
     {
@@ -231,7 +231,7 @@ TEST_F(Medium_InitState, ANormalFillHasTheDeviationItStates)
     static_cast<void>(model.forward(NN::Trace::evaluation(builder), ids));
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor* table, state.tensor("weight"));
     const std::vector<double> values = SaTest::read_tensor(*table);
@@ -265,6 +265,6 @@ TEST_F(Medium_InitState, ANormalFillOfNoDeviationIsRefused)
     static_cast<void>(model.forward(NN::Trace::evaluation(builder), ids));
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
-    SA_EXPECT_FAILURE(NN::initialize(*engine, state), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(NN::initialize(backend(), state), StatusCode::InvalidDescription,
                       "positive, finite deviation");
 }

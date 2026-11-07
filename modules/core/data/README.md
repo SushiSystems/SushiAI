@@ -11,7 +11,9 @@ holds indices, how many classes they span. The module names no task: a
 role is a string and a tensor, and `roles.hpp` holds the role names more than one module reads.
 `SyntheticClassification` and `Rings` are the two synthetic datasets, built by
 `SyntheticClassification::make` and `Rings::make`; both publish `labels`, one int32 class index
-per sample. `MaterialisedDataset` holds batches that are already resident on the device.
+per sample. `SyntheticClassification::make` takes an `ExecutionBackend&`, because it records and
+runs a fill; `Rings::make` fills on the host and takes a `SushiBLAS::Engine&`.
+`MaterialisedDataset` holds batches that are already resident on the device.
 `DatasetRegistry` maps a configured type name to a factory. `EpochAware` is the interface of a
 dataset whose batches depend on the epoch, `EpochPermutation` is the order of one epoch, and
 `ThreadedLoader` reads the batches of another dataset ahead on its own threads.
@@ -219,8 +221,9 @@ through the tensor's host pointer. Both are safe from any thread:
 So the loader keeps no host staging buffer and adds no copy. This was read in the sources of
 the two sibling checkouts, not run: no test here calls `allocate_tensor` from two threads.
 
-`record_and_run` records on a graph of its own, but it leases scratch from the engine's pool and
-draws from the engine's random stream, and this section did not check either for concurrent use.
+`record_and_run` records on tasks of its own from the `ExecutionBackend` it is given, but it leases
+scratch from the engine's pool and draws from the engine's random stream, and this section did not
+check either for concurrent use.
 A dataset whose `read` calls `record_and_run` is therefore not claimed safe behind a loader; no
 dataset of this repository records in `read`.
 

@@ -32,7 +32,7 @@ sushiai_add_module(NAME graph TIER core
     DEVICE_SOURCES
         source/lowering/elementwise.cpp
         source/lowering/fused.cpp
-    PUBLIC_DEPENDS allocation dtype failure ops seam shape
-    PRIVATE_DEPENDS execution profile
+    PUBLIC_DEPENDS allocation dtype execution failure ops seam shape
+    PRIVATE_DEPENDS profile
     EXTERNAL_PUBLIC SushiRuntime::api SushiRuntime::core SushiLog::text
     EXTERNAL_PRIVATE_LINKS ${SA_PROFILER_LINKS})

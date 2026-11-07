@@ -97,6 +97,7 @@ namespace
     [[nodiscard]] Result<std::vector<double>> recorded_trajectory()
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -105,23 +106,23 @@ namespace
         SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         Optim::SGDOptions sgd;
         sgd.learning_rate = K_LEARNING_RATE;
         sgd.momentum = K_MOMENTUM;
-        SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer, Optim::SGD::make(engine, slots, sgd));
+        SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer, Optim::SGD::make(backend, slots, sgd));
 
         Train::TrainerOptions options;
         options.track_metrics = false;
         const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                            options));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                      Data::SyntheticClassification::make(engine, data_options()));
+                      Data::SyntheticClassification::make(backend, data_options()));
 
         std::vector<double> losses;
         losses.reserve(static_cast<std::size_t>(K_EPOCHS * K_BATCHES));

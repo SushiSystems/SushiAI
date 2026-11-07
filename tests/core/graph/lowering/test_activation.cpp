@@ -190,7 +190,7 @@ TEST_F(Medium_ActivationLowerings, TanhAndSigmoidGradientsReadTheForwardOutput)
     SaTest::write_tensor(pool.tensor(y), output);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_elements(SaTest::read_tensor(pool.tensor(tanh_dx)), expected_tanh,

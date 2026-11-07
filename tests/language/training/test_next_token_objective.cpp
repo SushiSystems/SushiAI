@@ -466,7 +466,7 @@ TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
     ASSERT_EQ(slots.size(), 1u);
     const SushiBLAS::Tensor gradient = slots.front().gradient;
 
@@ -478,9 +478,9 @@ TEST_F(Medium_NextTokenObjective, TheLossAndItsGradientEqualTheHostComputation)
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, sgd));
+                            Optim::SGD::make(backend(), slots, sgd));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                            Train::TrainingStep::make(*engine, built.graph, pool, *optimizer,
+                            Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
                                                       {}));
 
     const std::vector<std::int32_t> tokens = token_ids();
@@ -585,18 +585,18 @@ namespace
                 SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
                 Graph::TensorPool pool(*engine);
                 SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                              Train::bind_parameters(built, state, pool));
-                SA_TRY(NN::initialize(*engine, state));
+                              Train::bind_parameters(backend(), built, state, pool));
+                SA_TRY(NN::initialize(backend(), state));
 
                 Optim::SGDOptions sgd;
                 sgd.learning_rate = 0.5;
                 SA_TRY_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                              Optim::SGD::make(*engine, slots, sgd));
+                              Optim::SGD::make(backend(), slots, sgd));
 
                 Train::TrainerOptions options;
                 options.epochs = K_EPOCHS;
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                              Train::Trainer::make(*engine, built, pool, *objective, *optimizer,
+                              Train::Trainer::make(backend(), built, pool, *objective, *optimizer,
                                                    options));
 
                 SA_TRY_ASSIGN(const Data::MaterialisedDataset dataset,
@@ -829,7 +829,7 @@ TEST_F(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     // The head has no weight of its own, and only the linear weights decay.
     SA_EXPECT_FAILURE(state.tensor("head.linear.weight"), StatusCode::InvalidDescription,
@@ -844,12 +844,12 @@ TEST_F(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
     policy.family = NN::InitFamily::Xavier;
     policy.nonlinearity = NN::Nonlinearity::Linear;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     Optim::AdamWOptions optimizer_options;
     optimizer_options.weight_decay = 0.01;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options));
+                            Optim::AdamW::make(backend(), slots, optimizer_options));
     SA_EXPECT_OK(optimizer->enable_gradient_clip(K_CLIP_NORM));
 
     Optim::CosineSchedule schedule;
@@ -859,7 +859,7 @@ TEST_F(Medium_DecoderOverfit, ATwoBlockDecoderOverfitsOneBatch)
     schedule.final_rate = 3e-4;
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                            Train::TrainingStep::make(*engine, built.graph, pool, *optimizer,
+                            Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
                                                       {}));
 
     // The one batch is fed once: no task is recorded yet, so the host may write the leaves.
@@ -1009,19 +1009,19 @@ TEST_F(Medium_RotaryDecoderOverfit, ATwoBlockRotaryDecoderOverfitsOneBatch)
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
     EXPECT_EQ(slots.size(), state.entries().size());
 
     NN::InitPolicy policy;
     policy.family = NN::InitFamily::Xavier;
     policy.nonlinearity = NN::Nonlinearity::Linear;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     Optim::AdamWOptions optimizer_options;
     optimizer_options.weight_decay = 0.01;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options));
+                            Optim::AdamW::make(backend(), slots, optimizer_options));
     SA_EXPECT_OK(optimizer->enable_gradient_clip(K_CLIP_NORM));
 
     Optim::CosineSchedule schedule;
@@ -1031,7 +1031,7 @@ TEST_F(Medium_RotaryDecoderOverfit, ATwoBlockRotaryDecoderOverfitsOneBatch)
     schedule.final_rate = 3e-4;
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                            Train::TrainingStep::make(*engine, built.graph, pool, *optimizer,
+                            Train::TrainingStep::make(backend(), built.graph, pool, *optimizer,
                                                       {}));
 
     // The one batch is fed once: no task is recorded yet, so the host may write the leaves.

@@ -198,7 +198,7 @@ namespace SushiAI::Language::Generation::Support
                 pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::unique_ptr<Train::EvaluationStep> compiled,
-                    Train::EvaluationStep::make(*engine, traced, *state, *pool));
+                    Train::EvaluationStep::make(backend(), traced, *state, *pool));
                 step = std::move(compiled);
             }
 

@@ -92,7 +92,7 @@ namespace SushiAI
                  *         the run that zeroes the state.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<AdamW>> make(
-                    SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                    ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                     AdamWOptions options = {}) noexcept;
 
                 /** @brief True when the update is fused, and therefore replayable. */
@@ -174,7 +174,7 @@ namespace SushiAI
                  * @brief Takes ownership of state that make() has already allocated.
                  * @pre validate_slots(parameters) has returned success.
                  */
-                AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+                AdamW(ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                       AdamWOptions options, std::vector<State> state, StepScalars scalars) noexcept;
 
                 /** @brief Records one fused kernel per parameter; returns the task count. */

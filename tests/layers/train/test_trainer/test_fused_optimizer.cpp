@@ -117,6 +117,7 @@ namespace
     void drive(Make make, UpdateKernel kernel, std::vector<unsigned char>& bytes)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                                 allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -129,7 +130,7 @@ namespace
         };
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                                make(engine, slots, kernel));
+                                make(backend, slots, kernel));
 
         for (int step = 0; step < K_STEPS; ++step)
         {
@@ -143,14 +144,14 @@ namespace
     /** @brief Builds an AdamW with @p options and the requested kernel. */
     auto adamw_factory(Optim::AdamWOptions options)
     {
-        return [options](SushiBLAS::Engine& engine,
+        return [options](SushiAI::ExecutionBackend& backend,
                          const std::vector<Optim::ParameterSlot>& slots,
                          UpdateKernel kernel) -> Result<std::unique_ptr<Optim::Optimizer>>
         {
             Optim::AdamWOptions with_kernel = options;
             with_kernel.kernel = kernel;
             SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                          Optim::AdamW::make(engine, slots, with_kernel));
+                          Optim::AdamW::make(backend, slots, with_kernel));
             return std::unique_ptr<Optim::Optimizer>(std::move(optimizer));
         };
     }
@@ -158,14 +159,14 @@ namespace
     /** @brief Builds an SGD with @p options and the requested kernel. */
     auto sgd_factory(Optim::SGDOptions options)
     {
-        return [options](SushiBLAS::Engine& engine,
+        return [options](SushiAI::ExecutionBackend& backend,
                          const std::vector<Optim::ParameterSlot>& slots,
                          UpdateKernel kernel) -> Result<std::unique_ptr<Optim::Optimizer>>
         {
             Optim::SGDOptions with_kernel = options;
             with_kernel.kernel = kernel;
             SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                          Optim::SGD::make(engine, slots, with_kernel));
+                          Optim::SGD::make(backend, slots, with_kernel));
             return std::unique_ptr<Optim::Optimizer>(std::move(optimizer));
         };
     }
@@ -228,6 +229,7 @@ namespace
     void train(Train::OptimizerPlacement placement, UpdateKernel kernel, TrainedRun& run)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -236,14 +238,14 @@ namespace
         SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                Train::bind_parameters(built, state, pool));
-        SA_EXPECT_OK(NN::initialize(engine, state));
+                                Train::bind_parameters(backend, built, state, pool));
+        SA_EXPECT_OK(NN::initialize(backend, state));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
         adam.kernel = kernel;
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                                Optim::AdamW::make(engine, slots, adam));
+                                Optim::AdamW::make(backend, slots, adam));
 
         Train::TrainerOptions options;
         options.track_metrics = false;
@@ -251,10 +253,10 @@ namespace
         const auto objective = SaTest::classifier_objective(built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
+            Train::Trainer::make(backend, built, pool, objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                                Data::SyntheticClassification::make(engine, data_options()));
+                                Data::SyntheticClassification::make(backend, data_options()));
 
         run.optimizer_in_plan = trainer->optimizer_is_in_plan();
         SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
@@ -425,6 +427,7 @@ TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparat
     const auto count = [](UpdateKernel kernel, auto make, std::size_t& tasks)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         std::vector<Optim::ParameterSlot> slots;
         std::vector<SushiBLAS::Tensor> owned;
@@ -446,15 +449,15 @@ TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparat
         }
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                                make(engine, slots, kernel));
+                                make(backend, slots, kernel));
 
         // The recorded tasks must be drained; see tests/layers/train/README.md.
         optimizer->before_replay();
-        SaTest::TestGraph recording(engine);
+        SaTest::TestGraph recording(backend);
         const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
         SA_ASSERT_OK_AND_ASSIGN(const std::size_t recorded, optimizer->record_into_step(step));
         SA_EXPECT_OK(recording.run());
-        engine.runtime().wait().value();
+        SaTest::TestEnvironment::runtime().wait().value();
 
         tasks = recorded;
     };
@@ -487,6 +490,7 @@ TEST_F(Medium_FusedOptimizer, TheFusedUpdateIsOneTaskPerParameterWhereTheSeparat
 TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanIgnored)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -495,13 +499,13 @@ TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanI
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(engine, state));
+                            Train::bind_parameters(backend, built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend, state));
 
     Optim::AdamWOptions adam;
     adam.kernel = UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(engine, slots, adam));
+                            Optim::AdamW::make(backend, slots, adam));
 
     EXPECT_FALSE(optimizer->is_replay_invariant());
 
@@ -509,7 +513,7 @@ TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanI
     options.optimizer_placement = Train::OptimizerPlacement::InPlan;
 
     const auto objective = SaTest::classifier_objective(built);
-    SA_EXPECT_FAILURE(Train::Trainer::make(engine, built, pool, objective,
+    SA_EXPECT_FAILURE(Train::Trainer::make(backend, built, pool, objective,
                                            *optimizer, options),
                       StatusCode::InvalidDescription,
                       "cannot be compiled into the step", "PerStep");
@@ -522,6 +526,7 @@ TEST_F(Medium_FusedOptimizer, AskingToCompileAnUnfusedUpdateIsRefusedRatherThanI
 TEST_F(Medium_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlanIsRefused)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -530,21 +535,21 @@ TEST_F(Medium_FusedOptimizerDeathTest, SteppingAnOptimizerThatIsAlreadyInThePlan
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(engine, state));
+                            Train::bind_parameters(backend, built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend, state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(engine, slots, Optim::AdamWOptions{}));
+                            Optim::AdamW::make(backend, slots, Optim::AdamWOptions{}));
     EXPECT_FALSE(optimizer->is_in_compiled_step());
 
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::Trainer> trainer,
-        Train::Trainer::make(engine, built, pool, objective, *optimizer));
+        Train::Trainer::make(backend, built, pool, objective, *optimizer));
     EXPECT_TRUE(optimizer->is_in_compiled_step());
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(engine, data_options()));
+                            Data::SyntheticClassification::make(backend, data_options()));
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_EXPECT_OK(trainer->run_step(dataset_batch));
@@ -561,6 +566,7 @@ TEST_F(Medium_FusedOptimizerDeathTest,
        TurningMomentumOnAfterConstructionIsRefusedRatherThanIgnored)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -576,7 +582,7 @@ TEST_F(Medium_FusedOptimizerDeathTest,
     Optim::SGDOptions options;
     options.learning_rate = 0.1;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(engine, slots, options));
+                            Optim::SGD::make(backend, slots, options));
 
     SA_EXPECT_OK(optimizer->step());
     optimizer->options().momentum = 0.9;

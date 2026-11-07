@@ -113,8 +113,10 @@ namespace
     };
 
     /** @brief Builds the pieces of a run of @p epochs epochs of K_BATCHES batches. */
-    Result<std::unique_ptr<Pieces>> make_pieces(SushiBLAS::Engine& engine, std::int64_t epochs)
+    Result<std::unique_ptr<Pieces>> make_pieces(SushiAI::ExecutionBackend& backend,
+                                                std::int64_t epochs)
     {
+        SushiBLAS::Engine& engine = backend.engine();
         std::unique_ptr<Pieces> pieces = std::make_unique<Pieces>(engine);
 
         SA_TRY_ASSIGN(Train::TrainingGraph built, Train::build_classifier(pieces->model, 2, 4, 2));
@@ -122,12 +124,13 @@ namespace
         SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, pieces->model));
         pieces->state.emplace(std::move(state));
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*pieces->built, *pieces->state, pieces->pool));
+                      Train::bind_parameters(backend, *pieces->built, *pieces->state,
+                                             pieces->pool));
 
         Optim::SGDOptions options;
         options.learning_rate = 0.1;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, std::move(slots), options));
+                      Optim::SGD::make(backend, std::move(slots), options));
         pieces->optimizer = std::move(optimizer);
         pieces->objective.emplace(SaTest::classifier_objective(*pieces->built));
 
@@ -136,7 +139,7 @@ namespace
         data.batches = static_cast<std::int64_t>(K_BATCHES);
         data.features = 4;
         data.classes = 2;
-        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(engine, data));
+        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(backend, data));
 
         Optim::StepSchedule schedule;
         schedule.base_rate = 0.5;
@@ -146,11 +149,11 @@ namespace
     }
 
     /** @brief Returns the run over @p pieces, starting at @p start. */
-    Apps::PreparedRun prepare(Pieces& pieces, SushiBLAS::Engine& engine,
+    Apps::PreparedRun prepare(Pieces& pieces, SushiAI::ExecutionBackend& backend,
                               const Optim::RateSchedule* schedule, IO::RunProgress start)
     {
         return Apps::PreparedRun{
-            engine,         pieces.spec,       *pieces.dataset, pieces.given,
+            backend,         pieces.spec,       *pieces.dataset, pieces.given,
             *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
             *pieces.optimizer, {},             schedule,        start,
         };
@@ -171,11 +174,11 @@ TEST(Small_EpochLoop, ReportsTheFirstEveryFifthAndTheLastEpoch)
 /** @brief Tests that a resumed run starts at its batch and epoch, then reads every batch. */
 TEST_F(Medium_EpochLoop, StartsAtTheSavedBatchAndEntersEachEpoch)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine, 2));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(backend(), 2));
     IO::RunProgress start;
     start.epoch = 4;
     start.batch = 2;
-    const Apps::PreparedRun run = prepare(*pieces, *engine, &pieces->schedule, start);
+    const Apps::PreparedRun run = prepare(*pieces, backend(), &pieces->schedule, start);
 
     std::vector<std::int64_t> entered;
     std::vector<std::size_t> stepped;
@@ -207,8 +210,8 @@ TEST_F(Medium_EpochLoop, StartsAtTheSavedBatchAndEntersEachEpoch)
 /** @brief Tests that the first failed update ends the loop with its status. */
 TEST_F(Medium_EpochLoop, StopsAtTheFirstFailedUpdate)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(*engine, 2));
-    const Apps::PreparedRun run = prepare(*pieces, *engine, nullptr, IO::RunProgress{});
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Pieces> pieces, make_pieces(backend(), 2));
+    const Apps::PreparedRun run = prepare(*pieces, backend(), nullptr, IO::RunProgress{});
 
     std::size_t updates = 0;
     Apps::EpochSteps steps;

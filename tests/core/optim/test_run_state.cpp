@@ -113,7 +113,7 @@ namespace
                 Optim::SGDOptions options;
                 options.momentum = momentum;
                 Result<std::unique_ptr<Optim::SGD>> made =
-                    Optim::SGD::make(*engine, make_slots(), options);
+                    Optim::SGD::make(backend(), make_slots(), options);
                 EXPECT_TRUE(made.status().is_ok());
                 return std::move(made).value();
             }
@@ -156,7 +156,7 @@ TEST_F(Medium_OptimizerRunState, SGDWithoutMomentumListsNoTensor)
 TEST_F(Medium_OptimizerRunState, AdamWListsBothMomentsOfEachSlot)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, make_slots()));
+                            Optim::AdamW::make(backend(), make_slots()));
 
     SA_ASSERT_OK_AND_ASSIGN(const RunState state, optimizer->run_state());
 

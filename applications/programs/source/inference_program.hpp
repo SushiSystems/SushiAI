@@ -31,9 +31,9 @@
 #pragma once
 
 #include <filesystem>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/model_config.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/status.hpp>
 
 namespace SushiAI
@@ -45,13 +45,13 @@ namespace SushiAI
          * @param model_path The model file, as the command line names it.
          * @param model_spec The parsed model file.
          * @param data_spec The parsed evaluation file.
-         * @return Success, or the first failure; InvalidDescription when the data and the model
-         *         disagree or the step compiled more than once.
+         * @param backend Runs the forward pass; its engine allocates the tensors.
+         * @return Success, or the first failure; InvalidDescription for data the model refuses.
          */
         [[nodiscard]] Status run_inference_file(const std::filesystem::path& model_path,
                                                 const std::filesystem::path& checkpoint_path,
                                                 const Config::ModelSpec& model_spec,
                                                 const Config::DataSpec& data_spec,
-                                                SushiBLAS::Engine& engine);
+                                                ExecutionBackend& backend);
     } // namespace Apps
 } // namespace SushiAI

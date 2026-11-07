@@ -32,8 +32,8 @@
 
 #include <cstdint>
 #include <string_view>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/config/train_config.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include "training_run.hpp"
 
@@ -58,12 +58,12 @@ namespace SushiAI
          * @brief Trains the model a parsed training file describes and saves its checkpoint.
          * @param origin What to call the file in a diagnostic and in the header.
          * @param spec The parsed file; its paths already resolve against its directory.
-         * @param engine The engine of the run; a cluster file needs training_runtime_config().
+         * @param backend The backend of the run, over the runtime and engine of its main.
          * @return The outcome, or the first failure of a step; InvalidDescription when the step
          *         compiled more than once.
          */
         [[nodiscard]] Result<TrainingOutcome> run_training_file(std::string_view origin,
                                                                 const Config::TrainSpec& spec,
-                                                                SushiBLAS::Engine& engine);
+                                                                RuntimeExecutionBackend& backend);
     } // namespace Apps
 } // namespace SushiAI

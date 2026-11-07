@@ -435,7 +435,7 @@ namespace
     }
 
     /** @brief Runs a FLOAT64 block that keeps @p top_k experts and compares with the host. */
-    void expect_mixture_matches_host(SushiBLAS::Engine& engine, std::size_t top_k,
+    void expect_mixture_matches_host(SushiAI::ExecutionBackend& backend, std::size_t top_k,
                                      std::uint64_t seed)
     {
         Graph::Graph graph;
@@ -450,7 +450,7 @@ namespace
         ASSERT_FALSE(graph.has_refusal());
 
         const MixtureValues values = make_values(seed);
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), values.x);
         write_tensor(pool.tensor(block.router.weight.id_in(graph)), values.router_weight);
@@ -461,7 +461,7 @@ namespace
         write_tensor(pool.tensor(block.project.bias.id_in(graph)), values.project_bias);
 
         std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
         SA_EXPECT_OK(step->run());
 
@@ -499,9 +499,10 @@ namespace
     {
         public:
             /** @brief Builds the graph, differentiates it at @p variable and compiles it. */
-            RoutedProbe(SushiBLAS::Engine& engine, std::size_t top_k, RoutedVariable variable,
+            RoutedProbe(SushiAI::ExecutionBackend& backend, std::size_t top_k,
+                        RoutedVariable variable,
                         std::uint64_t seed)
-                : block_(make_block(top_k)), pool_(engine)
+                : block_(make_block(top_k)), pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 const Shape sequence{1, static_cast<int64_t>(K_ROWS),
@@ -544,7 +545,7 @@ namespace
                 fill_other_leaves(seed);
 
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (compiled.has_value())
                     step_ = std::move(compiled).value();
@@ -640,10 +641,10 @@ namespace
     };
 
     /** @brief Runs the full-Jacobian check of a block that keeps @p top_k experts. */
-    void expect_gradient_matches(SushiBLAS::Engine& engine, std::size_t top_k,
+    void expect_gradient_matches(SushiAI::ExecutionBackend& backend, std::size_t top_k,
                                  RoutedVariable variable, std::uint64_t seed)
     {
-        RoutedProbe probe(engine, top_k, variable, seed);
+        RoutedProbe probe(backend, top_k, variable, seed);
         ASSERT_NE(probe.variable_size(), 0u);
 
         std::vector<double> point = noise(probe.variable_size(), seed + 1000);
@@ -768,7 +769,7 @@ namespace
      * @param type The objective row; @p attributes its keys, as JSON text.
      * @return The report of the run, or the first failure.
      */
-    Result<Train::RunReport> fit_decoder(SushiBLAS::Engine& engine, std::string_view type,
+    Result<Train::RunReport> fit_decoder(SushiAI::ExecutionBackend& backend, std::string_view type,
                                          std::string_view attributes)
     {
         NN::NodeRegistry nodes;
@@ -809,24 +810,24 @@ namespace
                       Train::build_training_graph(model, *objective,
                                                   Shape{K_BATCH, K_LENGTH}, graph_options));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        TensorPool pool(engine);
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
+        TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         Optim::AdamWOptions adamw;
         adamw.learning_rate = K_LEARNING_RATE;
         SA_TRY_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                      Optim::AdamW::make(engine, slots, adamw));
+                      Optim::AdamW::make(backend, slots, adamw));
 
         Train::TrainerOptions options;
         options.epochs = K_STEPS;
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, *objective, *optimizer,
+                      Train::Trainer::make(backend, built, pool, *objective, *optimizer,
                                            options));
 
-        SA_TRY_ASSIGN(const Data::MaterialisedDataset dataset, make_dataset(engine));
+        SA_TRY_ASSIGN(const Data::MaterialisedDataset dataset, make_dataset(backend.engine()));
         return trainer->fit(dataset);
     }
 } // namespace
@@ -834,27 +835,27 @@ namespace
 /** @brief Tests that a mixture of every expert equals the sum the host computes per expert. */
 TEST_F(Medium_Moe, ADenseMixtureEqualsTheHostComputation)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 0, 9100));
+    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 0, 9100));
 }
 
 /** @brief Tests that keeping one and two experts equals the renormalised gate of the host. */
 TEST_F(Medium_Moe, AMixtureOfTheTopExpertsEqualsTheHostComputation)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 1, 9200));
-    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(*engine, 2, 9300));
+    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 1, 9200));
+    ASSERT_NO_FATAL_FAILURE(expect_mixture_matches_host(backend(), 2, 9300));
 }
 
 /** @brief Tests the gradient of the fit and the balance at the weight of the router. */
 TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsRouter)
 {
     ASSERT_NO_FATAL_FAILURE(
-        expect_gradient_matches(*engine, 0, RoutedVariable::RouterWeight, 9400));
+        expect_gradient_matches(backend(), 0, RoutedVariable::RouterWeight, 9400));
 }
 
 /** @brief Tests the gradient of the fit and the balance at the sequence the block reads. */
 TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsInput)
 {
-    ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(*engine, 0, RoutedVariable::Input, 9500));
+    ASSERT_NO_FATAL_FAILURE(expect_gradient_matches(backend(), 0, RoutedVariable::Input, 9500));
 }
 
 /**
@@ -865,7 +866,7 @@ TEST_F(Medium_Moe, ADenseMixtureDifferentiatesAtItsInput)
  */
 TEST_F(Medium_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
 {
-    RoutedProbe counted(*engine, 1, RoutedVariable::RouterWeight, 9600);
+    RoutedProbe counted(backend(), 1, RoutedVariable::RouterWeight, 9600);
     std::size_t pool_gradients = 0;
     for (const Graph::Node& node : counted.graph().nodes())
     {
@@ -876,14 +877,14 @@ TEST_F(Medium_Moe, AMixtureOfTheTopExpertDifferentiatesAtItsRouter)
     // The comparison is a gradient barrier, so nothing differentiates the row window.
     EXPECT_EQ(pool_gradients, 0u);
     ASSERT_NO_FATAL_FAILURE(
-        expect_gradient_matches(*engine, 1, RoutedVariable::RouterWeight, 9600));
+        expect_gradient_matches(backend(), 1, RoutedVariable::RouterWeight, 9600));
 }
 
 /** @brief Tests that the fit alone lowers the loss; nothing is asserted about the usage. */
 TEST_F(Medium_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
-                            fit_decoder(*engine, "next_token", K_FIT_ALONE));
+                            fit_decoder(backend(), "next_token", K_FIT_ALONE));
 
     EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
     EXPECT_EQ(report.compile_count, 1u);
@@ -895,7 +896,7 @@ TEST_F(Medium_Moe, ADecoderOfExpertsLowersItsLossWithoutTheBalance)
 TEST_F(Medium_Moe, TheBalanceTermKeepsEveryExpertInUse)
 {
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report,
-                            fit_decoder(*engine, "sum", K_FIT_AND_BALANCE));
+                            fit_decoder(backend(), "sum", K_FIT_AND_BALANCE));
 
     EXPECT_EQ(report.steps, static_cast<std::size_t>(K_STEPS));
     EXPECT_EQ(report.compile_count, 1u);
@@ -1001,7 +1002,7 @@ TEST_F(Medium_DecoderFromFiles, TheTrainingGraphBindsEveryParameterOnce)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     EXPECT_EQ(slots.size(), NN::parameter_count(model));
     EXPECT_EQ(std::count_if(slots.begin(), slots.end(), [](const Optim::ParameterSlot& slot)

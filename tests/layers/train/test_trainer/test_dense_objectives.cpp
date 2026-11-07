@@ -158,25 +158,25 @@ namespace
      * @brief Trains a Linear of @p width outputs under @p objective and hands it to @p visit.
      * @param rate The rate of the SGD; 0 leaves the weights write_state() wrote.
      */
-    Status with_trainer(SushiBLAS::Engine& engine, const Train::Objective& objective,
+    Status with_trainer(SushiAI::ExecutionBackend& backend, const Train::Objective& objective,
                         int64_t width, double rate, const Visit& visit)
     {
         NN::Linear model{K_FEATURES, width};
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_training_graph(model, objective, Shape{K_BATCH, K_FEATURES}));
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
 
-        Graph::TensorPool pool(engine);
+        Graph::TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
+                      Train::bind_parameters(backend, built, state, pool));
         SA_TRY(write_state(state));
 
         Optim::SGDOptions sgd;
         sgd.learning_rate = rate;
         SA_TRY_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, slots, sgd));
+                      Optim::SGD::make(backend, slots, sgd));
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, objective, *optimizer));
+                      Train::Trainer::make(backend, built, pool, objective, *optimizer));
 
         SA_TRY_ASSIGN(const Graph::ValueID output, built.outputs.only());
         return visit(*trainer, pool.tensor(output));
@@ -212,7 +212,7 @@ TEST_F(Medium_DenseObjectives, TheBinaryLossAndMetricsEqualTheHostComputation)
     SA_ASSERT_OK_AND_ASSIGN(const Data::Batch batch,
                             make_batch(*engine, real_role(Data::K_ROLE_LABELS, Shape{}), labels));
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, 1, 0.0,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, 1, 0.0,
                               [&](Train::Trainer& trainer,
                                   const SushiBLAS::Tensor& output) -> Status
     {
@@ -254,7 +254,7 @@ TEST_F(Medium_DenseObjectives, ALargeLogitGivesAFiniteBinaryLoss)
         const Data::Batch batch,
         make_batch(*engine, real_role(Data::K_ROLE_LABELS, Shape{}), labels, 400.0));
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, 1, 0.0,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, 1, 0.0,
                               [&](Train::Trainer& trainer,
                                   const SushiBLAS::Tensor& output) -> Status
     {
@@ -285,7 +285,7 @@ TEST_F(Medium_DenseObjectives, TheMultiLabelLossEqualsTheHostComputation)
         const Data::Batch batch,
         make_batch(*engine, real_role(Data::K_ROLE_LABELS, Shape{K_CLASSES}), labels));
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, K_CLASSES, 0.0,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, K_CLASSES, 0.0,
                               [&](Train::Trainer& trainer,
                                   const SushiBLAS::Tensor& output) -> Status
     {
@@ -327,7 +327,7 @@ TEST_F(Medium_DenseObjectives, TheSquaredErrorEqualsTheHostComputation)
         const Data::Batch batch,
         make_batch(*engine, real_role(Data::K_ROLE_VALUES, Shape{K_WIDTH}), values));
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, K_WIDTH, 0.0,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, K_WIDTH, 0.0,
                               [&](Train::Trainer& trainer,
                                   const SushiBLAS::Tensor& output) -> Status
     {
@@ -369,7 +369,7 @@ TEST_F(Medium_DenseObjectives, FitLowersTheSquaredError)
     const Data::MaterialisedDataset dataset(std::move(batches), K_BATCH, input_description(),
                                             roles, "regression");
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, K_WIDTH, 0.05,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, K_WIDTH, 0.05,
                               [&](Train::Trainer& trainer, const SushiBLAS::Tensor&) -> Status
     {
         trainer.options().epochs = K_EPOCHS;
@@ -400,7 +400,7 @@ TEST_F(Medium_DenseObjectives, FitRefusesLabelsOfAnotherType)
     const Data::MaterialisedDataset dataset(std::move(batches), K_BATCH, input_description(),
                                             roles, "classes");
 
-    SA_EXPECT_OK(with_trainer(*engine, *objective, 1, 0.05,
+    SA_EXPECT_OK(with_trainer(backend(), *objective, 1, 0.05,
                               [&](Train::Trainer& trainer, const SushiBLAS::Tensor&) -> Status
     {
         SA_EXPECT_FAILURE(trainer.fit(dataset), StatusCode::Incompatible, "'classes'",

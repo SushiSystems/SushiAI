@@ -141,7 +141,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::AnchorTrainingStep> step,
                     Vision::Training::AnchorTrainingStep::make(
-                        run.engine, objective, run.built, run.pool, run.optimizer,
+                        run.backend, objective, run.built, run.pool, run.optimizer,
                         std::move(run.updates)));
 
                 SA_TRY(check_start_batch(run));
@@ -248,7 +248,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(
                     const std::unique_ptr<Vision::Training::FreeTrainingStep> step,
                     Vision::Training::FreeTrainingStep::make(
-                        run.engine, objective, run.built, run.pool, run.optimizer,
+                        run.backend, objective, run.built, run.pool, run.optimizer,
                         std::move(run.updates)));
 
                 SA_TRY(check_start_batch(run));

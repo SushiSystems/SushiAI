@@ -178,7 +178,7 @@ TEST_F(Medium_TokenFeed, AnInt32BatchOfADatasetFeedsAnEmbedding)
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                            Train::EvaluationStep::make(*engine, traced, state, pool));
+                            Train::EvaluationStep::make(backend(), traced, state, pool));
 
     SA_ASSERT_OK_AND_ASSIGN(const Data::MaterialisedDataset dataset,
                             make_token_dataset(*engine));
@@ -220,14 +220,14 @@ TEST_F(Medium_TokenFeed, FitRefusesAnInt32DatasetForAFloat32Leaf)
 
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
 
     SA_ASSERT_OK_AND_ASSIGN(const Data::MaterialisedDataset dataset,

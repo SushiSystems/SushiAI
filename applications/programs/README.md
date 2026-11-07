@@ -47,7 +47,7 @@ the ones SushiRuntime's worker agent defines.
 | `cluster_training.hpp`, `cluster_training.cpp`, `cluster_run.cpp`, `master_cluster.cpp`, `served_kernel.cpp`, `training_replica_model.cpp`, `replica_tensors.cpp`, `worker_arguments.cpp` | Training a cluster section over its replicas and serving a replica; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `training_cluster_section.hpp`, `training_cluster_section.cpp` | `read_training_cluster`: reads the cluster section of a training file and refuses a replica with `if_absent: "local"` while `deterministic` is true; compiled when `SA_ENABLE_DISTRIBUTED` is on |
 | `cluster_training_none.cpp` | Refuses a cluster section and names `sa build --distributed`; compiled when it is off |
-| `training_program.hpp`, `training_program.cpp` | `run_training_file` and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
+| `training_program.hpp`, `training_program.cpp` | `run_training_file`, which takes the `RuntimeExecutionBackend` that `train.cpp` builds beside its engine, and `TrainingOutcome`: what `sushiai train` does once it holds a parsed training file, from the registries to the checkpoint; `train.cpp` and the anchor test call it |
 | `inference_program.hpp`, `inference_program.cpp` | `run_inference_file` and the class-count report of a model without a task: what `sushiai inference` does once it holds the parsed files; `inference.cpp` and the anchor test call it |
 
 The sources in the table compile once, into the library `sushiai_program_shared`. The programs
@@ -332,7 +332,7 @@ which is true when the section leaves it out:
 
 The report names the generator on its `Generator` line.
 
-`PreparedInference` carries the published outputs and the engine beside what it held, since
+`PreparedInference` carries the published outputs and the `ExecutionBackend` beside what it held, since
 this row names its one output and allocates what it feeds. It also has two pointers that are
 null unless the driver sets them: `built_model`, the `NN::ModelGraph`, and `state`, the loaded
 `NN::ModelState`. The cached row traces a second form of the model from the first and binds

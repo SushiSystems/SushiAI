@@ -108,6 +108,7 @@ namespace
     [[nodiscard]] Result<RunResult> train_once(int64_t epochs, bool use_adam)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -116,32 +117,32 @@ namespace
         SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                      Data::SyntheticClassification::make(engine, data_options()));
+                      Data::SyntheticClassification::make(backend, data_options()));
 
         std::unique_ptr<Optim::Optimizer> optimizer;
         if (use_adam)
         {
             Optim::AdamWOptions adam;
             adam.learning_rate = 0.02;
-            SA_TRY_ASSIGN(optimizer, Optim::AdamW::make(engine, slots, adam));
+            SA_TRY_ASSIGN(optimizer, Optim::AdamW::make(backend, slots, adam));
         }
         else
         {
             Optim::SGDOptions sgd;
             sgd.learning_rate = 0.15;
             sgd.momentum = 0.9;
-            SA_TRY_ASSIGN(optimizer, Optim::SGD::make(engine, slots, sgd));
+            SA_TRY_ASSIGN(optimizer, Optim::SGD::make(backend, slots, sgd));
         }
 
         Train::TrainerOptions options;
         options.track_metrics = false;
         const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                            options));
 
         RunResult result;
@@ -227,6 +228,7 @@ TEST_F(Medium_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
     const auto initialise = []() -> Result<Weights>
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -235,8 +237,8 @@ TEST_F(Medium_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
         SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         Weights weights;
         for (const Optim::ParameterSlot& slot : slots)
@@ -261,12 +263,16 @@ TEST_F(Medium_Determinism, InitialisationFromOneSeedIsBitwiseIdentical)
 TEST_F(Medium_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 {
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend first_backend(SaTest::TestEnvironment::runtime(),
+                                                   first_engine);
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend second_backend(SaTest::TestEnvironment::runtime(),
+                                                    second_engine);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
-                            Data::SyntheticClassification::make(first_engine, data_options()));
+                            Data::SyntheticClassification::make(first_backend, data_options()));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> second,
-                            Data::SyntheticClassification::make(second_engine, data_options()));
+                            Data::SyntheticClassification::make(second_backend, data_options()));
 
     ASSERT_EQ(first->batch_count(), second->batch_count());
 
@@ -299,6 +305,7 @@ TEST_F(Medium_Determinism, TheSyntheticDatasetIsBitwiseIdentical)
 TEST_F(Medium_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     MLP model(NN::Linear{K_FEATURES, K_HIDDEN}, NN::ReLU{}, NN::Linear{K_HIDDEN, K_CLASSES});
     SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
@@ -307,22 +314,22 @@ TEST_F(Medium_Determinism, ReplayingOneCompiledStepOnFixedInputsIsBitwiseStable)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
     TensorPool pool(engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(engine, state));
+                            Train::bind_parameters(backend, built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend, state));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(engine, data_options()));
+                            Data::SyntheticClassification::make(backend, data_options()));
 
     Optim::SGDOptions frozen;
     frozen.learning_rate = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(engine, slots, frozen));
+                            Optim::SGD::make(backend, slots, frozen));
 
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(engine, built, pool, objective,
+                            Train::Trainer::make(backend, built, pool, objective,
                                                  *optimizer, options));
 
     // A zero learning rate keeps the parameters fixed; see tests/layers/train/README.md.

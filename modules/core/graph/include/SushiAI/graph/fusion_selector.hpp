@@ -31,9 +31,9 @@
 
 #include <cstdint>
 #include <string_view>
-#include <SushiBLAS/engine/engine.hpp>
 #include <SushiBLAS/engine/execution_mode.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/graph/fusion.hpp>
 
 namespace SushiBLAS
@@ -129,11 +129,19 @@ namespace SushiAI
                                      SushiBLAS::ExecutionMode mode) noexcept;
 
                 /**
-                 * @brief Builds a selector describing @p engine's real device.
-                 * @param engine The engine the step will be recorded on.
-                 * @return A selector over that device's cached profile.
+                 * @brief Constructs a selector with explicit double-precision support and mode.
+                 * @param supports_fp64 Whether the device has native double precision.
+                 * @param mode The engine execution mode.
                  */
-                static DeviceFusionSelector for_engine(SushiBLAS::Engine& engine) noexcept;
+                DeviceFusionSelector(bool supports_fp64, SushiBLAS::ExecutionMode mode) noexcept;
+
+                /**
+                 * @brief Builds a selector describing the device and the mode of @p backend.
+                 * @param backend Names the device through supports_fp64() and the mode through
+                 *                its engine.
+                 * @return A selector over those two facts.
+                 */
+                static DeviceFusionSelector for_backend(const ExecutionBackend& backend) noexcept;
 
                 /** @brief Whether the device this selector reasons about has native double precision. */
                 bool supports_fp64() const noexcept { return supports_fp64_; }

@@ -98,7 +98,7 @@ TEST_F(Medium_OptimizerRegistry, EveryTypeBuildsAnOptimizerOfThatType)
     {
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Optim::Optimizer> optimizer,
-            Optim::make_optimizer(*engine, entry.type, make_slots(), attributes_from("{}"),
+            Optim::make_optimizer(backend(), entry.type, make_slots(), attributes_from("{}"),
                                   "optimizer"));
 
         EXPECT_EQ(optimizer->type_name(), entry.type);
@@ -113,7 +113,7 @@ TEST_F(Medium_OptimizerRegistry, TheStatedRateReachesTheOptimizer)
     {
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Optim::Optimizer> optimizer,
-            entry.make(*engine, make_slots(), attributes_from(R"({"learning_rate": 0.25})"),
+            entry.make(backend(), make_slots(), attributes_from(R"({"learning_rate": 0.25})"),
                        "optimizer"));
 
         EXPECT_DOUBLE_EQ(optimizer->learning_rate(), 0.25) << entry.type;

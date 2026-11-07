@@ -200,16 +200,16 @@ TEST_F(Medium_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -218,7 +218,7 @@ TEST_F(Medium_Training, InitialLossIsExactlyLogCWithAZeroedClassifier)
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
@@ -241,14 +241,14 @@ TEST_F(Medium_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, Optim::AdamWOptions{}));
+                            Optim::AdamW::make(backend(), slots, Optim::AdamWOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -257,7 +257,7 @@ TEST_F(Medium_Training, TheStepIsCompiledExactlyOnceAcrossManySteps)
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     EXPECT_EQ(trainer->compile_count(), 1u);
 
@@ -288,14 +288,14 @@ TEST_F(Medium_Training, TheStepAllocatesNothingInSteadyState)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -304,7 +304,7 @@ TEST_F(Medium_Training, TheStepAllocatesNothingInSteadyState)
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
@@ -336,20 +336,20 @@ TEST_F(Medium_Training, SGDDrivesTheLossDownOnASeparableProblem)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.2;
     sgd.momentum = 0.9;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, sgd));
+                            Optim::SGD::make(backend(), slots, sgd));
 
     Train::TrainerOptions options;
     options.epochs = 30;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -358,7 +358,7 @@ TEST_F(Medium_Training, SGDDrivesTheLossDownOnASeparableProblem)
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
@@ -382,19 +382,19 @@ TEST_F(Medium_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.02;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, adam));
+                            Optim::AdamW::make(backend(), slots, adam));
 
     Train::TrainerOptions options;
     options.epochs = 30;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -403,7 +403,7 @@ TEST_F(Medium_Training, AdamWDrivesTheLossDownOnASeparableProblem)
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
@@ -427,24 +427,24 @@ TEST_F(Medium_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     // No zeroed classifier here: a zero gradient would make the ratio 0/eps.
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     Optim::AdamWOptions adam;
     adam.learning_rate = 0.05;
     adam.weight_decay = 0.0;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, adam));
+                            Optim::AdamW::make(backend(), slots, adam));
 
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -453,7 +453,7 @@ TEST_F(Medium_Training, AdamWsFirstStepMovesEveryParameterByAboutTheLearningRate
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     const std::vector<double> before = SaTest::read_tensor(slots[0].parameter);
     Data::Batch dataset_batch;
@@ -493,22 +493,22 @@ TEST_F(Medium_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGrad
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     NN::InitPolicy policy;
     policy.zero_final_layer = false;
-    SA_EXPECT_OK(NN::initialize(*engine, state, policy));
+    SA_EXPECT_OK(NN::initialize(backend(), state, policy));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = 0.1;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, sgd));
+                            Optim::SGD::make(backend(), slots, sgd));
 
     Train::TrainerOptions options;
     options.track_metrics = false;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     Data::SyntheticOptions data_options;
@@ -517,7 +517,7 @@ TEST_F(Medium_Training, SGDWithoutMomentumIsExactlyMinusLearningRateTimesTheGrad
     data_options.features = features;
     data_options.classes = classes;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     const std::vector<double> before = SaTest::read_tensor(slots[0].parameter);
     Data::Batch dataset_batch;
@@ -547,7 +547,8 @@ TEST_F(Medium_Training, ADisconnectedParameterIsRejectedRatherThanSilentlySkippe
 
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, layer));
     TensorPool pool(*engine);
-    SA_EXPECT_FAILURE(Train::bind_parameters(built, state, pool), StatusCode::InvalidDescription,
+    SA_EXPECT_FAILURE(Train::bind_parameters(backend(), built, state, pool),
+                      StatusCode::InvalidDescription,
                       "'ghost'");
 }
 
@@ -563,11 +564,15 @@ TEST_F(Medium_Training, TheSyntheticDatasetIsDeterministicAndBalanced)
     // Each dataset gets a fresh Engine; see tests/layers/train/README.md.
     SushiBLAS::Engine first_engine(SaTest::TestEnvironment::runtime());
     SushiBLAS::Engine second_engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend first_backend(SaTest::TestEnvironment::runtime(),
+                                                   first_engine);
+    SushiAI::RuntimeExecutionBackend second_backend(SaTest::TestEnvironment::runtime(),
+                                                    second_engine);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> first,
-                            Data::SyntheticClassification::make(first_engine, options));
+                            Data::SyntheticClassification::make(first_backend, options));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> second,
-                            Data::SyntheticClassification::make(second_engine, options));
+                            Data::SyntheticClassification::make(second_backend, options));
 
     ASSERT_EQ(first->batch_count(), 3u);
     EXPECT_EQ(first->name(), "synthetic-classification");
@@ -610,15 +615,15 @@ TEST_F(Medium_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Train::BufferUpdateSlot> updates,
                             Train::bind_buffer_updates(built.updates, state, pool));
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, Train::TrainerOptions{},
                                                  std::move(updates)));
 
@@ -629,7 +634,7 @@ TEST_F(Medium_Training, RunningMeanMovesAcrossTwoStepsAsUpdatedStatisticSays)
     data_options.classes = K_NORM_CLASSES;
     data_options.seed = K_DATA_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
@@ -683,18 +688,18 @@ TEST_F(Medium_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Train::BufferUpdateSlot> updates,
                             Train::bind_buffer_updates(built.updates, state, pool));
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
 
     Train::TrainerOptions options;
     options.optimizer_placement = Train::OptimizerPlacement::PerStep;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options, std::move(updates)));
 
     Data::SyntheticOptions data_options;
@@ -704,7 +709,7 @@ TEST_F(Medium_Training, APerStepOptimizerStillStepsWhenTheModelHoldsABatchNorm)
     data_options.classes = K_NORM_CLASSES;
     data_options.seed = K_DATA_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     std::vector<std::vector<double>> before;
     for (const Optim::ParameterSlot& slot : slots)
@@ -750,14 +755,14 @@ TEST_F(Medium_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), slots, Optim::SGDOptions{}));
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer));
 
     Data::SyntheticOptions data_options;
@@ -767,7 +772,7 @@ TEST_F(Medium_Training, ABatchOfAnotherShapeIsRefusedWithBothShapes)
     data_options.classes = classes;
     data_options.seed = K_DATA_SEED;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> wrong,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     Data::Batch wrong_batch;
     ASSERT_TRUE(SaTest::status_is_ok(wrong->read(0, wrong_batch)));
@@ -788,7 +793,7 @@ TEST_F(Medium_Training, BoundSlotsDecayByTheRoleOfTheirParameter)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
+                            Train::bind_parameters(backend(), built, state, pool));
 
     ASSERT_EQ(slots.size(), 4u);
     EXPECT_EQ(slots[0].name, "0.weight");

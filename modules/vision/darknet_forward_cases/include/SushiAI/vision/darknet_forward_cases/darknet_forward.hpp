@@ -170,7 +170,7 @@ namespace SushiAI
          *         Incompatible for an observed layer the file lacks or an input of another shape.
          */
         [[nodiscard]] Result<DarknetForwardRun> run_darknet_forward(
-            SushiBLAS::Engine& engine, const DarknetForwardRequest& request) noexcept;
+            ExecutionBackend& backend, const DarknetForwardRequest& request) noexcept;
 
         /** @brief Returns the output @p name of @p run, or null when the run published none. */
         [[nodiscard]] const std::vector<float>* find_output(const DarknetForwardRun& run,
@@ -263,13 +263,15 @@ namespace SushiAI
          * @brief Checks every published head of the folded model against the dumped raw head of
          *        each run, within the head bounds, and prints the largest difference.
          */
-        void check_folded_heads(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
+        void check_folded_heads(ExecutionBackend& backend,
+                                const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks compute_yolo_output over each head of the folded model against the dumped
          *        [yolo] layer of each run, within the head bounds.
          */
-        void check_yolo_outputs(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
+        void check_yolo_outputs(ExecutionBackend& backend,
+                                const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks decode, threshold and suppression over the folded heads against the
@@ -279,13 +281,14 @@ namespace SushiAI
          * Every decision within the threshold margin is printed. The reference's objectness
          * column has no counterpart in a library row and is not compared.
          */
-        void check_detections(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
+        void check_detections(ExecutionBackend& backend, const DarknetParityCase& parity) noexcept;
 
         /**
          * @brief Checks the heads of the Separate model against those of the Folded model, within
          *        the head bounds relative to the folded value.
          */
-        void check_separate_form(SushiBLAS::Engine& engine, const DarknetParityCase& parity) noexcept;
+        void check_separate_form(ExecutionBackend& backend,
+                                 const DarknetParityCase& parity) noexcept;
 
     } // namespace Test
 } // namespace SushiAI

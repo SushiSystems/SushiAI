@@ -5,6 +5,7 @@ One training program, written against the library, with what each step does. The
 
 ```cpp
 #include <SushiAI/SushiAI.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
 namespace sb = SushiBLAS;
@@ -13,6 +14,7 @@ sa::Status train()
 {
     SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
     sb::Engine engine(runtime);
+    sa::RuntimeExecutionBackend backend(runtime, engine);
 
     // A model is an aggregate list, not a registration ritual.
     sa::NN::Sequential model{
@@ -29,24 +31,24 @@ sa::Status train()
     SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
     sa::Graph::TensorPool pool(engine);
     SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                  sa::Train::bind_parameters(built, state, pool));
-    SA_TRY(sa::NN::initialize(engine, state));
+                  sa::Train::bind_parameters(backend, built, state, pool));
+    SA_TRY(sa::NN::initialize(backend, state));
 
     SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
-                  sa::Optim::AdamW::make(engine, std::move(parameters)));
+                  sa::Optim::AdamW::make(backend, std::move(parameters)));
 
     // The objective build_classifier traced; it feeds and measures every step.
     const sa::Train::CrossEntropyObjective objective(32, 6, sa::DType::Float32);
 
     // Trainer::make lowers and compiles; it is the only compile of the run.
     SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-                  sa::Train::Trainer::make(engine, built, pool, objective, *optimizer));
+                  sa::Train::Trainer::make(backend, built, pool, objective, *optimizer));
 
     sa::Data::SyntheticOptions synthetic;
     synthetic.features = 32;
     synthetic.classes = 6;
     SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> data,
-                  sa::Data::SyntheticClassification::make(engine, synthetic));
+                  sa::Data::SyntheticClassification::make(backend, synthetic));
 
     SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*data));
     std::cout << report.to_string();   // reports compiles: 1

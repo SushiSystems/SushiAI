@@ -123,7 +123,7 @@ namespace SushiAI
 
         Result<TrainingOutcome> run_training_file(std::string_view origin,
                                                   const Config::TrainSpec& spec,
-                                                  SushiBLAS::Engine& engine)
+                                                  RuntimeExecutionBackend& backend)
         {
             SA_TRY(Config::check_start(spec, origin));
             SA_TRY(prepare_checkpoint_folder(spec));
@@ -139,7 +139,7 @@ namespace SushiAI
             const SetupScope scope =
                 spec.cluster.is_null() ? SetupScope::Step : SetupScope::Results;
             SA_TRY_ASSIGN(const std::unique_ptr<TrainingSetup> setup,
-                          TrainingSetup::make(registries, spec, model_spec, engine, seed,
+                          TrainingSetup::make(registries, spec, model_spec, backend, seed,
                                               std::nullopt, scope));
             const Data::Dataset& dataset = setup->dataset();
             const NN::ModelGraph& model = setup->model();
@@ -151,11 +151,11 @@ namespace SushiAI
                 read_schedule ? &*read_schedule : nullptr;
 
             SA_TRY_ASSIGN(const std::unique_ptr<Optim::Optimizer> optimizer,
-                          Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters(),
+                          Optim::make_optimizer(backend, spec.optimizer_type, setup->parameters(),
                                                 spec.optimizer_attributes, "the optimizer block"));
 
             IO::RunProgress start;
-            SA_TRY(start_state(spec, engine, setup->state(), *optimizer, &start));
+            SA_TRY(start_state(spec, backend, setup->state(), *optimizer, &start));
 
             std::cout << "sushiai train\n"
                       << "----------------------------------------------------------------\n"
@@ -181,7 +181,7 @@ namespace SushiAI
 
             // The run is a row or the fallback run; see applications/programs/README.md.
             PreparedRun prepared{
-                engine, spec, dataset, setup->given(), setup->objective(), built, setup->state(),
+                backend, spec, dataset, setup->given(), setup->objective(), built, setup->state(),
                 setup->pool(), *optimizer, setup->take_updates(), schedule, start,
             };
             // A file with a cluster section trains over its replicas; see cluster_training.hpp.
@@ -190,7 +190,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(const RunSummary summary,
                           spec.cluster.is_null()
                               ? run_training(registries.runs, spec.objective_type, prepared)
-                              : run_cluster_training(prepared, slots));
+                              : run_cluster_training(prepared, slots, backend.runtime()));
 
             // CTest pins this line's shape, as in `sa demo mlp`; see the programs README.
             std::cout << SushiLog::format_text("\ncompiles: {}\n", summary.compile_count);

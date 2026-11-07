@@ -350,7 +350,7 @@ namespace
      * @return The loss and the gradient at the logits, or the first failure; the rate of the
      *         optimizer is zero, so the map is read as it was written.
      */
-    Result<Found> run_step(SushiBLAS::Engine& engine, const Train::Objective& objective,
+    Result<Found> run_step(SushiAI::ExecutionBackend& backend, const Train::Objective& objective,
                            const std::vector<double>& logits,
                            const std::vector<std::int32_t>& labels)
     {
@@ -359,10 +359,10 @@ namespace
                                 K_HOST_EXTENTS.classes};
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_training_graph(model, objective, batch_shape));
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        Graph::TensorPool pool(engine);
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
+        Graph::TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
+                      Train::bind_parameters(backend, built, state, pool));
         SA_FAIL_IF(slots.size() != 1, StatusCode::InvalidDescription,
                    "the map has one parameter; found {} slots", slots.size());
 
@@ -372,11 +372,11 @@ namespace
         Optim::SGDOptions sgd;
         sgd.learning_rate = 0.0;
         SA_TRY_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, slots, sgd));
+                      Optim::SGD::make(backend, slots, sgd));
         SA_TRY_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                      Train::TrainingStep::make(engine, built.graph, pool, *optimizer, {}));
+                      Train::TrainingStep::make(backend, built.graph, pool, *optimizer, {}));
 
-        SA_TRY_ASSIGN(const Data::Batch batch, make_batch(engine, labels));
+        SA_TRY_ASSIGN(const Data::Batch batch, make_batch(backend.engine(), labels));
         SaTest::write_tensor(pool.tensor(built.spec.inputs),
                              std::vector<double>(K_HOST_PIXELS * K_CLASSES, 0.0));
         SA_TRY(objective.feed(batch, built.leaves, pool));
@@ -404,7 +404,7 @@ TEST_F(Medium_DiceObjectiveEndToEnd, TheDiceLossAndItsGradientEqualTheHostComput
     const std::vector<double> logits = make_logits();
     const std::vector<std::int32_t> labels = mask_labels();
 
-    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(*engine, *objective, logits, labels));
+    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(backend(), *objective, logits, labels));
 
     EXPECT_NEAR(found.loss, dice_on_host(logits, labels), K_TOLERANCE);
 

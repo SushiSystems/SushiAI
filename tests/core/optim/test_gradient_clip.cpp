@@ -102,7 +102,7 @@ namespace
                 Optim::SGDOptions options;
                 options.learning_rate = 1.0;
                 Result<std::unique_ptr<Optim::SGD>> made =
-                    Optim::SGD::make(*engine, std::move(slots), options);
+                    Optim::SGD::make(backend(), std::move(slots), options);
                 EXPECT_TRUE(made.status().is_ok());
                 return std::move(made).value();
             }
@@ -196,7 +196,7 @@ TEST_F(Medium_GradientClip, TheMomentumKernelReadsTheFactor)
     options.learning_rate = 1.0;
     options.momentum = 0.5;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, std::move(slots), options));
+                            Optim::SGD::make(backend(), std::move(slots), options));
 
     // The first update sets the buffer to the clipped gradient, so momentum adds nothing.
     SA_EXPECT_OK(optimizer->enable_gradient_clip(1.0));
@@ -211,7 +211,7 @@ TEST_F(Medium_GradientClip, AdamWReadsTheSameFactor)
 {
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Optim::AdamW> optimizer,
-        Optim::AdamW::make(*engine, make_slots({{3.0, 4.0}}), Optim::AdamWOptions{}));
+        Optim::AdamW::make(backend(), make_slots({{3.0, 4.0}}), Optim::AdamWOptions{}));
 
     SA_EXPECT_OK(optimizer->enable_gradient_clip(1.0));
     SA_EXPECT_OK(optimizer->step());
@@ -227,7 +227,7 @@ TEST_F(Medium_GradientClip, AClipAddsItsTasksAndItsAbsenceAddsNone)
     const std::unique_ptr<Optim::SGD> clipped = make_sgd(make_slots({{3.0, 0.0}, {0.0, 4.0}}));
     SA_EXPECT_OK(clipped->enable_gradient_clip(1.0));
 
-    SaTest::TestGraph recording(*engine);
+    SaTest::TestGraph recording(backend());
     const Graph::StepRecording step(recording.recorder(), recording.graph_recorder());
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t without, plain->record_into_step(step));
     SA_ASSERT_OK_AND_ASSIGN(const std::size_t with, clipped->record_into_step(step));
@@ -252,7 +252,7 @@ TEST_F(Medium_GradientClip, AClipRefusesWhatItCannotCompute)
     Optim::SGDOptions separate;
     separate.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> reference,
-                            Optim::SGD::make(*engine, make_slots({{3.0, 4.0}}), separate));
+                            Optim::SGD::make(backend(), make_slots({{3.0, 4.0}}), separate));
     SA_EXPECT_FAILURE(reference->enable_gradient_clip(1.0), StatusCode::InvalidDescription,
                       "UpdateKernel::Fused");
 }
@@ -279,11 +279,11 @@ TEST_F(Medium_GradientClip, TheKeyClipNormEnablesTheClip)
     {
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Optim::Optimizer> clipped,
-            Optim::make_optimizer(*engine, type, make_slots({{3.0, 4.0}}),
+            Optim::make_optimizer(backend(), type, make_slots({{3.0, 4.0}}),
                                   attributes(R"({"clip_norm": 0.5})"), "optimizer"));
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Optim::Optimizer> plain,
-            Optim::make_optimizer(*engine, type, make_slots({{3.0, 4.0}}), attributes("{}"),
+            Optim::make_optimizer(backend(), type, make_slots({{3.0, 4.0}}), attributes("{}"),
                                   "optimizer"));
 
         ASSERT_NE(clipped->gradient_clip(), nullptr) << type;
@@ -291,7 +291,7 @@ TEST_F(Medium_GradientClip, TheKeyClipNormEnablesTheClip)
         EXPECT_EQ(plain->gradient_clip(), nullptr) << type;
 
         SA_EXPECT_FAILURE(
-            Optim::make_optimizer(*engine, type, make_slots({{3.0, 4.0}}),
+            Optim::make_optimizer(backend(), type, make_slots({{3.0, 4.0}}),
                                   attributes(R"({"clip_norm": 0})"), "optimizer"),
             StatusCode::InvalidDescription, "optimizer 'clip_norm'", "positive and finite");
     }

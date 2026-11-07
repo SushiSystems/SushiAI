@@ -379,7 +379,7 @@ TEST(Small_RingsOptions, AnUnknownDatasetKeyIsRejectedByItsOwnFactory)
 
 TEST_F(Medium_Registries, AnUnknownOptimizerTypeListsEveryTypeThisBuildHas)
 {
-    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "lion", {}, attributes_from("{}"),
+    SA_EXPECT_FAILURE(Optim::make_optimizer(backend(), "lion", {}, attributes_from("{}"),
                                             "optimizer"),
                       StatusCode::InvalidDescription, "lion", "optimizer type", "'adamw'", "'sgd'");
 }
@@ -394,7 +394,7 @@ TEST_P(Medium_OptimizerKeys, AnUnknownOptimizerKeyIsRejectedByItsOwnFactory)
 {
     const UnknownKeyCase& row = GetParam();
 
-    SA_EXPECT_FAILURE(Optim::make_optimizer(*engine, "adamw", {}, attributes_from(row.attributes),
+    SA_EXPECT_FAILURE(Optim::make_optimizer(backend(), "adamw", {}, attributes_from(row.attributes),
                                             "optimizer"),
                       StatusCode::InvalidDescription, "optimizer", row.quoted_key, row.detail);
 }

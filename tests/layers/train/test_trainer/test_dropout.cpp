@@ -134,7 +134,7 @@ namespace
     {
         public:
             /** @brief Builds, differentiates and compiles the graph with the site seed @p seed. */
-            Probe(SushiBLAS::Engine& engine, std::uint64_t seed) : pool_(engine)
+            Probe(SushiAI::ExecutionBackend& backend, std::uint64_t seed) : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 const Shape shape{K_ROWS, K_WIDTH};
@@ -165,7 +165,7 @@ namespace
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
 
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (!compiled.has_value())
                     return;
@@ -328,7 +328,7 @@ namespace
 /** @brief Tests that each output is 0 or x / (1 - rate), and that 3/4 of them are kept. */
 TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 {
-    Probe probe(*engine, K_SEED);
+    Probe probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
     probe.run();
@@ -358,7 +358,7 @@ TEST_F(Medium_Dropout, TheOutputIsTheInputTimesAMaskOfZeroOrTheScale)
 /** @brief Tests that two runs of one step draw the masks of runs 0 and 1 from one compile. */
 TEST_F(Medium_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
 {
-    Probe probe(*engine, K_SEED);
+    Probe probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
     EXPECT_EQ(probe.step().replay_prelude_count(), 1u);
 
@@ -377,9 +377,9 @@ TEST_F(Medium_Dropout, TwoStepsOfOneCompiledStepDrawDifferentMasks)
 /** @brief Tests that two fresh steps with one seed agree byte for byte over three runs. */
 TEST_F(Medium_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
 {
-    Probe first(*engine, K_SEED);
-    Probe second(*engine, K_SEED);
-    Probe other(*engine, K_SEED + 1);
+    Probe first(backend(), K_SEED);
+    Probe second(backend(), K_SEED);
+    Probe other(backend(), K_SEED + 1);
     ASSERT_TRUE(first.ready() && second.ready() && other.ready());
 
     for (int run = 0; run < 3; ++run)
@@ -396,7 +396,7 @@ TEST_F(Medium_Dropout, TwoFreshStepsWithTheSameSeedAgreeStepForStep)
 /** @brief Tests that the gradient at the input is the mask of the same run, on two runs. */
 TEST_F(Medium_Dropout, TheGradientAtTheInputIsTheMaskOfThatStep)
 {
-    Probe probe(*engine, K_SEED);
+    Probe probe(backend(), K_SEED);
     ASSERT_TRUE(probe.ready());
 
     for (std::uint64_t run = 0; run < 2; ++run)
@@ -433,7 +433,7 @@ TEST_F(Medium_Dropout, AStepWithoutDropoutRegistersNoPrelude)
     TensorPool pool(*engine);
     ASSERT_TRUE(SaTest::status_is_ok(pool.materialise_leaves(graph)));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<CompiledStep> step,
-                            CompiledStep::compile(*engine, graph, pool));
+                            CompiledStep::compile(backend(), graph, pool));
     write_tensor(pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0, 5.0, 6.0});
 
     EXPECT_EQ(step->replay_prelude_count(), 0u);
@@ -486,15 +486,15 @@ TEST_F(Medium_Dropout, AModelWithDropoutTrainsThroughTheTrainer)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     Optim::AdamWOptions optimizer_options;
     optimizer_options.learning_rate = 1e-2;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options));
+                            Optim::AdamW::make(backend(), slots, optimizer_options));
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective, *optimizer));
+                            Train::Trainer::make(backend(), built, pool, objective, *optimizer));
 
     Data::SyntheticOptions data_options;
     data_options.batch_size = K_BATCH;
@@ -502,7 +502,7 @@ TEST_F(Medium_Dropout, AModelWithDropoutTrainsThroughTheTrainer)
     data_options.features = K_FEATURES;
     data_options.classes = K_CLASSES;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options));
+                            Data::SyntheticClassification::make(backend(), data_options));
 
     Train::TrainerOptions options;
     options.epochs = 10;

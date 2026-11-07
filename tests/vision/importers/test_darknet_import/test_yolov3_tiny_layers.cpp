@@ -380,7 +380,7 @@ TEST_P(Medium_DarknetLayers, EveryLayerMatchesItsDumpWithinTolerance)
     request.normalisation = DarknetNormalisation::Folded;
     request.observed_layers = list_compared_layers(layers);
     SA_ASSERT_OK_AND_ASSIGN(const DarknetForwardRun run,
-                            SaTest::run_darknet_forward(*engine, request));
+                            SaTest::run_darknet_forward(backend(), request));
     ASSERT_EQ(run.model.row_of_layer.size(), layers.size());
     ASSERT_EQ(list_translated_heads(run.model), list_head_layers(layers));
 

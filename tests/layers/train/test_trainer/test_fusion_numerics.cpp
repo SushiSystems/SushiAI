@@ -137,6 +137,7 @@ namespace
                const Graph::FusionSelector* selector = nullptr)
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         SA_ASSERT_OK_AND_ASSIGN(Train::TrainingGraph built,
                                 Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES,
@@ -145,13 +146,13 @@ namespace
         SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
         TensorPool pool(engine);
         SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                Train::bind_parameters(built, state, pool));
-        ASSERT_TRUE(SaTest::status_is_ok(NN::initialize(engine, state)));
+                                Train::bind_parameters(backend, built, state, pool));
+        ASSERT_TRUE(SaTest::status_is_ok(NN::initialize(backend, state)));
 
         Optim::AdamWOptions adam;
         adam.learning_rate = 0.02;
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                                Optim::AdamW::make(engine, slots, adam));
+                                Optim::AdamW::make(backend, slots, adam));
 
         Train::TrainerOptions options;
         options.epochs = K_EPOCHS;
@@ -159,10 +160,10 @@ namespace
         const auto objective = SaTest::classifier_objective(built);
         SA_ASSERT_OK_AND_ASSIGN(
             const std::unique_ptr<Train::Trainer> trainer,
-            Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
+            Train::Trainer::make(backend, built, pool, objective, *optimizer, options));
 
         SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                                Data::SyntheticClassification::make(engine, data_options()));
+                                Data::SyntheticClassification::make(backend, data_options()));
 
         run.fused_subtrees = built.fusion.fused().size();
         run.declined = built.fusion.declined().size();
@@ -372,6 +373,7 @@ TEST_F(Medium_Fusion, TheGELUFoldIsReportedAsAFoldAndNotAsARefusal)
 TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     constexpr int64_t K_ROWS = 4;
     constexpr int64_t K_IN_DIM = 3;
@@ -413,8 +415,8 @@ TEST_F(Medium_Fusion, TheSpillHoldsThePreActivationItself)
     SaTest::write_tensor(pool.tensor(b),
                          SushiRuntime::span<const double>(b_values.data(), b_values.size()));
 
-    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
-    SaTest::TestGraph recording(engine);
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_backend(backend);
+    SaTest::TestGraph recording(backend);
     Graph::Lowering lowering(recording.recorder(), engine.rng(), pool, selector);
     ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(1u, lowering.emitted_operations())
@@ -551,6 +553,7 @@ TEST_F(Medium_Fusion, TheFusedStepIssuesTenFewerKernelsPerStep)
 TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -574,7 +577,7 @@ TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
     SushiBLAS::Tensor& bias = pool.tensor(b);
     SushiBLAS::ElementwiseOps(recorder).mul(bias, bias, bias);
 
-    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_backend(backend);
     Graph::Lowering lowering(recorder, engine.rng(), pool, selector);
     ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(1u, lowering.emitted_operations())
@@ -598,6 +601,7 @@ TEST_F(Medium_Fusion, AFusedGEMMIsOrderedAgainstTheTaskThatWritesItsBias)
 TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     Graph::Graph graph;
     const Graph::GraphBuilder builder(graph);
@@ -627,7 +631,7 @@ TEST_F(Medium_Fusion, WhateverReadsTheSpillIsOrderedBehindTheGEMMThatFillsIt)
     SushiBLAS::ScratchPool scratch(SaTest::TestEnvironment::runtime());
     SushiBLAS::TaskRecorder recorder(tasks.recorder(), scratch, late_counts, engine.mode());
 
-    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_engine(engine);
+    const Graph::DeviceFusionSelector selector = Graph::DeviceFusionSelector::for_backend(backend);
     Graph::Lowering lowering(recorder, engine.rng(), pool, selector);
     ASSERT_TRUE(SaTest::status_is_ok(lowering.record(graph)));
     ASSERT_EQ(2u, lowering.emitted_operations())

@@ -139,7 +139,7 @@ TEST_F(Medium_DistributionExpectationGraphEndToEnd, TheGraphAgreesWithTheHostDec
 
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
-    Result<std::unique_ptr<CompiledStep>> compiled = CompiledStep::compile(*engine, graph, pool);
+    Result<std::unique_ptr<CompiledStep>> compiled = CompiledStep::compile(backend(), graph, pool);
     SA_EXPECT_OK(compiled);
     ASSERT_TRUE(compiled.has_value());
     const std::unique_ptr<CompiledStep> step = std::move(compiled).value();

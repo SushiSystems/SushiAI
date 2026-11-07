@@ -97,18 +97,18 @@ namespace
     class OneShot
     {
         public:
-            OneShot(SushiBLAS::Engine& engine, const Graph::Graph& graph)
-                : pool(engine)
+            OneShot(SushiAI::ExecutionBackend& backend, const Graph::Graph& graph)
+                : pool(backend.engine())
             {
                 SA_EXPECT_OK(pool.materialise_leaves(graph));
                 graph_ = &graph;
-                engine_ = &engine;
+                backend_ = &backend;
             }
 
             /** @brief Compiles the graph; call after every leaf has been written. */
             void compile()
             {
-                SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine_, *graph_, pool));
+                SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*backend_, *graph_, pool));
             }
 
             TensorPool pool;
@@ -116,7 +116,7 @@ namespace
 
         private:
             const Graph::Graph* graph_;
-            SushiBLAS::Engine* engine_;
+            SushiAI::ExecutionBackend* backend_;
     };
 
     /** @brief Compares every element of @p got with @p expected to within @p absolute. */
@@ -164,7 +164,7 @@ TEST_F(Medium_Forward, LinearLayerMatchesHandComputedValues)
                             builder.bias_add(builder.matmul(x, w, false, true), b));
     SA_ASSERT_OK_AND_ASSIGN(const ValueID z, builder.relu(y));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
 
     // X = [[1, 2], [3, 4]], W = [[1, 0], [0, 1], [1, 1]], b = [-2, -0.5, 1]
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
@@ -190,7 +190,7 @@ TEST_F(Medium_Forward, SumRowsProducesColumnSums)
     const ValueID x = builder.input(Shape{3, 2}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID sums, builder.sum_rows(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -209,7 +209,7 @@ TEST_F(Medium_Forward, ReshapeReinterpretsRowMajorLinearOrder)
     const ValueID x = builder.input(Shape{3, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.reshape(x, Shape{2, 6}));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     const std::vector<double> values = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
     write_tensor(run.pool.tensor(x), values);
 
@@ -229,7 +229,7 @@ TEST_F(Medium_Forward, LayoutConvertPermutesChannelsToTheFront)
     const ValueID x = builder.input(Shape{1, 1, 2, 3}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.layout_convert(x, Graph::TensorLayout::NCHW));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
 
     // NHWC, channels innermost: (w=0,c=0..2) = 0,1,2; (w=1,c=0..2) = 3,4,5.
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5});
@@ -252,7 +252,7 @@ TEST_F(Medium_Forward, AddMatchesItsDefinition)
     const ValueID b = builder.input(Shape{2, 2}, "b");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID sum, builder.add(a, b));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
 
@@ -273,7 +273,7 @@ TEST_F(Medium_Forward, SubMatchesItsDefinition)
     const ValueID b = builder.input(Shape{2, 2}, "b");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID difference, builder.sub(a, b));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
 
@@ -294,7 +294,7 @@ TEST_F(Medium_Forward, MulMatchesItsDefinition)
     const ValueID b = builder.input(Shape{2, 2}, "b");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID product, builder.mul(a, b));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
 
@@ -314,7 +314,7 @@ TEST_F(Medium_Forward, ScaleMatchesItsDefinition)
     const ValueID a = builder.input(Shape{2, 2}, "a");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID scaled, builder.scale(a, -2.5));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -333,7 +333,7 @@ TEST_F(Medium_Forward, ExpMatchesItsDefinition)
     const ValueID b = builder.input(Shape{2, 2}, "b");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID exponent, builder.exp(b));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(b), std::vector<double>{0.5, -1.0, 2.0, 0.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -353,7 +353,7 @@ TEST_F(Medium_Forward, ReluMatchesItsDefinition)
     const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID r, builder.relu(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{-2.0, -0.5, 0.5, 2.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -372,7 +372,7 @@ TEST_F(Medium_Forward, SigmoidMatchesItsDefinition)
     const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID s, builder.sigmoid(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
     write_tensor(run.pool.tensor(x), inputs);
 
@@ -393,7 +393,7 @@ TEST_F(Medium_Forward, TanhMatchesItsDefinition)
     const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID t, builder.tanh(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
     write_tensor(run.pool.tensor(x), inputs);
 
@@ -418,7 +418,7 @@ TEST_F(Medium_Forward, LeakyReluMatchesItsDefinition)
     const ValueID x = builder.input(Shape{1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID lr, builder.leaky_relu(x, 0.1));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{-2.0, -0.5, 0.5, 2.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -445,7 +445,7 @@ TEST_F(Medium_Forward, ActivationsLeaveTheirInputAlone)
     SA_EXPECT_OK(builder.tanh(x));
     SA_EXPECT_OK(builder.leaky_relu(x, 0.1));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     const std::vector<double> inputs = {-2.0, -0.5, 0.5, 2.0};
     write_tensor(run.pool.tensor(x), inputs);
 
@@ -464,7 +464,7 @@ TEST_F(Medium_Forward, LogSoftmaxRowsSumToOneAfterExponentiating)
     const ValueID x = builder.input(Shape{2, 3}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID l, builder.log_softmax(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     // Row two is row one shifted by a constant; see tests/core/graph/README.md.
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 51, 52, 53});
 
@@ -494,7 +494,7 @@ TEST_F(Medium_Forward, CrossEntropyOnUniformLogitsIsLogC)
     const ValueID targets = builder.input(Shape{4, 5}, "targets");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(builder.log_softmax(x), targets));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>(20, 0.0));
 
     // Row r targets class r.
@@ -520,7 +520,7 @@ TEST_F(Medium_Forward, CrossEntropyMatchesAHandComputedSingleRow)
     const ValueID targets = builder.input(Shape{1, 3}, "targets");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss, builder.nll_loss(builder.log_softmax(x), targets));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0});
     write_tensor(run.pool.tensor(targets), std::vector<double>{0.0, 0.0, 1.0});
 
@@ -541,7 +541,7 @@ TEST_F(Medium_Forward, AccumulateAddsInPlaceAndAliasesItsResult)
     const ValueID b = builder.input(Shape{4}, "b");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID total, builder.accumulate(a, b));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(a), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(b), std::vector<double>{10, 20, 30, 40});
 
@@ -564,7 +564,7 @@ TEST_F(Medium_Forward, ZeroFillsItsBufferExactlyOnce)
     const ValueID bias = builder.input(Shape{3}, "bias");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID broadcast, builder.bias_add(zeros, bias));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(bias), std::vector<double>{1.0, -2.0, 3.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -589,7 +589,7 @@ TEST_F(Medium_Forward, Im2colGathersOneWindowInTapOrderChannelInnermost)
     g.kernel_h = 2; g.kernel_w = 2;
     SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col(x, g));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -612,7 +612,7 @@ TEST_F(Medium_Forward, Col2imSumsEveryWindowThatOverlapsAPixel)
     g.kernel_h = 2; g.kernel_w = 2;
     SA_ASSERT_OK_AND_ASSIGN(const ValueID image, builder.col2im(cols, Shape{1, 3, 3, 1}, g));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(cols), std::vector<double>(16, 1.0));
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -636,7 +636,7 @@ TEST_F(Medium_Forward, AnAsymmetricallyPaddedIm2colUsesTheExtentsItWasGivenNotDe
     g.pad_top = 1;  g.pad_left = 1;
     SA_ASSERT_OK_AND_ASSIGN(const ValueID cols, builder.im2col_with_extents(x, g, 5, 4));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     std::vector<double> image(20);
     std::iota(image.begin(), image.end(), 0.0);
     write_tensor(run.pool.tensor(x), image);
@@ -682,7 +682,7 @@ TEST_F(Medium_Forward, MaxPool2dTakesEachWindowsMaximum)
     g.kernel_h = 2; g.kernel_w = 2;
     SA_ASSERT_OK_AND_ASSIGN(const Graph::PoolResult pooled, builder.maxpool2d(x, g));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -715,7 +715,7 @@ TEST_F(Medium_Forward, ALayoutConvertRoundTripActuallyPermutesAndComesBack)
     // Extents match only because H, W and C are 2; see tests/core/graph/README.md.
     EXPECT_EQ(graph.value(nchw).shape, (Shape{1, 2, 2, 2}));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4, 5, 6, 7, 8});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -765,7 +765,7 @@ TEST_F(Medium_Forward, AMaxPoolSurvivesTheFullPassPipelineAndStillRoutesItsGradi
         << "the pass retyped the index buffer, so the backward is routing gradients by "
            "whatever a float reinterpretation of an offset table happens to say";
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3, 4, 5, 6, 7});
     write_tensor(run.pool.tensor(target), std::vector<double>{1.0, 0.0});
 
@@ -800,7 +800,7 @@ TEST_F(Medium_Forward, AvgPool2dDividesByTheFullWindowArea)
     g.kernel_h = 2; g.kernel_w = 2;
     SA_ASSERT_OK_AND_ASSIGN(const ValueID pooled, builder.avgpool2d(x, g));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -820,7 +820,7 @@ TEST_F(Medium_Forward, Upsample2dReplicatesEachPixelOverItsBlock)
     const ValueID x = builder.input(Shape{1, 1, 1, 1}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID up, builder.upsample2d(x, 2, 2));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{5.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -840,7 +840,7 @@ TEST_F(Medium_Forward, SpatialMeanAveragesEveryHWPlane)
     const ValueID x = builder.input(Shape{1, 2, 2, 1}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID mean, builder.spatial_mean(x));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{0, 1, 2, 3});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -864,7 +864,7 @@ TEST_F(Medium_Forward, ConcatChannelsPlacesEachOperandAtItsOwnOffset)
                             builder.concat_channels(
                                 SushiRuntime::span<const ValueID>(parts.data(), parts.size())));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(left), std::vector<double>{10.0});
     write_tensor(run.pool.tensor(right), std::vector<double>{20.0});
 
@@ -885,7 +885,7 @@ TEST_F(Medium_Forward, SliceChannelsExtractsTheMiddleRangeUnchanged)
     const ValueID x = builder.input(Shape{1, 1, 1, 4}, "x");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID sliced, builder.slice_channels(x, 1, 2));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1.0, 2.0, 3.0, 4.0});
 
     ASSERT_NO_FATAL_FAILURE(run.compile());
@@ -907,7 +907,7 @@ TEST_F(Medium_Forward, ChannelAffineScalesAndShiftsPerChannelNotPerRow)
     const ValueID beta = builder.input(Shape{2}, "beta");
     SA_ASSERT_OK_AND_ASSIGN(const ValueID y, builder.channel_affine(x, gamma, beta));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 2, 3, 4});
     write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 3.0});
     write_tensor(run.pool.tensor(beta), std::vector<double>{10.0, 20.0});
@@ -935,7 +935,7 @@ TEST_F(Medium_Forward, BatchNorm2dNormalisesEachChannelOverTheWholeBatch)
     SA_ASSERT_OK_AND_ASSIGN(const Graph::BatchNormResult bn,
                             builder.batchnorm2d(x, gamma, beta, K_EPSILON));
 
-    OneShot run(*engine, graph);
+    OneShot run(backend(), graph);
     write_tensor(run.pool.tensor(x), std::vector<double>{1, 10, 2, 20, 3, 30, 4, 40});
     write_tensor(run.pool.tensor(gamma), std::vector<double>{2.0, 1.0});
     write_tensor(run.pool.tensor(beta), std::vector<double>{0.0, 5.0});
@@ -972,7 +972,7 @@ TEST_F(Medium_ForwardDeathTest, AnUnboundLeafIsRefusedRatherThanFilledWithGarbag
     SA_EXPECT_OK(builder.relu(x));
 
     TensorPool pool(*engine);
-    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
+    SA_EXPECT_FATAL((void)CompiledStep::compile(backend(), graph, pool),
                     "Leaf value", "'x'", "has no tensor bound");
 }
 
@@ -990,6 +990,6 @@ TEST_F(Medium_ForwardDeathTest, AnUnimplementedOperationNamesItself)
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
 
-    SA_EXPECT_FATAL((void)CompiledStep::compile(*engine, graph, pool),
+    SA_EXPECT_FATAL((void)CompiledStep::compile(backend(), graph, pool),
                     "No lowering for operation");
 }

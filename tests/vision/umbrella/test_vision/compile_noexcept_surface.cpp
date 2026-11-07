@@ -1885,7 +1885,7 @@ namespace SushiAI::Vision::Training
 namespace SushiAI::Vision::Training
 {
     static_assert(
-        noexcept(std::declval<AnchorTrainingStep&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<AnchorTrainingStep&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<const AnchorObjective&>(), std::declval<const Train::TrainingGraph&>(),
                 std::declval<Graph::TensorPool&>(), std::declval<Optim::Optimizer&>(),
                 std::declval<std::vector<Train::BufferUpdateSlot>>(),
@@ -2143,7 +2143,7 @@ namespace SushiAI::Vision::Training
 namespace SushiAI::Vision::Training
 {
     static_assert(
-        noexcept(std::declval<FreeTrainingStep&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<FreeTrainingStep&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<const FreeObjective&>(), std::declval<const Train::TrainingGraph&>(),
                 std::declval<Graph::TensorPool&>(), std::declval<Optim::Optimizer&>(),
                 std::declval<std::vector<Train::BufferUpdateSlot>>(),

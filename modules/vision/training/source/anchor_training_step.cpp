@@ -87,7 +87,7 @@ namespace SushiAI::Vision::Training
     } // namespace
 
     Result<std::unique_ptr<AnchorTrainingStep>> AnchorTrainingStep::make(
-        SushiBLAS::Engine& engine, const AnchorObjective& objective,
+        ExecutionBackend& backend, const AnchorObjective& objective,
         const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
         Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
         Train::TrainingStepOptions options) noexcept
@@ -106,7 +106,7 @@ namespace SushiAI::Vision::Training
                                                      [&]()
         {
             std::unique_ptr<AnchorTrainingStep> made(new AnchorTrainingStep(
-                engine, objective, built.outputs, training_pool, input));
+                backend, objective, built.outputs, training_pool, input));
             made->heads_.reserve(head_count);
             made->leaves_.reserve(head_count);
             made->deltas_.resize(head_count);
@@ -118,7 +118,7 @@ namespace SushiAI::Vision::Training
         const Train::HostStage stage = options.host_stage;
 
         SA_TRY_ASSIGN(step->training_,
-                      Train::TrainingStep::make(engine, built.graph, training_pool, optimizer,
+                      Train::TrainingStep::make(backend, built.graph, training_pool, optimizer,
                                                 std::move(updates), std::move(options)));
 
         for (std::size_t head = 0; head < head_count; ++head)
@@ -127,10 +127,10 @@ namespace SushiAI::Vision::Training
         return std::move(step);
     }
 
-    AnchorTrainingStep::AnchorTrainingStep(SushiBLAS::Engine& engine, AnchorObjective objective,
+    AnchorTrainingStep::AnchorTrainingStep(ExecutionBackend& backend, AnchorObjective objective,
                                            NN::ModelOutputs outputs, Graph::TensorPool& pool,
                                            SushiBLAS::Tensor& input) noexcept
-        : engine_(&engine),
+        : backend_(&backend),
           objective_(std::move(objective)),
           outputs_(std::move(outputs)),
           pool_(&pool),
@@ -260,7 +260,7 @@ namespace SushiAI::Vision::Training
         {
             SA_ZONE("copy", "input");
             SA_TRY(::SushiAI::Detail::record_and_run(
-                *engine_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
+                *backend_, [this, &inputs](SushiBLAS::TaskRecorder& recorder) -> Status
             {
                 SushiBLAS::BLASOps blas(recorder);
                 blas.copy(inputs, *input_);

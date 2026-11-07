@@ -333,7 +333,7 @@ namespace
      * @brief Traces a RotaryEmbedding of @p groups groups over [1, rows, width], fills its
      *        tables, runs it over @p input and writes the result to @p turned.
      */
-    void turn_on_engine(SushiBLAS::Engine& engine, std::size_t rows, std::size_t groups,
+    void turn_on_engine(SushiAI::ExecutionBackend& backend, std::size_t rows, std::size_t groups,
                         const std::vector<double>& input, std::vector<double>& turned)
     {
         const std::int64_t width = static_cast<std::int64_t>(groups * K_GROUP);
@@ -352,13 +352,13 @@ namespace
         SA_EXPECT_OK(trace.status());
         ASSERT_FALSE(graph.has_refusal());
 
-        Graph::TensorPool pool(engine);
+        Graph::TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         SA_EXPECT_OK(Train::fill_host_tables(tables, pool));
         SaTest::write_tensor(pool.tensor(x), input);
 
         std::unique_ptr<Graph::CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, Graph::CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
         turned = SaTest::read_tensor(pool.tensor(y));
     }
@@ -393,7 +393,7 @@ TEST_F(Medium_RotaryEmbedding, ATurnMatchesTheHostFormula)
     const std::vector<double> input{1.0, 2.0, 3.0, 4.0, 1.0, -1.0, 3.0, 0.25,
                                     -3.0, 1.0, 0.0, 2.0};
     std::vector<double> turned;
-    turn_on_engine(*engine, rows, 1, input, turned);
+    turn_on_engine(backend(), rows, 1, input, turned);
     ASSERT_EQ(turned.size(), input.size());
 
     for (std::size_t row = 0; row < rows; ++row)
@@ -422,7 +422,7 @@ TEST_F(Medium_RotaryEmbedding, ATurnMatchesTheHostFormula)
 TEST_F(Medium_RotaryEmbedding, PositionZeroIsTheIdentity)
 {
     std::vector<double> turned;
-    turn_on_engine(*engine, 2, 1, repeated(K_QUERY, 2), turned);
+    turn_on_engine(backend(), 2, 1, repeated(K_QUERY, 2), turned);
     ASSERT_EQ(turned.size(), 2 * K_GROUP);
 
     for (std::size_t channel = 0; channel < K_GROUP; ++channel)
@@ -444,7 +444,7 @@ TEST_F(Medium_RotaryEmbedding, EveryGroupTurnsByTheSameAngles)
     }
 
     std::vector<double> turned;
-    turn_on_engine(*engine, rows, 2, input, turned);
+    turn_on_engine(backend(), rows, 2, input, turned);
     ASSERT_EQ(turned.size(), input.size());
 
     for (std::size_t row = 0; row < rows; ++row)
@@ -464,8 +464,8 @@ TEST_F(Medium_RotaryEmbedding, AScoreDependsOnTheDistanceOfThePositionsAlone)
     const std::size_t rows = 6;
     std::vector<double> queries;
     std::vector<double> keys;
-    turn_on_engine(*engine, rows, 1, repeated(K_QUERY, rows), queries);
-    turn_on_engine(*engine, rows, 1, repeated(K_KEY, rows), keys);
+    turn_on_engine(backend(), rows, 1, repeated(K_QUERY, rows), queries);
+    turn_on_engine(backend(), rows, 1, repeated(K_KEY, rows), keys);
     ASSERT_EQ(queries.size(), rows * K_GROUP);
     ASSERT_EQ(keys.size(), rows * K_GROUP);
 

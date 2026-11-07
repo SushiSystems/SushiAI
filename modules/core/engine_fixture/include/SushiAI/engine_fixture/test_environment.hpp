@@ -23,7 +23,7 @@
 
 /**
  * @file test_environment.hpp
- * @brief Declares the GTest environment that owns the one Runtime a test program shares.
+ * @brief Declares the GTest environment that owns the Runtime, Engine and backend of a program.
  * @author Mustafa Garip
  */
 
@@ -39,6 +39,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/engine_fixture/lazy_shared.hpp>
 
 namespace SushiAI
@@ -64,9 +65,10 @@ namespace SushiAI
                     runtime_.use_factory(std::move(factory));
                 }
 
-                /** @brief Destroys the Engine, then the runtime, after the last test. */
+                /** @brief Destroys the backend, the Engine and the runtime after the last test. */
                 void TearDown() override
                 {
+                    backend_.reset();
                     engine_.reset();
                     runtime_.release();
                 }
@@ -101,7 +103,21 @@ namespace SushiAI
                     return *engine_;
                 }
 
+                /**
+                 * @brief Returns the backend of the program, built on first use.
+                 * @return The RuntimeExecutionBackend every EngineTest of the program runs through.
+                 */
+                static RuntimeExecutionBackend& backend()
+                {
+                    if (!backend_)
+                        backend_.emplace(runtime(), engine());
+                    return *backend_;
+                }
+
             private:
+                /** @brief Holds the backend of the program; released before its Engine. */
+                static inline std::optional<RuntimeExecutionBackend> backend_;
+
                 /** @brief Holds the Engine of the program; released before the runtime it lives on. */
                 static inline std::optional<SushiBLAS::Engine> engine_;
 

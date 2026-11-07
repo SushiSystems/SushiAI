@@ -678,7 +678,7 @@ namespace SushiAI::Data
                 std::declval<RowRange>())),
         "check_rows is noexcept");
     static_assert(
-        noexcept(std::declval<SyntheticClassification&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<SyntheticClassification&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<SyntheticOptions>())),
         "make is noexcept");
     static_assert(
@@ -1051,7 +1051,8 @@ namespace SushiAI::Test
 
 namespace SushiAI::Test
 {
-    static_assert(noexcept(TestGraph(std::declval<SushiBLAS::Engine&>())), "TestGraph is noexcept");
+    static_assert(noexcept(TestGraph(std::declval<ExecutionBackend&>())),
+                              "TestGraph is noexcept");
     static_assert(noexcept(std::declval<TestGraph&>().recorder()), "recorder is noexcept");
     static_assert(
         noexcept(std::declval<TestGraph&>().graph_recorder()),
@@ -1466,7 +1467,7 @@ namespace SushiAI::Graph
 namespace SushiAI::Graph
 {
     static_assert(
-        noexcept(std::declval<CompiledStep&>().compile(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<CompiledStep&>().compile(std::declval<ExecutionBackend&>(),
                 std::declval<const Graph&>(), std::declval<TensorPool&>(),
                 std::declval<StepRecorder*>(), std::declval<const FusionSelector*>(),
                 std::declval<NodeRange>(), std::declval<std::string_view>())),
@@ -1577,9 +1578,9 @@ namespace SushiAI::Graph
                 std::declval<SushiBLAS::ExecutionMode>())),
         "DeviceFusionSelector is noexcept");
     static_assert(
-        noexcept(std::declval<DeviceFusionSelector&>().for_engine(std::declval<SushiBLAS::Engine&>(
-                ))),
-        "for_engine is noexcept");
+        noexcept(std::declval<DeviceFusionSelector&>().for_backend(
+                std::declval<const ExecutionBackend&>())),
+        "for_backend is noexcept");
     static_assert(
         noexcept(std::declval<const DeviceFusionSelector&>().supports_fp64()),
         "supports_fp64 is noexcept");
@@ -2171,7 +2172,7 @@ namespace SushiAI::Graph
                 std::declval<double>())),
         "request_constant is noexcept");
     static_assert(
-        noexcept(std::declval<TensorPool&>().flush_constants()),
+        noexcept(std::declval<TensorPool&>().flush_constants(std::declval<ExecutionBackend&>())),
         "flush_constants is noexcept");
     static_assert(
         noexcept(std::declval<const TensorPool&>().tensor_count()),
@@ -2239,7 +2240,7 @@ namespace SushiAI::Ops
 namespace SushiAI::Optim
 {
     static_assert(
-        noexcept(std::declval<AdamW&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<AdamW&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<std::vector<ParameterSlot>>(), std::declval<AdamWOptions>())),
         "make is noexcept");
     static_assert(noexcept(std::declval<const AdamW&>().options()), "options is noexcept");
@@ -2423,17 +2424,17 @@ namespace SushiAI::Optim
 namespace SushiAI::Optim
 {
     static_assert(
-        noexcept(make_adamw(std::declval<SushiBLAS::Engine&>(),
+        noexcept(make_adamw(std::declval<ExecutionBackend&>(),
                 std::declval<std::vector<ParameterSlot>>(), std::declval<const Config::Value&>(),
                 std::declval<std::string_view>())),
         "make_adamw is noexcept");
     static_assert(
-        noexcept(make_sgd(std::declval<SushiBLAS::Engine&>(),
+        noexcept(make_sgd(std::declval<ExecutionBackend&>(),
                 std::declval<std::vector<ParameterSlot>>(), std::declval<const Config::Value&>(),
                 std::declval<std::string_view>())),
         "make_sgd is noexcept");
     static_assert(
-        noexcept(make_optimizer(std::declval<SushiBLAS::Engine&>(),
+        noexcept(make_optimizer(std::declval<ExecutionBackend&>(),
                 std::declval<std::string_view>(), std::declval<std::vector<ParameterSlot>>(),
                 std::declval<const Config::Value&>(), std::declval<std::string_view>())),
         "make_optimizer is noexcept");
@@ -2473,7 +2474,7 @@ namespace SushiAI::Optim
 namespace SushiAI::Optim
 {
     static_assert(
-        noexcept(std::declval<SGD&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<SGD&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<std::vector<ParameterSlot>>(), std::declval<SGDOptions>())),
         "make is noexcept");
     static_assert(noexcept(std::declval<const SGD&>().options()), "options is noexcept");
@@ -2954,7 +2955,7 @@ namespace SushiAI::NN
         noexcept(zeros(std::declval<SushiBLAS::RandomOps&>(), std::declval<SushiBLAS::Tensor&>())),
         "zeros is noexcept");
     static_assert(
-        noexcept(initialize(std::declval<SushiBLAS::Engine&>(), std::declval<ModelState&>(),
+        noexcept(initialize(std::declval<ExecutionBackend&>(), std::declval<ModelState&>(),
                 std::declval<const InitPolicy&>())),
         "initialize is noexcept");
 } // namespace SushiAI::NN
@@ -3555,7 +3556,7 @@ namespace SushiAI::Train
 namespace SushiAI::Train
 {
     static_assert(
-        noexcept(std::declval<EvaluationStep&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<EvaluationStep&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<const TracedStep&>(), std::declval<const NN::ModelState&>(),
                 std::declval<Graph::TensorPool&>(), std::declval<const Graph::FusionSelector*>(),
                 std::declval<const Graph::TensorPool*>())),
@@ -3805,17 +3806,19 @@ namespace SushiAI::Train
 namespace SushiAI::Train
 {
     static_assert(
-        noexcept(bind_parameters(std::declval<const TrainingGraph&>(),
+        noexcept(bind_parameters(std::declval<ExecutionBackend&>(),
+                                 std::declval<const TrainingGraph&>(),
                 std::declval<const NN::ModelState&>(), std::declval<Graph::TensorPool&>(),
                 std::declval<Graph::PlanOptions>())),
         "bind_parameters is noexcept");
     static_assert(
-        noexcept(bind_step_results(std::declval<const TrainingGraph&>(),
+        noexcept(bind_step_results(std::declval<ExecutionBackend&>(),
+                                   std::declval<const TrainingGraph&>(),
                 std::declval<const NN::ModelState&>(), std::declval<Graph::TensorPool&>())),
         "bind_step_results is noexcept");
     static_assert(noexcept(std::declval<const RunReport&>().to_string()), "to_string is noexcept");
     static_assert(
-        noexcept(std::declval<Trainer&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<Trainer&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<const TrainingGraph&>(), std::declval<Graph::TensorPool&>(),
                 std::declval<const Objective&>(), std::declval<Optim::Optimizer&>(),
                 std::declval<TrainerOptions>(), std::declval<std::vector<BufferUpdateSlot>>())),
@@ -3846,7 +3849,7 @@ namespace SushiAI::Train
 namespace SushiAI::Train
 {
     static_assert(
-        noexcept(std::declval<TrainingStep&>().make(std::declval<SushiBLAS::Engine&>(),
+        noexcept(std::declval<TrainingStep&>().make(std::declval<ExecutionBackend&>(),
                 std::declval<const Graph::Graph&>(), std::declval<Graph::TensorPool&>(),
                 std::declval<Optim::Optimizer&>(), std::declval<std::vector<BufferUpdateSlot>>(),
                 std::declval<TrainingStepOptions>())),

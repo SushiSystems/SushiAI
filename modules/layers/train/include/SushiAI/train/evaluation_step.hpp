@@ -80,14 +80,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Binds @p traced to @p state and @p pool, then compiles it once.
-                 * @param engine Must outlive the step, as must @p state and @p pool.
+                 * @param backend Must outlive the step, as must @p state and @p pool.
                  * @param traced Read during the call only; the step copies what it keeps.
                  * @param pool Holds no leaf of the graph yet; borrows the arenas of @p lender.
                  * @return The step, InvalidDescription for a graph with no input leaf, a fed
                  *         leaf named as the model input is, or a plan the planner refuses.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<EvaluationStep>> make(
-                    SushiBLAS::Engine& engine, const TracedStep& traced,
+                    ExecutionBackend& backend, const TracedStep& traced,
                     const NN::ModelState& state, Graph::TensorPool& pool,
                     const Graph::FusionSelector* selector = nullptr,
                     const Graph::TensorPool* lender = nullptr) noexcept;
@@ -193,7 +193,7 @@ namespace SushiAI
                 };
 
                 /** @brief Takes the parts make() built; the plan is compiled afterwards. */
-                EvaluationStep(SushiBLAS::Engine& engine, Graph::TensorPool& pool, Parts parts);
+                EvaluationStep(ExecutionBackend& backend, Graph::TensorPool& pool, Parts parts);
 
                 /**
                  * @brief Gathers the leaves, the carried pairs and the outputs of @p traced.
@@ -206,8 +206,8 @@ namespace SushiAI
                 /** @brief Joins the input names with ", " for a diagnostic. */
                 [[nodiscard]] std::string list_inputs() const;
 
-                /** @brief The engine that records and runs the copy of each feed. */
-                SushiBLAS::Engine* engine_;
+                /** @brief The backend that records and runs the copy of each feed. */
+                ExecutionBackend* backend_;
 
                 /** @brief The pool that holds every value of the graph; not owned. */
                 Graph::TensorPool* pool_;

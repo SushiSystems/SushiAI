@@ -24,8 +24,8 @@
 
 /**
  * @file execution.cpp
- * @brief Implements the calls of execution.hpp, each turning what SushiRuntime reports into a
- *        Status through the seam.
+ * @brief Implements create_runtime, which turns what SushiRuntime reports into a Status through
+ *        the seam.
  * @author Mustafa Garip
  */
 
@@ -53,43 +53,6 @@ namespace SushiAI
             {
                 return status_of_current_exception(SeamPhase::Allocate);
             }
-        }
-
-        Result<SushiRuntime::Graph> create_graph(SushiBLAS::Engine& engine) noexcept
-        {
-            try
-            {
-                return engine.runtime().graph();
-            }
-            catch (...)
-            {
-                return status_of_current_exception(SeamPhase::Allocate);
-            }
-        }
-
-        Status run_step(SushiRuntime::Graph& graph, SushiRuntime::RunReport& report) noexcept
-        {
-            return guard(SeamPhase::Execute, [&]()
-            {
-                const SushiRuntime::Result<SushiRuntime::RunReport*> ran = graph.run(report);
-                if (!ran)
-                    return status_of_error(ran.error(), SeamPhase::Execute);
-
-                return Status();
-            });
-        }
-
-        Status run_once(SushiRuntime::Graph& graph) noexcept
-        {
-            return guard(SeamPhase::Execute, [&]()
-            {
-                const SushiRuntime::Recorder& tasks = graph.recorder();
-                if (tasks.node_count() == 0 && tasks.refusal() == nullptr)
-                    return Status();
-
-                SushiRuntime::RunReport report;
-                return run_step(graph, report);
-            });
         }
     } // namespace Detail
 } // namespace SushiAI

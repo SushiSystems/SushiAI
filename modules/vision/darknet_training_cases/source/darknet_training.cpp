@@ -795,9 +795,10 @@ namespace SushiAI
              * @brief Builds the model of @p stated with the file's weights and one step over
              *        the batch of its step run; sets `is_ready` when nothing failed.
              */
-            void prepare_step(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
+            void prepare_step(ExecutionBackend& backend, const DarknetTrainingCase& stated,
                               StepRun& run, bool is_packed = true)
             {
+                SushiBLAS::Engine& engine = backend.engine();
                 DarknetTensor input;
                 Shape batch_shape;
                 trace_step(stated, run, input, batch_shape);
@@ -823,7 +824,8 @@ namespace SushiAI
                     ASSERT_TRUE(training_plan.is_ok()) << training_plan.message();
                 }
                 SA_ASSERT_OK_AND_ASSIGN(
-                    run.slots, Train::bind_parameters(run.built, *run.state, *run.training_pool));
+                    run.slots, Train::bind_parameters(backend, run.built, *run.state,
+                                                      *run.training_pool));
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::vector<Train::BufferUpdateSlot> updates,
                     Train::bind_buffer_updates(run.built.updates, *run.state,
@@ -837,10 +839,10 @@ namespace SushiAI
                 SA_ASSERT_OK_AND_ASSIGN(options.learning_rate,
                                         stated_rate.as_real(K_DARKNET_NETWORK_COST));
                 SA_ASSERT_OK_AND_ASSIGN(run.optimizer,
-                                        Optim::SGD::make(engine, run.slots, options));
+                                        Optim::SGD::make(backend, run.slots, options));
                 SA_ASSERT_OK_AND_ASSIGN(
                     run.step,
-                    AnchorTrainingStep::make(engine, *run.objective, run.built,
+                    AnchorTrainingStep::make(backend, *run.objective, run.built,
                                              *run.training_pool, *run.optimizer,
                                              std::move(updates)));
 
@@ -1029,11 +1031,11 @@ namespace SushiAI
              * @brief Runs the one step with its pools planned or, when @p is_packed is false,
              *        with every value in a Storage of its own, and copies what it wrote.
              */
-            void collect_step_values(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated,
+            void collect_step_values(ExecutionBackend& backend, const DarknetTrainingCase& stated,
                                      bool is_packed, StepValues& values)
             {
                 StepRun run;
-                prepare_step(engine, stated, run, is_packed);
+                prepare_step(backend, stated, run, is_packed);
                 ASSERT_TRUE(run.is_ready);
                 run_step(run);
                 ASSERT_TRUE(run.is_ready);
@@ -1222,10 +1224,10 @@ namespace SushiAI
             check_dumped_deltas(stated, stated.step_run);
         }
 
-        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
+        void check_step_heads(ExecutionBackend& backend, const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
@@ -1253,10 +1255,11 @@ namespace SushiAI
             }
         }
 
-        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
+        void check_step_deltas(ExecutionBackend& backend,
+                               const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
@@ -1285,10 +1288,11 @@ namespace SushiAI
             EXPECT_NEAR(run.cost.stored / heads, network_cost, relative * network_cost);
         }
 
-        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
+        void check_head_updates(ExecutionBackend& backend,
+                                const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
@@ -1318,13 +1322,13 @@ namespace SushiAI
                        run.built.pinned);
         }
 
-        void check_plan_changes_no_value(SushiBLAS::Engine& engine,
+        void check_plan_changes_no_value(ExecutionBackend& backend,
                                          const DarknetTrainingCase& stated) noexcept
         {
             StepValues packed;
-            collect_step_values(engine, stated, true, packed);
+            collect_step_values(backend, stated, true, packed);
             StepValues unpacked;
-            collect_step_values(engine, stated, false, unpacked);
+            collect_step_values(backend, stated, false, unpacked);
 
             ASSERT_FALSE(packed.heads.empty());
             ASSERT_FALSE(packed.gradients.empty());
@@ -1333,10 +1337,11 @@ namespace SushiAI
             expect_same_values("gradient", packed.gradients, unpacked.gradients);
         }
 
-        void check_first_gradients(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept
+        void check_first_gradients(ExecutionBackend& backend,
+                                   const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
             run_step(run);
             ASSERT_TRUE(run.is_ready);
@@ -1480,10 +1485,11 @@ namespace SushiAI
             }
         } // namespace
 
-        void check_rolling_statistics(SushiBLAS::Engine& engine,                                      const DarknetTrainingCase& stated) noexcept
+        void check_rolling_statistics(ExecutionBackend& backend,
+                                      const DarknetTrainingCase& stated) noexcept
         {
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
 
             const std::string_view folder = stated.step_run;
@@ -1528,14 +1534,14 @@ namespace SushiAI
                 variance_after.values, host.sequential, bound, 0.0));
         }
 
-        void check_one_batch_overfit(SushiBLAS::Engine& engine,
+        void check_one_batch_overfit(ExecutionBackend& backend,
                                      const DarknetTrainingCase& stated) noexcept
         {
             ASSERT_GT(stated.overfit_steps, 1) << "the case states no steps to compare";
             ASSERT_GT(stated.overfit_cost_share, 0.0) << "the case states no share to reach";
 
             StepRun run;
-            prepare_step(engine, stated, run);
+            prepare_step(backend, stated, run);
             ASSERT_TRUE(run.is_ready);
 
             double first = 0.0;

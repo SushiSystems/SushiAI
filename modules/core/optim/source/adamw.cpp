@@ -129,10 +129,12 @@ namespace SushiAI
             }
         }
 
-        Result<std::unique_ptr<AdamW>> AdamW::make(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<AdamW>> AdamW::make(ExecutionBackend& backend,
                                                    std::vector<ParameterSlot> parameters,
                                                    AdamWOptions options) noexcept
         {
+            SushiBLAS::Engine& engine = backend.engine();
+
             SA_TRY(validate_slots(parameters));
 
             SA_FAIL_IF(options.beta1 < 0.0 || options.beta1 >= 1.0,
@@ -172,7 +174,7 @@ namespace SushiAI
             }));
 
             // Invariant: Moments and constant buffers are initialized eagerly before first step.
-            SA_TRY(Detail::record_and_run(engine, [&](SushiBLAS::TaskRecorder& recorder)
+            SA_TRY(Detail::record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder)
             {
                 SushiBLAS::RandomOps random(recorder, engine.rng());
                 for (State& entry : state)
@@ -189,14 +191,14 @@ namespace SushiAI
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
-                return std::unique_ptr<AdamW>(new AdamW(engine, std::move(parameters), options,
+                return std::unique_ptr<AdamW>(new AdamW(backend, std::move(parameters), options,
                                                         std::move(state), std::move(scalars)));
             });
         }
 
-        AdamW::AdamW(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+        AdamW::AdamW(ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                      AdamWOptions options, std::vector<State> state, StepScalars scalars) noexcept
-            : Optimizer(engine, std::move(parameters)), options_(options),
+            : Optimizer(backend, std::move(parameters)), options_(options),
               state_(std::move(state)), scalars_(std::move(scalars))
         {
         }

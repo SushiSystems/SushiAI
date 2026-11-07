@@ -56,8 +56,8 @@ namespace SushiAI
         }
 
         /**
-         * @brief Allocates Storage of @p bytes, shared between host and device.
-         * @param engine Engine whose runtime allocates.
+         * @brief Allocates Storage of @p bytes, shared, as the storage of a vector of 4-byte words.
+         * @param engine Engine whose tensor factory allocates.
          * @param bytes Byte count.
          * @return The new storage, or the Status of what the allocator threw.
          */
@@ -67,16 +67,18 @@ namespace SushiAI
         {
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&engine, bytes]()
             {
-                return SushiRuntime::make_sushi<SushiBLAS::Storage>(
-                    engine.runtime(),
-                    bytes,
-                    SushiRuntime::Residency::Shared);
+                constexpr std::size_t K_WORD_BYTES = 4;
+                const int64_t words[1] = {static_cast<int64_t>(
+                    bytes / K_WORD_BYTES + (bytes % K_WORD_BYTES != 0 ? 1 : 0))};
+                return engine.tensor_factory().create(
+                    SushiRuntime::span<const int64_t>(words, 1), SushiBLAS::Core::DataType::UInt32,
+                    SushiRuntime::Residency::Shared).storage;
             });
         }
 
         /**
          * @brief Allocates Storage of @p bytes for a tensor, with diagnostic context.
-         * @param engine Engine whose runtime allocates.
+         * @param engine Engine whose tensor factory allocates.
          * @param bytes Byte count.
          * @param dims Extents, named in the failure's message with @p dtype.
          * @return The new storage, or OutOfMemory annotated with the tensor's description.

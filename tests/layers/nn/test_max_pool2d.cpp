@@ -491,7 +491,7 @@ namespace
      * @param input The 9 input values, row-major.
      * @param pooled Receives the 9 pooled values, row-major.
      */
-    void pool_three_by_three(SushiBLAS::Engine& engine, const std::vector<double>& input,
+    void pool_three_by_three(SushiAI::ExecutionBackend& backend, const std::vector<double>& input,
                              std::vector<double>& pooled)
     {
         Graph::Graph graph;
@@ -500,12 +500,12 @@ namespace
         const ValueID x = builder.input(Shape{1, 3, 3, 1}, "x");
         SA_ASSERT_OK_AND_ASSIGN(const ValueID y, trailing_window().forward(builder, x));
 
-        TensorPool pool(engine);
+        TensorPool pool(backend.engine());
         SA_EXPECT_OK(pool.materialise_leaves(graph));
         write_tensor(pool.tensor(x), input);
 
         std::unique_ptr<CompiledStep> step;
-        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(engine, graph, pool));
+        SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend, graph, pool));
         SA_EXPECT_OK(step->run());
 
         pooled = read_tensor(pool.tensor(y));
@@ -519,7 +519,7 @@ TEST_F(Medium_MaxPoolTrailing, TrailingWindowsTakeTheMaximaOfTheirTruncatedTaps)
     const std::vector<double> expected = {8, 8, 2, 8, 8, 6, 4, 6, 6};
 
     std::vector<double> pooled;
-    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(*engine, input, pooled));
+    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(backend(), input, pooled));
 
     ASSERT_EQ(pooled.size(), expected.size());
     for (std::size_t i = 0; i < expected.size(); ++i)
@@ -533,7 +533,7 @@ TEST_F(Medium_MaxPoolTrailing, AllNegativeTrailingWindowsKeepTheirTrueMaximum)
     const std::vector<double> expected = {-14, -13, -13, -11, -10, -10, -11, -10, -10};
 
     std::vector<double> pooled;
-    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(*engine, input, pooled));
+    ASSERT_NO_FATAL_FAILURE(pool_three_by_three(backend(), input, pooled));
 
     ASSERT_EQ(pooled.size(), expected.size());
     for (std::size_t i = 0; i < expected.size(); ++i)

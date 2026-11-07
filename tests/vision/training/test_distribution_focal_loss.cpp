@@ -99,7 +99,7 @@ namespace
     {
         public:
             /** @brief Builds, differentiates and compiles the loss on @p engine. */
-            explicit LossProbe(SushiBLAS::Engine& engine) : pool_(engine)
+            explicit LossProbe(SushiAI::ExecutionBackend& backend) : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 box_ = builder.parameter(K_BOX_SHAPE, "box", DType::Float64);
@@ -116,7 +116,7 @@ namespace
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (compiled.has_value())
                     step_ = std::move(compiled).value();
@@ -192,7 +192,7 @@ TEST(Medium_DistributionFocalLoss, TheLossIsOneValueFromOneLogSoftmax)
 /** @brief Tests the value on hand logits: 0.8 / 4 times the sum of four sides' cross entropies. */
 TEST_F(Medium_DistributionFocalLossEndToEnd, TheValueIsTheHandWorkedCrossEntropy)
 {
-    LossProbe probe(*engine);
+    LossProbe probe(backend());
     ASSERT_TRUE(probe.ready());
 
     // Left, right and bottom are uniform; top holds probabilities 0.1, 0.2, 0.3, 0.4.
@@ -213,7 +213,7 @@ TEST_F(Medium_DistributionFocalLossEndToEnd, TheValueIsTheHandWorkedCrossEntropy
 /** @brief Tests that the analytic gradient of the loss matches a central difference. */
 TEST_F(Medium_DistributionFocalLossEndToEnd, TheGradientMatchesACentralDifference)
 {
-    LossProbe probe(*engine);
+    LossProbe probe(backend());
     ASSERT_TRUE(probe.ready());
 
     std::vector<double> point(static_cast<std::size_t>(K_BOX_SHAPE.num_elements()));

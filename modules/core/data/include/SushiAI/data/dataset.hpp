@@ -46,6 +46,8 @@
 
 namespace SushiAI
 {
+    class ExecutionBackend;
+
     namespace Data
     {
         /**
@@ -204,13 +206,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Generates the whole dataset and waits for it.
-                 * @param engine The engine that allocates and fills the tensors.
+                 * @param backend The backend whose engine allocates the tensors and which
+                 *                runs the fill.
                  * @param options The problem's shape.
                  * @return The dataset, or InvalidDescription when an extent in @p options is
                  *         not positive, or the failure of an allocation or of the fill.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<SyntheticClassification>> make(
-                    SushiBLAS::Engine& engine,
+                    ExecutionBackend& backend,
                     SyntheticOptions options = {}) noexcept;
 
                 int64_t batch_size() const noexcept override { return options_.batch_size; }

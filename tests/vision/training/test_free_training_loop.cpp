@@ -97,7 +97,7 @@ namespace
             void SetUp() override
             {
                 SaTest::EngineTest::SetUp();
-                model_.prepare(*engine);
+                model_.prepare(backend());
             }
 
             /** @brief Releases what holds tensors of the engine before the engine goes. */

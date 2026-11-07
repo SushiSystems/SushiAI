@@ -193,19 +193,22 @@ namespace SushiAI
          *
          * A NaN of a dumped [yolo] output is read as 0, the value its logistic has there.
          */
-        void check_step_heads(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
+        void check_step_heads(ExecutionBackend& backend,
+                              const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the deltas the step fed, the summed cost against the layers' stored
          *        costs, and its mean over the heads against the network cost.
          */
-        void check_step_deltas(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
+        void check_step_deltas(ExecutionBackend& backend,
+                               const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the weight and bias gradients of the convolution before each head, times
          *        minus the batch, against the updates the step run dumped.
          */
-        void check_head_updates(SushiBLAS::Engine& engine, const DarknetTrainingCase& stated) noexcept;
+        void check_head_updates(ExecutionBackend& backend,
+                                const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks that the memory plans of the probe graph and the training graph overlap
@@ -221,7 +224,7 @@ namespace SushiAI
          *
          * The second run packs nothing, so it fits only a model that is small unpacked.
          */
-        void check_plan_changes_no_value(SushiBLAS::Engine& engine,
+        void check_plan_changes_no_value(ExecutionBackend& backend,
                                          const DarknetTrainingCase& stated) noexcept;
 
         /**
@@ -230,14 +233,14 @@ namespace SushiAI
          *
          * The dumped updates of that layer are not a reference and are not read.
          */
-        void check_first_gradients(SushiBLAS::Engine& engine,
+        void check_first_gradients(ExecutionBackend& backend,
                                    const DarknetTrainingCase& stated) noexcept;
 
         /**
          * @brief Checks the rolling mean and variance of the first batch norm: equal to the
          *        dump before the step, within the rolling bound after it.
          */
-        void check_rolling_statistics(SushiBLAS::Engine& engine,
+        void check_rolling_statistics(ExecutionBackend& backend,
                                       const DarknetTrainingCase& stated) noexcept;
 
         /**
@@ -248,7 +251,7 @@ namespace SushiAI
          * The solver is the one every step check builds. A cost that is not finite fails at
          * its step.
          */
-        void check_one_batch_overfit(SushiBLAS::Engine& engine,
+        void check_one_batch_overfit(ExecutionBackend& backend,
                                      const DarknetTrainingCase& stated) noexcept;
 
     } // namespace Test

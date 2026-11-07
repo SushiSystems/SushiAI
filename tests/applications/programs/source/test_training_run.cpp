@@ -134,8 +134,9 @@ namespace
      * @brief Builds the pieces of a classification run with initialised parameters.
      * @return The pieces, or the first failure of a trace, a bind, the optimizer or the data.
      */
-    Result<std::unique_ptr<Pieces>> make_pieces(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<Pieces>> make_pieces(SushiAI::ExecutionBackend& backend)
     {
+        SushiBLAS::Engine& engine = backend.engine();
         std::unique_ptr<Pieces> pieces = std::make_unique<Pieces>(engine);
 
         SA_TRY_ASSIGN(Train::TrainingGraph built,
@@ -146,13 +147,14 @@ namespace
         pieces->state.emplace(std::move(state));
 
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(*pieces->built, *pieces->state, pieces->pool));
-        SA_TRY(NN::initialize(engine, *pieces->state));
+                      Train::bind_parameters(backend, *pieces->built, *pieces->state,
+                                             pieces->pool));
+        SA_TRY(NN::initialize(backend, *pieces->state));
 
         Optim::SGDOptions options;
         options.learning_rate = 0.1;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, std::move(slots), options));
+                      Optim::SGD::make(backend, std::move(slots), options));
         pieces->optimizer = std::move(optimizer);
         pieces->objective.emplace(SaTest::classifier_objective(*pieces->built));
 
@@ -161,17 +163,17 @@ namespace
         data.batches = K_BATCHES;
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
-        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(engine, data));
+        SA_TRY_ASSIGN(pieces->dataset, Data::SyntheticClassification::make(backend, data));
 
         pieces->spec.epochs = K_EPOCHS;
         return std::move(pieces);
     }
 
     /** @brief Returns the run `sushiai train` would hand to the table for @p pieces. */
-    Apps::PreparedRun prepare(Pieces& pieces, SushiBLAS::Engine& engine)
+    Apps::PreparedRun prepare(Pieces& pieces, SushiAI::ExecutionBackend& backend)
     {
         return Apps::PreparedRun{
-            engine,         pieces.spec,       *pieces.dataset, pieces.given,
+            backend,         pieces.spec,       *pieces.dataset, pieces.given,
             *pieces.objective, *pieces.built,  *pieces.state,   pieces.pool,
             *pieces.optimizer, {},             nullptr,
         };
@@ -221,11 +223,11 @@ namespace
     };
 
     /** @brief Builds the run case on @p engine, or returns the first failure of its pieces. */
-    Result<std::unique_ptr<RunCase>> make_case(SushiBLAS::Engine& engine)
+    Result<std::unique_ptr<RunCase>> make_case(SushiAI::ExecutionBackend& backend)
     {
         std::unique_ptr<RunCase> made = std::make_unique<RunCase>();
-        SA_TRY_ASSIGN(made->pieces, make_pieces(engine));
-        made->prepared.emplace(prepare(*made->pieces, engine));
+        SA_TRY_ASSIGN(made->pieces, make_pieces(backend));
+        made->prepared.emplace(prepare(*made->pieces, backend));
         return std::move(made);
     }
 
@@ -246,10 +248,10 @@ namespace
     };
 
     /** @brief Trains a classification run through the fallback of the run table on @p engine. */
-    ClassificationRun run_classification(SushiBLAS::Engine& engine)
+    ClassificationRun run_classification(SushiAI::ExecutionBackend& backend)
     {
-        std::unique_ptr<Pieces> pieces = make_pieces(engine).value();
-        Apps::PreparedRun prepared = prepare(*pieces, engine);
+        std::unique_ptr<Pieces> pieces = make_pieces(backend).value();
+        Apps::PreparedRun prepared = prepare(*pieces, backend);
         Apps::RunRegistry registry;
         SA_EXPECT_OK(Apps::register_runs(registry));
 
@@ -275,7 +277,7 @@ TEST(Small_TrainingRun, ASecondRowForOneTypeIsRefused)
 /** @brief Tests that a run of a task type with a row runs that row. */
 TEST_F(Medium_TrainingRun, ARunRunsTheRowOfItsType)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(backend()));
     Apps::RunRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
     SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
@@ -289,7 +291,7 @@ TEST_F(Medium_TrainingRun, ARunRunsTheRowOfItsType)
 /** @brief Tests that a run of a task type with no row runs the fallback. */
 TEST_F(Medium_TrainingRun, ARunOfAnotherTypeRunsTheFallback)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(backend()));
     Apps::RunRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
     SA_EXPECT_OK(registry.set_fallback(&run_of_the_fallback));
@@ -303,7 +305,7 @@ TEST_F(Medium_TrainingRun, ARunOfAnotherTypeRunsTheFallback)
 /** @brief Tests that an unknown type without a fallback is refused, naming the known type. */
 TEST_F(Medium_TrainingRun, AnUnknownTypeWithoutAFallbackIsRefusedNamingTheKnownOne)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(*engine));
+    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<RunCase> made, make_case(backend()));
     Apps::RunRegistry registry;
     SA_EXPECT_OK(registry.add(Apps::RunEntry{"anchor", &run_of_a_row}));
 
@@ -314,7 +316,7 @@ TEST_F(Medium_TrainingRun, AnUnknownTypeWithoutAFallbackIsRefusedNamingTheKnownO
 /** @brief Tests that the fallback run compiles once and takes every step of its epochs. */
 TEST_F(Medium_TrainingRun, AClassificationRunCompilesOnceAndTakesEveryStep)
 {
-    const ClassificationRun run = run_classification(*engine);
+    const ClassificationRun run = run_classification(backend());
 
     SA_EXPECT_OK(run.summary);
     ASSERT_TRUE(run.summary.has_value());
@@ -326,7 +328,7 @@ TEST_F(Medium_TrainingRun, AClassificationRunCompilesOnceAndTakesEveryStep)
 /** @brief Tests that the fallback run prints a loss that falls from its first epoch to its last. */
 TEST_F(Medium_TrainingRun, AClassificationRunPrintsAFallingLoss)
 {
-    const ClassificationRun run = run_classification(*engine);
+    const ClassificationRun run = run_classification(backend());
 
     // The run prints the loss of the last batch of the first and of the last epoch.
     const std::vector<double> losses = losses_of(run.printed);

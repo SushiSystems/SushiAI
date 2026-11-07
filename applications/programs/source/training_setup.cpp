@@ -81,9 +81,11 @@ namespace SushiAI
 
         Result<std::unique_ptr<TrainingSetup>> TrainingSetup::make(
             const Registries& registries, const Config::TrainSpec& spec,
-            const Config::ModelSpec& model_spec, SushiBLAS::Engine& engine,
+            const Config::ModelSpec& model_spec, ExecutionBackend& backend,
             std::uint64_t seed, std::optional<std::int64_t> rows, SetupScope scope)
         {
+            SushiBLAS::Engine& engine = backend.engine();
+
             SA_TRY_ASSIGN(const Config::Value data_block,
                           Config::fit_data_to_model(spec.data.attributes, model_spec,
                                                     spec.model_path.string()));
@@ -136,13 +138,13 @@ namespace SushiAI
             if (scope == SetupScope::Step)
             {
                 SA_TRY_ASSIGN(setup->parameters_,
-                              Train::bind_parameters(setup->built_, *setup->state_,
+                              Train::bind_parameters(backend, setup->built_, *setup->state_,
                                                      *setup->pool_));
             }
             else
             {
                 SA_TRY_ASSIGN(setup->parameters_,
-                              Train::bind_step_results(setup->built_, *setup->state_,
+                              Train::bind_step_results(backend, setup->built_, *setup->state_,
                                                        *setup->pool_));
             }
 

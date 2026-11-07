@@ -130,7 +130,7 @@ TEST_F(Medium_ApplyStepSchedule, TheRateSetIsTheScheduleAtTheNextUpdate)
     Optim::SGDOptions options;
     options.learning_rate = K_MADE_RATE;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, make_slots(), options));
+                            Optim::SGD::make(backend(), make_slots(), options));
     const StepSchedule schedule = make_halving_schedule();
 
     const double expected[] = {0.5, 0.25, 0.125, 0.125};
@@ -152,7 +152,7 @@ TEST_F(Medium_ApplyStepSchedule, AnUpdateUsesTheRateThatWasSet)
     std::vector<Optim::ParameterSlot> slots = make_slots();
     const SushiBLAS::Tensor parameter = slots.front().parameter;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, std::move(slots), options));
+                            Optim::SGD::make(backend(), std::move(slots), options));
     const StepSchedule schedule = make_halving_schedule();
 
     double expected = 0.0;
@@ -173,7 +173,7 @@ TEST_F(Medium_ApplyStepSchedule, AdamWTakesTheRateThroughTheSameSeam)
     Optim::AdamWOptions options;
     options.learning_rate = K_MADE_RATE;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> made,
-                            Optim::AdamW::make(*engine, make_slots(), options));
+                            Optim::AdamW::make(backend(), make_slots(), options));
     Optim::Optimizer& optimizer = *made;
 
     EXPECT_NEAR(optimizer.learning_rate(), K_MADE_RATE, K_RATE_TOLERANCE);
@@ -186,7 +186,7 @@ TEST_F(Medium_ApplyStepSchedule, AdamWTakesTheRateThroughTheSameSeam)
 TEST_F(Medium_ApplyStepSchedule, ANegativeRateIsFatal)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, make_slots(), Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), make_slots(), Optim::SGDOptions{}));
 
     SA_EXPECT_FATAL(optimizer->set_learning_rate(-0.1), "learning rate", "negative");
 }
@@ -195,7 +195,7 @@ TEST_F(Medium_ApplyStepSchedule, ANegativeRateIsFatal)
 TEST_F(Medium_ApplyStepSchedule, ACosineScheduleTakesTheSameSeam)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, make_slots(), Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), make_slots(), Optim::SGDOptions{}));
 
     Optim::CosineSchedule cosine;
     cosine.base_rate = 0.5;

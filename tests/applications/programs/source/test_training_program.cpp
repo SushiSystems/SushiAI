@@ -66,17 +66,19 @@ namespace
     };
 
     /** @brief Runs @p spec on @p engine and captures its standard output. */
-    TrainedRun train_capturing(SushiBLAS::Engine& engine, const Config::TrainSpec& spec)
+    TrainedRun train_capturing(SushiAI::RuntimeExecutionBackend& backend,
+                               const Config::TrainSpec& spec)
     {
         testing::internal::CaptureStdout();
-        Result<Apps::TrainingOutcome> outcome = Apps::run_training_file("<test>", spec, engine);
+        Result<Apps::TrainingOutcome> outcome = Apps::run_training_file("<test>", spec, backend);
         return TrainedRun{std::move(outcome), testing::internal::GetCapturedStdout()};
     }
 
     /** @brief Runs the fixture with its checkpoint written to @p checkpoint. */
-    TrainedRun train_to(SushiBLAS::Engine& engine, const std::filesystem::path& checkpoint)
+    TrainedRun train_to(SushiAI::RuntimeExecutionBackend& backend,
+                       const std::filesystem::path& checkpoint)
     {
-        return train_capturing(engine, TinyYolo::training_spec(checkpoint));
+        return train_capturing(backend, TinyYolo::training_spec(checkpoint));
     }
 } // namespace
 
@@ -85,7 +87,7 @@ TEST_F(Medium_TrainingProgram, TheAnchorRowTakesTwoOptimizerSteps)
 {
     const SaTest::ScratchFile checkpoint("sushiai_training_program_steps.sushi");
 
-    const TrainedRun run = train_to(*engine, checkpoint.path());
+    const TrainedRun run = train_to(backend(), checkpoint.path());
 
     ASSERT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_EQ(run.outcome.value().optimizer_steps, TinyYolo::K_STEPS) << run.printed;
@@ -96,7 +98,7 @@ TEST_F(Medium_TrainingProgram, TheAnchorRowCompilesOnce)
 {
     const SaTest::ScratchFile checkpoint("sushiai_training_program_compiles.sushi");
 
-    const TrainedRun run = train_to(*engine, checkpoint.path());
+    const TrainedRun run = train_to(backend(), checkpoint.path());
 
     ASSERT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_EQ(run.outcome.value().summary.compile_count, 1u) << run.printed;
@@ -108,7 +110,7 @@ TEST_F(Medium_TrainingProgram, TheAnchorRowWritesItsCheckpoint)
 {
     const SaTest::ScratchFile checkpoint("sushiai_training_program_written.sushi");
 
-    const TrainedRun run = train_to(*engine, checkpoint.path());
+    const TrainedRun run = train_to(backend(), checkpoint.path());
 
     ASSERT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_TRUE(std::filesystem::exists(checkpoint.path()));
@@ -119,7 +121,7 @@ TEST_F(Medium_TrainingProgram, TheAnchorRowPrintsNoZeroScalarCount)
 {
     const SaTest::ScratchFile checkpoint("sushiai_training_program_scalars.sushi");
 
-    const TrainedRun run = train_to(*engine, checkpoint.path());
+    const TrainedRun run = train_to(backend(), checkpoint.path());
 
     ASSERT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_EQ(run.printed.find(" 0 learnable scalars"), std::string::npos) << run.printed;
@@ -132,7 +134,7 @@ TEST_F(Medium_TrainingProgram, TheRunCreatesTheFolderOfItsCheckpoint)
     const SaTest::ScratchDirectory folder("sushiai_training_program_new_folder");
     const std::filesystem::path checkpoint = folder.path() / "nested" / "trained.sushi";
 
-    const TrainedRun run = train_to(*engine, checkpoint);
+    const TrainedRun run = train_to(backend(), checkpoint);
 
     EXPECT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_TRUE(std::filesystem::exists(checkpoint));
@@ -147,7 +149,7 @@ TEST_F(Medium_TrainingProgram, ACheckpointFolderUnderAFileIsRefusedBeforeTheRunT
 
     testing::internal::CaptureStdout();
     const Result<Apps::TrainingOutcome> trained =
-        TinyYolo::train_the_fixture(*engine, checkpoint);
+        TinyYolo::train_the_fixture(backend(), checkpoint);
     const std::string printed = testing::internal::GetCapturedStdout();
 
     ASSERT_FALSE(trained.has_value()) << printed;
@@ -162,7 +164,7 @@ TEST_F(Medium_TrainingProgram, AFileWithoutACheckpointTrainsItsSteps)
     Config::TrainSpec spec = TinyYolo::training_spec("unused.sushi");
     spec.checkpoint.clear();
 
-    const TrainedRun run = train_capturing(*engine, spec);
+    const TrainedRun run = train_capturing(backend(), spec);
 
     ASSERT_TRUE(run.outcome.has_value()) << run.outcome.status().message() << run.printed;
     EXPECT_EQ(run.outcome.value().optimizer_steps, TinyYolo::K_STEPS) << run.printed;
@@ -174,7 +176,7 @@ TEST_F(Medium_TrainingProgram, AFileWithoutACheckpointPrintsNoWroteLine)
     Config::TrainSpec spec = TinyYolo::training_spec("unused.sushi");
     spec.checkpoint.clear();
 
-    const TrainedRun run = train_capturing(*engine, spec);
+    const TrainedRun run = train_capturing(backend(), spec);
 
     EXPECT_EQ(run.printed.find("wrote "), std::string::npos) << run.printed;
 }

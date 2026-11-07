@@ -168,12 +168,12 @@ namespace
                 training_pool_ = std::make_unique<TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::vector<Optim::ParameterSlot> slots,
-                    Train::bind_parameters(built_, *state_, *training_pool_));
+                    Train::bind_parameters(backend(), built_, *state_, *training_pool_));
 
                 // The last weight stays drawn, so the head starts away from zero.
                 NN::InitPolicy policy;
                 policy.zero_final_layer = false;
-                SA_EXPECT_OK(NN::initialize(*engine, *state_, policy));
+                SA_EXPECT_OK(NN::initialize(backend(), *state_, policy));
 
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::vector<Train::BufferUpdateSlot> updates,
@@ -181,9 +181,9 @@ namespace
 
                 Optim::SGDOptions options;
                 options.learning_rate = K_MADE_RATE;
-                SA_ASSERT_OK_AND_ASSIGN(optimizer_, Optim::SGD::make(*engine, slots, options));
+                SA_ASSERT_OK_AND_ASSIGN(optimizer_, Optim::SGD::make(backend(), slots, options));
                 SA_ASSERT_OK_AND_ASSIGN(
-                    step_, AnchorTrainingStep::make(*engine, objective, built_, *training_pool_,
+                    step_, AnchorTrainingStep::make(backend(), objective, built_, *training_pool_,
                                                     *optimizer_, std::move(updates)));
             }
 

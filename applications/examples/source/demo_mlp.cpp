@@ -42,6 +42,7 @@
 #include <vector>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/data/roles.hpp>
 #include <SushiAI/data/target.hpp>
 #include <SushiAI/vision/datasets/mnist.hpp>
@@ -380,7 +381,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @see applications/examples/README.md, "Learning-rate defaults".
      */
     [[nodiscard]] sa::Result<std::unique_ptr<sa::Optim::Optimizer>> make_optimizer(
-        sb::Engine& engine,
+        sa::ExecutionBackend& backend,
         std::vector<sa::Optim::ParameterSlot> parameters,
         const Settings& settings,
         double& learning_rate)
@@ -393,7 +394,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             learning_rate = sgd.learning_rate;
 
             SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::SGD> optimizer,
-                          sa::Optim::SGD::make(engine, std::move(parameters), sgd));
+                          sa::Optim::SGD::make(backend, std::move(parameters), sgd));
             return std::unique_ptr<sa::Optim::Optimizer>(std::move(optimizer));
         }
 
@@ -402,7 +403,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         learning_rate = adam.learning_rate;
 
         SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
-                      sa::Optim::AdamW::make(engine, std::move(parameters), adam));
+                      sa::Optim::AdamW::make(backend, std::move(parameters), adam));
         return std::unique_ptr<sa::Optim::Optimizer>(std::move(optimizer));
     }
 
@@ -422,7 +423,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @return The dataset and its provenance, or the failure of the load or of the generation.
      * @see applications/examples/README.md, "Data source".
      */
-    [[nodiscard]] sa::Result<DataChoice> load_dataset(sb::Engine& engine, const Settings& settings)
+    [[nodiscard]] sa::Result<DataChoice> load_dataset(sa::ExecutionBackend& backend,
+                                                         const Settings& settings)
     {
         sa::Vision::Datasets::MNISTOptions mnist;
         mnist.directory = settings.mnist_directory;
@@ -430,7 +432,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         mnist.max_samples = settings.batch_size * settings.batches;
 
         sa::Result<std::unique_ptr<sa::Data::Dataset>> loaded =
-            sa::Vision::Datasets::try_load_mnist(engine, mnist);
+            sa::Vision::Datasets::try_load_mnist(backend.engine(), mnist);
 
         if (loaded.has_value())
         {
@@ -453,7 +455,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         synthetic.seed = settings.seed;
 
         SA_TRY_ASSIGN(std::unique_ptr<sa::Data::SyntheticClassification> generated,
-                      sa::Data::SyntheticClassification::make(engine, synthetic));
+                      sa::Data::SyntheticClassification::make(backend, synthetic));
 
         return DataChoice{
             std::move(generated),
@@ -585,7 +587,8 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
      * @see applications/examples/README.md, "One template, two models".
      */
     template<typename M>
-    [[nodiscard]] sa::Status train_and_report(sb::Engine& engine, M& model, const DataChoice& data,
+    [[nodiscard]] sa::Status train_and_report(sa::ExecutionBackend& backend, M& model,
+                                              const DataChoice& data,
                                               const sa::Data::Dataset& dataset,
                                               const Settings& settings, int64_t features,
                                               int64_t classes)
@@ -611,20 +614,21 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                       sa::Train::build_classifier(model, settings.batch_size, features, classes,
                                                   sa::DType::Float32, fusion, precision, scaling));
 
-        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
-        sa::Graph::TensorPool pool(engine);
+        SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(backend.engine(),
+                                                                           model));
+        sa::Graph::TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-                      sa::Train::bind_parameters(built, state, pool));
+                      sa::Train::bind_parameters(backend, built, state, pool));
 
         sa::NN::InitPolicy init;
         init.seed = settings.seed;
-        SA_TRY(sa::NN::initialize(engine, state, init));
+        SA_TRY(sa::NN::initialize(backend, state, init));
 
         const std::size_t parameter_count = parameters.size();
 
         double learning_rate = 0.0;
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Optim::Optimizer> optimizer,
-                      make_optimizer(engine, std::move(parameters), settings, learning_rate));
+                      make_optimizer(backend, std::move(parameters), settings, learning_rate));
 
         // The scaler outlives the trainer, whose compiled plan records its screens.
         std::unique_ptr<sa::Optim::LossScaler> scaler;
@@ -635,7 +639,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             scale_options.initial = settings.loss_scale;
 
             SA_TRY_ASSIGN(scaler, sa::Optim::LossScaler::make(
-                engine, pool.tensor(built.loss_scale), parameter_count, scale_options));
+                backend.engine(), pool.tensor(built.loss_scale), parameter_count, scale_options));
 
             SA_TRY(optimizer->set_loss_scaler(scaler.get()));
         }
@@ -651,7 +655,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
         const sa::Train::CrossEntropyObjective objective(settings.batch_size, classes,
                                                          sa::DType::Float32);
         SA_TRY_ASSIGN(const std::unique_ptr<sa::Train::Trainer> trainer,
-                      sa::Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      sa::Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                                options));
 
         // The step count comes from the dataset, which the MNIST path may cap below --batches.
@@ -762,8 +766,9 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
 
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
+        sa::RuntimeExecutionBackend backend(runtime, engine);
 
-        SA_TRY_ASSIGN(const DataChoice data, load_dataset(engine, settings));
+        SA_TRY_ASSIGN(const DataChoice data, load_dataset(backend, settings));
         const sa::Data::Dataset& dataset = *data.dataset;
 
         const sa::Data::TargetDescription* const labels =
@@ -783,7 +788,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
                 sa::NN::GELU{},
                 sa::NN::Linear{settings.hidden, classes},
             };
-            return train_and_report(engine, model, data, dataset, settings, features, classes);
+            return train_and_report(backend, model, data, dataset, settings, features, classes);
         }
 
         sa::NN::Sequential model{
@@ -791,7 +796,7 @@ are ignored on the MNIST path, which is fixed at 784 -> 10.
             sa::NN::ReLU{},
             sa::NN::Linear{settings.hidden, classes},
         };
-        return train_and_report(engine, model, data, dataset, settings, features, classes);
+        return train_and_report(backend, model, data, dataset, settings, features, classes);
     }
 
 } // namespace

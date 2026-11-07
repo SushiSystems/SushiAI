@@ -156,8 +156,10 @@ namespace SushiAI
         Status run_inference_file(const std::filesystem::path& model_path,
                                   const std::filesystem::path& checkpoint_path,
                                   const Config::ModelSpec& model_spec,
-                                  const Config::DataSpec& data_spec, SushiBLAS::Engine& engine)
+                                  const Config::DataSpec& data_spec, ExecutionBackend& backend)
         {
+            SushiBLAS::Engine& engine = backend.engine();
+
             SA_TRY_ASSIGN(const Registries registries, compose_registries());
 
             SA_TRY_ASSIGN(const Config::Value data_block,
@@ -200,12 +202,12 @@ namespace SushiAI
 
             Graph::TensorPool pool(engine);
             SA_TRY_ASSIGN(const std::unique_ptr<Train::EvaluationStep> step,
-                          Train::EvaluationStep::make(engine, traced, state, pool));
+                          Train::EvaluationStep::make(backend, traced, state, pool));
 
             // The report is the row of the task type; see applications/programs/README.md.
             PreparedInference prepared{
                 model_path, checkpoint_path, model_spec, model.size(),
-                *dataset, *step, published, engine, &model, &state,
+                *dataset, *step, published, backend, &model, &state,
             };
             if (tasked)
             {

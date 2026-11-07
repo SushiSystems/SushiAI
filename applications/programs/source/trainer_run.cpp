@@ -79,7 +79,7 @@ namespace SushiAI
                 options.epochs = 1;
 
                 SA_TRY_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                              Train::Trainer::make(run.engine, run.built, run.pool,
+                              Train::Trainer::make(run.backend, run.built, run.pool,
                                                    run.objective, run.optimizer, options,
                                                    std::move(run.updates)));
 

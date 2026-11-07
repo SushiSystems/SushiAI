@@ -138,22 +138,22 @@ TEST_F(Medium_MixedPrecision, AModelWithFP16ProductsStillLearns)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options()));
+                            Optim::AdamW::make(backend(), slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.epochs = 25;
     options.precision = &precision;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options()));
+                            Data::SyntheticClassification::make(backend(), data_options()));
     SA_ASSERT_OK_AND_ASSIGN(const Train::RunReport report, trainer->fit(*dataset));
 
     EXPECT_EQ(report.compile_count, 1u);
@@ -182,17 +182,17 @@ TEST_F(Medium_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options()));
+                            Optim::AdamW::make(backend(), slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.precision = &precision;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     // Every tensor the optimizer touches - both sides of the update.
@@ -217,7 +217,7 @@ TEST_F(Medium_MixedPrecision, TheMastersAreFourByteBuffersAndTheCopiesAreTwo)
 
     // SushiBLAS refuses a mixed-dtype gemm by name; see tests/layers/train/README.md.
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options()));
+                            Data::SyntheticClassification::make(backend(), data_options()));
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_ASSERT_OK_AND_ASSIGN(const Train::StepMetrics metrics,
@@ -235,18 +235,18 @@ TEST_F(Medium_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options()));
+                            Optim::AdamW::make(backend(), slots, optimizer_options()));
 
     const MixedPrecisionPolicy precision;
     Train::TrainerOptions options;
     options.precision = &precision;
 
     const auto objective = SaTest::classifier_objective(built);
-    SA_EXPECT_FAILURE(Train::Trainer::make(*engine, built, pool, objective, *optimizer,
+    SA_EXPECT_FAILURE(Train::Trainer::make(backend(), built, pool, objective, *optimizer,
                                            options),
                       StatusCode::InvalidDescription, "does not agree with the precision policy");
 
@@ -254,7 +254,7 @@ TEST_F(Medium_MixedPrecision, TheTrainerRefusesAGraphItsPolicyDisowns)
     const UniformPrecisionPolicy single;
     Train::TrainerOptions consistent;
     consistent.precision = &single;
-    SA_EXPECT_OK(Train::Trainer::make(*engine, built, pool, objective, *optimizer,
+    SA_EXPECT_OK(Train::Trainer::make(backend(), built, pool, objective, *optimizer,
                                       consistent));
 }
 
@@ -276,21 +276,21 @@ TEST_F(Medium_MixedPrecision, AccuracyRefusesLogitsItCannotRead)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, slots, optimizer_options()));
+                            Optim::AdamW::make(backend(), slots, optimizer_options()));
 
     Train::TrainerOptions options;
     options.track_metrics = true;
     const auto objective = SaTest::classifier_objective(built);
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, objective,
+                            Train::Trainer::make(backend(), built, pool, objective,
                                                  *optimizer, options));
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, data_options()));
+                            Data::SyntheticClassification::make(backend(), data_options()));
     Data::Batch dataset_batch;
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(0, dataset_batch)));
     SA_EXPECT_FAILURE(trainer->run_step(dataset_batch), StatusCode::InvalidDescription,
@@ -323,7 +323,7 @@ namespace
      * @brief Trains the same model, data and seed under @p precision.
      * @see tests/layers/train/README.md
      */
-    [[nodiscard]] Result<TrainingRun> train(SushiBLAS::Engine& engine,
+    [[nodiscard]] Result<TrainingRun> train(SushiAI::ExecutionBackend& backend,
                                             const Graph::PrecisionPolicy* precision)
     {
         MLP model(NN::Linear{K_FEATURES, K_GRAPH_HIDDEN}, NN::ReLU{}, NN::Linear{K_GRAPH_HIDDEN, K_CLASSES});
@@ -332,20 +332,20 @@ namespace
                       Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES, DType::Float32,
                                               Graph::FusionOptions{}, precision));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        TensorPool pool(engine);
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
+        TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                      Optim::AdamW::make(engine, slots, optimizer_options()));
+                      Optim::AdamW::make(backend, slots, optimizer_options()));
 
         Train::TrainerOptions options;
         options.precision = precision;
         const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                            options));
 
         Data::SyntheticOptions data;
@@ -354,7 +354,7 @@ namespace
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
         SA_TRY_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                      Data::SyntheticClassification::make(engine, data));
+                      Data::SyntheticClassification::make(backend, data));
 
         TrainingRun result;
         result.casts = built.casts.count();
@@ -389,7 +389,7 @@ namespace
 TEST_F(Medium_MixedPrecisionRegressions, TheMasterWeightsAndTheirGradientsStayFloat32)
 {
     const MixedPrecisionPolicy precision;
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(backend(), &precision));
 
     ASSERT_FALSE(mixed.master_dtypes.empty());
     ASSERT_GT(mixed.casts, 0u) << "nothing was narrowed, so nothing was being guarded";
@@ -412,8 +412,8 @@ TEST_F(Medium_MixedPrecisionRegressions, TheFP32PolicyIsIndistinguishableFromNoP
 {
     const UniformPrecisionPolicy single;
 
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun none, train(*engine, nullptr));
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun explicit_fp32, train(*engine, &single));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun none, train(backend(), nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun explicit_fp32, train(backend(), &single));
 
     EXPECT_EQ(none.casts, 0u);
     EXPECT_EQ(explicit_fp32.casts, 0u);
@@ -432,8 +432,8 @@ TEST_F(Medium_MixedPrecisionRegressions, NarrowingCostsConversionsAndNothingElse
 {
     const MixedPrecisionPolicy precision;
 
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(*engine, nullptr));
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(backend(), nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(backend(), &precision));
 
     EXPECT_EQ(mixed.operations, fp32.operations + mixed.casts)
         << "mixed precision changed the plan by more than the conversions it added";
@@ -447,8 +447,8 @@ TEST_F(Medium_MixedPrecisionRegressions, MixedAndSinglePrecisionTrainToTheSamePl
 {
     const MixedPrecisionPolicy precision;
 
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(*engine, nullptr));
-    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(*engine, &precision));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun fp32, train(backend(), nullptr));
+    SA_ASSERT_OK_AND_ASSIGN(const TrainingRun mixed, train(backend(), &precision));
 
     ASSERT_EQ(fp32.losses.size(), mixed.losses.size());
     ASSERT_GT(mixed.casts, 0u);

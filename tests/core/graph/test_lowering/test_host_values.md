@@ -5,8 +5,8 @@ Suites: `Medium_LoweredOperations`.
 
 This file runs fourteen lowerings through a compiled step and compares the result with values
 computed on the host: twelve forward cases on FLOAT32 and two gradient cases on FLOAT64. Each case
-builds a graph with one operation, compiles it with `CompiledStep::compile`, runs it, and reads the
-result back. The gradient cases reach the gradient through `Autograd::differentiate`, on a
+builds a graph with one operation, compiles it with `CompiledStep::compile` over the `backend()` of
+the fixture, runs it, and reads the result back. The gradient cases reach the gradient through `Autograd::differentiate`, on a
 negative log-likelihood root, and compare it with the closed-form derivative.
 
 The forward cases allow `K_FLOAT32_TOLERANCE`: an absolute error of 32 unit roundoffs of float and

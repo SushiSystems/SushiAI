@@ -36,6 +36,7 @@
 #include <SushiAI/allocation/allocation.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 
 namespace SushiAI
 {
@@ -111,11 +112,16 @@ namespace SushiAI
             return Status();
         }
 
-        Optimizer::Optimizer(SushiBLAS::Engine& engine,
+        Optimizer::Optimizer(ExecutionBackend& backend,
                              std::vector<ParameterSlot> parameters) noexcept
-            : engine_(&engine), parameters_(std::move(parameters))
+            : backend_(&backend), parameters_(std::move(parameters))
         {
 
+        }
+
+        SushiBLAS::Engine& Optimizer::engine() const noexcept
+        {
+            return backend_->engine();
         }
 
         Status Optimizer::set_loss_scaler(LossScaler* scaler) noexcept
@@ -246,7 +252,7 @@ namespace SushiAI
                            dtype_name(slot.gradient.dtype));
             }
 
-            SA_TRY_ASSIGN(clip_, GradientClip::make(*engine_, dtype, parameters_.size(),
+            SA_TRY_ASSIGN(clip_, GradientClip::make(engine(), dtype, parameters_.size(),
                                                     max_norm));
             return Status();
         }
@@ -342,7 +348,7 @@ namespace SushiAI
 
             // Execute three-phase update sequence matching compiled plan replay order.
             before_replay();
-            SA_TRY(Detail::record_and_run(*engine_,
+            SA_TRY(Detail::record_and_run(*backend_,
                                        [this](SushiBLAS::TaskRecorder& recorder) -> Status
             {
                 SA_TRY(record_all(recorder));
@@ -355,7 +361,7 @@ namespace SushiAI
         Result<SushiBLAS::Tensor> Optimizer::allocate_state(const SushiBLAS::Tensor& like) const
         {
             // Allocate distinct tensor storage matching target dtype and shape layout.
-            return allocate_like(*engine_, like);
+            return allocate_like(engine(), like);
         }
 
     } // namespace Optim

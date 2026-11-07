@@ -32,12 +32,13 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiAI/engine_fixture/test_environment.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 
 namespace SushiAI
 {
     namespace Test
     {
-        /** @brief Gives every test the one Engine of the program, rewound to a fresh Engine's state. */
+        /** @brief Gives every test the one Engine and backend of the program, rewound to fresh. */
         class EngineTest : public ::testing::Test
         {
             protected:
@@ -47,6 +48,12 @@ namespace SushiAI
                     engine = &TestEnvironment::engine();
                     engine->set_mode(SushiBLAS::ExecutionMode::Auto);
                     engine->rng().reseed(0);
+                }
+
+                /** @brief Returns the backend of the program, over the runtime and engine. */
+                [[nodiscard]] RuntimeExecutionBackend& backend()
+                {
+                    return TestEnvironment::backend();
                 }
 
                 /** @brief Waits for the device; a test runs the graph it records on itself. */

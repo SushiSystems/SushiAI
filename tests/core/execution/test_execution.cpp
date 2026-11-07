@@ -24,8 +24,8 @@
 
 /**
  * @file test_execution.cpp
- * @brief Tests that record_and_run runs what a recording recorded on a graph of its own and
- *        drops what a failed one left.
+ * @brief Tests that record_and_run runs what a recording recorded on tasks of its own and drops
+ *        what a failed one left.
  * @author Mustafa Garip
  */
 
@@ -40,12 +40,11 @@
 #include <gtest/gtest.h>
 #include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiBLAS/random/random.hpp>
-#include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
@@ -57,10 +56,12 @@ namespace SaTest = SushiAI::Test;
 
 namespace
 {
-    /** @brief Provides the engine the record_and_run and run_once cases record on. */
-    class Medium_ExecutionEngine : public SaTest::EngineTest
+    /** @brief Provides the host backend each record_and_run case records on. */
+    class Small_Execution : public ::testing::Test
     {
-
+        protected:
+            /// @brief The backend the case records on; each case makes its own.
+            SushiAI::HostExecutionBackend backend;
     };
 
     /** @brief Holds the element count of the tensors the record_and_run cases fill. */
@@ -89,13 +90,14 @@ namespace
 } // namespace
 
 /** @brief Tests that record_and_run runs what a successful recording recorded. */
-TEST_F(Medium_ExecutionEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
+TEST_F(Small_Execution, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
 {
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(*engine, 1.0));
+    SushiBLAS::Engine& engine = backend.engine();
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor target, filled_vector(engine, 1.0));
 
-    SA_EXPECT_OK(record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
+    SA_EXPECT_OK(record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(recorder, engine->rng());
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.constant(target, 2.0);
         return Status();
     }));
@@ -104,39 +106,40 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunRunsWhatASuccessfulRecordingRecorded)
 }
 
 /** @brief Tests that a recording that throws is discarded and its failure is returned. */
-TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhatAThrowingRecordingRecorded)
+TEST_F(Small_Execution, RecordAndRunDiscardsWhatAThrowingRecordingRecorded)
 {
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
+    SushiBLAS::Engine& engine = backend.engine();
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(engine, 1.0));
 
-    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder) -> Status
+    const Status failed = record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder) -> Status
     {
-        SushiBLAS::RandomOps random(recorder, engine->rng());
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.constant(discarded, 5.0);
         throw std::invalid_argument("axpy: shapes disagree");
     });
     SA_EXPECT_FAILURE(failed, StatusCode::InvalidDescription, "axpy: shapes disagree");
 
-    flush();
     expect_all(discarded, 1.0);
 }
 
 /** @brief Tests that a recording after a failed one runs and leaves the failed one's work out. */
-TEST_F(Medium_ExecutionEngine, RecordAndRunRunsARecordingThatFollowsAFailedOne)
+TEST_F(Small_Execution, RecordAndRunRunsARecordingThatFollowsAFailedOne)
 {
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor kept, filled_vector(*engine, 1.0));
+    SushiBLAS::Engine& engine = backend.engine();
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(engine, 1.0));
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor kept, filled_vector(engine, 1.0));
 
-    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder) -> Status
+    const Status failed = record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder) -> Status
     {
-        SushiBLAS::RandomOps random(recorder, engine->rng());
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.constant(discarded, 5.0);
         throw std::invalid_argument("axpy: shapes disagree");
     });
     ASSERT_FALSE(failed.is_ok());
 
-    SA_EXPECT_OK(record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
+    SA_EXPECT_OK(record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(recorder, engine->rng());
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.constant(kept, 2.0);
         return Status();
     }));
@@ -146,13 +149,14 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunRunsARecordingThatFollowsAFailedOne)
 }
 
 /** @brief Tests that a recording that returns a failure is discarded and the failure returned. */
-TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailure)
+TEST_F(Small_Execution, RecordAndRunDiscardsWhenTheRecordingReturnsAFailure)
 {
-    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(*engine, 1.0));
+    SushiBLAS::Engine& engine = backend.engine();
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor discarded, filled_vector(engine, 1.0));
 
-    const Status failed = record_and_run(*engine, [&](SushiBLAS::TaskRecorder& recorder)
+    const Status failed = record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder)
     {
-        SushiBLAS::RandomOps random(recorder, engine->rng());
+        SushiBLAS::RandomOps random(recorder, engine.rng());
         random.constant(discarded, 5.0);
         return Status::from_message(StatusCode::Unsupported, []()
         {
@@ -161,6 +165,19 @@ TEST_F(Medium_ExecutionEngine, RecordAndRunDiscardsWhenTheRecordingReturnsAFailu
     });
     SA_EXPECT_FAILURE(failed, StatusCode::Unsupported, "no host path");
 
-    flush();
     expect_all(discarded, 1.0);
+}
+
+/** @brief Tests that a recording of no task runs nothing and succeeds. */
+TEST_F(Small_Execution, RecordAndRunSucceedsForARecordingOfNoTask)
+{
+    std::size_t calls = 0;
+
+    SA_EXPECT_OK(record_and_run(backend, [&](SushiBLAS::TaskRecorder&)
+    {
+        ++calls;
+        return Status();
+    }));
+
+    EXPECT_EQ(calls, 1u);
 }

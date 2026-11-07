@@ -38,6 +38,7 @@
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/dtype/dtype.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
@@ -200,12 +201,14 @@ namespace SushiAI
                 [[nodiscard]] Status request_constant(SushiBLAS::Tensor& tensor, double value) noexcept;
 
                 /**
-                 * @brief Records every queued constant fill and runs it until it has finished.
+                 * @brief Records every queued constant fill on tasks of @p backend and runs them
+                 *        until they have finished.
+                 * @param backend Records and runs the fill; its engine draws the random stream
+                 *                and is the engine the pool was built over.
                  * @return Success when nothing is queued, otherwise the failure of the recording
                  *         or of the run, or Unsupported for a pool built over a TensorSource.
-                 * @pre The engine's own graph holds no recorded task; the run executes all of it.
                  */
-                [[nodiscard]] Status flush_constants() noexcept;
+                [[nodiscard]] Status flush_constants(ExecutionBackend& backend) noexcept;
 
                 /** @brief How many tensors the pool has handed out. */
                 std::size_t tensor_count() const noexcept;

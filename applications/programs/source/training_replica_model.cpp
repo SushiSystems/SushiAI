@@ -146,16 +146,16 @@ namespace SushiAI
         Distribution::ReplicaModelFactory TrainingReplicaModel::factory(
             std::shared_ptr<const ReplicaSource> source)
         {
-            return [source = std::move(source)](SushiBLAS::Engine& engine,
+            return [source = std::move(source)](ExecutionBackend& backend,
                                                 const Distribution::ReplicaDraws& draws,
                                                 std::int64_t micro_batch_rows)
             {
-                return make(source, engine, draws, micro_batch_rows);
+                return make(source, backend, draws, micro_batch_rows);
             };
         }
 
         Result<std::unique_ptr<Distribution::ReplicaModel>> TrainingReplicaModel::make(
-            std::shared_ptr<const ReplicaSource> source, SushiBLAS::Engine& engine,
+            std::shared_ptr<const ReplicaSource> source, ExecutionBackend& backend,
             const Distribution::ReplicaDraws& draws, std::int64_t micro_batch_rows)
         {
             SA_FAIL_IF(source == nullptr, StatusCode::InvalidDescription,
@@ -163,7 +163,7 @@ namespace SushiAI
 
             SA_TRY_ASSIGN(std::unique_ptr<TrainingSetup> setup,
                           TrainingSetup::make(source->registries, source->spec,
-                                              source->model_spec, engine,
+                                              source->model_spec, backend,
                                               Distribution::replica_seed(draws),
                                               micro_batch_rows));
             SA_TRY_ASSIGN(ReplicaTensors tensors,
@@ -176,14 +176,14 @@ namespace SushiAI
 
             return Result<std::unique_ptr<Distribution::ReplicaModel>>(
                 std::unique_ptr<Distribution::ReplicaModel>(new TrainingReplicaModel(
-                    std::move(source), engine, std::move(setup), std::move(tensors))));
+                    std::move(source), backend, std::move(setup), std::move(tensors))));
         }
 
         TrainingReplicaModel::TrainingReplicaModel(std::shared_ptr<const ReplicaSource> source,
-                                                   SushiBLAS::Engine& engine,
+                                                   ExecutionBackend& backend,
                                                    std::unique_ptr<TrainingSetup> setup,
                                                    ReplicaTensors tensors) noexcept
-            : source_(std::move(source)), engine_(&engine), setup_(std::move(setup)),
+            : source_(std::move(source)), backend_(&backend), setup_(std::move(setup)),
               tensors_(std::move(tensors))
         {
 
@@ -262,7 +262,7 @@ namespace SushiAI
 
             SushiBLAS::Tensor& inputs = setup_->pool().tensor(built.spec.inputs);
             SA_ZONE("copy", "input");
-            return SushiAI::Detail::record_and_run(*engine_,
+            return SushiAI::Detail::record_and_run(*backend_,
                                                    [&](SushiBLAS::TaskRecorder& recorder)
             {
                 SushiBLAS::BLASOps blas(recorder);

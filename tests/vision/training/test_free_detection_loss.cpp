@@ -181,9 +181,11 @@ namespace
     class LossProbe
     {
         public:
-            /** @brief Builds, differentiates and compiles the loss of @p reg_max on @p engine. */
-            LossProbe(SushiBLAS::Engine& engine, std::int64_t reg_max, const FreeLossGains& gains)
-                : pool_(engine), reg_max_(reg_max), gains_(gains), leaves_(make_leaves(reg_max))
+            /** @brief Builds, differentiates and compiles the loss of @p reg_max on @p backend. */
+            LossProbe(SushiAI::ExecutionBackend& backend, std::int64_t reg_max,
+                      const FreeLossGains& gains)
+                : pool_(backend.engine()), reg_max_(reg_max), gains_(gains),
+                  leaves_(make_leaves(reg_max))
             {
                 const GraphBuilder builder(graph_);
                 FreeLevelLossValues level;
@@ -222,7 +224,7 @@ namespace
 
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (compiled.has_value())
                     step_ = std::move(compiled).value();
@@ -405,7 +407,7 @@ TEST(Small_FreeDetectionLoss, AlphaIsHeldAndTheBoxesAreSelected)
 /** @brief Tests that every term at reg_max 4 equals the host evaluation. */
 TEST_F(Medium_FreeDetectionLossEndToEnd, TheDistributionCaseEqualsTheHostEvaluation)
 {
-    LossProbe probe(*engine, 4, FreeLossGains{});
+    LossProbe probe(backend(), 4, FreeLossGains{});
     ASSERT_TRUE(probe.ready());
 
     const std::vector<double> point = make_point(4);
@@ -423,7 +425,7 @@ TEST_F(Medium_FreeDetectionLossEndToEnd, TheDistributionCaseEqualsTheHostEvaluat
 /** @brief Tests that every term at reg_max 1 with an L1 gain equals the host evaluation. */
 TEST_F(Medium_FreeDetectionLossEndToEnd, TheRawDistanceCaseEqualsTheHostEvaluation)
 {
-    LossProbe probe(*engine, 1, with_l1());
+    LossProbe probe(backend(), 1, with_l1());
     ASSERT_TRUE(probe.ready());
 
     const std::vector<double> point = make_point(1);
@@ -440,7 +442,7 @@ TEST_F(Medium_FreeDetectionLossEndToEnd, TheRawDistanceCaseEqualsTheHostEvaluati
 /** @brief Tests the gradient where the aspect ratios agree, so the held alpha changes nothing. */
 TEST_F(Medium_FreeDetectionLossEndToEnd, TheBoxClassAndL1GradientMatchesACentralDifference)
 {
-    LossProbe probe(*engine, 1, with_l1());
+    LossProbe probe(backend(), 1, with_l1());
     ASSERT_TRUE(probe.ready());
 
     const Autograd::GradCheckResult result = check_gradient(probe, make_point(1));
@@ -453,7 +455,7 @@ TEST_F(Medium_FreeDetectionLossEndToEnd, TheClassAndDistributionGradientMatchesA
 {
     FreeLossGains gains;
     gains.box_gain = 0.0f;
-    LossProbe probe(*engine, 4, gains);
+    LossProbe probe(backend(), 4, gains);
     ASSERT_TRUE(probe.ready());
 
     const Autograd::GradCheckResult result = check_gradient(probe, make_point(4));

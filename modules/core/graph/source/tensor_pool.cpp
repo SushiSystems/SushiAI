@@ -303,7 +303,7 @@ namespace SushiAI
             });
         }
 
-        Status TensorPool::flush_constants() noexcept
+        Status TensorPool::flush_constants(ExecutionBackend& backend) noexcept
         {
             if (pending_constants_.empty()) return Status();
 
@@ -312,9 +312,9 @@ namespace SushiAI
                        "run the {} queued constant fill(s) on", pending_constants_.size());
 
             return ::SushiAI::Detail::record_and_run(
-                *engine_, [this](SushiBLAS::TaskRecorder& recorder)
+                backend, [this, &backend](SushiBLAS::TaskRecorder& recorder)
             {
-                SushiBLAS::RandomOps filler(recorder, engine_->rng());
+                SushiBLAS::RandomOps filler(recorder, backend.engine().rng());
                 for (const auto& [tensor, value] : pending_constants_)
                     filler.constant(*tensor, value);
 

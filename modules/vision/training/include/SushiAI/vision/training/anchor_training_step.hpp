@@ -57,7 +57,7 @@ namespace SushiAI::Vision::Training
     /**
      * @brief Owns a training step that stops after its heads, so the host computes each
      *        delta from the forward pass the step differentiates.
-     * @pre The engine, the pool and the optimizer outlive the step.
+     * @pre The backend, the pool and the optimizer outlive the step.
      * @see docs/agent/2026_10_09_DARKNET_YOLO/SPEC.md, section 4.8.
      */
     class AnchorTrainingStep final
@@ -72,7 +72,7 @@ namespace SushiAI::Vision::Training
              *         Incompatible for one that is not float32 or not of its head's size.
              */
             [[nodiscard]] static Result<std::unique_ptr<AnchorTrainingStep>> make(
-                SushiBLAS::Engine& engine, const AnchorObjective& objective,
+                ExecutionBackend& backend, const AnchorObjective& objective,
                 const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
                 Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
                 Train::TrainingStepOptions options = {}) noexcept;
@@ -126,7 +126,7 @@ namespace SushiAI::Vision::Training
 
         private:
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
-            AnchorTrainingStep(SushiBLAS::Engine& engine, AnchorObjective objective,
+            AnchorTrainingStep(ExecutionBackend& backend, AnchorObjective objective,
                                NN::ModelOutputs outputs, Graph::TensorPool& pool,
                                SushiBLAS::Tensor& input) noexcept;
 
@@ -155,7 +155,7 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] Status check_truth(const Detect::GroundTruthBatch& truth) const;
 
             /// @brief Records and runs the copy of each feed; not owned.
-            SushiBLAS::Engine* engine_;
+            ExecutionBackend* backend_;
 
             /// @brief Describes the heads and measures the cost.
             AnchorObjective objective_;

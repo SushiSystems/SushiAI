@@ -128,7 +128,7 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<TrainingStep>> TrainingStep::make(
-            SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
+            ExecutionBackend& backend, const Graph::Graph& graph, Graph::TensorPool& pool,
             Optim::Optimizer& optimizer, std::vector<BufferUpdateSlot> updates,
             TrainingStepOptions options) noexcept
         {
@@ -173,7 +173,7 @@ namespace SushiAI
                 SA_TRY_ASSIGN(const Graph::NodeID cut,
                               find_stage_cut(graph, options.host_stage));
                 SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> lead,
-                              Graph::CompiledStep::compile(engine, graph, pool, nullptr,
+                              Graph::CompiledStep::compile(backend, graph, pool, nullptr,
                                                            options.fusion_selector,
                                                            Graph::NodeRange{0, cut},
                                                            K_LEAD_LABEL));
@@ -182,7 +182,7 @@ namespace SushiAI
             }
 
             SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> compiled,
-                          Graph::CompiledStep::compile(engine, graph, pool, trailing,
+                          Graph::CompiledStep::compile(backend, graph, pool, trailing,
                                                        options.fusion_selector, rest,
                                                        K_STEP_LABEL));
             step->step_ = std::move(compiled);

@@ -23,7 +23,8 @@
 
 /**
  * @file compiled_step.hpp
- * @brief Declares the CompiledStep class, which lowers, records and replays one step.
+ * @brief Declares the CompiledStep class, which lowers, records and replays one step on the
+ *        tasks of an ExecutionBackend.
  * @author Mustafa Garip
  */
 
@@ -34,11 +35,10 @@
 #include <memory>
 #include <string_view>
 #include <vector>
-#include <SushiBLAS/engine/engine.hpp>
-#include <SushiBLAS/engine/late_count_hold.hpp>
-#include <SushiBLAS/engine/task_recorder.hpp>
 #include <SushiRuntime/sushiruntime.hpp>
 #include <SushiRuntime/core/span.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
+#include <SushiAI/execution/step_tasks.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/graph/fusion_selector.hpp>
@@ -62,21 +62,21 @@ namespace SushiAI
 
         /**
          * @class CompiledStep
-         * @brief Owns the SushiRuntime graph of one step and replays it.
+         * @brief Owns the tasks of one step and replays them.
          */
         class CompiledStep final
         {
             public:
                 /**
                  * @brief Lowers the nodes @p nodes of @p graph, then @p trailing, and compiles.
-                 * @param engine Must outlive the step, as must @p pool and @p trailing.
+                 * @param backend Must outlive the step, as must @p pool and @p trailing.
                  * @param selector Picks the form of a fusible node; null selects by device.
                  * @param nodes The nodes the step is made of; every node by default.
                  * @param label Names the runtime graph; empty leaves it unnamed.
                  * @return The step, or the first refusal of lowering, recording or compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<CompiledStep>> compile(
-                    SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
+                    ExecutionBackend& backend, const Graph& graph, TensorPool& pool,
                     StepRecorder* trailing = nullptr, const FusionSelector* selector = nullptr,
                     NodeRange nodes = {}, std::string_view label = {}) noexcept;
 
@@ -116,12 +116,12 @@ namespace SushiAI
                 }
 
                 /**
-                 * @brief Returns how many times the runtime has compiled this step.
+                 * @brief Returns how many times the step has been sealed.
                  * @return 1 from compile() on, and 0 for an empty step.
                  */
                 [[nodiscard]] std::size_t compile_count() const noexcept
                 {
-                    return graph_.compile_count();
+                    return compile_count_;
                 }
 
                 /** @brief Returns the index the next run() gives its replay preludes. */
@@ -168,13 +168,13 @@ namespace SushiAI
 
             private:
                 /**
-                 * @brief Builds an empty step whose recorder is bound to its own graph.
-                 * @param engine Must outlive the step.
+                 * @brief Builds an empty step over @p tasks.
+                 * @param tasks The recording the step records into and replays; never null.
                  */
-                CompiledStep(SushiBLAS::Engine& engine, StepRecorder* trailing);
+                CompiledStep(std::unique_ptr<StepTasks> tasks, StepRecorder* trailing) noexcept;
 
                 /**
-                 * @brief Adds the hooks graph_ calls before each replay: one per prelude, in
+                 * @brief Adds the hooks tasks_ calls before each replay: one per prelude, in
                  *        the order given, then one for the trailing recorder.
                  * @return Success, or OutOfMemory when a hook could not be stored.
                  */
@@ -183,14 +183,8 @@ namespace SushiAI
                 /// @brief The recorder of the trailing work, or null; not owned.
                 StepRecorder* trailing_;
 
-                /// @brief Keeps the late-count tasks of graph_; declared first so it dies last.
-                SushiBLAS::LateCountHold late_counts_;
-
-                /// @brief The graph the step records into, compiles once and replays.
-                SushiRuntime::Graph graph_;
-
-                /// @brief The recorder bound to the recorder of graph_.
-                SushiBLAS::TaskRecorder recorder_;
+                /// @brief The recording the step records into, seals once and replays; never null.
+                std::unique_ptr<StepTasks> tasks_;
 
                 /// @brief The report each run() refills.
                 SushiRuntime::RunReport report_;
@@ -198,7 +192,7 @@ namespace SushiAI
                 /// @brief The fusion decisions of the lowering, in execution order.
                 std::vector<FusionSelection> selections_;
 
-                /// @brief The number of replay preludes graph_ holds as hooks.
+                /// @brief The number of replay preludes tasks_ holds as hooks.
                 std::size_t prelude_count_ = 0;
 
                 /// @brief The index the replay preludes of the coming replay are called with.
@@ -210,7 +204,10 @@ namespace SushiAI
                 /// @brief The number of tasks the lowering and the trailing recorder recorded.
                 std::size_t operations_ = 0;
 
-                /// @brief Whether nothing was recorded on graph_.
+                /// @brief How many times the step was sealed: 1 for a step that holds work.
+                std::size_t compile_count_ = 0;
+
+                /// @brief Whether nothing was recorded on tasks_.
                 bool empty_ = false;
         };
 

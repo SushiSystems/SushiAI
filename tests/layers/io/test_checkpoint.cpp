@@ -121,13 +121,13 @@ namespace
     class Materialised
     {
         public:
-            Materialised(SushiBLAS::Engine& engine, M model, std::uint64_t seed)
-                : model_(std::move(model)), state_(traced_state(engine, model_, graph_))
+            Materialised(SushiAI::ExecutionBackend& backend, M model, std::uint64_t seed)
+                : model_(std::move(model)), state_(traced_state(backend.engine(), model_, graph_))
             {
                 NN::InitPolicy policy;
                 policy.seed = seed;
                 policy.zero_final_layer = false;   // so every parameter carries real numbers
-                SA_EXPECT_OK(NN::initialize(engine, state_, policy));
+                SA_EXPECT_OK(NN::initialize(backend, state_, policy));
             }
 
             M& model() noexcept { return model_; }
@@ -187,13 +187,13 @@ TEST_F(Medium_Checkpoint, SavesAndLoadsEveryParameterBitForBit)
 {
     const ScratchFile file("sushiai_roundtrip.sushi");
 
-    Materialised<MLP> trained(*engine, make_sequential(), 11);
+    Materialised<MLP> trained(backend(), make_sequential(), 11);
     const std::vector<std::uint32_t> expected = trained.bits();
 
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), trained.state()));
 
     // A different seed, so a load that did nothing at all would be visible.
-    Materialised<MLP> fresh(*engine, make_sequential(), 22);
+    Materialised<MLP> fresh(backend(), make_sequential(), 22);
     ASSERT_NE(fresh.bits(), expected);
 
     SA_EXPECT_OK(IO::load_checkpoint(file.path(), fresh.state()));
@@ -206,8 +206,8 @@ TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAn
     const ScratchFile from_sequential("sushiai_equivalence_a.sushi");
     const ScratchFile from_stack("sushiai_equivalence_b.sushi");
 
-    Materialised<MLP> compile_time(*engine, make_sequential(), 7);
-    Materialised<NN::LayerStack> run_time(*engine, make_stack(), 99);
+    Materialised<MLP> compile_time(backend(), make_sequential(), 7);
+    Materialised<NN::LayerStack> run_time(backend(), make_stack(), 99);
 
     // Names must match before any load is compared; see tests/layers/io/README.md.
     ASSERT_EQ(compile_time.names(), run_time.names());
@@ -223,7 +223,7 @@ TEST_F(Medium_Checkpoint, ASequentialCheckpointLoadsIntoAnEquivalentLayerStackAn
     EXPECT_EQ(run_time.bits(), sequential_bits);
 
     // The return trip loads into a third model; see tests/layers/io/README.md.
-    Materialised<MLP> third(*engine, make_sequential(), 123);
+    Materialised<MLP> third(backend(), make_sequential(), 123);
     ASSERT_NE(third.bits(), sequential_bits);
 
     SA_EXPECT_OK(IO::save_checkpoint(from_stack.path(), run_time.state()));
@@ -237,10 +237,10 @@ TEST_F(Medium_Checkpoint, AParameterTheFileDoesNotSupplyIsRefusedAndNamesIt)
 
     // A different architecture, so the file lacks 2.weight and 2.bias.
     using Shallow = NN::Sequential<NN::Linear>;
-    Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 5);
+    Materialised<Shallow> shallow(backend(), Shallow(NN::Linear{6, 8}), 5);
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), shallow.state()));
 
-    Materialised<MLP> deep(*engine, make_sequential(), 6);
+    Materialised<MLP> deep(backend(), make_sequential(), 6);
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), deep.state()),
                       StatusCode::Incompatible, "does not supply", "2.weight");
 }
@@ -249,11 +249,11 @@ TEST_F(Medium_Checkpoint, AParameterTheModelDoesNotHaveIsRefusedAndNamesIt)
 {
     const ScratchFile file("sushiai_extra.sushi");
 
-    Materialised<MLP> deep(*engine, make_sequential(), 5);
+    Materialised<MLP> deep(backend(), make_sequential(), 5);
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), deep.state()));
 
     using Shallow = NN::Sequential<NN::Linear>;
-    Materialised<Shallow> shallow(*engine, Shallow(NN::Linear{6, 8}), 6);
+    Materialised<Shallow> shallow(backend(), Shallow(NN::Linear{6, 8}), 6);
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), shallow.state()),
                       StatusCode::Incompatible, "2.weight", "this model has no such entry");
 }
@@ -264,10 +264,10 @@ TEST_F(Medium_Checkpoint, AShapeMismatchIsRefusedWithBothShapes)
 
     // Shapes are compared, not element counts; see tests/layers/io/README.md.
     using OneLayer = NN::Sequential<NN::Linear>;
-    Materialised<OneLayer> wide(*engine, OneLayer(NN::Linear{6, 8}), 5);
+    Materialised<OneLayer> wide(backend(), OneLayer(NN::Linear{6, 8}), 5);
     SA_EXPECT_OK(IO::save_checkpoint(file.path(), wide.state()));
 
-    Materialised<OneLayer> narrow(*engine, OneLayer(NN::Linear{6, 4}), 6);
+    Materialised<OneLayer> narrow(backend(), OneLayer(NN::Linear{6, 4}), 6);
     SA_EXPECT_FAILURE(IO::load_checkpoint(file.path(), narrow.state()),
                       StatusCode::Incompatible, "0.weight", "[8, 6]", "[4, 6]");
 }
@@ -277,7 +277,7 @@ TEST_F(Medium_Checkpoint, ADuplicatedNameIsRefusedAndNamesTheDuplicate)
     const ScratchFile file("sushiai_duplicate.sushi");
 
     // save_checkpoint cannot write a duplicated name; see tests/layers/io/README.md.
-    Materialised<MLP> model(*engine, make_sequential(), 5);
+    Materialised<MLP> model(backend(), make_sequential(), 5);
 
     {
         const std::vector<float> weight(8 * 6, 1.0f);

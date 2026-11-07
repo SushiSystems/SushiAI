@@ -99,11 +99,11 @@ namespace
                 SA_ASSERT_OK_AND_ASSIGN(NN::ModelState created,
                                         NN::ModelState::create(*engine, *model));
                 state = std::make_unique<NN::ModelState>(std::move(created));
-                SA_EXPECT_OK(NN::initialize(*engine, *state));
+                SA_EXPECT_OK(NN::initialize(backend(), *state));
 
                 pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::EvaluationStep> compiled,
-                                        Train::EvaluationStep::make(*engine, traced, *state,
+                                        Train::EvaluationStep::make(backend(), traced, *state,
                                                                     *pool));
                 step = std::move(compiled);
 

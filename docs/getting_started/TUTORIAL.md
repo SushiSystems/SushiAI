@@ -114,10 +114,12 @@ condensed; that file compiles and runs, so start by reading it.
 
 ```cpp
 #include <SushiAI/SushiAI.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiBLAS/SushiBLAS.hpp>
 
 SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
 sb::Engine engine(runtime);
+sa::RuntimeExecutionBackend backend(runtime, engine);
 
 // 1. A model. An aggregate list, not a registration ritual.
 sa::NN::Sequential model{
@@ -136,14 +138,14 @@ SA_TRY_ASSIGN(sa::Train::TrainingGraph built,
 SA_TRY_ASSIGN(sa::NN::ModelState state, sa::NN::ModelState::create(engine, model));
 sa::Graph::TensorPool pool(engine);
 SA_TRY_ASSIGN(std::vector<sa::Optim::ParameterSlot> parameters,
-              sa::Train::bind_parameters(built, state, pool));
-SA_TRY(sa::NN::initialize(engine, state));
+              sa::Train::bind_parameters(backend, built, state, pool));
+SA_TRY(sa::NN::initialize(backend, state));
 
 // 4. An optimizer over those exact parameters.
 sa::Optim::AdamWOptions adam;
 adam.learning_rate = 3e-3;
 SA_TRY_ASSIGN(std::unique_ptr<sa::Optim::AdamW> optimizer,
-              sa::Optim::AdamW::make(engine, std::move(parameters), adam));
+              sa::Optim::AdamW::make(backend, std::move(parameters), adam));
 
 // 5. The objective build_classifier traced; it feeds and measures every step.
 const sa::Train::CrossEntropyObjective objective(batch, classes, sa::DType::Float32);
@@ -152,7 +154,7 @@ const sa::Train::CrossEntropyObjective objective(batch, classes, sa::DType::Floa
 sa::Train::TrainerOptions options;
 options.epochs = 8;
 SA_TRY_ASSIGN(std::unique_ptr<sa::Train::Trainer> trainer,
-              sa::Train::Trainer::make(engine, built, pool, objective, *optimizer, options));
+              sa::Train::Trainer::make(backend, built, pool, objective, *optimizer, options));
 
 SA_TRY_ASSIGN(const sa::Train::RunReport report, trainer->fit(*dataset));
 std::cout << report.to_string();

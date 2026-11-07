@@ -52,7 +52,7 @@ namespace SushiAI
          * @return Incompatible for a checkpoint of another seed, or the failure of a load.
          * @pre Config::check_start(spec) has returned success.
          */
-        [[nodiscard]] Status start_state(const Config::TrainSpec& spec, SushiBLAS::Engine& engine,
+        [[nodiscard]] Status start_state(const Config::TrainSpec& spec, ExecutionBackend& backend,
                                          NN::ModelState& state, Optim::Optimizer& optimizer,
                                          IO::RunProgress* start = nullptr);
 

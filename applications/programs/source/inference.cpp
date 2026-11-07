@@ -35,6 +35,7 @@
 #include <string_view>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include "inference_program.hpp"
@@ -90,6 +91,7 @@ namespace
 
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime());
         sb::Engine engine(runtime);
+        sa::RuntimeExecutionBackend backend(runtime, engine);
 
         // The session opens after the engine and closes before it, so both outlive it.
         std::unique_ptr<sa::Apps::ProfileSession> profile;
@@ -101,7 +103,7 @@ namespace
         return sa::Apps::end_profiled_run(
             profile,
             sa::Apps::run_inference_file(model_path, checkpoint_path, model_spec, data_spec,
-                                         engine));
+                                         backend));
     }
 } // namespace
 

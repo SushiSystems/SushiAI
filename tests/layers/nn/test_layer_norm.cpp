@@ -374,8 +374,8 @@ namespace
         public:
             /** @brief Builds the graph over a variable of @p variable_shape and compiles it. */
             template<typename BuildFn>
-            Probe(SushiBLAS::Engine& engine, Shape variable_shape, BuildFn&& build)
-                : pool_(engine)
+            Probe(SushiAI::ExecutionBackend& backend, Shape variable_shape, BuildFn&& build)
+                : pool_(backend.engine())
             {
                 const GraphBuilder builder(graph_);
                 variable_ = builder.parameter(variable_shape, "variable", DType::Float64);
@@ -396,7 +396,7 @@ namespace
                 SA_EXPECT_OK(pool_.materialise_leaves(graph_));
 
                 Result<std::unique_ptr<CompiledStep>> compiled =
-                    CompiledStep::compile(engine, graph_, pool_);
+                    CompiledStep::compile(backend, graph_, pool_);
                 SA_EXPECT_OK(compiled);
                 if (compiled.has_value())
                     step_ = std::move(compiled).value();
@@ -501,7 +501,7 @@ TEST_F(Medium_LayerNorm, EachRowIsNormalisedByItsOwnStatistics)
     write_tensor(pool.tensor(beta), bias);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
 
     // The second run proves a replay starts from the operand and not from the first result.
     SA_EXPECT_OK(step->run());
@@ -532,7 +532,7 @@ TEST_F(Medium_LayerNorm, TheSavedStatisticsAreTheRowMeanAndInverseDeviation)
     write_tensor(pool.tensor(beta), std::vector<double>(4, 0.0));
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_elements(read_tensor(pool.tensor(out.value().saved_mean)), {2.5, -1.0},
@@ -548,7 +548,7 @@ TEST_F(Medium_LayerNorm, TheInputGradientMatchesCentralDifferences)
     ValueID gamma = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
-    Probe probe(*engine, Shape{2, 3, K_WIDTH}, [&](const GraphBuilder& builder, ValueID x)
+    Probe probe(backend(), Shape{2, 3, K_WIDTH}, [&](const GraphBuilder& builder, ValueID x)
     {
         gamma = builder.parameter(Shape{K_WIDTH}, "gamma", DType::Float64);
         beta = builder.parameter(Shape{K_WIDTH}, "beta", DType::Float64);
@@ -568,7 +568,7 @@ TEST_F(Medium_LayerNorm, TheGainGradientMatchesCentralDifferences)
     ValueID x = Graph::K_NO_VALUE;
     ValueID beta = Graph::K_NO_VALUE;
 
-    Probe probe(*engine, Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID gamma)
+    Probe probe(backend(), Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID gamma)
     {
         x = builder.input(Shape{2, 3, K_WIDTH}, "x", DType::Float64);
         beta = builder.parameter(Shape{K_WIDTH}, "beta", DType::Float64);
@@ -588,7 +588,7 @@ TEST_F(Medium_LayerNorm, TheBiasGradientMatchesCentralDifferences)
     ValueID x = Graph::K_NO_VALUE;
     ValueID gamma = Graph::K_NO_VALUE;
 
-    Probe probe(*engine, Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID beta)
+    Probe probe(backend(), Shape{K_WIDTH}, [&](const GraphBuilder& builder, ValueID beta)
     {
         x = builder.input(Shape{2, 3, K_WIDTH}, "x", DType::Float64);
         gamma = builder.parameter(Shape{K_WIDTH}, "gamma", DType::Float64);
@@ -627,7 +627,7 @@ TEST_F(Medium_LayerNorm, ALayerNormalisesWithItsGainAndItsBias)
     write_tensor(pool.tensor(layer.bias.id_in(graph)), bias);
 
     std::unique_ptr<CompiledStep> step;
-    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(*engine, graph, pool));
+    SA_ASSERT_OK_AND_ASSIGN(step, CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_elements(read_tensor(pool.tensor(y)), normalised_on_host(values, gain, bias, 4),

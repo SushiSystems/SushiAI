@@ -117,7 +117,7 @@ namespace
      * @return The run's figures, or the first failure of a library call.
      * @see tests/layers/train/README.md
      */
-    [[nodiscard]] Result<ScaledRun> train_scaled(SushiBLAS::Engine& engine,
+    [[nodiscard]] Result<ScaledRun> train_scaled(SushiAI::ExecutionBackend& backend,
                                                  const Graph::PrecisionPolicy* precision,
                                                  LossScaleOptions scale_options,
                                                  int64_t epochs)
@@ -129,19 +129,20 @@ namespace
                                               Graph::FusionOptions{}, precision,
                                               /*loss_scaling=*/true));
 
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        TensorPool pool(engine);
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
+        TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
-        SA_TRY(NN::initialize(engine, state));
+                      Train::bind_parameters(backend, built, state, pool));
+        SA_TRY(NN::initialize(backend, state));
 
         Optim::AdamWOptions adamw;
         adamw.learning_rate = 3e-3;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                      Optim::AdamW::make(engine, slots, adamw));
+                      Optim::AdamW::make(backend, slots, adamw));
 
         SA_TRY_ASSIGN(std::unique_ptr<LossScaler> scaler,
-                      LossScaler::make(engine, pool.tensor(built.loss_scale), slots.size(),
+                      LossScaler::make(backend.engine(), pool.tensor(built.loss_scale),
+                                       slots.size(),
                                        scale_options));
 
         // The scaler is set before the trainer records; see tests/layers/train/README.md.
@@ -151,7 +152,7 @@ namespace
         options.precision = precision;
         const auto objective = SaTest::classifier_objective(built);
         SA_TRY_ASSIGN(std::unique_ptr<Train::Trainer> trainer,
-                      Train::Trainer::make(engine, built, pool, objective, *optimizer,
+                      Train::Trainer::make(backend, built, pool, objective, *optimizer,
                                            options));
 
         Data::SyntheticOptions data;
@@ -160,7 +161,7 @@ namespace
         data.features = K_FEATURES;
         data.classes = K_CLASSES;
         SA_TRY_ASSIGN(std::unique_ptr<Data::SyntheticClassification> dataset,
-                      Data::SyntheticClassification::make(engine, data));
+                      Data::SyntheticClassification::make(backend, data));
 
         ScaledRun result;
         for (int64_t epoch = 0; epoch < epochs; ++epoch)
@@ -220,6 +221,7 @@ namespace
 TEST_F(Medium_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -229,7 +231,7 @@ TEST_F(Medium_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 
     const MixedPrecisionPolicy mixed;
     SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(engine, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS));
+                            train_scaled(backend, &mixed, options, /*epochs=*/K_OVERFLOW_EPOCHS));
 
     EXPECT_GT(run.skipped, 0u) << "no step was thrown away, so nothing overflowed - "
                                   "the detector is not seeing the infinities";
@@ -257,6 +259,7 @@ TEST_F(Medium_LossScaling, AnFP16OverflowIsDetectedAndBacksTheScaleOff)
 TEST_F(Medium_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -264,7 +267,7 @@ TEST_F(Medium_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 
     const UniformPrecisionPolicy fp32;
     SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(engine, &fp32, options, /*epochs=*/2));
+                            train_scaled(backend, &fp32, options, /*epochs=*/2));
 
     EXPECT_EQ(run.skipped, 0u);
     EXPECT_EQ(run.backoffs, 0u);
@@ -279,6 +282,7 @@ TEST_F(Medium_LossScaling, TheSameScaleInFloat32OverflowsNothing)
 TEST_F(Medium_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -295,7 +299,7 @@ TEST_F(Medium_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical
     // A skip that still decays would show up through this non-zero decay.
     adamw.weight_decay = 1e-2;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(engine, slots, adamw));
+                            Optim::AdamW::make(backend, slots, adamw));
 
     LossScaleOptions options;
     options.initial = 1024.0;
@@ -349,6 +353,7 @@ TEST_F(Medium_LossScaling, ASkippedStepLeavesTheParametersAndMomentsBitIdentical
 TEST_F(Medium_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -362,7 +367,7 @@ TEST_F(Medium_LossScaling, ACleanStepUnderTheSameScalerStillMovesEverything)
     Optim::AdamWOptions adamw;
     adamw.learning_rate = 1e-2;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(engine, slots, adamw));
+                            Optim::AdamW::make(backend, slots, adamw));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LossScaler> scaler,
                             LossScaler::make(engine, factor, slots.size(), LossScaleOptions{}));
@@ -395,6 +400,7 @@ TEST_F(Medium_LossScaling, UnscalingByAPowerOfTwoIsExact)
     const auto drive = [](bool scaled) -> Result<Bytes>
     {
         SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+        SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
         SA_TRY_ASSIGN(SushiBLAS::Tensor parameter,
                       allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -409,7 +415,7 @@ TEST_F(Medium_LossScaling, UnscalingByAPowerOfTwoIsExact)
         sgd.learning_rate = 1e-2;
         sgd.momentum = 0.9;
         SA_TRY_ASSIGN(std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, slots, sgd));
+                      Optim::SGD::make(backend, slots, sgd));
 
         LossScaleOptions options;
         options.initial = K_EXACT_SCALE;
@@ -458,6 +464,7 @@ TEST_F(Medium_LossScaling, UnscalingByAPowerOfTwoIsExact)
 TEST_F(Medium_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     LossScaleOptions options;
     options.initial = 1024.0;
@@ -465,7 +472,7 @@ TEST_F(Medium_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 
     const UniformPrecisionPolicy fp32;
     SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(engine, &fp32, options, /*epochs=*/2));
+                            train_scaled(backend, &fp32, options, /*epochs=*/2));
 
     ASSERT_GT(run.growths, 0u) << "the scale never moved, so this run does not test "
                                   "what it claims to";
@@ -480,6 +487,7 @@ TEST_F(Medium_LossScaling, TheStepIsCompiledOnceThoughTheScaleChanges)
 TEST_F(Medium_LossScaling, ABackingOffScaleStillCompilesOnce)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     LossScaleOptions options;
     options.initial = K_OVERFLOWING_SCALE;
@@ -487,7 +495,7 @@ TEST_F(Medium_LossScaling, ABackingOffScaleStillCompilesOnce)
 
     const MixedPrecisionPolicy mixed;
     SA_ASSERT_OK_AND_ASSIGN(const ScaledRun run,
-                            train_scaled(engine, &mixed, options, /*epochs=*/1));
+                            train_scaled(backend, &mixed, options, /*epochs=*/1));
 
     ASSERT_GT(run.backoffs, 0u);
     EXPECT_EQ(run.compiles, 1u);
@@ -500,6 +508,7 @@ TEST_F(Medium_LossScaling, ABackingOffScaleStillCompilesOnce)
 TEST_F(Medium_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
 {
     SushiBLAS::Engine engine(SaTest::TestEnvironment::runtime());
+    SushiAI::RuntimeExecutionBackend backend(SaTest::TestEnvironment::runtime(), engine);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor parameter,
                             allocate_tensor(engine, Shape{K_ELEMENTS}));
@@ -512,7 +521,7 @@ TEST_F(Medium_LossScaling, TheSeparateUpdateKernelRefusesAScaler)
     Optim::AdamWOptions adamw;
     adamw.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(engine, slots, adamw));
+                            Optim::AdamW::make(backend, slots, adamw));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<LossScaler> scaler,
                             LossScaler::make(engine, factor, slots.size(), LossScaleOptions{}));

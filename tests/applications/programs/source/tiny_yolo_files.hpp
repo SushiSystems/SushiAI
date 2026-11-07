@@ -101,10 +101,10 @@ namespace SushiAI::Apps::TinyYoloTest
      * @brief Runs `sushiai train` over the fixture through the assembly the program runs.
      * @return The outcome of the run, or the first failure of the setup, the run or the save.
      */
-    inline Result<TrainingOutcome> train_the_fixture(SushiBLAS::Engine& engine,
+    inline Result<TrainingOutcome> train_the_fixture(RuntimeExecutionBackend& backend,
                                                      const std::filesystem::path& checkpoint)
     {
-        return run_training_file("<test>", training_spec(checkpoint), engine);
+        return run_training_file("<test>", training_spec(checkpoint), backend);
     }
 
     /**
@@ -112,7 +112,7 @@ namespace SushiAI::Apps::TinyYoloTest
      *        which prints the report of the task type of the model file.
      * @return The first failure of the build, the load or the report.
      */
-    inline Status report_the_fixture(SushiBLAS::Engine& engine,
+    inline Status report_the_fixture(ExecutionBackend& backend,
                                      const std::filesystem::path& checkpoint)
     {
         const std::filesystem::path model_path = fixture_directory() / "model.json";
@@ -121,6 +121,6 @@ namespace SushiAI::Apps::TinyYoloTest
             Test::require_value(Config::parse_json(R"({"sushiai_data": 1, "data": )" + data_block() + "}",
                                              "<test>")),
             "<test>", {}));
-        return run_inference_file(model_path, checkpoint, model_spec, data_spec, engine);
+        return run_inference_file(model_path, checkpoint, model_spec, data_spec, backend);
     }
 } // namespace SushiAI::Apps::TinyYoloTest

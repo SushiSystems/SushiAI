@@ -47,7 +47,7 @@ namespace SushiAI
             return spec.weights.empty() ? std::string("initialised") : spec.weights.string();
         }
 
-        Status start_state(const Config::TrainSpec& spec, SushiBLAS::Engine& engine,
+        Status start_state(const Config::TrainSpec& spec, ExecutionBackend& backend,
                            NN::ModelState& state, Optim::Optimizer& optimizer,
                            IO::RunProgress* start)
         {
@@ -72,7 +72,7 @@ namespace SushiAI
             }
             else
             {
-                SA_TRY(NN::initialize(engine, state));
+                SA_TRY(NN::initialize(backend, state));
             }
 
             if (start != nullptr)

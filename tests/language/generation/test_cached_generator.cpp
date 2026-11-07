@@ -151,11 +151,11 @@ namespace
                 SA_ASSERT_OK_AND_ASSIGN(NN::ModelState created,
                                         NN::ModelState::create(*engine, *model));
                 state = std::make_unique<NN::ModelState>(std::move(created));
-                SA_EXPECT_OK(NN::initialize(*engine, *state));
+                SA_EXPECT_OK(NN::initialize(backend(), *state));
 
                 window_pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::EvaluationStep> compiled,
-                                        Train::EvaluationStep::make(*engine, whole, *state,
+                                        Train::EvaluationStep::make(backend(), whole, *state,
                                                                     *window_pool));
                 window_step = std::move(compiled);
                 SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<WindowGenerator> made,
@@ -185,7 +185,7 @@ namespace
             {
                 path.pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<Train::EvaluationStep> compiled,
-                                        Train::EvaluationStep::make(*engine, *incremental,
+                                        Train::EvaluationStep::make(backend(), *incremental,
                                                                     *state, *path.pool));
                 path.step = std::move(compiled);
                 SA_ASSERT_OK_AND_ASSIGN(
@@ -592,7 +592,7 @@ namespace
                 SA_ASSERT_OK_AND_ASSIGN(NN::ModelState created,
                                         NN::ModelState::create(*engine, *decoder.model));
                 decoder.state = std::make_unique<NN::ModelState>(std::move(created));
-                SA_EXPECT_OK(NN::initialize(*engine, *decoder.state));
+                SA_EXPECT_OK(NN::initialize(backend(), *decoder.state));
             }
 
             /** @brief Compiles the one-position graph of @p decoder into @p path. */
@@ -601,7 +601,7 @@ namespace
                 path.pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::unique_ptr<Train::EvaluationStep> compiled,
-                    Train::EvaluationStep::make(*engine, *decoder.incremental, *decoder.state,
+                    Train::EvaluationStep::make(backend(), *decoder.incremental, *decoder.state,
                                                 *path.pool));
                 path.step = std::move(compiled);
             }
@@ -633,7 +633,7 @@ namespace
                 decoder.window_pool = std::make_unique<Graph::TensorPool>(*engine);
                 SA_ASSERT_OK_AND_ASSIGN(
                     std::unique_ptr<Train::EvaluationStep> compiled,
-                    Train::EvaluationStep::make(*engine, whole, *decoder.state,
+                    Train::EvaluationStep::make(backend(), whole, *decoder.state,
                                                 *decoder.window_pool));
                 decoder.window_step = std::move(compiled);
                 SA_ASSERT_OK_AND_ASSIGN(

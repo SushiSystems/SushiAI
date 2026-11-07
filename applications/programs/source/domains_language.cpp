@@ -137,7 +137,7 @@ namespace SushiAI
             {
                 BuiltGenerator built;
                 SA_TRY_ASSIGN(built.generator,
-                              Generation::WindowGenerator::make(run.engine, run.step,
+                              Generation::WindowGenerator::make(run.backend.engine(), run.step,
                                                                 run.outputs.front().first));
                 return built;
             }
@@ -170,9 +170,9 @@ namespace SushiAI
                 SA_TRY_ASSIGN(built.pool,
                               Detail::guard_value(Detail::SeamPhase::Allocate, [&run]()
                 {
-                    return std::make_unique<Graph::TensorPool>(run.engine);
+                    return std::make_unique<Graph::TensorPool>(run.backend.engine());
                 }));
-                SA_TRY_ASSIGN(built.step, Train::EvaluationStep::make(run.engine, traced,
+                SA_TRY_ASSIGN(built.step, Train::EvaluationStep::make(run.backend, traced,
                                                                       *run.state, *built.pool));
 
                 // The generator reads whichever of the position and the ring the step is fed.
@@ -185,8 +185,8 @@ namespace SushiAI
                                                &Language::Blocks::write_rotary_row}};
                 SA_TRY_ASSIGN(built.generator,
                               Generation::CachedGenerator::make(
-                                  run.engine, *built.step, traced.outputs.all().front().first,
-                                  leaves));
+                                  run.backend.engine(), *built.step,
+                                  traced.outputs.all().front().first, leaves));
                 return built;
             }
 

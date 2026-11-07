@@ -133,10 +133,11 @@ out-of-tree `find_package(SushiAI)` consumer) links the same namespaced targets.
 The two siblings have separate roles. SushiRuntime holds the graphs and the
 memory and decides where each node runs; it computes nothing. SushiBLAS
 computes every operation and records it into the recorder it is handed. SushiAI
-owns the graph of a step: `CompiledStep` records on a `SushiRuntime::Graph` of
-its own through a `SushiBLAS::TaskRecorder` built over that graph's recorder,
+owns the tasks of a step: `CompiledStep` records on the `StepTasks` of an
+`ExecutionBackend` through a `SushiBLAS::TaskRecorder`, which is a `SushiRuntime::Graph` of
+the runtime for a `RuntimeExecutionBackend` and a host task sink for a `HostExecutionBackend`,
 and every other recording of the library does the same: `record_and_run()` of
-`execution/execution.hpp` builds a graph, records on it and runs it. SushiAI
+`execution/execution.hpp` takes the tasks of a backend, records on them and runs them. SushiAI
 records nothing on the graph SushiBLAS's `Engine` keeps.
 
 ---
@@ -218,8 +219,8 @@ which reports and aborts the process.
 SushiBLAS and SushiRuntime report by throwing. `seam/seam.hpp` is the one place
 such an exception becomes a status: `Detail::guard` and `Detail::guard_value`
 run a call and return what it threw as a `Status`. `execution/execution.hpp`
-holds the runtime calls the library makes, `create_runtime`, `create_graph`,
-`run_step`, `run_once` and `record_and_run`, each mapping its failure through the seam. The `SeamPhase` argument (`Record`, `Allocate`, `Execute`)
+holds the runtime calls the library makes, `create_runtime` and `record_and_run`, which take an
+`ExecutionBackend` and each map their failure through the seam. The `SeamPhase` argument (`Record`, `Allocate`, `Execute`)
 decides the code of a failure that carries no type of its own.
 
 A type whose construction can fail has a private constructor and a factory
@@ -231,7 +232,7 @@ that returns a `Result`: `CompiledStep::compile`, `Trainer::make`,
 
 ```cpp
 SA_TRY_ASSIGN(std::unique_ptr<Graph::CompiledStep> step,
-              Graph::CompiledStep::compile(engine, graph, pool, &optimizer));
+              Graph::CompiledStep::compile(backend, graph, pool, &optimizer));
 SA_TRY(step->run());
 ```
 Source: not compiled

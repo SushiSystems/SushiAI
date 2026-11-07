@@ -86,14 +86,14 @@ namespace
     struct ClassifierParts
     {
         /** @brief Traces, binds and initialises the classifier; sets @c ready on success. */
-        void prepare(SushiBLAS::Engine& engine)
+        void prepare(SushiAI::ExecutionBackend& backend)
         {
             SA_ASSERT_OK_AND_ASSIGN(built,
                                     Train::build_classifier(model, K_BATCH, K_FEATURES, K_CLASSES));
-            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(engine, model));
-            pool = std::make_unique<Graph::TensorPool>(engine);
-            SA_ASSERT_OK_AND_ASSIGN(slots, Train::bind_parameters(built, *state, *pool));
-            SA_EXPECT_OK(NN::initialize(engine, *state));
+            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(backend.engine(), model));
+            pool = std::make_unique<Graph::TensorPool>(backend.engine());
+            SA_ASSERT_OK_AND_ASSIGN(slots, Train::bind_parameters(backend, built, *state, *pool));
+            SA_EXPECT_OK(NN::initialize(backend, *state));
             ready = true;
         }
 
@@ -169,7 +169,7 @@ namespace
 TEST_F(Medium_TrainingStep, Regression_BindingGivesTheLossATensorBeforeTheStepIsCompiled)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     ASSERT_TRUE(parts.pool->is_bound(parts.built.spec.loss));
@@ -180,16 +180,16 @@ TEST_F(Medium_TrainingStep, Regression_BindingGivesTheLossATensorBeforeTheStepIs
 TEST_F(Medium_TrainingStep, InPlanRefusesAnOptimizerThatIsNotReplayInvariant)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     Optim::AdamWOptions adam;
     adam.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, parts.slots, adam));
+                            Optim::AdamW::make(backend(), parts.slots, adam));
     ASSERT_FALSE(optimizer->is_replay_invariant());
 
-    SA_EXPECT_FAILURE(TrainingStep::make(*engine, parts.built.graph, *parts.pool, *optimizer, {}),
+    SA_EXPECT_FAILURE(TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}),
                       StatusCode::InvalidDescription, "cannot be compiled into the step",
                       "PerStep");
 }
@@ -198,19 +198,19 @@ TEST_F(Medium_TrainingStep, InPlanRefusesAnOptimizerThatIsNotReplayInvariant)
 TEST_F(Medium_TrainingStep, PerStepKeepsTheOptimizerOutOfThePlan)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     Optim::AdamWOptions adam;
     adam.kernel = Optim::UpdateKernel::Separate;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::AdamW> optimizer,
-                            Optim::AdamW::make(*engine, parts.slots, adam));
+                            Optim::AdamW::make(backend(), parts.slots, adam));
     TrainingStepOptions options;
     options.optimizer_placement = OptimizerPlacement::PerStep;
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TrainingStep> step,
-        TrainingStep::make(*engine, parts.built.graph, *parts.pool, *optimizer, {}, options));
+        TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}, options));
 
     EXPECT_FALSE(step->optimizer_is_in_plan());
     EXPECT_EQ(&step->optimizer(), optimizer.get());
@@ -223,14 +223,14 @@ TEST_F(Medium_TrainingStep, PerStepKeepsTheOptimizerOutOfThePlan)
 TEST_F(Medium_TrainingStep, TheDefaultStepHoldsTheOptimizerInOnePart)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<TrainingStep> step,
-        TrainingStep::make(*engine, parts.built.graph, *parts.pool, *optimizer, {}));
+        TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer, {}));
 
     EXPECT_TRUE(step->optimizer_is_in_plan());
     EXPECT_FALSE(step->has_host_stage());
@@ -243,13 +243,13 @@ TEST_F(Medium_TrainingStep, TheDefaultStepHoldsTheOptimizerInOnePart)
 TEST_F(Medium_TrainingStep, AHostStageRunsTheHostWorkBetweenTheTwoParts)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TrainingStep> step,
-                            TrainingStep::make(*engine, parts.built.graph, *parts.pool,
+                            TrainingStep::make(backend(), parts.built.graph, *parts.pool,
                                                *optimizer, {}, parts.host_stage_options()));
     ASSERT_TRUE(step->has_host_stage());
     ASSERT_NE(step->lead(), nullptr);
@@ -275,13 +275,13 @@ TEST_F(Medium_TrainingStep, AHostStageRunsTheHostWorkBetweenTheTwoParts)
 TEST_F(Medium_TrainingStep, RestoringTheRunCountSetsEveryPart)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TrainingStep> step,
-                            TrainingStep::make(*engine, parts.built.graph, *parts.pool,
+                            TrainingStep::make(backend(), parts.built.graph, *parts.pool,
                                                *optimizer, {}, parts.host_stage_options()));
 
     SA_EXPECT_OK(step->restore_run_count(5));
@@ -298,18 +298,18 @@ TEST_F(Medium_TrainingStep, RestoringTheRunCountSetsEveryPart)
 TEST_F(Medium_TrainingStep, BeforeAndAfterUpdateRecordAroundTheOptimizer)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
     OrderProbe before(*optimizer);
     OrderProbe after(*optimizer);
     TrainingStepOptions options;
     options.before_update = &before;
     options.after_update = &after;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<TrainingStep> step,
-                            TrainingStep::make(*engine, parts.built.graph, *parts.pool,
+                            TrainingStep::make(backend(), parts.built.graph, *parts.pool,
                                                *optimizer, {}, options));
 
     EXPECT_EQ(before.records, 1);
@@ -329,17 +329,17 @@ TEST_F(Medium_TrainingStep, BeforeAndAfterUpdateRecordAroundTheOptimizer)
 TEST_F(Medium_TrainingStep, AfterUpdateIsRefusedBesideAPerStepOptimizer)
 {
     ClassifierParts parts;
-    parts.prepare(*engine);
+    parts.prepare(backend());
     ASSERT_TRUE(parts.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, parts.slots, Optim::SGDOptions{}));
+                            Optim::SGD::make(backend(), parts.slots, Optim::SGDOptions{}));
     OrderProbe after(*optimizer);
     TrainingStepOptions options;
     options.optimizer_placement = OptimizerPlacement::PerStep;
     options.after_update = &after;
 
-    SA_EXPECT_FAILURE(TrainingStep::make(*engine, parts.built.graph, *parts.pool, *optimizer,
+    SA_EXPECT_FAILURE(TrainingStep::make(backend(), parts.built.graph, *parts.pool, *optimizer,
                                          {}, options),
                       StatusCode::InvalidDescription, "after_update", "InPlan");
     EXPECT_EQ(after.records, 0);

@@ -322,7 +322,7 @@ TEST_P(Medium_DataTargetLabels, SyntheticClassificationPublishesItsLabelsInRotat
     options.features = 5;
     options.classes = 3;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, options));
+                            Data::SyntheticClassification::make(backend(), options));
     Data::Batch batch;
 
     ASSERT_TRUE(SaTest::status_is_ok(dataset->read(row.batch, batch)));

@@ -174,9 +174,11 @@ namespace SushiAI
         }
 
         Result<std::unique_ptr<SyntheticClassification>> SyntheticClassification::make(
-            SushiBLAS::Engine& engine,
+            ExecutionBackend& backend,
             SyntheticOptions options) noexcept
         {
+            SushiBLAS::Engine& engine = backend.engine();
+
             SA_FAIL_IF(options.batch_size <= 0 || options.batches <= 0
                        || options.features <= 0 || options.classes <= 0,
                        StatusCode::InvalidDescription,
@@ -196,7 +198,7 @@ namespace SushiAI
             SA_TRY_ASSIGN(SushiBLAS::Tensor means,
                           allocate_tensor(engine, SushiRuntime::span<const int64_t>(mean_dims, 2)));
 
-            SA_TRY(Detail::record_and_run(engine, [&](SushiBLAS::TaskRecorder& recorder)
+            SA_TRY(Detail::record_and_run(backend, [&](SushiBLAS::TaskRecorder& recorder)
             {
                 SushiBLAS::RandomOps random(recorder, engine.rng());
                 random.set_seed(options.seed);
@@ -231,7 +233,7 @@ namespace SushiAI
                         SushiRuntime::span<float>(batch.inputs.data_as<float>(),
                                                   static_cast<std::size_t>(rows * features)));
 
-                    SA_TRY(Detail::record_and_run(engine,
+                    SA_TRY(Detail::record_and_run(backend,
                                                   [&](SushiBLAS::TaskRecorder& recorder)
                     {
                         SushiBLAS::RandomOps random(recorder, engine.rng());

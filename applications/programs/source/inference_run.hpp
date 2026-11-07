@@ -79,8 +79,8 @@ namespace SushiAI
             /** @brief What the model publishes, by name, in the order it publishes them. */
             const std::vector<NN::ModelOutputs::Entry>& outputs;
 
-            /** @brief The engine the step runs on, for a report that allocates a feed. */
-            SushiBLAS::Engine& engine;
+            /** @brief The backend the step runs on, for a report that allocates a feed. */
+            ExecutionBackend& backend;
 
             /** @brief The built model, for a report that traces another form; may be null. */
             NN::ModelGraph* built_model = nullptr;

@@ -8,8 +8,8 @@ registries a model file selects through.
 
 The module depends on `failure`, `dtype`, `shape`, `seam`, `execution`, `allocation` (`Shape`,
 `Status`, `Result`, `Error`), on `graph` (the IR, the
-builder and `Graph::StateID`) and on `config` (`Config::Value`, `Config::ModelSpec`). `init.hpp`
-and `model_state.hpp` also take a `SushiBLAS::Engine`; they are the only headers here that do.
+builder and `Graph::StateID`) and on `config` (`Config::Value`, `Config::ModelSpec`). `model_state.hpp`
+also takes a `SushiBLAS::Engine`, and `init.hpp` an `ExecutionBackend`; they are the only headers here that do.
 
 Two designs are the source of most headers. `MG` below is
 the model graph spec in the version history and `CV` is
@@ -402,8 +402,8 @@ Source: neither spec. The header predates both.
 
 ### init.hpp
 
-`initialize` records the initial fill of every entry of a `ModelState` on a `SushiBLAS::Engine`,
-buffers included, and then runs the recording. An entry whose `ParameterInit` is a constant takes
+`initialize` records the initial fill of every entry of a `ModelState` on the tasks of an
+`ExecutionBackend`, buffers included, and then runs the recording. An entry whose `ParameterInit` is a constant takes
 `constant`, and one whose kind is `Normal` takes `normal`, which refuses a deviation that is
 not positive and finite. Neither is the final layer, whatever its position. The last fan-scaled entry is zeroed with `zeros` when `zero_final_layer` holds. Every
 other fan-scaled entry takes `kaiming_normal`, `kaiming_uniform`, `xavier_normal` or

@@ -6,7 +6,11 @@
 # The test program of the module execution; see cmake/SushiAITestProgram.cmake.
 sushiai_add_test_program(OWNER execution
     SOURCES
+        compile_execution_backend.cpp
+        compile_step_tasks.cpp
         test_execution.cpp
+        test_host_execution_backend.cpp
+        test_runtime_execution_backend.cpp
     DEPENDS
         allocation
         failure_expectations

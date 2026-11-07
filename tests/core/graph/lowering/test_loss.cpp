@@ -154,7 +154,7 @@ TEST_P(Medium_LogSoftmaxStability, ARowFarBelowTheBatchMaximumStaysFiniteAndCorr
     write_tensor(pool.tensor(x), logits_with_gap(gap));
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                            CompiledStep::compile(*engine, graph, pool));
+                            CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_finite_and_near(read_tensor(pool.tensor(l)), expected_log_softmax(),
@@ -184,7 +184,7 @@ TEST_P(Medium_LogSoftmaxStability, CrossEntropyOverSuchARowIsFiniteAndCorrect)
     write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                            CompiledStep::compile(*engine, graph, pool));
+                            CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_finite_and_near(read_tensor(pool.tensor(loss)), {2.0 + K_LSE},
@@ -222,7 +222,7 @@ TEST_P(Medium_LogSoftmaxStability, TheCrossEntropyGradientOverSuchARowIsFinite)
     write_tensor(pool.tensor(targets), std::vector<double>{1, 0, 0, 1, 0, 0});
 
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                            CompiledStep::compile(*engine, graph, pool));
+                            CompiledStep::compile(backend(), graph, pool));
     SA_EXPECT_OK(step->run());
 
     expect_finite_and_near(read_tensor(pool.tensor(grads[0])),
@@ -250,7 +250,7 @@ TEST_P(Medium_LogSoftmaxStability, TheAnswerDoesNotDependOnTheGapAtAll)
     TensorPool pool(*engine);
     SA_EXPECT_OK(pool.materialise_leaves(graph));
     SA_ASSERT_OK_AND_ASSIGN(std::unique_ptr<CompiledStep> step,
-                            CompiledStep::compile(*engine, graph, pool));
+                            CompiledStep::compile(backend(), graph, pool));
 
     write_tensor(pool.tensor(x), logits_with_gap(0.0));
     SA_EXPECT_OK(step->run());

@@ -119,14 +119,14 @@ namespace SushiAI
             public:
                 /**
                  * @brief Compiles @p graph with the trailing work the options place behind it.
-                 * @param engine Must outlive the step, as must @p pool and @p optimizer.
+                 * @param backend Must outlive the step, as must @p pool and @p optimizer.
                  * @param updates The buffer updates to blend on every replay; may be empty.
                  * @return The step; InvalidDescription for an InPlan optimizer that is not
                  *         replay invariant, an after_update beside PerStep, or a host stage the
                  *         graph cannot be cut at; or the first refusal of the compilation.
                  */
                 [[nodiscard]] static Result<std::unique_ptr<TrainingStep>> make(
-                    SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
+                    ExecutionBackend& backend, const Graph::Graph& graph, Graph::TensorPool& pool,
                     Optim::Optimizer& optimizer, std::vector<BufferUpdateSlot> updates,
                     TrainingStepOptions options = {}) noexcept;
 

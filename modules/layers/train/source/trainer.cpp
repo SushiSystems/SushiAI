@@ -93,13 +93,14 @@ namespace SushiAI
 
             /**
              * @brief Materialises a zeroed gradient per parameter and pairs the two tensors.
+             * @param backend Runs the fill of the zeroed gradients.
              * @pre @p pool holds the tensor of every parameter leaf of @p built.
              * @return One slot per parameter, decaying by takes_weight_decay() of its role,
              *         or InvalidDescription for a parameter no gradient reaches, or the
              *         pool's failure.
              */
             [[nodiscard]] Result<std::vector<Optim::ParameterSlot>> pair_with_gradients(
-                const TrainingGraph& built, Graph::TensorPool& pool)
+                ExecutionBackend& backend, const TrainingGraph& built, Graph::TensorPool& pool)
             {
                 std::vector<Optim::ParameterSlot> slots;
                 SA_TRY(SushiAI::Detail::guard(SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -135,13 +136,14 @@ namespace SushiAI
                 }
 
                 // Constant buffers must be flushed before optimizer initialisation.
-                SA_TRY(pool.flush_constants());
+                SA_TRY(pool.flush_constants(backend));
 
                 return std::move(slots);
             }
         } // namespace
 
-        Result<std::vector<Optim::ParameterSlot>> bind_parameters(const TrainingGraph& built,
+        Result<std::vector<Optim::ParameterSlot>> bind_parameters(ExecutionBackend& backend,
+                                                                  const TrainingGraph& built,
                                                                   const NN::ModelState& state,
                                                                   Graph::TensorPool& pool,
                                                                   Graph::PlanOptions options) noexcept
@@ -165,10 +167,11 @@ namespace SushiAI
             for (const Graph::ValueID source : built.updates.sources())
                 SA_TRY(pool.materialise(source, built.graph.value(source)));
 
-            return pair_with_gradients(built, pool);
+            return pair_with_gradients(backend, built, pool);
         }
 
-        Result<std::vector<Optim::ParameterSlot>> bind_step_results(const TrainingGraph& built,
+        Result<std::vector<Optim::ParameterSlot>> bind_step_results(ExecutionBackend& backend,
+                                                                    const TrainingGraph& built,
                                                                     const NN::ModelState& state,
                                                                     Graph::TensorPool& pool) noexcept
         {
@@ -182,7 +185,7 @@ namespace SushiAI
             for (const Graph::ValueID source : built.updates.sources())
                 SA_TRY(pool.materialise(source, built.graph.value(source)));
 
-            return pair_with_gradients(built, pool);
+            return pair_with_gradients(backend, built, pool);
         }
 
                 std::string RunReport::to_string() const noexcept
@@ -233,7 +236,7 @@ namespace SushiAI
             }
         } // namespace
 
-        Result<std::unique_ptr<Trainer>> Trainer::make(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<Trainer>> Trainer::make(ExecutionBackend& backend,
                                                        const TrainingGraph& built,
                                                        Graph::TensorPool& pool,
                                                        const Objective& objective,
@@ -247,12 +250,12 @@ namespace SushiAI
                 return Binding{built.spec.inputs, built.spec.loss, built.leaves, built.outputs};
             }));
 
-            return assemble(engine, built.graph, pool, std::move(binding), objective, optimizer,
+            return assemble(backend, built.graph, pool, std::move(binding), objective, optimizer,
                             options, std::move(updates));
         }
 
         Result<std::unique_ptr<Trainer>> Trainer::assemble(
-            SushiBLAS::Engine& engine, const Graph::Graph& graph, Graph::TensorPool& pool,
+            ExecutionBackend& backend, const Graph::Graph& graph, Graph::TensorPool& pool,
             Binding binding, const Objective& objective, Optim::Optimizer& optimizer,
             TrainerOptions options, std::vector<BufferUpdateSlot> updates)
         {
@@ -283,7 +286,7 @@ namespace SushiAI
             step_options.fusion_selector = options.fusion_selector;
 
             SA_TRY_ASSIGN(std::unique_ptr<TrainingStep> step,
-                          TrainingStep::make(engine, graph, pool, optimizer, std::move(updates),
+                          TrainingStep::make(backend, graph, pool, optimizer, std::move(updates),
                                              step_options));
 
             // The compilation above materialised every value the step writes.
@@ -302,17 +305,17 @@ namespace SushiAI
                     outputs.push_back(StepOutput{entry.first, &pool.tensor(entry.second)});
 
                 return std::unique_ptr<Trainer>(
-                    new Trainer(engine, pool, std::move(binding), objective, options,
+                    new Trainer(backend, pool, std::move(binding), objective, options,
                                 std::move(step), rows, input, std::move(outputs)));
             });
         }
 
-        Trainer::Trainer(SushiBLAS::Engine& engine, Graph::TensorPool& pool, Binding binding,
+        Trainer::Trainer(ExecutionBackend& backend, Graph::TensorPool& pool, Binding binding,
                          const Objective& objective, TrainerOptions options,
                          std::unique_ptr<TrainingStep> step, int64_t rows,
                          const Data::InputDescription& input,
                          std::vector<StepOutput> outputs) noexcept
-            : engine_(&engine),
+            : backend_(&backend),
               pool_(&pool),
               binding_(std::move(binding)),
               objective_(&objective),
@@ -356,7 +359,7 @@ namespace SushiAI
             // The minibatch inputs are copied into the fixed address buffer the plan reads.
             {
                 SA_ZONE("copy", "input");
-                SA_TRY(SushiAI::Detail::record_and_run(*engine_,
+                SA_TRY(SushiAI::Detail::record_and_run(*backend_,
                                                         [&](SushiBLAS::TaskRecorder& recorder)
                 {
                     SushiBLAS::BLASOps blas(recorder);

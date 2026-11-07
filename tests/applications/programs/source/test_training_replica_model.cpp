@@ -72,7 +72,7 @@ namespace
                 const std::shared_ptr<const Apps::ReplicaSource>& source)
             {
                 const Distribution::ReplicaDraws draws{K_SEED, 1, 0};
-                return Apps::TrainingReplicaModel::make(source, *engine, draws, 2).value();
+                return Apps::TrainingReplicaModel::make(source, backend(), draws, 2).value();
             }
     };
 

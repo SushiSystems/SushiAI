@@ -92,20 +92,20 @@ namespace
         return std::move(made).value();
     }
 
-    /** @brief Builds a synthetic set on @p engine. */
-    std::unique_ptr<Data::Dataset> synthetic_on(SushiBLAS::Engine& engine)
+    /** @brief Builds a synthetic set on @p backend. */
+    std::unique_ptr<Data::Dataset> synthetic_on(SushiAI::ExecutionBackend& backend)
     {
-        return held(Data::SyntheticClassification::make(engine, small_synthetic()));
+        return held(Data::SyntheticClassification::make(backend, small_synthetic()));
     }
 
-    /** @brief Builds a rings set on @p engine. */
-    std::unique_ptr<Data::Dataset> rings_on(SushiBLAS::Engine& engine)
+    /** @brief Builds a rings set on @p backend. */
+    std::unique_ptr<Data::Dataset> rings_on(SushiAI::ExecutionBackend& backend)
     {
-        return held(Data::Rings::make(engine, small_rings()));
+        return held(Data::Rings::make(backend.engine(), small_rings()));
     }
 
-    /** @brief Builds a materialised set of two batches of 4 samples on @p engine. */
-    std::unique_ptr<Data::Dataset> materialised_on(SushiBLAS::Engine& engine)
+    /** @brief Builds a materialised set of two batches of 4 samples on @p backend. */
+    std::unique_ptr<Data::Dataset> materialised_on(SushiAI::ExecutionBackend& backend)
     {
         const Data::InputDescription input{Shape{4}, DType::Float32};
         const std::vector<Data::TargetDescription> roles{
@@ -113,7 +113,8 @@ namespace
         std::vector<Data::Batch> batches;
         for (int index = 0; index < 2; ++index)
         {
-            Result<Data::Batch> batch = Data::allocate_batch(engine, K_CONTRACT_ROWS, input, roles);
+            Result<Data::Batch> batch =
+                Data::allocate_batch(backend.engine(), K_CONTRACT_ROWS, input, roles);
             EXPECT_TRUE(SaTest::status_is_ok(Detail::status_of(batch)));
             if (!batch.has_value())
                 return nullptr;
@@ -124,10 +125,10 @@ namespace
                                                            input, roles, "held");
     }
 
-    /** @brief Builds a threaded loader over a rings set on @p engine. */
-    std::unique_ptr<Data::Dataset> loader_on(SushiBLAS::Engine& engine)
+    /** @brief Builds a threaded loader over a rings set on @p backend. */
+    std::unique_ptr<Data::Dataset> loader_on(SushiAI::ExecutionBackend& backend)
     {
-        std::unique_ptr<Data::Dataset> rings = rings_on(engine);
+        std::unique_ptr<Data::Dataset> rings = rings_on(backend);
         if (rings == nullptr)
             return nullptr;
 
@@ -141,7 +142,7 @@ namespace
         const char* name;
 
         /** @brief Builds a dataset of the kind with batches of K_CONTRACT_ROWS samples. */
-        std::unique_ptr<Data::Dataset> (*make)(SushiBLAS::Engine& engine);
+        std::unique_ptr<Data::Dataset> (*make)(SushiAI::ExecutionBackend& backend);
     };
 
     /** @brief Returns the name of the kind a parameter holds, for the test report. */
@@ -171,7 +172,7 @@ namespace
                 options.seed = seed;
                 std::vector<float> values;
                 Result<std::unique_ptr<Data::SyntheticClassification>> made =
-                    Data::SyntheticClassification::make(*engine, options);
+                    Data::SyntheticClassification::make(backend(), options);
                 EXPECT_TRUE(SaTest::status_is_ok(Detail::status_of(made)));
                 if (!made.has_value())
                     return values;
@@ -213,22 +214,22 @@ namespace
         const char* name;
 
         /** @brief Calls the factory and returns the Status it gave. */
-        std::function<Status(SushiBLAS::Engine& engine)> build;
+        std::function<Status(SushiAI::ExecutionBackend& backend)> build;
 
         /** @brief Holds a text the refusal names besides "positive". */
         const char* detail;
     };
 
     /** @brief Builds a synthetic set with no feature and returns the Status of that. */
-    Status synthetic_without_features(SushiBLAS::Engine& engine)
+    Status synthetic_without_features(SushiAI::ExecutionBackend& backend)
     {
         Data::SyntheticOptions options = small_synthetic();
         options.features = 0;
-        return Detail::status_of(Data::SyntheticClassification::make(engine, options));
+        return Detail::status_of(Data::SyntheticClassification::make(backend, options));
     }
 
     /** @brief Builds a rings set through the registry with a batch size of 0 and returns the Status. */
-    Status registered_rings_without_rows(SushiBLAS::Engine& engine)
+    Status registered_rings_without_rows(SushiAI::ExecutionBackend& backend)
     {
         Data::DatasetRegistry datasets;
         const Status registered = Data::register_datasets(datasets);
@@ -236,7 +237,8 @@ namespace
             return registered;
 
         return Detail::status_of(Data::make_dataset(
-            datasets, engine, "rings", SaTest::attributes_from(R"({"batch_size": 0})"), "data"));
+            datasets, backend.engine(), "rings",
+            SaTest::attributes_from(R"({"batch_size": 0})"), "data"));
     }
 
     /** @brief Runs each case on the engine. */
@@ -286,7 +288,7 @@ namespace
 TEST_F(Medium_Dataset, AReadGivesInputsOfBatchSizeByFeatureCount)
 {
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Data::SyntheticClassification> dataset,
-                            Data::SyntheticClassification::make(*engine, small_synthetic()));
+                            Data::SyntheticClassification::make(backend(), small_synthetic()));
     Data::Batch batch;
 
     SA_EXPECT_OK(dataset->read(1, batch));
@@ -310,7 +312,7 @@ TEST_P(Medium_DatasetExtent, AFactoryRefusesANonPositiveExtent)
 {
     const ExtentCase& row = GetParam();
 
-    SA_EXPECT_FAILURE(row.build(*engine), StatusCode::InvalidDescription, "positive", row.detail);
+    SA_EXPECT_FAILURE(row.build(backend()), StatusCode::InvalidDescription, "positive", row.detail);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -342,7 +344,7 @@ INSTANTIATE_TEST_SUITE_P(Options, Medium_RingsOption, ::testing::ValuesIn(option
 /** @brief Tests that two reads of one batch share its tensors and a read of another does not. */
 TEST_P(Medium_DatasetSharing, AReadSharesTheHeldBatch)
 {
-    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(*engine);
+    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(backend());
     ASSERT_NE(dataset, nullptr);
     Data::Batch first;
     Data::Batch again;
@@ -362,7 +364,7 @@ TEST_P(Medium_DatasetSharing, AReadSharesTheHeldBatch)
 /** @brief Tests that a range read views the storage of the held batch and copies no element. */
 TEST_P(Medium_DatasetSharing, ARangeReadSharesTheStorageOfTheHeldBatch)
 {
-    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(*engine);
+    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(backend());
     ASSERT_NE(dataset, nullptr);
     Data::Batch whole;
     Data::Batch part;
@@ -384,7 +386,7 @@ TEST_P(Medium_DatasetRange, ARangeReadGivesTheRowsOfTheWholeBatch)
 {
     const DatasetKind& kind = std::get<0>(GetParam());
     const RangeCase& range = std::get<1>(GetParam());
-    const std::unique_ptr<Data::Dataset> dataset = kind.make(*engine);
+    const std::unique_ptr<Data::Dataset> dataset = kind.make(backend());
     ASSERT_NE(dataset, nullptr);
     Data::Batch whole;
     Data::Batch part;
@@ -413,7 +415,7 @@ INSTANTIATE_TEST_SUITE_P(
 /** @brief Tests that a range outside a dataset is refused with a Status, not a stop. */
 TEST_P(Medium_DatasetRefusal, ABadRangeIsRefusedWithAStatus)
 {
-    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(*engine);
+    const std::unique_ptr<Data::Dataset> dataset = GetParam().make(backend());
     ASSERT_NE(dataset, nullptr);
     const std::int64_t size = dataset->batch_size();
     Data::Batch batch;

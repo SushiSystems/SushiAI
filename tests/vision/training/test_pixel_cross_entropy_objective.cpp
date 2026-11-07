@@ -489,7 +489,7 @@ namespace
      * @return The loss and the gradient at the logits, or the first failure; the rate of the
      *         optimizer is zero, so the map is read as it was written.
      */
-    Result<Found> run_step(SushiBLAS::Engine& engine, const Train::Objective& objective,
+    Result<Found> run_step(SushiAI::ExecutionBackend& backend, const Train::Objective& objective,
                            const std::vector<double>& logits,
                            const std::vector<std::int32_t>& labels)
     {
@@ -498,10 +498,10 @@ namespace
                                 K_HOST_EXTENTS.classes};
         SA_TRY_ASSIGN(Train::TrainingGraph built,
                       Train::build_training_graph(model, objective, batch_shape));
-        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(engine, model));
-        Graph::TensorPool pool(engine);
+        SA_TRY_ASSIGN(NN::ModelState state, NN::ModelState::create(backend.engine(), model));
+        Graph::TensorPool pool(backend.engine());
         SA_TRY_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                      Train::bind_parameters(built, state, pool));
+                      Train::bind_parameters(backend, built, state, pool));
         SA_FAIL_IF(slots.size() != 1, StatusCode::InvalidDescription,
                    "the map has one parameter; found {} slots", slots.size());
 
@@ -511,11 +511,11 @@ namespace
         Optim::SGDOptions sgd;
         sgd.learning_rate = 0.0;
         SA_TRY_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                      Optim::SGD::make(engine, slots, sgd));
+                      Optim::SGD::make(backend, slots, sgd));
         SA_TRY_ASSIGN(const std::unique_ptr<Train::TrainingStep> step,
-                      Train::TrainingStep::make(engine, built.graph, pool, *optimizer, {}));
+                      Train::TrainingStep::make(backend, built.graph, pool, *optimizer, {}));
 
-        SA_TRY_ASSIGN(const Data::Batch batch, make_batch(engine, labels));
+        SA_TRY_ASSIGN(const Data::Batch batch, make_batch(backend.engine(), labels));
         SaTest::write_tensor(pool.tensor(built.spec.inputs),
                              std::vector<double>(K_HOST_PIXELS * K_CLASSES, 0.0));
         SA_TRY(objective.feed(batch, built.leaves, pool));
@@ -544,7 +544,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, TheCrossEntropyAndItsGradientE
     const std::vector<double> logits = make_logits();
     const std::vector<std::int32_t> labels = mask_labels();
 
-    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(*engine, *objective, logits, labels));
+    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(backend(), *objective, logits, labels));
 
     EXPECT_NEAR(found.loss, cross_entropy_on_host(logits, labels), K_TOLERANCE);
 
@@ -583,7 +583,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AWeightedSumOfBothLossesEquals
     const std::vector<double> logits = make_logits();
     const std::vector<std::int32_t> labels = mask_labels();
 
-    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(*engine, *objective, logits, labels));
+    SA_ASSERT_OK_AND_ASSIGN(const Found found, run_step(backend(), *objective, logits, labels));
 
     const HostLoss both = [](const std::vector<double>& scores,
                              const std::vector<std::int32_t>& classes)
@@ -608,7 +608,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, AMaskWithNoKeptPixelGivesZero)
     const std::vector<std::int32_t> labels(K_HOST_PIXELS, K_IGNORE);
 
     SA_ASSERT_OK_AND_ASSIGN(const Found found,
-                            run_step(*engine, *objective, make_logits(), labels));
+                            run_step(backend(), *objective, make_logits(), labels));
 
     EXPECT_NEAR(found.loss, 0.0, K_TOLERANCE);
     for (const double element : found.gradient)
@@ -622,7 +622,7 @@ TEST_F(Medium_PixelCrossEntropyObjectiveEndToEnd, ALabelOutsideTheClassesStopsTh
         const std::unique_ptr<Vision::Training::PixelCrossEntropyObjective> objective,
         Vision::Training::PixelCrossEntropyObjective::make(K_HOST_EXTENTS, K_IGNORE));
 
-    SA_EXPECT_FAILURE(run_step(*engine, *objective, make_logits(), {0, 2, 4, 1, 1, 0}),
+    SA_EXPECT_FAILURE(run_step(backend(), *objective, make_logits(), {0, 2, 4, 1, 1, 0}),
                       StatusCode::Incompatible, "holds 4 at pixel 2", "below 4");
 }
 
@@ -793,19 +793,19 @@ TEST_F(Medium_SegmentOverfit, TwoConvolutionsAndAHeadFitOneBatch)
     SA_ASSERT_OK_AND_ASSIGN(NN::ModelState state, NN::ModelState::create(*engine, model));
     Graph::TensorPool pool(*engine);
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                            Train::bind_parameters(built, state, pool));
-    SA_EXPECT_OK(NN::initialize(*engine, state));
+                            Train::bind_parameters(backend(), built, state, pool));
+    SA_EXPECT_OK(NN::initialize(backend(), state));
     SA_ASSERT_OK_AND_ASSIGN(std::vector<Train::BufferUpdateSlot> updates,
                             Train::bind_buffer_updates(built.updates, state, pool));
 
     Optim::SGDOptions sgd;
     sgd.learning_rate = K_RATE;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Optim::SGD> optimizer,
-                            Optim::SGD::make(*engine, slots, sgd));
+                            Optim::SGD::make(backend(), slots, sgd));
     Train::TrainerOptions options;
     options.epochs = K_EPOCHS;
     SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<Train::Trainer> trainer,
-                            Train::Trainer::make(*engine, built, pool, *objective, *optimizer,
+                            Train::Trainer::make(backend(), built, pool, *objective, *optimizer,
                                                  options, std::move(updates)));
     SA_ASSERT_OK_AND_ASSIGN(const Data::MaterialisedDataset dataset, make_dataset(*engine));
 

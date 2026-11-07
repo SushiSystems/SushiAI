@@ -57,10 +57,10 @@ namespace
      */
     struct Listed
     {
-        /** @brief Writes the files named @p name and builds the setup on @p engine. */
-        Listed(const char* name, SushiBLAS::Engine& engine)
+        /** @brief Writes the files named @p name and builds the setup on @p backend. */
+        Listed(const char* name, ExecutionBackend& backend)
             : files(name), registries(Apps::compose_registries().value()),
-              setup(Apps::TrainingSetup::make(registries, files.spec, files.model_spec, engine,
+              setup(Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend,
                                               K_SEED)
                         .value()),
               tensors(Apps::ReplicaTensors::list(
@@ -116,7 +116,7 @@ namespace
 /** @brief Tests that the parameters and the first results are the slots, in slot order. */
 TEST_F(Medium_ReplicaTensors, ListsTheParametersAndTheGradientsInSlotOrder)
 {
-    const Listed listed("sushiai_replica_tensors_slots.json", *engine);
+    const Listed listed("sushiai_replica_tensors_slots.json", backend());
 
     expect_parameters_and_gradients_in_slot_order(listed);
 }
@@ -124,7 +124,7 @@ TEST_F(Medium_ReplicaTensors, ListsTheParametersAndTheGradientsInSlotOrder)
 /** @brief Tests that the loss follows the gradients in the results. */
 TEST_F(Medium_ReplicaTensors, ListsTheLossAfterTheGradients)
 {
-    const Listed listed("sushiai_replica_tensors_loss.json", *engine);
+    const Listed listed("sushiai_replica_tensors_loss.json", backend());
 
     const std::size_t parameters = listed.setup->parameters().size();
     ASSERT_GT(listed.tensors.results.size(), parameters);
@@ -135,7 +135,7 @@ TEST_F(Medium_ReplicaTensors, ListsTheLossAfterTheGradients)
 /** @brief Tests that the statistics sources follow the loss in the results, in update order. */
 TEST_F(Medium_ReplicaTensors, ListsTheStatisticsAfterTheLoss)
 {
-    const Listed listed("sushiai_replica_tensors_statistics.json", *engine);
+    const Listed listed("sushiai_replica_tensors_statistics.json", backend());
 
     expect_statistics_after_the_loss(listed);
 }

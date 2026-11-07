@@ -34,6 +34,7 @@
 #include <string_view>
 #include <SushiAI/SushiAI.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiBLAS/engine/engine.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include "cluster_training.hpp"
@@ -89,6 +90,7 @@ namespace
                       sa::Apps::training_runtime_config(spec));
         SA_TRY_ASSIGN(sr::Runtime runtime, sa::Detail::create_runtime(runtime_config));
         sb::Engine engine(runtime);
+        sa::RuntimeExecutionBackend backend(runtime, engine);
 
         // The session opens after the engine and closes before it, so both outlive it.
         std::unique_ptr<sa::Apps::ProfileSession> profile;
@@ -98,7 +100,7 @@ namespace
         }
 
         const sa::Result<sa::Apps::TrainingOutcome> trained =
-            sa::Apps::run_training_file(spec_path, spec, engine);
+            sa::Apps::run_training_file(spec_path, spec, backend);
         return sa::Apps::end_profiled_run(profile, trained.status());
     }
 } // namespace

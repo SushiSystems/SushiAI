@@ -248,7 +248,7 @@ namespace
          * @param heads The heads the objective describes.
          * @param rule The objective's rule; null builds it with Darknet's.
          */
-        void prepare(SushiBLAS::Engine& engine, std::vector<AnchorHead> heads,
+        void prepare(SushiAI::ExecutionBackend& backend, std::vector<AnchorHead> heads,
                      std::shared_ptr<const Vision::Training::HeadDeltaRule> rule = nullptr)
         {
             const Shape batch_shape{K_BATCH, K_NETWORK_SIDE, K_NETWORK_SIDE, 3};
@@ -275,32 +275,32 @@ namespace
                                       two_head_layout(), two_heads("head.0", "head.1")));
             SA_ASSERT_OK_AND_ASSIGN(built,
                                     Train::build_training_graph(*model, trained, batch_shape));
-            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(engine, *model));
+            SA_ASSERT_OK_AND_ASSIGN(state, NN::ModelState::create(backend.engine(), *model));
 
-            training_pool = std::make_unique<TensorPool>(engine);
+            training_pool = std::make_unique<TensorPool>(backend.engine());
             SA_ASSERT_OK_AND_ASSIGN(std::vector<Optim::ParameterSlot> slots,
-                                    Train::bind_parameters(built, *state, *training_pool));
+                                    Train::bind_parameters(backend, built, *state, *training_pool));
 
             // The last weight stays drawn, so both heads start away from zero.
             NN::InitPolicy policy;
             policy.zero_final_layer = false;
-            SA_EXPECT_OK(NN::initialize(engine, *state, policy));
+            SA_EXPECT_OK(NN::initialize(backend, *state, policy));
 
             SA_ASSERT_OK_AND_ASSIGN(
                 updates, Train::bind_buffer_updates(built.updates, *state, *training_pool));
 
             Optim::SGDOptions options;
             options.learning_rate = K_LEARNING_RATE;
-            SA_ASSERT_OK_AND_ASSIGN(optimizer, Optim::SGD::make(engine, slots, options));
+            SA_ASSERT_OK_AND_ASSIGN(optimizer, Optim::SGD::make(backend, slots, options));
 
             ready = true;
         }
 
         /** @brief Makes the step over the prepared parts; @c step stays null on a failure. */
-        void make_step(SushiBLAS::Engine& engine)
+        void make_step(SushiAI::ExecutionBackend& backend)
         {
             SA_ASSERT_OK_AND_ASSIGN(
-                step, AnchorTrainingStep::make(engine, *objective, built, *training_pool,
+                step, AnchorTrainingStep::make(backend, *objective, built, *training_pool,
                                                *optimizer, std::move(updates)));
         }
 
@@ -341,9 +341,9 @@ namespace
 TEST_F(Medium_AnchorTrainingStep, TheLeavesFedAreTheDeltasOfTheHeads)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -395,9 +395,9 @@ TEST_F(Medium_AnchorTrainingStep, TheShapeRatioRuleFeedsItsDeltasAndItsLoss)
         Vision::Detect::Anchor::ShapeRatioOptions{});
 
     TwoHeadCase model;
-    model.prepare(*engine, heads, rule);
+    model.prepare(backend(), heads, rule);
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -446,9 +446,9 @@ TEST_F(Medium_AnchorTrainingStep, TheShapeRatioRuleFeedsItsDeltasAndItsLoss)
 TEST_F(Medium_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -482,9 +482,9 @@ TEST_F(Medium_AnchorTrainingStep, OneStepMovesAHeadBiasAlongItsDelta)
 TEST_F(Medium_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -520,9 +520,9 @@ TEST_F(Medium_AnchorTrainingStep, OneStepBlendsARunningMeanOnce)
 TEST_F(Medium_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -537,9 +537,9 @@ TEST_F(Medium_AnchorTrainingStep, ATruthOfAnotherBatchIsRefused)
 TEST_F(Medium_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -554,9 +554,9 @@ TEST_F(Medium_AnchorTrainingStep, ALabelOutsideTheClassesIsRefused)
 TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
-    model.make_step(*engine);
+    model.make_step(backend());
     ASSERT_NE(model.step, nullptr);
 
     SA_ASSERT_OK_AND_ASSIGN(const SushiBLAS::Tensor inputs, seeded_inputs(*engine));
@@ -573,11 +573,11 @@ TEST_F(Medium_AnchorTrainingStep, ACentreOutsideTheInputIsRefused)
 TEST_F(Medium_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.9"));
+    model.prepare(backend(), two_heads("head.0", "head.9"));
     ASSERT_TRUE(model.ready);
 
     SA_EXPECT_FAILURE(
-        AnchorTrainingStep::make(*engine, *model.objective, model.built, *model.training_pool,
+        AnchorTrainingStep::make(backend(), *model.objective, model.built, *model.training_pool,
                                  *model.optimizer, std::move(model.updates)),
         StatusCode::InvalidDescription, "head.9");
 }
@@ -586,13 +586,13 @@ TEST_F(Medium_AnchorTrainingStep, AnObjectiveNamingAnUnpublishedHeadIsRefused)
 TEST_F(Medium_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
 
     Train::TrainingStepOptions options;
     options.host_stage.reads = {
         static_cast<Graph::ValueID>(model.built.graph.value_count())};
-    SA_EXPECT_FAILURE(Train::TrainingStep::make(*engine, model.built.graph,
+    SA_EXPECT_FAILURE(Train::TrainingStep::make(backend(), model.built.graph,
                                                 *model.training_pool, *model.optimizer,
                                                 std::move(model.updates), options),
                       StatusCode::InvalidDescription, "The host stage reads value",
@@ -603,14 +603,14 @@ TEST_F(Medium_AnchorTrainingStep, AHostStageThatReadsAValueTheGraphLacksIsRefuse
 TEST_F(Medium_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
 
     // The loss reads the delta leaf, so a stage that waits for the loss comes too late.
     Train::TrainingStepOptions options;
     options.host_stage.reads = {model.built.spec.loss};
     options.host_stage.writes = {model.built.leaves.at(model.objective->leaf_role(0))};
-    SA_EXPECT_FAILURE(Train::TrainingStep::make(*engine, model.built.graph,
+    SA_EXPECT_FAILURE(Train::TrainingStep::make(backend(), model.built.graph,
                                                 *model.training_pool, *model.optimizer,
                                                 std::move(model.updates), options),
                       StatusCode::InvalidDescription, "before the host stage",
@@ -621,12 +621,12 @@ TEST_F(Medium_AnchorTrainingStep, AHostStageBehindAReaderOfItsLeafIsRefused)
 TEST_F(Medium_AnchorTrainingStep, AStepWithoutAHostStageRefusesHostWork)
 {
     TwoHeadCase model;
-    model.prepare(*engine, two_heads("head.0", "head.1"));
+    model.prepare(backend(), two_heads("head.0", "head.1"));
     ASSERT_TRUE(model.ready);
 
     SA_ASSERT_OK_AND_ASSIGN(
         const std::unique_ptr<Train::TrainingStep> step,
-        Train::TrainingStep::make(*engine, model.built.graph, *model.training_pool,
+        Train::TrainingStep::make(backend(), model.built.graph, *model.training_pool,
                                   *model.optimizer, std::move(model.updates)));
     EXPECT_FALSE(step->has_host_stage());
     EXPECT_EQ(step->lead(), nullptr);

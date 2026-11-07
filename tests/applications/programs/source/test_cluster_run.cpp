@@ -51,6 +51,7 @@
 #include <SushiAI/data/dataset.hpp>
 #include <SushiAI/data/epoch.hpp>
 #include <SushiAI/execution/execution.hpp>
+#include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/io/run_progress.hpp>
 #include <SushiAI/optim/optimizer_registry.hpp>
@@ -169,19 +170,20 @@ namespace
     {
         SushiRuntime::Runtime runtime = SushiRuntime::Runtime::create().value();
         SushiBLAS::Engine engine(runtime);
+        SushiAI::RuntimeExecutionBackend backend(runtime, engine);
         const Apps::Registries registries = Apps::compose_registries().value();
         std::unique_ptr<Apps::TrainingSetup> setup =
-            Apps::TrainingSetup::make(registries, files.spec, files.model_spec, engine, K_SEED)
+            Apps::TrainingSetup::make(registries, files.spec, files.model_spec, backend, K_SEED)
                 .value();
         std::unique_ptr<Optim::Optimizer> optimizer =
-            Optim::make_optimizer(engine, files.spec.optimizer_type, setup->parameters(),
+            Optim::make_optimizer(backend, files.spec.optimizer_type, setup->parameters(),
                                   files.spec.optimizer_attributes, "the optimizer block")
                 .value();
         IO::RunProgress start;
-        SA_EXPECT_OK(Apps::start_state(files.spec, engine, setup->state(), *optimizer, &start));
+        SA_EXPECT_OK(Apps::start_state(files.spec, backend, setup->state(), *optimizer, &start));
 
         std::unique_ptr<Train::Trainer> trainer =
-            Train::Trainer::make(engine, setup->built(), setup->pool(), setup->objective(),
+            Train::Trainer::make(backend, setup->built(), setup->pool(), setup->objective(),
                                  *optimizer, Train::TrainerOptions{}, setup->take_updates())
                 .value();
         Data::begin_epoch(setup->dataset(), 0);
@@ -252,21 +254,22 @@ TEST(Medium_ClusterRun, RegressionOneStepFromAFileMatchesTheSingleMachineStep)
     ASSERT_TRUE(cluster.wait_for_workers(1, K_WAIT));
 
     SushiBLAS::Engine engine(master_runtime);
+    SushiAI::RuntimeExecutionBackend backend(master_runtime, engine);
     const Apps::Registries registries = Apps::compose_registries().value();
     std::unique_ptr<Apps::TrainingSetup> setup =
-        Apps::TrainingSetup::make(registries, spec, files.model_spec, engine, K_SEED,
+        Apps::TrainingSetup::make(registries, spec, files.model_spec, backend, K_SEED,
                                   std::nullopt, Apps::SetupScope::Results)
             .value();
     std::unique_ptr<Optim::Optimizer> optimizer =
-        Optim::make_optimizer(engine, spec.optimizer_type, setup->parameters(),
+        Optim::make_optimizer(backend, spec.optimizer_type, setup->parameters(),
                               spec.optimizer_attributes, "the optimizer block")
             .value();
     IO::RunProgress start;
-    SA_EXPECT_OK(Apps::start_state(spec, engine, setup->state(), *optimizer, &start));
+    SA_EXPECT_OK(Apps::start_state(spec, backend, setup->state(), *optimizer, &start));
     const std::vector<std::vector<unsigned char>> before = bytes_of(setup->parameters());
 
     Apps::PreparedRun prepared{
-        engine, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
+        backend, spec, setup->dataset(), setup->given(), setup->objective(), setup->built(),
         setup->state(), setup->pool(), *optimizer, setup->take_updates(), nullptr, start,
     };
     Apps::ClusterRun run{prepared,

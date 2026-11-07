@@ -39,6 +39,7 @@
 #include <SushiBLAS/elementwise/dispatch.hpp>
 #include <SushiRuntime/core/span.hpp>
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/execution_backend.hpp>
 #include <SushiAI/failure/check.hpp>
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/failure/result.hpp>
@@ -216,10 +217,12 @@ namespace SushiAI
             }
         }
 
-        Result<std::unique_ptr<SGD>> SGD::make(SushiBLAS::Engine& engine,
+        Result<std::unique_ptr<SGD>> SGD::make(ExecutionBackend& backend,
                                                std::vector<ParameterSlot> parameters,
                                                SGDOptions options) noexcept
         {
+            SushiBLAS::Engine& engine = backend.engine();
+
             SA_TRY(validate_slots(parameters));
 
             SA_FAIL_IF(options.nesterov && options.momentum <= 0.0,
@@ -261,16 +264,16 @@ namespace SushiAI
 
             return Detail::guard_value(Detail::SeamPhase::Allocate, [&]()
             {
-                return std::unique_ptr<SGD>(new SGD(engine, std::move(parameters), options,
+                return std::unique_ptr<SGD>(new SGD(backend, std::move(parameters), options,
                                                     std::move(state), std::move(scalars),
                                                     has_momentum));
             });
         }
 
-        SGD::SGD(SushiBLAS::Engine& engine, std::vector<ParameterSlot> parameters,
+        SGD::SGD(ExecutionBackend& backend, std::vector<ParameterSlot> parameters,
                  SGDOptions options, std::vector<State> state, StepScalars scalars,
                  bool has_momentum) noexcept
-            : Optimizer(engine, std::move(parameters)), options_(options),
+            : Optimizer(backend, std::move(parameters)), options_(options),
               state_(std::move(state)), scalars_(std::move(scalars)),
               has_momentum_(has_momentum)
         {

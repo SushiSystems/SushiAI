@@ -55,7 +55,7 @@ namespace SushiAI::Vision::Training
      * @brief Owns a training step that stops after the ports of the head, so the host
      *        assigns the targets from the forward pass the step differentiates: the one-to-many
      *        ports, and the one-to-one ports of a model with that copy.
-     * @pre The engine, the pool and the optimizer outlive the step.
+     * @pre The backend, the pool and the optimizer outlive the step.
      * @see docs/agent/2026_10_25_ULTRALYTICS_DETECTORS/PLAN.md, section 4.
      */
     class FreeTrainingStep final
@@ -70,7 +70,7 @@ namespace SushiAI::Vision::Training
              *         refusal of the stage or the compilation.
              */
             [[nodiscard]] static Result<std::unique_ptr<FreeTrainingStep>> make(
-                SushiBLAS::Engine& engine, const FreeObjective& objective,
+                ExecutionBackend& backend, const FreeObjective& objective,
                 const Train::TrainingGraph& built, Graph::TensorPool& training_pool,
                 Optim::Optimizer& optimizer, std::vector<Train::BufferUpdateSlot> updates,
                 Train::TrainingStepOptions options = {}) noexcept;
@@ -160,7 +160,7 @@ namespace SushiAI::Vision::Training
             };
 
             /** @brief Takes the parts make() built; the tensor lists are filled by make(). */
-            FreeTrainingStep(SushiBLAS::Engine& engine, FreeObjective objective,
+            FreeTrainingStep(ExecutionBackend& backend, FreeObjective objective,
                              std::vector<Branch> branches, Graph::TensorPool& pool,
                              SushiBLAS::Tensor& input) noexcept;
 
@@ -197,7 +197,7 @@ namespace SushiAI::Vision::Training
             [[nodiscard]] Result<FreeLossTerms> measure_branch(const Branch& branch);
 
             /// @brief Records and runs the copy of the input; not owned.
-            SushiBLAS::Engine* engine_;
+            ExecutionBackend* backend_;
 
             /// @brief Describes the ports, the leaves and the gains.
             FreeObjective objective_;
