@@ -71,6 +71,7 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 11. RW-154 (2026-11-07, the orchestrator): `Config::read_json_text_events` reads JSON events over text, and `read_coco_json` reads its annotation file through a `ByteSource` with it, with a small bytes-fed test.
 12. RW-150/T5 (2026-11-07, the orchestrator): the SushiLog pin moves to v0.3.1, the first release with `LogCapture`, and the log tests capture through it.
 13. RW-155 (2026-11-07, the lead): `live_failure_count`, `FatalStop` and `report_then_stop` leave `Detail` and become public calls of the failure module, so the failure tests and `test_traced` read them through a public path. `report_fatal` and `K_UNCOMPOSED_FATAL_MESSAGE` stay in `Detail`.
+14. RW-157 (2026-11-07, the lead): `InMemorySampleSource` records the indices it loads, in call order, so `test_pipeline.cpp` drops its hand-written `MemorySource`; the `AffineNearest` tests that sit in `test_mask_pipeline.cpp` move to `test_affine_nearest.cpp`.
 
 ## Seams the M jobs wait on
 

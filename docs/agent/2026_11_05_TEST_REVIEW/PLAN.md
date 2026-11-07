@@ -19,8 +19,8 @@ writes each add. Nothing in a module job changes production code except a seam a
 | T6 | The defects of this report, each with a test that fails first, and the pages corrected |  | done; open items in RW-151, RW-152, RW-153 |
 | T7 | The CLI tests on sushicore's in-memory runner, console and CMake driver | sushicore T1 | done |
 | T8 | `tools/testing/check_test_additions.py`, `tools/tests/test_check_test_additions.py` deleted |  | done |
-| M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
-| M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
+| M1 | the tests of `(root)` (21 files): 148 rewrite, 23 resize, 40 split, 73 merge, 21 delete | T1, T2, T3, T4, T5, T6, T7, T8 | done (4f60f863, 947e4982); RW-157 open for the pipeline load journal |
+| M2 | the tests of `applications` (22 files): 11 rewrite, 24 resize, 13 split, 6 merge, 4 delete | T1, T2, T3, T4, T5, T6, T7, T8 | running |
 | M3 | the tests of `cli` (16 files): 46 rewrite, 8 resize, 10 split, 3 merge, 14 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
 | M4 | the tests of `core/allocation` (1 file): 1 resize | T1, T2, T3, T4, T5, T6, T7, T8 | done (RW-155 seam built, not yet built or run) |
 | M5 | the tests of `core/autograd` (14 files): 36 rewrite, 5 resize, 19 split, 11 merge, 6 delete | T1, T2, T3, T4, T5, T6, T7, T8 | todo |
