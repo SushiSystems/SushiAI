@@ -23,96 +23,104 @@
 
 /**
  * @file test_partner_source.cpp
- * @brief Tests the partner count and a fake partner source used through the interface.
+ * @brief Tests the contract every PartnerSource keeps, asked through the interface.
  * @author Mustafa Garip
  */
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <tuple>
+#include <string>
+#include <type_traits>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
+#include <SushiAI/vision/imaging/dataset_partners.hpp>
+#include <SushiAI/vision/imaging/in_memory_partner_source.hpp>
 #include <SushiAI/vision/imaging/partner_source.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
+#include <SushiAI/vision/imaging/recent_partners.hpp>
 
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
     using SushiAI::Test::require_value;
+
     /** @brief Holds the seed of every generator below. */
     constexpr std::uint64_t K_SEED = 20261016;
 
-    /** @brief Holds the images of the pool the fake draws from. */
-    constexpr std::uint32_t K_POOL = 10;
+    /** @brief Holds the image count of the datasets the real sources are made for. */
+    constexpr std::size_t K_DATASET_SIZE = 10;
 
-    /** @brief Draws each partner as one index of the pool and flags its own destruction. */
-    class DrawingPartners final : public PartnerSource
+    /** @brief Makes the in-memory source of the contract. */
+    struct InMemoryMaker
+    {
+        /** @brief Returns a source that replays one scripted entry. */
+        static std::unique_ptr<PartnerSource> make()
+        {
+            return std::make_unique<InMemoryPartnerSource>(
+                std::vector<MosaicPartners>{MosaicPartners{0, 0, 0}});
+        }
+    };
+
+    /** @brief Makes the dataset source of the contract. */
+    struct DatasetMaker
+    {
+        /** @brief Returns a source that draws from a dataset of K_DATASET_SIZE images. */
+        static std::unique_ptr<PartnerSource> make()
+        {
+            return require_value(DatasetPartners::make(K_DATASET_SIZE));
+        }
+    };
+
+    /** @brief Makes the recent-indices source of the contract. */
+    struct RecentMaker
+    {
+        /** @brief Returns a source over a dataset of K_DATASET_SIZE images and a batch of 4. */
+        static std::unique_ptr<PartnerSource> make()
+        {
+            return require_value(RecentPartners::make(K_DATASET_SIZE, 4));
+        }
+    };
+
+    /** @brief Runs the PartnerSource contract once per implementation. */
+    template <typename Maker>
+    class Small_ImagingPartnerSourceContract : public ::testing::Test
+    {
+    };
+
+    using Sources = ::testing::Types<InMemoryMaker, DatasetMaker, RecentMaker>;
+
+    /** @brief Names each implementation of the contract by its maker. */
+    class SourceNames
     {
         public:
-            /** @brief Starts a source that sets @p destroyed when it is destroyed. */
-            explicit DrawingPartners(bool& destroyed) noexcept : destroyed_(destroyed)
+            /** @brief Returns the name of the implementation at an index of Sources. */
+            template <typename Maker>
+            static std::string GetName(int)
             {
-
+                if (std::is_same_v<Maker, InMemoryMaker>)
+                    return "InMemory";
+                if (std::is_same_v<Maker, DatasetMaker>)
+                    return "Dataset";
+                return "Recent";
             }
-
-            /** @brief Sets the flag the constructor was given. */
-            ~DrawingPartners() override
-            {
-                destroyed_ = true;
-            }
-
-            DrawingPartners(const DrawingPartners&) = delete;
-            DrawingPartners& operator=(const DrawingPartners&) = delete;
-            DrawingPartners(DrawingPartners&&) = delete;
-            DrawingPartners& operator=(DrawingPartners&&) = delete;
-
-            /** @brief Returns three draws of an index below K_POOL, in draw order. */
-            [[nodiscard]] MosaicPartners choose(std::size_t index, Random& random) override
-            {
-                static_cast<void>(index);
-                MosaicPartners partners{};
-                for (std::size_t& partner : partners)
-                    partner = random.index(K_POOL);
-                return partners;
-            }
-
-        private:
-            /// @brief Holds the flag the destructor sets.
-            bool& destroyed_;
     };
+
+    TYPED_TEST_SUITE(Small_ImagingPartnerSourceContract, Sources, SourceNames);
 } // namespace
 
-/** @brief Tests that a mosaic adds three partners to the sample's own image. */
-TEST(Small_ImagingPartnerSource, AMosaicHasThreePartners)
+/** @brief Tests that a source asked through the interface makes exactly three draws. */
+TYPED_TEST(Small_ImagingPartnerSourceContract, ASourceAskedThroughTheInterfaceMakesThreeDraws)
 {
-    EXPECT_EQ(K_MOSAIC_PARTNERS, 3u);
-    EXPECT_EQ(std::tuple_size<MosaicPartners>::value, K_MOSAIC_PARTNERS);
-}
-
-/** @brief Tests that a source asked through the interface returns its draws in draw order. */
-TEST(Small_ImagingPartnerSource, ASourceAskedThroughTheInterfaceReturnsItsDraws)
-{
-    bool destroyed = false;
-    const std::unique_ptr<PartnerSource> source = std::make_unique<DrawingPartners>(destroyed);
+    const std::unique_ptr<PartnerSource> source = TypeParam::make();
     Random random(K_SEED);
     Random expected(K_SEED);
 
-    const MosaicPartners partners = source->choose(4, random);
+    static_cast<void>(source->choose(4, random));
+    for (std::size_t draw = 0; draw < K_MOSAIC_PARTNERS; ++draw)
+        static_cast<void>(expected.next_u32());
 
-    for (std::size_t i = 0; i < K_MOSAIC_PARTNERS; ++i)
-        EXPECT_EQ(partners[i], expected.index(K_POOL)) << "partner " << i;
     EXPECT_TRUE(random == expected);
-}
-
-/** @brief Tests that destroying a source through the interface runs its own destructor. */
-TEST(Small_ImagingPartnerSource, DestroyingThroughTheInterfaceRunsTheSourcesDestructor)
-{
-    bool destroyed = false;
-    std::unique_ptr<PartnerSource> source = std::make_unique<DrawingPartners>(destroyed);
-
-    source.reset();
-
-    EXPECT_TRUE(destroyed);
 }

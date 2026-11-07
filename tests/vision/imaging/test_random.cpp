@@ -32,6 +32,8 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <string>
+#include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/random.hpp>
@@ -40,31 +42,8 @@ using SushiAI::Vision::Imaging::Random;
 
 namespace
 {
-    /**
-     * @brief Holds the statistical bound of the mean over 65536 draws: five standard errors of
-     *        0.0011.
-     */
-    constexpr double K_MEAN_TOLERANCE = 0.006;
-
-    /**
-     * @brief Holds the statistical bound of the variance over 65536 draws: five standard errors of
-     *        0.00029.
-     */
-    constexpr double K_VARIANCE_TOLERANCE = 0.0015;
-
-    /**
-     * @brief Holds the statistical bound of a bucket count: above five standard deviations of 93
-     *        around 10000 hits.
-     */
-    constexpr std::int32_t K_BUCKET_TOLERANCE = 500;
-
-    /**
-     * @brief Holds the statistical bound of a success rate over 65536 draws: above five standard
-     *        errors of 0.0017.
-     */
-    constexpr double K_RATE_TOLERANCE = 0.01;
-
     using SushiAI::Test::require_value;
+
     /** @brief Holds the seed of every statistical case in this file. */
     constexpr std::uint64_t K_SEED = 2026;
 
@@ -73,44 +52,183 @@ namespace
 
     /** @brief Holds 2^24, the number of values uniform() can return. */
     constexpr float K_UNIFORM_VALUES = 16777216.0f;
+
+    /** @brief Holds the chance that a correct run of draws still misses a statistical bound. */
+    constexpr double K_FALSE_FAILURE_RATE = 1e-9;
+
+    /**
+     * @brief Returns the distance from its expectation that a mean of draws in [0, 1] stays within.
+     *
+     * Hoeffding's inequality gives P(|mean - expectation| >= t) <= 2 exp(-2 n t^2), so t is
+     * sqrt(ln(2 / rate) / (2 n)) for n draws and K_FALSE_FAILURE_RATE. It bounds a mean of
+     * uniform draws, a success rate and, times n, a bucket count.
+     */
+    double mean_tolerance(std::int32_t draws)
+    {
+        return std::sqrt(std::log(2.0 / K_FALSE_FAILURE_RATE) / (2.0 * static_cast<double>(draws)));
+    }
+
+    /**
+     * @brief Returns the distance from 1/12 that the variance of K_SAMPLES uniform draws stays
+     *        within.
+     *
+     * The variance is the mean of the squares minus the square of the mean. Both means stay
+     * within t of their expectation, and the square of a mean near 1/2 moves by at most
+     * t + t^2, so the variance moves by at most 2 t + t^2.
+     */
+    double variance_tolerance()
+    {
+        const double t = mean_tolerance(K_SAMPLES);
+        return 2.0 * t + t * t;
+    }
+
+    /** @brief Holds the mean and the variance of a run of draws. */
+    struct Moments
+    {
+        /** @brief Holds the mean of the draws. */
+        double mean;
+
+        /** @brief Holds the variance of the draws. */
+        double variance;
+    };
+
+    /** @brief Draws K_SAMPLES values of uniform() and returns their mean and variance. */
+    Moments measure_uniform_moments(Random& random)
+    {
+        double sum = 0.0;
+        double sum_of_squares = 0.0;
+        for (std::int32_t i = 0; i < K_SAMPLES; ++i)
+        {
+            const double value = static_cast<double>(random.uniform());
+            sum += value;
+            sum_of_squares += value * value;
+        }
+
+        const double mean = sum / K_SAMPLES;
+        return Moments{mean, sum_of_squares / K_SAMPLES - mean * mean};
+    }
+
+    /** @brief Draws @p draws values of index(7) and returns the hit count of each bucket. */
+    std::array<std::int32_t, 7> count_index_hits(Random& random, std::int32_t draws)
+    {
+        std::array<std::int32_t, 7> hits{};
+        for (std::int32_t i = 0; i < draws; ++i)
+            ++hits[random.index(static_cast<std::uint32_t>(hits.size()))];
+
+        return hits;
+    }
+
+    /** @brief Draws @p draws values of bernoulli(probability) and returns the success count. */
+    std::int32_t count_successes(Random& random, float probability, std::int32_t draws)
+    {
+        std::int32_t successes = 0;
+        for (std::int32_t i = 0; i < draws; ++i)
+            successes += random.bernoulli(probability) ? 1 : 0;
+
+        return successes;
+    }
+
+    /** @brief Draws @p draws values of next_u64 and returns them in draw order. */
+    std::vector<std::uint64_t> draw_values(Random& random, std::size_t draws)
+    {
+        std::vector<std::uint64_t> values;
+        for (std::size_t i = 0; i < draws; ++i)
+            values.push_back(random.next_u64());
+
+        return values;
+    }
+
+    /** @brief Draws @p draws values of index(1) and returns them in draw order. */
+    std::vector<std::uint32_t> draw_indices_of_one(Random& random, std::size_t draws)
+    {
+        std::vector<std::uint32_t> values;
+        for (std::size_t i = 0; i < draws; ++i)
+            values.push_back(random.index(1));
+
+        return values;
+    }
+
+    /** @brief Advances a generator by @p draws values of next_u64. */
+    void skip_draws(Random& random, std::int32_t draws)
+    {
+        for (std::int32_t i = 0; i < draws; ++i)
+            static_cast<void>(random.next_u64());
+    }
+
+    /** @brief Describes a value and the SplitMix64 finaliser of it, worked out by hand. */
+    struct MixRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the value mixed. */
+        std::uint64_t value;
+
+        /** @brief Holds the finaliser of the value. */
+        std::uint64_t result;
+    };
+
+    /** @brief Runs each hand-computed finaliser case. */
+    class Small_ImagingRandomMix : public ::testing::TestWithParam<MixRow>
+    {
+    };
+
+    /** @brief Describes the draw of a half-open interval and the bounds it must stay within. */
+    struct IntervalRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Draws one value of the interval. */
+        float (*draw)(Random&);
+
+        /** @brief Holds the inclusive lower bound. */
+        float low;
+
+        /** @brief Holds the exclusive upper bound. */
+        float high;
+    };
+
+    /** @brief Runs each half-open interval case. */
+    class Small_ImagingRandomInterval : public ::testing::TestWithParam<IntervalRow>
+    {
+    };
+
+    /** @brief Draws K_SAMPLES values and checks each is in [low, high). */
+    void expect_draws_in_interval(const IntervalRow& row)
+    {
+        Random random(K_SEED);
+        for (std::int32_t i = 0; i < K_SAMPLES; ++i)
+        {
+            const float value = row.draw(random);
+
+            ASSERT_GE(value, row.low) << "draw " << i;
+            ASSERT_LT(value, row.high) << "draw " << i;
+        }
+    }
 } // namespace
 
-TEST(Small_ImagingRandom, MixFollowsTheFinaliserStepByStep)
+/**
+ * @brief Tests that mix is the SplitMix64 finaliser.
+ *
+ * Each result is z = (v ^ v >> 30) * K_FIRST_MULTIPLIER, then z = (z ^ z >> 27) *
+ * K_SECOND_MULTIPLIER, then z ^ z >> 31, worked out by hand for the row's value.
+ */
+TEST_P(Small_ImagingRandomMix, MixFollowsTheFinaliser)
 {
-    // Each literal is the previous one after the next step of mix(), worked out by hand.
-    const std::uint64_t value = 0x9E3779B97F4A7C15ull;
-    const std::uint64_t first_xor = 0x9E3779BB07979AF0ull;
-    const std::uint64_t first_product = 0x6F68261B57E7A770ull;
-    const std::uint64_t second_xor = 0x6F682616BAE3641Aull;
-    const std::uint64_t second_product = 0xE220A838BF5C9DDEull;
-    const std::uint64_t result = 0xE220A8397B1DCDAFull;
+    const MixRow& row = GetParam();
 
-    ASSERT_EQ(value ^ (value >> 30), first_xor);
-    ASSERT_EQ(first_xor * Random::K_FIRST_MULTIPLIER, first_product);
-    ASSERT_EQ(first_product ^ (first_product >> 27), second_xor);
-    ASSERT_EQ(second_xor * Random::K_SECOND_MULTIPLIER, second_product);
-    ASSERT_EQ(second_product ^ (second_product >> 31), result);
-
-    EXPECT_EQ(Random::mix(value), result);
+    EXPECT_EQ(Random::mix(row.value), row.result);
 }
 
-TEST(Small_ImagingRandom, MixOfTheSecondCounterFollowsTheFinaliserStepByStep)
-{
-    const std::uint64_t value = 0x3C6EF372FE94F82Aull;
-    const std::uint64_t first_xor = 0x3C6EF3720F2F35E1ull;
-    const std::uint64_t first_product = 0x2A94FCBFCCB43499ull;
-    const std::uint64_t second_xor = 0x2A94FCBA9E2BA360ull;
-    const std::uint64_t second_product = 0x6E789E6A7D485920ull;
-    const std::uint64_t result = 0x6E789E6AA1B965F4ull;
-
-    ASSERT_EQ(value ^ (value >> 30), first_xor);
-    ASSERT_EQ(first_xor * Random::K_FIRST_MULTIPLIER, first_product);
-    ASSERT_EQ(first_product ^ (first_product >> 27), second_xor);
-    ASSERT_EQ(second_xor * Random::K_SECOND_MULTIPLIER, second_product);
-    ASSERT_EQ(second_product ^ (second_product >> 31), result);
-
-    EXPECT_EQ(Random::mix(value), result);
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingRandomMix,
+    ::testing::Values(MixRow{"TheFirstIncrement", 0x9E3779B97F4A7C15ull, 0xE220A8397B1DCDAFull},
+                      MixRow{"TheSecondCounter", 0x3C6EF372FE94F82Aull, 0x6E789E6AA1B965F4ull}),
+    [](const ::testing::TestParamInfo<MixRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_ImagingRandom, SeedZeroReproducesTheHandComputedSequence)
 {
@@ -164,41 +282,33 @@ TEST(Small_ImagingRandom, UniformIsTheTop24BitsScaledByTwoToTheMinus24)
     EXPECT_EQ(random.state(), 0xDAA66D2C7DDF743Full);
 }
 
-TEST(Small_ImagingRandom, UniformStaysInTheHalfOpenUnitInterval)
+/** @brief Tests that uniform draws stay in the half-open interval they are asked for. */
+TEST_P(Small_ImagingRandomInterval, UniformStaysInItsHalfOpenInterval)
 {
-    Random random(K_SEED);
-
-    for (std::int32_t i = 0; i < K_SAMPLES; ++i)
-    {
-        const float value = random.uniform();
-
-        ASSERT_GE(value, 0.0f) << "draw " << i;
-        ASSERT_LT(value, 1.0f) << "draw " << i;
-    }
+    expect_draws_in_interval(GetParam());
 }
 
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingRandomInterval,
+    ::testing::Values(
+        IntervalRow{"TheUnitInterval", [](Random& random) { return random.uniform(); }, 0.0f,
+                    1.0f},
+        IntervalRow{"ARangedInterval", [](Random& random) { return random.uniform(0.4f, 0.6f); },
+                    0.4f, 0.6f}),
+    [](const ::testing::TestParamInfo<IntervalRow>& info)
+    {
+        return std::string(info.param.name);
+    });
+
+/** @brief Tests that the mean and variance of uniform draws are those of a uniform variable. */
 TEST(Small_ImagingRandom, UniformHasTheMeanAndVarianceOfAUniformVariable)
 {
     Random random(K_SEED);
 
-    double sum = 0.0;
-    double sum_of_squares = 0.0;
+    const Moments moments = measure_uniform_moments(random);
 
-    for (std::int32_t i = 0; i < K_SAMPLES; ++i)
-    {
-        const double value = static_cast<double>(random.uniform());
-        sum += value;
-        sum_of_squares += value * value;
-    }
-
-    const double mean = sum / K_SAMPLES;
-    const double variance = sum_of_squares / K_SAMPLES - mean * mean;
-
-    // The standard error of the mean over 65536 draws is 0.0011; 0.006 is five of them.
-    EXPECT_NEAR(mean, 0.5, K_MEAN_TOLERANCE);
-
-    // The standard error of the variance over 65536 draws is 0.00029; 0.0015 is five of them.
-    EXPECT_NEAR(variance, 1.0 / 12.0, K_VARIANCE_TOLERANCE);
+    EXPECT_NEAR(moments.mean, 0.5, mean_tolerance(K_SAMPLES));
+    EXPECT_NEAR(moments.variance, 1.0 / 12.0, variance_tolerance());
 }
 
 TEST(Small_ImagingRandom, RangedUniformMapsTheUnitDrawLinearly)
@@ -214,19 +324,7 @@ TEST(Small_ImagingRandom, RangedUniformMapsTheUnitDrawLinearly)
     EXPECT_EQ(random.state(), 0x3C6EF372FE94F82Aull);
 }
 
-TEST(Small_ImagingRandom, RangedUniformStaysInItsHalfOpenInterval)
-{
-    Random random(K_SEED);
-
-    for (std::int32_t i = 0; i < K_SAMPLES; ++i)
-    {
-        const float value = random.uniform(0.4f, 0.6f);
-
-        ASSERT_GE(value, 0.4f) << "draw " << i;
-        ASSERT_LT(value, 0.6f) << "draw " << i;
-    }
-}
-
+/** @brief Tests that a ranged draw over an interval of one float returns its lower bound. */
 TEST(Small_ImagingRandom, RangedUniformNeverReturnsItsUpperBound)
 {
     const float low = 1.0f;
@@ -266,41 +364,38 @@ TEST(Small_ImagingRandom, IndexIsTheHighWordOfTheProduct)
     EXPECT_EQ(random.state(), 0xDAA66D2C7DDF743Full);
 }
 
-TEST(Small_ImagingRandom, IndexOfOneIsAlwaysZeroAndStillDraws)
+/** @brief Tests that an index below a count of one is always zero. */
+TEST(Small_ImagingRandom, IndexOfOneIsAlwaysZero)
+{
+    Random random(K_SEED);
+
+    EXPECT_EQ(draw_indices_of_one(random, 64), std::vector<std::uint32_t>(64, 0u));
+}
+
+/** @brief Tests that an index below a count of one still takes a draw. */
+TEST(Small_ImagingRandom, IndexOfOneStillDraws)
 {
     Random random(K_SEED);
     Random reference(K_SEED);
 
-    for (std::int32_t i = 0; i < 64; ++i)
-    {
-        ASSERT_EQ(random.index(1), 0u);
-        static_cast<void>(reference.next_u64());
-    }
+    static_cast<void>(random.index(1));
 
+    static_cast<void>(reference.next_u64());
     EXPECT_EQ(random, reference);
 }
 
+/** @brief Tests that every bucket of an index draw is hit about as often as any other. */
 TEST(Small_ImagingRandom, IndexStaysBelowTheCountAndFillsEveryBucketEvenly)
 {
-    constexpr std::uint32_t K_BUCKETS = 7;
     constexpr std::int32_t K_DRAWS = 70000;
-
     Random random(K_SEED);
-    std::array<std::int32_t, K_BUCKETS> buckets{};
 
-    for (std::int32_t i = 0; i < K_DRAWS; ++i)
-    {
-        const std::uint32_t value = random.index(K_BUCKETS);
+    const std::array<std::int32_t, 7> hits = count_index_hits(random, K_DRAWS);
 
-        ASSERT_LT(value, K_BUCKETS) << "draw " << i;
-        ++buckets[value];
-    }
-
-    // A bucket expects 10000 hits with a standard deviation of 93; 500 is above five of them.
-    for (std::size_t bucket = 0; bucket < buckets.size(); ++bucket)
-        EXPECT_NEAR(buckets[bucket], K_DRAWS / static_cast<std::int32_t>(K_BUCKETS),
-                    K_BUCKET_TOLERANCE)
-            << "bucket " << bucket;
+    const double expected_hits = K_DRAWS / static_cast<double>(hits.size());
+    const double bucket_tolerance = K_DRAWS * mean_tolerance(K_DRAWS);
+    for (std::size_t bucket = 0; bucket < hits.size(); ++bucket)
+        EXPECT_NEAR(hits[bucket], expected_hits, bucket_tolerance) << "bucket " << bucket;
 }
 
 TEST(Small_ImagingRandom, IndexReachesTheLargestCount)
@@ -329,13 +424,10 @@ TEST(Small_ImagingRandom, BernoulliNeverSucceedsAtZeroAndAlwaysSucceedsAtOne)
     Random always(K_SEED);
     Random reference(K_SEED);
 
-    for (std::int32_t i = 0; i < K_SAMPLES; ++i)
-    {
-        ASSERT_FALSE(never.bernoulli(0.0f)) << "draw " << i;
-        ASSERT_TRUE(always.bernoulli(1.0f)) << "draw " << i;
-        static_cast<void>(reference.next_u64());
-    }
+    EXPECT_EQ(count_successes(never, 0.0f, K_SAMPLES), 0);
+    EXPECT_EQ(count_successes(always, 1.0f, K_SAMPLES), K_SAMPLES);
 
+    skip_draws(reference, K_SAMPLES);
     EXPECT_EQ(never, reference);
     EXPECT_EQ(always, reference);
 }
@@ -357,35 +449,20 @@ TEST(Small_ImagingRandom, AZeroDrawIsTheLowerBoundAndFailsAZeroProbability)
     EXPECT_EQ(ranged.uniform(0.4f, 0.6f), 0.4f);
 }
 
+/** @brief Tests that the success rate of bernoulli is its probability. */
 TEST(Small_ImagingRandom, BernoulliSucceedsAtTheRateOfItsProbability)
 {
     Random random(K_SEED);
-    std::int32_t successes = 0;
 
-    for (std::int32_t i = 0; i < K_SAMPLES; ++i)
-        successes += random.bernoulli(0.25f) ? 1 : 0;
+    const std::int32_t successes = count_successes(random, 0.25f, K_SAMPLES);
 
-    // The standard error of the rate over 65536 draws is 0.0017; 0.01 is above five of them.
-    EXPECT_NEAR(static_cast<double>(successes) / K_SAMPLES, 0.25, K_RATE_TOLERANCE);
+    EXPECT_NEAR(static_cast<double>(successes) / K_SAMPLES, 0.25, mean_tolerance(K_SAMPLES));
 }
 
 TEST(Small_ImagingRandom, DeriveStartsAtTheMixOfTheStateAndTheKeyedMix)
 {
-    // mix(0 + K_INCREMENT) is 0xE220A8397B1DCDAF, and 0 ^ that value is the value itself.
-    const std::uint64_t keyed = 0xE220A8397B1DCDAFull;
-    const std::uint64_t first_xor = 0xE220A83AF39F6D4Aull;
-    const std::uint64_t first_product = 0xA0DDC6FB18E12C7Aull;
-    const std::uint64_t second_xor = 0xA0DDC6EF0359F319ull;
-    const std::uint64_t second_product = 0x482182266F7FD0F3ull;
-    const std::uint64_t result = 0x48218226FF3CD4BFull;
-
-    ASSERT_EQ(keyed ^ (keyed >> 30), first_xor);
-    ASSERT_EQ(first_xor * Random::K_FIRST_MULTIPLIER, first_product);
-    ASSERT_EQ(first_product ^ (first_product >> 27), second_xor);
-    ASSERT_EQ(second_xor * Random::K_SECOND_MULTIPLIER, second_product);
-    ASSERT_EQ(second_product ^ (second_product >> 31), result);
-
-    EXPECT_EQ(Random(0).derive(0).state(), result);
+    // mix(0xE220A8397B1DCDAF), worked out by hand, is 0x48218226FF3CD4BF.
+    EXPECT_EQ(Random(0).derive(0).state(), 0x48218226FF3CD4BFull);
 }
 
 TEST(Small_ImagingRandom, DeriveDependsOnTheKeyAndOnTheParentState)
@@ -415,8 +492,7 @@ TEST(Small_ImagingRandom, ACopyReplaysTheSequenceFromThePointOfTheCopy)
     Random copy = random;
     EXPECT_EQ(copy, random);
 
-    for (std::int32_t i = 0; i < 16; ++i)
-        ASSERT_EQ(copy.next_u64(), random.next_u64()) << "draw " << i;
+    EXPECT_EQ(draw_values(copy, 16), draw_values(random, 16));
 }
 
 TEST(Small_ImagingRandom, EqualityComparesTheCounter)

@@ -31,6 +31,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
@@ -51,6 +52,7 @@ namespace
 {
     using SushiAI::StatusCode;
     using SushiAI::Test::require_value;
+
     /** @brief Names the bytes of an image in HWC order. */
     using Bytes = std::vector<std::uint8_t>;
 
@@ -87,12 +89,174 @@ namespace
 
         return bytes_of(destination);
     }
-} // namespace
 
-TEST(Small_ImagingResize, WeightBitsGiveAWeightSumOf2048)
-{
-    EXPECT_EQ(1 << SushiAI::Vision::Imaging::K_BILINEAR_WEIGHT_BITS, 2048);
-}
+    /** @brief Returns an image whose pixels all hold the given level of each channel. */
+    [[nodiscard]] Image make_constant_image(ImageSize size, const Bytes& levels)
+    {
+        Image image(size, static_cast<std::int32_t>(levels.size()));
+        for (std::size_t i = 0; i < image.byte_count(); ++i)
+            image.data()[i] = levels[i % levels.size()];
+
+        return image;
+    }
+
+    /** @brief Checks that every pixel of an image holds the given level of each channel. */
+    void expect_constant_image(const Image& image, const Bytes& levels)
+    {
+        ASSERT_EQ(image.channels(), static_cast<std::int32_t>(levels.size()));
+        for (std::size_t i = 0; i < image.byte_count(); ++i)
+            ASSERT_EQ(image.data()[i], levels[i % levels.size()]) << "byte " << i;
+    }
+
+    /** @brief Checks that a row never falls, resized to every width from 1 to @p max_width. */
+    void expect_row_monotone_at_every_width(const Bytes& source, std::int32_t max_width)
+    {
+        for (std::int32_t width = 1; width <= max_width; ++width)
+        {
+            const Bytes row = resized_bytes(ImageSize{1, 8}, source, ImageSize{1, width});
+
+            ASSERT_EQ(row.size(), static_cast<std::size_t>(width));
+
+            for (std::size_t x = 1; x < row.size(); ++x)
+                ASSERT_LE(row[x - 1], row[x]) << "width " << width << ", column " << x;
+        }
+    }
+
+    /** @brief Returns a 4 by 3 source whose every row is one level, rising down the image. */
+    [[nodiscard]] Bytes make_row_levels_source()
+    {
+        return Bytes{  5,   5,   5,
+                      60,  60,  60,
+                      61,  61,  61,
+                     250, 250, 250};
+    }
+
+    /** @brief Checks that the first column never falls, resized to every height up to @p max. */
+    void expect_column_monotone_at_every_height(std::int32_t max_height)
+    {
+        for (std::int32_t height = 1; height <= max_height; ++height)
+        {
+            const Bytes image =
+                resized_bytes(ImageSize{4, 3}, make_row_levels_source(), ImageSize{height, 5});
+
+            ASSERT_EQ(image.size(), static_cast<std::size_t>(height) * 5u);
+
+            for (std::size_t y = 1; y < static_cast<std::size_t>(height); ++y)
+                ASSERT_LE(image[(y - 1) * 5], image[y * 5]) << "height " << height << ", row "
+                                                            << y;
+        }
+    }
+
+    /** @brief Checks that every row holds one level, resized to every height up to @p max. */
+    void expect_rows_uniform_at_every_height(std::int32_t max_height)
+    {
+        for (std::int32_t height = 1; height <= max_height; ++height)
+        {
+            const Bytes image =
+                resized_bytes(ImageSize{4, 3}, make_row_levels_source(), ImageSize{height, 5});
+
+            ASSERT_EQ(image.size(), static_cast<std::size_t>(height) * 5u);
+
+            for (std::size_t y = 0; y < static_cast<std::size_t>(height); ++y)
+                for (std::size_t x = 1; x < 5; ++x)
+                    ASSERT_EQ(image[y * 5], image[y * 5 + x]) << "height " << height << ", row "
+                                                              << y;
+        }
+    }
+
+    /** @brief Checks that the long side fits the image size and the short side stays within it. */
+    void expect_long_side_at_image_size(std::int32_t image_size)
+    {
+        for (std::int32_t height = 1; height < 1500; height += 7)
+        {
+            for (std::int32_t width = 1; width < 1500; width += 11)
+            {
+                const ImageSize fitted = fit_long_side(ImageSize{height, width}, image_size);
+                const std::int32_t long_side = height >= width ? fitted.height : fitted.width;
+                const std::int32_t short_side = height >= width ? fitted.width : fitted.height;
+
+                ASSERT_EQ(long_side, image_size) << height << " by " << width;
+                ASSERT_GE(short_side, 1) << height << " by " << width;
+                ASSERT_LE(short_side, image_size) << height << " by " << width;
+            }
+        }
+    }
+
+    /** @brief Describes a constant source and the destination size it is resized to. */
+    struct ConstantRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the source size. */
+        ImageSize source;
+
+        /** @brief Holds the level of each channel of the source. */
+        Bytes levels;
+
+        /** @brief Holds the destination size. */
+        ImageSize destination;
+    };
+
+    /** @brief Runs each constant-image case. */
+    class Small_ImagingResizeConstant : public ::testing::TestWithParam<ConstantRow>
+    {
+    };
+
+    /** @brief Describes a source, a long side and the fitted size and bytes of its resize. */
+    struct LongSideRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the source size. */
+        ImageSize source;
+
+        /** @brief Holds the source bytes. */
+        Bytes bytes;
+
+        /** @brief Holds the long side asked for. */
+        std::int32_t long_side;
+
+        /** @brief Holds the size fit_long_side gives. */
+        ImageSize fitted;
+
+        /** @brief Holds the bytes of the resized image. */
+        Bytes expected;
+    };
+
+    /** @brief Runs each resize_long_side case. */
+    class Small_ImagingResizeLongSide : public ::testing::TestWithParam<LongSideRow>
+    {
+    };
+
+    /** @brief Describes a resize of a view of a destination image into that image. */
+    struct AliasRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the size of the destination image. */
+        ImageSize image_size;
+
+        /** @brief Holds the row of the image the view starts at. */
+        std::int32_t view_row;
+
+        /** @brief Holds the size of the view. */
+        ImageSize view_size;
+
+        /** @brief Resizes the view into the image. */
+        void (*resize)(const ImageView&, Image&);
+
+        /** @brief Names the function in its message. */
+        const char* function;
+    };
+
+    /** @brief Runs each aliased-destination refusal; each starts a child process. */
+    class Medium_ImagingResizeAliasing : public ::testing::TestWithParam<AliasRow>
+    {
+    };
+} // namespace
 
 TEST(Small_ImagingResize, TwoByTwoToFourByFourMatchesTheHandComputedImage)
 {
@@ -170,57 +334,33 @@ TEST(Small_ImagingResize, EachChannelIsInterpolatedOnItsOwn)
     EXPECT_EQ(bytes_of(destination), expected);
 }
 
-TEST(Small_ImagingResize, AConstantImageStaysConstantWhenEnlarged)
+/** @brief Tests that a constant image stays constant, in every channel, when resized. */
+TEST_P(Small_ImagingResizeConstant, AConstantImageStaysConstant)
 {
-    Image source(ImageSize{5, 7}, 3);
-
-    for (std::size_t i = 0; i < source.byte_count(); i += 3)
-    {
-        source.data()[i] = 17;
-        source.data()[i + 1] = 114;
-        source.data()[i + 2] = 255;
-    }
-
+    const ConstantRow& row = GetParam();
+    const Image source = make_constant_image(row.source, row.levels);
     Image destination;
-    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{13, 23}, destination));
 
-    ASSERT_EQ(destination.byte_count(), 13u * 23u * 3u);
+    SA_EXPECT_OK(resize_bilinear(source.view(), row.destination, destination));
 
-    for (std::size_t i = 0; i < destination.byte_count(); i += 3)
-    {
-        ASSERT_EQ(destination.data()[i], 17) << "byte " << i;
-        ASSERT_EQ(destination.data()[i + 1], 114) << "byte " << i + 1;
-        ASSERT_EQ(destination.data()[i + 2], 255) << "byte " << i + 2;
-    }
+    ASSERT_EQ(destination.size(), row.destination);
+    expect_constant_image(destination, row.levels);
 }
 
-TEST(Small_ImagingResize, AConstantImageStaysConstantWhenReduced)
-{
-    Image source(ImageSize{31, 17}, 1);
-    source.fill(201);
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingResizeConstant,
+    ::testing::Values(
+        ConstantRow{"WhenEnlarged", ImageSize{5, 7}, Bytes{17, 114, 255}, ImageSize{13, 23}},
+        ConstantRow{"WhenReduced", ImageSize{31, 17}, Bytes{201}, ImageSize{4, 5}}),
+    [](const ::testing::TestParamInfo<ConstantRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
-    Image destination;
-    SA_EXPECT_OK(resize_bilinear(source.view(), ImageSize{4, 5}, destination));
-
-    ASSERT_EQ(destination.byte_count(), 20u);
-
-    for (std::size_t i = 0; i < destination.byte_count(); ++i)
-        ASSERT_EQ(destination.data()[i], 201) << "byte " << i;
-}
-
+/** @brief Tests that a horizontal gradient never falls, at every width from 1 to 40. */
 TEST(Small_ImagingResize, AHorizontalGradientStaysMonotoneAtEveryWidth)
 {
-    const Bytes source{0, 3, 10, 40, 41, 90, 200, 255};
-
-    for (std::int32_t width = 1; width <= 40; ++width)
-    {
-        const Bytes row = resized_bytes(ImageSize{1, 8}, source, ImageSize{1, width});
-
-        ASSERT_EQ(row.size(), static_cast<std::size_t>(width));
-
-        for (std::size_t x = 1; x < row.size(); ++x)
-            ASSERT_LE(row[x - 1], row[x]) << "width " << width << ", column " << x;
-    }
+    expect_row_monotone_at_every_width(Bytes{0, 3, 10, 40, 41, 90, 200, 255}, 40);
 }
 
 TEST(Small_ImagingResize, AnEnlargedGradientKeepsItsEndValues)
@@ -233,29 +373,17 @@ TEST(Small_ImagingResize, AnEnlargedGradientKeepsItsEndValues)
     EXPECT_EQ(row.back(), 255);
 }
 
-TEST(Small_ImagingResize, AVerticalGradientStaysMonotoneAndRowsStayUniform)
+/** @brief Tests that a vertical gradient never falls, at every height from 1 to 17. */
+TEST(Small_ImagingResize, AVerticalGradientStaysMonotone)
+{
+    expect_column_monotone_at_every_height(17);
+}
+
+/** @brief Tests that every row of a vertical gradient stays one level, at every height. */
+TEST(Small_ImagingResize, EachRowOfAVerticalGradientStaysUniform)
 {
     // Every row of the source is one level, so every row of the result must be one level.
-    const Bytes source{  5,   5,   5,
-                        60,  60,  60,
-                        61,  61,  61,
-                       250, 250, 250};
-
-    for (std::int32_t height = 1; height <= 17; ++height)
-    {
-        const Bytes image = resized_bytes(ImageSize{4, 3}, source, ImageSize{height, 5});
-
-        ASSERT_EQ(image.size(), static_cast<std::size_t>(height) * 5u);
-
-        for (std::size_t y = 0; y < static_cast<std::size_t>(height); ++y)
-        {
-            for (std::size_t x = 1; x < 5; ++x)
-                ASSERT_EQ(image[y * 5], image[y * 5 + x]) << "height " << height << ", row " << y;
-
-            if (y > 0)
-                ASSERT_LE(image[(y - 1) * 5], image[y * 5]) << "height " << height << ", row " << y;
-        }
-    }
+    expect_rows_uniform_at_every_height(17);
 }
 
 TEST(Small_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
@@ -271,7 +399,8 @@ TEST(Small_ImagingResize, TheDestinationIsResetToTheRequestedSizeAndChannels)
     EXPECT_EQ(bytes_of(destination), (Bytes{1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6}));
 }
 
-TEST(Small_ImagingResize, ResizeRejectsASourceWithoutPixels)
+/** @brief Tests that resize_bilinear refuses a source without pixels. */
+TEST(Medium_ImagingResize, ResizeRejectsASourceWithoutPixels)
 {
     Image destination;
 
@@ -296,7 +425,8 @@ TEST(Small_ImagingResize, ResizeRejectsASizeOutsideTheImageBounds)
                       "2x16385");
 }
 
-TEST(Small_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
+/** @brief Tests that resize_bilinear refuses a source whose extents are outside the bounds. */
+TEST(Medium_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
@@ -310,13 +440,22 @@ TEST(Small_ImagingResize, ResizeRejectsASourceWithExtentsOutsideTheImageBounds)
                                                                 1),
                                     ImageSize{2, 2}, destination)),
                     "resize_bilinear", "source size", "2x16385");
+}
+
+/** @brief Tests that resize_bilinear refuses a source with a channel count it cannot read. */
+TEST(Medium_ImagingResize, ResizeRejectsASourceWithAnUnsupportedChannelCount)
+{
+    const std::array<std::uint8_t, 20> bytes{};
+    Image destination;
+
     SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(ImageView(bytes.data(), ImageSize{2, 2}, 5),
                                                       ImageSize{2, 2},
                                     destination)),
                     "resize_bilinear", "source channel count", "5");
 }
 
-TEST(Small_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
+/** @brief Tests that resize_bilinear refuses a destination that holds the source. */
+TEST(Medium_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
 {
     Image image(ImageSize{2, 2}, 1);
     image.fill(9);
@@ -324,10 +463,6 @@ TEST(Small_ImagingResize, ResizeRejectsADestinationThatHoldsTheSource)
     SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(image.view(), ImageSize{4, 4}, image)),
                     "resize_bilinear",
                     "destination holds the source's pixels");
-
-    // The refusal comes before the reset, so the image is still the 2 by 2 source.
-    EXPECT_EQ(image.size(), (ImageSize{2, 2}));
-    EXPECT_EQ(bytes_of(image), (Bytes{9, 9, 9, 9}));
 }
 
 TEST(Small_ImagingResize, FitLongSideLeavesAnImageWhoseLongSideAlreadyFits)
@@ -371,21 +506,10 @@ TEST(Small_ImagingResize, FitLongSideCapsBothSidesAtTheImageSize)
     EXPECT_EQ(fit_long_side(ImageSize{1281, 1280}, 640), (ImageSize{640, 640}));
 }
 
+/** @brief Tests that, over a grid of sizes, the long side is the image size and the short fits. */
 TEST(Small_ImagingResize, FitLongSideAlwaysPutsTheLongSideAtTheImageSize)
 {
-    for (std::int32_t height = 1; height < 1500; height += 7)
-    {
-        for (std::int32_t width = 1; width < 1500; width += 11)
-        {
-            const ImageSize fitted = fit_long_side(ImageSize{height, width}, 640);
-            const std::int32_t long_side = height >= width ? fitted.height : fitted.width;
-            const std::int32_t short_side = height >= width ? fitted.width : fitted.height;
-
-            ASSERT_EQ(long_side, 640) << height << " by " << width;
-            ASSERT_GE(short_side, 1) << height << " by " << width;
-            ASSERT_LE(short_side, 640) << height << " by " << width;
-        }
-    }
+    expect_long_side_at_image_size(640);
 }
 
 TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
@@ -402,32 +526,32 @@ TEST(Small_ImagingResize, ResizeLongSideCopiesAnImageThatAlreadyFits)
     EXPECT_EQ(bytes_of(destination), bytes);
 }
 
-TEST(Small_ImagingResize, ResizeLongSideEnlargesToTheFittedSize)
+/** @brief Tests that resize_long_side gives the bilinear resize to the fitted size. */
+TEST_P(Small_ImagingResizeLongSide, ResizeLongSideGivesTheResizeToTheFittedSize)
 {
-    const Image source = make_image(ImageSize{1, 2}, 1, Bytes{0, 100});
+    const LongSideRow& row = GetParam();
+    const Image source = make_image(row.source, 1, row.bytes);
     Image destination;
 
-    SA_EXPECT_OK(resize_long_side(source.view(), 4, destination));
+    SA_EXPECT_OK(resize_long_side(source.view(), row.long_side, destination));
 
-    // fit_long_side gives 2 by 4, and both rows are the enlarged row 0, 25, 75, 100.
-    EXPECT_EQ(destination.size(), (ImageSize{2, 4}));
-    EXPECT_EQ(bytes_of(destination), (Bytes{0, 25, 75, 100, 0, 25, 75, 100}));
+    EXPECT_EQ(destination.size(), row.fitted);
+    EXPECT_EQ(bytes_of(destination), row.expected);
 }
 
-TEST(Small_ImagingResize, ResizeLongSideReducesToTheFittedSize)
-{
-    const Bytes bytes{ 12,  20,  30,  40,
-                       50,  60,  70,  80,
-                       90, 100, 110, 120,
-                      130, 140, 150, 161};
-    const Image source = make_image(ImageSize{4, 4}, 1, bytes);
-    Image destination;
-
-    SA_EXPECT_OK(resize_long_side(source.view(), 2, destination));
-
-    EXPECT_EQ(destination.size(), (ImageSize{2, 2}));
-    EXPECT_EQ(bytes_of(destination), (Bytes{36, 55, 115, 135}));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingResizeLongSide,
+    ::testing::Values(
+        // fit_long_side gives 2 by 4, and both rows are the enlarged row 0, 25, 75, 100.
+        LongSideRow{"Enlarges", ImageSize{1, 2}, Bytes{0, 100}, 4, ImageSize{2, 4},
+                    Bytes{0, 25, 75, 100, 0, 25, 75, 100}},
+        LongSideRow{"Reduces", ImageSize{4, 4},
+                    Bytes{12, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 161},
+                    2, ImageSize{2, 2}, Bytes{36, 55, 115, 135}}),
+    [](const ::testing::TestParamInfo<LongSideRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
 {
@@ -440,7 +564,8 @@ TEST(Small_ImagingResize, ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds)
                       StatusCode::InvalidDescription, "resize_long_side", "16385");
 }
 
-TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
+/** @brief Tests that resize_long_side refuses a source without pixels. */
+TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
 {
     Image destination;
 
@@ -449,33 +574,46 @@ TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithoutPixels)
                     "no pixels");
 }
 
-TEST(Small_ImagingResize, ResizeLongSideRejectsADestinationThatHoldsTheSource)
+/** @brief Tests that both resizes refuse a view of the destination as their source. */
+TEST_P(Medium_ImagingResizeAliasing, ResizeRejectsAViewOfTheDestination)
 {
-    Image image(ImageSize{2, 4}, 1);
-
-    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(image.view(), 4, image)), "resize_long_side",
-                    "destination holds the source's pixels");
-}
-
-/** @brief Tests that both resizes refuse a view of some rows of the destination, unwritten. */
-TEST(Small_ImagingResize, ResizesRejectAViewInsideTheDestination)
-{
-    Image image(ImageSize{3, 2}, 1);
+    const AliasRow& row = GetParam();
+    Image image(row.image_size, 1);
     image.fill(7);
-    const ImageView lower_rows(image.row(1), ImageSize{2, 2}, 1);
+    const ImageView view(image.row(row.view_row), row.view_size, 1);
 
-    SA_EXPECT_FATAL(static_cast<void>(resize_bilinear(lower_rows, ImageSize{4, 4}, image)),
-                    "resize_bilinear",
+    SA_EXPECT_FATAL(row.resize(view, image), row.function,
                     "destination holds the source's pixels");
-    SA_EXPECT_FATAL(static_cast<void>(resize_long_side(lower_rows, 8, image)), "resize_long_side",
-                    "destination holds the source's pixels");
-
-    EXPECT_EQ(image.size(), (ImageSize{3, 2}));
-    EXPECT_EQ(bytes_of(image), (Bytes{7, 7, 7, 7, 7, 7}));
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Medium_ImagingResizeAliasing,
+    ::testing::Values(
+        AliasRow{"LongSideOfTheWholeImage", ImageSize{2, 4}, 0, ImageSize{2, 4},
+                 [](const ImageView& view, Image& image)
+                 {
+                     static_cast<void>(resize_long_side(view, 4, image));
+                 },
+                 "resize_long_side"},
+        AliasRow{"BilinearOfTheLowerRows", ImageSize{3, 2}, 1, ImageSize{2, 2},
+                 [](const ImageView& view, Image& image)
+                 {
+                     static_cast<void>(resize_bilinear(view, ImageSize{4, 4}, image));
+                 },
+                 "resize_bilinear"},
+        AliasRow{"LongSideOfTheLowerRows", ImageSize{3, 2}, 1, ImageSize{2, 2},
+                 [](const ImageView& view, Image& image)
+                 {
+                     static_cast<void>(resize_long_side(view, 8, image));
+                 },
+                 "resize_long_side"}),
+    [](const ::testing::TestParamInfo<AliasRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 /** @brief Tests that resize_long_side refuses a source size outside the image bounds. */
-TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds)
+TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds)
 {
     const std::array<std::uint8_t, 20> bytes{};
     Image destination;
@@ -483,6 +621,14 @@ TEST(Small_ImagingResize, ResizeLongSideRejectsASourceWithExtentsOutsideTheImage
     SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{0, 2}, 1),
                                                        4, destination)),
                     "resize_long_side", "source size", "0x2");
+}
+
+/** @brief Tests that resize_long_side refuses a source with a channel count it cannot read. */
+TEST(Medium_ImagingResize, ResizeLongSideRejectsASourceWithAnUnsupportedChannelCount)
+{
+    const std::array<std::uint8_t, 20> bytes{};
+    Image destination;
+
     SA_EXPECT_FATAL(static_cast<void>(resize_long_side(ImageView(bytes.data(), ImageSize{2, 2}, 5),
                                                        4, destination)),
                     "resize_long_side", "source channel count", "5");
@@ -538,20 +684,34 @@ TEST(Small_ImagingResize, NearestCopiesEveryChannelOfAPixel)
     EXPECT_EQ(bytes_of(destination), (Bytes{1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6}));
 }
 
-/** @brief Tests that resize_nearest refuses what check_source and Image::reset refuse. */
-TEST(Small_ImagingResize, NearestRejectsABadSourceABadSizeAndAnAliasedDestination)
+/** @brief Tests that resize_nearest refuses a source without pixels. */
+TEST(Medium_ImagingResize, NearestRejectsASourceWithoutPixels)
 {
-    Image image(ImageSize{2, 2}, 1);
-    image.fill(9);
     Image destination;
 
     SA_EXPECT_FATAL(static_cast<void>(resize_nearest(ImageView(), ImageSize{2, 2}, destination)),
                     "resize_nearest",
                     "source", "no pixels");
+}
+
+/** @brief Tests that resize_nearest refuses a destination size with a zero side. */
+TEST(Medium_ImagingResize, NearestRejectsADestinationSizeWithAZeroSide)
+{
+    Image image(ImageSize{2, 2}, 1);
+    image.fill(9);
+    Image destination;
+
     SA_EXPECT_FATAL(static_cast<void>(resize_nearest(image.view(), ImageSize{0, 2}, destination)),
                     "Image::reset", "0x2");
+}
+
+/** @brief Tests that resize_nearest refuses a destination that holds the source. */
+TEST(Medium_ImagingResize, NearestRejectsADestinationThatHoldsTheSource)
+{
+    Image image(ImageSize{2, 2}, 1);
+    image.fill(9);
+
     SA_EXPECT_FATAL(static_cast<void>(resize_nearest(image.view(), ImageSize{4, 4}, image)),
                     "resize_nearest",
                     "destination holds the source's pixels");
-    EXPECT_EQ(bytes_of(image), (Bytes{9, 9, 9, 9}));
 }

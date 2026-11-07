@@ -1,7 +1,7 @@
 # tests/vision/imaging/test_labels.cpp
 
 
-Suites: `Small_ImagingLabels`.
+Suites: `Small_ImagingLabels` and the parameterised `Small_ImagingLabels<Family>` suites named below.
 
 Tests the parser of a label file's text.
 
@@ -12,8 +12,13 @@ the message names the line and quotes the field.
 
 ## K_CLASS_COUNT and K_FRACTION_TOLERANCE
 
-`K_CLASS_COUNT` is 80, the class count the cases parse with. `K_FRACTION_TOLERANCE` is 1e-7,
-the tolerance of a parsed value.
+`K_CLASS_COUNT` is 80, the class count the cases parse with. `K_FRACTION_TOLERANCE` is 2 times the float unit roundoff,
+one float ulp at 1, the absolute tolerance of a parsed value.
+
+## expect_polygon_points, RefusalRow and expect_refused
+
+`expect_polygon_points` compares a polygon with listed points within `K_FRACTION_TOLERANCE`. A `RefusalRow` holds a
+text, a class count and up to three substrings; `expect_refused` checks that the text returns `InvalidFile` naming them.
 
 ## expect_box
 
@@ -23,31 +28,18 @@ the tolerance of a parsed value.
 
 Two rows give two objects, with classes 0 and 3 and the four values of each row.
 
-## EmptyTextIsABackgroundImage
+## TextWithNoRowIsABackgroundImage
 
-An empty string gives an empty set.
-
-## TextOfBlankLinesIsABackgroundImage
-
-Text of newlines, spaces, a tab and carriage returns gives an empty set.
+Suite `Small_ImagingLabelsBackground`. An empty string and text of newlines, spaces, a tab and carriage returns each give an empty set.
 
 ## AcceptsTabsRepeatedSpacesAndBlankLinesBetweenRows
 
 Rows with leading spaces, tabs, repeated spaces, a blank line between them and no final newline
 parse to two objects.
 
-## AcceptsCarriageReturnLineEndings
+## RowsAreSplitByEveryLineEnding
 
-Rows ended by "\r\n" and by a lone "\r" parse to three objects.
-
-## AcceptsVerticalTabAndFormFeedLineEndings
-
-A vertical tab and a form feed each end a row.
-
-## AcceptsTheSeparatorBytesAsLineEndings
-
-The bytes 0x1c, 0x1d and 0x1e each end a row: four rows separated by them parse to four
-objects.
+Suite `Small_ImagingLabelsLineEndings`. Rows ended by "\r\n" and by a lone "\r" parse to three objects; a vertical tab and a form feed each end a row; the bytes 0x1c, 0x1d and 0x1e each end a row, so four rows parse to four objects.
 
 ## AcceptsTheUnitSeparatorByteBetweenFields
 
@@ -57,17 +49,9 @@ The byte 0x1f separates fields, alone or repeated.
 
 "+7.0 5e-1 .5 2.5E-1 +0.125" parses to class 7 and the box (0.5, 0.5, 0.25, 0.125).
 
-## RejectsARowOfFourColumns
+## RejectsABoxRowOfTheWrongColumnCount
 
-A row of four columns returns `InvalidFile` with "parse_label_text: line 1", "5 columns" and "this row has 4".
-
-## RejectsARowOfSixColumns
-
-A row of six columns returns `InvalidFile` with "5 columns" and "this row has 6".
-
-## RejectsARowOfOneColumn
-
-A row of one column returns `InvalidFile` with "this row has 1".
+Suite `Small_ImagingLabelsColumnCount`. Rows of four, six and one column return `InvalidFile` naming "5 columns" and the count the row has.
 
 ## NamesTheLineOfTheRejectedRow
 
@@ -75,23 +59,7 @@ A short row after one row and one blank line is reported as "line 3". Blank line
 
 ## RejectsAFieldThatIsNotANumber
 
-The field "abc" returns `InvalidFile` with "'abc'" and "not a number".
-
-## RejectsAFieldWithCharactersAfterTheNumber
-
-The field "0.5x" returns `InvalidFile` with "'0.5x'".
-
-## RejectsADecimalComma
-
-The field "0,5" returns `InvalidFile` with "'0,5'".
-
-## RejectsADoubledSign
-
-The field "+-0.5" returns `InvalidFile` with "'+-0.5'".
-
-## RejectsNotANumberAndInfinity
-
-The fields "nan", "inf" and "1e999" each fail with the field quoted.
+Suite `Small_ImagingLabelsNotANumber`. The fields "abc", "0.5x", "0,5", "+-0.5", "nan", "inf" and "1e999" each return `InvalidFile` with the field quoted.
 
 ## RejectsAFiniteValueAboveTheFloatRange
 
@@ -105,14 +73,9 @@ The fields "1e-310" and "1e-999" fail with the field quoted.
 
 "0.0" and "2.2250738585072014e-308" are accepted and both store 0 within the tolerance.
 
-## RejectsACoordinateBelowTheTolerance
+## RejectsACoordinateOutsideTheToleranceBand
 
-Values of -0.02 and -0.5 fail with "negative".
-
-## RejectsACoordinateAboveTheTolerance
-
-Values of 1.02 and 640 fail with "above". The second is a pixel value in a file that must hold
-fractions.
+Suite `Small_ImagingLabelsCoordinateBand`. Values of -0.02 and -0.5 fail with "negative"; values of 1.02 and 640 fail with "above". The 640 is a pixel value in a file that must hold fractions.
 
 ## StoresACoordinateInsideTheToleranceUnclipped
 
@@ -122,17 +85,9 @@ Values of 1.005 and -0.005 are stored as they are.
 
 Values of 1.01 and -0.01 are accepted and stored as they are.
 
-## RejectsANegativeClass
+## RejectsAClassOutsideTheClassCount
 
-Class -1 returns `InvalidFile` with "class" and "negative".
-
-## RejectsAClassWithAFraction
-
-Class 1.5 returns `InvalidFile` with "class" and "whole number".
-
-## RejectsAClassAtOrAboveTheClassCount
-
-Class 80 of 80 returns `InvalidFile` with "out of range" and "80 classes", and class 1 of 1 with "1 classes".
+Suite `Small_ImagingLabelsClassRange`. Class -1 fails with "negative", class 1.5 with "whole number", class 80 of 80 with "out of range" and "80 classes", and class 1 of 1 with "1 classes".
 
 ## AcceptsTheLastClass
 
@@ -140,13 +95,7 @@ Class 79 of 80 is accepted.
 
 ## RemovesRepeatedRowsKeepingTheFirstAndTheFileOrder
 
-Five rows of which two repeat earlier ones give three objects, with classes 5, 2, 9 in file
-order.
-
-## RemovesARowThatRepeatsAnotherInADifferentSpelling
-
-"5.0 5e-1 0.50 .25 0.250" repeats "5 0.5 0.5 0.25 0.25" and is removed. Rows are compared by
-value and not by text.
+Suite `Small_ImagingLabelsDuplicates`. Five rows of which two repeat earlier ones give three objects with classes 5, 2, 9 in file order; "5.0 5e-1 0.50 .25 0.250" repeats "5 0.5 0.5 0.25 0.25" and is removed, since rows are compared by value and not by text.
 
 ## KeepsRowsThatDifferInOneValue
 
@@ -154,7 +103,7 @@ Three rows that differ in the class or in one box value are all kept.
 
 ## ReducesAPolygonRowToTheBoxAroundItsPoints
 
-A row of three points gives the box (0.5, 0.5, 0.5, 0.5) around them.
+Suite `Small_ImagingLabelsPolygonBounds`. A row of three points gives the box (0.5, 0.5, 0.5, 0.5); a row of five points gives the box (0.5, 0.375, 0.75, 0.5).
 
 ## KeepsThePointsOfAPolygonRowInFileOrder
 
@@ -164,22 +113,13 @@ A row of five points gives a polygon of those five points in file order.
 
 Each object of two box rows has an empty polygon.
 
-## ReducesAPolygonOfManyPointsToItsBounds
-
-The five points of the earlier case give the box (0.5, 0.375, 0.75, 0.5).
-
 ## RejectsABoxRowInAPolygonFile
 
 A box row after a polygon row returns `InvalidFile` with "line 2" and "polygon".
 
-## RejectsAPolygonRowWithAHalfPoint
+## RejectsAPolygonRowOfTheWrongPointCount
 
-A polygon row of eight columns returns `InvalidFile` with "polygon" and "this row has 8".
-
-## RejectsAPolygonRowOfFewerThanThreePoints
-
-A row of three columns in a polygon file returns `InvalidFile` with "line 2", "three points" and "this row
-has 3".
+Suite `Small_ImagingLabelsPolygonPointCount`. A polygon row of eight columns fails with "polygon" and "this row has 8"; a row of three columns in a polygon file fails with "line 2", "three points" and "this row has 3".
 
 ## RejectsAPolygonWhoseBoxLeavesTheImage
 

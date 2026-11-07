@@ -1,33 +1,41 @@
 # tests/vision/imaging/test_letterbox.cpp
 
 
-Suites: `Small_ImagingLetterbox`.
+Suites: `Small_ImagingLetterbox`, `Medium_ImagingLetterbox` and the parameterised `Small_ImagingLetterbox<Family>` and `Medium_ImagingLetterboxAliasing`.
 
 Tests the plan and the application of the letterbox to an image and its labels.
 
-This file needs no device. `Small_ImagingLetterbox` covers
+This file needs no device. The `Small_` suites cover
 `modules/vision/imaging/include/SushiAI/vision/imaging/letterbox.hpp`. `plan_letterbox` computes the ratio, the resized size
-and the four paddings, and draws no random number. `apply_letterbox` resizes with
+and the four paddings, and draws no random number. The `Medium_` suites hold the death tests, since each starts a child process. `apply_letterbox` resizes with
 `resize_bilinear` of `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`, pads, and moves boxes and polygons
 by the same plan.
 
-## K_BOX_TOLERANCE
+## K_DEFAULT_PADDING
 
-`K_BOX_TOLERANCE` is 1e-4 px.
+`K_DEFAULT_PADDING` is 114, the padding level of the default settings.
 
-## make_counted_image and make_flat_image
+## make_counted_image, make_flat_image and make_destination
 
 `make_counted_image` returns an image whose byte at offset i is a first value plus i, modulo
-256. `make_flat_image` returns an image with every byte at one level.
+256. `make_flat_image` returns an image with every byte at one level. `make_destination` returns an empty image for side 0 and otherwise a square image of that side held at 255.
 
 ## is_content
 
 `is_content` reports whether a pixel of the target lies inside the plan's resized image.
 
+## make_padded_copy and expect_same_image
+
+`make_padded_copy` returns the source placed inside the padding of a plan that does not resize. `expect_same_image` expects two images to have the same size, channels and bytes.
+
 ## expect_two_levels
 
 `expect_two_levels` expects every content byte of an image to be one level and every padding
 byte another.
+
+## expect_resized_content_between_padding, expect_box and expect_point
+
+`expect_resized_content_between_padding` expects the content rectangle to hold the `resize_bilinear` result, the rest to hold 114 and the content not to be flat. `expect_box` and `expect_point` compare coordinates exactly.
 
 ## WideImageIsPaddedAboveAndBelowWithTheOddRowBelow
 
@@ -42,11 +50,13 @@ A 200 by 50 source resizes to 100 by 25 with 37 columns left and 38 right.
 
 A 64 by 64 source in a 64 by 64 target has ratio 1 and four paddings of 0.
 
-## SmallImageIsOnlyPaddedUnlessScaleUpIsSet
+## SmallImageIsOnlyPaddedWhileScaleUpIsOff
 
-A 20 by 40 source in an 80 by 80 target keeps its size by default, with paddings 30, 30, 20,
-20. With `scale_up` set the ratio is 2, the resized size is 40 by 80 and the paddings are 20
-above and below.
+A 20 by 40 source in an 80 by 80 target keeps its size by default, with paddings 30, 30, 20, 20.
+
+## ScaleUpEnlargesASmallImage
+
+With `scale_up` set, the same source has ratio 2, a resized size of 40 by 80 and paddings of 20 above and below.
 
 ## ResizedSideRoundsAHalfToTheEvenInteger
 
@@ -61,18 +71,9 @@ A 480 by 640 source in a 512 by 640 target has ratio 1 and 16 rows above and bel
 
 The plan's `padding_value` is that of the settings, at the default and at 7.
 
-## PlanRejectsASideThatIsNotPositive
+## PlanRejectsASideOutsideTheImageRange
 
-A source of 0 by 8 and a target of 8 by -1 fail with "plan_letterbox" and the size.
-
-## PlanRejectsASideAboveTheImageBound
-
-A source height and a target width of 16385 fail with the size and "16384".
-
-## ValidateAcceptsEverySetting
-
-`validate_letterbox` does not throw with `scale_up` set and a padding value of 255, or for the
-defaults.
+Suite `Small_ImagingLetterboxSideRange`. A source of 0 by 8 and a target of 8 by -1 fail with "plan_letterbox" and the size; a source height and a target width of 16385 fail with the size and "16384".
 
 ## PlanRejectsAResizedSideOfZeroPixels
 
@@ -88,41 +89,21 @@ source byte and every other byte is the padding value.
 
 A plan without resize or padding copies the source.
 
-## WideImageIsResizedThenPaddedWithTheFillValue
+## FlatImageIsResizedThenPaddedWithTheFillValue
 
-A flat 50 by 200 image at level 200 gives a 100 by 100 result that is 200 inside the content
-rectangle and 114, the default padding value, outside it.
-
-## TallImageIsResizedThenPaddedWithACustomFillValue
-
-A flat one-channel 200 by 50 image at level 33 with a padding value of 7 gives 33 inside and 7
-outside.
+Suite `Small_ImagingLetterboxFlatFit`. A flat 50 by 200 image at level 200 gives a 100 by 100 result that is 200 inside the content rectangle and 114 outside it; a flat one-channel 200 by 50 image at level 33 with a padding value of 7 gives 33 inside and 7 outside.
 
 ## ResizedContentEqualsTheBilinearResizeOfTheSource
 
-For a counted 50 by 200 image, every content byte equals the byte `resize_bilinear` gives for
-the plan's resized size, and every padding byte is 114. The case also expects the content not
-to be flat, since a flat rectangle cannot tell a resize from a fill.
+Suite `Small_ImagingLetterboxResizedContent`. For a counted 50 by 200 image into an empty destination, and for a counted 200 by 50 image into a 100 by 101 target with a 120 by 120 destination held at 255, every content byte equals the byte `resize_bilinear` gives for the plan's resized size and every padding byte is 114. The content is not flat, since a flat rectangle cannot tell a resize from a fill.
 
 ## SourceWithoutPixelsIsRejected
 
-`apply_letterbox` on a default view stops the process with "apply_letterbox" and "no pixels".
-
-## DestinationThatIsTheSourceIsRejected
-
-`apply_letterbox` with the image as source and destination stops the process with "destination holds the
-source's pixels", and the image keeps its size.
+Suite `Medium_ImagingLetterbox`. `apply_letterbox` on a default view stops the process with "apply_letterbox" and "no pixels".
 
 ## ViewInsideTheDestinationIsRejected
 
-A view of two rows of the destination is refused with the same message, and the image keeps its
-size and its bytes.
-
-## ResizedContentBesideSidePaddingEqualsTheBilinearResize
-
-A counted 200 by 50 image in a 100 by 101 target has 38 columns of padding on each side. The
-destination starts as a 120 by 120 image filled with 255. After the call no byte differs from
-the bilinear resize placed between two bands of 114.
+Suite `Medium_ImagingLetterboxAliasing`. `apply_letterbox` with the image as source and destination, and with a view of the two lower rows of the destination, stops the process with "destination holds the source's pixels".
 
 ## DestinationIsFullyRewrittenWhenItIsReused
 
@@ -131,15 +112,15 @@ A destination that was 9 by 9 and filled with 255 becomes 4 by 6 with content 50
 
 ## ImageOfAnotherSizeThanThePlanIsRejected
 
-A 2 by 4 source with a plan made for 4 by 4 stops the process with "plan was made for".
+Suite `Medium_ImagingLetterbox`. A 2 by 4 source with a plan made for 4 by 4 stops the process with "plan was made for".
 
 ## PlanWhosePaddingsDoNotTileTheTargetIsRejected
 
-A plan whose right padding is raised by 1 stops the process with "tile".
+Suite `Medium_ImagingLetterbox`. A plan whose right padding is raised by 1 stops the process with "tile".
 
 ## BoxesMoveByTheRatioThenTheLeftAndTopPadding
 
-In the tall plan a box maps by x * 0.5 + 37 and y * 0.5, and in the wide plan by x * 0.5 and
+Every value is a dyadic fraction, so the comparison is exact. In the tall plan a box maps by x * 0.5 + 37 and y * 0.5, and in the wide plan by x * 0.5 and
 y * 0.5 + 37. Classes and order are kept.
 
 ## BoxesOutsideTheImageAreNeitherClippedNorRemoved

@@ -156,6 +156,123 @@ namespace
             /// @brief Holds the directory's path.
             std::filesystem::path path_;
     };
+
+    /** @brief Describes an image shape and the channel order it is written and read with. */
+    struct RoundTripRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the image size. */
+        ImageSize size;
+
+        /** @brief Holds the channel count. */
+        std::int32_t channels;
+
+        /** @brief Holds the channel order the file is written with. */
+        ChannelOrder order;
+    };
+
+    /** @brief Runs each stream round-trip case. */
+    class Small_ImagingRawCacheRoundTrip : public ::testing::TestWithParam<RoundTripRow>
+    {
+    };
+
+    /** @brief Describes the bytes of a header the reader refuses and the notes the message names. */
+    struct HeaderRefusalRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the stream bytes. */
+        std::string bytes;
+
+        /** @brief Holds the first substring the message names. */
+        std::string first;
+
+        /** @brief Holds the second substring the message names; empty when unused. */
+        std::string second;
+    };
+
+    /** @brief Checks that the header of a row's bytes is refused as an invalid file. */
+    void expect_header_refused(const HeaderRefusalRow& row)
+    {
+        std::istringstream in(row.bytes);
+
+        SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, row.first, row.second);
+    }
+
+    /** @brief Returns the name of a header refusal row. */
+    std::string header_refusal_name(const ::testing::TestParamInfo<HeaderRefusalRow>& info)
+    {
+        return info.param.name;
+    }
+
+    /** @brief Runs each format-version refusal. */
+    class Small_ImagingRawCacheVersion : public ::testing::TestWithParam<HeaderRefusalRow>
+    {
+    };
+
+    /** @brief Runs each short-header refusal. */
+    class Small_ImagingRawCacheShortHeader : public ::testing::TestWithParam<HeaderRefusalRow>
+    {
+    };
+
+    /** @brief Runs each extent refusal. */
+    class Small_ImagingRawCacheExtent : public ::testing::TestWithParam<HeaderRefusalRow>
+    {
+    };
+
+    /** @brief Runs each channel-count refusal. */
+    class Small_ImagingRawCacheChannels : public ::testing::TestWithParam<HeaderRefusalRow>
+    {
+    };
+
+    /** @brief Returns the version rows: a newer version and version zero. */
+    std::vector<HeaderRefusalRow> version_rows()
+    {
+        return {
+            {"ANewerVersion", header_bytes(K_RAW_IMAGE_MAGIC, 2, 1, 1, 3, K_RGB),
+             "format version 2", "reads version 1"},
+            {"VersionZero", header_bytes(K_RAW_IMAGE_MAGIC, 0, 1, 1, 3, K_RGB),
+             "format version 0", "reads version 1"}};
+    }
+
+    /** @brief Returns the short-header rows: 23 bytes of 24 and an empty stream. */
+    std::vector<HeaderRefusalRow> short_header_rows()
+    {
+        return {
+            {"ATruncatedHeader", layout_bytes(1, 1, 3, K_RGB).substr(0, 23), "header ended",
+             "23 of 24"},
+            {"AnEmptyStream", std::string(), "header ended", "0 of 24"}};
+    }
+
+    /** @brief Returns the extent rows: zero, above the limit, an overflowing product, a sign bit. */
+    std::vector<HeaderRefusalRow> extent_rows()
+    {
+        return {
+            {"AZeroHeight", layout_bytes(0, 4, 3, K_RGB), "height 0", "16384"},
+            {"AZeroWidth", layout_bytes(4, 0, 3, K_RGB), "width 0", "16384"},
+            {"AHeightAboveTheLimit", layout_bytes(16385, 4, 3, K_RGB), "height 16385", "16384"},
+            {"AWidthAboveTheLimit", layout_bytes(4, 16385, 3, K_RGB), "width 16385", "16384"},
+            {"ExtentsWhoseProductWouldOverflow",
+             layout_bytes(0xFFFFFFFFu, 0xFFFFFFFFu, 3, K_RGB), "height 4294967295", ""},
+            {"AnExtentWithTheSignBitSet", layout_bytes(4, 0x80000001u, 3, K_RGB),
+             "width 2147483649", ""}};
+    }
+
+    /** @brief Returns the channel rows: an unknown order and counts the order does not allow. */
+    std::vector<HeaderRefusalRow> channel_rows()
+    {
+        return {
+            {"AnUnknownChannelOrder", layout_bytes(4, 4, 3, 3), "channel order 3", "unknown"},
+            {"ThreeChannelsInAGrayFile", layout_bytes(4, 4, 3, 0), "channel count 3",
+             "channel order 0"},
+            {"OneChannelInAnRGBFile", layout_bytes(4, 4, 1, K_RGB), "channel count 1",
+             "channel order 1"},
+            {"FourChannels", layout_bytes(4, 4, 4, K_RGB), "channel count 4", ""},
+            {"ZeroChannels", layout_bytes(4, 4, 0, 2), "channel count 0", "channel order 2"}};
+    }
 } // namespace
 
 TEST(Small_ImagingRawCache, WriterEmitsTheDocumentedBytes)
@@ -174,45 +291,34 @@ TEST(Small_ImagingRawCache, WriterEmitsTheDocumentedBytes)
     EXPECT_EQ(bytes, expected);
 }
 
-TEST(Small_ImagingRawCache, HeaderSizeAndMagicMatchTheDocumentedLayout)
+/** @brief Tests that an image written to a stream is read back with its header and its bytes. */
+TEST_P(Small_ImagingRawCacheRoundTrip, ImageRoundTripsThroughAStream)
 {
-    EXPECT_EQ(K_RAW_IMAGE_HEADER_BYTES, 24u);
-    EXPECT_EQ(layout_bytes(1, 1, 3, K_RGB).substr(0, 4), "SAIM");
-}
-
-TEST(Small_ImagingRawCache, RGBImageRoundTripsThroughAStream)
-{
-    const Image image = make_image(ImageSize{5, 7}, 3);
-    std::istringstream in(written_bytes(image, ChannelOrder::RGB), std::ios::binary);
+    const RoundTripRow& row = GetParam();
+    const Image image = make_image(row.size, row.channels);
+    std::istringstream in(written_bytes(image, row.order), std::ios::binary);
 
     const RawImageHeader header = require_value(read_raw_image_header(in));
     Image read;
     SA_EXPECT_OK(read_raw_image_pixels(in, header, read));
 
-    EXPECT_EQ(header.size.height, 5);
-    EXPECT_EQ(header.size.width, 7);
-    EXPECT_EQ(header.channels, 3);
-    EXPECT_EQ(header.order, ChannelOrder::RGB);
-    EXPECT_EQ(header.pixel_bytes(), 105u);
-    EXPECT_EQ(read.height(), 5);
-    EXPECT_EQ(read.width(), 7);
-    EXPECT_EQ(read.channels(), 3);
+    EXPECT_EQ(header.size, row.size);
+    EXPECT_EQ(header.channels, row.channels);
+    EXPECT_EQ(header.order, row.order);
+    EXPECT_EQ(header.pixel_bytes(), image.byte_count());
+    EXPECT_EQ(read.size(), row.size);
+    EXPECT_EQ(read.channels(), row.channels);
     EXPECT_EQ(bytes_of(read), bytes_of(image));
 }
 
-TEST(Small_ImagingRawCache, GrayImageRoundTripsThroughAStream)
-{
-    const Image image = make_image(ImageSize{4, 3}, 1);
-    std::istringstream in(written_bytes(image, ChannelOrder::Gray), std::ios::binary);
-
-    const RawImageHeader header = require_value(read_raw_image_header(in));
-    Image read;
-    SA_EXPECT_OK(read_raw_image_pixels(in, header, read));
-
-    EXPECT_EQ(header.order, ChannelOrder::Gray);
-    EXPECT_EQ(read.channels(), 1);
-    EXPECT_EQ(bytes_of(read), bytes_of(image));
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingRawCacheRoundTrip,
+    ::testing::Values(RoundTripRow{"RGBImage", ImageSize{5, 7}, 3, ChannelOrder::RGB},
+                      RoundTripRow{"GrayImage", ImageSize{4, 3}, 1, ChannelOrder::Gray}),
+    [](const ::testing::TestParamInfo<RoundTripRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_ImagingRawCache, BGRFileIsWrittenAsGivenAndReadAsRGB)
 {
@@ -255,65 +361,41 @@ TEST(Small_ImagingRawCache, HeaderRejectsAWrongMagic)
                       "not a raw image file");
 }
 
-TEST(Small_ImagingRawCache, HeaderRejectsANewerVersionAndNamesBoth)
+/** @brief Tests that a format version other than 1 is refused, naming both versions. */
+TEST_P(Small_ImagingRawCacheVersion, HeaderRejectsAVersionOtherThanOne)
 {
-    std::istringstream in(header_bytes(K_RAW_IMAGE_MAGIC, 2, 1, 1, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "format version 2",
-                      "reads version 1");
+    expect_header_refused(GetParam());
 }
 
-TEST(Small_ImagingRawCache, HeaderRejectsVersionZero)
-{
-    std::istringstream in(header_bytes(K_RAW_IMAGE_MAGIC, 0, 1, 1, 3, K_RGB));
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingRawCacheVersion, ::testing::ValuesIn(version_rows()),
+                         header_refusal_name);
 
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "format version 0",
-                      "reads version 1");
+/** @brief Tests that a stream shorter than the 24 header bytes is refused, naming the count. */
+TEST_P(Small_ImagingRawCacheShortHeader, HeaderRejectsAStreamShorterThanTheHeader)
+{
+    expect_header_refused(GetParam());
 }
 
-TEST(Small_ImagingRawCache, HeaderRejectsATruncatedHeader)
-{
-    std::istringstream in(layout_bytes(1, 1, 3, K_RGB).substr(0, 23));
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingRawCacheShortHeader,
+                         ::testing::ValuesIn(short_header_rows()), header_refusal_name);
 
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "header ended",
-                      "23 of 24");
+/** @brief Tests that an extent of zero, above the limit or not representable is refused. */
+TEST_P(Small_ImagingRawCacheExtent, HeaderRejectsAnExtentOutsideTheRange)
+{
+    expect_header_refused(GetParam());
 }
 
-TEST(Small_ImagingRawCache, HeaderRejectsAnEmptyStream)
-{
-    std::istringstream in{std::string()};
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingRawCacheExtent, ::testing::ValuesIn(extent_rows()),
+                         header_refusal_name);
 
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "header ended",
-                      "0 of 24");
+/** @brief Tests that a channel order or count the format does not allow is refused. */
+TEST_P(Small_ImagingRawCacheChannels, HeaderRejectsAChannelCountOrOrderTheFormatDoesNotAllow)
+{
+    expect_header_refused(GetParam());
 }
 
-TEST(Small_ImagingRawCache, HeaderRejectsAZeroHeight)
-{
-    std::istringstream in(layout_bytes(0, 4, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "height 0", "16384");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsAZeroWidth)
-{
-    std::istringstream in(layout_bytes(4, 0, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "width 0", "16384");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsAHeightAboveTheLimit)
-{
-    std::istringstream in(layout_bytes(16385, 4, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "height 16385", "16384");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsAWidthAboveTheLimit)
-{
-    std::istringstream in(layout_bytes(4, 16385, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "width 16385", "16384");
-}
+INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingRawCacheChannels,
+                         ::testing::ValuesIn(channel_rows()), header_refusal_name);
 
 TEST(Small_ImagingRawCache, HeaderAcceptsBothSidesAtTheLimit)
 {
@@ -324,59 +406,6 @@ TEST(Small_ImagingRawCache, HeaderAcceptsBothSidesAtTheLimit)
     EXPECT_EQ(header.size.height, 16384);
     EXPECT_EQ(header.size.width, 16384);
     EXPECT_EQ(header.pixel_bytes(), std::size_t{805306368});
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsExtentsWhoseProductWouldOverflow)
-{
-    std::istringstream in(layout_bytes(0xFFFFFFFFu, 0xFFFFFFFFu, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "height 4294967295");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsAnExtentWithTheSignBitSet)
-{
-    std::istringstream in(layout_bytes(4, 0x80000001u, 3, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "width 2147483649");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsAnUnknownChannelOrder)
-{
-    std::istringstream in(layout_bytes(4, 4, 3, 3));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "channel order 3",
-                      "unknown");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsThreeChannelsInAGrayFile)
-{
-    std::istringstream in(layout_bytes(4, 4, 3, 0));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "channel count 3",
-                      "channel order 0");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsOneChannelInAnRGBFile)
-{
-    std::istringstream in(layout_bytes(4, 4, 1, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "channel count 1",
-                      "channel order 1");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsFourChannels)
-{
-    std::istringstream in(layout_bytes(4, 4, 4, K_RGB));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "channel count 4");
-}
-
-TEST(Small_ImagingRawCache, HeaderRejectsZeroChannels)
-{
-    std::istringstream in(layout_bytes(4, 4, 0, 2));
-
-    SA_EXPECT_FAILURE(read_raw_image_header(in), StatusCode::InvalidFile, "channel count 0",
-                      "channel order 2");
 }
 
 TEST(Small_ImagingRawCache, PixelsRejectAStreamThatEndsEarly)
@@ -403,7 +432,7 @@ TEST(Small_ImagingRawCache, PixelsRejectAHeaderTheReaderDidNotValidate)
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, WriterStopsTheProcessOnAnEmptyView)
+TEST(Medium_ImagingRawCache, WriterStopsTheProcessOnAnEmptyView)
 {
     std::ostringstream out(std::ios::binary);
 
@@ -447,24 +476,7 @@ TEST(Small_ImagingRawCache, WriterReportsAFailedStream)
                       StatusCode::InvalidFile, "stream failed");
 }
 
-TEST(Small_ImagingRawCache, ImageRoundTripsThroughAFile)
-{
-    const ScratchDirectory directory("sushiai_unit_raw_cache_round_trip");
-    const std::filesystem::path path = directory.file("image.saim");
-    const Image image = make_image(ImageSize{6, 4}, 3);
-
-    SA_EXPECT_OK(write_raw_image_file(path, image.view(), ChannelOrder::RGB));
-    Image read;
-    SA_EXPECT_OK(read_raw_image_file(path, read));
-
-    EXPECT_EQ(std::filesystem::file_size(path), K_RAW_IMAGE_HEADER_BYTES + 72u);
-    EXPECT_EQ(read.height(), 6);
-    EXPECT_EQ(read.width(), 4);
-    EXPECT_EQ(read.channels(), 3);
-    EXPECT_EQ(bytes_of(read), bytes_of(image));
-}
-
-TEST(Small_ImagingRawCache, FileWriterReplacesALongerFile)
+TEST(Medium_ImagingRawCache, FileWriterReplacesALongerFile)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_replace");
     const std::filesystem::path path = directory.file("image.saim");
@@ -480,7 +492,7 @@ TEST(Small_ImagingRawCache, FileWriterReplacesALongerFile)
     EXPECT_EQ(bytes_of(read), bytes_of(small));
 }
 
-TEST(Small_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
+TEST(Medium_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_reject");
     const std::filesystem::path path = directory.write("image.saim", "kept");
@@ -491,7 +503,7 @@ TEST(Small_ImagingRawCache, FileWriterLeavesTheFileAloneWhenItRejectsTheImage)
     EXPECT_EQ(std::filesystem::file_size(path), 4u);
 }
 
-TEST(Small_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
+TEST(Medium_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_no_parent");
     const std::filesystem::path path = directory.file("absent") / "image.saim";
@@ -501,7 +513,7 @@ TEST(Small_ImagingRawCache, FileWriterRejectsAPathItCannotOpen)
                       StatusCode::InvalidFile, "cannot open");
 }
 
-TEST(Small_ImagingRawCache, FileReaderRejectsAMissingFile)
+TEST(Medium_ImagingRawCache, FileReaderRejectsAMissingFile)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_missing");
     Image destination(ImageSize{1, 1}, 1);
@@ -511,19 +523,7 @@ TEST(Small_ImagingRawCache, FileReaderRejectsAMissingFile)
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, FileReaderRejectsATruncatedHeader)
-{
-    const ScratchDirectory directory("sushiai_unit_raw_cache_short_header");
-    const std::filesystem::path path =
-        directory.write("image.saim", layout_bytes(2, 2, 3, K_RGB).substr(0, 10));
-    Image destination(ImageSize{1, 1}, 1);
-
-    SA_EXPECT_FAILURE(read_raw_image_file(path, destination), StatusCode::InvalidFile,
-                      "header ended", "10 of 24");
-    expect_untouched(destination);
-}
-
-TEST(Small_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination)
+TEST(Medium_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_short_pixels");
     const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
@@ -536,7 +536,7 @@ TEST(Small_ImagingRawCache, FileReaderRejectsTruncatedPixelsBeforeResettingTheDe
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDestination)
+TEST(Medium_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDestination)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_trailing");
     const std::string bytes = written_bytes(make_image(ImageSize{2, 2}, 3), ChannelOrder::RGB);
@@ -548,7 +548,7 @@ TEST(Small_ImagingRawCache, FileReaderRejectsTrailingBytesBeforeResettingTheDest
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold)
+TEST(Medium_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold)
 {
     const ScratchDirectory directory("sushiai_unit_raw_cache_declared_large");
     const std::filesystem::path path =
@@ -560,14 +560,3 @@ TEST(Small_ImagingRawCache, FileReaderAllocatesNothingForALargeImageTheFileDoesN
     expect_untouched(destination);
 }
 
-TEST(Small_ImagingRawCache, FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination)
-{
-    const ScratchDirectory directory("sushiai_unit_raw_cache_bad_header");
-    const std::filesystem::path path =
-        directory.write("image.saim", layout_bytes(0xFFFFFFFFu, 0xFFFFFFFFu, 3, K_RGB));
-    Image destination(ImageSize{1, 1}, 1);
-
-    SA_EXPECT_FAILURE(read_raw_image_file(path, destination), StatusCode::InvalidFile,
-                      "height 4294967295");
-    expect_untouched(destination);
-}

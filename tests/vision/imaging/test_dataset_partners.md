@@ -12,6 +12,10 @@ This file needs no device. `Small_ImagingPartners` covers `DatasetPartners` of
 and `RecentPartners` of `modules/vision/imaging/include/SushiAI/vision/imaging/recent_partners.hpp`, which draws them from a
 buffer of recently seen indices.
 
+## make_warm_source and collect_partners_over_seeds
+
+`make_warm_source` returns a `RecentPartners` whose generator has loaded a range of indices. `collect_partners_over_seeds` returns the set of partners that sample 12 draws over the seeds 0 to 199.
+
 ## buffer_after
 
 `buffer_after` passes a list of indices to `RecentPartners::choose`, one by one with a
@@ -48,7 +52,7 @@ because a death test starts a child process.
 ## RecentCapacityIsTheSmallestOfItsThreeBounds
 
 `recent_capacity` is 5 for a dataset of 5, 128 for a batch of 16 and 1000 for a batch of 200:
-the smallest of the dataset size, `K_RECENT_BATCHES` (8) batches and `K_RECENT_LIMIT` (1000).
+the smallest of the dataset size, eight batches and 1000.
 
 ## RecentSourceGivesTheFirstSampleItselfThreeTimes
 
@@ -80,10 +84,12 @@ source makes three draws.
 
 ## RecentSourceCoversItsBuffer
 
-With the indices 10 to 14 buffered, over 200 seeds every partner is one of them and each is
-drawn at least once.
+With the indices 10 to 14 buffered, over 200 seeds the partners drawn are exactly the set {10, 11, 12, 13, 14}.
 
-## RecentSourceRejectsSizesAndIndicesOutOfRange
+## RecentSourceRejectsASizeOrABatchOutOfRange
 
-A dataset size of 0 and batch sizes of 0 and -3 throw. `choose(4)` on a dataset of 4 throws
-with "index 4", makes no draw and leaves the buffer empty.
+A dataset size of 0 and batch sizes of 0 and -3 fail with `InvalidDescription` naming the size.
+
+## RecentSourceRejectsAnIndexOutOfRange
+
+Suite `Medium_ImagingPartners`. `choose(4)` on a dataset of 4 stops the process with "RecentPartners::choose" and "index 4".

@@ -1,11 +1,11 @@
 # tests/vision/imaging/test_resize.cpp
 
 
-Suites: `Small_ImagingResize`.
+Suites: `Small_ImagingResize`, `Medium_ImagingResize` and the parameterised `Small_ImagingResizeConstant`, `Small_ImagingResizeLongSide` and `Medium_ImagingResizeAliasing`.
 
 Tests the bilinear resize and the fit of an image's long side.
 
-This file needs no device. `Small_ImagingResize` covers `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`:
+This file needs no device. The `Medium_` suites hold the death tests, since each starts a child process. The `Small_` suites cover `modules/vision/imaging/include/SushiAI/vision/imaging/resize.hpp`:
 `resize_bilinear`, `fit_long_side` and `resize_long_side`. The kernel samples at pixel centres
 with weights rounded to `K_BILINEAR_WEIGHT_BITS` bits and rounds its result half up. The first
 cases compare whole images with values a comment derives.
@@ -23,9 +23,9 @@ cases compare whole images with values a comment derives.
 `resized_bytes` resizes a one-channel source to a size and returns the bytes. It also expects
 the destination to have that size and one channel.
 
-## WeightBitsGiveAWeightSumOf2048
+## Helpers that hold a loop
 
-`1 << K_BILINEAR_WEIGHT_BITS` is 2048.
+`make_constant_image` and `expect_constant_image` build and check an image whose pixels hold one level per channel. `expect_row_monotone_at_every_width`, `expect_column_monotone_at_every_height`, `expect_rows_uniform_at_every_height` and `expect_long_side_at_image_size` run a check over a bounded range of sizes. `make_row_levels_source` returns the 4 by 3 source whose rows are each one level.
 
 ## TwoByTwoToFourByFourMatchesTheHandComputedImage
 
@@ -57,14 +57,9 @@ Eight columns reduced to three read positions 0.8333, 3.5 and 6.1667, with upper
 A two-pixel row of three channels enlarged to four pixels gives each channel the values of its
 own pair. Channel 2 falls from 255 to 3 while the others rise.
 
-## AConstantImageStaysConstantWhenEnlarged
+## AConstantImageStaysConstant
 
-A 5 by 7 image of the colour (17, 114, 255) enlarged to 13 by 23 holds that colour in every
-pixel.
-
-## AConstantImageStaysConstantWhenReduced
-
-A 31 by 17 image at level 201 reduced to 4 by 5 holds 201 in every byte.
+Suite `Small_ImagingResizeConstant`. A 5 by 7 image of the colour (17, 114, 255) enlarged to 13 by 23 holds that colour in every pixel, and a 31 by 17 image at level 201 reduced to 4 by 5 holds 201 in every byte.
 
 ## AHorizontalGradientStaysMonotoneAtEveryWidth
 
@@ -75,10 +70,13 @@ the next.
 
 The same row enlarged to 20 columns starts at 0 and ends at 255.
 
-## AVerticalGradientStaysMonotoneAndRowsStayUniform
+## AVerticalGradientStaysMonotone
 
-A 4 by 3 image whose rows are each one level is resized to every height from 1 to 17 at width
-5. Every output row is one level, and the levels never fall from one row to the next.
+A 4 by 3 image whose rows are each one level, resized to every height from 1 to 17 at width 5, never falls from one output row to the next.
+
+## EachRowOfAVerticalGradientStaysUniform
+
+The same resize gives rows that each hold one level, at every height from 1 to 17.
 
 ## TheDestinationIsResetToTheRequestedSizeAndChannels
 
@@ -86,7 +84,7 @@ A destination that was 9 by 9 with one channel becomes 2 by 2 with the source's 
 
 ## ResizeRejectsASourceWithoutPixels
 
-`resize_bilinear` on a default view stops the process with "resize_bilinear", "source" and "no pixels".
+Suite `Medium_ImagingResize`. `resize_bilinear` on a default view stops the process with "resize_bilinear", "source" and "no pixels".
 
 ## ResizeRejectsASizeOutsideTheImageBounds
 
@@ -94,14 +92,15 @@ Destination sizes of 0 by 2, 2 by -1 and 2 by 16385 fail with "destination size"
 
 ## ResizeRejectsASourceWithExtentsOutsideTheImageBounds
 
-A source view of 0 by 2, of 2 by 16385 and of five channels stops the process with "source size" or
-"source channel count".
+Suite `Medium_ImagingResize`. A source view of 0 by 2 and one of 2 by 16385 stop the process with "source size" and the size.
+
+## ResizeRejectsASourceWithAnUnsupportedChannelCount
+
+Suite `Medium_ImagingResize`. A source view of five channels stops the process with "source channel count" and 5.
 
 ## ResizeRejectsADestinationThatHoldsTheSource
 
-`resize_bilinear` with the image as source and destination stops the process with "destination holds the
-source's pixels". The image is still 2 by 2 with its bytes, so the refusal comes before the
-reset.
+Suite `Medium_ImagingResize`. `resize_bilinear` with the image as source and destination stops the process with "destination holds the source's pixels".
 
 ## FitLongSideLeavesAnImageWhoseLongSideAlreadyFits
 
@@ -127,7 +126,7 @@ short side is the ceiling of 426.24, 274.29 and 1.92.
 ## FitLongSideAlwaysPutsTheLongSideAtTheImageSize
 
 Over heights and widths from 1 to 1499 in steps of 7 and 11, the long side of the result is 640
-and the short side lies in [1, 640].
+and the short side lies in [1, 640]. The loop is in `expect_long_side_at_image_size`.
 
 ## ResizeLongSideCopiesAnImageThatAlreadyFits
 
@@ -135,14 +134,9 @@ A 2 by 4 image with image size 4 comes out as a 2 by 4 image with the same bytes
 data pointer. The destination, which was 3 by 3 with three channels, takes the source's one
 channel.
 
-## ResizeLongSideEnlargesToTheFittedSize
+## ResizeLongSideGivesTheResizeToTheFittedSize
 
-A 1 by 2 image with image size 4 becomes 2 by 4, and both rows are 0, 25, 75, 100.
-
-## ResizeLongSideReducesToTheFittedSize
-
-The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 image 36, 55,
-115, 135.
+Suite `Small_ImagingResizeLongSide`. A 1 by 2 image with image size 4 becomes 2 by 4, and both rows are 0, 25, 75, 100. The 4 by 4 image of the block-average case with image size 2 becomes the 2 by 2 image 36, 55, 115, 135.
 
 ## ResizeLongSideRejectsAnImageSizeOutsideTheImageBounds
 
@@ -150,21 +144,19 @@ Image sizes of 0 and 16385 fail with "resize_long_side" and the value.
 
 ## ResizeLongSideRejectsASourceWithoutPixels
 
-A default view stops the process with "resize_long_side" and "no pixels".
+Suite `Medium_ImagingResize`. A default view stops the process with "resize_long_side" and "no pixels".
 
-## ResizeLongSideRejectsADestinationThatHoldsTheSource
+## ResizeRejectsAViewOfTheDestination
 
-The image as source and destination stops the process with "destination holds the source's pixels".
-
-## ResizesRejectAViewInsideTheDestination
-
-`resize_bilinear` and `resize_long_side` both refuse a view of two rows of the destination, and
-the image keeps its size and its bytes.
+Suite `Medium_ImagingResizeAliasing`. `resize_long_side` of the whole image into itself, `resize_bilinear` of a view of its two lower rows and `resize_long_side` of that view each stop the process with "destination holds the source's pixels".
 
 ## ResizeLongSideRejectsASourceWithExtentsOutsideTheImageBounds
 
-A source view of 0 by 2 and one of five channels fail with "source size" and "source channel
-count".
+Suite `Medium_ImagingResize`. A source view of 0 by 2 stops the process with "source size".
+
+## ResizeLongSideRejectsASourceWithAnUnsupportedChannelCount
+
+Suite `Medium_ImagingResize`. A source view of five channels stops the process with "source channel count".
 
 ## NearestRepeatsEachPixelWhenEnlarged
 
@@ -184,9 +176,14 @@ The row 0, 255 resized to seven columns is 0, 0, 0, 255, 255, 255, 255.
 An RGB row of the pixels (1, 2, 3) and (4, 5, 6), resized to 2 by 2 into a destination that
 was 9 by 9 with one channel, gives a 2 by 2 image of three channels holding that row twice.
 
-## NearestRejectsABadSourceABadSizeAndAnAliasedDestination
+## NearestRejectsASourceWithoutPixels
 
-`resize_nearest` stops the process for an empty view ("resize_nearest", "source", "no pixels"),
-for a size of 0 by 2 ("Image::reset", "0x2") and for a destination that is the source image
-("resize_nearest", "destination holds the source's pixels"). The source still holds its four
-bytes of 9.
+Suite `Medium_ImagingResize`. `resize_nearest` of an empty view stops the process with "resize_nearest", "source" and "no pixels".
+
+## NearestRejectsADestinationSizeWithAZeroSide
+
+Suite `Medium_ImagingResize`. A destination size of 0 by 2 stops the process with "Image::reset" and "0x2".
+
+## NearestRejectsADestinationThatHoldsTheSource
+
+Suite `Medium_ImagingResize`. A destination that is the source image stops the process with "resize_nearest" and "destination holds the source's pixels".

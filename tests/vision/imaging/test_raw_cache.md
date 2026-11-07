@@ -1,14 +1,14 @@
 # tests/vision/imaging/test_raw_cache.cpp
 
 
-Suites: `Small_ImagingRawCache`.
+Suites: `Small_ImagingRawCache`, `Medium_ImagingRawCache` and the parameterised `Small_ImagingRawCacheRoundTrip`, `Small_ImagingRawCacheVersion`, `Small_ImagingRawCacheShortHeader`, `Small_ImagingRawCacheExtent` and `Small_ImagingRawCacheChannels`.
 
 Tests the raw image file: its bytes, its header checks and its file reader and writer.
 
-This file needs no device. `Small_ImagingRawCache` covers
+This file needs no device. The `Small_` suites cover
 `modules/vision/imaging/include/SushiAI/vision/imaging/raw_cache.hpp`. A file is a 24-byte header of six little-endian
 32-bit words (magic, version, height, width, channel count, channel order) followed by the
-pixels. Most cases read and write string streams. The cases from ImageRoundTripsThroughAFile on
+pixels. Most cases read and write string streams. The `Medium_ImagingRawCache` cases, which hold the death test and the file boundary,
 write files in a directory of their own under the system's temporary directory, which
 `ScratchDirectory` creates empty and removes when the case ends.
 
@@ -50,23 +50,18 @@ removes what the path held and creates the directory in its constructor, and rem
 destructor. `write` puts bytes in a file of the directory and `file` returns a path inside it.
 The class cannot be copied or moved.
 
+## RoundTripRow and HeaderRefusalRow
+
+`RoundTripRow` holds an image shape and a channel order. `HeaderRefusalRow` holds stream bytes and the substrings a refusal names; `expect_header_refused` checks that `read_raw_image_header` refuses the bytes as an invalid file. `version_rows`, `short_header_rows`, `extent_rows` and `channel_rows` build the rows of the four header families from `layout_bytes` and `header_bytes`.
+
 ## WriterEmitsTheDocumentedBytes
 
 A 1 by 2 RGB image is written as "SAIM", the words 1, 1, 2, 3, 1 and the six pixel bytes. The
 case lists all thirty bytes.
 
-## HeaderSizeAndMagicMatchTheDocumentedLayout
+## ImageRoundTripsThroughAStream
 
-`K_RAW_IMAGE_HEADER_BYTES` is 24 and the first four header bytes are "SAIM".
-
-## RGBImageRoundTripsThroughAStream
-
-A 5 by 7 RGB image written and read back has the header fields 5, 7, 3 and
-`ChannelOrder::RGB`, `pixel_bytes()` of 105 and the same bytes.
-
-## GrayImageRoundTripsThroughAStream
-
-A 4 by 3 one-channel image round-trips with `ChannelOrder::Gray`.
+Suite `Small_ImagingRawCacheRoundTrip`. A 5 by 7 RGB image and a 4 by 3 one-channel image, written and read back, have the header fields of their shape and `ChannelOrder`, a `pixel_bytes()` equal to the byte count (105 for the first) and the same bytes.
 
 ## BGRFileIsWrittenAsGivenAndReadAsRGB
 
@@ -83,71 +78,25 @@ file's bytes.
 A header that starts with the PNG signature bytes returns `InvalidFile` with "magic" and "not a raw image
 file".
 
-## HeaderRejectsANewerVersionAndNamesBoth
+## HeaderRejectsAVersionOtherThanOne
 
-Version 2 returns `InvalidFile` with "format version 2" and "reads version 1".
+Suite `Small_ImagingRawCacheVersion`. Versions 2 and 0 return `InvalidFile` with "format version" and the version, and "reads version 1".
 
-## HeaderRejectsVersionZero
+## HeaderRejectsAStreamShorterThanTheHeader
 
-Version 0 returns `InvalidFile` with "format version 0" and "reads version 1".
+Suite `Small_ImagingRawCacheShortHeader`. A stream of 23 bytes returns `InvalidFile` with "header ended" and "23 of 24", and an empty stream with "header ended" and "0 of 24".
 
-## HeaderRejectsATruncatedHeader
+## HeaderRejectsAnExtentOutsideTheRange
 
-A stream of 23 bytes returns `InvalidFile` with "header ended" and "23 of 24".
-
-## HeaderRejectsAnEmptyStream
-
-An empty stream returns `InvalidFile` with "header ended" and "0 of 24".
-
-## HeaderRejectsAZeroHeight
-
-A height of 0 returns `InvalidFile` with "height 0" and "16384".
-
-## HeaderRejectsAZeroWidth
-
-A width of 0 returns `InvalidFile` with "width 0" and "16384".
-
-## HeaderRejectsAHeightAboveTheLimit
-
-A height of 16385 returns `InvalidFile` with "height 16385".
-
-## HeaderRejectsAWidthAboveTheLimit
-
-A width of 16385 returns `InvalidFile` with "width 16385".
+Suite `Small_ImagingRawCacheExtent`. A height or a width of 0 returns `InvalidFile` with "height 0" or "width 0" and "16384"; a height or a width of 16385 with the extent and "16384"; extents of 0xFFFFFFFF with "height 4294967295", since the extent is checked before any product is formed; a width of 0x80000001 with "width 2147483649", since the word is read as unsigned.
 
 ## HeaderAcceptsBothSidesAtTheLimit
 
 A 16384 by 16384 RGB header is accepted, and `pixel_bytes()` is 805306368.
 
-## HeaderRejectsExtentsWhoseProductWouldOverflow
+## HeaderRejectsAChannelCountOrOrderTheFormatDoesNotAllow
 
-Extents of 0xFFFFFFFF fail with "height 4294967295". The extent is checked before any product
-is formed.
-
-## HeaderRejectsAnExtentWithTheSignBitSet
-
-A width of 0x80000001 returns `InvalidFile` with "width 2147483649". The word is read as unsigned and is not
-taken for a negative number.
-
-## HeaderRejectsAnUnknownChannelOrder
-
-A channel order of 3 returns `InvalidFile` with "channel order 3" and "unknown".
-
-## HeaderRejectsThreeChannelsInAGrayFile
-
-Three channels with order 0 fail with "channel count 3" and "channel order 0".
-
-## HeaderRejectsOneChannelInAnRGBFile
-
-One channel with order 1 returns `InvalidFile` with "channel count 1" and "channel order 1".
-
-## HeaderRejectsFourChannels
-
-Four channels fail with "channel count 4".
-
-## HeaderRejectsZeroChannels
-
-Zero channels with order 2 fail with "channel count 0" and "channel order 2".
+Suite `Small_ImagingRawCacheChannels`. A channel order of 3 returns `InvalidFile` with "channel order 3" and "unknown". Three channels with order 0, one channel with order 1, four channels and zero channels with order 2 fail with the channel count and, but for four channels, the channel order.
 
 ## PixelsRejectAStreamThatEndsEarly
 
@@ -160,7 +109,7 @@ the destination as it was.
 
 ## WriterStopsTheProcessOnAnEmptyView
 
-A default view breaks the precondition of `write_raw_image`, which stops the process with
+Suite `Medium_ImagingRawCache`. A default view breaks the precondition of `write_raw_image`, which stops the process with
 "write_raw_image: the image to write has no pixels".
 
 ## WriterRejectsAChannelCountThatDoesNotFitTheOrder
@@ -176,50 +125,36 @@ A view 16385 px wide returns `InvalidDescription` with "width 16385" and nothing
 
 Writing to a stream whose bad bit is set returns `InvalidFile` with "stream failed".
 
-## ImageRoundTripsThroughAFile
-
-A 6 by 4 RGB image written with `write_raw_image_file` gives a file of 24 + 72 bytes, and
-`read_raw_image_file` returns the same extents and bytes.
-
 ## FileWriterReplacesALongerFile
 
-Writing a 1 by 1 image over a file that held an 8 by 8 one leaves a file of 24 + 3 bytes that
+Suite `Medium_ImagingRawCache`. Writing a 1 by 1 image over a file that held an 8 by 8 one leaves a file of 24 + 3 bytes that
 reads back as the 1 by 1 image.
 
 ## FileWriterLeavesTheFileAloneWhenItRejectsTheImage
 
-A write that returns `InvalidDescription` for its channel count leaves an existing four-byte file at four bytes. The
+Suite `Medium_ImagingRawCache`. A write that returns `InvalidDescription` for its channel count leaves an existing four-byte file at four bytes. The
 image is checked before the file is opened.
 
 ## FileWriterRejectsAPathItCannotOpen
 
-A path inside a directory that does not exist returns `InvalidFile` with "cannot open".
+Suite `Medium_ImagingRawCache`. A path inside a directory that does not exist returns `InvalidFile` with "cannot open".
 
 ## FileReaderRejectsAMissingFile
 
-A missing file returns `FileNotFound` with "cannot open" and the file name, and the destination is untouched.
-
-## FileReaderRejectsATruncatedHeader
-
-A file of 10 bytes returns `InvalidFile` with "header ended" and "10 of 24", and the destination is untouched.
+Suite `Medium_ImagingRawCache`. A missing file returns `FileNotFound` with "cannot open" and the file name, and the destination is untouched.
 
 ## FileReaderRejectsTruncatedPixelsBeforeResettingTheDestination
 
-A file one byte short returns `InvalidFile` with "holds 35 bytes" and "declares 36", and the destination is
+Suite `Medium_ImagingRawCache`. A file one byte short returns `InvalidFile` with "holds 35 bytes" and "declares 36", and the destination is
 untouched.
 
 ## FileReaderRejectsTrailingBytesBeforeResettingTheDestination
 
-A file with one byte after its pixels returns `InvalidFile` with "holds 37 bytes" and "declares 36", and the
+Suite `Medium_ImagingRawCache`. A file with one byte after its pixels returns `InvalidFile` with "holds 37 bytes" and "declares 36", and the
 destination is untouched.
 
 ## FileReaderAllocatesNothingForALargeImageTheFileDoesNotHold
 
-A file that is only a header declaring 16384 by 16384 pixels returns `InvalidFile` with "holds 24 bytes" and
+Suite `Medium_ImagingRawCache`. A file that is only a header declaring 16384 by 16384 pixels returns `InvalidFile` with "holds 24 bytes" and
 "declares 805306392". The destination is untouched, so the reader compares the file size with
 the header before it allocates.
-
-## FileReaderRejectsAMalformedHeaderBeforeResettingTheDestination
-
-A file whose header has extents of 0xFFFFFFFF returns `InvalidFile` with "height 4294967295", and the
-destination is untouched.

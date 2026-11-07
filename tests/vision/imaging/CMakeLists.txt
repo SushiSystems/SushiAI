@@ -7,6 +7,7 @@
 
 sushiai_add_test_program(OWNER vision/imaging
     SOURCES
+        compile_partner_source.cpp
         test_affine.cpp
         test_affine_nearest.cpp
         test_boxes.cpp

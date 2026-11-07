@@ -1,31 +1,24 @@
 # tests/vision/imaging/test_partner_source.cpp
 
 
-Suites: `Small_ImagingPartnerSource`.
+Suites: `Small_ImagingPartnerSourceContract`.
 
-Tests the partner count of a mosaic and a fake `PartnerSource` used through the interface.
+Tests the contract every `PartnerSource` keeps, asked through the interface.
 
-This file needs no device. The header declares an interface, so the cases exercise a fake. The
-two real sources have their own files, `tests/vision/imaging/test_dataset_partners.cpp` and
-`tests/vision/imaging/test_recent_partners.cpp`, and `tests/vision/imaging/test_mosaic.cpp`
-checks that a mosaic asks its source once per sample.
+This file needs no device. The header declares an interface, so the suite is one typed contract
+instantiated for `InMemoryPartnerSource`, `DatasetPartners` and `RecentPartners`, each made by a
+small maker struct. The real sources have their own files, `tests/vision/imaging/test_dataset_partners.cpp`
+and `tests/vision/imaging/test_recent_partners.cpp`, and `tests/vision/imaging/test_mosaic.cpp`
+checks that a mosaic asks its source once per sample. That a source is destroyed through the
+interface is a compile-time check in `compile_partner_source.cpp`.
 
-## DrawingPartners
+## InMemoryMaker, DatasetMaker and RecentMaker
 
-`DrawingPartners` returns three draws of `Random::index` below `K_POOL`, in draw order, and sets
-a flag the test owns when it is destroyed.
+Each maker returns a `PartnerSource` held by a `std::unique_ptr`: the in-memory source with one
+scripted entry, a `DatasetPartners` over 10 images and a `RecentPartners` over 10 images with a
+batch of 4. `SourceNames` names each instantiation.
 
-## AMosaicHasThreePartners
+## ASourceAskedThroughTheInterfaceMakesThreeDraws
 
-`K_MOSAIC_PARTNERS` is 3, and `MosaicPartners` holds that many indices.
-
-## ASourceAskedThroughTheInterfaceReturnsItsDraws
-
-A `DrawingPartners` held as a `std::unique_ptr` to `PartnerSource` is asked once. Its three
-partners equal three draws of a second generator of the same seed, and both generators end in
-the same state, so the call made exactly three draws.
-
-## DestroyingThroughTheInterfaceRunsTheSourcesDestructor
-
-Resetting the base pointer runs the destructor of `DrawingPartners`, which the virtual
-destructor of `PartnerSource` guarantees.
+A source asked once through the interface leaves its generator in the state of a second
+generator of the same seed after three `next_u32` draws, so the call made exactly three draws.

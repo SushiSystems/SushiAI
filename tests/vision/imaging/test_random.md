@@ -7,24 +7,16 @@ Tests the generator every augmentation draws from.
 
 This file needs no device. `Small_ImagingRandom` covers `Random` of
 `modules/vision/imaging/include/SushiAI/vision/imaging/random.hpp`: a 64-bit counter advanced by `K_INCREMENT` and passed
-through `mix`. The first cases follow the arithmetic by hand, with each intermediate value as a
-literal, so the sequence is fixed by this file and not by a second copy of the code. The
-statistical cases use one seed and state their bound as a multiple of the standard error.
+through `mix`. The cases follow the arithmetic by hand, so the sequence is fixed by this file and not by a second copy of the code. The
+statistical cases use one seed and derive their bound from the sample count and a false-failure rate of 1e-9.
 
-## Constants
+## Constants and statistical helpers
 
-`K_SEED` is 2026, the seed of every statistical case. `K_SAMPLES` is 65536. `K_UNIFORM_VALUES`
-is 2^24, the number of values `uniform()` can return.
+`K_SEED` is 2026, the seed of every statistical case. `K_SAMPLES` is 65536. `K_UNIFORM_VALUES` is 2^24, the number of values `uniform()` can return. `K_FALSE_FAILURE_RATE` is 1e-9. `mean_tolerance(n)` is the Hoeffding distance sqrt(ln(2 / rate) / (2 n)) of a mean of draws in [0, 1], a success rate or, times n, a bucket count. `variance_tolerance()` is 2 t + t^2 for the t of `K_SAMPLES` draws. The helpers `measure_uniform_moments`, `count_index_hits`, `count_successes`, `draw_values`, `draw_indices_of_one` and `skip_draws` hold the loops over draws.
 
-## MixFollowsTheFinaliserStepByStep
+## MixFollowsTheFinaliser
 
-For the value 0x9E3779B97F4A7C15 the case asserts each of the five steps of `mix`: the shift by
-30 and xor, the product with `K_FIRST_MULTIPLIER`, the shift by 27 and xor, the product with
-`K_SECOND_MULTIPLIER` and the shift by 31 and xor. `mix` returns the last literal.
-
-## MixOfTheSecondCounterFollowsTheFinaliserStepByStep
-
-The same five steps for 0x3C6EF372FE94F82A, the second counter of seed 0.
+Suite `Small_ImagingRandomMix`. `mix(0x9E3779B97F4A7C15)` is 0xE220A8397B1DCDAF and `mix(0x3C6EF372FE94F82A)`, the second counter of seed 0, is 0x6E789E6AA1B965F4. Each result is the five steps of the finaliser worked out by hand: the shift by 30 and xor, the product with `K_FIRST_MULTIPLIER`, the shift by 27 and xor, the product with `K_SECOND_MULTIPLIER` and the shift by 31 and xor.
 
 ## SeedZeroReproducesTheHandComputedSequence
 
@@ -46,23 +38,18 @@ calls advance the counter twice.
 The first three `uniform()` values of seed 0 are 14819496, 7239838 and 443485 over 2^24, the
 top 24 bits of each draw.
 
-## UniformStaysInTheHalfOpenUnitInterval
+## UniformStaysInItsHalfOpenInterval
 
-65536 draws are all at or above 0 and below 1.
+Suite `Small_ImagingRandomInterval`. 65536 draws of `uniform()` are all at or above 0 and below 1, and 65536 draws of `uniform(0.4, 0.6)` are all at or above 0.4 and below 0.6.
 
 ## UniformHasTheMeanAndVarianceOfAUniformVariable
 
-Over 65536 draws the mean is 0.5 within 0.006 and the variance 1/12 within 0.0015, five
-standard errors each.
+Over 65536 draws the mean is 0.5 within `mean_tolerance` and the variance 1/12 within `variance_tolerance`.
 
 ## RangedUniformMapsTheUnitDrawLinearly
 
 `uniform(-1, 1)` and `uniform(0.5, 1.5)` of seed 0 return `low + (high - low) * u` for the
 first two unit draws, as exact floats, and make one draw each.
-
-## RangedUniformStaysInItsHalfOpenInterval
-
-65536 draws of `uniform(0.4, 0.6)` are all at or above 0.4 and below 0.6.
 
 ## RangedUniformNeverReturnsItsUpperBound
 
@@ -77,14 +64,17 @@ is brought back.
 
 `index(10)` of seed 0 returns 8, 4 and 0: the high 32 bits of each 32-bit draw times 10.
 
-## IndexOfOneIsAlwaysZeroAndStillDraws
+## IndexOfOneIsAlwaysZero
 
-64 calls of `index(1)` return 0 and advance the generator 64 times.
+64 calls of `index(1)` all return 0.
+
+## IndexOfOneStillDraws
+
+One call of `index(1)` advances the generator by one draw.
 
 ## IndexStaysBelowTheCountAndFillsEveryBucketEvenly
 
-70000 draws of `index(7)` are all below 7, and each bucket holds 10000 within 500, above five
-standard deviations of 93. `K_BUCKETS` and `K_DRAWS` are local to the case.
+70000 draws of `index(7)` fall in seven buckets, and each holds 10000 within 70000 times `mean_tolerance(70000)`. `K_DRAWS` is local to the case.
 
 ## IndexReachesTheLargestCount
 
@@ -108,11 +98,11 @@ returns 0, `bernoulli(0)` returns false and `uniform(0.4, 0.6)` returns 0.4. A d
 
 ## BernoulliSucceedsAtTheRateOfItsProbability
 
-Over 65536 draws `bernoulli(0.25)` succeeds at a rate of 0.25 within 0.01.
+Over 65536 draws `bernoulli(0.25)` succeeds at a rate of 0.25 within `mean_tolerance`.
 
 ## DeriveStartsAtTheMixOfTheStateAndTheKeyedMix
 
-`Random(0).derive(0).state()` is 0x48218226FF3CD4BF. The case follows the five steps of `mix`
+`Random(0).derive(0).state()` is 0x48218226FF3CD4BF. The case works the five steps of `mix` out by hand
 from the keyed value 0xE220A8397B1DCDAF.
 
 ## DeriveDependsOnTheKeyAndOnTheParentState

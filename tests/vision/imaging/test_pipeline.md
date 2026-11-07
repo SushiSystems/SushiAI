@@ -1,12 +1,12 @@
 # tests/vision/imaging/test_pipeline.cpp
 
 
-Suites: `Small_ImagingPipeline`.
+Suites: `Small_ImagingPipeline`, `Medium_ImagingPipeline` and the parameterised `Small_ImagingPipelineReferenceOrder`, `Small_ImagingPipelineQuadrant`, `Small_ImagingPipelineSetting` and `Medium_ImagingPipelineRange`.
 
 Tests the training and the validation pipeline that compose the imaging transforms into a
 sample.
 
-This file needs no device and reads no file. `Small_ImagingPipeline` covers
+This file needs no device and reads no file. The `Medium_` suites hold the death tests, since each starts a child process. The `Small_` suites cover
 `modules/vision/imaging/include/SushiAI/vision/imaging/pipeline.hpp`. A `TrainingPipeline` loads an image from a
 `SampleSource`, draws and applies mosaic, affine, colour jitter and flip, and returns a
 `TrainingTrace` of the plans it used. A `ValidationPipeline` resizes the long side and
@@ -16,20 +16,15 @@ and not with stored images.
 
 ## Constants
 
-`K_SIDE` is 32, the training size of the cases, so a mosaic canvas is 64 by 64.
-`K_REPLAY_TOLERANCE` is 0: a replayed draw repeats the same arithmetic. `K_BOX_TOLERANCE` is
-1e-4 px. `K_MIN_SCALE_GAP` is 2^-24, one step of the 24-bit uniform over the default scale
-range of width 1.
+`K_SIDE` is 32, the training size of the cases, so a mosaic canvas is 64 by 64. `K_MIN_SCALE_GAP` is 2^-24, one step of the 24-bit uniform over the default scale range of width 1. Box edges are small integers and are compared exactly, and a replayed draw repeats the same arithmetic.
 
 ## MemorySource
 
-`MemorySource` is a `SampleSource` that holds images and labels in memory and records the index
-of every `load`. `loads` returns the recorded indices and `clear_loads` forgets them.
+`MemorySource` is a `SampleSource` that holds images and labels in memory and records the index of every `load`; `loads` returns the recorded indices. Only the cases that assert the order or the number of loads use it. The others use `InMemorySampleSource`, which keeps no journal.
 
-## FixedPartners
+## fixed_partners
 
-`FixedPartners` is a `PartnerSource` that returns the three partners it was constructed with
-and makes no draw.
+`fixed_partners` returns an `InMemoryPartnerSource` scripted with one set of three partners.
 
 ## make_textured, make_constant and make_flat
 
@@ -43,7 +38,7 @@ returns an image of a given channel count with every byte at one level.
 
 ## fill_source
 
-`fill_source` adds five textured images to a source: 32 by 64, 64 by 64, 64 by 32, 16 by 32 and
+`fill_source` adds five textured images to a source of either kind: 32 by 64, 64 by 64, 64 by 32, 16 by 32 and
 32 by 32. The first four carry one object each and the last carries none.
 
 ## make_settings
@@ -68,12 +63,16 @@ size, channel count and bytes, and how they differ when they do not.
 ## expect_same_labels
 
 `expect_same_labels` expects two label sets to hold the same classes, box edges and polygon
-vertices at `K_REPLAY_TOLERANCE`.
+vertices exactly.
 
 ## expect_same_affine and expect_same_hsv
 
 `expect_same_affine` compares the sizes and the three drawn values of two `AffinePlan` objects.
 `expect_same_hsv` compares the three gains of two `HSVPlan` objects.
+
+## Further helpers
+
+`expect_box` compares a box exactly. `expect_partners_among` expects every partner to be one of listed indices. `count_unmirrored_pixels`, `count_pixels_outside_the_bands` and `count_boxes_equal_to` hold the pixel and box loops. `epoch_index_rows` and `quadrant_seed_rows` build the rows of the two seed families. `SettingRow` holds a setting put out of range and the substrings its refusal names; `RangeRow` holds an index, an epoch and the substring a death names.
 
 ## load_patch
 
@@ -85,12 +84,6 @@ vertices at `K_REPLAY_TOLERANCE`.
 `compose_from_trace` builds a sample from a `TrainingTrace` by calling the transforms in the
 reference's order, mosaic, affine, colour jitter, flip (`data/augment.py`, lines 2870 to 2912),
 each with the plan the trace holds.
-
-## SettingsDefaultToTheReferenceRun
-
-Default `TrainingSettings` have image size 640, 100 epochs, `close_mosaic` 10, batch size 16
-and seed 0. Default `ValidationSettings` have image size 640 and a letterbox that does not
-scale up.
 
 ## MosaicClosesForTheLastTenEpochsOfAHundred
 
@@ -115,7 +108,7 @@ The source records four loads: index 3, then the trace's three partners in order
 
 ## TrainingAppliesItsPlansInTheReferenceOrder
 
-For every index of the source in epochs 0 and 1, the sample's image and labels equal what
+Suite `Small_ImagingPipelineReferenceOrder`. For each index of the source in epochs 0 and 1, the sample's image and labels equal what
 `compose_from_trace` builds from the trace.
 
 ## TrainingAppliesAForcedFlipAndSkipsAForbiddenOne
@@ -132,7 +125,7 @@ plan maps 64 by 64 to 32 by 32.
 ## MosaicSampleKeepsItsLargestQuadrantBoxInsideTheTrainingSize
 
 Four 32 by 32 images each carry a box over the whole image, and the affine ranges are 0, so
-the warp shows canvas rows and columns 16 to 48. Over eight seeds every box of the sample lies
+the warp shows canvas rows and columns 16 to 48. Suite `Small_ImagingPipelineQuadrant`. For each of the seeds 30 to 37 every box of the sample lies
 inside the 32 by 32 output with positive width and height, and exactly one box equals the
 quadrant that is at least 16 by 16, computed from the trace's centre.
 
@@ -180,22 +173,33 @@ A pipeline built without a partner source gives the first sample, index 3, the p
 With `FixedPartners` of 4, 4, 0 the trace holds those partners and the source records the loads
 2, 4, 4, 0.
 
-## TrainingRejectsEverySettingOutOfRangeAtConstruction
+## TrainingRejectsASettingOutOfRangeAtConstruction
 
-Constructing a `TrainingPipeline` returns `InvalidDescription` for an image size of 0 or 8193, 0 epochs, a
-`close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of
-1, a negative HSV gain and a NaN flip probability, each under the name of the validator that
-found it. No rejected construction loads an image, and `validate_training` accepts the test
-settings.
+Suite `Small_ImagingPipelineSetting`. Constructing a `TrainingPipeline` returns `InvalidDescription` for an image size of 0 or 8193, 0 epochs, a `close_mosaic` of -1, a batch size of 0, a mosaic probability of 1.5, an affine scale range of 1, a negative HSV gain and a NaN flip probability, each under the name of the validator that found it.
 
-## TrainingRejectsAnEmptySourceAndANullPartnerSource
+## TrainingRejectsASettingOutOfRangeWithAGivenPartnerSource
 
-An empty source fails with "TrainingPipeline" and "no image", with or without a partner
-source. A null partner source fails with "partner source is null".
+A NaN flip probability is refused also when a partner source is given.
 
-## TrainingRejectsIndicesAndEpochsOutsideTheirRange
+## TrainingRejectedAtConstructionLoadsNoImage
 
-`make_sample` stops the process for index 5 of five images and for epochs -1 and 100 of 100.
+A construction refused for an image size of 0 loads no image.
+
+## ValidateTrainingAcceptsTheDefaultSettings
+
+`validate_training` accepts the test settings.
+
+## TrainingRejectsAnEmptySource
+
+An empty source fails with "TrainingPipeline" and "no image", with or without a partner source.
+
+## TrainingRejectsANullPartnerSource
+
+Suite `Medium_ImagingPipeline`. A null partner source stops the process with "partner source is null".
+
+## TrainingRejectsAnIndexOrAnEpochOutsideItsRange
+
+Suite `Medium_ImagingPipelineRange`. `make_sample` stops the process for index 5 of five images and for epochs -1 and 100 of 100.
 
 ## TrainingExpandsAGreyImageToRGB
 
@@ -248,7 +252,14 @@ content rows and 114 in the padding.
 A triangle's polygon is resampled to `K_POLYGON_POINTS` points, and its first vertex, (8, 4) on
 the loaded image, becomes (8, 12).
 
-## ValidationRejectsSettingsAndIndicesOutsideTheirRange
+## ValidationRejectsSettingsOutsideTheirRange
 
-Constructing a `ValidationPipeline` fails for an image size of 0 ("validate_validation") and
-for an empty source ("no image"). `make_sample` fails for index 9 of five images.
+Constructing a `ValidationPipeline` fails for an image size of 0 ("validate_validation"), and `validate_validation` accepts an image size of 32.
+
+## ValidationRejectsAnEmptySource
+
+Constructing a `ValidationPipeline` over an empty source fails with "no image".
+
+## ValidationRejectsAnIndexOutsideTheSource
+
+Suite `Medium_ImagingPipeline`. `make_sample` stops the process for index 9 of five images.

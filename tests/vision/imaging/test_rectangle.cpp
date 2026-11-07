@@ -36,20 +36,14 @@
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/rectangle.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using namespace SushiAI::Vision::Imaging;
 
 namespace
 {
-    /**
-     * @brief Holds the absolute tolerance of the padding value: 16384 times the double unit
-     *        roundoff, the smallest power of two not tighter than the earlier 1e-12.
-     */
-    constexpr double K_PAD_TOLERANCE = 16384.0 * TestSupport::unit_roundoff<double>();
-
     using SushiAI::Test::require_value;
+
     /** @brief Returns seven image sizes with ratios below, at and above one, two of them equal. */
     std::vector<ImageSize> make_sizes()
     {
@@ -66,18 +60,19 @@ namespace
         settings.pad = pad;
         return settings;
     }
+
+    /** @brief Checks that every side of every shape is a whole number of strides, and not zero. */
+    void expect_stride_multiples(const std::vector<ImageSize>& shapes, std::int32_t stride)
+    {
+        for (const ImageSize shape : shapes)
+        {
+            EXPECT_EQ(shape.height % stride, 0);
+            EXPECT_EQ(shape.width % stride, 0);
+            EXPECT_GE(shape.height, stride);
+            EXPECT_GE(shape.width, stride);
+        }
+    }
 } // namespace
-
-/** @brief Tests that the settings default to the reference's validation run. */
-TEST(Small_ImagingRectangle, SettingsDefaultToTheReferenceValidationRun)
-{
-    const RectangleSettings settings;
-
-    EXPECT_EQ(settings.image_size, 640);
-    EXPECT_EQ(settings.batch_size, 32);
-    EXPECT_EQ(settings.stride, 32);
-    EXPECT_NEAR(settings.pad, 0.5, K_PAD_TOLERANCE);
-}
 
 /** @brief Tests that images are ordered by rising height over width, ties in index order. */
 TEST(Small_ImagingRectangle, OrderRisesWithTheAspectRatioAndKeepsTies)
@@ -135,13 +130,7 @@ TEST(Small_ImagingRectangle, EverySideIsAMultipleOfTheStride)
         require_value(plan_rectangular_batches(make_sizes(), settings));
 
     ASSERT_EQ(batches.shapes.size(), 4u);
-    for (const ImageSize shape : batches.shapes)
-    {
-        EXPECT_EQ(shape.height % 64, 0);
-        EXPECT_EQ(shape.width % 64, 0);
-        EXPECT_GE(shape.height, 64);
-        EXPECT_GE(shape.width, 64);
-    }
+    expect_stride_multiples(batches.shapes, 64);
 }
 
 /** @brief Tests that one image makes one batch whose long side holds the image size. */
@@ -155,10 +144,9 @@ TEST(Small_ImagingRectangle, OneWideImageGivesOneWideShape)
     EXPECT_EQ(batches.shapes, (std::vector<ImageSize>{ImageSize{512, 672}}));
 }
 
-/** @brief Tests that the settings and the sizes are refused outside their ranges. */
-TEST(Small_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
+/** @brief Tests that a batch size, a stride, an image size or a pad outside its range is refused. */
+TEST(Small_ImagingRectangle, RejectsSettingsOutsideTheirRanges)
 {
-    const std::vector<ImageSize> sizes = make_sizes();
     RectangleSettings no_batch;
     no_batch.batch_size = 0;
     RectangleSettings no_stride;
@@ -169,12 +157,10 @@ TEST(Small_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
     negative_pad.pad = -0.5;
     RectangleSettings undefined_pad;
     undefined_pad.pad = std::numeric_limits<double>::quiet_NaN();
-    std::vector<ImageSize> flat = sizes;
-    flat[2] = ImageSize{0, 500};
 
     SA_EXPECT_FAILURE(validate_rectangle(no_batch), StatusCode::InvalidDescription,
                       "validate_rectangle", "batch_size of 0");
-    SA_EXPECT_FAILURE(plan_rectangular_batches(sizes, no_batch),
+    SA_EXPECT_FAILURE(plan_rectangular_batches(make_sizes(), no_batch),
                       StatusCode::InvalidDescription, "validate_rectangle", "batch_size");
     SA_EXPECT_FAILURE(validate_rectangle(no_stride), StatusCode::InvalidDescription,
                       "validate_rectangle", "stride of 0");
@@ -184,12 +170,20 @@ TEST(Small_ImagingRectangle, RejectsSettingsAndSizesOutsideTheirRanges)
                       "validate_rectangle", "pad");
     SA_EXPECT_FAILURE(validate_rectangle(undefined_pad), StatusCode::InvalidDescription,
                       "validate_rectangle", "pad");
+    SA_EXPECT_OK(validate_rectangle(RectangleSettings{}));
+}
+
+/** @brief Tests that no image and an image with a zero side are refused. */
+TEST(Small_ImagingRectangle, RejectsSizesOutsideTheirRanges)
+{
+    std::vector<ImageSize> flat = make_sizes();
+    flat[2] = ImageSize{0, 500};
+
     SA_EXPECT_FAILURE(plan_rectangular_batches({}, RectangleSettings{}),
                       StatusCode::InvalidDescription, "plan_rectangular_batches", "no image");
     SA_EXPECT_FAILURE(plan_rectangular_batches(flat, RectangleSettings{}),
                       StatusCode::InvalidDescription, "plan_rectangular_batches", "image 2",
                       "0x500");
-    SA_EXPECT_OK(validate_rectangle(RectangleSettings{}));
 }
 
 /** @brief Tests that a shape whose side would pass the image bound is refused. */

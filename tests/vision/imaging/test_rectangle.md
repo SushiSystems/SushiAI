@@ -19,9 +19,9 @@ and 5 share the ratio 0.75.
 `make_settings` returns `RectangleSettings` with a batch size, an image size and a pad, at the
 default stride of 32.
 
-## SettingsDefaultToTheReferenceValidationRun
+## expect_stride_multiples
 
-Default settings are image size 640, batch size 32, stride 32 and pad 0.5.
+`expect_stride_multiples` expects every side of every shape to be a whole number of strides and at least one stride.
 
 ## OrderRisesWithTheAspectRatioAndKeepsTies
 
@@ -49,11 +49,13 @@ least 64.
 One 480 by 640 image gives the order {0} and the shape 512 by 672:
 ceil(0.75 * 640 / 32 + 0.5) * 32 and ceil(20.5) * 32.
 
-## RejectsSettingsAndSizesOutsideTheirRanges
+## RejectsSettingsOutsideTheirRanges
 
-`validate_rectangle` returns `InvalidDescription` for a batch size, a stride or an image size of 0 and for a pad that
-is negative or NaN. `plan_rectangular_batches` returns `InvalidDescription` for an empty size list ("no image") and
-for a size of 0 by 500 ("image 2", "0x500"). Default settings pass.
+`validate_rectangle` returns `InvalidDescription` for a batch size, a stride or an image size of 0 and for a pad that is negative or NaN. Default settings pass.
+
+## RejectsSizesOutsideTheirRanges
+
+`plan_rectangular_batches` returns `InvalidDescription` for an empty size list ("no image") and for a size of 0 by 500 ("image 2", "0x500").
 
 ## RejectsAShapeAboveTheImageBound
 

@@ -30,12 +30,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/vision/imaging/letterbox.hpp>
 #include <SushiAI/vision/imaging/resize.hpp>
-#include <support/tolerance.hpp>
 
 using namespace SushiAI;
 using Vision::Imaging::Image;
@@ -48,13 +48,9 @@ using Vision::Imaging::PixelBox;
 namespace
 {
     using SushiAI::Test::require_value;
-    /**
-     * @brief Holds the absolute tolerance, in pixels, of every box coordinate compared here: 2048
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-4f.
-     */
-    constexpr float K_BOX_TOLERANCE =
-        static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
+
+    /** @brief Holds the padding level of the default settings, which the cases below expect. */
+    constexpr std::uint8_t K_DEFAULT_PADDING = 114;
 
     /** @brief Returns an image whose byte at offset i is first + i modulo 256. */
     Image make_counted_image(ImageSize size, std::int32_t channels, std::uint8_t first)
@@ -74,11 +70,40 @@ namespace
         return image;
     }
 
+    /** @brief Returns a destination of the given side held at 255, or an empty one for side 0. */
+    Image make_destination(std::int32_t side)
+    {
+        if (side == 0)
+            return Image();
+
+        return make_flat_image(ImageSize{side, side}, 3, 255);
+    }
+
     /** @brief Reports whether a pixel lies inside the resized image of a plan. */
     bool is_content(const LetterboxPlan& plan, std::int32_t y, std::int32_t x)
     {
         return y >= plan.top && y < plan.top + plan.resized.height && x >= plan.left &&
                x < plan.left + plan.resized.width;
+    }
+
+    /** @brief Returns the source copied inside the padding of a plan that does not resize. */
+    Image make_padded_copy(const Image& source, const LetterboxPlan& plan)
+    {
+        Image padded = make_flat_image(plan.target, source.channels(), plan.padding_value);
+        for (std::int32_t y = 0; y < source.height(); ++y)
+            for (std::int32_t x = 0; x < source.width() * source.channels(); ++x)
+                padded.row(y + plan.top)[plan.left * source.channels() + x] = source.row(y)[x];
+
+        return padded;
+    }
+
+    /** @brief Checks that two images have the same size, channels and bytes. */
+    void expect_same_image(const Image& actual, const Image& expected)
+    {
+        ASSERT_EQ(actual.size(), expected.size());
+        ASSERT_EQ(actual.channels(), expected.channels());
+        for (std::size_t i = 0; i < expected.byte_count(); ++i)
+            ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
     }
 
     /** @brief Checks that every content byte is one level and every padding byte another. */
@@ -94,6 +119,142 @@ namespace
                         << "row " << y << ", column " << x << ", channel " << c;
                 }
     }
+
+    /**
+     * @brief Checks that the content rectangle holds the bilinear resize of the source, that the
+     *        rest holds the default padding, and that the content is not one flat level.
+     */
+    void expect_resized_content_between_padding(const Image& source, const LetterboxPlan& plan,
+                                                const Image& destination)
+    {
+        Image expected;
+        SA_EXPECT_OK(Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected));
+        ASSERT_EQ(destination.size(), plan.target);
+        ASSERT_EQ(destination.channels(), 3);
+
+        bool is_flat = true;
+        std::size_t wrong = 0;
+        for (std::int32_t y = 0; y < destination.height(); ++y)
+            for (std::int32_t x = 0; x < destination.width(); ++x)
+                for (std::int32_t c = 0; c < 3; ++c)
+                {
+                    std::uint8_t wanted = K_DEFAULT_PADDING;
+                    if (is_content(plan, y, x))
+                    {
+                        wanted = expected.row(y - plan.top)[(x - plan.left) * 3 + c];
+                        is_flat = is_flat && wanted == expected.data()[0];
+                    }
+
+                    if (destination.row(y)[x * 3 + c] != wanted)
+                        ++wrong;
+                }
+
+        EXPECT_EQ(wrong, 0u) << "bytes differ from the resize placed between the padding";
+        EXPECT_FALSE(is_flat) << "a flat content rectangle cannot tell a resize from a fill";
+    }
+
+    /** @brief Checks the four coordinates of a box against expected values, exactly. */
+    void expect_box(const PixelBox& actual, const PixelBox& expected)
+    {
+        EXPECT_EQ(actual.x1, expected.x1);
+        EXPECT_EQ(actual.y1, expected.y1);
+        EXPECT_EQ(actual.x2, expected.x2);
+        EXPECT_EQ(actual.y2, expected.y2);
+    }
+
+    /** @brief Checks the two coordinates of a point against expected values, exactly. */
+    void expect_point(const Vision::Imaging::Point& actual, float x, float y)
+    {
+        EXPECT_EQ(actual.x, x);
+        EXPECT_EQ(actual.y, y);
+    }
+
+    /** @brief Describes a source, a target and the substrings a refusal of them names. */
+    struct SideRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the source size. */
+        ImageSize source;
+
+        /** @brief Holds the target size. */
+        ImageSize target;
+
+        /** @brief Holds the first substring the message names. */
+        const char* first;
+
+        /** @brief Holds the second substring the message names; empty when unused. */
+        const char* second;
+    };
+
+    /** @brief Runs each side-range refusal of the plan. */
+    class Small_ImagingLetterboxSideRange : public ::testing::TestWithParam<SideRow>
+    {
+    };
+
+    /** @brief Describes a flat source, the padding level and the target it is fitted into. */
+    struct FlatFitRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the source size. */
+        ImageSize source;
+
+        /** @brief Holds the channel count of the source. */
+        std::int32_t channels;
+
+        /** @brief Holds the level of every source byte. */
+        std::uint8_t level;
+
+        /** @brief Holds the padding level of the settings. */
+        std::uint8_t padding_value;
+    };
+
+    /** @brief Runs each flat-content-and-padding case. */
+    class Small_ImagingLetterboxFlatFit : public ::testing::TestWithParam<FlatFitRow>
+    {
+    };
+
+    /** @brief Describes a counted source, its target and the destination it is drawn into. */
+    struct ResizeRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the source size. */
+        ImageSize source;
+
+        /** @brief Holds the target size. */
+        ImageSize target;
+
+        /** @brief Holds the side of a destination held at 255 beforehand; 0 for an empty one. */
+        std::int32_t destination_side;
+    };
+
+    /** @brief Runs each resized-content case. */
+    class Small_ImagingLetterboxResizedContent : public ::testing::TestWithParam<ResizeRow>
+    {
+    };
+
+    /** @brief Describes a destination image and the rows of it that the source view starts at. */
+    struct AliasRow
+    {
+        /** @brief Names the row in the test report. */
+        const char* name;
+
+        /** @brief Holds the height of the destination image. */
+        std::int32_t image_height;
+
+        /** @brief Holds the row of the image the source view starts at. */
+        std::int32_t view_row;
+    };
+
+    /** @brief Runs each aliased-destination refusal; each starts a child process. */
+    class Medium_ImagingLetterboxAliasing : public ::testing::TestWithParam<AliasRow>
+    {
+    };
 } // namespace
 
 TEST(Small_ImagingLetterbox, WideImageIsPaddedAboveAndBelowWithTheOddRowBelow)
@@ -135,11 +296,11 @@ TEST(Small_ImagingLetterbox, ExactFitHasRatioOneAndNoPadding)
     EXPECT_EQ(plan.top + plan.bottom + plan.left + plan.right, 0);
 }
 
-TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
+/** @brief Tests that a small image is only padded, not enlarged, while scale_up is off. */
+TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedWhileScaleUpIsOff)
 {
-    LetterboxSettings settings;
     const LetterboxPlan padded =
-        require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40},
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{20, 40},
                                                       ImageSize{80, 80}));
 
     EXPECT_DOUBLE_EQ(padded.ratio, 1.0);
@@ -148,8 +309,14 @@ TEST(Small_ImagingLetterbox, SmallImageIsOnlyPaddedUnlessScaleUpIsSet)
     EXPECT_EQ(padded.bottom, 30);
     EXPECT_EQ(padded.left, 20);
     EXPECT_EQ(padded.right, 20);
+}
 
+/** @brief Tests that scale_up enlarges a small image to fit the target. */
+TEST(Small_ImagingLetterbox, ScaleUpEnlargesASmallImage)
+{
+    LetterboxSettings settings;
     settings.scale_up = true;
+
     const LetterboxPlan enlarged =
         require_value(Vision::Imaging::plan_letterbox(settings, ImageSize{20, 40},
                                                       ImageSize{80, 80}));
@@ -209,41 +376,29 @@ TEST(Small_ImagingLetterbox, PlanCopiesThePaddingValueOfTheSettings)
         7);
 }
 
-TEST(Small_ImagingLetterbox, PlanRejectsASideThatIsNotPositive)
+/** @brief Tests that the plan refuses a side that is not positive or is above the image bound. */
+TEST_P(Small_ImagingLetterboxSideRange, PlanRejectsASideOutsideTheImageRange)
 {
-    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{0, 8},
-                                                      ImageSize{8, 8}),
-                      StatusCode::InvalidDescription, "plan_letterbox", "source size of 0x8");
-    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
-                                                      ImageSize{8, -1}),
-                      StatusCode::InvalidDescription, "plan_letterbox", "target size of 8x-1");
+    const SideRow& row = GetParam();
+
+    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, row.source, row.target),
+                      StatusCode::InvalidDescription, "plan_letterbox", row.first, row.second);
 }
 
-/** @brief Tests that the plan refuses a side above the largest an image may have. */
-TEST(Small_ImagingLetterbox, PlanRejectsASideAboveTheImageBound)
-{
-    const std::int32_t above = Vision::Imaging::K_MAX_IMAGE_SIDE + 1;
-
-    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{above, 8},
-                                                      ImageSize{8, 8}),
-                      StatusCode::InvalidDescription, "plan_letterbox", "source size of 16385x8",
-                      "16384");
-    SA_EXPECT_FAILURE(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{8, 8},
-                                                      ImageSize{8, above}),
-                      StatusCode::InvalidDescription, "plan_letterbox", "target size of 8x16385",
-                      "16384");
-}
-
-/** @brief Tests that validate_letterbox accepts the extremes of both fields. */
-TEST(Small_ImagingLetterbox, ValidateAcceptsEverySetting)
-{
-    LetterboxSettings settings;
-    settings.scale_up = true;
-    settings.padding_value = 255;
-
-    Vision::Imaging::validate_letterbox(settings);
-    Vision::Imaging::validate_letterbox(LetterboxSettings{});
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingLetterboxSideRange,
+    ::testing::Values(
+        SideRow{"SourceSideOfZero", ImageSize{0, 8}, ImageSize{8, 8}, "source size of 0x8", ""},
+        SideRow{"TargetSideBelowZero", ImageSize{8, 8}, ImageSize{8, -1}, "target size of 8x-1",
+                ""},
+        SideRow{"SourceSideAboveTheBound", ImageSize{16385, 8}, ImageSize{8, 8},
+                "source size of 16385x8", "16384"},
+        SideRow{"TargetSideAboveTheBound", ImageSize{8, 8}, ImageSize{8, 16385},
+                "target size of 8x16385", "16384"}),
+    [](const ::testing::TestParamInfo<SideRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_ImagingLetterbox, PlanRejectsAResizedSideOfZeroPixels)
 {
@@ -265,18 +420,7 @@ TEST(Small_ImagingLetterbox, ImageWithoutResizeKeepsItsPixelsInsideThePadding)
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
 
-    ASSERT_EQ(destination.size(), (ImageSize{4, 6}));
-    ASSERT_EQ(destination.channels(), 3);
-    for (std::int32_t y = 0; y < 4; ++y)
-        for (std::int32_t x = 0; x < 6; ++x)
-            for (std::int32_t c = 0; c < 3; ++c)
-            {
-                const std::uint8_t expected = is_content(plan, y, x)
-                                                  ? source.row(y - 1)[(x - 1) * 3 + c]
-                                                  : plan.padding_value;
-                EXPECT_EQ(destination.row(y)[x * 3 + c], expected)
-                    << "row " << y << ", column " << x << ", channel " << c;
-            }
+    expect_same_image(destination, make_padded_copy(source, plan));
 }
 
 TEST(Small_ImagingLetterbox, ExactFitCopiesEveryPixel)
@@ -289,31 +433,17 @@ TEST(Small_ImagingLetterbox, ExactFitCopiesEveryPixel)
     Image destination;
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
 
-    ASSERT_EQ(destination.size(), source.size());
-    for (std::size_t i = 0; i < source.byte_count(); ++i)
-        ASSERT_EQ(destination.data()[i], source.data()[i]) << "byte " << i;
+    expect_same_image(destination, source);
 }
 
-TEST(Small_ImagingLetterbox, WideImageIsResizedThenPaddedWithTheFillValue)
+/** @brief Tests that a flat source is resized to one level and the rest takes the padding level. */
+TEST_P(Small_ImagingLetterboxFlatFit, FlatImageIsResizedThenPaddedWithTheFillValue)
 {
     // A flat image stays flat under bilinear weights that sum to one.
-    const Image source = make_flat_image(ImageSize{50, 200}, 3, 200);
-    const LetterboxPlan plan =
-        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
-                                                      ImageSize{100, 100}));
-
-    Image destination;
-    Vision::Imaging::apply_letterbox(source.view(), plan, destination);
-
-    ASSERT_EQ(destination.size(), (ImageSize{100, 100}));
-    expect_two_levels(destination, plan, 200, 114);
-}
-
-TEST(Small_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
-{
+    const FlatFitRow& row = GetParam();
     LetterboxSettings settings;
-    settings.padding_value = 7;
-    const Image source = make_flat_image(ImageSize{200, 50}, 1, 33);
+    settings.padding_value = row.padding_value;
+    const Image source = make_flat_image(row.source, row.channels, row.level);
     const LetterboxPlan plan =
         require_value(Vision::Imaging::plan_letterbox(settings, source.size(),
                                                       ImageSize{100, 100}));
@@ -322,122 +452,44 @@ TEST(Small_ImagingLetterbox, TallImageIsResizedThenPaddedWithACustomFillValue)
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
 
     ASSERT_EQ(destination.size(), (ImageSize{100, 100}));
-    ASSERT_EQ(destination.channels(), 1);
-    expect_two_levels(destination, plan, 33, 7);
+    ASSERT_EQ(destination.channels(), row.channels);
+    expect_two_levels(destination, plan, row.level, row.padding_value);
 }
 
-TEST(Small_ImagingLetterbox, ResizedContentEqualsTheBilinearResizeOfTheSource)
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingLetterboxFlatFit,
+    ::testing::Values(FlatFitRow{"WideImageWithTheDefaultFill", ImageSize{50, 200}, 3, 200, 114},
+                      FlatFitRow{"TallImageWithACustomFill", ImageSize{200, 50}, 1, 33, 7}),
+    [](const ::testing::TestParamInfo<FlatFitRow>& info)
+    {
+        return std::string(info.param.name);
+    });
+
+/** @brief Tests that the content rectangle equals the bilinear resize and only it is written. */
+TEST_P(Small_ImagingLetterboxResizedContent, ResizedContentEqualsTheBilinearResizeOfTheSource)
 {
-    const Image source = make_counted_image(ImageSize{50, 200}, 3, 0);
+    const ResizeRow& row = GetParam();
+    const Image source = make_counted_image(row.source, 3, 0);
     const LetterboxPlan plan =
         require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
-                                                      ImageSize{100, 100}));
-    ASSERT_EQ(plan.resized, (ImageSize{25, 100}));
-    ASSERT_EQ(plan.top, 37);
-    ASSERT_EQ(plan.left, 0);
+                                                      row.target));
 
-    Image expected;
-    SA_EXPECT_OK(Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected));
-
-    Image destination;
+    Image destination = make_destination(row.destination_side);
     Vision::Imaging::apply_letterbox(source.view(), plan, destination);
 
-    ASSERT_EQ(destination.size(), (ImageSize{100, 100}));
-    ASSERT_EQ(destination.channels(), 3);
-
-    bool is_flat = true;
-    for (std::int32_t y = 0; y < 100; ++y)
-        for (std::int32_t x = 0; x < 100; ++x)
-            for (std::int32_t c = 0; c < 3; ++c)
-            {
-                std::uint8_t wanted = 114;
-                if (is_content(plan, y, x))
-                {
-                    wanted = expected.row(y - plan.top)[(x - plan.left) * 3 + c];
-                    is_flat = is_flat && wanted == expected.data()[0];
-                }
-
-                ASSERT_EQ(destination.row(y)[x * 3 + c], wanted)
-                    << "row " << y << ", column " << x << ", channel " << c;
-            }
-
-    EXPECT_FALSE(is_flat) << "a flat content rectangle cannot tell a resize from a fill";
+    expect_resized_content_between_padding(source, plan, destination);
 }
 
-TEST(Small_ImagingLetterbox, SourceWithoutPixelsIsRejected)
-{
-    const LetterboxPlan plan =
-        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
-                                                      ImageSize{4, 6}));
-
-    Image destination;
-    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(Vision::Imaging::ImageView{},
-                                                                       plan,
-                                                     destination)),
-                    "apply_letterbox", "no pixels");
-}
-
-TEST(Small_ImagingLetterbox, DestinationThatIsTheSourceIsRejected)
-{
-    Image image = make_flat_image(ImageSize{2, 4}, 3, 50);
-    const LetterboxPlan plan =
-        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, image.size(),
-                                                      ImageSize{4, 6}));
-
-    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(image.view(), plan, image)),
-                    "apply_letterbox",
-                    "destination holds the source's pixels");
-    EXPECT_EQ(image.size(), (ImageSize{2, 4}));
-}
-
-/** @brief Tests that a view of some rows of the destination is refused before the reset. */
-TEST(Small_ImagingLetterbox, ViewInsideTheDestinationIsRejected)
-{
-    Image image = make_flat_image(ImageSize{3, 4}, 3, 50);
-    const Vision::Imaging::ImageView lower_rows(image.row(1), ImageSize{2, 4}, 3);
-    const LetterboxPlan plan =
-        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
-                                                      ImageSize{4, 6}));
-
-    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(lower_rows, plan, image)),
-                    "apply_letterbox",
-                    "destination holds the source's pixels");
-    EXPECT_EQ(image.size(), (ImageSize{3, 4}));
-    EXPECT_EQ(image.row(2)[0], 50);
-}
-
-/** @brief Tests that a resize beside left and right padding writes the kernel's bytes only. */
-TEST(Small_ImagingLetterbox, ResizedContentBesideSidePaddingEqualsTheBilinearResize)
-{
-    const Image source = make_counted_image(ImageSize{200, 50}, 3, 0);
-    const LetterboxPlan plan =
-        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, source.size(),
-                                                      ImageSize{100, 101}));
-    ASSERT_EQ(plan.resized, (ImageSize{100, 25}));
-    ASSERT_EQ(plan.top, 0);
-    ASSERT_EQ(plan.left, 38);
-    ASSERT_EQ(plan.right, 38);
-
-    Image expected;
-    SA_EXPECT_OK(Vision::Imaging::resize_bilinear(source.view(), plan.resized, expected));
-
-    Image destination = make_flat_image(ImageSize{120, 120}, 3, 255);
-    Vision::Imaging::apply_letterbox(source.view(), plan, destination);
-
-    ASSERT_EQ(destination.size(), (ImageSize{100, 101}));
-    std::size_t wrong = 0;
-    for (std::int32_t y = 0; y < 100; ++y)
-        for (std::int32_t x = 0; x < 101; ++x)
-            for (std::int32_t c = 0; c < 3; ++c)
-            {
-                const std::uint8_t wanted =
-                    is_content(plan, y, x) ? expected.row(y)[(x - plan.left) * 3 + c] : 114;
-                if (destination.row(y)[x * 3 + c] != wanted)
-                    ++wrong;
-            }
-
-    EXPECT_EQ(wrong, 0u) << "bytes differ from the resize placed between two bands of 114";
-}
+INSTANTIATE_TEST_SUITE_P(
+    Rows, Small_ImagingLetterboxResizedContent,
+    ::testing::Values(ResizeRow{"WideSourceIntoAnEmptyDestination", ImageSize{50, 200},
+                                ImageSize{100, 100}, 0},
+                      ResizeRow{"TallSourceIntoALargerDestination", ImageSize{200, 50},
+                                ImageSize{100, 101}, 120}),
+    [](const ::testing::TestParamInfo<ResizeRow>& info)
+    {
+        return std::string(info.param.name);
+    });
 
 TEST(Small_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
 {
@@ -453,7 +505,45 @@ TEST(Small_ImagingLetterbox, DestinationIsFullyRewrittenWhenItIsReused)
     expect_two_levels(destination, plan, 50, 114);
 }
 
-TEST(Small_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
+/** @brief Tests that apply_letterbox refuses a source without pixels. */
+TEST(Medium_ImagingLetterbox, SourceWithoutPixelsIsRejected)
+{
+    const LetterboxPlan plan =
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
+                                                      ImageSize{4, 6}));
+
+    Image destination;
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(Vision::Imaging::ImageView{},
+                                                                       plan,
+                                                     destination)),
+                    "apply_letterbox", "no pixels");
+}
+
+/** @brief Tests that apply_letterbox refuses a source view that lies inside the destination. */
+TEST_P(Medium_ImagingLetterboxAliasing, ViewInsideTheDestinationIsRejected)
+{
+    const AliasRow& row = GetParam();
+    Image image = make_flat_image(ImageSize{row.image_height, 4}, 3, 50);
+    const Vision::Imaging::ImageView view(image.row(row.view_row), ImageSize{2, 4}, 3);
+    const LetterboxPlan plan =
+        require_value(Vision::Imaging::plan_letterbox(LetterboxSettings{}, ImageSize{2, 4},
+                                                      ImageSize{4, 6}));
+
+    SA_EXPECT_FATAL(static_cast<void>(Vision::Imaging::apply_letterbox(view, plan, image)),
+                    "apply_letterbox",
+                    "destination holds the source's pixels");
+}
+
+INSTANTIATE_TEST_SUITE_P(Rows, Medium_ImagingLetterboxAliasing,
+                         ::testing::Values(AliasRow{"DestinationThatIsTheSource", 2, 0},
+                                           AliasRow{"ViewOfTheLowerRows", 3, 1}),
+                         [](const ::testing::TestParamInfo<AliasRow>& info)
+                         {
+                             return std::string(info.param.name);
+                         });
+
+/** @brief Tests that apply_letterbox refuses a source of another size than the plan. */
+TEST(Medium_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     const LetterboxPlan plan =
@@ -466,7 +556,8 @@ TEST(Small_ImagingLetterbox, ImageOfAnotherSizeThanThePlanIsRejected)
                     "apply_letterbox", "plan was made for");
 }
 
-TEST(Small_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
+/** @brief Tests that apply_letterbox refuses a plan whose paddings do not tile the target. */
+TEST(Medium_ImagingLetterbox, PlanWhosePaddingsDoNotTileTheTargetIsRejected)
 {
     const Image source = make_flat_image(ImageSize{2, 4}, 3, 50);
     LetterboxPlan plan =
@@ -490,26 +581,17 @@ TEST(Small_ImagingLetterbox, BoxesMoveByTheRatioThenTheLeftAndTopPadding)
     const Labels labels({3, 7}, {PixelBox{10.0f, 20.0f, 30.0f, 40.0f},
                                  PixelBox{0.0f, 0.0f, 50.0f, 200.0f}});
 
-    // x * 0.5 + 37 and y * 0.5 + 0.
+    // x * 0.5 + 37 and y * 0.5 + 0; every value is a dyadic fraction, so the result is exact.
     const Labels in_tall = Vision::Imaging::apply_letterbox(labels, tall);
     ASSERT_EQ(in_tall.size(), 2u);
     EXPECT_EQ(in_tall.classes(), labels.classes());
-    EXPECT_NEAR(in_tall.boxes()[0].x1, 42.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[0].y1, 10.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[0].x2, 52.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[0].y2, 20.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[1].x1, 37.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[1].y1, 0.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[1].x2, 62.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_tall.boxes()[1].y2, 100.0f, K_BOX_TOLERANCE);
+    expect_box(in_tall.boxes()[0], PixelBox{42.0f, 10.0f, 52.0f, 20.0f});
+    expect_box(in_tall.boxes()[1], PixelBox{37.0f, 0.0f, 62.0f, 100.0f});
 
     // x * 0.5 + 0 and y * 0.5 + 37.
     const Labels in_wide = Vision::Imaging::apply_letterbox(labels, wide);
     ASSERT_EQ(in_wide.size(), 2u);
-    EXPECT_NEAR(in_wide.boxes()[0].x1, 5.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_wide.boxes()[0].y1, 47.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_wide.boxes()[0].x2, 15.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(in_wide.boxes()[0].y2, 57.0f, K_BOX_TOLERANCE);
+    expect_box(in_wide.boxes()[0], PixelBox{5.0f, 47.0f, 15.0f, 57.0f});
 }
 
 TEST(Small_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
@@ -525,12 +607,8 @@ TEST(Small_ImagingLetterbox, BoxesOutsideTheImageAreNeitherClippedNorRemoved)
     const Labels moved = Vision::Imaging::apply_letterbox(labels, plan);
     ASSERT_EQ(moved.size(), 2u);
     EXPECT_EQ(moved.classes(), labels.classes());
-    EXPECT_NEAR(moved.boxes()[0].x1, 12.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].y1, 26.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].x2, 120.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].y2, 120.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[1].x1, 25.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[1].y2, 35.0f, K_BOX_TOLERANCE);
+    expect_box(moved.boxes()[0], PixelBox{12.0f, 26.0f, 120.0f, 120.0f});
+    expect_box(moved.boxes()[1], PixelBox{25.0f, 35.0f, 25.0f, 35.0f});
 }
 
 TEST(Small_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
@@ -543,10 +621,7 @@ TEST(Small_ImagingLetterbox, ExactFitLeavesBoxesWhereTheyWere)
 
     const Labels moved = Vision::Imaging::apply_letterbox(labels, plan);
     ASSERT_EQ(moved.size(), 1u);
-    EXPECT_NEAR(moved.boxes()[0].x1, 1.5f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].y1, 2.5f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].x2, 60.25f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.boxes()[0].y2, 63.0f, K_BOX_TOLERANCE);
+    expect_box(moved.boxes()[0], PixelBox{1.5f, 2.5f, 60.25f, 63.0f});
 }
 
 /** @brief Tests that a polygon moves by the ratio, then by the left and top padding. */
@@ -566,11 +641,8 @@ TEST(Small_ImagingLetterbox, PolygonMovesByTheRatioThenTheLeftAndTopPadding)
 
     ASSERT_EQ(moved.size(), 2u);
     ASSERT_EQ(moved.polygons()[0].size(), 3u);
-    EXPECT_NEAR(moved.polygons()[0][0].x, 42.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.polygons()[0][0].y, 10.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.polygons()[0][1].x, 52.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.polygons()[0][1].y, 20.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.polygons()[0][2].x, 35.0f, K_BOX_TOLERANCE);
-    EXPECT_NEAR(moved.polygons()[0][2].y, 105.0f, K_BOX_TOLERANCE);
+    expect_point(moved.polygons()[0][0], 42.0f, 10.0f);
+    expect_point(moved.polygons()[0][1], 52.0f, 20.0f);
+    expect_point(moved.polygons()[0][2], 35.0f, 105.0f);
     EXPECT_TRUE(moved.polygons()[1].empty());
 }

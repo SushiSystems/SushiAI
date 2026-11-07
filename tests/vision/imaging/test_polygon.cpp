@@ -42,16 +42,15 @@ namespace
 {
     using SushiAI::Test::require_value;
     /**
-     * @brief Holds the absolute tolerance of a resampled coordinate of magnitude up to 4: 32 times
-     *        the float unit roundoff, the smallest power of two not tighter than the earlier 1e-6f.
+     * @brief Holds the absolute tolerance of a resampled coordinate of magnitude up to 4 that is
+     *        not a dyadic fraction: 32 times the float unit roundoff.
      */
     constexpr float K_POINT_TOLERANCE =
         static_cast<float>(32.0 * TestSupport::unit_roundoff<float>());
 
     /**
-     * @brief Holds the absolute tolerance, in pixels, of a box edge of magnitude up to 100: 2048
-     *        times the float unit roundoff, the smallest power of two not tighter than the earlier
-     *        1e-4f.
+     * @brief Holds the absolute tolerance, in pixels, of a box edge of magnitude up to 100 that is
+     *        not a dyadic fraction: 2048 times the float unit roundoff.
      */
     constexpr float K_BOX_TOLERANCE =
         static_cast<float>(2048.0 * TestSupport::unit_roundoff<float>());
@@ -70,13 +69,24 @@ namespace
         }
     }
 
-    /** @brief Checks the four edges of a box within K_BOX_TOLERANCE. */
+    /** @brief Checks a polygon against expected vertices, x then y, exactly. */
+    void expect_polygon_exactly(const Polygon& actual, const std::vector<float>& expected)
+    {
+        ASSERT_EQ(actual.size() * 2, expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i)
+        {
+            EXPECT_EQ(actual[i].x, expected[2 * i]) << "point " << i;
+            EXPECT_EQ(actual[i].y, expected[2 * i + 1]) << "point " << i;
+        }
+    }
+
+    /** @brief Checks the four edges of a box, exactly. */
     void expect_box(const PixelBox& actual, float x1, float y1, float x2, float y2)
     {
-        EXPECT_NEAR(actual.x1, x1, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.y1, y1, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.x2, x2, K_BOX_TOLERANCE);
-        EXPECT_NEAR(actual.y2, y2, K_BOX_TOLERANCE);
+        EXPECT_EQ(actual.x1, x1);
+        EXPECT_EQ(actual.y1, y1);
+        EXPECT_EQ(actual.x2, x2);
+        EXPECT_EQ(actual.y2, y2);
     }
 
     /** @brief Returns the square with corners (0, 0) and (4, 4), clockwise from the origin. */
@@ -102,7 +112,6 @@ namespace
 /** @brief Tests that the point count is 1000 up to 1000 vertices and the length plus one above. */
 TEST(Small_ImagingPolygon, PointCountIsAThousandOrTheLongestPlusOne)
 {
-    EXPECT_EQ(K_POLYGON_POINTS, 1000u);
     EXPECT_EQ(resampled_point_count(0), 1000u);
     EXPECT_EQ(resampled_point_count(3), 1000u);
     EXPECT_EQ(resampled_point_count(1000), 1000u);
@@ -113,7 +122,7 @@ TEST(Small_ImagingPolygon, PointCountIsAThousandOrTheLongestPlusOne)
 TEST(Small_ImagingPolygon, ResampleMergesTheVerticesWithEvenPositions)
 {
     // resample_segments([square], 8) and ([square], 11) of the reference.
-    expect_polygon(resample_polygon(make_square(), 8),
+    expect_polygon_exactly(resample_polygon(make_square(), 8),
                    {0.0f, 0.0f, 0.0f, 0.0f, 4.0f, 0.0f, 4.0f, 4.0f, 4.0f, 4.0f, 0.0f, 4.0f, 0.0f,
                     0.0f, 0.0f, 0.0f});
     expect_polygon(resample_polygon(make_square(), 11),
@@ -125,7 +134,7 @@ TEST(Small_ImagingPolygon, ResampleMergesTheVerticesWithEvenPositions)
 TEST(Small_ImagingPolygon, ResampleToOneMoreThanTheClosedLengthRepeatsTheFirstVertex)
 {
     // resample_segments([square], 6) of the reference: linspace(0, 4, 1) is [0.0].
-    expect_polygon(resample_polygon(make_square(), 6),
+    expect_polygon_exactly(resample_polygon(make_square(), 6),
                    {0.0f, 0.0f, 0.0f, 0.0f, 4.0f, 0.0f, 4.0f, 4.0f, 0.0f, 4.0f, 0.0f, 0.0f});
 }
 
@@ -142,17 +151,22 @@ TEST(Small_ImagingPolygon, ResampleInterpolatesAlongTheEdges)
 TEST(Small_ImagingPolygon, ResampleOfALongPolygonTakesEvenPositionsOnly)
 {
     // resample_segments([hexagon], 4) and ([hexagon], 7) of the reference.
-    expect_polygon(resample_polygon(make_hexagon(), 4),
+    expect_polygon_exactly(resample_polygon(make_hexagon(), 4),
                    {1.0f, 0.0f, 4.0f, 2.0f, 1.0f, 4.0f, 1.0f, 0.0f});
-    expect_polygon(resample_polygon(make_hexagon(), 7),
+    expect_polygon_exactly(resample_polygon(make_hexagon(), 7),
                    {1.0f, 0.0f, 3.0f, 0.0f, 4.0f, 2.0f, 3.0f, 4.0f, 1.0f, 4.0f, 0.0f, 2.0f, 1.0f,
                     0.0f});
 }
 
-/** @brief Tests that a polygon of exactly the count and an empty one come back unchanged. */
-TEST(Small_ImagingPolygon, ResampleLeavesAPolygonOfTheCountAndAnEmptyOneAlone)
+/** @brief Tests that a polygon of exactly the count comes back unchanged. */
+TEST(Small_ImagingPolygon, ResampleLeavesAPolygonOfTheCountAlone)
 {
     expect_polygon(resample_polygon(make_triangle(), 3), {0.1f, 0.2f, 0.7f, 0.3f, 0.4f, 0.9f});
+}
+
+/** @brief Tests that an empty polygon comes back empty. */
+TEST(Small_ImagingPolygon, ResampleLeavesAnEmptyPolygonAlone)
+{
     EXPECT_TRUE(resample_polygon(Polygon{}, 1000).empty());
 }
 
@@ -173,7 +187,7 @@ TEST(Small_ImagingPolygon, ResampleToAThousandPointsKeepsTheOutline)
 }
 
 /** @brief Tests that a count of zero is refused. */
-TEST(Small_ImagingPolygon, ResampleRejectsACountOfZero)
+TEST(Medium_ImagingPolygon, ResampleRejectsACountOfZero)
 {
     SA_EXPECT_FATAL(static_cast<void>(resample_polygon(make_triangle(), 0)), "resample_polygon",
                     "point count of 0");
@@ -186,7 +200,7 @@ TEST(Small_ImagingPolygon, MapScalesThenTranslatesEachAxis)
 
     map_polygon(polygon, 2.0f, 0.5f, 10.0f, -1.0f);
 
-    expect_polygon(polygon, {10.0f, -1.0f, 18.0f, -1.0f, 18.0f, 1.0f, 10.0f, 1.0f});
+    expect_polygon_exactly(polygon, {10.0f, -1.0f, 18.0f, -1.0f, 18.0f, 1.0f, 10.0f, 1.0f});
 }
 
 /** @brief Tests that clamp_polygon moves every vertex outside the bounds onto them. */
@@ -196,7 +210,7 @@ TEST(Small_ImagingPolygon, ClampMovesVerticesOntoTheBounds)
 
     clamp_polygon(polygon, PixelBox{0.0f, 0.0f, 4.0f, 5.0f});
 
-    expect_polygon(polygon, {0.0f, 2.0f, 4.0f, 0.0f, 2.0f, 5.0f, 1.0f, 1.0f});
+    expect_polygon_exactly(polygon, {0.0f, 2.0f, 4.0f, 0.0f, 2.0f, 5.0f, 1.0f, 1.0f});
 }
 
 /** @brief Tests that a point inside, on an edge or on a vertex counts as inside. */
@@ -266,6 +280,10 @@ TEST(Small_ImagingPolygon, VisibleBoxIncludesTheImageCornersThePolygonContains)
     const Polygon cover{Point{-50.0f, -50.0f}, Point{500.0f, -50.0f}, Point{500.0f, 500.0f},
                         Point{-50.0f, 500.0f}};
 
-    expect_box(visible_polygon_box(corner, K_IMAGE), 0.0f, 0.0f, 36.666664f, 33.0f);
+    const PixelBox corner_box = visible_polygon_box(corner, K_IMAGE);
+    EXPECT_EQ(corner_box.x1, 0.0f);
+    EXPECT_EQ(corner_box.y1, 0.0f);
+    EXPECT_NEAR(corner_box.x2, 36.666664f, K_BOX_TOLERANCE);
+    EXPECT_EQ(corner_box.y2, 33.0f);
     expect_box(visible_polygon_box(cover, K_IMAGE), 0.0f, 0.0f, 100.0f, 80.0f);
 }

@@ -1,7 +1,7 @@
 # tests/vision/imaging/test_polygon.cpp
 
 
-Suites: `Small_ImagingPolygon`.
+Suites: `Small_ImagingPolygon` and `Medium_ImagingPolygon`.
 
 Tests polygon resampling, mapping, clamping, the point test and the visible box.
 
@@ -12,16 +12,15 @@ comment in each case names the call.
 
 ## Tolerances and K_IMAGE
 
-`K_POINT_TOLERANCE` is 1e-6, for a resampled coordinate of magnitude up to 4.
-`K_BOX_TOLERANCE` is 1e-4 px, for a box edge up to 100. `K_IMAGE` is 80 rows by 100 columns.
+`K_POINT_TOLERANCE` is 32 times the float unit roundoff, for a resampled coordinate of magnitude up to 4 that is not a dyadic fraction. `K_BOX_TOLERANCE` is 2048 times the float unit roundoff in px, for a box edge up to 100 that is not a dyadic fraction. `K_IMAGE` is 80 rows by 100 columns.
 
-## expect_polygon
+## expect_polygon and expect_polygon_exactly
 
-`expect_polygon` compares a polygon with a flat list of expected x, y values.
+`expect_polygon` compares a polygon with a flat list of expected x, y values within `K_POINT_TOLERANCE`; `expect_polygon_exactly` compares them exactly, for dyadic values.
 
 ## expect_box
 
-`expect_box` compares the four edges of a `PixelBox` within `K_BOX_TOLERANCE`.
+`expect_box` compares the four edges of a `PixelBox` exactly.
 
 ## make_square, make_triangle and make_hexagon
 
@@ -30,7 +29,7 @@ fractions of an image. `make_hexagon` returns six vertices with integer coordina
 
 ## PointCountIsAThousandOrTheLongestPlusOne
 
-`K_POLYGON_POINTS` is 1000. `resampled_point_count` is 1000 for a longest polygon of 0, 3 or
+`resampled_point_count` is 1000 for a longest polygon of 0, 3 or
 1000 vertices and 1002 for 1001.
 
 ## ResampleMergesTheVerticesWithEvenPositions
@@ -52,9 +51,13 @@ edge.
 The hexagon, closed, has seven points. Resampled to 4 it gives every second vertex and the
 first again; resampled to 7 it gives the six vertices and the first again.
 
-## ResampleLeavesAPolygonOfTheCountAndAnEmptyOneAlone
+## ResampleLeavesAPolygonOfTheCountAlone
 
-The triangle resampled to 3 points is unchanged, and an empty polygon stays empty.
+The triangle resampled to 3 points is unchanged.
+
+## ResampleLeavesAnEmptyPolygonAlone
+
+An empty polygon resampled to 1000 points stays empty.
 
 ## ResampleToAThousandPointsKeepsTheOutline
 
@@ -63,7 +66,7 @@ bounds (0.1, 0.2, 0.7, 0.9).
 
 ## ResampleRejectsACountOfZero
 
-A count of 0 stops the process with "resample_polygon" and "point count of 0".
+Suite `Medium_ImagingPolygon`. A count of 0 stops the process with "resample_polygon" and "point count of 0".
 
 ## MapScalesThenTranslatesEachAxis
 

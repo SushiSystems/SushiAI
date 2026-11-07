@@ -28,12 +28,13 @@
  * @author Mustafa Garip
  */
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
 #include <initializer_list>
 #include <limits>
+#include <memory>
+#include <set>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -57,6 +58,34 @@ namespace
         return partners.recent();
     }
 
+    /** @brief Returns a source over a dataset whose pipeline loaded the indices [first, last). */
+    std::unique_ptr<RecentPartners> make_warm_source(std::size_t dataset_size,
+                                                     std::int32_t batch_size, std::size_t first,
+                                                     std::size_t last, std::uint64_t seed)
+    {
+        std::unique_ptr<RecentPartners> partners =
+            require_value(RecentPartners::make(dataset_size, batch_size));
+        Random random(seed);
+        for (std::size_t index = first; index < last; ++index)
+            static_cast<void>(partners->choose(index, random));
+
+        return partners;
+    }
+
+    /** @brief Returns the partners that sample 12 draws over the seeds [0, seeds). */
+    std::set<std::size_t> collect_partners_over_seeds(RecentPartners& partners,
+                                                      std::uint64_t seeds)
+    {
+        std::set<std::size_t> seen;
+        for (std::uint64_t seed = 0; seed < seeds; ++seed)
+        {
+            Random random(seed);
+            for (const std::size_t partner : partners.choose(12, random))
+                seen.insert(partner);
+        }
+
+        return seen;
+    }
 } // namespace
 
 /** @brief Tests that the buffer length is the smallest of the dataset, eight batches and 1000. */
@@ -67,8 +96,6 @@ TEST(Small_ImagingPartners, RecentCapacityIsTheSmallestOfItsThreeBounds)
     EXPECT_EQ(recent_capacity(10000, 200), 1000u);
     EXPECT_EQ(recent_capacity(1000, 125), 1000u);
     EXPECT_EQ(require_value(RecentPartners::make(10000, 16))->capacity(), 128u);
-    EXPECT_EQ(K_RECENT_BATCHES, 8u);
-    EXPECT_EQ(K_RECENT_LIMIT, 1000u);
 }
 
 /** @brief Tests that the first sample's partners are the sample itself. */
@@ -149,11 +176,8 @@ TEST(Small_ImagingPartners, RecentSourceHoldsTheLastIndicesOfALongRun)
 TEST(Small_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 {
     const std::unique_ptr<RecentPartners> partners_owner =
-        require_value(RecentPartners::make(1000, 16));
+        make_warm_source(1000, 16, 100, 140, 2u);
     RecentPartners& partners = *partners_owner;
-    Random warm(2u);
-    for (std::size_t index = 100; index < 140; ++index)
-        static_cast<void>(partners.choose(index, warm));
 
     Random random(2026u);
     Random replica = random;
@@ -172,45 +196,32 @@ TEST(Small_ImagingPartners, RecentSourceDrawsThreeEntriesOfItsBuffer)
 /** @brief Tests that the recent source reaches every buffered index over many seeds. */
 TEST(Small_ImagingPartners, RecentSourceCoversItsBuffer)
 {
-    const std::unique_ptr<RecentPartners> partners_owner =
-        require_value(RecentPartners::make(100, 16));
+    const std::unique_ptr<RecentPartners> partners_owner = make_warm_source(100, 16, 10, 15, 4u);
     RecentPartners& partners = *partners_owner;
-    Random warm(4u);
-    for (std::size_t index = 10; index < 15; ++index)
-        static_cast<void>(partners.choose(index, warm));
 
-    std::array<bool, 100> seen{};
-    for (std::uint64_t seed = 0; seed < 200; ++seed)
-    {
-        Random random(seed);
-        for (const std::size_t partner : partners.choose(12, random))
-        {
-            ASSERT_GE(partner, 10u) << "seed " << seed;
-            ASSERT_LT(partner, 15u) << "seed " << seed;
-            seen[partner] = true;
-        }
-    }
-
-    for (std::size_t index = 10; index < 15; ++index)
-        EXPECT_TRUE(seen[index]) << "index " << index << " was never a partner";
+    EXPECT_EQ(collect_partners_over_seeds(partners, 200),
+              (std::set<std::size_t>{10, 11, 12, 13, 14}));
 }
 
-/** @brief Tests that the recent source refuses a size, a batch or an index out of range. */
-TEST(Small_ImagingPartners, RecentSourceRejectsSizesAndIndicesOutOfRange)
+/** @brief Tests that the recent source refuses a dataset size or a batch size out of range. */
+TEST(Small_ImagingPartners, RecentSourceRejectsASizeOrABatchOutOfRange)
 {
-    const std::unique_ptr<RecentPartners> partners_owner =
-        require_value(RecentPartners::make(4, 16));
-    RecentPartners& partners = *partners_owner;
-    Random random(1u);
-
     SA_EXPECT_FAILURE(RecentPartners::make(0, 16), StatusCode::InvalidDescription, "RecentPartners",
                       "dataset size of 0");
     SA_EXPECT_FAILURE(RecentPartners::make(10, 0), StatusCode::InvalidDescription, "RecentPartners",
                       "batch size of 0");
     SA_EXPECT_FAILURE(RecentPartners::make(10, -3), StatusCode::InvalidDescription,
                       "RecentPartners", "batch size of -3");
+}
+
+/** @brief Tests that the recent source refuses an index at or above the dataset size. */
+TEST(Medium_ImagingPartners, RecentSourceRejectsAnIndexOutOfRange)
+{
+    const std::unique_ptr<RecentPartners> partners_owner =
+        require_value(RecentPartners::make(4, 16));
+    RecentPartners& partners = *partners_owner;
+    Random random(1u);
+
     SA_EXPECT_FATAL(static_cast<void>(partners.choose(4, random)), "RecentPartners::choose",
                     "index 4");
-    EXPECT_TRUE(random == Random(1u)) << "a rejected call made a draw";
-    EXPECT_TRUE(partners.recent().empty()) << "a rejected call changed the buffer";
 }
