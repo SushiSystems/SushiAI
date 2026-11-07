@@ -1,3 +1,4 @@
 file	line	function	kind	message_head	cause	mechanism	open_question	reason
 modules/core/distribution/source/replica_kernel.cpp	99	ReplicaKernel::register_with	throw		outside	status		SushiRuntime's kernel registry reports a failed task by a throw, so the replica's failed Status becomes one there and returns to the master as a failed task
+modules/core/eager/include/SushiAI/eager/in_memory_region_partitioner.hpp	121	InMemoryRegionPartitioner::assign	throw		outside	status		A partitioner refuses a graph it cannot cut by a throw, which Session::run turns into the failed Status of the step, so this adapter throws the message a test scripts
 modules/core/seam/source/seam.cpp	121	status_of_current_exception	throw		outside	status		The seam rethrows the exception in flight to read its type and returns a status for every type

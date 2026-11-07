@@ -28,6 +28,7 @@
  * @author Mustafa Garip
  */
 
+#include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiRuntime/core/span.hpp>
@@ -103,4 +104,51 @@ TEST(Small_InMemoryRegionPartitioner, JournalsWhatEachCallWasHanded)
     EXPECT_EQ(partitioner.calls()[0].segment_count, 2u);
     EXPECT_EQ(partitioner.calls()[0].forward_node_count, 7u);
     EXPECT_EQ(partitioner.calls()[1].segment_count, 0u);
+}
+
+/** @brief Tests that a call is journaled with the graph node count and its segments. */
+TEST(Small_InMemoryRegionPartitioner, JournalsTheNodeCountAndTheSegmentsOfEachCall)
+{
+    const InMemoryRegionPartitioner partitioner;
+    const Graph::Graph graph;
+    std::vector<Eager::Segment> segments(2);
+    segments[0].end = 3;
+    segments[1].begin = 3;
+    segments[1].end = 5;
+
+    static_cast<void>(partitioner.assign(
+        graph, SushiRuntime::span<const Eager::Segment>(segments.data(), segments.size()),
+        Autograd::Provenance{}));
+
+    ASSERT_EQ(partitioner.calls().size(), 1u);
+    EXPECT_EQ(partitioner.calls()[0].node_count, 0u);
+    ASSERT_EQ(partitioner.calls()[0].segments.size(), 2u);
+    EXPECT_EQ(partitioner.calls()[0].segments[1].begin, 3u);
+    EXPECT_EQ(partitioner.calls()[0].segments[1].end, 5u);
+}
+
+/** @brief Tests that a partitioner given an inner one returns its cut and journals the call. */
+TEST(Small_InMemoryRegionPartitioner, ReturnsTheCutOfTheInnerPartitioner)
+{
+    const InMemoryRegionPartitioner inner(two_regions());
+    const InMemoryRegionPartitioner partitioner(inner);
+    const Graph::Graph graph;
+
+    const Partition cut = partitioner.assign(graph, {}, Autograd::Provenance{});
+
+    EXPECT_EQ(cut.region_of_node, two_regions().region_of_node);
+    EXPECT_EQ(partitioner.calls().size(), 1u);
+    EXPECT_EQ(inner.calls().size(), 1u);
+}
+
+/** @brief Tests that a scripted refusal throws invalid_argument and the call is journaled. */
+TEST(Small_InMemoryRegionPartitioner, AScriptedRefusalThrowsItsMessage)
+{
+    InMemoryRegionPartitioner partitioner;
+    partitioner.script_refusal("this graph has no cut");
+    const Graph::Graph graph;
+
+    EXPECT_THROW(static_cast<void>(partitioner.assign(graph, {}, Autograd::Provenance{})),
+                 std::invalid_argument);
+    EXPECT_EQ(partitioner.calls().size(), 1u);
 }

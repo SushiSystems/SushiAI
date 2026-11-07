@@ -42,11 +42,13 @@
 #include <SushiBLAS/tensor/tensor.hpp>
 
 #include <SushiAI/allocation/allocation.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/execution/runtime_execution_backend.hpp>
 #include <SushiAI/failure/result.hpp>
 #include <SushiAI/seam/seam.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/eager/in_memory_step_executor.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/scope.hpp>
@@ -393,6 +395,41 @@ namespace SushiAI::Eager::Support
 
         ScopePartitioner partitioner;   /**< Cuts each step where a scope opens or closes. */
         RegionExecutor executor;        /**< Runs each step. */
+        Session session;                /**< The session under test. */
+        PlainDescent update;            /**< The update applied behind each step. */
+        std::vector<LinearState> model; /**< The layers, bound to the session. */
+        SushiBLAS::Tensor inputs;       /**< The [K_ROWS, first width] batch. */
+        SushiBLAS::Tensor targets;      /**< The [K_ROWS, last width] targets. */
+    };
+
+    /**
+     * @brief Owns a session over one model on the host backend, with an executor that runs no
+     *        region, so tracing, refusals and bookkeeping run without a device.
+     */
+    struct SmallLoop
+    {
+        /** @brief Builds the session on the host backend with a step size of @p rate. */
+        explicit SmallLoop(float rate)
+            : session(backend, executor, partitioner), update(rate)
+        {
+
+        }
+
+        /**
+         * @brief Allocates the model and one batch on the host engine and binds every state.
+         * @param widths The input width followed by the width of each layer's result.
+         */
+        [[nodiscard]] Status prepare(const std::vector<int64_t>& widths)
+        {
+            SA_TRY_ASSIGN(model, make_model(backend.engine(), widths));
+            SA_TRY_ASSIGN(inputs, make_batch(backend.engine(), widths.front(), 0.25));
+            SA_TRY_ASSIGN(targets, make_batch(backend.engine(), widths.back(), 1.75));
+            return bind_model(session, model, update);
+        }
+
+        HostExecutionBackend backend;   /**< The host engine and its tasks. */
+        InMemoryStepExecutor executor;  /**< Journals each step and runs no region. */
+        ScopePartitioner partitioner;   /**< Cuts each step where a scope opens or closes. */
         Session session;                /**< The session under test. */
         PlainDescent update;            /**< The update applied behind each step. */
         std::vector<LinearState> model; /**< The layers, bound to the session. */

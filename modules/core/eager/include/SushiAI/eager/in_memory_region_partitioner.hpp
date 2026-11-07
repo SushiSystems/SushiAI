@@ -31,6 +31,8 @@
 #pragma once
 
 #include <cstddef>
+#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -65,6 +67,12 @@ namespace SushiAI
 
                     /** @brief The forward node count of the provenance the call received. */
                     std::size_t forward_node_count = 0;
+
+                    /** @brief The node count of the graph the call received. */
+                    std::size_t node_count = 0;
+
+                    /** @brief The segments the call received, in order. */
+                    std::vector<Segment> segments;
                 };
 
                 /**
@@ -77,14 +85,43 @@ namespace SushiAI
 
                 }
 
-                /** @brief Journals the call and returns a copy of the scripted partition. */
+                /**
+                 * @brief Builds a partitioner that returns what @p inner returns for each call.
+                 * @param inner Cuts each graph; must outlive the partitioner.
+                 */
+                explicit InMemoryRegionPartitioner(const RegionPartitioner& inner)
+                    : inner_(&inner)
+                {
+                }
+
+                /**
+                 * @brief Makes every later assign() throw std::invalid_argument with @p message,
+                 *        as a partitioner does on a graph it cannot cut.
+                 */
+                void script_refusal(std::string message)
+                {
+                    refusal_ = std::move(message);
+                    refuses_ = true;
+                }
+
+                /**
+                 * @brief Journals the call, then throws when a refusal is scripted, returns the
+                 *        cut of the inner partitioner when one was given and a copy of the
+                 *        scripted partition otherwise.
+                 */
                 [[nodiscard]] Partition assign(
-                    const Graph::Graph&,
+                    const Graph::Graph& graph,
                     SushiRuntime::span<const Segment> segments,
                     const Autograd::Provenance& provenance) const override
                 {
-                    calls_.push_back(Call{segments.size(), provenance.forward_node_count});
-                    return partition_;
+                    calls_.push_back(Call{segments.size(), provenance.forward_node_count,
+                                          graph.node_count(),
+                                          std::vector<Segment>(segments.begin(), segments.end())});
+                    if (refuses_)
+                        throw std::invalid_argument(refusal_);
+
+                    return inner_ != nullptr ? inner_->assign(graph, segments, provenance)
+                                             : partition_;
                 }
 
                 /** @brief Returns what each call of assign() was handed, first call first. */
@@ -94,8 +131,17 @@ namespace SushiAI
                 }
 
             private:
-                /// @brief Holds the partition every call returns.
+                /// @brief Holds the partition every call returns when no inner one cuts.
                 Partition partition_;
+
+                /// @brief Cuts each graph in place of partition_, or null.
+                const RegionPartitioner* inner_ = nullptr;
+
+                /// @brief Holds the message of the scripted refusal.
+                std::string refusal_;
+
+                /// @brief Whether a refusal is scripted.
+                bool refuses_ = false;
 
                 /// @brief Holds the journal of assign().
                 mutable std::vector<Call> calls_;

@@ -84,10 +84,10 @@ namespace
 } // namespace
 
 /** @brief Tests that asking a step for one state twice returns the one leaf it declared. */
-TEST_F(Medium_EagerStep, AStateIsDeclaredOncePerStep)
+TEST(Small_EagerStep, AStateIsDeclaredOncePerStep)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID first, step.state(loop.model[0].weight_state));
@@ -98,10 +98,10 @@ TEST_F(Medium_EagerStep, AStateIsDeclaredOncePerStep)
 }
 
 /** @brief Tests that a tensor with no storage cannot be fed as an input. */
-TEST_F(Medium_EagerStep, AnEmptyInputIsRefused)
+TEST(Small_EagerStep, AnEmptyInputIsRefused)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_EXPECT_FAILURE(step.input(SushiBLAS::Tensor{}, "batch"), StatusCode::InvalidDescription,
@@ -110,10 +110,10 @@ TEST_F(Medium_EagerStep, AnEmptyInputIsRefused)
 }
 
 /** @brief Tests that only a leaf can be fed: the result of an operation is refused. */
-TEST_F(Medium_EagerStep, FeedingTheResultOfAnOperationIsRefused)
+TEST(Small_EagerStep, FeedingTheResultOfAnOperationIsRefused)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
@@ -124,10 +124,10 @@ TEST_F(Medium_EagerStep, FeedingTheResultOfAnOperationIsRefused)
 }
 
 /** @brief Tests that keep() refuses a value id the step does not hold. */
-TEST_F(Medium_EagerStep, KeepingAnUnknownValueIsRefused)
+TEST(Small_EagerStep, KeepingAnUnknownValueIsRefused)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID x, step.input(loop.inputs, "inputs"));
@@ -136,10 +136,10 @@ TEST_F(Medium_EagerStep, KeepingAnUnknownValueIsRefused)
 }
 
 /** @brief Tests that backward() runs once per step and a second call is refused. */
-TEST_F(Medium_EagerStep, BackwardIsCalledOnce)
+TEST(Small_EagerStep, BackwardIsCalledOnce)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
@@ -182,10 +182,10 @@ INSTANTIATE_TEST_SUITE_P(Rows, Medium_EagerStepRefusal,
                          ::testing::Values(EntryPoint::Backward, EntryPoint::ReadScalar));
 
 /** @brief Tests that backward() refuses a graph holding a refusal whose result was dropped. */
-TEST_F(Medium_EagerStep, BackwardRefusesAGraphHoldingARefusal)
+TEST(Small_EagerStep, BackwardRefusesAGraphHoldingARefusal)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,
@@ -198,10 +198,10 @@ TEST_F(Medium_EagerStep, BackwardRefusesAGraphHoldingARefusal)
 }
 
 /** @brief Tests that finish() runs the step once and a second call changes nothing. */
-TEST_F(Medium_EagerStep, FinishRunsTheStepOnce)
+TEST(Small_EagerStep, FinishRunsTheStepOnce)
 {
-    Support::Loop loop(backend(), K_RATE);
-    SA_EXPECT_OK(loop.prepare(*engine, K_TWO_LAYERS));
+    Support::SmallLoop loop(K_RATE);
+    SA_EXPECT_OK(loop.prepare(K_TWO_LAYERS));
 
     Eager::Step step = loop.session.begin_step();
     SA_ASSERT_OK_AND_ASSIGN(const ValueID loss,

@@ -37,6 +37,7 @@
 #include <SushiAI/eager/storage_bank.hpp>
 #include <SushiAI/eager/storage_id.hpp>
 #include <SushiAI/engine_fixture/engine_test.hpp>
+#include <SushiAI/execution/host_execution_backend.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
@@ -75,9 +76,10 @@ TEST_F(Medium_StorageBank, AllocateHoldsATensorOfTheShapeAndTypeAsked)
 }
 
 /** @brief Tests that allocate() counts one tensor and one allocation. */
-TEST_F(Medium_StorageBank, AllocateCountsOneTensorAndOneAllocation)
+TEST(Small_StorageBank, AllocateCountsOneTensorAndOneAllocation)
 {
-    StorageBank bank(*engine);
+    HostExecutionBackend backend;
+    StorageBank bank(backend.engine());
 
     SA_EXPECT_OK(bank.allocate(7, Shape{4, 3}, DType::Float64));
 
@@ -100,9 +102,10 @@ TEST_F(Medium_StorageBank, AdoptSharesTheStorageOfTheCallersTensor)
 }
 
 /** @brief Tests that release() forgets the tensor under an id and keeps the allocation count. */
-TEST_F(Medium_StorageBank, ReleaseForgetsTheTensor)
+TEST(Small_StorageBank, ReleaseForgetsTheTensor)
 {
-    StorageBank bank(*engine);
+    HostExecutionBackend backend;
+    StorageBank bank(backend.engine());
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
 
     bank.release(1);
@@ -113,9 +116,10 @@ TEST_F(Medium_StorageBank, ReleaseForgetsTheTensor)
 }
 
 /** @brief Tests that release() of an id the bank does not hold does nothing. */
-TEST_F(Medium_StorageBank, ReleaseOfAnUnknownIdIsIgnored)
+TEST(Small_StorageBank, ReleaseOfAnUnknownIdIsIgnored)
 {
-    StorageBank bank(*engine);
+    HostExecutionBackend backend;
+    StorageBank bank(backend.engine());
     SA_EXPECT_OK(bank.allocate(1, Shape{2}, DType::Float32));
 
     bank.release(99);

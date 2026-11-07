@@ -30,13 +30,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <stdexcept>
 #include <vector>
 #include <gtest/gtest.h>
-#include <SushiRuntime/core/span.hpp>
 #include "eager_run_support.hpp"
-#include <SushiAI/autograd/provenance.hpp>
 #include <SushiAI/failure/status.hpp>
+#include <SushiAI/eager/in_memory_region_partitioner.hpp>
 #include <SushiAI/eager/partition.hpp>
 #include <SushiAI/eager/region_executor.hpp>
 #include <SushiAI/eager/region_partitioner.hpp>
@@ -67,41 +65,6 @@ namespace
 
     /** @brief Holds the widths of the two-layer model: 6 inputs, 4 hidden, 3 results. */
     const std::vector<int64_t> K_TWO_LAYERS{6, 4, 3};
-
-    /** @brief Cuts a step as ScopePartitioner does and records what each call was given. */
-    class RecordingPartitioner final : public Eager::RegionPartitioner
-    {
-        public:
-            /** @brief Records the call, then partitions through ScopePartitioner. */
-            [[nodiscard]] Eager::Partition assign(
-                const Graph::Graph& graph, SushiRuntime::span<const Eager::Segment> segments,
-                const Autograd::Provenance& provenance) const override
-            {
-                ++calls;
-                segments_seen.assign(segments.begin(), segments.end());
-                node_count = graph.node_count();
-                forward_node_count = provenance.forward_node_count;
-                return Eager::ScopePartitioner{}.assign(graph, segments, provenance);
-            }
-
-            mutable std::size_t calls = 0;                   /**< How often assign() ran. */
-            mutable std::vector<Eager::Segment> segments_seen; /**< The last call's segments. */
-            mutable std::size_t node_count = 0;              /**< The last graph's node count. */
-            mutable std::size_t forward_node_count = 0;      /**< The last forward node count. */
-    };
-
-    /** @brief Refuses every step by throwing, as a partitioner does on a graph it cannot cut. */
-    class RefusingPartitioner final : public Eager::RegionPartitioner
-    {
-        public:
-            /** @brief Throws std::invalid_argument naming the refusal. */
-            [[nodiscard]] Eager::Partition assign(const Graph::Graph&,
-                                                  SushiRuntime::span<const Eager::Segment>,
-                                                  const Autograd::Provenance&) const override
-            {
-                throw std::invalid_argument("this graph has no cut");
-            }
-    };
 
     /** @brief Expects @p segments to start at node 0 and each to begin where the one before ends. */
     void expect_segments_are_contiguous(const std::vector<Eager::Segment>& segments)
@@ -155,35 +118,39 @@ namespace
 /** @brief Tests that the session asks its partitioner once per step it runs. */
 TEST_F(Medium_RegionPartitioner, TheSessionAsksOncePerStep)
 {
-    RecordingPartitioner partitioner;
+    const Eager::ScopePartitioner cutter;
+    const Eager::InMemoryRegionPartitioner partitioner(cutter);
     Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step());
     SA_EXPECT_OK(rig.step());
 
-    EXPECT_EQ(partitioner.calls, 2u);
+    EXPECT_EQ(partitioner.calls().size(), 2u);
     EXPECT_EQ(rig.session.step_count(), 2u);
 }
 
 /** @brief Tests that the segments handed over cover exactly the forward nodes of the step. */
 TEST_F(Medium_RegionPartitioner, TheSegmentsCoverTheForwardNodes)
 {
-    RecordingPartitioner partitioner;
+    const Eager::ScopePartitioner cutter;
+    const Eager::InMemoryRegionPartitioner partitioner(cutter);
     Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
     SA_EXPECT_OK(rig.step());
 
-    expect_segments_are_contiguous(partitioner.segments_seen);
-    EXPECT_EQ(partitioner.segments_seen.back().end, partitioner.forward_node_count);
-    EXPECT_LT(partitioner.forward_node_count, partitioner.node_count);
+    const Eager::InMemoryRegionPartitioner::Call& call = partitioner.calls().front();
+    expect_segments_are_contiguous(call.segments);
+    EXPECT_EQ(call.segments.back().end, call.forward_node_count);
+    EXPECT_LT(call.forward_node_count, call.node_count);
 }
 
 /** @brief Tests that a partitioner's thrown refusal reaches the caller and counts no step. */
 TEST_F(Medium_RegionPartitioner, AThrownRefusalFailsTheStep)
 {
-    const RefusingPartitioner partitioner;
+    Eager::InMemoryRegionPartitioner partitioner;
+    partitioner.script_refusal("this graph has no cut");
     Rig rig(backend(), partitioner);
     SA_EXPECT_OK(rig.prepare(*engine));
 
