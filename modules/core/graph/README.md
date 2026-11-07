@@ -28,13 +28,13 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/arena.hpp` | `ArenaSet` |
 | `SushiAI/graph/builder.hpp` | `ConvGeometry`, `output_extent`, `SpatialExtents`, `PoolResult`, `BatchNormResult`, `BatchNormFold`, `BatchNormGrads`, `LayerNormResult`, `LayerNormGrads`, `DropoutResult`, `K_DROPOUT_RATE_SLOT`, `dropout_seed`, `GraphBuilder` |
 | `SushiAI/graph/cast_insertion.hpp` | `CastOptions`, `InsertedCast`, `CastReport`, `insert_casts`, `DTypeMismatch`, `find_dtype_mismatches`, `describe` |
-| `SushiAI/graph/compiled_step.hpp` | `CompiledStep`, with its `compile` and `run` |
+| `SushiAI/graph/compiled_step.hpp` | `CompiledStep`, with its `compile` and `run`, and `check_compilable` |
 | `SushiAI/graph/dropout_mask.hpp` | `splitmix64_at`, `dropout_site_seed`, `dropout_bits`, `dropout_keeps`, `fill_keep_mask` |
 | `SushiAI/graph/fusion.hpp` | `FusedForm`, `fused_form_name`, `fused_form_from_name`, `fused_form_op`, `fused_form_of`, `FusionDecline`, `FusionOptions`, `FusedSubtree`, `DeclinedFusion`, `FusionReport`, `fuse` |
 | `SushiAI/graph/fusion_selector.hpp` | `FusionQuery`, `FusionChoice`, `FusionSelector`, `DeviceFusionSelector`, `FusionSelection` |
 | `SushiAI/graph/ir.hpp` | `ValueID`, `NodeID`, `Lifetime`, `lifetime_name`, `is_persistent`, `Attributes`, `TensorLayout`, `Value`, `Node`, `Graph` |
 | `SushiAI/graph/lowering.hpp` | `Lowering`, with its `record` |
-| `SushiAI/graph/node_range.hpp` | `NodeRange` |
+| `SushiAI/graph/node_range.hpp` | `NodeRange`, `check_node_range` |
 | `SushiAI/graph/memory_plan.hpp` | `ArenaID`, `K_NO_ARENA`, `Arena`, `Placement`, `PlanOptions`, `MemoryPlan` |
 | `SushiAI/graph/precision.hpp` | `PrecisionQuery`, `PrecisionChoice`, `PrecisionPolicy`, `UniformPrecisionPolicy`, `MixedPrecisionPolicy`, `narrows_under_mixed_precision` |
 | `SushiAI/graph/in_memory_precision_policy.hpp` | `InMemoryPrecisionPolicy` |
@@ -43,8 +43,10 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/state_id.hpp` | `StateID`, `K_NO_STATE`, `StateIdentity` |
 | `SushiAI/graph/step_recorder.hpp` | `StepRecorder`, `StepRecorderList` |
 | `SushiAI/graph/in_memory_step_recorder.hpp` | `InMemoryStepRecorder` |
+| `SushiAI/graph/run_counter.hpp` | `RunCounter` |
 | `SushiAI/graph/step_recording.hpp` | `StepRecording` |
 | `SushiAI/graph/tensor_pool.hpp` | `TensorPool` |
+| `SushiAI/graph/tensor_source.hpp` | `TensorSource`, `InMemoryTensorSource` |
 | `SushiAI/graph/traced.hpp` | `Traced` |
 | `SushiAI/graph/lowering/activation.hpp` | `K_ACTIVATION_LOWERINGS` |
 | `SushiAI/graph/lowering/all.hpp` | `K_LOWERINGS` |
@@ -59,6 +61,25 @@ Each header is named by its include path under `include/`.
 | `SushiAI/graph/lowering/shape.hpp` | `K_SHAPE_LOWERINGS` |
 | `SushiAI/graph/lowering/spatial.hpp` | `K_SPATIAL_LOWERINGS` |
 | `SushiAI/graph/lowering/unlowered.hpp` | `K_UNLOWERED` |
+
+## Seams for tests without a device
+
+Each seam keeps the default behaviour: a `TensorPool` built over an `Engine` allocates as before.
+
+- `TensorSource` is the port a `TensorPool` draws its standalone tensors from, for a value, for
+  ones and for scratch. `TensorPool(TensorSource&)` builds a pool over one. `InMemoryTensorSource`
+  describes each tensor and gives it no `Storage`, and keeps the requests it received. Such a pool
+  holds no engine: `adopt()` and `flush_constants()` with a queued fill return `Unsupported`, and
+  `engine()` stops the process.
+- `LoweringContext` has a constructor that takes no recorder and no random stream. It answers
+  every query about the node, the pool, the fusion selection and the preludes; `recorder()` and
+  `stream()` stop the process.
+- `InMemoryStepRecorder(member, journal, tasks)` appends each call it receives to a
+  `Journal` shared by several members, which shows the order of the calls across them.
+  `StepRecording::detached()` is the recording to give such a recorder, which never reads it.
+- `RunCounter` holds the count of runs of a `CompiledStep` and the rule that a restore comes before
+  the first run. `check_node_range` holds the rule of a node range and `check_compilable` the
+  refusal of a graph with a dropped refusal. Both are decided on values, without a step.
 
 ## Memory plan
 

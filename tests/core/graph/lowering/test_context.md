@@ -1,17 +1,23 @@
 # tests/core/graph/lowering/test_context.cpp
 
 
-Suites: `Medium_LoweringContext`.
+Suites: `Small_LoweringContext`, `Medium_LoweringContextDeathTest`.
 
 Tests what `LoweringContext` gives a lowering row. The fixture traces one RELU over a [2, 3]
-input, materialises its leaves in a `TensorPool` and binds a context to the RELU node with the
-engine's recorder and random stream. The file-local `FixedSelector` answers every query with one
-form. No case records a task.
+input, materialises its leaves in a `TensorPool` built over a `Graph::InMemoryTensorSource` and
+binds a context to the RELU node without a recorder or a random stream. The file-local
+`FixedSelector` answers every query with one form. The file needs no device, and no case records a
+task.
 
 ## TheContextDescribesItsNode
 
 The context returns the node id it was bound to, the graph, the RELU operation and its declared
 name, the [2, 3] operand and result, and the pool's tensor for the operand.
+
+## ADescribingContextHasNoRecorderOrStream
+
+A context bound without a recorder stops the process when `recorder()` or `stream()` is asked
+for, with a report that names the missing recorder or stream. It is a death test.
 
 ## AResultIsAllocatedOnTheFirstRequest
 
@@ -20,7 +26,10 @@ second request returns the same tensor.
 
 ## AnAliasedResultSharesItsOperandsStorage
 
-After `alias_output(0, 0)` the result is bound and its tensor has the operand's storage.
+After `alias_output(0, 0)` the result is bound, its tensor has the operand's storage and offset,
+and the source received no further request, so the alias allocated nothing. The in-memory source
+gives a tensor no storage, so the case cannot tell two distinct allocations apart by their
+storage; the request count does.
 
 ## CountAddsToThePassTotal
 

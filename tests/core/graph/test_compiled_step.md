@@ -1,10 +1,12 @@
 # tests/core/graph/test_compiled_step.cpp
 
 
-Suites: `Medium_CompiledStep`, `Medium_CompiledStepAttribution`.
+Suites: `Small_CompiledStepChecks`, `Medium_CompiledStep`,
+`Medium_CompiledStepAttribution`.
 
 Tests `CompiledStep::restore_run_count`, `CompiledStep::run_at` and the node range of `CompiledStep::compile` in
-`modules/core/graph/include/SushiAI/graph/compiled_step.hpp`. The fixture is an `EngineTest`.
+`modules/core/graph/include/SushiAI/graph/compiled_step.hpp`, and `Graph::check_compilable`. The `Small_` cases need no device. The
+`Medium_` fixture is an `EngineTest`.
 Each case compiles one dropout of rate 0.25 over a leaf of 256 ones with a fixed site seed, so
 the step's output is the mask: 4/3 where the published rule keeps an element and 0 elsewhere. The
 test derives the rule itself, from SplitMix64 and the top 53 bits of a draw, and compares within
@@ -32,10 +34,11 @@ of run 1.
 After one run, `restore_run_count(4)` fails with `InvalidDescription`, "before its first run"
 and "run 1", and the run count stays 1.
 
-## ASecondRestoreIsRefused
+## AGraphWithADroppedRefusalIsNotCompilable
 
-`restore_run_count(0)` and then `restore_run_count(5)` succeed. A third call with 7 fails with
-`InvalidDescription` and "run 5", and the run count stays 5.
+A graph with a scaled leaf passes `check_compilable`. After a `reshape` to an element count the
+value does not have is refused and its result dropped, `check_compilable` fails with
+`InvalidDescription` and "refused operation".
 
 ## TheSecondRangeReadsWhatThePoolHoldsAfterTheFirst
 

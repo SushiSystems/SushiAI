@@ -7,6 +7,7 @@
 
 sushiai_add_test_program(OWNER graph
     SOURCES
+        compile_step_recording.cpp
         lowering/test_activation.cpp
         lowering/test_all.cpp
         lowering/test_context.cpp
@@ -37,10 +38,11 @@ sushiai_add_test_program(OWNER graph
         test_precision.cpp
         test_rematerialise.cpp
         test_replay_prelude.cpp
+        test_run_counter.cpp
         test_state_id.cpp
         test_step_recorder.cpp
-        test_step_recording.cpp
         test_tensor_pool.cpp
+        test_tensor_source.cpp
         test_traced.cpp
     DEPENDS
         failure_expectations

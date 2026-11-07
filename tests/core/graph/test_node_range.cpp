@@ -28,8 +28,11 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <gtest/gtest.h>
 #include <SushiAI/engine_fixture/engine_test.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
@@ -73,4 +76,60 @@ TEST_F(Medium_NodeRange, TheDefaultRangeIsTheWholeGraph)
 
     EXPECT_GE(by_default->operation_count(), 1u);
     EXPECT_EQ(by_default->operation_count(), whole->operation_count());
+}
+
+namespace
+{
+    /** @brief Names a range, the node count of the graph it is checked against, and its verdict. */
+    struct RangeCheck
+    {
+        /** @brief Names the case in the test report. */
+        const char* name;
+
+        /** @brief Holds the range checked. */
+        Graph::NodeRange nodes;
+
+        /** @brief Holds the number of nodes of the graph. */
+        std::size_t node_count;
+
+        /** @brief Tells whether the range lies in the graph. */
+        bool is_inside;
+    };
+
+    /** @brief Runs each case on a range and a node count, without a graph. */
+    class Small_NodeRangeCheck : public ::testing::TestWithParam<RangeCheck>
+    {
+
+    };
+} // namespace
+
+/** @brief Tests which ranges lie in a graph of the given size, and that a refusal names them. */
+TEST_P(Small_NodeRangeCheck, ARangeIsCheckedAgainstTheNodeCountOfItsGraph)
+{
+    const RangeCheck& row = GetParam();
+
+    const Status checked = Graph::check_node_range(row.nodes, row.node_count);
+
+    EXPECT_EQ(checked.is_ok(), row.is_inside);
+    if (!row.is_inside)
+        EXPECT_NE(checked.message().find("does not lie in a graph"), std::string_view::npos);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    Ranges, Small_NodeRangeCheck,
+    ::testing::Values(RangeCheck{"TheDefaultRange", Graph::NodeRange{}, 3, true},
+                      RangeCheck{"TheWholeGraph", Graph::NodeRange{0, 3}, 3, true},
+                      RangeCheck{"AnEmptyRange", Graph::NodeRange{2, 2}, 3, true},
+                      RangeCheck{"EndsBehindTheLastNode", Graph::NodeRange{0, 4}, 3, false},
+                      RangeCheck{"EndsBeforeItStarts", Graph::NodeRange{1, 0}, 3, false}),
+    [](const ::testing::TestParamInfo<RangeCheck>& info)
+    {
+        return std::string(info.param.name);
+    });
+
+/** @brief Tests that the refusal of a range names its bounds. */
+TEST(Small_NodeRange, TheRefusalOfARangeNamesItsBounds)
+{
+    SA_EXPECT_FAILURE(Graph::check_node_range(Graph::NodeRange{1, 0}, 3),
+                      StatusCode::InvalidDescription, "[1, 0)", "3 nodes");
 }

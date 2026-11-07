@@ -48,8 +48,8 @@ namespace SushiAI
                                          const FusionSelector& selector,
                                          std::vector<FusionSelection>& selections,
                                          std::size_t& emitted) noexcept
-            : recorder_(recorder),
-              stream_(stream),
+            : recorder_(&recorder),
+              stream_(&stream),
               pool_(pool),
               graph_(graph),
               id_(id),
@@ -67,8 +67,8 @@ namespace SushiAI
                                          std::vector<FusionSelection>& selections,
                                          std::size_t& emitted,
                                          std::vector<ReplayPrelude>& preludes) noexcept
-            : recorder_(recorder),
-              stream_(stream),
+            : recorder_(&recorder),
+              stream_(&stream),
               pool_(pool),
               graph_(graph),
               id_(id),
@@ -79,14 +79,37 @@ namespace SushiAI
         {
         }
 
+        LoweringContext::LoweringContext(TensorPool& pool, const Graph& graph, NodeID id,
+                                         const FusionSelector& selector,
+                                         std::vector<FusionSelection>& selections,
+                                         std::size_t& emitted,
+                                         std::vector<ReplayPrelude>* preludes) noexcept
+            : recorder_(nullptr),
+              stream_(nullptr),
+              pool_(pool),
+              graph_(graph),
+              id_(id),
+              selector_(selector),
+              selections_(selections),
+              emitted_(emitted),
+              preludes_(preludes)
+        {
+        }
+
         SushiBLAS::TaskRecorder& LoweringContext::recorder() const noexcept
         {
-            return recorder_;
+            SA_FATAL_IF(recorder_ == nullptr,
+                        "{} (node {}) asked for a recorder, and this context describes the node "
+                        "without one", name(), id_);
+            return *recorder_;
         }
 
         SushiBLAS::RNGStream& LoweringContext::stream() const noexcept
         {
-            return stream_;
+            SA_FATAL_IF(stream_ == nullptr,
+                        "{} (node {}) asked for a random stream, and this context describes the "
+                        "node without one", name(), id_);
+            return *stream_;
         }
 
         const Graph& LoweringContext::graph() const noexcept

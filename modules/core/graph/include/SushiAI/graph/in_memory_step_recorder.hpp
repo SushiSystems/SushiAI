@@ -45,9 +45,10 @@ namespace SushiAI
         /**
          * @class InMemoryStepRecorder
          * @brief Journals the calls it receives and answers record_into_step() with a scripted
-         *        task count or a scripted failure; touches no device, file, thread or clock.
+         *        task count or failure; touches no device, file, thread or clock.
          *
-         * It never reads the StepRecording it is given, so it records no task into the step.
+         * It never reads its StepRecording. Members built over one Journal also append to it,
+         * so the order of the calls across members can be read.
          */
         class InMemoryStepRecorder final : public StepRecorder
         {
@@ -60,11 +61,38 @@ namespace SushiAI
                     AfterReplay   /**< after_replay() was called. */
                 };
 
+                /** @brief Names one call and the member that received it. */
+                struct Entry
+                {
+                    int member = 0; /**< The number the member was built with. */
+                    Call call = Call::Record; /**< The call it received. */
+
+                    bool operator==(const Entry& other) const noexcept
+                    {
+                        return member == other.member && call == other.call;
+                    }
+                };
+
+                /** @brief Holds the calls several members received, in the order they came. */
+                using Journal = std::vector<Entry>;
+
                 /**
                  * @brief Builds a recorder whose record_into_step() reports @p tasks tasks.
                  * @param tasks The count record_into_step() returns until fail_with() is called.
                  */
                 explicit InMemoryStepRecorder(std::size_t tasks = 0) noexcept : tasks_(tasks)
+                {
+
+                }
+
+                /**
+                 * @brief Builds a recorder that also appends each call to @p journal.
+                 * @param member The number its entries carry.
+                 * @param journal Shared by the members of one test; must outlive the recorder.
+                 * @param tasks The count record_into_step() returns until fail_with() is called.
+                 */
+                InMemoryStepRecorder(int member, Journal& journal, std::size_t tasks = 0) noexcept
+                    : tasks_(tasks), member_(member), journal_(&journal)
                 {
 
                 }
@@ -81,7 +109,7 @@ namespace SushiAI
                 /** @brief Appends Call::Record and returns the scripted count or failure. */
                 [[nodiscard]] Result<std::size_t> record_into_step(const StepRecording&) override
                 {
-                    calls_.push_back(Call::Record);
+                    note(Call::Record);
                     if (!failure_.is_ok())
                         return failure_;
 
@@ -91,13 +119,13 @@ namespace SushiAI
                 /** @brief Appends Call::BeforeReplay. */
                 void before_replay() override
                 {
-                    calls_.push_back(Call::BeforeReplay);
+                    note(Call::BeforeReplay);
                 }
 
                 /** @brief Appends Call::AfterReplay. */
                 void after_replay() override
                 {
-                    calls_.push_back(Call::AfterReplay);
+                    note(Call::AfterReplay);
                 }
 
                 /** @brief Returns every call received, first received first. */
@@ -107,11 +135,25 @@ namespace SushiAI
                 }
 
             private:
+                /** @brief Appends @p call to the calls received and to the shared journal. */
+                void note(Call call)
+                {
+                    calls_.push_back(call);
+                    if (journal_ != nullptr)
+                        journal_->push_back(Entry{member_, call});
+                }
+
                 /// @brief Holds the count a successful record_into_step() returns.
                 std::size_t tasks_;
 
                 /// @brief Holds the scripted failure; a success when none is scripted.
                 Status failure_;
+
+                /// @brief Holds the number the entries of the shared journal carry.
+                int member_ = 0;
+
+                /// @brief Holds the journal several members share, or null for none.
+                Journal* journal_ = nullptr;
 
                 /// @brief Holds the calls received, in order.
                 std::vector<Call> calls_;

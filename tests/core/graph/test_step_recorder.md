@@ -1,36 +1,23 @@
 # tests/core/graph/test_step_recorder.cpp
 
 
-Suites: `Medium_StepRecorder`, `Medium_StepRecorderDeathTest`.
+Suites: `Small_StepRecorder`, `Small_StepRecorderOrder`, `Medium_StepRecordingDeathTest`,
+`Medium_StepRecorderDeathTest`, `Medium_StepRecorderListDeathTest`.
 
 Tests that StepRecorderList drives its members as one recorder, in the order added.
 
 This file needs no device. `Graph::StepRecorder` and `Graph::StepRecorderList` are in
 `modules/core/graph/include/SushiAI/graph/step_recorder.hpp`. The list is itself a `StepRecorder` and holds
 references to its members; it does not own them. `add` returns a Status, and each case checks
-its call with `SA_EXPECT_OK`.
-
-## JournalRecorder
-
-`JournalRecorder` appends "<name>.record", "<name>.before" or "<name>.after" to a journal the
-test owns, and `record_into_step()` returns the task count given at construction. It serves the
-cases that observe the order across members, which the per-member journal of
-`Graph::InMemoryStepRecorder` cannot show; the other cases use that adapter.
+its call with `SA_EXPECT_OK`. The members are `Graph::InMemoryStepRecorder`, which never reads
+the recording it is given, so every case passes `Graph::StepRecording::detached()`. The cases
+that observe the order across members build the members over one `InMemoryStepRecorder::Journal`.
 
 ## RecordOnlyRecorder
 
 `RecordOnlyRecorder` overrides `record_into_step()` alone and returns 3. Its `before_replay()`
-and `after_replay()` are the interface's own.
-
-## expect_record_order
-
-`expect_record_order` adds the recorders a, b and c named by an index list to a list in that order,
-records the list and expects the journal given.
-
-## in_order_added
-
-`in_order_added` returns the three journal entries that recorders named a, b and c write for
-one call.
+and `after_replay()` are the interface's own, which no in-memory adapter can show because it
+overrides them.
 
 ## EmptyListRecordsNothing
 
@@ -47,18 +34,17 @@ no call, so `add` calls nothing on the member.
 
 ## RecordCallsMembersInTheOrderAdded
 
-`record_into_step()` over a, b and c added in that order journals "a.record", "b.record",
-"c.record". With b added before a the journal is "b.record", "a.record", although a was
-constructed first.
+Rows: the members 0, 1, 2 added in the orders 0 1 2, 1 0 and 2 0 1. `record_into_step()` journals
+a Record entry per member in the order added, not in the order of construction.
 
 ## BeforeReplayCallsMembersInTheOrderAdded
 
-`before_replay()` over a, b and c journals "a.before", "b.before", "c.before".
+The same rows. `before_replay()` journals one BeforeReplay entry per member, in the order added.
 
 ## AfterReplayCallsMembersInTheOrderAdded
 
-`after_replay()` over a, b and c journals "a.after", "b.after", "c.after". The members are not
-called in reverse.
+The same rows. `after_replay()` journals one AfterReplay entry per member, in the order added.
+The members are not called in reverse.
 
 ## MemberWithoutReplayHooksIsDriven
 
@@ -72,8 +58,13 @@ tasks, and each member has received Record, BeforeReplay and AfterReplay, in tha
 
 ## NestedListKeepsItsPlaceInTheOrder
 
-An outer list of a, an inner list holding b, and c records 7 tasks and journals "a.record",
-"b.record", "c.record".
+An outer list of member 0, an inner list holding member 1, and member 2 records 7 tasks and
+journals Record for 0, 1, 2 in that order.
+
+## ADetachedRecordingHoldsNoRecorder
+
+`StepRecording::detached()` reports `is_detached()`, and `tasks()` and `graph()` stop the process
+with a report containing "detached" and the name of the recorder asked for. It is a death test.
 
 ## AddRejectsARecorderAlreadyHeld
 

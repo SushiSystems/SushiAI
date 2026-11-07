@@ -54,6 +54,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/node_range.hpp>
+#include <SushiAI/graph/run_counter.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/step_recording.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
@@ -229,16 +230,19 @@ TEST_F(Medium_CompiledStep, ARestoreAfterARunIsRefusedWithTheCount)
     EXPECT_EQ(made->step->run_count(), 1u);
 }
 
-/** @brief Tests that a count above 0 is restored once, and that 0 leaves a new step new. */
-TEST_F(Medium_CompiledStep, ASecondRestoreIsRefused)
+/** @brief Tests that a graph whose refused emitter result was dropped may not be compiled. */
+TEST(Small_CompiledStepChecks, AGraphWithADroppedRefusalIsNotCompilable)
 {
-    SA_ASSERT_OK_AND_ASSIGN(const std::unique_ptr<MaskedOnes> made, make_masked_ones(*engine));
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    const ValueID leaf = builder.parameter(Shape{static_cast<int64_t>(4)}, "leaf");
+    SA_ASSERT_OK_AND_ASSIGN(const ValueID doubled, builder.scale(leaf, 2.0));
+    SA_EXPECT_OK(Graph::check_compilable(graph));
 
-    SA_EXPECT_OK(made->step->restore_run_count(0));
-    SA_EXPECT_OK(made->step->restore_run_count(5));
-    SA_EXPECT_FAILURE(made->step->restore_run_count(7), StatusCode::InvalidDescription,
-                      "run 5");
-    EXPECT_EQ(made->step->run_count(), 5u);
+    static_cast<void>(builder.reshape(doubled, Shape{static_cast<int64_t>(5)}));
+
+    SA_EXPECT_FAILURE(Graph::check_compilable(graph), StatusCode::InvalidDescription,
+                      "refused operation");
 }
 
 /** @brief Tests that two ranges of a graph run as two steps over the tensors of one pool. */

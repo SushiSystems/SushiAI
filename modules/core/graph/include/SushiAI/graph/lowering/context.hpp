@@ -92,16 +92,36 @@ namespace SushiAI
                                 std::size_t& emitted,
                                 std::vector<ReplayPrelude>& preludes) noexcept;
 
+                /**
+                 * @brief Binds the context to a node without a recorder or a random stream.
+                 *
+                 * recorder() and stream() stop the process; every other query is answered.
+                 * @param preludes The list before_each_replay() appends to, or null for none.
+                 * @pre Every reference argument outlives the context.
+                 */
+                LoweringContext(TensorPool& pool, const Graph& graph, NodeID id,
+                                const FusionSelector& selector,
+                                std::vector<FusionSelection>& selections, std::size_t& emitted,
+                                std::vector<ReplayPrelude>* preludes = nullptr) noexcept;
+
                 LoweringContext(const LoweringContext&) = delete;
                 LoweringContext& operator=(const LoweringContext&) = delete;
                 LoweringContext(LoweringContext&&) = delete;
                 LoweringContext& operator=(LoweringContext&&) = delete;
                 ~LoweringContext() = default;
 
-                /** @brief The recorder the row records its SushiBLAS tasks on. */
+                /**
+                 * @brief The recorder the row records its SushiBLAS tasks on.
+                 * @pre The context was bound to a recorder; a describing context stops the
+                 *      process.
+                 */
                 [[nodiscard]] SushiBLAS::TaskRecorder& recorder() const noexcept;
 
-                /** @brief The random stream that random operations draw from. */
+                /**
+                 * @brief The random stream that random operations draw from.
+                 * @pre The context was bound to a stream; a describing context stops the
+                 *      process.
+                 */
                 [[nodiscard]] SushiBLAS::RNGStream& stream() const noexcept;
 
                 /** @brief The graph being lowered. */
@@ -252,8 +272,11 @@ namespace SushiAI
                 /** @brief Stops the process unless @p index is a valid result of the node. */
                 void check_output(std::size_t index) const;
 
-                SushiBLAS::TaskRecorder& recorder_;
-                SushiBLAS::RNGStream& stream_;
+                /// @brief The recorder of the pass, or null for a describing context.
+                SushiBLAS::TaskRecorder* recorder_;
+
+                /// @brief The random stream of the pass, or null for a describing context.
+                SushiBLAS::RNGStream* stream_;
                 TensorPool& pool_;
                 const Graph& graph_;
                 NodeID id_;

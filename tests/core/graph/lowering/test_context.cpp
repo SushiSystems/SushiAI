@@ -36,8 +36,6 @@
 #include <SushiAI/ops/ops.hpp>
 #include <SushiAI/shape/shape.hpp>
 #include <SushiAI/failure/status.hpp>
-#include <SushiAI/engine_fixture/engine_test.hpp>
-#include <SushiAI/engine_fixture/test_graph.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/fusion.hpp>
@@ -46,6 +44,7 @@
 #include <SushiAI/graph/lowering/context.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
 
 using namespace SushiAI;
 namespace SaTest = SushiAI::Test;
@@ -83,36 +82,25 @@ namespace
     };
 
     /** @brief Gives each case a graph of one ReLU over a [2, 3] input, a pool and pass state. */
-    class Medium_LoweringContext : public SaTest::EngineTest
+    class Small_LoweringContext : public ::testing::Test
     {
         protected:
-            /** @brief Traces the ReLU and binds its input. */
+            /** @brief Traces the ReLU and binds its input in a pool that holds no device. */
             void SetUp() override
             {
-                SaTest::EngineTest::SetUp();
                 const GraphBuilder builder(graph);
                 x = builder.input(Shape{2, 3}, "x");
                 SA_ASSERT_OK_AND_ASSIGN(y, builder.relu(x));
                 node = graph.value(y).producer;
-                pool = std::make_unique<TensorPool>(*engine);
+                pool = std::make_unique<TensorPool>(source);
                 SA_EXPECT_OK(pool->materialise_leaves(graph));
-                recording = std::make_unique<SaTest::TestGraph>(*engine);
-            }
-
-            /** @brief Releases the graph and the pool before the Engine they draw from. */
-            void TearDown() override
-            {
-                recording.reset();
-                pool.reset();
-                SaTest::EngineTest::TearDown();
             }
 
             /** @brief Builds a context over the ReLU node with no list of preludes. */
             std::unique_ptr<LoweringContext> context_over(const Graph::FusionSelector& chooser)
             {
-                return std::make_unique<LoweringContext>(recording->recorder(), engine->rng(),
-                                                         *pool, graph, node, chooser,
-                                                         selections, emitted);
+                return std::make_unique<LoweringContext>(*pool, graph, node, chooser, selections,
+                                                         emitted);
             }
 
             /** @brief Holds the traced graph. */
@@ -127,11 +115,11 @@ namespace
             /** @brief Holds the ReLU node. */
             Graph::NodeID node = Graph::K_NO_NODE;
 
+            /** @brief Holds the source the pool draws its tensors from. */
+            Graph::InMemoryTensorSource source;
+
             /** @brief Holds the pool the context hands tensors out of. */
             std::unique_ptr<TensorPool> pool;
-
-            /** @brief Holds the graph whose recorder the context records through. */
-            std::unique_ptr<SaTest::TestGraph> recording;
 
             /** @brief Holds the selector a context consults; it takes a GEMM, bias and ReLU. */
             FixedSelector selector{FusedForm::GEMMBiasReLU};
@@ -142,10 +130,13 @@ namespace
             /** @brief Holds the pass's count of recorded tasks. */
             std::size_t emitted = 0;
     };
+
+    /** @brief Names the suite of the cases that expect the process to stop. */
+    using Medium_LoweringContextDeathTest = Small_LoweringContext;
 } // namespace
 
 /** @brief Tests that the context names its node, its operation and the values it reads. */
-TEST_F(Medium_LoweringContext, TheContextDescribesItsNode)
+TEST_F(Small_LoweringContext, TheContextDescribesItsNode)
 {
     const std::unique_ptr<LoweringContext> context = context_over(selector);
 
@@ -158,8 +149,17 @@ TEST_F(Medium_LoweringContext, TheContextDescribesItsNode)
     EXPECT_EQ(&context->input(0), &pool->tensor(x));
 }
 
+/** @brief Tests that a context bound without a recorder says so when a row asks for one. */
+TEST_F(Medium_LoweringContextDeathTest, ADescribingContextHasNoRecorderOrStream)
+{
+    const std::unique_ptr<LoweringContext> context = context_over(selector);
+
+    SA_EXPECT_FATAL((void)context->recorder(), "asked for a recorder", "without one");
+    SA_EXPECT_FATAL((void)context->stream(), "asked for a random stream", "without one");
+}
+
 /** @brief Tests that a result gets its tensor on the first request and keeps it after. */
-TEST_F(Medium_LoweringContext, AResultIsAllocatedOnTheFirstRequest)
+TEST_F(Small_LoweringContext, AResultIsAllocatedOnTheFirstRequest)
 {
     const std::unique_ptr<LoweringContext> context = context_over(selector);
 
@@ -174,18 +174,22 @@ TEST_F(Medium_LoweringContext, AResultIsAllocatedOnTheFirstRequest)
 }
 
 /** @brief Tests that an aliased result shares the storage of the operand it names. */
-TEST_F(Medium_LoweringContext, AnAliasedResultSharesItsOperandsStorage)
+TEST_F(Small_LoweringContext, AnAliasedResultSharesItsOperandsStorage)
 {
     const std::unique_ptr<LoweringContext> context = context_over(selector);
+
+    const std::size_t requested = source.requests().size();
 
     SA_EXPECT_OK(context->alias_output(0, 0));
 
     ASSERT_TRUE(context->output_is_bound(0));
     EXPECT_EQ(pool->tensor(y).storage, pool->tensor(x).storage);
+    EXPECT_EQ(pool->tensor(y).storage_offset, pool->tensor(x).storage_offset);
+    EXPECT_EQ(source.requests().size(), requested);
 }
 
 /** @brief Tests that count() adds to the pass's own counter, which emitted() reads. */
-TEST_F(Medium_LoweringContext, CountAddsToThePassTotal)
+TEST_F(Small_LoweringContext, CountAddsToThePassTotal)
 {
     emitted = 2;
     const std::unique_ptr<LoweringContext> context = context_over(selector);
@@ -197,7 +201,7 @@ TEST_F(Medium_LoweringContext, CountAddsToThePassTotal)
 }
 
 /** @brief Tests that select() records the decision and close_selection() sets its task count. */
-TEST_F(Medium_LoweringContext, ASelectionIsRecordedWithTheTasksItCost)
+TEST_F(Small_LoweringContext, ASelectionIsRecordedWithTheTasksItCost)
 {
     const std::unique_ptr<LoweringContext> context = context_over(selector);
 
@@ -220,7 +224,7 @@ TEST_F(Medium_LoweringContext, ASelectionIsRecordedWithTheTasksItCost)
 }
 
 /** @brief Tests that a selector may narrow a GEMM epilogue to the plain bias form. */
-TEST_F(Medium_LoweringContext, ASelectorMayNarrowAGEMMEpilogueToTheBiasForm)
+TEST_F(Small_LoweringContext, ASelectorMayNarrowAGEMMEpilogueToTheBiasForm)
 {
     const FixedSelector narrowing(FusedForm::GEMMBias);
     const std::unique_ptr<LoweringContext> context = context_over(narrowing);
@@ -235,7 +239,7 @@ TEST_F(Medium_LoweringContext, ASelectorMayNarrowAGEMMEpilogueToTheBiasForm)
 }
 
 /** @brief Tests that a prelude is refused when the context has no list to put it in. */
-TEST_F(Medium_LoweringContext, APreludeIsRefusedWithoutAList)
+TEST_F(Small_LoweringContext, APreludeIsRefusedWithoutAList)
 {
     const ReplayPrelude prelude = [](std::uint64_t)
     {
@@ -249,7 +253,7 @@ TEST_F(Medium_LoweringContext, APreludeIsRefusedWithoutAList)
 }
 
 /** @brief Tests that a prelude is appended to the list the context was given. */
-TEST_F(Medium_LoweringContext, APreludeIsAppendedToTheListTheContextHolds)
+TEST_F(Small_LoweringContext, APreludeIsAppendedToTheListTheContextHolds)
 {
     std::uint64_t seen = 0;
     const ReplayPrelude prelude = [&seen](std::uint64_t run)
@@ -258,8 +262,7 @@ TEST_F(Medium_LoweringContext, APreludeIsAppendedToTheListTheContextHolds)
     };
 
     std::vector<ReplayPrelude> preludes;
-    const LoweringContext with(recording->recorder(), engine->rng(), *pool, graph, node,
-                               selector, selections, emitted, preludes);
+    const LoweringContext with(*pool, graph, node, selector, selections, emitted, &preludes);
     SA_EXPECT_OK(with.before_each_replay(prelude));
 
     ASSERT_EQ(preludes.size(), 1u);

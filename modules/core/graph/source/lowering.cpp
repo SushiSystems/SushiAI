@@ -59,11 +59,10 @@ namespace SushiAI
             selections_.clear();
             preludes_.clear();
 
+            SA_TRY(check_node_range(nodes, graph.node_count()));
+
             const NodeID count = static_cast<NodeID>(graph.node_count());
             const NodeID end = nodes.end == K_NO_NODE ? count : nodes.end;
-            SA_FAIL_IF(nodes.first > end || end > count, StatusCode::InvalidDescription,
-                       "The node range [{}, {}) does not lie in a graph of {} nodes",
-                       nodes.first, end, count);
 
             SA_TRY(graph.prove_layout_uniformity());
 

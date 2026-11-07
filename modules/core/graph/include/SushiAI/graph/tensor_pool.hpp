@@ -44,6 +44,7 @@
 #include <SushiAI/graph/arena.hpp>
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/memory_plan.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
 
 namespace SushiAI
 {
@@ -77,12 +78,21 @@ namespace SushiAI
                 explicit TensorPool(SushiBLAS::Engine& engine) noexcept : engine_(&engine) {}
 
                 /**
+                 * @brief Constructs an empty pool drawing its standalone tensors from @p source.
+                 *
+                 * The pool holds no engine, so adopt() and flush_constants() return
+                 * StatusCode::Unsupported and engine() stops the process.
+                 * @param source Must outlive the pool.
+                 */
+                explicit TensorPool(TensorSource& source) noexcept : source_(&source) {}
+
+                /**
                  * @brief Allocates arenas from the specified memory plan, or borrows them.
                  * @param plan Arena placement plan to adopt.
                  * @param lender A pool whose arenas this one uses where they fit, or nullptr.
-                 * @return Success, or the failure of an arena allocation.
-                 * @pre No plan has been adopted and no planned value has been materialised; a
-                 *      second adoption stops the process.
+                 * @return Success, an allocation failure, or Unsupported without an engine.
+                 * @pre No plan has been adopted and no planned value materialised; a second
+                 *      adoption stops the process.
                  */
                 [[nodiscard]] Status adopt(MemoryPlan plan, const TensorPool* lender = nullptr) noexcept;
 
@@ -192,7 +202,7 @@ namespace SushiAI
                 /**
                  * @brief Records every queued constant fill and runs it until it has finished.
                  * @return Success when nothing is queued, otherwise the failure of the recording
-                 *         or of the run.
+                 *         or of the run, or Unsupported for a pool built over a TensorSource.
                  * @pre The engine's own graph holds no recorded task; the run executes all of it.
                  */
                 [[nodiscard]] Status flush_constants() noexcept;
@@ -221,8 +231,12 @@ namespace SushiAI
                  */
                 std::size_t unpacked_bytes() const noexcept { return unpacked_bytes_; }
 
-                /** @brief The engine this pool draws memory from. */
-                SushiBLAS::Engine& engine() const noexcept { return *engine_; }
+                /**
+                 * @brief The engine this pool draws memory from.
+                 * @pre The pool was built over an engine; one built over a TensorSource stops
+                 *      the process.
+                 */
+                SushiBLAS::Engine& engine() const noexcept;
 
             private:
                 /**
@@ -278,7 +292,10 @@ namespace SushiAI
                  */
                 const SushiBLAS::Tensor* find_shared(ValueID owner) const noexcept;
 
-                SushiBLAS::Engine* engine_;
+                SushiBLAS::Engine* engine_ = nullptr;
+
+                /// @brief The source standalone tensors come from, or null to allocate on engine_.
+                TensorSource* source_ = nullptr;
                 std::optional<ArenaSet> arenas_;
                 std::unordered_map<ValueID, SushiBLAS::Tensor> tensors_;
 

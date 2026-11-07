@@ -66,11 +66,24 @@ namespace SushiAI
 
         Result<SushiBLAS::Tensor> TensorPool::create(const Shape& shape, DType dtype) const noexcept
         {
+            if (source_ != nullptr)
+                return source_->create(shape, dtype);
+
             return allocate_tensor(*engine_, shape, dtype);
+        }
+
+        SushiBLAS::Engine& TensorPool::engine() const noexcept
+        {
+            SA_FATAL_IF(engine_ == nullptr,
+                        "This pool draws its tensors from a TensorSource and holds no engine");
+            return *engine_;
         }
 
         Status TensorPool::adopt(MemoryPlan plan, const TensorPool* lender) noexcept
         {
+            SA_FAIL_IF(engine_ == nullptr, StatusCode::Unsupported,
+                       "This pool draws its tensors from a TensorSource and has no engine to "
+                       "allocate the arenas of a memory plan on");
             SA_FATAL_IF(arenas_.has_value(),
                         "This pool has already adopted a memory plan; its arenas are allocated "
                         "once and a second plan would leave the first one's views dangling");
@@ -293,6 +306,10 @@ namespace SushiAI
         Status TensorPool::flush_constants() noexcept
         {
             if (pending_constants_.empty()) return Status();
+
+            SA_FAIL_IF(engine_ == nullptr, StatusCode::Unsupported,
+                       "This pool draws its tensors from a TensorSource and has no engine to "
+                       "run the {} queued constant fill(s) on", pending_constants_.size());
 
             return ::SushiAI::Detail::record_and_run(
                 *engine_, [this](SushiBLAS::TaskRecorder& recorder)

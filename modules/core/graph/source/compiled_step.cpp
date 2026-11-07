@@ -84,14 +84,21 @@ namespace SushiAI
             });
         }
 
+        Status check_compilable(const Graph& graph) noexcept
+        {
+            SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
+                       "This graph holds a refused operation and cannot be compiled; the builder "
+                       "call that refused it returned the reason");
+
+            return Status();
+        }
+
         Result<std::unique_ptr<CompiledStep>> CompiledStep::compile(
             SushiBLAS::Engine& engine, const Graph& graph, TensorPool& pool,
             StepRecorder* trailing, const FusionSelector* selector, NodeRange nodes,
             std::string_view label) noexcept
         {
-            SA_FAIL_IF(graph.has_refusal(), StatusCode::InvalidDescription,
-                       "This graph holds a refused operation and cannot be compiled; the builder "
-                       "call that refused it returned the reason");
+            SA_TRY(check_compilable(graph));
 
             SA_TRY_ASSIGN(std::unique_ptr<CompiledStep> step,
                           SushiAI::Detail::guard_value(SushiAI::Detail::SeamPhase::Allocate, [&]()
@@ -171,18 +178,12 @@ namespace SushiAI
 
         Status CompiledStep::restore_run_count(std::size_t count) noexcept
         {
-            SA_FAIL_IF(run_count_ != 0, StatusCode::InvalidDescription,
-                       "The run count of a compiled step is restored before its first run, "
-                       "but this step has reached run {}",
-                       run_count_);
-
-            run_count_ = count;
-            return Status();
+            return run_count_.restore(count);
         }
 
         Status CompiledStep::run() noexcept
         {
-            return run_at(static_cast<std::uint64_t>(run_count_));
+            return run_at(static_cast<std::uint64_t>(run_count_.count()));
         }
 
         Status CompiledStep::run_at(std::uint64_t run_index) noexcept
@@ -192,7 +193,7 @@ namespace SushiAI
 
             prelude_index_ = run_index;
             SA_TRY(SushiAI::Detail::run_step(graph_, report_));
-            ++run_count_;
+            run_count_.advance();
 
             if (trailing_)
                 trailing_->after_replay();

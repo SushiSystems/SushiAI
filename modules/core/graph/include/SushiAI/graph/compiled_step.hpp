@@ -45,6 +45,7 @@
 #include <SushiAI/graph/ir.hpp>
 #include <SushiAI/graph/node_range.hpp>
 #include <SushiAI/graph/replay_prelude.hpp>
+#include <SushiAI/graph/run_counter.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
 
@@ -52,6 +53,13 @@ namespace SushiAI
 {
     namespace Graph
     {
+        /**
+         * @brief Checks that @p graph may be compiled.
+         * @return Success, or InvalidDescription when an emitter refused part of the graph and
+         *         the caller dropped the refusal.
+         */
+        [[nodiscard]] Status check_compilable(const Graph& graph) noexcept;
+
         /**
          * @class CompiledStep
          * @brief Owns the SushiRuntime graph of one step and replays it.
@@ -119,7 +127,7 @@ namespace SushiAI
                 /** @brief Returns the index the next run() gives its replay preludes. */
                 [[nodiscard]] std::size_t run_count() const noexcept
                 {
-                    return run_count_;
+                    return run_count_.count();
                 }
 
                 /**
@@ -197,7 +205,7 @@ namespace SushiAI
                 std::uint64_t prelude_index_ = 0;
 
                 /// @brief The runs finished, counted from what restore_run_count() set.
-                std::size_t run_count_ = 0;
+                RunCounter run_count_;
 
                 /// @brief The number of tasks the lowering and the trailing recorder recorded.
                 std::size_t operations_ = 0;

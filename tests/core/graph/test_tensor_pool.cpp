@@ -29,6 +29,7 @@
  */
 
 #include <cstddef>
+#include <utility>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/dtype/dtype.hpp>
@@ -37,7 +38,9 @@
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/builder.hpp>
 #include <SushiAI/graph/ir.hpp>
+#include <SushiAI/graph/memory_plan.hpp>
 #include <SushiAI/graph/tensor_pool.hpp>
+#include <SushiAI/graph/tensor_source.hpp>
 #include <SushiAI/tensor_values/tensor_values.hpp>
 
 using namespace SushiAI;
@@ -62,13 +65,14 @@ namespace
 } // namespace
 
 /** @brief Tests that a value is allocated on its first request and its tensor is returned after. */
-TEST_F(Medium_TensorPool, AValueIsAllocatedOnceAndKeepsItsTensor)
+TEST(Small_TensorPool, AValueIsAllocatedOnceAndKeepsItsTensor)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{4, 6}, "x");
 
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
     EXPECT_FALSE(pool.is_bound(x));
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & first, pool.materialise(x, graph.value(x)));
@@ -78,16 +82,18 @@ TEST_F(Medium_TensorPool, AValueIsAllocatedOnceAndKeepsItsTensor)
     EXPECT_TRUE(pool.is_bound(x));
     EXPECT_EQ(&pool.tensor(x), &first);
     EXPECT_EQ(pool.tensor_count(), 1u);
+    EXPECT_EQ(source.requests().size(), 1u);
 }
 
 /** @brief Tests that the pool accounts the bytes of bound values and holds no plan. */
-TEST_F(Medium_TensorPool, TheBytesOfBoundValuesAreAccounted)
+TEST(Small_TensorPool, TheBytesOfBoundValuesAreAccounted)
 {
     Graph::Graph graph;
     const GraphBuilder builder(graph);
     const ValueID x = builder.input(Shape{4, 6}, "x");
 
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & tensor, pool.materialise(x, graph.value(x)));
     static_cast<void>(tensor);
 
@@ -97,9 +103,10 @@ TEST_F(Medium_TensorPool, TheBytesOfBoundValuesAreAccounted)
 }
 
 /** @brief Tests that the ones tensor is shared per shape and type. */
-TEST_F(Medium_TensorPool, OnesAreSharedPerShapeAndType)
+TEST(Small_TensorPool, OnesAreSharedPerShapeAndType)
 {
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & first, pool.ones(Shape{3}, DType::Float32));
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & again, pool.ones(Shape{3}, DType::Float32));
@@ -125,9 +132,10 @@ TEST_F(Medium_TensorPool, TheFlushFillsTheOnesTensorsWithOnes)
 }
 
 /** @brief Tests that a scratch buffer is keyed by node and slot. */
-TEST_F(Medium_TensorPool, ScratchIsKeyedByNodeAndSlot)
+TEST(Small_TensorPool, ScratchIsKeyedByNodeAndSlot)
 {
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & first,
                             pool.scratch(4, 0, Shape{2, 2}, DType::Float32));
@@ -145,9 +153,10 @@ TEST_F(Medium_TensorPool, ScratchIsKeyedByNodeAndSlot)
 }
 
 /** @brief Tests that outside a plan each scratch buffer owns its bytes. */
-TEST_F(Medium_TensorPool, ScratchBytesAreAccountedPerBuffer)
+TEST(Small_TensorPool, ScratchBytesAreAccountedPerBuffer)
 {
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
 
     SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & first,
                             pool.scratch(4, 0, Shape{2, 2}, DType::Float32));
@@ -197,9 +206,44 @@ TEST_F(Medium_TensorPool, AQueuedConstantIsWrittenByTheFlush)
 }
 
 /** @brief Tests that a flush with no queued constant succeeds. */
-TEST_F(Medium_TensorPool, AnEmptyFlushSucceeds)
+TEST(Small_TensorPool, AnEmptyFlushSucceeds)
 {
-    TensorPool pool(*engine);
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
 
     SA_EXPECT_OK(pool.flush_constants());
+}
+
+/** @brief Tests that a pool over a source refuses a memory plan, since it has no engine. */
+TEST(Small_TensorPool, APoolOverASourceRefusesAMemoryPlan)
+{
+    Graph::Graph graph;
+    const GraphBuilder builder(graph);
+    static_cast<void>(builder.input(Shape{4}, "x"));
+    SA_ASSERT_OK_AND_ASSIGN(Graph::MemoryPlan plan, Graph::MemoryPlan::build(graph));
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
+
+    SA_EXPECT_FAILURE(pool.adopt(std::move(plan)), StatusCode::Unsupported, "TensorSource");
+    EXPECT_FALSE(pool.has_plan());
+}
+
+/** @brief Tests that a pool over a source refuses a flush that holds a fill. */
+TEST(Small_TensorPool, APoolOverASourceRefusesAFlushOfQueuedConstants)
+{
+    Graph::InMemoryTensorSource source;
+    TensorPool pool(source);
+    SA_ASSERT_OK_AND_ASSIGN(SushiBLAS::Tensor & ones, pool.ones(Shape{3}, DType::Float32));
+    static_cast<void>(ones);
+
+    SA_EXPECT_FAILURE(pool.flush_constants(), StatusCode::Unsupported, "TensorSource", "1 queued");
+}
+
+/** @brief Tests that asking a pool over a source for its engine stops the process. */
+TEST(Medium_TensorPoolDeathTest, APoolOverASourceHasNoEngine)
+{
+    Graph::InMemoryTensorSource source;
+    const TensorPool pool(source);
+
+    SA_EXPECT_FATAL((void)pool.engine(), "TensorSource", "no engine");
 }

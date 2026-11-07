@@ -1,16 +1,19 @@
 # tests/core/graph/test_tensor_pool.cpp
 
 
-Suites: `Medium_TensorPool`.
+Suites: `Small_TensorPool`, `Medium_TensorPool`, `Medium_TensorPoolDeathTest`.
 
 Tests how `TensorPool` hands out, shares and counts tensors when no memory plan is adopted. A
-pool with a plan is tested in `tests/core/graph/test_arena.cpp`. Every case allocates on an
-engine. Constant fills and copies are compared by equality, since float32 holds every value used.
+pool with a plan is tested in `tests/core/graph/test_arena.cpp`. The `Small_` cases build the pool
+over a `Graph::InMemoryTensorSource`, which describes each tensor and gives it no storage, and
+read the bookkeeping: which tensor comes back, how many were requested and how many bytes are
+booked. The `Medium_` cases allocate on an engine, since they write and read elements. Constant
+fills and copies are compared by equality, since float32 holds every value used.
 
 ## AValueIsAllocatedOnceAndKeepsItsTensor
 
 `materialise` of a [4, 6] value twice returns one tensor, which `tensor` returns too. The pool
-holds one tensor.
+holds one tensor, and the source received one request.
 
 ## TheBytesOfBoundValuesAreAccounted
 
@@ -48,3 +51,18 @@ After `request_constant` of 2.5 on a created [4] tensor, the flush writes 2.5 to
 ## AnEmptyFlushSucceeds
 
 A flush with nothing queued succeeds.
+
+## APoolOverASourceRefusesAMemoryPlan
+
+`adopt` on a pool built over a `TensorSource` fails with `Unsupported` naming `TensorSource`, and
+the pool holds no plan.
+
+## APoolOverASourceRefusesAFlushOfQueuedConstants
+
+After `ones` queued a fill, `flush_constants` on a pool built over a `TensorSource` fails with
+`Unsupported`, naming `TensorSource` and the one queued fill.
+
+## APoolOverASourceHasNoEngine
+
+`engine()` on a pool built over a `TensorSource` stops the process with a report that names the
+source and the missing engine. It is a death test.

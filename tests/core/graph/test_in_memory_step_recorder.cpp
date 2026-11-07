@@ -28,12 +28,14 @@
  * @author Mustafa Garip
  */
 
+#include <cstddef>
 #include <vector>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
 #include <SushiAI/graph/in_memory_step_recorder.hpp>
 #include <SushiAI/graph/step_recorder.hpp>
+#include <SushiAI/graph/step_recording.hpp>
 
 using namespace SushiAI;
 using Graph::InMemoryStepRecorder;
@@ -74,4 +76,36 @@ TEST(Small_InMemoryStepRecorder, AListDrivesTheReplayHooksOfItsMember)
 
     const std::vector<Call> expected = {Call::BeforeReplay, Call::AfterReplay};
     EXPECT_EQ(recorder.calls(), expected);
+}
+
+/** @brief Tests that members built over one journal share the order of their calls. */
+TEST(Small_InMemoryStepRecorder, MembersOverOneJournalShareTheOrderOfTheirCalls)
+{
+    InMemoryStepRecorder::Journal journal;
+    InMemoryStepRecorder first(1, journal);
+    InMemoryStepRecorder second(2, journal);
+
+    second.before_replay();
+    first.before_replay();
+    second.after_replay();
+
+    const InMemoryStepRecorder::Journal expected = {{2, Call::BeforeReplay},
+                                                    {1, Call::BeforeReplay},
+                                                    {2, Call::AfterReplay}};
+    EXPECT_EQ(journal, expected);
+    EXPECT_EQ(first.calls(), (std::vector<Call>{Call::BeforeReplay}));
+    EXPECT_EQ(second.calls(), (std::vector<Call>{Call::BeforeReplay, Call::AfterReplay}));
+}
+
+/** @brief Tests that a recorder built over a journal still reports its scripted task count. */
+TEST(Small_InMemoryStepRecorder, AMemberOverAJournalReportsItsScriptedCount)
+{
+    InMemoryStepRecorder::Journal journal;
+    InMemoryStepRecorder recorder(1, journal, 6);
+
+    const Result<std::size_t> count = recorder.record_into_step(Graph::StepRecording::detached());
+
+    ASSERT_TRUE(count.has_value());
+    EXPECT_EQ(count.value(), 6u);
+    EXPECT_EQ(journal, (InMemoryStepRecorder::Journal{{1, Call::Record}}));
 }
