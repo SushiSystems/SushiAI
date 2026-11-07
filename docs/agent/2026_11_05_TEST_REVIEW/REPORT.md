@@ -72,9 +72,10 @@ The owner delegated these decisions on 2026-11-05. Each ruling below is final fo
 12. RW-150/T5 (2026-11-07, the orchestrator): the SushiLog pin moves to v0.3.1, the first release with `LogCapture`, and the log tests capture through it.
 13. RW-155 (2026-11-07, the lead): `live_failure_count`, `FatalStop` and `report_then_stop` leave `Detail` and become public calls of the failure module, so the failure tests and `test_traced` read them through a public path. `report_fatal` and `K_UNCOMPOSED_FATAL_MESSAGE` stay in `Detail`.
 14. RW-157 (2026-11-07, the lead): `InMemorySampleSource` records the indices it loads, in call order, so `test_pipeline.cpp` drops its hand-written `MemorySource`; the `AffineNearest` tests that sit in `test_mask_pipeline.cpp` move to `test_affine_nearest.cpp`.
-15. RW-158 (2026-11-07, the lead): the program resizes M2 could not apply wait on seams, each a value function or a port with an in-memory adapter: the epoch loop over a step function (`StartsAtTheSavedBatchAndEntersEachEpoch`, `StopsAtTheFirstFailedUpdate`); the absent-worker decision of `master_cluster` as a value function over an injected clock (`RegressionEveryWorkerAttachedEndsTheWait`, `RegressionAMissingWorkerUnderFailFailsNamingIt`, `AMissingWorkerUnderLocalRuns`, `AMissingWorkerIsNamedInWhatTheWaitReturns`); a `ProfileSession` parse over text (`ABadJsonNamesTheFile`, `AnUnknownKeyNamesTheFile`); `ReplicaSource::make` over architecture text and a row count and range check (`TheIfAbsentOfAReplicaLeavesTheFingerprintAlone`, `RefusesRowsOfAnotherCount`, `RefusesRowsOutsideTheirBatch`); the batch choice and shape check of the training setup (`TracesTheRowsItIsGiven`, `RefusesAModelOfAnotherInputShape`). The `test_replica_fallback_warning` tests stay as they are: a scoped `LogCapture` is allowed in a small test.
+15. RW-158 (2026-11-07, the lead): the program resizes M2 could not apply wait on seams, each a value function or a port with an in-memory adapter: the epoch loop over a step function (`StartsAtTheSavedBatchAndEntersEachEpoch`, `StopsAtTheFirstFailedUpdate`); the absent-worker decision of `master_cluster` as a value function over an injected clock (`RegressionEveryWorkerAttachedEndsTheWait`, `RegressionAMissingWorkerUnderFailFailsNamingIt`, `AMissingWorkerUnderLocalRuns`, `AMissingWorkerIsNamedInWhatTheWaitReturns`); a `ProfileSession` parse over text (`ABadJsonNamesTheFile`, `AnUnknownKeyNamesTheFile`); `ReplicaSource::make` over architecture text and a row count and range check (`TheIfAbsentOfAReplicaLeavesTheFingerprintAlone`, `RefusesRowsOfAnotherCount`, `RefusesRowsOutsideTheirBatch`); the batch choice and shape check of the training setup (`TracesTheRowsItIsGiven`, `RefusesAModelOfAnotherInputShape`). The four `test_replica_fallback_warning` resizes are done as written: a scoped `LogCapture` is allowed in a small test, so they need no seam. The cross-file merge of `AWorkerAnnouncingAQualifiedName...` with `Regression_FindsTheReplicaOfAMachineNamedInAnotherCase` is done with them.
 16. RW-159 (2026-11-07, the lead): the CLI resizes M3 could not apply wait on seams: a console factory in `cli/sushiai/console.py` that takes the config directory, in place of the process-wide `_lazy` (`test_import_does_not_build_console`, `test_output_helper_falls_back_outside_project`, `test_sources_inside_project_are_this_repos_config`, `test_console_attribute_*`); `run_profiler` taking its program lookup as a parameter defaulting to `shutil.which` (`test_profile_without_sp_says_to_install_it`). `test_no_raw_rich_colour_name_is_left_in_the_source` becomes a checker under `tools/`. `test_find_project_root_raises_outside_checkout` waits on a walk bound in sushicore, outside this repository.
 17. RW-160 (2026-11-07, the lead): M7 and part of M9 wait on seams. darknet_reference: `find_darknet_file` and `find_darknet_reference` take a folder, and `load_darknet_tensor` reads from bytes (all eight records of `test_darknet_reference.cpp`). distribution: `check_exchange_targets` and the dtype check as value functions beside `GradientExchange::make` (`MakeRefusesTargetsThatDifferFromTheResultLayout`, `MakeRefusesAUInt32Result`); an input-count check beside `ReplicaKernel::serve` (`ANodeWithoutItsPositionPackIsRefused`); an in-memory `ReplicaModelFactory` and a resultless `ReplicaModel` beside `replica_model.hpp` (both rewrites of `test_replica_model.cpp`); `ReplicaStep::make` and `ReplicaKernel::make` taking an engine, so the two-machine tests take their runtimes from one program fixture. The host-visible `allocate_tensor` test that replaces `ThePoolAllocatesVisibleTensors` is added in `tests/core/allocation/test_allocation.cpp` with that work.
+18. The owner (2026-11-07): a record that says resize to small is never left medium for a missing seam. The job builds the seam (a port with an in-memory adapter, or a parameter or overload with today's default) and moves the test to `Small_`. Medium stays only for a real boundary: a kernel against its host reference, an adapter's bytes, a thread handover. RW-157 to RW-160 are worked under this rule.
 
 ## Seams the M jobs wait on
 
@@ -129,6 +130,13 @@ dispatch: J16 M16 slice D (graph builder) — sonnet medium, 1 round, passed, ru
 dispatch: J16 M8 core/data — sonnet medium, 1 round, passed, rung 1
 dispatch: J17 RW-155 core seams (allocation, scratch_files, tensor_values, json_events, engine_fixture, failure, profile) — sonnet medium, 1 round, passed, rung 1
 dispatch: J17 RW-155 graph/data seams and RW-156 — sonnet medium, 1 round, stopped at shutdown, reviewed by the lead, rung 1
+dispatch: J18 M1 slice A (imaging plans and boxes) — sonnet medium, 1 round, passed after the lead turned three row loops into TEST_P, rung 1
+dispatch: J18 M1 slice B (imaging pipeline and labels) — sonnet medium, 1 round, partial (RW-157), rung 1
+dispatch: J18 M2 applications/programs — sonnet medium, 1 round, partial (RW-158), rung 1
+dispatch: J18 M3 cli — sonnet medium, 1 round, partial (RW-159), rung 1
+dispatch: J18 M5 core/autograd — sonnet medium, 1 round, partial (two records not done as written), rung 1
+dispatch: J18 M7, M9, M20 (darknet_reference, distribution, ops) — sonnet medium, 1 round, M20 passed, M7 and M9 partial (RW-160), rung 1
+dispatch: J18 M11 core/eager — sonnet medium, 1 round, partial (four seams, not built: it took the lead's seam order for an unverified sender), rung 1
 
 ## Totals
 
@@ -214,6 +222,73 @@ Kept as they stand: 1615 of 4824 (33%).
 | `core/seeded_noise` | 1 | 3 | 2 | 1 | 0 | 0 | 0 | 0 | 0 |
 | `package` | 2 | 2 | 1 | 1 | 0 | 0 | 0 | 0 | 0 |
 | `layers/sample_models` | 1 | 2 | 2 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+## Sizes by module (Rework step 1, 2026-11-07)
+
+The C++ test definitions under `tests/` at the commit that stops the M jobs, counted by the size prefix of their suite: `TEST`, `TEST_F`, `TEST_P` and `TYPED_TEST` each count once, whatever their rows or types. No test ran, so the run times of step 1 are not measured; the first run after the host engine gives them. The Python tests under `cli/tests/` and `tools/tests/` define 1039 test functions, not split by size here.
+
+| Module | Small | Medium | Large | Other |
+| --- | --- | --- | --- | --- |
+| `applications/programs` | 36 | 56 | 0 | 0 |
+| `core/allocation` | 3 | 3 | 0 | 0 |
+| `core/autograd` | 254 | 56 | 0 | 0 |
+| `core/config` | 145 | 8 | 0 | 0 |
+| `core/darknet_reference` | 0 | 8 | 0 | 0 |
+| `core/data` | 51 | 26 | 0 | 0 |
+| `core/distribution` | 47 | 26 | 0 | 0 |
+| `core/dtype` | 4 | 0 | 0 | 0 |
+| `core/eager` | 89 | 78 | 0 | 0 |
+| `core/engine_fixture` | 5 | 4 | 0 | 0 |
+| `core/execution` | 0 | 4 | 0 | 0 |
+| `core/failure` | 47 | 6 | 0 | 0 |
+| `core/failure_expectations` | 9 | 1 | 0 | 0 |
+| `core/graph` | 313 | 100 | 0 | 0 |
+| `core/hash` | 4 | 0 | 0 | 0 |
+| `core/log` | 2 | 0 | 0 | 0 |
+| `core/model_text` | 4 | 2 | 0 | 0 |
+| `core/ops` | 20 | 0 | 0 | 0 |
+| `core/optim` | 72 | 42 | 0 | 0 |
+| `core/profile` | 6 | 4 | 0 | 0 |
+| `core/profile_records` | 5 | 1 | 0 | 0 |
+| `core/scratch_files` | 2 | 7 | 0 | 0 |
+| `core/seam` | 12 | 0 | 0 | 0 |
+| `core/seeded_noise` | 3 | 0 | 0 | 0 |
+| `core/shape` | 19 | 4 | 0 | 0 |
+| `core/tensor_values` | 2 | 3 | 0 | 0 |
+| `core/version` | 1 | 0 | 0 | 0 |
+| `language/blocks` | 59 | 41 | 0 | 0 |
+| `language/datasets` | 14 | 27 | 0 | 0 |
+| `language/decoder_models` | 3 | 0 | 0 | 0 |
+| `language/generation` | 31 | 35 | 0 | 0 |
+| `language/registration` | 1 | 15 | 0 | 0 |
+| `language/text` | 38 | 0 | 0 | 0 |
+| `language/training` | 9 | 20 | 0 | 0 |
+| `language/umbrella` | 2 | 0 | 0 | 0 |
+| `layers/classifier_objective` | 2 | 0 | 0 | 0 |
+| `layers/io` | 58 | 30 | 0 | 0 |
+| `layers/layer_rows` | 6 | 0 | 0 | 0 |
+| `layers/layer_traces` | 3 | 0 | 0 | 0 |
+| `layers/nn` | 561 | 73 | 0 | 0 |
+| `layers/reference_files` | 4 | 0 | 0 | 0 |
+| `layers/sample_models` | 2 | 0 | 0 | 0 |
+| `layers/train` | 97 | 170 | 0 | 0 |
+| `layers/umbrella` | 1 | 1 | 0 | 0 |
+| `vision/blocks` | 136 | 16 | 0 | 0 |
+| `vision/codecs` | 70 | 0 | 0 | 0 |
+| `vision/darknet_forward_cases` | 10 | 0 | 0 | 0 |
+| `vision/darknet_import_cases` | 1 | 4 | 0 | 0 |
+| `vision/darknet_training_cases` | 4 | 0 | 0 | 0 |
+| `vision/datasets` | 193 | 79 | 0 | 0 |
+| `vision/detect` | 353 | 78 | 0 | 0 |
+| `vision/imaging` | 380 | 64 | 0 | 0 |
+| `vision/importers` | 79 | 80 | 41 | 0 |
+| `vision/registration` | 0 | 45 | 0 | 0 |
+| `vision/segment` | 25 | 0 | 0 | 0 |
+| `vision/training` | 138 | 94 | 0 | 0 |
+| `vision/umbrella` | 1 | 0 | 0 | 0 |
+| all | 3436 | 1311 | 41 | 0 |
+
+The M jobs stop here (SushiSkills `docs/agent/2026_11_03_INDUSTRIAL_TESTING/SPEC.md`, "Rework"): sushiai is wave 5, and the seam its logic tests need is the host backend under the SushiBLAS engine that sushiblas builds in wave 4. M7, M11 and the open records of M1, M2, M3, M5 and M9 resume when it lands.
 
 ## Records
 
