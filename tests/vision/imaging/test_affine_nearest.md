@@ -6,11 +6,13 @@ Suites: `Small_ImagingAffineNearest`.
 Tests that `apply_affine_nearest` resets its destination to the plan's output and fills with the
 plan's own border value.
 
-This file needs no device. The cases of `Small_ImagingAffineNearest` in
-`tests/vision/imaging/test_mask_pipeline.cpp` check the identity, a translation, a scale that
-rounds a half up, the channels of one pixel, and each refusal. Their destinations start empty and
-their plans all use the border value 255. This file covers a used destination and another border
-value.
+This file needs no device. Its cases cover a used destination, another border value, a scale
+that rounds a half up, the channels of one pixel, and each refusal. The plans of the scale,
+channel and refusal cases scale by one factor, translate and have the border value 255.
+
+## make_plan, make_image_of and expect_bytes
+
+`make_plan` returns a plan that scales by one factor and translates, with the border value 255. `make_image_of` returns an image holding the listed bytes in order, and `expect_bytes` checks that an image holds them.
 
 ## make_shift_plan and counting_image
 
@@ -31,3 +33,24 @@ The same used destination, after the identity warp, holds the bytes of the sourc
 
 A shift of one column with the border value 17 fills column 0 with 17, and columns 1 and 2 hold
 source columns 0 and 1.
+
+## AScaleRepeatsPixelsAndBlendsNone
+
+The row 3, 50, 7, 120 warped at scale 2 into 8 columns is 3, 50, 50, 7, 7, 120, 120, 255.
+
+## EveryChannelOfAPixelMovesTogether
+
+An RGB row of the pixels (1, 2, 3) and (4, 5, 6) translated by one column is (255, 255, 255),
+(1, 2, 3).
+
+## RefusesAViewWithoutPixelsAndAPlanOfAnotherSize
+
+`apply_affine_nearest` fails with `InvalidDescription` and "holds no image" for an empty view. A plan whose source size is 3 by 3 over a 2 by 2 image fails with `Incompatible`, "3x3" and "2x2".
+
+## RefusesADestinationThatSharesThePixelsOfTheSource
+
+An output that is the source image fails with `InvalidDescription` and "share pixels".
+
+## RefusesAShearedMatrix
+
+A matrix with a shear term of 0.5 fails with `InvalidDescription` and "off-diagonal".

@@ -18,10 +18,6 @@ and not with stored images.
 
 `K_SIDE` is 32, the training size of the cases, so a mosaic canvas is 64 by 64. `K_MIN_SCALE_GAP` is 2^-24, one step of the 24-bit uniform over the default scale range of width 1. Box edges are small integers and are compared exactly, and a replayed draw repeats the same arithmetic.
 
-## MemorySource
-
-`MemorySource` is a `SampleSource` that holds images and labels in memory and records the index of every `load`; `loads` returns the recorded indices. Only the cases that assert the order or the number of loads use it. The others use `InMemorySampleSource`, which keeps no journal.
-
 ## fixed_partners
 
 `fixed_partners` returns an `InMemoryPartnerSource` scripted with one set of three partners.

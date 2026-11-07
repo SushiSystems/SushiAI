@@ -30,6 +30,7 @@
 #pragma once
 
 #include <cstddef>
+#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -46,9 +47,10 @@ namespace SushiAI::Vision::Imaging
     /**
      * @brief Supplies the images and labels it was given, by index; reads no file.
      *
-     * load() changes nothing, so several threads may call it at once, as the interface allows.
-     * A source built from no image has size() zero, which the interface rules out for a source
-     * a pipeline reads; add an image before handing it to one.
+     * load() changes no image and appends the index to a journal under a mutex, so several
+     * threads may call it at once, as the interface allows. A source built from no image has
+     * size() zero, which the interface rules out for a source a pipeline reads; add an image
+     * before handing it to one.
      */
     class InMemorySampleSource final : public SampleSource
     {
@@ -90,6 +92,18 @@ namespace SushiAI::Vision::Imaging
             }
 
             /**
+             * @brief Returns the indices load() was called with, in call order.
+             *
+             * A call that failed, by a scripted failure, is recorded too; a call with an index
+             * outside the source stops the process and is not.
+             */
+            [[nodiscard]] std::vector<std::size_t> loads() const
+            {
+                const std::lock_guard<std::mutex> lock(journal_mutex_);
+                return journal_;
+            }
+
+            /**
              * @brief Copies image @p index and its labels into the outputs.
              * @return Success, or the failure scripted for @p index.
              * @pre @p index is in [0, size()); another index stops the process.
@@ -100,6 +114,11 @@ namespace SushiAI::Vision::Imaging
                 SA_FATAL_IF(index >= images_.size(),
                             "InMemorySampleSource::load: index {} is outside the {} images",
                             index, images_.size());
+
+                {
+                    const std::lock_guard<std::mutex> lock(journal_mutex_);
+                    journal_.push_back(index);
+                }
 
                 const auto scripted = failures_.find(index);
                 if (scripted != failures_.end())
@@ -119,5 +138,11 @@ namespace SushiAI::Vision::Imaging
 
             /// @brief Holds the failure scripted for an index.
             std::unordered_map<std::size_t, Status> failures_;
+
+            /// @brief Guards journal_, which load() appends to from any thread.
+            mutable std::mutex journal_mutex_;
+
+            /// @brief Holds the indices load() was called with, in call order.
+            mutable std::vector<std::size_t> journal_;
     };
 } // namespace SushiAI::Vision::Imaging

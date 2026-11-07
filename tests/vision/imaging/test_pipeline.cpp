@@ -65,49 +65,6 @@ namespace
      */
     constexpr float K_MIN_SCALE_GAP = 1.0f / 16777216.0f;
 
-    /**
-     * @brief Supplies images and labels held in memory and records every load.
-     *
-     * Only the cases that assert the order or the number of loads use it; the others use
-     * InMemorySampleSource, which keeps no journal.
-     */
-    class MemorySource final : public SampleSource
-    {
-        public:
-            /** @brief Appends one image with its labels. */
-            void add(Image image, FileLabels labels)
-            {
-                images_.push_back(std::move(image));
-                labels_.push_back(std::move(labels));
-            }
-
-            /** @brief Returns the number of images. */
-            [[nodiscard]] std::size_t size() const noexcept override { return images_.size(); }
-
-            /** @brief Copies one image and its labels out and records the index. */
-            [[nodiscard]] Status load(std::size_t index, Image& image,
-                                      FileLabels& labels) const override
-            {
-                loads_.push_back(index);
-                image = images_[index];
-                labels = labels_[index];
-                return Status();
-            }
-
-            /** @brief Returns the indices loaded so far, in call order. */
-            [[nodiscard]] const std::vector<std::size_t>& loads() const noexcept { return loads_; }
-
-        private:
-            /// @brief Holds the images.
-            std::vector<Image> images_;
-
-            /// @brief Holds the labels, index for index with the images.
-            std::vector<FileLabels> labels_;
-
-            /// @brief Holds the indices load() was called with.
-            mutable std::vector<std::size_t> loads_;
-    };
-
     /** @brief Returns a three-channel image whose every byte depends on its row and column. */
     Image make_textured(ImageSize size, std::int32_t salt)
     {
@@ -564,7 +521,7 @@ TEST(Small_ImagingPipeline, TrainingDrawsMosaicThenAffineThenHSVThenFlip)
 /** @brief Tests that the sample's image is loaded first, then its partners in draw order. */
 TEST(Small_ImagingPipeline, TrainingLoadsTheSampleThenItsPartnersInDrawOrder)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.seed = 8;
@@ -698,7 +655,7 @@ INSTANTIATE_TEST_SUITE_P(Rows, Small_ImagingPipelineQuadrant,
 /** @brief Tests that a closed epoch loads one image and draws affine, jitter and flip only. */
 TEST(Small_ImagingPipeline, ClosedEpochSkipsTheMosaicAndItsDraws)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.epochs = 10;
@@ -754,7 +711,7 @@ TEST(Small_ImagingPipeline, SampleWithoutMosaicKeepsTheBoxOfItsOwnImage)
 /** @brief Tests that the last open epoch still composes a mosaic of four loads. */
 TEST(Small_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.epochs = 10;
@@ -772,7 +729,7 @@ TEST(Small_ImagingPipeline, EpochBeforeTheClosedOnesStillMakesAMosaic)
 /** @brief Tests that a gate that stays shut in an open epoch warps the loaded image alone. */
 TEST(Small_ImagingPipeline, ClosedGateInAnOpenEpochWarpsTheLoadedImage)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingSettings settings = make_settings();
     settings.mosaic.probability = 0.0f;
@@ -869,7 +826,7 @@ TEST(Small_ImagingPipeline, DefaultPartnersComeFromTheImagesThePipelineLoaded)
 /** @brief Tests that a pipeline loads the partners the source it was given chooses. */
 TEST(Small_ImagingPipeline, GivenPartnerSourceChoosesThePartners)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingPipeline pipeline = require_value(
         TrainingPipeline::make(source, make_settings(), fixed_partners(MosaicPartners{4, 4, 0})));
@@ -942,7 +899,7 @@ TEST(Small_ImagingPipeline, TrainingRejectsASettingOutOfRangeWithAGivenPartnerSo
 /** @brief Tests that a pipeline refused for its settings loaded no image. */
 TEST(Small_ImagingPipeline, TrainingRejectedAtConstructionLoadsNoImage)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     fill_source(source);
     TrainingSettings no_size = make_settings();
     no_size.image_size = 0;
@@ -1085,7 +1042,7 @@ TEST(Small_ImagingPipeline, TrainingCarriesAPolygonAndTakesTheBoxFromIt)
 /** @brief Tests that validation resizes the long side and then only pads. */
 TEST(Small_ImagingPipeline, ValidationResizesTheLongSideThenOnlyPads)
 {
-    MemorySource source;
+    InMemorySampleSource source;
     source.add(make_constant(ImageSize{8, 16}, 10, 200, 30),
                one_object(4, NormalizedBox{0.5f, 0.5f, 0.5f, 0.5f}));
     ValidationSettings settings;

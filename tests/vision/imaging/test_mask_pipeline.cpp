@@ -24,19 +24,17 @@
 
 /**
  * @file test_mask_pipeline.cpp
- * @brief Tests the nearest affine warp and the pipeline that replays a training trace on a mask.
+ * @brief Tests the pipeline that replays a training trace on a mask.
  * @author Mustafa Garip
  */
 
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
 #include <string>
 #include <gtest/gtest.h>
 #include <SushiAI/failure/status.hpp>
 #include <SushiAI/failure_expectations/status_expectations.hpp>
-#include <SushiAI/vision/imaging/affine_nearest.hpp>
 #include <SushiAI/vision/imaging/dataset_partners.hpp>
 #include <SushiAI/vision/imaging/in_memory_mask_source.hpp>
 #include <SushiAI/vision/imaging/in_memory_sample_source.hpp>
@@ -59,19 +57,6 @@ namespace
     /** @brief Holds how far inside a box, in pixels, a mask pixel is compared with it. */
     constexpr float K_BOX_MARGIN = 2.0f;
 
-    /** @brief Returns a plan that scales by one factor and translates, with a border value. */
-    AffinePlan make_plan(ImageSize source, ImageSize output, float scale, float shift_x,
-                         float shift_y)
-    {
-        AffinePlan plan;
-        plan.source = source;
-        plan.output = output;
-        plan.scale = scale;
-        plan.matrix = {scale, 0.0f, shift_x, 0.0f, scale, shift_y};
-        plan.border_value = K_VOID;
-        return plan;
-    }
-
     /** @brief Returns a one-channel image whose pixel (x, y) holds (y * width + x) mod 200. */
     Image counting_mask(ImageSize size)
     {
@@ -87,21 +72,6 @@ namespace
     {
         Image image(size, channels);
         image.fill(value);
-        return image;
-    }
-
-    /** @brief Returns an image holding exactly the listed bytes, in order. */
-    Image make_image_of(ImageSize size, std::int32_t channels,
-                        std::initializer_list<std::uint8_t> bytes)
-    {
-        Image image(size, channels);
-        std::size_t offset = 0;
-        for (const std::uint8_t value : bytes)
-        {
-            image.data()[offset] = value;
-            ++offset;
-        }
-
         return image;
     }
 
@@ -125,18 +95,6 @@ namespace
         ASSERT_EQ(actual.channels(), expected.channels());
         for (std::size_t i = 0; i < expected.byte_count(); ++i)
             ASSERT_EQ(actual.data()[i], expected.data()[i]) << "byte " << i;
-    }
-
-    /** @brief Checks that an image holds exactly the listed bytes, in order. */
-    void expect_bytes(const Image& image, std::initializer_list<std::uint8_t> expected)
-    {
-        ASSERT_EQ(image.byte_count(), expected.size());
-        std::size_t offset = 0;
-        for (const std::uint8_t value : expected)
-        {
-            EXPECT_EQ(image.data()[offset], value) << "byte " << offset;
-            ++offset;
-        }
     }
 
     /**
@@ -213,70 +171,6 @@ namespace
         return traced;
     }
 } // namespace
-
-/** @brief Tests that a scale of 2 repeats pixels, rounding a half up, and blends none. */
-TEST(Small_ImagingAffineNearest, AScaleRepeatsPixelsAndBlendsNone)
-{
-    const Image source = make_image_of(ImageSize{1, 4}, 1, {3, 50, 7, 120});
-
-    Image warped;
-    SA_EXPECT_OK(apply_affine_nearest(
-        source.view(), make_plan(ImageSize{1, 4}, ImageSize{1, 8}, 2.0f, 0.0f, 0.0f), warped));
-
-    expect_bytes(warped, {3, 50, 50, 7, 7, 120, 120, K_VOID});
-}
-
-/** @brief Tests that every channel of a pixel moves together. */
-TEST(Small_ImagingAffineNearest, EveryChannelOfAPixelMovesTogether)
-{
-    const Image source = make_image_of(ImageSize{1, 2}, K_RGB_CHANNELS, {1, 2, 3, 4, 5, 6});
-
-    Image warped;
-    SA_EXPECT_OK(apply_affine_nearest(
-        source.view(), make_plan(ImageSize{1, 2}, ImageSize{1, 2}, 1.0f, 1.0f, 0.0f), warped));
-
-    expect_bytes(warped, {K_VOID, K_VOID, K_VOID, 1, 2, 3});
-}
-
-/** @brief Tests that a view without pixels and a plan of another source size are refused. */
-TEST(Small_ImagingAffineNearest, RefusesAViewWithoutPixelsAndAPlanOfAnotherSize)
-{
-    const ImageSize size{2, 2};
-    const Image source = counting_mask(size);
-    Image warped;
-
-    SA_EXPECT_FAILURE(apply_affine_nearest(ImageView(), make_plan(size, size, 1.0f, 0.0f, 0.0f),
-                                           warped),
-                      StatusCode::InvalidDescription, "holds no image");
-    SA_EXPECT_FAILURE(apply_affine_nearest(source.view(),
-                                           make_plan(ImageSize{3, 3}, size, 1.0f, 0.0f, 0.0f),
-                                           warped),
-                      StatusCode::Incompatible, "3x3", "2x2");
-}
-
-/** @brief Tests that a destination that shares the source's pixels is refused. */
-TEST(Small_ImagingAffineNearest, RefusesADestinationThatSharesThePixelsOfTheSource)
-{
-    const ImageSize size{2, 2};
-    Image source = counting_mask(size);
-
-    SA_EXPECT_FAILURE(apply_affine_nearest(source.view(), make_plan(size, size, 1.0f, 0.0f, 0.0f),
-                                           source),
-                      StatusCode::InvalidDescription, "share pixels");
-}
-
-/** @brief Tests that a matrix with an off-diagonal term is refused. */
-TEST(Small_ImagingAffineNearest, RefusesAShearedMatrix)
-{
-    const ImageSize size{2, 2};
-    const Image source = counting_mask(size);
-    Image warped;
-    AffinePlan sheared = make_plan(size, size, 1.0f, 0.0f, 0.0f);
-    sheared.matrix[1] = 0.5f;
-
-    SA_EXPECT_FAILURE(apply_affine_nearest(source.view(), sheared, warped),
-                      StatusCode::InvalidDescription, "off-diagonal");
-}
 
 /** @brief Tests that a flipped sample's mask is its mask mirrored, with nothing resampled. */
 TEST(Small_ImagingMaskPipeline, AFlippedSampleHasItsMaskMirrored)

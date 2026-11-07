@@ -132,6 +132,29 @@ TEST(Small_InMemorySampleSource, ASuccessRemovesAScriptedFailure)
     SA_EXPECT_OK(source.load(0, image, labels));
 }
 
+/** @brief Tests that loads lists the loaded indices in call order, failed loads included. */
+TEST(Small_InMemorySampleSource, LoadsListsTheLoadedIndicesInCallOrder)
+{
+    InMemorySampleSource source;
+    static_cast<void>(source.add(filled(2, 2, 1)));
+    static_cast<void>(source.add(filled(2, 2, 2)));
+    static_cast<void>(source.add(filled(2, 2, 3)));
+    source.fail_load_of(1, Status::from_message(StatusCode::InvalidFile, []()
+    {
+        return std::string("broken");
+    }));
+    EXPECT_TRUE(source.loads().empty());
+    Image image;
+    FileLabels labels;
+
+    SA_EXPECT_OK(source.load(2, image, labels));
+    SA_EXPECT_FAILURE(source.load(1, image, labels), StatusCode::InvalidFile, "broken");
+    SA_EXPECT_OK(source.load(2, image, labels));
+    SA_EXPECT_OK(source.load(0, image, labels));
+
+    EXPECT_EQ(source.loads(), (std::vector<std::size_t>{2, 1, 2, 0}));
+}
+
 /** @brief Tests that an index outside the source stops the process, as the interface states. */
 TEST(Small_InMemorySampleSource, AnIndexOutsideTheSourceStopsTheProcess)
 {
