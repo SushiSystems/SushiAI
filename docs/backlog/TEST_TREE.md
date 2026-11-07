@@ -11,7 +11,6 @@
 | RW-151 | P2 | blocked | Set the size timeouts to the testing skill's 1 s, 10 s and 120 s | SushiAITestProgram.cmake, cli/tests/conftest.py and tests/README.md give small 1 s, medium 10 s and large 120 s, and the gating run passes | external: the M jobs of the test review resize the tests that run longer | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-152 | P3 | open | Explain why yolov4-tiny's second mask differs by one anchor | DiffersFromTheSecondMaskOfYolov4TinyByOneAnchor names the source of the difference or the anchor is fixed |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-06 |
 | RW-159 | P2 | open | Build the CLI seams the M3 resizes need and move the colour-name test to a checker | the CLI tests named in REPORT.md decision 16 run small and the raw rich colour rule is a checker under tools/ |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
-| RW-162 | P2 | open | Build the eager seams the last three M11 records need | ReadScalar and two region_executor trailing-work tests run small through a kept-tensor executor and a task recorder |  | `docs/agent/2026_11_05_TEST_REVIEW/REPORT.md` | 2026-11-07 |
 
 ## Known issues
 
